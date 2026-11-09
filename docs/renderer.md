@@ -769,6 +769,8 @@ engine/render_fxaa.c, 2026-11-05 (the player: "start with them" - of the ideas a
   blurred; at 0.35 9%, at 0.5 0.1% - the wall's stair-stepped top edge still smoothed (24% of its pixels changed).
   Checked on "choke wolf" in the same paused frame, pixel counts by scripts and zoomed shots.
 
+- The interface and the filter (2026-11-09, the player: "the panel is blurry all the time ... it gets blured, builds up, and than resets again", "the lines of shift write into the interface and tay there"). EEROUserInterface's clear (0x50DF0D) sets the depth to 0 under the unit panel and the minimap (at 2560 x 1440: 0,1032 - 435,1302 and 2118,1032 - 2560,1302), so the 3D doesn't draw there and what was drawn stays; the scene's viewport holds those rectangles and the filter went over them every frame. A pixel of depth 0 is left alone now, in both forms of the filter. The filter runs after the list's last 3D batch; it used to look for the first batch that is no longer 3D, which the silhouettes' unbinding hid when no water followed them: on land no frame was filtered. What the 3D phase writes outside its viewport is put back after it (`rd3_bars`): the bars are only drawn when they change, and the lines of orders drawn in a frame during a step come with the interface's whole-screen viewport.
+
 ## Shadows
 
 The player, 2026-11-04: dynamic shadows, cast on the terrain only - the models are low-poly and shading on them

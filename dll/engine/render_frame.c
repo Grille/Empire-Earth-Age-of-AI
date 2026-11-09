@@ -608,6 +608,7 @@ internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first);   
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first);
 internal void rf_edges_part(ID3D11DeviceContext *x, int part);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
+internal void rd3_bars(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, int back);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
 // move it (its transformation as rf_camera_frame makes it each frame), but the view the game's draws are made with
 // follows only at the camera's step in the simulation thread - a frame drawn during a step showed
@@ -825,13 +826,6 @@ internal void rf_edges_part(ID3D11DeviceContext *x, int part) {
 // a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first) {
     if (rd3_shadow_only(c->role)) return;   // a caster off the screen: in the map only
-    if (!*first && b->ro >= RO_TERRAIN && b->ro <= RO_WATER && (c->ro < RO_TERRAIN || c->ro > RO_WATER)) {
-        D3D11_VIEWPORT port = rs_port(&b->vport, b->rtv);
-        rd3_fxaa(b->rtv, &port, b->dsv, g_rf.vcs[b->vc].vpm);
-        rf_bind(x);
-        *first = 1;
-        b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-    }
     if (*first || c->rtv != b->rtv || c->dsv != b->dsv) ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
     if (*first || memcmp(&c->vport, &b->vport, sizeof b->vport)) {
         D3D11_VIEWPORT port = rs_port(&c->vport, c->rtv);
@@ -862,9 +856,21 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
     else rf_call(x, c);
     g_rb.batches++;
 }
+// The 3D scene of the list drawn (s: its first batch with the map's camera; more: the interface follows in this list): what
+// it wrote outside its viewport put back and, before the interface, the scene smoothed (render_fxaa.c), everything bound
+// again. By its last batch and not where the next one is no longer 3D: the silhouettes leave the states unbound, and with
+// no water on the screen they come right before the interface - no frame of a land view was smoothed.
+internal void rf_scene_done(ID3D11DeviceContext *x, const rf_cmd *s, rf_cmd *b, int *first, int more) {
+    D3D11_VIEWPORT port = rs_port(&s->vport, s->rtv);
+    rd3_bars(x, s->rtv, &port, 1);
+    if (more) rd3_fxaa(s->rtv, &port, s->dsv, g_rf.vcs[s->vc].vpm);
+    rf_bind(x);
+    *first = 1;
+    b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+}
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
 // before (the 2D path, the present, the overlay set their own). At the first of the interface's draws after the 3D
-// scene the scene is smoothed (render_fxaa.c), and everything bound again.
+// scene the scene is smoothed (rf_scene_done).
 internal void rf_replay(void) {
     if (!g_rf.n || g_rf.in_submit) return;
     g_rf.in_submit = 1;
@@ -880,11 +886,20 @@ internal void rf_replay(void) {
     memset(&b, 0, sizeof b);
     b.vc = b.pc = -1;
     b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-    int first = 1, lastw = rd3_water_last();
+    int first = 1, lastw = rd3_water_last(), first3 = -1, last3 = -1;
+    const rf_cmd *scene = NULL;
+    for (int i = 0; i < g_rf.n; i++) {
+        const rf_cmd *c = &g_rf.cmd[i];
+        if (c->ro < RO_TERRAIN || c->ro > RO_WATER) continue;
+        if (first3 < 0) first3 = i;
+        last3 = i;
+        if (!scene && !rf_pixels(g_rf.vcs[c->vc].view)) scene = c;
+    }
     // the silhouettes after the units' last batch drawn in its place: one held back for after the water is passed over below
     for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && rd3_water_late(&g_rf.cmd[i]))) lastu = i;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
+        if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
         if (i < lastw && rd3_water_late(c)) continue;
         if (!g_fe.fail) rf_edges_part(x, edges && c->soft ? 1 : 0);
         rf_draw(x, c, &b, &first);
@@ -896,6 +911,7 @@ internal void rf_replay(void) {
         if (i == lastu) rd3_silhouettes(x, &b, &first);
         if (i == lastw)
             for (int j = 0; j < lastw; j++) if (rd3_water_late(&g_rf.cmd[j])) rf_draw(x, &g_rf.cmd[j], &b, &first);
+        if (i == last3 && scene) rf_scene_done(x, scene, &b, &first, i + 1 < g_rf.n);
     }
     g_rf.n = g_rf.nvc = g_rf.npc = 0;
     g_rf.vc_new = g_rf.pc_new = 1;   // the next batch's constants a snapshot of their own

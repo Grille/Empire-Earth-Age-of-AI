@@ -1,6 +1,9 @@
 // THE PICTURE'S SHARPNESS ([display] antialias, anisotropy; the pipe's picture): the 3D scene's edges smoothed once a
 // frame by FXAA (the walls', towers' and units' outlines were stairs), at the first of the interface's draws after it
-// (rf_replay) - the interface's text and panels drawn over it afterwards stay sharp. The scene's part of the target is
+// (rf_replay) - the interface's text and panels drawn over it afterwards stay sharp. The game keeps the 3D out from under
+// the unit panel and the minimap with a depth of 0 (EEROUserInterface's clear) and draws those before the 3D and only when
+// they change: what is there at the filter is last frames' pixels, and each frame's pass smoothed them further until the
+// panel was drawn anew (the player: "it gets blured, builds up, and than resets"). So a pixel of depth 0 is left alone. The scene's part of the target is
 // copied into a texture of its own and drawn back through the filter: the present's triangle over the viewport
 // (present_d3d.c's vertex shader), every state the list binds set again after it. The anisotropy is the samplers'
 // (rd3_mk_samp: the game's linear minifying with mip levels).
@@ -19,6 +22,10 @@ internal struct {
     ID3D11PixelShader *ps;
     ID3D11Buffer *cb;
     ID3D11Texture2D *tex;           // the scene's copy
+    ID3D11Texture2D *bars;          // the target as it was outside the scene's viewport (rd3_bars), at the same places
+    UINT bw, bh;
+    DXGI_FORMAT bfmt;
+    int bfail;
     ID3D11ShaderResourceView *srv;
     UINT w, h;
     DXGI_FORMAT fmt;
@@ -33,7 +40,7 @@ internal const char k_fx_shader[] =
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
     "float luma(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }\n"
     "float3 at(float2 uv) { return t.SampleLevel(s, uv, 0).rgb; }\n"
-    "float4 ps(V i) : SV_Target { float w, h; t.GetDimensions(w, h); float2 r = 1 / float2(w, h), uv = i.uv;"
+    "float4 ps(V i) : SV_Target { if (kz.y > 0 && zt.Load(int3(i.p.xy, 0)) <= 0) discard; float w, h; t.GetDimensions(w, h); float2 r = 1 / float2(w, h), uv = i.uv;"
     " float3 m = at(uv); float nw = luma(at(uv + float2(-1, -1) * r)), ne = luma(at(uv + float2(1, -1) * r)),"
     " sw = luma(at(uv + float2(-1, 1) * r)), se = luma(at(uv + float2(1, 1) * r)), lm = luma(m);"
     " float lo = min(lm, min(min(nw, ne), min(sw, se))), hi = max(lm, max(max(nw, ne), max(sw, se)));"
@@ -53,7 +60,7 @@ internal const char k_fx_shader[] =
     "float4 fxd(V i) : SV_Target { float w, h; t.GetDimensions(w, h); float2 r = 1 / float2(w, h), uv = i.uv; float3 m = at(uv);"
     " float lm = luma(m), ln = lu(uv + float2(0, -1) * r), ls = lu(uv + float2(0, 1) * r), le = lu(uv + float2(1, 0) * r), lw = lu(uv + float2(-1, 0) * r);"
     " float lo = min(lm, min(min(ln, ls), min(le, lw))), hi = max(lm, max(max(ln, ls), max(le, lw))), rg = hi - lo;"
-    " int2 p = int2(i.p.xy); float zm = zt.Load(int3(p, 0));"
+    " int2 p = int2(i.p.xy); float zm = zt.Load(int3(p, 0)); if (zm <= 0) discard;"
     " float dj = (abs(zt.Load(int3(p + int2(-1, -1), 0)) + zt.Load(int3(p + int2(1, 1), 0)) - 2 * zm)"
     "  + abs(zt.Load(int3(p + int2(1, -1), 0)) + zt.Load(int3(p + int2(-1, 1), 0)) - 2 * zm)) / max(abs(zm - kz.x), 1e-6);"
     " if (rg < (dj > k.y ? k.z : max(0.0833, hi * k.x))) return float4(m, 1);"
@@ -86,11 +93,11 @@ internal int rd3_fxaa_init(void) {
     g_fx.ready = 1;
     return 1;
 }
-// the scene's depth copied (a depth target is copied whole) and the second shader made; 0: the simple form this frame
+// the scene's depth copied (a depth target is copied whole: the panels' pixels are told by it) and, when asked for, the second shader made; 0: no copy
 internal int rd3_fxaa_depth(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv, const D3D11_TEXTURE2D_DESC *target) {
-    if (!g_fx.depth || g_fx.dfail || !dsv) return 0;
+    if (g_fx.dfail || !dsv) return 0;
     HRESULT hr = S_OK;
-    if (!g_fx.dps) {
+    if (g_fx.depth && !g_fx.dps) {
         ID3DBlob *code = d3d_compile(k_fx_shader, sizeof k_fx_shader - 1, "fxd", "ps_4_0");
         hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_fx.dps) : E_FAIL;
         D3D_RELEASE(code);
@@ -117,6 +124,45 @@ internal int rd3_fxaa_depth(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv,
     D3D_RELEASE(zt); D3D_RELEASE(zr);
     if (FAILED(hr)) { g_fx.dfail = 1; rd_fail("the anti-aliasing by the depth", hr); return 0; }
     return ok;
+}
+
+// What the 3D phase writes outside its viewport is put back after it (back: 0 keep, 1 put back). The interface there is only
+// drawn when it changes (the dirty rectangles: display.c), so a stray pixel stayed: an order's lines drawn in a frame during a
+// step (render_frame.c rf_ground_lines) have the interface's viewport, the whole screen - they ran over the bars and filled
+// them with lines (the player: "the lines of shift write into the interface and tay there").
+internal void rd3_bars(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, int back) {
+    if (!rtv || g_fx.bfail) return;
+    ID3D11Resource *res = NULL;
+    ID3D11Texture2D *tex = NULL;
+    ID3D11View_GetResource((ID3D11View *)rtv, &res);
+    if (!res || FAILED(ID3D11Resource_QueryInterface(res, &IID_ID3D11Texture2D, (void **)&tex))) { D3D_RELEASE(res); return; }
+    D3D11_TEXTURE2D_DESC td;
+    ID3D11Texture2D_GetDesc(tex, &td);
+    D3D11_RENDER_TARGET_VIEW_DESC rd;
+    ID3D11RenderTargetView_GetDesc(rtv, &rd);
+    int ok = td.SampleDesc.Count == 1;
+    if (ok && (!g_fx.bars || g_fx.bw != td.Width || g_fx.bh != td.Height || g_fx.bfmt != td.Format)) {
+        D3D_RELEASE(g_fx.bars);
+        D3D11_TEXTURE2D_DESC cd = { td.Width, td.Height, 1, 1, td.Format, { 1, 0 }, D3D11_USAGE_DEFAULT, 0, 0, 0 };
+        HRESULT hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &cd, NULL, &g_fx.bars);
+        if (FAILED(hr)) { g_fx.bfail = 1; ok = 0; rd_fail("the interface's bars' copy", hr); }
+        g_fx.bw = td.Width; g_fx.bh = td.Height; g_fx.bfmt = td.Format;
+    }
+    if (ok) {
+        UINT x0 = vp->TopLeftX > 0 ? (UINT)vp->TopLeftX : 0, y0 = vp->TopLeftY > 0 ? (UINT)vp->TopLeftY : 0;
+        UINT x1 = (UINT)(vp->TopLeftX + vp->Width), y1 = (UINT)(vp->TopLeftY + vp->Height);
+        if (x1 > td.Width) x1 = td.Width;
+        if (y1 > td.Height) y1 = td.Height;
+        const D3D11_BOX box[4] = { { 0, 0, 0, td.Width, y0, 1 }, { 0, y1, 0, td.Width, td.Height, 1 }, { 0, y0, 0, x0, y1, 1 }, { x1, y0, 0, td.Width, y1, 1 } };
+        UINT mip = rd.Texture2D.MipSlice;
+        for (int i = 0; i < 4; i++) {
+            if (box[i].left >= box[i].right || box[i].top >= box[i].bottom) continue;
+            if (back) ID3D11DeviceContext_CopySubresourceRegion(x, res, mip, box[i].left, box[i].top, 0, (ID3D11Resource *)g_fx.bars, 0, &box[i]);
+            else ID3D11DeviceContext_CopySubresourceRegion(x, (ID3D11Resource *)g_fx.bars, 0, box[i].left, box[i].top, 0, res, mip, &box[i]);
+        }
+    }
+    ID3D11Texture2D_Release(tex);
+    ID3D11Resource_Release(res);
 }
 
 // the scene on rtv within vp smoothed (the caller binds its states again); dsv, vpm: its depth, its camera
@@ -156,7 +202,7 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID
     ID3D11DeviceContext *x = g_d3d.ctx;
     D3D11_BOX box = { x0, y0, 0, x1, y1, 1 };
     ID3D11DeviceContext_CopySubresourceRegion(x, (ID3D11Resource *)g_fx.tex, 0, 0, 0, 0, res, rd.Texture2D.MipSlice, &box);
-    int by_depth = rd3_fxaa_depth(x, dsv, &td);
+    int have_z = rd3_fxaa_depth(x, dsv, &td), by_depth = have_z && g_fx.depth && g_fx.dps;
     rw_za(vpm, &g_fx.za);
     ID3D11Texture2D_Release(tex);
     ID3D11Resource_Release(res);
@@ -171,15 +217,15 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID
     ID3D11DeviceContext_VSSetShader(x, g_d3d.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, by_depth ? g_fx.dps : g_fx.ps, NULL, 0);
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &g_fx.srv);
-    if (by_depth) ID3D11DeviceContext_PSSetShaderResources(x, 1, 1, &g_fx.zsrv);
+    if (have_z) ID3D11DeviceContext_PSSetShaderResources(x, 1, 1, &g_fx.zsrv);
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_d3d.linear);
-    float k[8] = { g_fx.edge, g_fx.jump, g_fx.contrast, g_fx.sub, g_fx.za, 0, 0, 0 };
+    float k[8] = { g_fx.edge, g_fx.jump, g_fx.contrast, g_fx.sub, g_fx.za, (float)have_z, 0, 0 };
     ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_fx.cb, 0, NULL, k, 0, 0);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 0, 1, &g_fx.cb);
     ID3D11DeviceContext_Draw(x, 3, 0);
     ID3D11ShaderResourceView *none = NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &none);
-    if (by_depth) ID3D11DeviceContext_PSSetShaderResources(x, 1, 1, &none);
+    if (have_z) ID3D11DeviceContext_PSSetShaderResources(x, 1, 1, &none);
     g_fx.passes++;
 }
 
