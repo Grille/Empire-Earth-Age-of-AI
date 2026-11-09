@@ -1115,6 +1115,7 @@ internal void render_display_loaded(HMODULE m, const char *name) {
                " the screen); its ground's clipping %d/1 (the ground's margin); its vertex buffer's room %d/1; its animation's"
                " copies %d/2 (the GPU blends them)\n", name, n, shadow_reach_display(m), rf_ground_display_loaded(m, name),
                display_lock_vb_room(m, RD_VB_ROOM), mo_display_loaded(m, name));
+    log_locked("# render: %s's ground from the map %d/1\n", name, rg_display_loaded(m, name));
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a
 // stub in front of each slot, as the probe's
@@ -1204,6 +1205,7 @@ internal void render_install(const char *autotest_ini) {
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps, step_handoff_ms (render_3d.c)
     g_rwl_handoff_after = g_set.step_handoff_ms;
     g_mo.on = g_set.gpu_animation;          // [display] gpu_animation (render_morph.c)
+    g_rg.on = g_set.own_ground;
     g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
     g_om_margin = g_set.object_margin;
     tnl_pick_install();   // display.c: the T&L rasterizer, whatever the game's setting

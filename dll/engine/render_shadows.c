@@ -21,7 +21,7 @@
 // when the list is drawn (rd3_shadow_vc).
 // SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen); SH_TREE: drawn,
 // not casting (a tree whose card casts)
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE };
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE, SH_GROUND };
 #define SH_SIZE 4096
 #define SH_BLOCK 8   // tiles a block of the ground's highest and lowest (g_sh.bmax)
 internal struct {
@@ -582,7 +582,7 @@ internal void rd3_shadow_frame(void) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         if (c->role == SH_CAST || c->role == SH_TINT || c->role == SH_AWAY) nc++;
-        else if (c->role == SH_RECEIVE || c->role == SH_WATER) ng++;
+        else if (c->role == SH_RECEIVE || c->role == SH_WATER || c->role == SH_GROUND) ng++;
     }
     // the water's level: its vertices' mean height, and the fading under it on - for the frame, not this list: a
     // frame's list is drawn in parts (a texture uploaded that it draws with, ...), and a part drawn after the water

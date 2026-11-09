@@ -228,6 +228,11 @@ internal void cmd_picture(char *out, const char *args) {
         float m = (float)atof(arg);
         if (arg[0] && m >= 0 && m <= 0.5f) g_om_margin = m;
         else { REPLY("error: usage: picture objects <0..0.5>\n"); return; }
+    } else if (!strcmp(mode, "ground")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rg.on = arg[1] == 'n';
+        else { REPLY("error: usage: picture ground on | off\n"); return; }
+        REPLY("ground from the map %s: %ld of the chunks' draws last frame, %ld triangles, %d textures\n", g_rg.on ? "on" : "off", g_rg.drawn, g_rg.tris, g_rg.nmat);
+        return;
     } else if (!strcmp(mode, "morph")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_mo.on = arg[1] == 'n' && g_mo_smooth;
         else { REPLY("error: usage: picture morph on | off\n"); return; }

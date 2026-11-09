@@ -23,6 +23,7 @@ typedef struct {
     int role, ro;    // the shadows' role (render_shadows.c SH_), the render object drawing it
     UINT at, n;      // the indices in the upload buffer
     INT base;        // the vertices' (in vertices)
+    ID3D11Buffer *gvb;   // the ground's own vertices (render_ground.c): drawn from them, no indices
 } rf_cmd;
 internal struct {
     rf_cmd *cmd;
@@ -71,6 +72,7 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->ro = g_ro_cur;
     c->soft = g_ro_cur == RO_UNITS && g_rd3.blended && g_rd3.pc.aop[3] && g_rd3.pc.misc[0] < RF_EDGES_REF ? g_rd3.depth_soft : NULL;
     c->at = at; c->n = n; c->base = base;
+    c->gvb = NULL;
 }
 
 // THE GROUND KEPT (render_3d.c "the frame during a step"): a frame drawn while the simulation runs a step skips the
@@ -495,6 +497,7 @@ internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal void rd3_water_reflect(void);   // render_water.c
+internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c);   // render_ground.c
 internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
@@ -732,7 +735,8 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
     *b = *c;
     *first = 0;
     rd3_water_pass(x, c);
-    ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+    if (c->gvb) rg_replay(x, c);
+    else ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
     g_rb.batches++;
 }
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
