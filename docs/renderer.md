@@ -581,7 +581,7 @@ has none to come from). The record's transformation is blended number by number 
 stays -0: a still object byte for byte); not across a jump of more than 4 tiles (a unit set down, teleported), and a
 turn of more than about 25 degrees (the first column's dot product under 0.9) only moves, because blended matrices
 shrink on the way. The picker takes the blended pose - what is clicked is where it is drawn; the view test keeps the
-copy's. Animation frames stay the step's. probe keeps the poses and counts the steps on the screen of one moving
+copy's. The animation goes the same way (`uc_anim_between`, 2026-11-09; the pipe: `picture collect anim on | off`): a step moves a walking soldier about 3 of its 15 frames, four poses a pace, so the frame draws frame + fraction blended between the two copies by the same alpha, the same animation only, running on by at most half its length. probe keeps the poses and counts the steps on the screen of one moving
 object, nothing moved: the frames where it didn't move and how even its steps are (rms over mean, 1 is even). A moving
 unit's step per frame on Continental at speed 1 (about 8 frames a step), probe -> on: EE 88-93% of the frames without
 a move -> under 1%, unevenness 3.1-4.1 -> 1.3-1.7; AoC 87-90% -> 0, 3.1-3.6 -> 1.6-1.9. Paused (time up), the game's

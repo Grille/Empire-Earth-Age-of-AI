@@ -81,6 +81,33 @@ internal void uc_smooth(ee_unit *u, float *t, const uc_obj *o) {
     if (!g_cs_u && moved) g_cs_u = u, g_cs_have = 0, g_cs_still = 0;
     if (u == g_cs_u) g_cs_seen = 1, g_cs_now_x = t[3], g_cs_now_y = t[7], g_cs_moving = moved;
 }
+// THE ANIMATION BETWEEN STEPS (the pipe: picture collect anim on | off; with units_smooth): the simulation moves a model's
+// animation on once a step, a walking soldier about 3 frames of its 15 - four poses a pace, held for a dozen frames of the
+// picture each while the soldier itself glided on (the player, 2026-11-09: "the animations are very stuttery now"). The
+// animation's place in the last copy but one and in the last, frame + fraction, blended by the same alpha as the pose, the
+// model blends the two frames around it itself (CopyAndSmoothStdVertices). Only the same animation, running on by at most
+// half of its length (more is no telling which way; a start from the beginning, or the fast speeds). An animation is a
+// stretch of its model's frames (anim_first .. anim_last): past its last frame it goes on at its first, as the game's own
+// next frame does.
+internal int g_uc_anim_smooth = 1;
+internal int collect_anim_mode(int on) { g_uc_anim_smooth = on; return 0; }
+internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, float *fraction) {
+    if (!g_uc_anim_smooth || !o->has_was || g_cp_smooth != 1 || o->was_anim != o->anim) return;
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
+    int32_t first = ((const int32_t *)dmg_model_anim_first_at(o->gfx))[o->anim], last = ((const int32_t *)dmg_model_anim_last_at(o->gfx))[o->anim];
+    int32_t n = last - first + 1;
+    if (!m || n < 2 || first < 0 || (uint32_t)last >= model_get_frames(m) || o->anim_frame < first || o->anim_frame > last
+        || o->was_frame < first || o->was_frame > last) return;
+    float at = (float)o->was_frame + o->was_fraction, by = (float)o->anim_frame + o->fraction - at;
+    if (by < 0.0f) by += (float)n;
+    if (by <= 0.0f || by > (float)n * 0.5f) return;
+    float p = at + by * g_uc_alpha;
+    if (p >= (float)(last + 1)) p -= (float)n;
+    int32_t f = (int32_t)p;
+    *fraction = p - (float)f;
+    *frame = f;
+    *next = f < last ? f + 1 : first;
+}
 // after the walk: the followed object's step on the screen, while it moves
 internal void uc_smooth_probe(void) {
     if (!g_cp_smooth || !g_cs_u) return;
@@ -388,9 +415,12 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
             wstring_assign(label, unit_stats_name_at(o->cst));
         if ((uint32_t)o->producing != producing_none() && o->produce_left > 0) draw_record_set_producing(rec, o->producing);
         if (!o->foundation) {
-            draw_record_set_frame(rec, o->anim_frame);
-            draw_record_set_next_frame(rec, o->next_frame);
-            draw_record_set_fraction(rec, o->fraction);
+            int32_t frame = o->anim_frame, next = o->next_frame;
+            float fraction = o->fraction;
+            uc_anim_between(o, &frame, &next, &fraction);
+            draw_record_set_frame(rec, frame);
+            draw_record_set_next_frame(rec, next);
+            draw_record_set_fraction(rec, fraction);
         } else {
             draw_record_set_frame(rec, 0);
             draw_record_set_next_frame(rec, 0);

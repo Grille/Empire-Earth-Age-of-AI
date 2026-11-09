@@ -27,6 +27,10 @@ unsafe struct EEGraphicObject
     [offset((ee)0x350, (aoc)0x360), found(c)]
     block anim_first;
 
+    /// per animation (int32 each): its last frame - after it the animation's next frame is its first (0x5F1463)
+    [offset((ee)0x388, (aoc)0x398), found(c)]
+    block anim_last;
+
     /// per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
     /// (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
     [offset((ee)0x3F8, (aoc)0x408), found(c)]

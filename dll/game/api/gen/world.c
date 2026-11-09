@@ -20,6 +20,8 @@ internal inline void dmg_model_set_shadow_key(ee_dmg_model *o, uint32_t v) { *(u
 internal inline uint32_t *dmg_model_shadow_key_at(const ee_dmg_model *o) { return (uint32_t *)((uint8_t *)o + of_dmg_model_shadow_key); }
 // per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
 internal inline uint8_t *dmg_model_anim_first_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_first; }
+// per animation (int32 each): its last frame - after it the animation's next frame is its first (0x5F1463)
+internal inline uint8_t *dmg_model_anim_last_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_last; }
 // per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
 // (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
 internal inline uint8_t *dmg_model_anim_strike_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_strike; }
@@ -281,6 +283,7 @@ internal int spec_world_select(int build) {
         of_dmg_model_anim_keys = 0x1FC;
         of_dmg_model_shadow_key = 0x278;
         of_dmg_model_anim_first = 0x350;
+        of_dmg_model_anim_last = 0x388;
         of_dmg_model_anim_strike = 0x3F8;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D29BC;
         of_dmg_model_users = 0x4A8;
@@ -346,6 +349,7 @@ internal int spec_world_select(int build) {
         of_dmg_model_anim_keys = 0x20C;
         of_dmg_model_shadow_key = 0x288;
         of_dmg_model_anim_first = 0x360;
+        of_dmg_model_anim_last = 0x398;
         of_dmg_model_anim_strike = 0x408;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D85ED;
         of_dmg_model_users = 0x4B8;
