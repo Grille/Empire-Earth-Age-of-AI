@@ -19,6 +19,7 @@ typedef struct {
     D3D11_VIEWPORT vport;
     D3D11_PRIMITIVE_TOPOLOGY topo;
     int vc, pc;      // the constants' snapshots (g_rf.vcs, pcs)
+    void *soft;      // its soft edges are drawn apart, with this depth state (rf_edges); NULL: drawn whole
     int role, ro;    // the shadows' role (render_shadows.c SH_), the render object drawing it
     UINT at, n;      // the indices in the upload buffer
     INT base;        // the vertices' (in vertices)
@@ -45,6 +46,7 @@ internal int rf_grow(void **p, int *cap, int need, size_t size) {
     *cap = c;
     return 1;
 }
+#define RF_EDGES_REF 200   // alpha tested at this or more: a tree, its edge a narrow band - not worth drawing a forest twice
 // the batch just uploaded into the list, with the states it was collected under (rd3_flush)
 internal void rf_record(UINT at, UINT n, INT base) {
     if (g_rf.vc_new || !g_rf.nvc) {
@@ -67,6 +69,7 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->vc = g_rf.nvc - 1; c->pc = g_rf.npc - 1;
     c->role = (int)g_rd3.vc.shp[0];
     c->ro = g_ro_cur;
+    c->soft = g_ro_cur == RO_UNITS && g_rd3.blended && g_rd3.pc.aop[3] && g_rd3.pc.misc[0] < RF_EDGES_REF ? g_rd3.depth_soft : NULL;
     c->at = at; c->n = n; c->base = base;
 }
 
@@ -660,6 +663,39 @@ internal D3D11_VIEWPORT rs_port(const D3D11_VIEWPORT *v, ID3D11RenderTargetView 
     }
     return r;
 }
+// THE SOFT EDGES: the units' and buildings' textures are drawn blended, depth written and alpha tested at 127 - what is half
+// see-through at a texture's edge writes the depth like the solid rest. Whatever lies behind and comes later in the list
+// fails against it, and the edge shows what was there before: the ground through the silo behind a ladder's rails (the
+// player, 2026-11-09). So such a batch is drawn in two parts by its texture's alpha (not the material's: a unit fading out
+// stays as it was): the solid part in the list's order, the rest without writing the depth after the last of them, over
+// everything solid. The order among the edges themselves is left as it is: their overlaps are a few pixels.
+#define RF_EDGES_SOLID (250.0f / 255)
+internal struct {
+    ID3D11Buffer *cb[3];   // the shader's edp: everything, the solid part, the edges
+    int force, fail, part;
+} g_fe = { .force = -1 };
+// made once, the shader's constant bound; whether this list's batches are drawn in two parts
+internal int rf_edges(ID3D11DeviceContext *x) {
+    if (!g_fe.cb[0] && !g_fe.fail) {
+        static const float v[3] = { 0, RF_EDGES_SOLID, -RF_EDGES_SOLID };
+        for (int i = 0; i < 3 && !g_fe.fail; i++) {
+            float k[4] = { v[i], 0, 0, 0 };
+            D3D11_BUFFER_DESC bd = { sizeof k, D3D11_USAGE_IMMUTABLE, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+            D3D11_SUBRESOURCE_DATA sd = { k, 0, 0 };
+            HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_fe.cb[i]);
+            if (FAILED(hr)) { g_fe.fail = 1; rd_fail("the soft edges' constants", hr); }
+        }
+    }
+    if (g_fe.fail) return 0;
+    g_fe.part = 0;
+    ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &g_fe.cb[0]);
+    return g_fe.force < 0 ? g_set.unit_soft_edges : g_fe.force;
+}
+internal void rf_edges_part(ID3D11DeviceContext *x, int part) {
+    if (part == g_fe.part) return;
+    g_fe.part = part;
+    ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &g_fe.cb[part]);
+}
 // a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first) {
     if (rd3_shadow_only(c->role)) return;   // a caster off the screen: in the map only
@@ -707,6 +743,8 @@ internal void rf_replay(void) {
     g_rf.in_submit = 1;
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
+    int edges = rf_edges(x), laste = -1;
+    if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft) laste = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
     rd3_water_reflect();  // the mirrored picture for the water's surface
     rf_bind(x);
@@ -719,7 +757,13 @@ internal void rf_replay(void) {
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i < lastw && rd3_water_late(c)) continue;
+        if (!g_fe.fail) rf_edges_part(x, edges && c->soft ? 1 : 0);
         rf_draw(x, c, &b, &first);
+        if (i == laste) {
+            rf_edges_part(x, 2);
+            for (int j = 0; j <= laste; j++) if (g_rf.cmd[j].soft) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
+            rf_edges_part(x, 0);
+        }
         if (i == lastw)
             for (int j = 0; j < lastw; j++) if (rd3_water_late(&g_rf.cmd[j])) rf_draw(x, &g_rf.cmd[j], &b, &first);
     }

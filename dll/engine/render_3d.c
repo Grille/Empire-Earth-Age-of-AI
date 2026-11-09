@@ -162,6 +162,7 @@ internal const char k_rd3_shader[] =
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
+    "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
@@ -228,6 +229,7 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
+    " if (edp.x > 0 ? x.a < edp.x : edp.x < 0 && x.a >= -edp.x) discard;"
     // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, its colour in a shadow as
     // the vertex shader worked it out; with shadows all on the units, buildings and trees too, their colour without
     // the sun's part. The hills' map: in their shadow below its height (a soft edge); the darker of the two shadows
@@ -313,6 +315,8 @@ internal struct {
     ID3D11RenderTargetView *rtv;
     ID3D11DepthStencilView *dsv;
     void *blend, *depth, *raster, *samp;
+    void *depth_soft;   // the depth state as it is without writing (rf_edges); NULL: it writes none anyway
+    int blended;
     ID3D11ShaderResourceView *srv;
     rd_surface *srv_of;   // the surface srv shows (its chain's top) and whether keyed: render_frame.c's kept interface
     int srv_keyed;
@@ -506,10 +510,10 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     if (full || memcmp(&vp, &g_rd3.vport, sizeof vp)) { rd3_flush(); g_rd3.vport = vp; }
     uint32_t bk = rs[D3DRENDERSTATE_ALPHABLENDENABLE] ? 1 | (rs[D3DRENDERSTATE_SRCBLEND] & 15) << 1 | (rs[D3DRENDERSTATE_DESTBLEND] & 15) << 5 : 0;
     void *o = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, bk, rd3_mk_blend);
-    if (full || o != g_rd3.blend) { rd3_flush(); g_rd3.blend = o; }
+    if (full || o != g_rd3.blend) { rd3_flush(); g_rd3.blend = o; g_rd3.blended = bk & 1; }
     uint32_t dk = (rs[D3DRENDERSTATE_ZENABLE] ? 1 : 0) | (rs[D3DRENDERSTATE_ZWRITEENABLE] ? 2 : 0) | (rs[D3DRENDERSTATE_ZFUNC] & 15) << 2;
     o = rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, dk, rd3_mk_depth);
-    if (full || o != g_rd3.depth) { rd3_flush(); g_rd3.depth = o; }
+    if (full || o != g_rd3.depth) { rd3_flush(); g_rd3.depth = o; g_rd3.depth_soft = dk & 2 ? rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, dk & ~2u, rd3_mk_depth) : NULL; }
     o = rd3_cache(g_rd3.rasters, &g_rd3.n_raster, 8, rs[D3DRENDERSTATE_CULLMODE] & 3, rd3_mk_raster);
     if (full || o != g_rd3.raster) { rd3_flush(); g_rd3.raster = o; }
 

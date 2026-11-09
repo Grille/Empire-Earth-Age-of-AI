@@ -171,6 +171,10 @@ class display
         /// colours (the control pipe: water color <red green blue> / water color map):
         [length(32)]
         string water_fog_color = "";
+        /// The own renderer: the half see-through edges of units' and buildings' textures (a ladder's rails) drawn after
+        /// everything solid and without writing the depth, so that what lies behind them shows through them (the control
+        /// pipe: water edges on / off):
+        bool unit_soft_edges = false;
         /// The own renderer with dynamic shadows only: units, buildings and trees mirrored in the water, drawn a second
         /// time at half the picture's size (the control pipe: water mirror on / off):
         bool water_reflections = false;
