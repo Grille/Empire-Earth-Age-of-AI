@@ -259,6 +259,12 @@ typedef void (__thiscall *ro_units_draw_record_fn)(ee_ro_units *, void *);
 internal ro_units_draw_record_fn fn_ro_units_draw_record;
 internal inline void ro_units_draw_record(ee_ro_units *ro_units, void *record) { fn_ro_units_draw_record(ro_units, record); }
 internal inline int patch_units_draw_record(ro_units_draw_record_fn h, int *of) { return patch_calls(calls_units_draw_record, 3, (uintptr_t)fn_ro_units_draw_record, (void *)h, of); }
+// one tree's record drawn (a record of hooks.draw_small_old), under the turn its caller made once for all of them
+// - render_silhouette.c's hook of its call, as draw_record's
+typedef void (__thiscall *ro_units_draw_tree_fn)(ee_ro_units *, void *, void *);
+internal ro_units_draw_tree_fn fn_ro_units_draw_tree;
+internal inline void ro_units_draw_tree(ee_ro_units *ro_units, void *transform, void *record) { fn_ro_units_draw_tree(ro_units, transform, record); }
+internal inline int patch_units_draw_tree(ro_units_draw_tree_fn h) { return patch_call(call_units_draw_tree, (uintptr_t)fn_ro_units_draw_tree, (void *)h); }
 // the units' update (from the world's units)
 typedef void (__thiscall *ro_units_update_fn)(ee_ro_units *);
 internal ro_units_update_fn fn_ro_units_update;
@@ -1048,6 +1054,8 @@ internal int spec_engine_display_select(int build) {
         calls_units_draw_record[0] = 0x0050A578;
         calls_units_draw_record[1] = 0x0050A67A;
         calls_units_draw_record[2] = 0x0050BB78;
+        fn_ro_units_draw_tree = (ro_units_draw_tree_fn)0x0050AE59;
+        call_units_draw_tree = 0x0050B315;
         fn_ro_units_update = (ro_units_update_fn)0x00509D06;
         fn_ro_units_draw = (ro_units_draw_fn)0x0050D90E;
         vt_eero_water = 0x0082C480;
@@ -1387,6 +1395,8 @@ internal int spec_engine_display_select(int build) {
         calls_units_draw_record[0] = 0x00514D93;
         calls_units_draw_record[1] = 0x00514E95;
         calls_units_draw_record[2] = 0x0051646D;
+        fn_ro_units_draw_tree = (ro_units_draw_tree_fn)0x00515674;
+        call_units_draw_tree = 0x00515B30;
         fn_ro_units_update = (ro_units_update_fn)0x00514521;
         fn_ro_units_draw = (ro_units_draw_fn)0x00518203;
         vt_eero_water = 0x00841C10;
@@ -1697,6 +1707,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_call(calls_units_draw_record[0], (uintptr_t)fn_ro_units_draw_record, "EEROUnits.draw_record [call_site units_draw_record 0]");
     bad += spec_call(calls_units_draw_record[1], (uintptr_t)fn_ro_units_draw_record, "EEROUnits.draw_record [call_site units_draw_record 1]");
     bad += spec_call(calls_units_draw_record[2], (uintptr_t)fn_ro_units_draw_record, "EEROUnits.draw_record [call_site units_draw_record 2]");
+    bad += spec_code((uintptr_t)fn_ro_units_draw_tree, "EEROUnits.draw_tree");
+    bad += spec_call(call_units_draw_tree, (uintptr_t)fn_ro_units_draw_tree, "EEROUnits.draw_tree [call_site units_draw_tree]");
     bad += spec_code((uintptr_t)fn_ro_units_update, "EEROUnits.update");
     bad += spec_slot(vt_eero_units, slot_render_object_update, (uintptr_t)fn_ro_units_update, "EEROUnits.update [slot]");
     bad += spec_code((uintptr_t)fn_ro_units_draw, "EEROUnits.draw");

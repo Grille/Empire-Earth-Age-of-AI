@@ -170,7 +170,7 @@ internal int uc_opacity(uc_obj *o, float *out) {
     opacity_consts c = opacity_consts_now();
     ee_unit_type *ty = o->ty;
     int see = 0, mode = show_hidden_mode();
-    if (mode == 1 && sil_on() && unit_type_is_land_building(ty)) mode = 0;   // what lies behind a building is seen through it, the building stays whole (render_silhouette.c); a tree fades as ever
+    if (mode == 1 && sil_on() && (unit_type_is_land_building(ty) || o->tree)) mode = 0;   // what lies behind a building or a tree is seen through it, it stays whole (render_silhouette.c)
     *out = 1.0f;
     if ((mode == 1 && (unit_type_get_is_obstacle(ty) || o->moved) && o->hidden) ||
         (mode == 2 && unit_type_get_is_obstacle(ty))) {

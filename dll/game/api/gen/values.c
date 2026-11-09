@@ -593,6 +593,7 @@ internal uint32_t size_eero_units;
 internal uint32_t call_units_ground_pass;
 internal uint32_t call_fill_ghosts;
 internal uint32_t calls_units_draw_record[3];
+internal uint32_t call_units_draw_tree;
 internal uint32_t vt_eero_water;
 internal uint32_t size_eero_water;
 internal uint32_t vt_eero_user_interface;

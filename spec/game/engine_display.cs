@@ -312,6 +312,12 @@ unsafe struct EEROUnits
     [call_site("units_draw_record", (ee)0x0050BB78, (aoc)0x0051646D)]
     extern void draw_record(void* record);
 
+    /// one tree's record drawn (a record of hooks.draw_small_old), under the turn its caller made once for all of them
+    /// - render_silhouette.c's hook of its call, as draw_record's
+    [address((ee)0x0050AE59, (aoc)0x00515674)]
+    [call_site("units_draw_tree", (ee)0x0050B315, (aoc)0x00515B30)]
+    extern void draw_tree(void* transform, void* record);
+
     // VIRTUAL FUNCTIONS
 
     /// the units' update (from the world's units)

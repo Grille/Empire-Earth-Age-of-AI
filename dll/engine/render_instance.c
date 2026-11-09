@@ -145,6 +145,130 @@ internal void in_flush(void) {
     g_in.stamp++;
 }
 
+// A TREE'S SHADOW CARD (render_shadows.c rd3_shadow_card made one from the vertices at every draw, and it took a batch of its
+// own: a state change at each tree). It is the same for every tree of a model's frame - they all have the camera's turn, the
+// card is about the camera and the sun, and each tree's size is only a factor (the matrix holds it: 1.65 to 1.88 among one
+// kind) - so it is kept at size 1, made anew when those have moved. A card is linear in its vertices, so
+// the blend of two frames' is the card of their blend: the two go into the animation's pool like any two frames, and are
+// drawn at the tree's place as instances. Queued, so that a run of trees is one batch of trees and one of cards.
+#define IN_CARDS 4096
+typedef struct { const float *src; const WORD *idx; uint32_t n, ni; float r[9], axes[4]; float *v; float lo[2], hi[2]; } in_card;
+typedef struct { in_card *a, *b; float frac, size, at[3]; const WORD *idx; DWORD ni; } in_card_q;
+internal struct {
+    int n, nq, flushing;
+    float gen;              // a card remade is another run for the pool: its first vertex differs by this
+    rd_device *d;
+    rd_surface *tex;        // the queue's texture
+    in_card card[IN_CARDS];
+    in_card_q q[RB_WORLDS];
+} g_ic;
+internal int in_card_axes(const rd_device *d, float *axes) {
+    float ax = d->view._11, ay = d->view._21, al = sqrtf(ax * ax + ay * ay), sx = g_sh.sun[1], sy = -g_sh.sun[0], sl = sqrtf(sx * sx + sy * sy);
+    if (al < 1e-4f || sl < 1e-4f) return 0;
+    axes[0] = ax / al; axes[1] = ay / al; axes[2] = sx / sl; axes[3] = sy / sl;
+    if (axes[0] * axes[2] + axes[1] * axes[3] < 0) { axes[2] = -axes[2]; axes[3] = -axes[3]; }
+    return 1;
+}
+// the card of a frame's run at size 1 under these axes and this turn (r: the world matrix's three rows, its size taken out); NULL: none
+internal in_card *in_card_of(const float *src, uint32_t n, const WORD *idx, DWORD ni, const float *r, const float *axes) {
+    uint32_t h = (uint32_t)(((uintptr_t)src >> 5) * 2654435761u ^ ((uintptr_t)idx >> 1) * 40503u) & (IN_CARDS - 1);
+    in_card *c;
+    for (;; h = (h + 1) & (IN_CARDS - 1)) {
+        c = &g_ic.card[h];
+        if (!c->src || (c->src == src && c->idx == idx && c->ni == ni && c->n == n)) break;
+    }
+    if (!c->src && g_ic.n >= IN_CARDS * 3 / 4) return NULL;
+    int same = c->src != NULL;
+    for (int i = 0; same && i < 9; i++) same = fabsf(c->r[i] - r[i]) < 1e-4f;   // (the camera's turn: it stands still; the sun creeps)
+    for (int i = 0; same && i < 4; i++) same = fabsf(c->axes[i] - axes[i]) < 0.005f;
+    if (same) return c;
+    if (!c->src) {
+        if (!(c->v = malloc((size_t)n * 32))) return NULL;
+        c->src = src; c->idx = idx; c->n = n; c->ni = ni;
+        g_ic.n++;
+    }
+    memcpy(c->r, r, sizeof c->r);
+    memcpy(c->axes, axes, 16);
+    for (uint32_t k = 0; k < n; k++) { g_card.up[k] = (int)k; g_card.n[k] = 0; g_card.cx[k] = g_card.cy[k] = 0; }
+    for (DWORD t = 0; t + 2 < ni; t += 3) {
+        if (idx[t] >= n || idx[t + 1] >= n || idx[t + 2] >= n) continue;
+        int a = card_piece(idx[t]), b = card_piece(idx[t + 1]);
+        g_card.up[b] = a;
+        g_card.up[card_piece(idx[t + 2])] = a;
+    }
+    g_ic.gen += 1;
+    g_in_cards++;
+    for (uint32_t k = 0; k < n; k++) {
+        const float *s = src + k * 8;
+        float *p = c->v + k * 8;
+        p[0] = s[0] * r[0] + s[1] * r[1] + s[2] * r[2];
+        p[1] = s[0] * r[3] + s[1] * r[4] + s[2] * r[5];
+        p[2] = s[0] * r[6] + s[1] * r[7] + s[2] * r[8];
+        p[3] = g_ic.gen; p[4] = p[5] = 0; p[6] = s[6]; p[7] = s[7];
+        int q = card_piece((int)k);
+        g_card.cx[q] += p[0]; g_card.cy[q] += p[1]; g_card.n[q]++;
+    }
+    c->lo[0] = c->lo[1] = 1e30f; c->hi[0] = c->hi[1] = -1e30f;
+    for (uint32_t k = 0; k < n; k++) {
+        float *p = c->v + k * 8;
+        int q = card_piece((int)k);
+        float cx = g_card.cx[q] / (float)g_card.n[q], cy = g_card.cy[q] / (float)g_card.n[q];
+        float l = (p[0] - cx) * axes[0] + (p[1] - cy) * axes[1];
+        p[0] = cx + axes[2] * l; p[1] = cy + axes[3] * l;
+        for (int a = 0; a < 2; a++) { if (p[a] < c->lo[a]) c->lo[a] = p[a]; if (p[a] > c->hi[a]) c->hi[a] = p[a]; }
+    }
+    return c;
+}
+// the queue drawn as one batch: the states of the trees it came with, the cast's role, no part in the silhouettes
+internal void in_cards_flush(rd_device *d) {
+    if (!g_ic.nq || g_ic.flushing) return;
+    g_ic.flushing = 1;
+    rd_surface *tex = d->tex[0];
+    int role = d->sh_role, in = g_sl.in;
+    D3DMATRIX keep = d->world;
+    d->tex[0] = g_ic.tex; d->sh_role = SH_AWAY; d->changed |= RD_CH_VC | RD_CH_TEX;
+    g_sl.in = 0;
+    if (rd3_prepare(d, 0))
+        for (int i = 0; i < g_ic.nq; i++) {
+            const in_card_q *e = &g_ic.q[i];
+            mo_run *a = mo_run_of(e->a->v, e->a->n), *b = e->b == e->a ? a : mo_run_of(e->b->v, e->b->n);
+            if (a && b != a) a = mo_run_of(e->a->v, e->a->n);
+            if (!a || !b) continue;
+            memset(&d->world, 0, sizeof d->world);
+            d->world._11 = d->world._22 = d->world._33 = e->size;
+            d->world._44 = 1;
+            d->world._41 = e->at[0]; d->world._42 = e->at[1]; d->world._43 = e->at[2];
+            in_append(d, a, b, e->frac, e->idx, e->ni);
+        }
+    g_sl.in = in;
+    d->tex[0] = tex; d->sh_role = role; d->world = keep; d->changed |= RD_CH_VC | RD_CH_TEX;
+    g_ic.nq = 0;
+    g_ic.flushing = 0;
+}
+// the units' render object's end (RO_DRAW)
+internal void in_cards_end(void) { if (g_ic.nq && g_ic.d) in_cards_flush(g_ic.d); }
+internal void in_card_queue(rd_device *d, const float *pa, const float *pb, float frac, uint32_t n, const WORD *idx, DWORD ni) {
+    float axes[4];
+    if (!in_card_axes(d, axes)) return;
+    const D3DMATRIX *w = &d->world;
+    float size = sqrtf(w->_11 * w->_11 + w->_21 * w->_21 + w->_31 * w->_31);
+    if (size < 1e-4f) return;
+    float r[9] = { w->_11 / size, w->_21 / size, w->_31 / size, w->_12 / size, w->_22 / size, w->_32 / size, w->_13 / size, w->_23 / size, w->_33 / size };
+    in_card *a = in_card_of(pa, n, idx, ni, r, axes), *b = pb == pa ? a : in_card_of(pb, n, idx, ni, r, axes);
+    if (!a || !b) return;
+    if (g_ic.nq >= RB_WORLDS) in_cards_flush(d);
+    in_card_q *e = &g_ic.q[g_ic.nq++];
+    e->a = a; e->b = b; e->frac = frac; e->size = size; e->idx = idx; e->ni = ni;
+    e->at[0] = d->world._41; e->at[1] = d->world._42; e->at[2] = d->world._43;
+    g_ic.tex = d->tex[0];
+    g_ic.d = d;
+    for (int k = 0; k < 2; k++) {
+        float lo = fminf(a->lo[k], b->lo[k]) * size + e->at[k], hi = fmaxf(a->hi[k], b->hi[k]) * size + e->at[k];
+        if (lo < g_sh.lo[k]) g_sh.lo[k] = lo;
+        if (hi > g_sh.hi[k]) g_sh.hi[k] = hi;
+    }
+}
+
 typedef struct { void *ras, *view; rd_device *d; unsigned long screen; float bias; } in_ctx;
 // a material of a model seen: what the DLL does for it, without the device's calls
 internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
@@ -172,16 +296,12 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, const D3DM
         float box[6];
         for (int k = 0; k < 3; k++) { box[k] = fminf(a->lo[k], b->lo[k]); box[3 + k] = fmaxf(a->hi[k], b->hi[k]); }
         rd_vb none = { NULL, 0, 0, 0x152, n, 36, n, NULL };   // (the box stands for its vertices)
+        if (g_ic.nq && d->tex[0] != g_ic.tex) in_cards_flush(d);
         g_mo_box = box;
         rd3_shadow_classify(d, &none, 0, n);
         g_mo_box = NULL;
         if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) in_append(d, a, b, frac, idx, ni);
-        if (d->sh_card && n <= SH_CARD_MAX) {   // a tree's card is made of its vertices
-            static uint8_t v[SH_CARD_MAX * 36];
-            (frac != 0 ? g_mo_smooth : g_mo_copy)(c->ras, m, mat, v);
-            rd_vb vb = { NULL, 0, 0, 0x152, n, 36, n, v };
-            rd3_shadow_card(d, D3DPT_TRIANGLELIST, &vb, 0, n, idx, ni);
-        }
+        if (d->sh_card && n <= SH_CARD_MAX) in_card_queue(d, pa, pb, frac, n, idx, ni);
         InterlockedIncrement(&g_in_parts);
     }
     g_rd_draw_qpc += rd_qpc() - t0;

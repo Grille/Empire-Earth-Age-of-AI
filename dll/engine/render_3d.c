@@ -496,8 +496,9 @@ internal volatile LONG g_rp_state;   // the probe (below)
 internal void rec_count(int role, DWORD nv);   // render_record.c: a draw's role counted for the frame
 internal ID3D11Buffer *g_in_ib, *g_in_ids;   // the units' instances (render_instance.c): the triangles' pool, the instance stream
 internal int g_in_pool, g_in_force = -1;      // the pool is the index buffer bound now; the pipe's (-1: the ini's)
-internal LONG g_in_parts, g_in_fell;          // the pipe's: parts drawn that way, models left to the display DLL
+internal LONG g_in_parts, g_in_fell, g_in_cards;          // the pipe's: parts drawn that way, models left to the display DLL
 internal void in_flush(void);
+internal void in_cards_end(void);
 internal ID3D11ShaderResourceView *g_mo_srv;   // the animation's pool (render_morph.c), bound with the list
 internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
@@ -1137,7 +1138,7 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 // interface's - left out of the kept ground and water, and the water's not moved with the camera during a step (drawn
 // where the camera had been: pieces of water over the map's edge, squares of the seabed on the water - AoC, 2026-11-05)
 #define RO_DRAW(i, call) do { g_ro_obj[i] = (ee_render_object *)o; if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
-    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
+    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); in_cards_end(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
 // during a step the last real frame's ground instead of the game's draw, which in Art of Conquest draws its last lists
 // again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
 // rf_ground_again)
