@@ -633,11 +633,15 @@ internal int rf_camera_view(float *v, const float *m) {
     rd3_mul(v, inv, g_cam_axes);
     return 1;
 }
-// The ray through a point of the screen (x, y from 0 to 1, y down) for the camera's transformation m, its eye and direction in
-// the world (camera.c camera_zoom_at_mouse): the view from m as a frame makes it, the lens the last drawn frame's.
-internal int rf_screen_ray(const float *m, float x, float y, float *eye, float *d) {
+// The ray through a point of the screen (the game's mouse coordinates) for the camera's transformation m, its eye and direction
+// in the world (camera.c camera_zoom_at_mouse): the view from m as a frame makes it, the lens and the 3D view's rectangle the
+// last drawn frame's - it isn't the window, it lies between the top bar and the bottom panel (1261 of 1440 rows high: taken
+// as the window it aimed some 14 to 50 pixels above the cursor, a few tiles far out; the player 2026-11-10).
+internal int rf_screen_ray(const float *m, float mx, float my, float *eye, float *d) {
     float v[16], inv[16], p[16];
-    if (g_rd3.scene_view[15] != 1.0f || !rf_camera_view(v, m)) return 0;
+    const D3D11_VIEWPORT *port = &g_rd3.scene_port;
+    if (g_rd3.scene_view[15] != 1.0f || !(port->Width > 0) || !(port->Height > 0) || !rf_camera_view(v, m)) return 0;
+    float x = (mx - port->TopLeftX) / port->Width, y = (my - port->TopLeftY) / port->Height;
     rd3_rigid_inverse(inv, g_rd3.scene_view);
     rd3_mul(p, inv, g_rd3.scene_vp);
     if (p[0] == 0 || p[5] == 0) return 0;
