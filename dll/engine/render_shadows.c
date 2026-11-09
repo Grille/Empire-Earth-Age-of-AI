@@ -825,7 +825,7 @@ internal void shr_add(ee_tile **tiles, unsigned w, int y, int a, int b) {
 }
 
 internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
-    unsigned long n = terrain_rows(mesh);
+    unsigned long n = vr_rows(mesh);
     g_shr.n = g_shr.own = 0;
     ee_map *map = game_map();
     const float *f = g_sh.sun;
@@ -837,7 +837,7 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     // the game's rows, as it would have had them
     for (unsigned long i = 0; i < n; i++) {
         long y, x0, x1;
-        terrain_row(mesh, i, &y, &x0, &x1);
+        vr_row(mesh, i, &y, &x0, &x1);
         g_shr.y[i] = y; g_shr.x0[i] = x0; g_shr.x1[i] = x1;
         if (y < 0 || (unsigned)y >= w) continue;
         if (x0 < g_shr.olo[y]) g_shr.olo[y] = (int)x0;
@@ -897,7 +897,7 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     return (unsigned long)g_shr.n;
 }
 internal void __thiscall shr_hook_row(const void *mesh, unsigned long i, long *y, long *x0, long *x1) {
-    if (!g_shr.n) { terrain_row(mesh, i, y, x0, x1); return; }
+    if (!g_shr.n) { vr_row(mesh, i, y, x0, x1); return; }
     if (i >= (unsigned long)g_shr.n) i = (unsigned long)g_shr.n - 1;
     *y = g_shr.y[i]; *x0 = g_shr.x0[i]; *x1 = g_shr.x1[i];
 }

@@ -190,21 +190,28 @@ internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_ar
 // g_cam_v, the zoom past 1, is that distance / camera_distance; zoom_to(1) makes the camera's move to it as for any zoom.
 // The far depth grows by 0.9 of the distance gained: the ground at the top of the screen lies about 1.6 times the distance
 // away, and GetTileRowsInVolume's region is the hull of the frustum's far corners, so a far depth no longer than that
-// keeps it under the mesh's 101 x 101 tiles. camera_distance_max's limit is that.
+// keeps it under the mesh's 101 x 101 tiles, as far as 42 tiles back: the most without the own renderer, whose ground is the
+// whole map (render_ground.c) and which keeps that region within the arrays (render_frame.c rf_region_fit).
 #define CAM_AS_DREXMOD 0.99f
 #define CAM_FAR_PER_TILE 0.9f
+#define CAM_FAR_PER_TILE_OWN 1.6f   // the own renderer: to the top of the screen, the ground is the whole map's
 #define CAM_DIST_GAME 20.5f
 #define CAM_VIEW_GAME 35.0f
+#define CAM_TILES_GAME 42.0f     // camera_distance_max without the own renderer
 internal float g_cam_dist, g_cam_view, g_cam_fov_set, g_cam_v_max = 1.0f;
 internal float g_cam_v = 1.0f;   // the zoom past the game's 1 (1: none)
 internal int g_cam_shape;
 internal ee_map *g_cam_v_map;
+internal int g_rd_on;   // display.c: the own renderer draws
 internal void camera_shape_write(float v) {
     if (!g_cam_shape) return;
     *camera_eye_far_at() = -g_cam_dist * v;
-    *camera_far_at() = g_cam_view + g_cam_dist * (v - 1.0f) * CAM_FAR_PER_TILE;
+    *camera_far_at() = g_cam_view + g_cam_dist * (v - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE);
 }
-internal float camera_zoom_max(void) { return g_cam_shape ? g_cam_v_max : 1.0f; }
+internal float camera_zoom_max(void) {
+    if (!g_cam_shape) return 1.0f;
+    return g_rd_on ? g_cam_v_max : fmaxf(1.0f, fminf(g_cam_v_max, CAM_TILES_GAME / g_cam_dist));
+}
 // the zoom: the game's below 1, ours from there
 internal float camera_zoom_now(void) {
     float z = scroll_speed();

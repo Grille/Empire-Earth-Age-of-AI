@@ -27,8 +27,8 @@ class camera
     [range(0, 100)]
     int camera_distance = 25;
     /// Further out: past that point the wheel and the zoom keys go on to this many tiles back, the camera's angle
-    /// staying as at the game's furthest zoom (0, or no more than camera_distance: no further):
-    [range(0, 42, error: true)]
+    /// staying as at the game's furthest zoom (0, or no more than camera_distance: no further; without the own renderer 42 at most):
+    [range(0, 100, error: true)]
     int camera_distance_max = 42;
     /// How far the camera sees, in tiles (0 = the game's 35); further out it grows with the camera's distance:
     [range(0, 100)]

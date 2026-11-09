@@ -214,25 +214,32 @@ internal int rf_ground_pools_install(void) {
     g_gm_pools = terrain_pools_move(p, p + g);
     return g_gm_pools;
 }
-// the larger side of the region the frustum through rectangle r would give, tiles less one (-1: not known)
-internal long rf_region_size(const void *viewport, const float *r) {
-    ee_map *map = game_map();
+// the eight corners of the frustum through rectangle r on the map, as GetFrustrumWorldPoints makes them; 0: not known
+internal int rf_corners(const void *viewport, const float *r, float (*w)[3]) {
     float s = viewport_scale(viewport);
-    if (!g_gm_denorm || !map || !(s != 0)) return -1;
+    if (!g_gm_denorm || !(s != 0)) return 0;
     const float *c = viewport_centre(viewport);
     float x0 = r[1], x1 = r[2], y0 = r[3], y1 = r[0];
     if (x1 - x0 <= 2) x1 = x0 + 2;   // as GetFrustrumWorldPoints
     if (y1 - y0 <= 2) y1 = y0 + 2;
-    float lo[2] = { 1e30f, 1e30f }, hi[2] = { -1e30f, -1e30f };
     for (int i = 0; i < 8; i++) {
-        float p[3] = { ((i & 1 ? x1 : x0) - c[0]) / s, -((i & 2 ? y1 : y0) - c[1]) / s, (float)(i >> 2) }, w[3];
-        g_gm_denorm(viewport, p, i & 4 ? viewport_far(viewport) : viewport_near(viewport), w);
-        for (int a = 0; a < 2; a++) {
-            if (!(w[a] > -1e6f && w[a] < 1e6f)) return -1;
-            if (w[a] < lo[a]) lo[a] = w[a];
-            if (w[a] > hi[a]) hi[a] = w[a];
-        }
+        float p[3] = { ((i & 1 ? x1 : x0) - c[0]) / s, -((i & 2 ? y1 : y0) - c[1]) / s, (float)(i >> 2) };
+        g_gm_denorm(viewport, p, i & 4 ? viewport_far(viewport) : viewport_near(viewport), w[i]);
+        for (int a = 0; a < 2; a++) if (!(w[i][a] > -1e6f && w[i][a] < 1e6f)) return 0;
     }
+    return 1;
+}
+// the larger side of the region the frustum through rectangle r would give, tiles less one (-1: not known)
+internal long rf_region_size(const void *viewport, const float *r) {
+    ee_map *map = game_map();
+    float w[8][3];
+    if (!map || !rf_corners(viewport, r, w)) return -1;
+    float lo[2] = { 1e30f, 1e30f }, hi[2] = { -1e30f, -1e30f };
+    for (int i = 0; i < 8; i++)
+        for (int a = 0; a < 2; a++) {
+            if (w[i][a] < lo[a]) lo[a] = w[i][a];
+            if (w[i][a] > hi[a]) hi[a] = w[i][a];
+        }
     float top = (float)map_get_size(map) - 1;
     long big = 0;
     for (int a = 0; a < 2; a++) {
@@ -308,6 +315,70 @@ internal void rf_pull_end(void) {
     g_gm_set_camera(g_gm_viewport, g_gm_was);
     g_gm_pulled = 0;
 }
+// PAST THE MESH'S ARRAYS (a camera further back than the 88 tiles' region can follow - the ground and the water are the map's
+// by then, render_ground.c): the rows the units and trees are collected from are made here, as GetTileRowsInVolume makes
+// them - for each row of the map the hull of the frustum's eight corners on the map, within the map's own row - and the
+// game's UpdateVisibleTerrain gets a nearer far depth and if need be a smaller rectangle, so that its region fits: what is
+// left of its use (the highlights on the ground) is the part near the camera's foot. Two lists: the simulation's copy reads them.
+#define VR_MAX 4096
+typedef struct { int n; long y[VR_MAX], x0[VR_MAX], x1[VR_MAX]; } vr_list;
+internal vr_list g_vr[2];
+internal volatile LONG g_vr_cur = -1;   // the list in use, -1: the game's rows
+internal unsigned long vr_rows(const void *mesh) { LONG c = g_vr_cur; return c < 0 ? terrain_rows(mesh) : (unsigned long)g_vr[c].n; }
+internal void vr_row(const void *mesh, unsigned long i, long *y, long *x0, long *x1) {
+    LONG c = g_vr_cur;
+    if (c < 0) { terrain_row(mesh, i, y, x0, x1); return; }
+    *y = g_vr[c].y[i]; *x0 = g_vr[c].x0[i]; *x1 = g_vr[c].x1[i];
+}
+// the span of a segment within the band of row y (y .. y + 1)
+internal void vr_band(const float *a, const float *b, float y, float *lo, float *hi) {
+    float ya = a[1], yb = b[1];
+    if (fmaxf(ya, yb) < y || fminf(ya, yb) > y + 1) return;
+    float t0 = 0, t1 = 1;
+    if (ya != yb) {
+        float p = (y - ya) / (yb - ya), q = (y + 1 - ya) / (yb - ya);
+        t0 = fmaxf(0, fminf(p, q)); t1 = fminf(1, fmaxf(p, q));
+    }
+    float x0 = a[0] + (b[0] - a[0]) * t0, x1 = a[0] + (b[0] - a[0]) * t1;
+    *lo = fminf(*lo, fminf(x0, x1)); *hi = fmaxf(*hi, fmaxf(x0, x1));
+}
+internal void vr_make(const void *viewport, const float *was) {
+    ee_map *map = game_map();
+    float w[8][3], r[4];
+    rf_scale_rect(r, was, 1.1f, 1.2f, 1.1f);   // a little beyond the screen: a step's frames move the camera without the rows
+    if (!map || !rf_corners(viewport, r, w)) { g_vr_cur = -1; return; }
+    vr_list *o = &g_vr[g_vr_cur == 0 ? 1 : 0];
+    int size = (int)map_get_size(map), n = 0;
+    float ylo = 1e30f, yhi = -1e30f;
+    for (int i = 0; i < 8; i++) { ylo = fminf(ylo, w[i][1]); yhi = fmaxf(yhi, w[i][1]); }
+    int y0 = (int)floorf(ylo), y1 = (int)floorf(yhi);
+    if (y0 < 0) y0 = 0;
+    for (int y = y0; y <= y1 && y < size && n < VR_MAX; y++) {
+        float lo = 1e30f, hi = -1e30f;
+        for (int i = 0; i < 8; i++) for (int j = i + 1; j < 8; j++) vr_band(w[i], w[j], (float)y, &lo, &hi);
+        if (lo > hi) continue;
+        const int *row = map_view_row(map, (unsigned)y);
+        int first = row[0], last = row[0] + row[1] - 1, x0 = (int)floorf(lo), x1 = (int)floorf(hi);
+        if (x0 < first) x0 = first;
+        if (x1 > last) x1 = last;
+        if (x0 > x1) continue;
+        o->y[n] = y; o->x0[n] = x0; o->x1[n] = x1; n++;
+    }
+    o->n = n;
+    g_vr_cur = o == &g_vr[0] ? 0 : 1;
+}
+// the region the game's update may make: far depth, then the rectangle, drawn in until it fits the arrays; 0: it can't be told
+internal int rf_region_fit(void *viewport, float *r, const float *was) {
+    float *fd = viewport_far_at(viewport), lowest = viewport_near(viewport) + 2, k = 1;
+    for (int tries = 0; tries < 48; tries++) {
+        long n = rf_region_size(viewport, r);
+        if (n < 0) return 0;
+        if (n <= GM_TILES) return 1;
+        if (*fd * 0.9f > lowest) *fd *= 0.9f;
+        else { k *= 0.9f; rf_scale_rect(r, was, k, k, k); }
+    }
+    return 0;
+}
 internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera, void *viewport, unsigned long a, unsigned long b,
                                                  unsigned long c, uint8_t fixed) {
     g_gm_viewport = viewport;
@@ -322,10 +393,14 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
         if (n0 >= 0 && n0 <= GM_TILES) camera = g_gm_pull;
         else rf_pull_end();
     }
-    float *r = viewport_rect(viewport), was[4];
+    float *r = viewport_rect(viewport), was[4], far0 = viewport_far(viewport);
     memcpy(was, r, sizeof was);
+    long full = fixed ? -1 : rf_region_size(viewport, r);
+    int over = full > GM_TILES, fits = 1;
+    if (over) vr_make(viewport, was);
+    else g_vr_cur = -1;
     // the fixed camera's frustum is the orthographic one: as it was; without the pools the mesh's own would overflow
-    int on = !fixed && g_gm_pools >= 2;
+    int on = !fixed && g_gm_pools >= 2 && !over;
     float k = on ? 1.0f + g_gm_margin : 1.0f, kt = k, kb = on ? 1.0f + 2.0f * g_gm_margin : 1.0f;
     // the near depth (above): the corners there behind the eye with a margin, mirrored - GetFrustrumWorldPoints takes
     // the rectangle's points times the depth through the camera's inverse
@@ -343,7 +418,9 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
         else { kt = k = 1.0f; behind = 0; kb = 1.0f + (kb - 1.0f) * 0.7f; }
     }
     if (kb <= 1.0f) { k = kt = kb = 1.0f; behind = 0; *nd = near0; memcpy(r, was, sizeof was); n = rf_region_size(viewport, r); }
-    terrain_visible(mesh, camera, viewport, a, b, c, fixed);
+    if (over) fits = rf_region_fit(viewport, r, was);
+    if (fits) terrain_visible(mesh, camera, viewport, a, b, c, fixed);
+    *viewport_far_at(viewport) = far0;
     memcpy(r, was, sizeof was);
     g_gm_near = kb > 1.0f ? *nd : 0;
     *nd = near0;

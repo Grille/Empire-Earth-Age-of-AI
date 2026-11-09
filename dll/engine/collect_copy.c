@@ -507,10 +507,10 @@ internal void fx_build(ee_map *map) {
     }
     for (uint32_t i = 0; i < h; i++) g_fx_lo[i] = LONG_MAX, g_fx_hi[i] = LONG_MIN;
     const void *mesh = map_mesh_at(map);
-    unsigned long n = terrain_rows(mesh);
+    unsigned long n = vr_rows(mesh);
     for (unsigned long r = 0; r < n; r++) {
         long y, x0, x1;
-        terrain_row(mesh, r, &y, &x0, &x1);
+        vr_row(mesh, r, &y, &x0, &x1);
         long key = y / size;
         if (key < 0 || (uint32_t)key >= h) continue;
         if (x0 / size < g_fx_lo[key]) g_fx_lo[key] = x0 / size;

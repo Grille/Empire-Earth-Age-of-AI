@@ -117,7 +117,7 @@
     X(CHOICE, camera,   scroll,                   "game", "game,ee,aoc", 0) \
     X(FLAG,   camera,   smooth_scroll,            1, 0, 0) \
     X(INT,    camera,   camera_distance,          25, 0, 100) \
-    X(LIMIT,  camera,   camera_distance_max,      42, 0, 42) \
+    X(LIMIT,  camera,   camera_distance_max,      42, 0, 100) \
     X(INT,    camera,   camera_view_distance,     50, 0, 100) \
     X(INT,    camera,   camera_fov,               48, 0, 90) \
     X(CHOICE, display,  display_mode,             "native", "native,windowed,borderless", 0) \
