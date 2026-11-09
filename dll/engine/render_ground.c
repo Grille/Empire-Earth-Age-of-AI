@@ -18,9 +18,14 @@
 // at the level with one whole texture of the animation, the frame its place in a table of 33 x 33 says, half see-through and
 // clear at a corner the map's bits say is shore; one colour (the map's for the water times the lights on level ground), the
 // fog of war the ground's, and the movement sin(x y + phase) times the surface's strength - over land half of (sin - 1).
+// Round the map the black the game puts there (Generate*EdgePolygons): from each point of the boundary out and down to the
+// level within 5 tiles, then on to the far distance, flat; a wedge of the same at each of the four corners. The game makes it
+// for the camera each update, as far as the view reaches; here once, as far as any view can.
 #define RG_CHUNK 32
 #define RG_MATERIALS 1024
 #define RG_LAYERS 4     // a quad's textures at most
+#define RG_SKIRT_NEAR 5.0f      // tiles out and down to the level, as the game's
+#define RG_SKIRT_FAR 1000.0f    // and on from there, beyond any view (the game's corners too)
 typedef float (__thiscall *rg_z_fn)(const void *mesh, unsigned long x, unsigned long y);
 typedef const float *(__thiscall *rg_colour_fn)(const void *mesh, unsigned long x, unsigned long y);
 typedef unsigned long (__thiscall *rg_set_fn)(const void *mesh, unsigned long x, unsigned long y);
@@ -69,7 +74,8 @@ internal struct {
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
     uint8_t *fow_was, *fow_now;
-    ID3D11Buffer *cb, *cbw;
+    ID3D11Buffer *cb, *cbw, *skirt;
+    int nskirt;
     uint32_t wcol;
     double phase;
     LONGLONG at;
@@ -88,6 +94,7 @@ internal struct {
     rg_coord_fn uv;
     rg_draw_fn draw[2], water[2];
     rg_bind_fn bind[2];
+    uint8_t (__thiscall *is_space)(const void *mesh);   // Art of Conquest's only
     uint8_t (__thiscall *is_water)(const void *mesh, unsigned long x, unsigned long y);
     uint8_t (__thiscall *water_info)(const void *mesh, unsigned long x, unsigned long y);
     const float *(__thiscall *water_colour)(const void *mesh, unsigned long x, unsigned long y);
@@ -107,6 +114,7 @@ internal int rg_api(void) {
         && RG_GET(tex, "?GetTexture@GETextureSet@@QAEPAVGETexture@@KK@Z") && RG_GET(uv, "?GetTextureCoordinate@GETextureSet@@QAEXKKAAVGETextureCoordinate@@@Z")
         && RG_GET(is_water, "?GetIsWaterTile@GETerrainMesh@@QBE_NKK@Z") && RG_GET(water_info, "?GetWaterInfo@GETerrainMesh@@QBEEKK@Z")
         && RG_GET(water_colour, "?GetWaterColor@GETerrainMesh@@QBEABVGEColor@@KK@Z");
+    if (ok) *(FARPROC *)&g_rg.is_space = GetProcAddress(lle, "?GetIsSpaceMap@GETerrainMesh@@QBE_NXZ");
     g_rg.api = ok ? 1 : -1;
     log_locked("# ground: the mesh's functions %s\n", ok ? "found" : "NOT found - the game's ground");
     return ok;
@@ -117,6 +125,8 @@ internal void rg_free(void) {
         free(g_rg.c);
         g_rg.c = NULL;
     }
+    D3D_RELEASE(g_rg.skirt);
+    g_rg.nskirt = 0;
     D3D_RELEASE(g_rg.fow_srv);
     D3D_RELEASE(g_rg.fow);
     free(g_rg.fow_was); free(g_rg.fow_now);
@@ -288,6 +298,69 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
         rg_part_make(&c->p[w], tris, n, w);
     }
 }
+// THE BLACK ROUND THE MAP. Its triangles both ways round: which way the game's face (four lists by hand) doesn't matter when both are there
+internal void rg_black(rb_vertex *o, const float *p) {
+    float *f = (float *)o->fvf;
+    memset(f, 0, 36);
+    f[0] = p[0]; f[1] = p[1]; f[2] = p[2];
+    *(uint32_t *)(f + 6) = 0xFF000000u;
+    o->w = 0;
+}
+internal int rg_black_tri(rb_vertex *v, int n, const float *a, const float *b, const float *c) {
+    rg_black(&v[n], a); rg_black(&v[n + 1], b); rg_black(&v[n + 2], c);
+    rg_black(&v[n + 3], a); rg_black(&v[n + 4], c); rg_black(&v[n + 5], b);
+    return n + 6;
+}
+// a point, moved out along (dx, dy) by k tiles, at the level
+internal void rg_out(float *o, const float *p, float dx, float dy, float k) { o[0] = p[0] + dx * k; o[1] = p[1] + dy * k; o[2] = 0; }
+internal int rg_black_side(rb_vertex *v, int n, const float *p, const float *q, float dx, float dy) {
+    float p1[3], q1[3], p2[3], q2[3];
+    rg_out(p1, p, dx, dy, RG_SKIRT_NEAR); rg_out(q1, q, dx, dy, RG_SKIRT_NEAR);
+    rg_out(p2, p, dx, dy, RG_SKIRT_FAR); rg_out(q2, q, dx, dy, RG_SKIRT_FAR);
+    n = rg_black_tri(v, n, p, q, q1); n = rg_black_tri(v, n, p, q1, p1);
+    n = rg_black_tri(v, n, p1, q1, q2);
+    return rg_black_tri(v, n, p1, q2, p2);
+}
+internal void rg_skirt_build(void) {
+    static const float dirs[4][2] = { { 1, -1 }, { 1, 1 }, { -1, 1 }, { -1, -1 } };   // the game's back, right, front, left
+    size_t cap = (size_t)g_rg.size * 4 * 4 * 6 + 4 * 3 * 6;
+    rb_vertex *v = malloc(cap * sizeof *v);
+    if (!v) return;
+    int n = 0, have = 0;
+    float corner[4][3];   // the boundary's point furthest along +x, +y, -x, -y: where one side turns into the next
+    #define RG_POINT(P, X, Y) float P[3] = { (float)(X), (float)(Y), g_rg.z(g_rg.mesh, (unsigned long)(X), (unsigned long)(Y)) }
+    #define RG_SIDE(P, Q, D) do { n = rg_black_side(v, n, P, Q, dirs[D][0], dirs[D][1]); \
+        const float *e_[2] = { P, Q }; for (int k_ = 0; k_ < 2; k_++) { \
+            float s_[4] = { e_[k_][0], e_[k_][1], -e_[k_][0], -e_[k_][1] }; \
+            for (int c_ = 0; c_ < 4; c_++) { float t_[4] = { corner[c_][0], corner[c_][1], -corner[c_][0], -corner[c_][1] }; \
+                if (!have || s_[c_] > t_[c_]) memcpy(corner[c_], e_[k_], sizeof corner[c_]); } have = 1; } } while (0)
+    for (int y = 0; y < g_rg.size; y++) for (int x = 0; x < g_rg.size; x++) {
+        if (!g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y)) continue;
+        RG_POINT(a, x, y); RG_POINT(b, x, y + 1); RG_POINT(c, x + 1, y); RG_POINT(d, x + 1, y + 1);
+        if (g_rg.right(g_rg.mesh, x, y)) RG_SIDE(b, c, 1);
+        else if (g_rg.left(g_rg.mesh, x, y)) RG_SIDE(b, c, 3);
+        else {
+            if (g_rg.top(g_rg.mesh, x, y)) RG_SIDE(a, d, 2);
+            if (g_rg.bottom(g_rg.mesh, x, y)) RG_SIDE(a, d, 0);
+        }
+        if ((size_t)n + 6 * 8 > cap - 4 * 3 * 6) break;
+    }
+    #undef RG_SIDE
+    #undef RG_POINT
+    if (have) for (int c = 0; c < 4; c++) {   // +x lies between back and right, +y right and front, -x front and left, -y left and back
+        const float *from = dirs[c], *to = dirs[(c + 1) % 4];
+        float a1[3], b1[3], a2[3], b2[3];
+        rg_out(a1, corner[c], from[0], from[1], RG_SKIRT_NEAR); rg_out(b1, corner[c], to[0], to[1], RG_SKIRT_NEAR);
+        rg_out(a2, corner[c], from[0], from[1], RG_SKIRT_FAR); rg_out(b2, corner[c], to[0], to[1], RG_SKIRT_FAR);
+        n = rg_black_tri(v, n, corner[c], a1, b1);
+        n = rg_black_tri(v, n, a1, a2, b2);
+        n = rg_black_tri(v, n, a1, b2, b1);
+    }
+    D3D11_BUFFER_DESC bd = { (UINT)n * sizeof *v, D3D11_USAGE_DEFAULT, D3D11_BIND_VERTEX_BUFFER, 0, 0, 0 };
+    D3D11_SUBRESOURCE_DATA sd = { v, 0, 0 };
+    if (n && SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_rg.skirt))) g_rg.nskirt = n;
+    free(v);
+}
 internal int rg_build(void) {
     ee_map *map = game_map();
     if (!map || !rg_api()) return 0;
@@ -304,6 +377,7 @@ internal int rg_build(void) {
     g_rg.wcol = rg_bytes(g_rg.water_colour(g_rg.mesh, 0, 0), 0);
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) rg_chunk_build(cx, cy, tris);
     free(tris);
+    rg_skirt_build();
     D3D11_TEXTURE2D_DESC td = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DYNAMIC, D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_WRITE, 0 };
     g_rg.fow_was = calloc((size_t)g_rg.size, (size_t)g_rg.size + 1);
     g_rg.fow_now = calloc((size_t)g_rg.size, (size_t)g_rg.size);
@@ -394,6 +468,7 @@ internal void rg_draw_now(int water, int again) {
     }
     int nmat = water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
+    if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
     for (int m = 0; m < nmat; m++) {
         srv[m] = NULL;
         if (!want[m]) continue;
@@ -450,6 +525,11 @@ internal void rg_draw_now(int water, int again) {
             drawn++;
         }
     }
+    if (!water && g_rg.skirt && srv[0]) {
+        g_rd3.srv = srv[0];
+        rf_record(0, (UINT)g_rg.nskirt, 0);
+        if (g_rf.n) g_rf.cmd[g_rf.n - 1].gvb = g_rg.skirt;
+    }
     if (!water) { g_rg.drawn = drawn; g_rg.frames++; }
     // as the game's draw leaves it: the display's state "3D drawn" - Set2DMode puts the interface's matrices back only then
     (*(uint8_t **)(*(uintptr_t *)((uint8_t *)g_rg.ras + 0x6c) + g_rg.screen * 4))[0x6d] = 1;
@@ -470,7 +550,8 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &nos);
 }
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {
-    if (!rg_ready()) return (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
+    // Art of Conquest's maps with space tiles (GETerrainMesh::SetIsSpace) are the game's still: the mesh draws those its own way, not yet done here
+    if (!rg_ready() || !rg_api() || (g_rg.is_space && g_rg.is_space(mesh))) return (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
     g_rg.ras = ras; g_rg.mesh = mesh; g_rg.screen = screen; g_rg.dll = i; g_rg.flag = flag & 0xFF;
     RD_LOCK(); rg_draw_now(water, 0); RD_UNLOCK();
     return 0;
