@@ -9,8 +9,9 @@
 // 2026-11-09: "rendering the silluetes transparent makes the shape hard to read since depth gets thrown out"): an arm before
 // the body stays before it, instead of every layer of the model blending in the order of its triangles.
 // The fill knows a record's kind (sil_tag), the draw only the record: the game's draw of a record is hooked to say whose
-// draws follow, and a batch holds one kind (sil_batch); its player's colour is per draw, the entry's free number.
-enum { SIL_UNIT = 1, SIL_BUILDING = 2 };
+// draws follow, and a batch holds one kind (sil_batch); its player's colour is per draw, the entry's free number. A cloaked
+// unit is a kind of its own: no silhouette and no shadow (render_shadows.c), either would show where it is.
+enum { SIL_UNIT = 1, SIL_BUILDING = 2, SIL_CLOAKED = 3 };
 #define SIL_TABLE (1u << 16)
 typedef struct { const void *rec; uint32_t gen; int tag; } sil_e;
 internal sil_e g_sil_t[SIL_TABLE];
@@ -48,7 +49,9 @@ internal int sil_of(const void *rec) {
 }
 internal uint32_t sil_byte(float v) { return v <= 0.0f ? 0 : v >= 1.0f ? 255 : (uint32_t)(v * 255.0f); }
 internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
-    g_sl.tag = sil_on() ? sil_of(rec) : 0;
+    int kind = sil_of(rec);
+    g_sh_cloaked = kind == SIL_CLOAKED;
+    g_sl.tag = sil_on() && kind != SIL_CLOAKED ? kind : 0;
     g_sl.in = 1;
     if (g_sl.tag == SIL_UNIT) {
         vec3 c = draw_record_get_color(rec);
@@ -56,6 +59,7 @@ internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
     }
     ro_units_draw_record(ro, rec);
     g_sl.in = 0;
+    g_sh_cloaked = 0;
 }
 // a tree's record: it hides what stands behind it as a building does (and render_instance.c draws it)
 internal void __thiscall sil_hook_tree(ee_ro_units *ro, void *at, void *rec) {
@@ -66,7 +70,7 @@ internal void __thiscall sil_hook_tree(ee_ro_units *ro, void *at, void *rec) {
 }
 internal int sil_install(void) {
     static int done;
-    if (done || (!g_set.unit_silhouettes && !g_set.unit_instancing)) return done;   // (render_instance.c: a unit's record)
+    if (done || (!g_set.unit_silhouettes && !g_set.unit_instancing && g_set.shadows != 1)) return done;   // (render_instance.c: a unit's record; render_shadows.c: a cloaked one's)
     return done = patch_units_draw_record(sil_hook_draw, NULL) + patch_units_draw_tree(sil_hook_tree);
 }
 // a draw's batch holds one kind: the batch so far ended when the kind changes

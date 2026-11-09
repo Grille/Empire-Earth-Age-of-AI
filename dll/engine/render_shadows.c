@@ -216,6 +216,7 @@ internal void shadow_light_read(void) {
     memcpy(g_sh.amb, amb, sizeof g_sh.amb);
     memcpy(g_sh.diff, diff, sizeof g_sh.diff);
 }
+internal int g_sh_cloaked;   // render_silhouette.c: the record being drawn is a cloaked unit's
 internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (!g_sh.on || vb->fvf != 0x152 || !d->rs[D3DRENDERSTATE_ZENABLE] || !rd3_shadow_init()) return SH_NONE;
     if (g_ro_cur == RO_TERRAIN) {
@@ -245,6 +246,9 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         return SH_WATER;
     }
     if (g_ro_cur != RO_UNITS) return SH_NONE;
+    // a cloaked unit casts nothing (the player, 2026-11-10: "hidden unist have shadows, so the shadows give them away") and,
+    // not being a caster, isn't mirrored in the water either
+    if (g_sh_cloaked) return SH_NONE;
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
     if (g_mo_box) for (int a = 0; a < 3; a++) { lo[a] = g_mo_box[a]; hi[a] = g_mo_box[3 + a]; }
     else for (DWORD k = 0; k < nv; k++) {
