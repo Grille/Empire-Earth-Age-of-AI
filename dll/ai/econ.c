@@ -1523,7 +1523,7 @@ internal int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
     return 0;
 }
 internal int g_more_granaries = 1;
-// THE SILOS' ROW of the priority list ([ai_base] farm_first, default 0 until measured; the player 2026-11-09: "the second
+// THE SILOS' ROW of the priority list ([ai_base] farm_first, default on; the player 2026-11-09: "the second
 // copper age starts researching the silo with its 525 wood should be put in the priorethy list and good is", "a second
 // should follow soon after"). 525 wood: a Granary's 125 and 8 fields of 50. Due from the moment the game orders the Copper
 // Age's research (AttemptEpochAdvance sets the civilization manager's +0x78 when it schedules the epoch's tech), one silo
