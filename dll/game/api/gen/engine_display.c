@@ -600,6 +600,9 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // overwrites the polygons (the 2017 update's constructor 0x100066A8, AoC's 0x100273C9)
 // GETerrainMesh: the index of the water's colour set among its colour sets (SetWaterColorSet: a corner under the water
 // takes the slot height * of_mesh_water_scale * (slots - 1) of it, past the last the last)
+// GETerrainMesh: 33 x 33 numbers, which of the water's groups a tile takes: the one at (x % 33) * 33 + y % 33
+// (SetGlobalWaterState fills them at random, UpdateVisibleTerrain reads them) - tiles side by side at different
+// frames of the animation
 // GETerrainMesh: float, that scale (SetWaterColorSet's flds)
 // UpdateVisibleTerrain (exported by name): its lea eax, [mesh + of_mesh_ground_polygons] (6 bytes: 8D, a modrm
 // [reg + disp32] into eax, the offset) that starts the ground's pool - the 2017 update's with edi, AoC's with esi
@@ -1100,6 +1103,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_mesh_ground_polygons = 12000;
         value_engine_display_mesh_water_polygons = 5000;
         value_engine_display_of_mesh_water_set = 1558212;
+        value_engine_display_of_mesh_water_patches = 1553832;
         value_engine_display_of_mesh_water_scale = 1553792;
         value_engine_display_size_mesh_polygon = 48;
         value_engine_display_of_visible_ground_pool = 929;
@@ -1426,6 +1430,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_mesh_ground_polygons = 12000;
         value_engine_display_mesh_water_polygons = 5000;
         value_engine_display_of_mesh_water_set = 1639888;
+        value_engine_display_of_mesh_water_patches = 1635508;
         value_engine_display_of_mesh_water_scale = 1635464;
         value_engine_display_size_mesh_polygon = 48;
         value_engine_display_of_visible_ground_pool = 932;

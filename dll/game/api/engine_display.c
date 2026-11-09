@@ -252,6 +252,16 @@ internal inline uint8_t *effect_queues_at(void) { return (uint8_t *)data_engine_
 // the mesh's water colour set: its index among the colour sets, and the scale from a height to 0 .. 1 over its slots
 internal inline unsigned mesh_water_set(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_set, unsigned); }
 internal inline float mesh_water_scale(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_scale, float); }
+// the water's groups, one per frame of its animation; a tile's group; a group's texture now (UpdateWaterAnimation moves them along)
+internal inline unsigned mesh_water_groups(const void *mesh) {
+    const uint8_t *v = (const uint8_t *)mesh + value_engine_display_of_mesh_water_groups;
+    const uint8_t *g = *(uint8_t *const *)(v + 4);
+    return g ? (unsigned)(*(uint8_t *const *)(v + 8) - g) / value_engine_display_size_mesh_group : 0;
+}
+internal inline unsigned mesh_water_patch(const void *mesh, unsigned x, unsigned y) { return ((const unsigned *)((const uint8_t *)mesh + value_engine_display_of_mesh_water_patches))[(x % 33) * 33 + y % 33]; }
+internal inline void *mesh_water_texture(const void *mesh, unsigned group) {
+    return *(void **)(*(uint8_t *const *)((const uint8_t *)mesh + value_engine_display_of_mesh_water_groups + 4) + group * value_engine_display_size_mesh_group);
+}
 internal inline int game_light(float dir[3], float amb[3], float diff[3]) {
     if (!*(const uint8_t *)data_engine_display_light_on) return 0;
     const float *d = (const float *)data_engine_display_light_direction, *a = (const float *)data_engine_display_light_ambient,

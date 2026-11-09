@@ -187,7 +187,7 @@ class display
         /// draw (the control pipe: picture morph on / off):
         bool gpu_animation = true;
         /// The own renderer only: the ground drawn from the map itself, the whole map on the graphics card, instead of the
-        /// game's part of it remade for what the camera sees (a test: the water stays the game's; the control pipe: picture ground on / off):
+        /// game's part of it remade for what the camera sees, and the water's surface with it (a test; the control pipe: picture ground on / off):
         bool own_ground = false;
         /// The own renderer only: the ground is made this much wider and taller than the screen (100% = twice its
         /// size), so that a frame drawn during a step after a scroll or a zoom out still has ground at the edges

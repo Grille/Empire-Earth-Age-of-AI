@@ -9,10 +9,14 @@
 // the base, drawn whole; each other is drawn over it, a corner's alpha 1 where that corner's cell has it (a cell outside
 // the map, or of the same set, counts as the quad's own). Two triangles, A B D and A D C; along the map's diamond edges one.
 // Materials are drawn by texture address, each its base triangles and then its blended ones.
-// The colour of a point is the map's colour table's times the game's lights (DX7Rasterizer::Light), once; its brightness
-// the fog of war, four cells' sight (GETerrainMesh::UpdateFogOfWar: at least 2 units 0.25 each, 1 unit 0.125) - a texture
+// The colour of a point is the map's colour table's times the game's lights (DX7Rasterizer::Light) - the lights are the
+// vertex shader's, they change in play and the chunks are made once; its brightness the fog of war, four cells' sight (GETerrainMesh::UpdateFogOfWar: at least 2 units 0.25 each, 1 unit 0.125) - a texture
 // of the cells read by the vertex shader; the seabed's wobble (DX7Rasterizer::TransformToCamera: a point deeper than -0.5
 // moves by sin(x y + phase) times the strength) the shader's too, so it goes on in a frame drawn during a step.
+// The water's surface the same way (UpdateVisibleTerrain's end, DX7Rasterizer::DrawWater): a tile the map calls water is a quad
+// at the level with one whole texture of the animation, the frame its place in a table of 33 x 33 says, half see-through and
+// clear at a corner the map's bits say is shore; one colour (the map's for the water times the lights on level ground), the
+// fog of war the ground's, and the movement sin(x y + phase) times the surface's strength - over land half of (sin - 1).
 #define RG_CHUNK 32
 #define RG_MATERIALS 1024
 #define RG_LAYERS 4     // a quad's textures at most
@@ -35,18 +39,25 @@ typedef struct {
     rg_range *r;
     int nr;
     float lo[3], hi[3];
+} rg_part;
+typedef struct {
+    rg_part p[2];        // the ground, the water
+    int wn, wshore;      // the water's vertices, those over land (the water's level for the shadows)
 } rg_chunk;
+// the game's 3D states for the ground or the water, as the last frame that drew it had them
+typedef struct {
+    int ok;
+    ID3D11RenderTargetView *rtv;
+    ID3D11DepthStencilView *dsv;
+    void *blend, *depth, *raster, *samp;
+    D3D11_VIEWPORT vport;
+    rd3_vcb vc;
+    rd3_pcb pc;
+    float proj[16];
+} rg_states;
 internal struct {
     int on, api, built, dll, flag;
-    // the game's 3D states for the ground, as the last frame that drew it had them
-    int state_ok;
-    ID3D11RenderTargetView *st_rtv;
-    ID3D11DepthStencilView *st_dsv;
-    void *st_blend, *st_depth, *st_raster, *st_samp;
-    D3D11_VIEWPORT st_vport;
-    rd3_vcb st_vc;
-    rd3_pcb st_pc;
-    float st_proj[16];
+    rg_states st[2];
     int size, across;
     ee_map *map;
     void *mesh, *ras;
@@ -57,11 +68,12 @@ internal struct {
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
     uint8_t *fow_was, *fow_now;
-    ID3D11Buffer *cb;
+    ID3D11Buffer *cb, *cbw;
+    uint32_t wcol;
     double phase;
     LONGLONG at;
     long drawn, tris, frames;
-    rg_lights lights, lights_built;
+    rg_lights lights;
     int lit;
     rg_lit_fn light[2];
     rg_z_fn z;
@@ -73,8 +85,11 @@ internal struct {
     rg_edge_fn left, right, top, bottom;
     rg_texture_fn tex;
     rg_coord_fn uv;
-    rg_draw_fn draw[2];
+    rg_draw_fn draw[2], water[2];
     rg_bind_fn bind[2];
+    uint8_t (__thiscall *is_water)(const void *mesh, unsigned long x, unsigned long y);
+    uint8_t (__thiscall *water_info)(const void *mesh, unsigned long x, unsigned long y);
+    const float *(__thiscall *water_colour)(const void *mesh, unsigned long x, unsigned long y);
 } g_rg;
 typedef struct { void *tex; int layer; rb_vertex v[3]; } rg_tri;
 
@@ -88,14 +103,16 @@ internal int rg_api(void) {
         && RG_GET(reg, "?GetRegisteredTextureSet@GETerrainMesh@@QBEPAVGETextureSet@@K@Z") && RG_GET(tile, "?GetIsValidTile@GETerrainMesh@@QBE_NKK@Z")
         && RG_GET(left, "?GetIsLeftEdgeTile@GETerrainMesh@@QBE_NJJ@Z") && RG_GET(right, "?GetIsRightEdgeTile@GETerrainMesh@@QBE_NJJ@Z")
         && RG_GET(top, "?GetIsTopEdgeTile@GETerrainMesh@@QBE_NJJ@Z") && RG_GET(bottom, "?GetIsBottomEdgeTile@GETerrainMesh@@QBE_NJJ@Z")
-        && RG_GET(tex, "?GetTexture@GETextureSet@@QAEPAVGETexture@@KK@Z") && RG_GET(uv, "?GetTextureCoordinate@GETextureSet@@QAEXKKAAVGETextureCoordinate@@@Z");
+        && RG_GET(tex, "?GetTexture@GETextureSet@@QAEPAVGETexture@@KK@Z") && RG_GET(uv, "?GetTextureCoordinate@GETextureSet@@QAEXKKAAVGETextureCoordinate@@@Z")
+        && RG_GET(is_water, "?GetIsWaterTile@GETerrainMesh@@QBE_NKK@Z") && RG_GET(water_info, "?GetWaterInfo@GETerrainMesh@@QBEEKK@Z")
+        && RG_GET(water_colour, "?GetWaterColor@GETerrainMesh@@QBEABVGEColor@@KK@Z");
     g_rg.api = ok ? 1 : -1;
     log_locked("# ground: the mesh's functions %s\n", ok ? "found" : "NOT found - the game's ground");
     return ok;
 }
 internal void rg_free(void) {
     if (g_rg.c) {
-        for (int i = 0; i < g_rg.across * g_rg.across; i++) { D3D_RELEASE(g_rg.c[i].vb); free(g_rg.c[i].r); }
+        for (int i = 0; i < g_rg.across * g_rg.across; i++) for (int w = 0; w < 2; w++) { D3D_RELEASE(g_rg.c[i].p[w].vb); free(g_rg.c[i].p[w].r); }
         free(g_rg.c);
         g_rg.c = NULL;
     }
@@ -105,18 +122,11 @@ internal void rg_free(void) {
     g_rg.fow_was = g_rg.fow_now = NULL;
     g_rg.built = g_rg.nmat = 0;
 }
-// a point's colour for the vertex: the table's times the game's lights as they were for its Light (bytes B G R A, alpha the corner's)
-internal uint32_t rg_light(unsigned long x, unsigned long y, int a) {
-    const float *c = g_rg.colour(g_rg.mesh, x, y), *n = g_rg.normal(g_rg.mesh, x, y);
-    float l[3] = { g_rg.lights.amb[0], g_rg.lights.amb[1], g_rg.lights.amb[2] };
-    for (int i = 0; i < g_rg.lights.n; i++) {
-        float k = n[0] * g_rg.lights.dir[i][0] + n[1] * g_rg.lights.dir[i][1] + n[2] * g_rg.lights.dir[i][2];
-        if (k <= 0) continue;
-        l[0] += g_rg.lights.col[i][0] * k; l[1] += g_rg.lights.col[i][1] * k; l[2] += g_rg.lights.col[i][2] * k;
-    }
+// a colour of the game's for a vertex (bytes B G R, alpha the corner's)
+internal uint32_t rg_bytes(const float *c, int a) {
     uint32_t out = (uint32_t)a << 24;
     for (int i = 0; i < 3; i++) {
-        float v = c[i] * (l[i] > 1.0f ? 1.0f : l[i]) * 255.0f + 0.5f;   // the light clamped before the colour, as Light does: else a warm stone washes out
+        float v = c[i] * 255.0f + 0.5f;
         out |= (v <= 0 ? 0u : v >= 255 ? 255u : (uint32_t)v) << (16 - i * 8);
     }
     return out;
@@ -124,8 +134,8 @@ internal uint32_t rg_light(unsigned long x, unsigned long y, int a) {
 internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const float *uv, int a) {
     float *f = (float *)o->fvf;
     f[0] = (float)x; f[1] = (float)y; f[2] = g_rg.z(g_rg.mesh, x, y);
-    f[3] = f[4] = f[5] = 0;
-    *(uint32_t *)(f + 6) = rg_light(x, y, a);
+    memcpy(f + 3, g_rg.normal(g_rg.mesh, x, y), 12);
+    *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, x, y), a);
     f[7] = uv[0]; f[8] = uv[1];
     o->w = 0;
 }
@@ -193,13 +203,51 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     }
     return n;
 }
-internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
-    rg_chunk *c = &g_rg.c[cy * g_rg.across + cx];
+internal void rg_water_vertex(rg_chunk *ch, rb_vertex *o, unsigned long x, unsigned long y, float u, float v, int a) {
+    float *f = (float *)o->fvf;
+    f[0] = (float)x; f[1] = (float)y; f[2] = g_rg.z(g_rg.mesh, x, y);   // the ground's height: the vertex shader's choice of the movement
+    f[3] = f[4] = 0; f[5] = 1;   // level: the lights as DX7Rasterizer::Light's end has them for the water
+    *(uint32_t *)(f + 6) = g_rg.wcol | (uint32_t)a << 24;
+    f[7] = u; f[8] = v;
+    o->w = 0;
+    ch->wn++;
+    if (f[2] >= 0) ch->wshore++;
+}
+// a water tile's triangles, as the ground's along the map's edges; the tile's frame of the animation in place of a texture
+internal int rg_water_quad(rg_chunk *ch, rg_tri *out, unsigned long x, unsigned long y, unsigned groups) {
+    if (!g_rg.is_water(g_rg.mesh, x, y)) return 0;
+    unsigned m = mesh_water_patch(g_rg.mesh, (unsigned)x, (unsigned)y);
+    if (m >= groups || m >= RG_MATERIALS) return 0;
+    unsigned info = g_rg.water_info(g_rg.mesh, x, y);
+    int aa = info & 2 ? 0 : 128, ab = info & 4 ? 0 : 128, ad = info & 8 ? 0 : 128, ac = info & 0x10 ? 0 : 128;
+    int left = g_rg.left(g_rg.mesh, (long)x, (long)y), right = g_rg.right(g_rg.mesh, (long)x, (long)y);
+    int topq = g_rg.top(g_rg.mesh, (long)x, (long)y), bottom = g_rg.bottom(g_rg.mesh, (long)x, (long)y);
     int n = 0;
+    #define RG_A 0, x, y, 0.0f, 1.0f, aa
+    #define RG_B 1, x, y + 1, 0.0f, 0.0f, ab
+    #define RG_C 2, x + 1, y, 1.0f, 1.0f, ac
+    #define RG_D 3, x + 1, y + 1, 1.0f, 0.0f, ad
+    #define RG_W(k, i_, X, Y, U, V, A) rg_water_vertex(ch, &out[n].v[k], X, Y, U, V, A)
+    #define RG_W2(k, ...) RG_W(k, __VA_ARGS__)
+    #define RG_TRI(P0, P1, P2) do { out[n].tex = (void *)(uintptr_t)m; out[n].layer = 0; RG_W2(0, P0); RG_W2(1, P1); RG_W2(2, P2); n++; } while (0)
+    if (right) RG_TRI(RG_A, RG_B, RG_C);
+    else if (left) RG_TRI(RG_B, RG_D, RG_C);
+    else {
+        if (!topq) RG_TRI(RG_A, RG_B, RG_D);
+        if (!bottom) RG_TRI(RG_A, RG_D, RG_C);
+    }
+    #undef RG_TRI
+    #undef RG_W2
+    #undef RG_W
+    #undef RG_D
+    #undef RG_C
+    #undef RG_B
+    #undef RG_A
+    return n;
+}
+// the triangles of a chunk's part onto the GPU, by texture; the water's material is its frame's number
+internal void rg_part_make(rg_part *c, rg_tri *tris, int n, int water) {
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
-    for (int y = cy * RG_CHUNK; y < (cy + 1) * RG_CHUNK && y < g_rg.size; y++)
-        for (int x = cx * RG_CHUNK; x < (cx + 1) * RG_CHUNK && x < g_rg.size; x++)
-            if (g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y)) n += rg_quad(tris + n, (unsigned long)x, (unsigned long)y);
     if (!n) return;
     qsort(tris, (size_t)n, sizeof *tris, rg_tri_order);
     rb_vertex *v = malloc((size_t)n * 3 * sizeof *v);
@@ -213,7 +261,7 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
             if (p < lo[a]) lo[a] = p;
             if (p > hi[a]) hi[a] = p;
         }
-        int m = rg_material(tris[i].tex);
+        int m = water ? (int)(uintptr_t)tris[i].tex : rg_material(tris[i].tex);
         if (m < 0) continue;
         if (nr && r[nr - 1].m == m && !(i && tris[i].layer != tris[i - 1].layer)) r[nr - 1].n += 3;
         else { r[nr].m = m; r[nr].first = i * 3; r[nr].n = 3; nr++; }
@@ -223,13 +271,26 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
     if (SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &c->vb))) { c->r = r; c->nr = nr; g_rg.tris += n; }
     else free(r);
     free(v);
+    if (water) lo[2] = hi[2] = 0;   // their z is the ground's under them, the surface lies at the level
     memcpy(c->lo, lo, sizeof lo);
     memcpy(c->hi, hi, sizeof hi);
+}
+internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
+    rg_chunk *c = &g_rg.c[cy * g_rg.across + cx];
+    unsigned groups = mesh_water_groups(g_rg.mesh);
+    for (int w = 0; w < 2; w++) {
+        int n = 0;
+        for (int y = cy * RG_CHUNK; y < (cy + 1) * RG_CHUNK && y < g_rg.size; y++)
+            for (int x = cx * RG_CHUNK; x < (cx + 1) * RG_CHUNK && x < g_rg.size; x++)
+                if (g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y))
+                    n += w ? rg_water_quad(c, tris + n, (unsigned long)x, (unsigned long)y, groups) : rg_quad(tris + n, (unsigned long)x, (unsigned long)y);
+        rg_part_make(&c->p[w], tris, n, w);
+    }
 }
 internal int rg_build(void) {
     ee_map *map = game_map();
     if (!map || !rg_api()) return 0;
-    if (g_rg.built && g_rg.map == map && !memcmp(&g_rg.lights, &g_rg.lights_built, sizeof g_rg.lights)) return 1;
+    if (g_rg.built && g_rg.map == map) return 1;
     rg_free();
     g_rg.map = map;
     g_rg.size = (int)map_get_size(map);
@@ -239,8 +300,8 @@ internal int rg_build(void) {
     rg_tri *tris = malloc(sizeof *tris * (size_t)RG_CHUNK * RG_CHUNK * 2 * RG_LAYERS);
     if (!g_rg.c || !tris) { free(tris); rg_free(); return 0; }
     LONGLONG t0 = rd_qpc();
+    g_rg.wcol = rg_bytes(g_rg.water_colour(g_rg.mesh, 0, 0), 0);
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) rg_chunk_build(cx, cy, tris);
-    g_rg.lights_built = g_rg.lights;
     free(tris);
     D3D11_TEXTURE2D_DESC td = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DYNAMIC, D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_WRITE, 0 };
     g_rg.fow_was = calloc((size_t)g_rg.size, (size_t)g_rg.size + 1);
@@ -248,8 +309,8 @@ internal int rg_build(void) {
     if (!g_rg.fow_was || !g_rg.fow_now || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rg.fow))
         || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.fow, NULL, &g_rg.fow_srv))) { rg_free(); return 0; }
     if (!g_rg.cb) {
-        D3D11_BUFFER_DESC bd = { 32, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
-        if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb))) { rg_free(); return 0; }
+        D3D11_BUFFER_DESC bd = { 72 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb)) || FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cbw))) { rg_free(); return 0; }
     }
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 1;   // differs: the first frame sends it
     g_rg.built = 1;
@@ -284,7 +345,7 @@ internal void rg_fow(void) {
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 0;
 }
 // a chunk wholly outside one plane of the view (a little beyond it: the wobble, and the camera moved at the list's replay)
-internal int rg_visible(const rg_chunk *c, const float *m) {
+internal int rg_visible(const rg_part *c, const float *m) {
     int all[6] = { 1, 1, 1, 1, 1, 1 };
     for (int i = 0; i < 8; i++) {
         float p[3] = { i & 1 ? c->hi[0] + 2 : c->lo[0] - 2, i & 2 ? c->hi[1] + 2 : c->lo[1] - 2, i & 4 ? c->hi[2] + 1 : c->lo[2] - 1 };
@@ -302,17 +363,19 @@ internal int rg_revealed(void) {
     return *game_free_camera_at() || (p && player_get_explore_all(p));
 }
 internal int rg_ready(void) { return g_rg.on && g_rg.lit && g_rg.api >= 0 && g_rd3.scene_view[15] == 1 && g_rd3.prep_dev && g_cam_now_ok && game_map(); }   // the units have drawn once: the projection, from the frame before
-// the ground of this frame into the list, on the game's states for it
-internal void rg_draw_now(int again) {
+// the ground (water 0) or the water of this frame into the list, on the game's states for it
+internal void rg_draw_now(int water, int again) {
     rd_device *d = g_rd3.prep_dev;
     if (!g_rg.ras || !rg_build()) return;
     int i = g_rg.dll;
+    rg_states *st = &g_rg.st[water];
+    if (again && !st->ok) return;
     rd3_flush();
     // the projection the game's draw would set: the viewport's (+0x1F0, a GETransformation by rows; +0x1B0 the fixed camera's)
     const float *gp = (const float *)(*(const uint8_t **)(*(const uintptr_t *)((const uint8_t *)g_rg.ras + 0x20) + g_rg.screen * 4) + (g_rg.flag ? 0x1B0 : 0x1F0));
     // (in a frame during a step the current viewport is the interface's: the projection of the last frame that drew the ground)
     float proj[16], vpm[16];
-    if (again && g_rg.state_ok) memcpy(proj, g_rg.st_proj, sizeof proj);
+    if (again) memcpy(proj, st->proj, sizeof proj);
     else for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) proj[r * 4 + c] = gp[c * 4 + r];
     rd3_mul(vpm, g_cam_view_now, proj);
     static ID3D11ShaderResourceView *srv[RG_MATERIALS];
@@ -324,52 +387,60 @@ internal void rg_draw_now(int again) {
     if (cap < nc) { free(vis); vis = malloc((size_t)nc); cap = vis ? nc : 0; }
     if (!vis) return;
     for (int k = 0; k < nc; k++) {
-        const rg_chunk *c = &g_rg.c[k];
+        const rg_part *c = &g_rg.c[k].p[water];
         vis[k] = c->vb && rg_visible(c, vpm);
         if (vis[k]) for (int r = 0; r < c->nr; r++) want[c->r[r].m] = 1;
     }
-    for (int m = 0; m < g_rg.nmat; m++) {
+    int nmat = water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
+    if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
+    for (int m = 0; m < nmat; m++) {
         srv[m] = NULL;
         if (!want[m]) continue;
-        g_rg.bind[i](g_rg.ras, g_rg.mat[m], g_rg.screen);
+        g_rg.bind[i](g_rg.ras, water ? mesh_water_texture(g_rg.mesh, (unsigned)m) : g_rg.mat[m], g_rg.screen);
         rd_surface *t = d->tex[0];
         if (!t) continue;
         srv[m] = rd_gpu_texture(t, 0);
         (t->top ? t->top : t)->rf_used = g_rd_epoch;
     }
     // a frame during a step: the game has set no 3D states for it (its draw doesn't run): those of the last frame that did
-    if (again && g_rg.state_ok) {
-        g_rd3.rtv = g_rg.st_rtv; g_rd3.dsv = g_rg.st_dsv; g_rd3.blend = g_rg.st_blend; g_rd3.depth = g_rg.st_depth;
-        g_rd3.raster = g_rg.st_raster; g_rd3.samp = g_rg.st_samp; g_rd3.vport = g_rg.st_vport;
-        g_rd3.vc = g_rg.st_vc; g_rd3.pc = g_rg.st_pc;
-        g_rf.pc_new = 1;
+    if (again) {
+        g_rd3.rtv = st->rtv; g_rd3.dsv = st->dsv; g_rd3.blend = st->blend; g_rd3.depth = st->depth;
+        g_rd3.raster = st->raster; g_rd3.samp = st->samp; g_rd3.vport = st->vport;
+        g_rd3.vc = st->vc; g_rd3.pc = st->pc;
     } else {
         d->changed = -1;
         if (!rd3_prepare(d, 0)) return;
     }
     memcpy(g_rd3.vc.vpm, vpm, sizeof vpm);
     memcpy(g_rd3.vc.view, g_cam_view_now, sizeof g_cam_view_now);
-    g_rd3.vc.shp[0] = SH_GROUND;
-    g_rf.vc_new = 1;
+    // its part in the shadows, the vertex shader's and the pixel shader's: the map's ground takes them as the game's does
+    g_rd3.vc.shp[0] = g_rd3.pc.shd[0] = water ? SH_WATER : SH_RECEIVE;
+    g_rf.vc_new = g_rf.pc_new = 1;
     if (!again) {
-        g_rg.st_rtv = g_rd3.rtv; g_rg.st_dsv = g_rd3.dsv; g_rg.st_blend = g_rd3.blend; g_rg.st_depth = g_rd3.depth;
-        g_rg.st_raster = g_rd3.raster; g_rg.st_samp = g_rd3.samp; g_rg.st_vport = g_rd3.vport;
-        g_rg.st_vc = g_rd3.vc; g_rg.st_pc = g_rd3.pc;
-        memcpy(g_rg.st_proj, proj, sizeof proj);
-        g_rg.state_ok = 1;
+        st->rtv = g_rd3.rtv; st->dsv = g_rd3.dsv; st->blend = g_rd3.blend; st->depth = g_rd3.depth;
+        st->raster = g_rd3.raster; st->samp = g_rd3.samp; st->vport = g_rd3.vport;
+        st->vc = g_rd3.vc; st->pc = g_rd3.pc;
+        memcpy(st->proj, proj, sizeof proj);
+        st->ok = 1;
     }
     g_rb.topo = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    rg_fow();
-    LONGLONG now = rd_qpc();
-    const float *ws = (const float *)((const uint8_t *)g_rg.ras + 0x40);
-    if (g_rg.at) g_rg.phase = fmod(g_rg.phase + (double)ws[0] * (double)(now - g_rg.at) / (double)rd_qpc_ms(1000), 6.283185307179586 * 1024.0);
-    g_rg.at = now;
-    float cb[8] = { 1, (float)g_rg.phase, ws[2], rg_revealed() ? 1.0f : 0.0f, 0, 0, 0, 0 };
-    ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rg.cb, 0, NULL, cb, 0, 0);
+    const float *ws = (const float *)((const uint8_t *)g_rg.ras + 0x40);   // the movement's speed, the surface's strength, the seabed's
+    if (!water) {
+        rg_fow();
+        LONGLONG now = rd_qpc();
+        if (g_rg.at) g_rg.phase = fmod(g_rg.phase + (double)ws[0] * (double)(now - g_rg.at) / (double)rd_qpc_ms(1000), 6.283185307179586 * 1024.0);
+        g_rg.at = now;
+    }
+    float cb[72] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], rg_revealed() ? 1.0f : 0.0f };
+    memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
+    cb[7] = (float)g_rg.lights.n;
+    for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }
+    ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)(water ? g_rg.cbw : g_rg.cb), 0, NULL, cb, 0, 0);
     long drawn = 0;
     for (int k = 0; k < nc; k++) {
         if (!vis[k]) continue;
-        const rg_chunk *c = &g_rg.c[k];
+        const rg_part *c = &g_rg.c[k].p[water];
+        if (water) { g_sh.water_z -= g_rg.c[k].wshore * ws[1] * 0.5; g_sh.water_n += g_rg.c[k].wn; }   // the level, as the game's vertices give it (its mean: the sines cancel)
         for (int r = 0; r < c->nr; r++) {
             if (!srv[c->r[r].m]) continue;
             g_rd3.srv = srv[c->r[r].m];
@@ -378,8 +449,7 @@ internal void rg_draw_now(int again) {
             drawn++;
         }
     }
-    g_rg.drawn = drawn;
-    g_rg.frames++;
+    if (!water) { g_rg.drawn = drawn; g_rg.frames++; }
     // as the game's draw leaves it: the display's state "3D drawn" - Set2DMode puts the interface's matrices back only then
     (*(uint8_t **)(*(uintptr_t *)((uint8_t *)g_rg.ras + 0x6c) + g_rg.screen * 4))[0x6d] = 1;
     g_rd3.bound = 0;
@@ -391,25 +461,28 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11Buffer *none = NULL;
     ID3D11ShaderResourceView *nos = NULL;
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &c->gvb, &st, &off);
-    ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, &g_rg.cb);
+    ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &g_rg.fow_srv);
     ID3D11DeviceContext_Draw(x, c->n, c->at);
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &st, &off);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, &none);
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &nos);
 }
-internal int rg_hook(int i, void *ras, void *mesh, unsigned screen, int flag) {
-    if (!rg_ready()) return g_rg.draw[i](ras, mesh, screen, flag);
+internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {
+    if (!rg_ready()) return (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
     g_rg.ras = ras; g_rg.mesh = mesh; g_rg.screen = screen; g_rg.dll = i; g_rg.flag = flag & 0xFF;
-    RD_LOCK(); rg_draw_now(0); RD_UNLOCK();
+    RD_LOCK(); rg_draw_now(water, 0); RD_UNLOCK();
     return 0;
 }
-internal int __thiscall rg_hook0(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(0, ras, mesh, screen, flag); }
-internal int __thiscall rg_hook1(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(1, ras, mesh, screen, flag); }
-// a frame during a step: the game's draw doesn't run, the ground is drawn from the map all the same
-internal int rg_again(void) {
-    if (!rg_ready() || !g_rg.ras) return 0;
-    RD_LOCK(); rg_draw_now(1); RD_UNLOCK();
+internal int __thiscall rg_hook0(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(0, 0, ras, mesh, screen, flag); }
+internal int __thiscall rg_hook1(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(1, 0, ras, mesh, screen, flag); }
+internal int __thiscall rg_water_hook0(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(0, 1, ras, mesh, screen, flag); }
+internal int __thiscall rg_water_hook1(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(1, 1, ras, mesh, screen, flag); }
+// a frame during a step: the game's draw doesn't run, the ground is drawn from the map all the same - what was made from
+// this map: not while another writer (a load) has the world, nor after one until a real frame has made it anew
+internal int rg_again(int water, int writer) {
+    if (writer || !rg_ready() || !g_rg.ras || !g_rg.built || g_rg.map != game_map()) return 0;
+    RD_LOCK(); rg_draw_now(water, 1); RD_UNLOCK();
     return 1;
 }
 internal void rg_lights_take(void *ras) {
@@ -439,5 +512,9 @@ internal int rg_display_loaded(HMODULE m, const char *name) {
     void *li = (void *)GetProcAddress(m, "?Light@DX7Rasterizer@@UAEXAAVGETerrainMesh@@K@Z");
     if (!li) return 0;
     g_rg.light[i] = (rg_lit_fn)li;
-    return (replace_rdata_ptr(m, li, i ? (void *)rg_light_hook1 : (void *)rg_light_hook0) > 0) + (replace_rdata_ptr(m, fn, i ? (void *)rg_hook1 : (void *)rg_hook0) > 0);
+    void *wa = (void *)GetProcAddress(m, "?DrawWater@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z");
+    if (!wa) return 0;
+    g_rg.water[i] = (rg_draw_fn)wa;
+    return (replace_rdata_ptr(m, li, i ? (void *)rg_light_hook1 : (void *)rg_light_hook0) > 0) + (replace_rdata_ptr(m, fn, i ? (void *)rg_hook1 : (void *)rg_hook0) > 0)
+         + (replace_rdata_ptr(m, wa, i ? (void *)rg_water_hook1 : (void *)rg_water_hook0) > 0);
 }

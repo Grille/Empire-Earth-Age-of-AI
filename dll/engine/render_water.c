@@ -282,7 +282,8 @@ internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShader(x, g_wa.fps, NULL, 0);
     ID3D11DeviceContext_OMSetBlendState(x, NULL, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, g_wa.fdepth, 0);
-    ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+    if (c->gvb) rg_replay(x, c);
+    else ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
     ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
     ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0);

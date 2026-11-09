@@ -753,6 +753,12 @@ static unsafe class engine_display
     [value((ee)0x17C6C4, (aoc)0x1905D0)]
     static uint32 of_mesh_water_set;
 
+    /// GETerrainMesh: 33 x 33 numbers, which of the water's groups a tile takes: the one at (x % 33) * 33 + y % 33
+    /// (SetGlobalWaterState fills them at random, UpdateVisibleTerrain reads them) - tiles side by side at different
+    /// frames of the animation
+    [value((ee)0x17B5A8, (aoc)0x18F4B4)]
+    static uint32 of_mesh_water_patches;
+
     /// GETerrainMesh: float, that scale (SetWaterColorSet's flds)
     [value((ee)0x17B580, (aoc)0x18F488)]
     static uint32 of_mesh_water_scale;

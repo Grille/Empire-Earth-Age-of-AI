@@ -21,7 +21,7 @@
 // when the list is drawn (rd3_shadow_vc).
 // SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen); SH_TREE: drawn,
 // not casting (a tree whose card casts)
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE, SH_GROUND };
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE };
 #define SH_SIZE 4096
 #define SH_BLOCK 8   // tiles a block of the ground's highest and lowest (g_sh.bmax)
 internal struct {
@@ -582,7 +582,7 @@ internal void rd3_shadow_frame(void) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         if (c->role == SH_CAST || c->role == SH_TINT || c->role == SH_AWAY) nc++;
-        else if (c->role == SH_RECEIVE || c->role == SH_WATER || c->role == SH_GROUND) ng++;
+        else if (c->role == SH_RECEIVE || c->role == SH_WATER) ng++;
     }
     // the water's level: its vertices' mean height, and the fading under it on - for the frame, not this list: a
     // frame's list is drawn in parts (a texture uploaded that it draws with, ...), and a part drawn after the water
@@ -704,7 +704,8 @@ internal void rd3_shadow_vc(rd3_vcb *vc) {
     if (!g_sh.valid && !(g_sh.hill_ok && !g_sh.nohills)) return;
     int role = (int)vc->shp[0];
     const float *l = g_sh.light;
-    if (role == SH_RECEIVE || role == SH_WATER) {
+    // the game's ground and water come in the camera's space (no place in their view); those from the map (render_ground.c) in the world, like a decal
+    if ((role == SH_RECEIVE || role == SH_WATER) && vc->view[12] == 0 && vc->view[13] == 0 && vc->view[14] == 0) {
         if (g_sh.valid) rd3_mul(vc->shm, vc->view, g_sh.gm);
         float w[16];
         rd3_mul(w, vc->view, g_sh.gw);
@@ -717,7 +718,7 @@ internal void rd3_shadow_vc(rd3_vcb *vc) {
         for (int a = 0; a < 4; a++) vc->shx[a] = vc->shy[a] = vc->shz[a] = 0;
         vc->shx[0] = vc->shy[1] = vc->shz[2] = 1;
         memcpy(vc->shs, l, sizeof g_sh.light);   // a decal: in the world
-        vc->shs[3] = role == SH_DECAL ? 1.0f : 0.0f;
+        vc->shs[3] = role == SH_DECAL || role == SH_RECEIVE ? 1.0f : 0.0f;
     }
     memcpy(vc->sha, g_sh.amb, sizeof g_sh.amb);
     memcpy(vc->shf, g_sh.diff, sizeof g_sh.diff);

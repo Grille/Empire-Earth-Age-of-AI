@@ -162,7 +162,7 @@ internal const char k_rd3_shader[] =
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
-    "cbuffer g : register(b3) { float4 gnd; float4 gnd2; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen
+    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
@@ -189,10 +189,13 @@ internal const char k_rd3_shader[] =
     "float3 world_normal(float3 n, float3x3 w) { float3 a = cross(w[1], w[2]), o = mul(n, w);"
     " float3 m = n.x * a + n.y * cross(w[2], w[0]) + n.z * cross(w[0], w[1]); float l = dot(m, m);"
     " return l > 1e-12 ? m * sign(dot(w[0], a)) * sqrt(dot(o, o) / l) : o; }\n"
-    // the ground from the map: its seabed moved as TransformToCamera does, its brightness the fog of war (GETerrainMesh::UpdateFogOfWar)
-    "void ground(inout I i) { int X = (int)i.p.x, Y = (int)i.p.y; if (i.p.z < -0.5) i.p.z -= sin(i.p.x * i.p.y + gnd.y) * gnd.z; float l = 1;"
+    // the ground from the map: its seabed moved as TransformToCamera does, its brightness the fog of war (GETerrainMesh::UpdateFogOfWar),
+    // the game's lights on the table's colour, clamped before it as DX7Rasterizer::Light does (a warm stone washes out otherwise);
+    // the water (gnd.x 2): the height it holds is the ground's under it, the surface moves about the level, over land half as much and below it
+    "void ground(inout I i) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
+    " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
-    " i.c.rgb *= l; }\n"
+    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
     "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); if (gnd.x > 0) ground(i); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
@@ -1110,7 +1113,7 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 // again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
 // rf_ground_again)
 internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) {
-    RO_DRAW(RO_TERRAIN, if (g_kg_skip && (g_kg.nb || rg_ready())) { rf_ground_again(&g_kg); rg_again(); rf_ground_lines(); } else ro_terrain_draw(o));
+    RO_DRAW(RO_TERRAIN, if (g_kg_skip && (g_kg.nb || rg_ready())) { rf_ground_again(&g_kg); rg_again(0, g_rwl_nonstep > 0); rf_ground_lines(); } else ro_terrain_draw(o));
 }
 // during a step the last real frame's fields (the game's blob shadows aren't drawn: render_shadows.c SH_BLOB)
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) {
@@ -1119,7 +1122,7 @@ internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) {
 internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
 // during a step the last real frame's water, as its ground (render_frame.c rf_ground_again)
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
-    RO_DRAW(RO_WATER, if (g_kg_skip && g_kw.nb) rf_ground_again(&g_kw); else ro_water_draw(o));
+    RO_DRAW(RO_WATER, if (g_kg_skip && (g_kw.nb || rg_ready())) { rf_ground_again(&g_kw); rg_again(1, g_rwl_nonstep > 0); } else ro_water_draw(o));
 }
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
