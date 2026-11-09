@@ -12,6 +12,20 @@ internal inline ee_camera *game_camera_at(void) { return (ee_camera *)(uint8_t *
 // byte: the camera's step (0x51EE75, AoC 0x529A34) makes a fixed view instead of the camera's transformation from
 // its blend (45 degrees, 40 up) while it is set - not seen set in play
 internal inline uint8_t *game_camera_fixed_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_fixed; }
+// float in .rdata: the eye's distance from the look-at at zoom 1 in the normal view, -20.5 (read in the camera's move
+// 0x51DDD7, AoC 0x528996: the distance = (it - 0.1) x zoom + 0.1; view 3 and a cinematic take -42 instead)
+internal inline uint8_t *game_camera_eye_far_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_eye_far; }
+// float in .rdata: the far depth of the normal view, 35 (0x51CE31, AoC 0x527BC7, every camera step; view 3 and a
+// cinematic take 58 instead)
+internal inline uint8_t *game_camera_far_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_far; }
+// float: the field of view in radians, given to the map's viewport at every camera step (0x51EE75 calls
+// GEViewport::SetFieldOfView with it, AoC 0x529A34), 0.5236
+internal inline uint8_t *game_camera_fov_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_fov; }
+// float: the camera's pitch in radians at zoom 1, -0.6109 (the second of the two the camera's orientation is made from)
+internal inline uint8_t *game_camera_pitch_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_pitch; }
+// the address operand of a fld in 0x515611 (AoC's the same place): a fixed -30 degrees (camera_tilt_was); dreXmod's
+// camera points it at camera_pitch
+internal inline uint8_t *game_site_camera_tilt_at(void) { return (uint8_t *)(uintptr_t)data_game_site_camera_tilt; }
 internal inline uint8_t *game_cheats_on_at(void) { return (uint8_t *)(uintptr_t)data_game_cheats_on; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // byte: a cinematic runs - set at its start (0x5A1CDA, which keeps scroll_speed), cleared at its end (0x5A1C33)
@@ -272,6 +286,12 @@ internal int spec_game_select(int build) {
         data_game_behaviour_table = 0x008D2044;
         data_game_camera = 0x00918CD0;
         data_game_camera_fixed = 0x00919461;
+        data_game_camera_eye_far = 0x0082C700;
+        data_game_camera_far = 0x0082C704;
+        data_game_camera_fov = 0x0091328C;
+        data_game_camera_pitch = 0x009183C8;
+        data_game_site_camera_tilt = 0x0051568B;
+        value_game_camera_tilt_was = 8570308;
         data_game_cheats_on = 0x00918E9A;
         data_game_cinematic = 0x00918EA0;
         data_game_cheat_parser = 0x00919858;
@@ -386,6 +406,12 @@ internal int spec_game_select(int build) {
         data_game_behaviour_table = 0x008E8744;
         data_game_camera = 0x00931710;
         data_game_camera_fixed = 0x009308E2;
+        data_game_camera_eye_far = 0x00841EA0;
+        data_game_camera_far = 0x00841EA4;
+        data_game_camera_fov = 0x00929A34;
+        data_game_camera_pitch = 0x00930E08;
+        data_game_site_camera_tilt = 0x0051FCDC;
+        value_game_camera_tilt_was = 8658272;
         data_game_cheats_on = 0x009318DA;
         data_game_cinematic = 0x009318E0;
         data_game_cheat_parser = 0x009319D4;
@@ -507,6 +533,11 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_behaviour_table, "game.behaviour_table");
     bad += spec_data(data_game_camera, "game.camera");
     bad += spec_data(data_game_camera_fixed, "game.camera_fixed");
+    bad += spec_data(data_game_camera_eye_far, "game.camera_eye_far");
+    bad += spec_data(data_game_camera_far, "game.camera_far");
+    bad += spec_data(data_game_camera_fov, "game.camera_fov");
+    bad += spec_data(data_game_camera_pitch, "game.camera_pitch");
+    bad += spec_code(data_game_site_camera_tilt, "game.site_camera_tilt");
     bad += spec_data(data_game_cheats_on, "game.cheats_on");
     bad += spec_data(data_game_cinematic, "game.cinematic");
     bad += spec_data(data_game_cheat_parser, "game.cheat_parser");

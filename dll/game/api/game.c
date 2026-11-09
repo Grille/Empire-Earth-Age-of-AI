@@ -55,6 +55,18 @@ internal inline ee_camera *game_camera(void) { return (ee_camera *)data_game_cam
 internal inline float scroll_speed(void) { return *(float *)data_game_scroll_speed; }
 internal inline float scroll_setting(void) { return *(float *)data_game_scroll_setting; }
 internal inline float grab_setting(void) { return *(float *)data_game_grab_setting; }
+// the camera's shape, the game's own values: its far distance and far depth (the normal view's), its field of view
+internal inline float *camera_eye_far_at(void) { return (float *)data_game_camera_eye_far; }
+internal inline float *camera_far_at(void) { return (float *)data_game_camera_far; }
+internal inline float *camera_fov_at(void) { return (float *)data_game_camera_fov; }
+// the two .rdata floats written from now on; and a fixed -30 degrees in 0x515611 turned into the camera's pitch
+internal inline int camera_shape_open(void) {
+    DWORD old;
+    return VirtualProtect((void *)data_game_camera_eye_far, 8, PAGE_READWRITE, &old) != 0;
+}
+internal inline int patch_camera_tilt(void) {
+    return patch_code32(data_game_site_camera_tilt, value_game_camera_tilt_was, (uint32_t)data_game_camera_pitch);
+}
 // the wheel's zoom would zoom (EEUIEWheelZoom's conditions; else it puts the camera back)
 internal inline int wheel_zoom_free(void) {
     return *game_screen_ready_at() && !(!*game_cinematic_at() && camera_get_view(game_camera()) == 3);

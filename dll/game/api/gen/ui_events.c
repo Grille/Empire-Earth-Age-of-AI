@@ -784,9 +784,14 @@ internal inline uint32_t eeuiehk_unit_selection_execute(eeuiehk_unit_selection *
 // class EEUIEHotKeyZoom (eeuie_hot_key_zoom)
 // made in 0x58D3E1, 0x64C8B0
 // UIEvent's, the base's
+// 0: the key zooms in, else out (the execute's step taken from the zoom or added to it, both builds)
+internal inline int eeuie_hot_key_zoom_get_zooms_out(const eeuie_hot_key_zoom *o) { return *(int *)((uint8_t *)o + of_eeuie_hot_key_zoom_zooms_out); }
+internal inline void eeuie_hot_key_zoom_set_zooms_out(eeuie_hot_key_zoom *o, int v) { *(int *)((uint8_t *)o + of_eeuie_hot_key_zoom_zooms_out) = v; }
+internal inline int *eeuie_hot_key_zoom_zooms_out_at(const eeuie_hot_key_zoom *o) { return (int *)((uint8_t *)o + of_eeuie_hot_key_zoom_zooms_out); }
 typedef uint32_t (__thiscall *eeuie_hot_key_zoom_execute_fn)(eeuie_hot_key_zoom *, ee_ui_form *, uint32_t);
 internal eeuie_hot_key_zoom_execute_fn fn_eeuie_hot_key_zoom_execute;
 internal inline uint32_t eeuie_hot_key_zoom_execute(eeuie_hot_key_zoom *eeuie_hot_key_zoom, ee_ui_form *form, uint32_t arg) { return fn_eeuie_hot_key_zoom_execute(eeuie_hot_key_zoom, form, arg); }
+internal inline int patch_hot_key_zoom_execute(eeuie_hot_key_zoom_execute_fn h) { return patch_vtable(vt_eeuie_hot_key_zoom, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_hot_key_zoom_execute, (void *)h); }
 
 // class EEUIELEActivateMultiPlayerClient (eeuiele_activate_multi_player_client)
 // made in 0x402BB8
@@ -2534,6 +2539,7 @@ internal int spec_ui_events_select(int build) {
         fn_eeuiehk_unit_selection_execute = (eeuiehk_unit_selection_execute_fn)0x005D8BF0;
         vt_eeuie_hot_key_zoom = 0x0082F778;
         size_eeuie_hot_key_zoom = 0x10;
+        of_eeuie_hot_key_zoom_zooms_out = 0xC;
         fn_eeuie_hot_key_zoom_execute = (eeuie_hot_key_zoom_execute_fn)0x005C913C;
         vt_eeuiele_activate_multi_player_client = 0x00824C58;
         size_eeuiele_activate_multi_player_client = 0xC;
@@ -3451,6 +3457,7 @@ internal int spec_ui_events_select(int build) {
         fn_eeuiehk_unit_selection_execute = (eeuiehk_unit_selection_execute_fn)0x005E964A;
         vt_eeuie_hot_key_zoom = 0x00845044;
         size_eeuie_hot_key_zoom = 0x10;
+        of_eeuie_hot_key_zoom_zooms_out = 0xC;
         fn_eeuie_hot_key_zoom_execute = (eeuie_hot_key_zoom_execute_fn)0x005D9C3B;
         vt_eeuiele_activate_multi_player_client = 0x00838C2C;
         size_eeuiele_activate_multi_player_client = 0xC;

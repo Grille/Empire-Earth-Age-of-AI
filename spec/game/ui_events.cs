@@ -902,7 +902,12 @@ unsafe struct EEUIEHKUnitSelection
 [@base(typeof(UIEvent)), size((ee)0x10, (aoc)0x10), vtable((ee)0x0082F778, (aoc)0x00845044)]
 unsafe struct EEUIEHotKeyZoom
 {
+    /// 0: the key zooms in, else out (the execute's step taken from the zoom or added to it, both builds)
+    [offset(0xC), found(c)]
+    int32 zooms_out;
+
     [address((ee)0x005C913C, (aoc)0x005D9C3B), overrides(typeof(UIEvent))]
+    [vtable_site("hot_key_zoom_execute")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

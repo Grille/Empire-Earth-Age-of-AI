@@ -17,6 +17,33 @@ static unsafe class game
     [address((ee)0x00919461, (aoc)0x009308E2), guess]
     static block camera_fixed;
 
+    /// float in .rdata: the eye's distance from the look-at at zoom 1 in the normal view, -20.5 (read in the camera's move
+    /// 0x51DDD7, AoC 0x528996: the distance = (it - 0.1) x zoom + 0.1; view 3 and a cinematic take -42 instead)
+    [address((ee)0x0082C700, (aoc)0x00841EA0)]
+    static block camera_eye_far;
+
+    /// float in .rdata: the far depth of the normal view, 35 (0x51CE31, AoC 0x527BC7, every camera step; view 3 and a
+    /// cinematic take 58 instead)
+    [address((ee)0x0082C704, (aoc)0x00841EA4)]
+    static block camera_far;
+
+    /// float: the field of view in radians, given to the map's viewport at every camera step (0x51EE75 calls
+    /// GEViewport::SetFieldOfView with it, AoC 0x529A34), 0.5236
+    [address((ee)0x0091328C, (aoc)0x00929A34)]
+    static block camera_fov;
+
+    /// float: the camera's pitch in radians at zoom 1, -0.6109 (the second of the two the camera's orientation is made from)
+    [address((ee)0x009183C8, (aoc)0x00930E08)]
+    static block camera_pitch;
+
+    /// the address operand of a fld in 0x515611 (AoC's the same place): a fixed -30 degrees (camera_tilt_was); dreXmod's
+    /// camera points it at camera_pitch
+    [address((ee)0x0051568B, (aoc)0x0051FCDC)]
+    static code site_camera_tilt;
+
+    [value((ee)0x0082C5C4, (aoc)0x00841D60)]
+    static uint32 camera_tilt_was;
+
     [address((ee)0x00918E9A, (aoc)0x009318DA)]
     static block cheats_on;
 

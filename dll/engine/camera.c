@@ -181,6 +181,68 @@ internal int scroll_arrows(void) {
 // the directions of k the player still holds by the input itself
 internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_arrows()); }
 
+// The camera's shape ([camera] camera_distance, camera_distance_max, camera_view_distance, camera_fov): what dreXmod's
+// camera set (docs/engine-notes.md), the game's own values - the eye's distance at zoom 1 and the far depth, two floats in
+// .rdata, and the field of view, a global the camera's step gives the viewport each time. Distances times 0.99 as
+// dreXmod's: its 25 and 50 are the picture the player knows.
+// Further out: the game's zoom ends at 1, and past 1 its pitch (0x51DA2D: pow(1 - zoom, ..)) goes NaN and the engine's
+// UMCos never returns. So the game's zoom stays at 1, the angle with it, and the eye's distance at 1 is what grows:
+// g_cam_v, the zoom past 1, is that distance / camera_distance; zoom_to(1) makes the camera's move to it as for any zoom.
+// The far depth grows by 0.9 of the distance gained: the ground at the top of the screen lies about 1.6 times the distance
+// away, and GetTileRowsInVolume's region is the hull of the frustum's far corners, so a far depth no longer than that
+// keeps it under the mesh's 101 x 101 tiles. camera_distance_max's limit is that.
+#define CAM_AS_DREXMOD 0.99f
+#define CAM_FAR_PER_TILE 0.9f
+#define CAM_DIST_GAME 20.5f
+#define CAM_VIEW_GAME 35.0f
+internal float g_cam_dist, g_cam_view, g_cam_fov_set, g_cam_v_max = 1.0f;
+internal float g_cam_v = 1.0f;   // the zoom past the game's 1 (1: none)
+internal int g_cam_shape;
+internal ee_map *g_cam_v_map;
+internal void camera_shape_write(float v) {
+    if (!g_cam_shape) return;
+    *camera_eye_far_at() = -g_cam_dist * v;
+    *camera_far_at() = g_cam_view + g_cam_dist * (v - 1.0f) * CAM_FAR_PER_TILE;
+}
+internal float camera_zoom_max(void) { return g_cam_shape ? g_cam_v_max : 1.0f; }
+// the zoom: the game's below 1, ours from there
+internal float camera_zoom_now(void) {
+    float z = scroll_speed();
+    return z < 1.0f ? z : g_cam_v;
+}
+internal void camera_zoom_set(float z) {
+    ee_camera *cam = game_camera();
+    float top = camera_zoom_max();
+    if (z < 0) z = 0;
+    if (z > top) z = top;
+    g_cam_v = z > 1.0f ? z : 1.0f;
+    camera_shape_write(g_cam_v);
+    if (cam) camera_zoom_to(cam, z > 1.0f ? 1.0f : z);
+}
+// every frame, the render thread: a float the game's step reads; a zoom past 1 ends with a new map or a zoom the game made
+internal void camera_shape_frame(void) {
+    if (!g_cam_shape) return;
+    if (g_cam_fov_set > 0) *camera_fov_at() = g_cam_fov_set;
+    ee_map *map = game_map();
+    if (g_cam_v != 1.0f && game_camera() && (map != g_cam_v_map || scroll_speed() < 1.0f)) {
+        g_cam_v = 1.0f;
+        camera_shape_write(1.0f);
+    }
+    g_cam_v_map = map;
+}
+internal void camera_shape_install(void) {
+    g_cam_shape = camera_shape_open();
+    if (!g_cam_shape) return;
+    g_cam_dist = g_set.camera_distance > 0 ? (float)g_set.camera_distance * CAM_AS_DREXMOD : CAM_DIST_GAME;
+    g_cam_view = g_set.camera_view_distance > 0 ? (float)g_set.camera_view_distance * CAM_AS_DREXMOD : CAM_VIEW_GAME;
+    g_cam_fov_set = (float)g_set.camera_fov * 3.14159265f / 180.0f;
+    if ((float)g_set.camera_distance_max > g_cam_dist) g_cam_v_max = (float)g_set.camera_distance_max / g_cam_dist;
+    camera_shape_write(1.0f);
+    int tilt = g_set.camera_fov > 0 ? patch_camera_tilt() : 0;
+    if (g_log) fprintf(g_log, "# camera: %.2f tiles back at the game's furthest, to %.2f; far %.2f; field of view %.3f (the fixed tilt %s)\n",
+                       (double)g_cam_dist, (double)(g_cam_dist * g_cam_v_max), (double)g_cam_view, (double)g_cam_fov_set, tilt ? "made the pitch" : "as it was");
+}
+
 // The wheel's zoom with the own renderer: the game's (EEUIEWheelZoom, the game's form's wheel event) runs in the form's
 // input on the game thread, which waits for the world's lock through a step - the zoom came with the step's end (the
 // player 2026-11-07: "mouse scroll/zoom is still bound to the lookstep"). So a low-level mouse hook on a thread of its
@@ -223,14 +285,21 @@ internal void wheel_frame(const ee_ui_form *f) {
     InterlockedExchangeAdd(&g_wheel, -n * WHEEL_DELTA);
     ee_camera *cam = game_camera();
     if (!cam || !wheel_ours(f)) return;
-    float z = scroll_speed() - (float)n * 0.05f;
-    if (z < 0) z = 0;
-    if (z > 1) z = 1;
+    float z = camera_zoom_now() - (float)n * 0.05f;
     if (g_cam_now_ok && g_cam_t > camera_get_blend(cam)) camera_set_blend(cam, g_cam_t);
-    camera_zoom_to(cam, z);
+    camera_zoom_set(z);
     g_cam_t = 0;
     g_cam_blend_seen = -1;   // the next frame takes the camera's blend as a ride's start
     g_wheel_zooms++;
+}
+// The zoom keys: the game's own up to its 1, and from there on ours (a step of the game's 0.0035 .. 0.01 by its curve)
+#define CAM_KEY_STEP 0.0065f
+internal uint32_t __thiscall hook_hot_key_zoom(eeuie_hot_key_zoom *self, ee_ui_form *form, uint32_t arg) {
+    if (scroll_speed() >= 1.0f && camera_zoom_max() > 1.0f && wheel_zoom_free()) {
+        int out = eeuie_hot_key_zoom_get_zooms_out(self) != 0;
+        if (out || g_cam_v > 1.0f) { camera_zoom_set(g_cam_v + (out ? CAM_KEY_STEP : -CAM_KEY_STEP)); return 0; }
+    }
+    return eeuie_hot_key_zoom_execute(self, form, arg);
 }
 internal uint32_t __thiscall hook_wheel_zoom(eeuie_wheel_zoom *self, ee_ui_form *form, uint32_t arg) {
     void *uim = ui_manager();
@@ -374,6 +443,7 @@ internal void input_frame(float ms) {
 }
 
 internal void camera_frame(int own) {   // the render thread, every presented frame; own: the own renderer draws
+    camera_shape_frame();
     if (!g_cam_smooth) return;
     LARGE_INTEGER now;
     if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
@@ -400,6 +470,8 @@ internal void camera_install(void) {
     g_scroll_aoc = g_set.scroll == SCROLL_GAME ? build_aoc : g_set.scroll == SCROLL_AOC;
     g_scroll_native = g_scroll_aoc == build_aoc;
     g_cam_smooth = g_set.smooth_scroll;
+    camera_shape_install();
+    patch_hot_key_zoom_execute(hook_hot_key_zoom);
     // the arrow keys still while an edit box has the keyboard, which a click beside it lets go: always
     int ok = patch_edit_box_keyboard(hook_edit_keyboard, &g_edit_keyboard) + patch_key_scroll_execute(hook_key_scroll_execute);
     if (g_scroll_native && !g_cam_smooth) {   // the build's own way without smoothing: the game untouched but for that

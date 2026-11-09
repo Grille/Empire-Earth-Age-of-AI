@@ -93,8 +93,9 @@ differs from the GOG version:
 
 - NeoEE's exe has no 4 GB flag; `ageofai_config.exe` sets it as on the GOG exe (checked: the game starts and plays).
 - NeoEE ships dreXmod 3.4, dgVoodoo as `ddraw.dll` and an English `Language.dll`. dreXmod's FixTnLVertexBuffer does
-  what `[display] vertex_sysmem` does (the mod finds it done and leaves it). dreXmod's camera and menu resolution
-  and the mod's `[camera]` and `[display]` settings haven't been tried together by hand yet.
+  what `[display] vertex_sysmem` does (the mod finds it done and leaves it). The mod's `[camera]` settings do what
+  dreXmod's camera does and more (a zoom further out): set `<Camera><Enabled>` to false in `dreXmod.config`. Its menu
+  resolution and the mod's `[display]` settings haven't been tried together by hand yet.
 - NeoEE's data changes a few rules (its `Data\db` files: a population limit of 4000, more starting-resource levels
   and game variants). The AI adapts to the data, but it was measured on the original rules.
 - NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too, but off in a normal start until test games have run on

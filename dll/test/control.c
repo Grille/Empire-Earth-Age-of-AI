@@ -90,6 +90,8 @@ internal void cmd_script(char *out, const char *args);   // scripts.c: script dr
 internal volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 internal void cmd_scrolltest(char *out, const char *args);
 internal void cmd_camtrace(char *out, const char *args);
+internal float camera_zoom_max(void), camera_zoom_now(void);
+internal void camera_zoom_set(float z);
 internal void cmd_aim(char *out, const char *args);     // aim.c
 internal void cmd_lob(char *out, const char *args);     // lob.c
 internal void cmd_behind(char *out, const char *args);  // attack.c
@@ -215,8 +217,8 @@ internal void cmd_camera(char *out, const char *args) {
     if (sscanf(args, "zoom %f", &dx) == 1) {   // as the wheel does: the camera's steps turn and move it there
         // the wheel keeps it in 0 .. 1 (EEUIEHotKeyZoom 0x5C913C clamps it); at 3 the step's turn went NaN and the
         // engine's UMCos, which adds 2 pi until the angle is above -pi, never returned
-        if (!(dx >= 0 && dx <= 1)) { REPLY("error: zoom %.2f outside 0 .. 1, the wheel's range\n", (double)dx); return; }
-        camera_zoom_to(game_camera(), dx);
+        if (!(dx >= 0 && dx <= camera_zoom_max())) { REPLY("error: zoom %.2f outside 0 .. %.2f, the wheel's range\n", (double)dx, (double)camera_zoom_max()); return; }
+        camera_zoom_set(dx);
         REPLY("ok: camera zooming to %.2f\n", (double)dx);
         return;
     }
@@ -232,7 +234,7 @@ internal void cmd_camera(char *out, const char *args) {
         return;
     }
     REPLY("x=%.2f y=%.2f z=%.2f zoom=%.3f map_size=%u\n", cam[0], cam[1], cam[2],
-        camera_get_zoom(game_camera()), map_get_size(game_map()));
+        camera_zoom_now(), map_get_size(game_map()));
 }
 
 // sites <player>: resource sites the AI knows per town (EECP town 0x28 bytes at player+0xB50[i]: +0x18 active,
