@@ -67,6 +67,17 @@ internal inline int camera_shape_open(void) {
 internal inline int patch_camera_tilt(void) {
     return patch_code32(data_game_site_camera_tilt, value_game_camera_tilt_was, (uint32_t)data_game_camera_pitch);
 }
+// the camera's code reads this byte instead of the free camera's and the editor starts in the normal view: the game's
+// camera in the editor (engine/editor_camera.c); the number of places changed
+internal inline int editor_camera_patches(void) { return (int)(sizeof data_game_free_camera_reads / sizeof *data_game_free_camera_reads) + 1; }
+internal inline int patch_editor_camera(const uint8_t *not_free) {
+    int n = 0;
+    for (int i = 0; i < editor_camera_patches() - 1; i++)
+        n += patch_code32(data_game_free_camera_reads[i], data_game_free_camera, (uint32_t)(uintptr_t)not_free);
+    return n + patch_byte(data_game_site_editor_view + 1, 2, 0);
+}
+// the scenario editor is on (the free camera's byte)
+internal inline int editor_is_on(void) { return *(const uint8_t *)data_game_free_camera != 0; }
 // the wheel's zoom would zoom (EEUIEWheelZoom's conditions; else it puts the camera back)
 internal inline int wheel_zoom_free(void) {
     return *game_screen_ready_at() && !(!*game_cinematic_at() && camera_get_view(game_camera()) == 3);
@@ -185,6 +196,13 @@ internal inline long ts_wait(void *ev, unsigned long ms) { return (*(long (__thi
 internal inline float game_cos(float a) { return (*(float (__cdecl **)(float))data_game_iat_cos)(a); }
 // the input devices (Low-Level Engine's ISMouse, ISKeyboard through the exe's imports), NULL before they exist
 internal inline ee_input_mouse *input_mouse(void) { ee_input_mouse **p = *(ee_input_mouse ***)data_game_imp_is_mouse; return p ? *p : NULL; }
+// the wheel's notches of this update: the mouse's Z axis, as the wheel's event reads it (0: none)
+internal inline int mouse_wheel_notches(void) {
+    void **m = (void **)input_mouse(), **axis = NULL;
+    if (!m) return 0;
+    ((void (__thiscall *)(void *, int, void ***))(*(void ***)m)[0])(m, 2, &axis);
+    return axis ? ((int (__thiscall *)(void *))(*(void ***)axis)[2])(axis) : 0;
+}
 internal inline uint8_t *input_keyboard(void) { uint8_t **p = *(uint8_t ***)data_game_imp_is_keyboard; return p ? *p : NULL; }
 // a resolution switch (the original of display.c's editor hooks), the editor's main form built
 internal inline void settings_save(void) { fn_settings_save_game((void *)data_game_settings); }

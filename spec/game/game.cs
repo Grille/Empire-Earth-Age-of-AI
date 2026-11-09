@@ -97,6 +97,22 @@ static unsafe class game
     [address((ee)0x0091986C, (aoc)0x009319E8), guess]
     static block free_camera;
 
+    /// the address operands of its reads in the camera's code (0x51CC45, 0x51CE31 twice, 0x51DDD7 three times, 0x51EC85):
+    /// the editor's own camera - the near plane, the far depth, the eye's distance, the look-at (engine/editor_camera.c
+    /// points them at a byte that stays 0)
+    [address((ee)0x0051CE04, (aoc)0x005279C3)]
+    [address((ee)0x0051CFCD, (aoc)0x00527B8C)]
+    [address((ee)0x0051CFF8, (aoc)0x00527BB7)]
+    [address((ee)0x0051DEBB, (aoc)0x00528A7A)]
+    [address((ee)0x0051DFA7, (aoc)0x00528B66)]
+    [address((ee)0x0051E150, (aoc)0x00528D0F)]
+    [address((ee)0x0051ED71, (aoc)0x00529930)]
+    static code free_camera_reads;
+
+    /// the push of 2 in the editor's start (EEUIFScenarioEditor vf18 0x58F363), the view it gives the camera
+    [address((ee)0x0058F383, (aoc)0x0059F7B4)]
+    static code site_editor_view;
+
     [address((ee)0x0091945A, (aoc)0x009308DB)]
     static block fullscreen;
 

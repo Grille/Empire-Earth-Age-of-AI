@@ -55,6 +55,11 @@ internal inline uint8_t *game_epoch_techs_at(void) { return (uint8_t *)(uintptr_
 // a byte: the camera free of the fog - the scenario editor's (the AoC decompilation: gFreeCamera): the units'
 // collection draws unexplored tiles' objects and no doppelgangers with it, and the editor's selection
 internal inline uint8_t *game_free_camera_at(void) { return (uint8_t *)(uintptr_t)data_game_free_camera; }
+// the address operands of its reads in the camera's code (0x51CC45, 0x51CE31 twice, 0x51DDD7 three times, 0x51EC85):
+// the editor's own camera - the near plane, the far depth, the eye's distance, the look-at (engine/editor_camera.c
+// points them at a byte that stays 0)
+// the push of 2 in the editor's start (EEUIFScenarioEditor vf18 0x58F363), the view it gives the camera
+internal inline uint8_t *game_site_editor_view_at(void) { return (uint8_t *)(uintptr_t)data_game_site_editor_view; }
 internal inline uint8_t *game_fullscreen_at(void) { return (uint8_t *)(uintptr_t)data_game_fullscreen; }
 // game data loaded (unit limit +0x2EC, chat time +0x2CC)
 internal inline uint8_t *game_game_data_at(void) { return (uint8_t *)(uintptr_t)data_game_game_data; }
@@ -306,6 +311,14 @@ internal int spec_game_select(int build) {
         data_game_end_epoch = 0x009187F4;
         data_game_epoch_techs = 0x0093B1B8;
         data_game_free_camera = 0x0091986C;
+        data_game_free_camera_reads[0] = 0x0051CE04;
+        data_game_free_camera_reads[1] = 0x0051CFCD;
+        data_game_free_camera_reads[2] = 0x0051CFF8;
+        data_game_free_camera_reads[3] = 0x0051DEBB;
+        data_game_free_camera_reads[4] = 0x0051DFA7;
+        data_game_free_camera_reads[5] = 0x0051E150;
+        data_game_free_camera_reads[6] = 0x0051ED71;
+        data_game_site_editor_view = 0x0058F383;
         data_game_fullscreen = 0x0091945A;
         data_game_game_data = 0x00917BB8;
         data_game_file_path = 0x0091978C;
@@ -426,6 +439,14 @@ internal int spec_game_select(int build) {
         data_game_end_epoch = 0x00931234;
         data_game_epoch_techs = 0x0095CF80;
         data_game_free_camera = 0x009319E8;
+        data_game_free_camera_reads[0] = 0x005279C3;
+        data_game_free_camera_reads[1] = 0x00527B8C;
+        data_game_free_camera_reads[2] = 0x00527BB7;
+        data_game_free_camera_reads[3] = 0x00528A7A;
+        data_game_free_camera_reads[4] = 0x00528B66;
+        data_game_free_camera_reads[5] = 0x00528D0F;
+        data_game_free_camera_reads[6] = 0x00529930;
+        data_game_site_editor_view = 0x0059F7B4;
         data_game_fullscreen = 0x009308DB;
         data_game_game_data = 0x0092FCA8;
         data_game_file_path = 0x00931908;
@@ -552,6 +573,14 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_end_epoch, "game.end_epoch");
     bad += spec_data(data_game_epoch_techs, "game.epoch_techs");
     bad += spec_data(data_game_free_camera, "game.free_camera");
+    bad += spec_code(data_game_free_camera_reads[0], "game.free_camera_reads 0");
+    bad += spec_code(data_game_free_camera_reads[1], "game.free_camera_reads 1");
+    bad += spec_code(data_game_free_camera_reads[2], "game.free_camera_reads 2");
+    bad += spec_code(data_game_free_camera_reads[3], "game.free_camera_reads 3");
+    bad += spec_code(data_game_free_camera_reads[4], "game.free_camera_reads 4");
+    bad += spec_code(data_game_free_camera_reads[5], "game.free_camera_reads 5");
+    bad += spec_code(data_game_free_camera_reads[6], "game.free_camera_reads 6");
+    bad += spec_code(data_game_site_editor_view, "game.site_editor_view");
     bad += spec_data(data_game_fullscreen, "game.fullscreen");
     bad += spec_data(data_game_game_data, "game.game_data");
     bad += spec_data(data_game_file_path, "game.file_path");

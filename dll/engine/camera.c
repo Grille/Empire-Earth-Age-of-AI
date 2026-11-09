@@ -304,6 +304,12 @@ internal uint32_t __thiscall hook_hot_key_zoom(eeuie_hot_key_zoom *self, ee_ui_f
 internal uint32_t __thiscall hook_wheel_zoom(eeuie_wheel_zoom *self, ee_ui_form *form, uint32_t arg) {
     void *uim = ui_manager();
     if (g_wheel_hook && wheel_ours(uim ? ui_current_form(uim) : NULL)) return 0;
+    // the editor's wheel (its lists keep theirs): on past the game's 1, as the game's form's
+    if (editor_is_on() && camera_zoom_max() > 1.0f && wheel_zoom_free()) {
+        int n = mouse_wheel_notches();
+        if (n) camera_zoom_set(camera_zoom_now() - (float)n * 0.05f);
+        return 0;
+    }
     return eeuie_wheel_zoom_execute(self, form, arg);
 }
 
