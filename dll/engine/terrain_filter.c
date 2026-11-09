@@ -1,9 +1,10 @@
 // THE TERRAIN PAINTER'S LIMITS (with `terrain_palette`, [editor]): fields on the editor's terrain panel that say which
 // ground a stroke takes. Heights and slopes are the editor's height numbers (a height over half a height step, 0.204
 // tiles), a slope the highest corner of a tile less its lowest - the game's cliffs are 3 and more. A field left empty is
-// no limit. A tile's texture goes by the tile (its height: the middle of its corners), a corner's colour by the corner
-// (its own height, the steepest of the four tiles round it, a cliff if one of them is), and the objects of a brush like
-// a forest by the tile they would stand on.
+// no limit. What a stroke paints are points of the grid, a texture as a colour: cell x, y's texture is the point x + 1,
+// y + 1 (render_ground.c: a cell owns that corner of its quad, the point its colour goes to in the game's paint), judged by
+// the point's own height, the steepest of the four tiles round it, a cliff if one of them is. The objects of a brush like
+// a forest go by the tile they would stand on.
 // "Water at": the game's terrain paint leaves the colours of corners at -3 and lower alone. That number is the field's,
 // -3 as it shows at the start; set to another, corners at it and lower are given the water's colours by a stroke.
 // "Cliffs": anything, no cliffs, only cliffs. A cliff is a tile of a cliff's kind, of a cliff's texture, or steep.
@@ -81,17 +82,22 @@ internal int tf_tile_ok(ee_map *map, int x, int y) {
     float mid, slope;
     return tf_measure(map, x, y, &mid, &slope) && tf_in(mid, g_tf_height) && tf_in(slope, g_tf_slope) && tf_cliffs_ok(tf_is_cliff(map, x, y));
 }
-internal int tf_corner_ok(ee_map *map, int x, int y) {
-    float steepest = 0.0f, h = ground_corner(map, x, y) / (map_get_height_step(map) * 0.5f);
-    int cliff = 0;
-    if (isnan(h) || !tf_in(h, g_tf_height)) return 0;
+// a point of the grid: its height (NAN off the map), the steepest of the four tiles round it, a cliff if one of them is
+internal float tf_point(ee_map *map, int x, int y, float *steepest, int *cliff) {
+    *steepest = 0.0f, *cliff = 0;
     for (int k = 0; k < 4; k++) {
         float mid, slope;
         int tx = x - (k & 1), ty = y - (k >> 1);
-        if (tf_measure(map, tx, ty, &mid, &slope) && slope > steepest) steepest = slope;
-        cliff |= tf_is_cliff(map, tx, ty);
+        if (tf_measure(map, tx, ty, &mid, &slope) && slope > *steepest) *steepest = slope;
+        *cliff |= tf_is_cliff(map, tx, ty);
     }
-    return tf_in(steepest, g_tf_slope) && tf_cliffs_ok(cliff);
+    return ground_corner(map, x, y) / (map_get_height_step(map) * 0.5f);
+}
+internal int tf_corner_ok(ee_map *map, int x, int y) {
+    float steepest;
+    int cliff;
+    float h = tf_point(map, x, y, &steepest, &cliff);
+    return !isnan(h) && tf_in(h, g_tf_height) && tf_in(steepest, g_tf_slope) && tf_cliffs_ok(cliff);
 }
 
 // the set of a colour type, -1: none (the list's "new" item, a type gone meanwhile)
@@ -125,7 +131,7 @@ internal void __thiscall hook_tf_paint(ee_map *map, int x_lo, int x_hi, int y_hi
     for (int y = y_lo; y <= y_hi; y++)
         for (int x = x_lo; x <= x_hi; x++) {
             if (!tc_tile(map, x, y)) continue;
-            int ok = tf_tile_ok(map, x, y);
+            int ok = tf_corner_ok(map, x + 1, y + 1);
             g_tf_tiles[ok]++;
             if (ok) map_paint_terrain(map, x, x, y, y, terrain, color);
         }
@@ -253,15 +259,18 @@ internal void tf_cmd_diff(char *out) {
             int i = y * size + x;
             const ee_corner *c = map_corner(map, x, y);
             float mid, slope;
+            int cliff;
             if (c && g_tc_snap.color[i] != corner_get_color(c)) {
                 float h = corner_get_height(c) / unit;
                 corners++;
                 if (h < corner_range[0]) corner_range[0] = h;
                 if (h > corner_range[1]) corner_range[1] = h;
             }
-            if (g_tc_snap.texture[i] == (uint8_t)map_tile_texture(map, x, y) || !tf_measure(map, x, y, &mid, &slope)) continue;
+            if (g_tc_snap.texture[i] == (uint8_t)map_tile_texture(map, x, y)) continue;
+            mid = tf_point(map, x + 1, y + 1, &slope, &cliff);   // the point the cell's texture is
+            if (isnan(mid)) continue;
             tiles++;
-            cliffs += (unsigned)(tile_is_cliff(tc_tile(map, x, y)) || tc_steep(map, x, y));
+            cliffs += (unsigned)cliff;
             if (mid < mid_range[0]) mid_range[0] = mid;
             if (mid > mid_range[1]) mid_range[1] = mid;
             if (slope < slope_range[0]) slope_range[0] = slope;
