@@ -7,6 +7,14 @@
 internal struct {
     int on, aniso;
     float edge;                     // the luma range an edge has at least, of its brightest (the pipe: picture edge)
+    int depth;                      // [display] antialias_depth: the depth says where the edges are, the fuller filter (fxd)
+    float jump, contrast, sub;      // an outline's depth jump (of its depth), the luma range enough there, the blur of what is thinner than a pixel (the pipe: picture aajump, aacontrast, aasub)
+    float za;                       // the projection's depth term (rw_za)
+    int dfail;                      // that shader or its copy could not be made: the simple form goes on
+    ID3D11PixelShader *dps;
+    ID3D11Texture2D *ztex;          // the scene's depth
+    ID3D11ShaderResourceView *zsrv;
+    UINT zw, zh;
     int ready;                      // 1 made, -1 failed
     ID3D11PixelShader *ps;
     ID3D11Buffer *cb;
@@ -16,12 +24,12 @@ internal struct {
     DXGI_FORMAT fmt;
     LONG frame;                     // the frame it ran in last (once a frame)
     LONG passes;
-} g_fx = { .aniso = 1, .edge = 0.5f };
+} g_fx = { .aniso = 1, .edge = 0.5f, .jump = 0.02f, .contrast = 0.05f, .sub = 0.5f };
 
 // FXAA in its simple form (Lottes's, the luma of the four diagonal neighbours): where their range is an edge's, along
 // its direction two and four samples averaged, the four's unless they leave the neighbours' luma range
 internal const char k_fx_shader[] =
-    "Texture2D t : register(t0); SamplerState s : register(s0); cbuffer k : register(b0) { float4 k; };\n"
+    "Texture2D t : register(t0); Texture2D<float> zt : register(t1); SamplerState s : register(s0); cbuffer k : register(b0) { float4 k; float4 kz; };\n"
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
     "float luma(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }\n"
     "float3 at(float2 uv) { return t.SampleLevel(s, uv, 0).rgb; }\n"
@@ -36,7 +44,35 @@ internal const char k_fx_shader[] =
     " d = clamp(d / (min(abs(d.x), abs(d.y)) + red), -8, 8) * r;"
     " float3 a = 0.5 * (at(uv + d * (1.0 / 3 - 0.5)) + at(uv + d * (2.0 / 3 - 0.5)));"
     " float3 b = a * 0.5 + 0.25 * (at(uv - d * 0.5) + at(uv + d * 0.5));"
-    " float lb = luma(b); return float4(lb < lo || lb > hi ? a : b, 1); }\n";
+    " float lb = luma(b); return float4(lb < lo || lb > hi ? a : b, 1); }\n"
+    // [display] antialias_depth: FXAA with the edge's two ends looked for, and the depth deciding what is an edge. The
+    // depth of a flat surface changes evenly from pixel to pixel at any slant: what isn't even across a pixel, against
+    // the distance there (depth = A + B / the view's distance), is an outline or a fold. There a little contrast is
+    // enough; everywhere else, the textures' own grain, as much as the simple form wants
+    "float lu(float2 uv) { return luma(at(uv)); }\n"
+    "float4 fxd(V i) : SV_Target { float w, h; t.GetDimensions(w, h); float2 r = 1 / float2(w, h), uv = i.uv; float3 m = at(uv);"
+    " float lm = luma(m), ln = lu(uv + float2(0, -1) * r), ls = lu(uv + float2(0, 1) * r), le = lu(uv + float2(1, 0) * r), lw = lu(uv + float2(-1, 0) * r);"
+    " float lo = min(lm, min(min(ln, ls), min(le, lw))), hi = max(lm, max(max(ln, ls), max(le, lw))), rg = hi - lo;"
+    " int2 p = int2(i.p.xy); float zm = zt.Load(int3(p, 0));"
+    " float dj = (abs(zt.Load(int3(p + int2(-1, -1), 0)) + zt.Load(int3(p + int2(1, 1), 0)) - 2 * zm)"
+    "  + abs(zt.Load(int3(p + int2(1, -1), 0)) + zt.Load(int3(p + int2(-1, 1), 0)) - 2 * zm)) / max(abs(zm - kz.x), 1e-6);"
+    " if (rg < (dj > k.y ? k.z : max(0.0833, hi * k.x))) return float4(m, 1);"
+    " float nw = lu(uv + float2(-1, -1) * r), ne = lu(uv + float2(1, -1) * r), sw = lu(uv + float2(-1, 1) * r), se = lu(uv + float2(1, 1) * r);"
+    " bool hz = abs(nw + sw - 2 * lw) + 2 * abs(ln + ls - 2 * lm) + abs(ne + se - 2 * le) >= abs(nw + ne - 2 * ln) + 2 * abs(lw + le - 2 * lm) + abs(sw + se - 2 * ls);"
+    " float l1 = hz ? ln : lw, l2 = hz ? ls : le, g1 = abs(l1 - lm), g2 = abs(l2 - lm), len = hz ? r.y : r.x;"
+    " bool st = g1 >= g2; float gr = 0.25 * max(g1, g2), av = 0.5 * ((st ? l1 : l2) + lm); if (st) len = -len;"
+    " float2 pe = uv + (hz ? float2(0, len) : float2(len, 0)) * 0.5, o = hz ? float2(r.x, 0) : float2(0, r.y), a = pe - o, b = pe + o;"
+    " float e1 = lu(a) - av, e2 = lu(b) - av; bool d1 = abs(e1) >= gr, d2 = abs(e2) >= gr;"
+    " static const float sz[8] = { 1.5, 2, 2, 2, 2, 4, 8, 8 };"
+    " [loop] for (int ki = 0; ki < 8 && !(d1 && d2); ki++) {"
+    "  if (!d1) { a -= o * sz[ki]; e1 = lu(a) - av; d1 = abs(e1) >= gr; }"
+    "  if (!d2) { b += o * sz[ki]; e2 = lu(b) - av; d2 = abs(e2) >= gr; } }"
+    " float da = hz ? uv.x - a.x : uv.y - a.y, db = hz ? b.x - uv.x : b.y - uv.y, near = min(da, db);"
+    // the end the pixel is nearer to says how far along the stair it lies: moved over the edge by that, if that end
+    // turns the way the pixel's own side of the edge does
+    " float off = ((da < db ? e1 : e2) < 0) != (lm < av) ? 0.5 - near / (da + db) : 0;"
+    " float sb = saturate(abs((2 * (ln + ls + le + lw) + nw + ne + sw + se) / 12 - lm) / rg), sc = (-2 * sb + 3) * sb * sb;"
+    " float2 q = uv + (hz ? float2(0, len) : float2(len, 0)) * max(off, sc * sc * k.w); return float4(at(q), 1); }\n";
 
 internal int rd3_fxaa_init(void) {
     if (g_fx.ready) return g_fx.ready > 0;
@@ -44,15 +80,47 @@ internal int rd3_fxaa_init(void) {
     ID3DBlob *code = d3d_compile(k_fx_shader, sizeof k_fx_shader - 1, "ps", "ps_4_0");
     HRESULT hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_fx.ps) : E_FAIL;
     D3D_RELEASE(code);
-    D3D11_BUFFER_DESC bd = { 16, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+    D3D11_BUFFER_DESC bd = { 32, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_fx.cb);
     if (FAILED(hr)) return rd_fail("the anti-aliasing's shader", hr), 0;
     g_fx.ready = 1;
     return 1;
 }
+// the scene's depth copied (a depth target is copied whole) and the second shader made; 0: the simple form this frame
+internal int rd3_fxaa_depth(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv, const D3D11_TEXTURE2D_DESC *target) {
+    if (!g_fx.depth || g_fx.dfail || !dsv) return 0;
+    HRESULT hr = S_OK;
+    if (!g_fx.dps) {
+        ID3DBlob *code = d3d_compile(k_fx_shader, sizeof k_fx_shader - 1, "fxd", "ps_4_0");
+        hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_fx.dps) : E_FAIL;
+        D3D_RELEASE(code);
+    }
+    ID3D11Resource *zr = NULL;
+    ID3D11Texture2D *zt = NULL;
+    int ok = 0;
+    ID3D11View_GetResource((ID3D11View *)dsv, &zr);
+    if (SUCCEEDED(hr) && zr && SUCCEEDED(ID3D11Resource_QueryInterface(zr, &IID_ID3D11Texture2D, (void **)&zt))) {
+        D3D11_TEXTURE2D_DESC zd;
+        ID3D11Texture2D_GetDesc(zt, &zd);
+        if (zd.SampleDesc.Count == 1 && zd.Width == target->Width && zd.Height == target->Height && zd.Format == DXGI_FORMAT_D32_FLOAT) {
+            if (!g_fx.ztex || g_fx.zw != zd.Width || g_fx.zh != zd.Height) {
+                D3D_RELEASE(g_fx.zsrv); D3D_RELEASE(g_fx.ztex);
+                D3D11_TEXTURE2D_DESC nd = { zd.Width, zd.Height, 1, 1, DXGI_FORMAT_R32_TYPELESS, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+                D3D11_SHADER_RESOURCE_VIEW_DESC sv = { .Format = DXGI_FORMAT_R32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D, .Texture2D = { 0, 1 } };
+                hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &nd, NULL, &g_fx.ztex);
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_fx.ztex, &sv, &g_fx.zsrv);
+                g_fx.zw = zd.Width; g_fx.zh = zd.Height;
+            }
+            if (SUCCEEDED(hr)) { ID3D11DeviceContext_CopySubresourceRegion(x, (ID3D11Resource *)g_fx.ztex, 0, 0, 0, 0, zr, 0, NULL); ok = 1; }
+        }
+    }
+    D3D_RELEASE(zt); D3D_RELEASE(zr);
+    if (FAILED(hr)) { g_fx.dfail = 1; rd_fail("the anti-aliasing by the depth", hr); return 0; }
+    return ok;
+}
 
-// the scene on rtv within vp smoothed (the caller binds its states again)
-internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
+// the scene on rtv within vp smoothed (the caller binds its states again); dsv, vpm: its depth, its camera
+internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm) {
     if (!g_fx.on || !rtv || g_fx.frame == g_rd_frames || !rd3_fxaa_init()) return;
     g_fx.frame = g_rd_frames;
     ID3D11Resource *res = NULL;
@@ -88,6 +156,8 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
     ID3D11DeviceContext *x = g_d3d.ctx;
     D3D11_BOX box = { x0, y0, 0, x1, y1, 1 };
     ID3D11DeviceContext_CopySubresourceRegion(x, (ID3D11Resource *)g_fx.tex, 0, 0, 0, 0, res, rd.Texture2D.MipSlice, &box);
+    int by_depth = rd3_fxaa_depth(x, dsv, &td);
+    rw_za(vpm, &g_fx.za);
     ID3D11Texture2D_Release(tex);
     ID3D11Resource_Release(res);
     D3D11_VIEWPORT v = { (float)x0, (float)y0, (float)w, (float)h, 0, 1 };
@@ -99,15 +169,17 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
     ID3D11DeviceContext_IASetInputLayout(x, NULL);
     ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     ID3D11DeviceContext_VSSetShader(x, g_d3d.vs, NULL, 0);
-    ID3D11DeviceContext_PSSetShader(x, g_fx.ps, NULL, 0);
+    ID3D11DeviceContext_PSSetShader(x, by_depth ? g_fx.dps : g_fx.ps, NULL, 0);
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &g_fx.srv);
+    if (by_depth) ID3D11DeviceContext_PSSetShaderResources(x, 1, 1, &g_fx.zsrv);
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_d3d.linear);
-    float k[4] = { g_fx.edge, 0, 0, 0 };
+    float k[8] = { g_fx.edge, g_fx.jump, g_fx.contrast, g_fx.sub, g_fx.za, 0, 0, 0 };
     ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_fx.cb, 0, NULL, k, 0, 0);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 0, 1, &g_fx.cb);
     ID3D11DeviceContext_Draw(x, 3, 0);
     ID3D11ShaderResourceView *none = NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &none);
+    if (by_depth) ID3D11DeviceContext_PSSetShaderResources(x, 1, 1, &none);
     g_fx.passes++;
 }
 
@@ -116,13 +188,20 @@ internal int collect_own(int on), collect_opacity(int how), collect_drawn(int ho
 internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
-// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
+// the pipe: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }
+    } else if (!strcmp(mode, "aadepth")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.depth = arg[1] == 'n';
+        else { REPLY("error: usage: picture aadepth on | off\n"); return; }
+    } else if (!strcmp(mode, "aajump") || !strcmp(mode, "aacontrast") || !strcmp(mode, "aasub")) {
+        float e = (float)atof(arg);
+        if (!arg[0] || e < 0 || e > 1) { REPLY("error: usage: picture %s <0..1>\n", mode); return; }
+        *(mode[2] == 'j' ? &g_fx.jump : mode[2] == 'c' ? &g_fx.contrast : &g_fx.sub) = e;
     } else if (!strcmp(mode, "aniso")) {
         int n = atoi(arg);
         if (n >= 1 && n <= 16) g_fx.aniso = n;
@@ -198,11 +277,11 @@ internal void cmd_picture(char *out, const char *args) {
         int m = how[0] == 'g' ? 0 : how[0] == 'c' ? 1 : 2;
         int r = !fill ? collect_own(arg[0] == 'o') : fill == 1 ? collect_opacity(m) : fill == 2 ? collect_drawn(m) : collect_fill_mode(m);
         if (r < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]\n"); return; }
-    REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]\n"); return; }
+    REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest; by the depth %s, jump %.3f, contrast %.3f, sub %.2f), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
           " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's), its opacity %s, its view test %s, its fill %s, its copy of the world %s\n", g_fx.on ? "on" : "off",
           g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
-          (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_text_layer ? "on the GPU" : "by locks", (long)g_rd_frames, (long)g_tdc_phases, (long)g_rd_reads, g_rwl_free ? "on" : "off", (long)g_rwl_skips, g_rwl_handoff_after,
+          (long)g_fx.passes, (double)g_fx.edge, g_fx.dfail ? "FAILED" : g_fx.depth ? "on" : "off", (double)g_fx.jump, (double)g_fx.contrast, (double)g_fx.sub, g_fx.aniso, g_text_layer ? "on the GPU" : "by locks", (long)g_rd_frames, (long)g_tdc_phases, (long)g_rd_reads, g_rwl_free ? "on" : "off", (long)g_rwl_skips, g_rwl_handoff_after,
           (double)g_gm_margin, g_gm_size[0] + 1, g_gm_size[1] + 1, (double)g_gm_k, (double)g_gm_kt, (double)g_gm_kb, (double)g_gm_depths[0], (double)g_gm_depths[1], (double)g_gm_near, (double)g_gm_ride, g_gm_pred + 1, g_gm_polys[0], g_gm_polys[1], g_kg.nb, g_kg.nv, (double)g_om_margin, (long)g_om_passed,
           g_uc_own ? "the mod's" : "the game's", (long)g_uc_walks,
           g_uc_opacity == 2 ? "the mod's" : g_uc_opacity == 1 ? "the game's, the mod's held against it" : "the game's",

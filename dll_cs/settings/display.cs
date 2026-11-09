@@ -136,6 +136,10 @@ class display
         /// The own renderer only: the 3D scene's edges smoothed (FXAA - before the interface is drawn: its text stays
         /// sharp; the control pipe: picture aa on / off):
         bool antialias = true;
+        /// With antialias: the scene's depth says where the outlines are, so that they are smoothed however little they
+        /// stand out while the textures stay sharp, and each edge is followed to its ends (the control pipe: picture
+        /// aadepth on / off):
+        bool antialias_depth = false;
         /// The own renderer only: textures seen at a slant - the ground far off - kept sharp (anisotropic filtering, its
         /// samples; 1 = off, as the game had it, 16 the sharpest; the control pipe: picture aniso <n>):
         [range(1, 16)]

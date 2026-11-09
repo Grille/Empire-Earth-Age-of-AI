@@ -499,7 +499,7 @@ internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_shadow_only(int role);
-internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
+internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
 // move it (its transformation as rf_camera_frame makes it each frame), but the view the game's draws are made with
 // follows only at the camera's step in the simulation thread - a frame drawn during a step showed
@@ -701,7 +701,7 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
     if (rd3_shadow_only(c->role)) return;   // a caster off the screen: in the map only
     if (!*first && b->ro >= RO_TERRAIN && b->ro <= RO_WATER && (c->ro < RO_TERRAIN || c->ro > RO_WATER)) {
         D3D11_VIEWPORT port = rs_port(&b->vport, b->rtv);
-        rd3_fxaa(b->rtv, &port);
+        rd3_fxaa(b->rtv, &port, b->dsv, g_rf.vcs[b->vc].vpm);
         rf_bind(x);
         *first = 1;
         b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;

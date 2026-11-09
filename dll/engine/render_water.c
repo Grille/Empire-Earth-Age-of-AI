@@ -178,8 +178,14 @@ internal int rw_target(int w, int h) {
     g_wa.w = w; g_wa.h = h;
     return 1;
 }
-// the projection's depth term of the list's water (a picture's depth d of a view's depth z is A + B / z: the row of the
-// matrix that gives w is the view's axis, the one that gives z that axis times A)
+// the projection's depth term (a picture's depth d of a view's depth z is A + B / z: the row of the matrix that gives w is
+// the view's axis, the one that gives z that axis times A); a matrix without a perspective leaves *a
+internal void rw_za(const float *m, float *a) {
+    int k = 0;
+    for (int j = 1; j < 3; j++) if (fabsf(m[j * 4 + 3]) > fabsf(m[k * 4 + 3])) k = j;
+    if (fabsf(m[k * 4 + 3]) > 1e-6f) *a = m[k * 4 + 2] / m[k * 4 + 3];
+}
+// of the list's water
 internal void rw_depth(void) {
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
@@ -187,10 +193,7 @@ internal void rw_depth(void) {
         rd3_vcb vc = g_rf.vcs[c->vc];
         rd3_shadow_vc(&vc);
         rf_shift(&vc, c->ro);
-        const float *m = vc.vpm;
-        int k = 0;
-        for (int j = 1; j < 3; j++) if (fabsf(m[j * 4 + 3]) > fabsf(m[k * 4 + 3])) k = j;
-        if (fabsf(m[k * 4 + 3]) > 1e-6f) g_wa.za = m[k * 4 + 2] / m[k * 4 + 3];
+        rw_za(vc.vpm, &g_wa.za);
         return;
     }
 }
