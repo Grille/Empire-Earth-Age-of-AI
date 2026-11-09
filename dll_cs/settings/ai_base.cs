@@ -899,9 +899,8 @@ class ai_base
         /// expand_islands nothing is held. 0 = buildings spend what comes in, first come first served (default until measured)
         bool spend_tiers = false;
         /// The production buildings go side by side near the base instead of each with an empty tile round it (the
-        /// game's search, used when no spot fits), never where they would cut a way through. 0 = the game's search (default
-        /// until measured)
-        bool tight_build = false;
+        /// game's search, used when no spot fits), never where they would cut a way through. 0 = the game's search
+        bool tight_build = true;
         /// The units in production the room for training leaves out are set to what the buildings really have queued: a loaded
         /// game starts that count at 0 (the save doesn't keep it) and the AI queued far more than its limit lets out. Off: on
         /// the player's save "standing army" its AIs lost more units with it (101 against 82 in 15 minutes). 1 = on
