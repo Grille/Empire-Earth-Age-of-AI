@@ -29,7 +29,6 @@
 #define WS_ACROSS 0.4f      // barbed wire's lean across: the ground this far to either side of its middle
 #define WS_JOG_HALF 0.559017f   // half a jog's length (below, wj_jog): from the middle of one link to the next, sqrt(5) / 4
 #define WS_JOG_OVER 0.12f   // a jog's end past a neighbour it meets at an angle: closes the wedge on the outside of the bend
-#define WS_JOG_WIDE 1.06f   // a jog's width along the straight pieces it runs on from: sheared it is 0.89 of theirs across itself, wider by this it still meets them with no step to see
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
 internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_model;
@@ -623,8 +622,10 @@ internal int ws_fit_piece(const struct ws_piece *p, float *m) {
     float wx = jog ? jf.ax : fy, wy = jog ? jf.ay : -fx;   // its local x axis: square to it, a jog's along its neighbour's end
     // a jog is the straight model; beside a diagonal piece as wide and as high as that one's model, another size (concrete:
     // straight 0.44 wide and 1.05 high, diagonal 0.48 and 1.02), they stepped at the join (the player, 2026-11-08: "the 1:2
-    // wall is a bit too narrow and too high")
-    float wide = jog ? WS_JOG_WIDE : 1, tall = 1;
+    // wall is a bit too narrow and too high"). Between straight pieces exactly their width, for their ends to meet: wider, a
+    // crack stood at the join, down the middle of a laser wall's post (the player, 2026-11-09: "still a few places that
+    // dont connect nicely")
+    float wide = 1, tall = 1;
     if (jog && jf.diag && box) {
         ee_model *dm = ws_model(p->gfx, WS_DIAG);
         ee_box *db = dm && model_get_frames(dm) ? model_get_boxes(dm) : NULL;
