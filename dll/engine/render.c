@@ -257,6 +257,22 @@ internal HRESULT rd_gpu_target(rd_surface *s) {
     return SUCCEEDED(hr) ? hr : rd_fail("render target", hr);
 }
 
+// A texture whose solid part isn't: the dark age's temple (bld_temple_04t, the one this rule takes of the game's 2235 images;
+// of Art of Conquest's 45 it takes amb_carbon_3t) was painted at alpha 238 and never reaches 255. Drawn in two parts (rf_edges) all of it counted as soft edge, wrote no
+// depth, and the temple's floor came out over its roof (the player, 2026-11-09). The highest alpha of what is meant to be
+// see-through - smoke, shadows, splashes - isn't where most of its texels are. Returns that alpha, or 0: the texture is right.
+internal uint32_t rd_alpha_body(const uint32_t *px, size_t n) {
+    uint32_t top = 0;
+    for (size_t i = 0; i < n; i++) {
+        uint32_t a = px[i] >> 24;
+        if (a >= 250) return 0;
+        if (a > top) top = a;
+    }
+    if (top < 200) return 0;
+    size_t at = 0;
+    for (size_t i = 0; i < n; i++) at += px[i] >> 24 == top;
+    return at * 2 >= n ? top : 0;
+}
 // a CPU surface's (a chain's) GPU texture, uploaded when its pixels changed; keyed: alpha 0 at the colour key
 internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
     if (s->kind == RK_TARGET) return s->srv;
@@ -275,6 +291,7 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
     if (t->rf_used == g_rd_epoch) rd3_submit();   // the list may draw with its pixels as they were
     static uint32_t *row;
     static size_t row_cap;
+    uint32_t body = 0;
     for (rd_surface *l = t; l; l = l->next) {
         int w = (int)l->desc.dwWidth, h = (int)l->desc.dwHeight;
         size_t need = (size_t)w * h;
@@ -283,6 +300,11 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
         uint8_t *m = rd_mem(l);
         for (int y = 0; y < h; y++)
             rf_to_bgra(l->fmt, m + (size_t)y * l->desc.lPitch, row + (size_t)y * w, w, keyed, t->key.dwColorSpaceLowValue);
+        if (l == t && g_set.unit_soft_edges) body = rd_alpha_body(row, need);
+        if (body) for (size_t i = 0; i < need; i++) {
+            uint32_t a = (row[i] >> 24) * 255 / body;
+            row[i] = (row[i] & 0xFFFFFF) | (a > 255 ? 255 : a) << 24;
+        }
         ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)t->tex, (UINT)l->level, NULL, row, (UINT)w * 4, 0);
     }
     t->dirty = 0;
