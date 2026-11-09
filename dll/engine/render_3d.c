@@ -945,7 +945,7 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
     int nonstep = other && (uintptr_t)__builtin_return_address(0) != (uintptr_t)engine_display_step_write_return_at();
     if (nonstep) {
         InterlockedIncrement(&g_rwl_nonstep);
-        for (DWORD t0 = GetTickCount(); g_uc_in_during && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
+        for (DWORD t0 = GetTickCount(); (g_uc_in_during || g_rwl_pass) && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
     }
     if (other && g_rwl_want && g_rwl_taken) {
         LONGLONG t0 = rd_qpc();
@@ -1026,7 +1026,8 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     if (free)
         while ((ui = ui_lock_try()) == 0 && !g_rwl_writers) Sleep(0);   // its holder at the interface, not waiting
     if (free && ui != 0) InterlockedExchange(&g_rwl_claim, 1);
-    int held = free && (ui == 0 || g_rwl_writers > 0);
+    // a writer that isn't the simulation's step (a load takes the interface apart under it): waited for, as the game does
+    int held = free && (ui == 0 || (g_rwl_writers > 0 && g_rwl_nonstep <= 0));
     if (held) g_rwl_claim = 0;
     int rs = g_rwl_updates ? rec_step() : 0, skip = held || rs;
     g_rwl_bare_now = ui == 0 || rs == 2;

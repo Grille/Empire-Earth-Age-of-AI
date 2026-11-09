@@ -293,14 +293,9 @@ internal void log_rotate(void) {
 }
 
 internal int unit_types_load(void);   // unitnames.c
-internal LONG g_rwl_updates;   // engine/render_3d.c
 internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, void *p2) {
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
-    // a frame draws during the simulation's work only once this game has been drawn: during a load started from a running game
-    // it went through the interface while the load took it apart, the frame's register came back empty and the game died at
-    // 0x50FDF6 (the player, 2026-11-09: "when i load a game, and than load another from that game it crashed")
-    g_rwl_updates = 0;
     log_rotate();
     if (g_log) {
         EnterCriticalSection(&g_lock);
