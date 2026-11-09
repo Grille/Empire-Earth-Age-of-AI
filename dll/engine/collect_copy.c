@@ -438,8 +438,12 @@ internal void fx_empty(uint8_t *q, int release) {
 // ones, so one that only the queues held is gone by then; here the frame still draws the old ones while the new are
 // made, and such an effect, asked again and referenced again, never died - a muzzle flash stood on its last frame for
 // good (the player's picture, 2026-11-08). So an effect that nothing but the queues in use holds isn't queued: the
-// set of those (the frame's, the retired), a queue's entries counted once each - one reference however many queues.
-typedef struct { void *e; uint32_t gen; uint8_t in; } fx_hold_e;
+// set of those (the frame's, the retired). A reference is a call of its Queue, one per map region the effect lies in: a line
+// over a region's border (an airport's line to its target) is in two and queued twice, and counted as one such a line that
+// had been taken away stayed on the screen for good (the player's game, 2026-11-09: 4 references, 2 regions, 2 entries in the
+// game's queues, gone from the manager). One call may fill several of the five queues, so what a set holds is the most
+// entries the effect has in any one of them.
+typedef struct { void *e; uint32_t gen; uint16_t n[2][5]; } fx_hold_e;
 internal fx_hold_e *g_fx_hold;
 internal uint32_t g_fx_hold_cap, g_fx_hold_gen;
 internal fx_hold_e *fx_hold_at(const void *e) {
@@ -449,10 +453,10 @@ internal fx_hold_e *fx_hold_at(const void *e) {
 }
 internal int fx_count_one(void *ctx, int q, uint32_t key, void *e) { (void)q, (void)key, (void)e; ++*(uint32_t *)ctx; return 1; }
 internal int fx_hold_one(void *ctx, int q, uint32_t key, void *e) {
-    (void)q, (void)key;
+    (void)key;
     fx_hold_e *h = fx_hold_at(e);
-    if (h->gen != g_fx_hold_gen) h->e = e, h->gen = g_fx_hold_gen, h->in = 0;
-    h->in |= (uint8_t)(uintptr_t)ctx;
+    if (h->gen != g_fx_hold_gen) h->e = e, h->gen = g_fx_hold_gen, memset(h->n, 0, sizeof h->n);
+    h->n[(uintptr_t)ctx - 1][q]++;
     return 1;
 }
 // a table of what the queues hold; 0 out of memory
@@ -476,7 +480,13 @@ internal int fx_hold_make(uint8_t *a, uint8_t *b) {
 // whether something besides the queues in use holds the effect (the game's own queues would be gone by now)
 internal int fx_alive(const void *e) {
     fx_hold_e *h = fx_hold_at(e);
-    uint32_t held = h->gen == g_fx_hold_gen ? (uint32_t)(h->in & 1) + (uint32_t)(h->in >> 1) : 0;
+    uint32_t held = 0;
+    if (h->gen == g_fx_hold_gen)
+        for (int s = 0; s < 2; s++) {
+            uint32_t most = 0;
+            for (int q = 0; q < 5; q++) if (h->n[s][q] > most) most = h->n[s][q];
+            held += most;
+        }
     return effect_references(e) > held;
 }
 // the effects the view shows into g_fx_p: the game's QueueEffects' rows and order
