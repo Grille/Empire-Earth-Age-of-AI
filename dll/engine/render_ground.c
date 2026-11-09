@@ -22,18 +22,13 @@
 // level within 5 tiles, then on to the far distance, flat; a wedge of the same at each of the four corners. The game makes it
 // for the camera each update, as far as the view reaches; here once, as far as any view can.
 // When the ground changes under a running game (a building flattens it: SetZ, then the normals and the shores again) the
-// chunks that touches are marked, and made again once the marks have gone quiet for RG_QUIET ms: a change is many calls -
-// the editor's brush writes its corners' heights and colours and spreads the slope before it makes the normals and the shores
-// again, and it doesn't hold the world's lock - and a chunk made in the middle of one had new heights with old normals, put
-// right by the next (the player, 2026-11-09: "changing terrain height gurantes flicker"). The brush held down goes on being
-// shown at least every RG_QUIET_MOST ms. The scenario editor paints through other paths too: what it looks at is made again
-// a few times a second and the rest of the map a chunk at a time.
+// chunks that touches are marked, and made again at the next frame that draws the ground - the game's writer is done by
+// then, the frame holds the world's read lock. The scenario editor paints through paths of its own: what it looks at is made
+// again a few times a second and the rest of the map a chunk at a time.
 #define RG_CHUNK 32
 #define RG_MATERIALS 1024
 #define RG_LAYERS 4     // a quad's textures at most
 #define RG_ACROSS 64    // chunks along a side at most: the marks' table
-#define RG_QUIET 20        // ms without a mark before the marked chunks are made again
-#define RG_QUIET_MOST 150  // ms from the first mark at most
 #define RG_SKIRT_NEAR 5.0f      // tiles out and down to the level, as the game's
 #define RG_SKIRT_FAR 1000.0f    // and on from there, beyond any view (the game's corners too)
 typedef float (__thiscall *rg_z_fn)(const void *mesh, unsigned long x, unsigned long y);
@@ -71,6 +66,7 @@ typedef struct {
     rd3_vcb vc;
     rd3_pcb pc;
     float proj[16];
+    float revealed;   // no fog of war, as the last frame that could ask the game
 } rg_states;
 internal struct {
     int on, api, built, dll, flag;
@@ -82,6 +78,7 @@ internal struct {
     rg_chunk *c;
     void *mat[RG_MATERIALS];
     int nmat;
+    ID3D11ShaderResourceView *srv[2][RG_MATERIALS];   // the ground's and the water's textures as last looked up, a reference held: all a frame under another writer has of them
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
     uint8_t *fow_was, *fow_now;
@@ -114,7 +111,6 @@ typedef struct { void *tex; int layer; rb_vertex v[3]; } rg_tri;
 // the chunks to make again: marked by whichever thread changes the ground
 internal uint8_t g_rg_dirty[RG_ACROSS * RG_ACROSS];
 internal volatile int g_rg_any;
-internal volatile DWORD g_rg_marked, g_rg_first;   // the last mark's time, the first's since the chunks were last made
 internal mesh_set_z_fn g_rg_set_z;
 internal mesh_at_fn g_rg_normal, g_rg_shores;
 
@@ -148,6 +144,7 @@ internal void rg_free(void) {
     D3D_RELEASE(g_rg.fow);
     free(g_rg.fow_was); free(g_rg.fow_now);
     g_rg.fow_was = g_rg.fow_now = NULL;
+    for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
     g_rg.built = g_rg.nmat = 0;
     memset(g_rg_dirty, 0, sizeof g_rg_dirty);
     g_rg_any = 0;
@@ -162,8 +159,6 @@ internal void rg_touch(unsigned long x, unsigned long y) {
         if (cy < 0) cy = 0; else if (cy >= across) cy = across - 1;
         g_rg_dirty[cy * RG_ACROSS + cx] = 1;
     }
-    g_rg_marked = GetTickCount();
-    if (!g_rg_any) g_rg_first = g_rg_marked;
     g_rg_any = 1;
 }
 internal void __thiscall rg_hook_set_z(void *mesh, unsigned long x, unsigned long y, float z) { g_rg_set_z(mesh, x, y, z); rg_touch(x, y); }
@@ -418,7 +413,6 @@ internal void rg_editor(void) {
         if (x >= 0 && y >= 0 && x < across && y < across) g_rg_dirty[y * RG_ACROSS + x] = 1;
     g_rg_dirty[sweep / across * RG_ACROSS + sweep % across] = 1;
     sweep = (sweep + 1) % (across * across);
-    if (!g_rg_any) g_rg_first = g_rg_marked = now;
     g_rg_any = 1;
 }
 // the marked chunks made again, and the black round the map with them (its inner points are the ground's)
@@ -521,18 +515,15 @@ internal int rg_revealed(void) {
     return *game_free_camera_at() || (p && player_get_explore_all(p));
 }
 internal int rg_ready(void) { return g_rg.on && g_rg.lit && g_rg.api >= 0 && g_rd3.scene_view[15] == 1 && g_rd3.prep_dev && g_cam_now_ok && game_map(); }   // the units have drawn once: the projection, from the frame before
-// the ground (water 0) or the water of this frame into the list, on the game's states for it
+// the ground (water 0) or the water of this frame into the list, on the game's states for it. again: 1 a frame during a step,
+// 2 one while another writer has the world - nothing of the game's is read then, a load is freeing it
 internal void rg_draw_now(int water, int again) {
     rd_device *d = g_rd3.prep_dev;
     if (!g_rg.ras || !rg_build()) return;
     int i = g_rg.dll;
     rg_states *st = &g_rg.st[water];
     if (again && !st->ok) return;
-    if (!water && !again) {
-        rg_editor();
-        DWORD now = GetTickCount();
-        if (g_rg_any && (now - g_rg_marked >= RG_QUIET || now - g_rg_first >= RG_QUIET_MOST)) rg_rebuild();
-    }
+    if (!water && !again) { rg_editor(); if (g_rg_any) rg_rebuild(); }
     rd3_flush();
     // the projection the game's draw would set: the viewport's (+0x1F0, a GETransformation by rows; +0x1B0 the fixed camera's)
     const float *gp = (const float *)(*(const uint8_t **)(*(const uintptr_t *)((const uint8_t *)g_rg.ras + 0x20) + g_rg.screen * 4) + (g_rg.flag ? 0x1B0 : 0x1F0));
@@ -541,7 +532,7 @@ internal void rg_draw_now(int water, int again) {
     if (again) memcpy(proj, st->proj, sizeof proj);
     else for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) proj[r * 4 + c] = gp[c * 4 + r];
     rd3_mul(vpm, g_cam_view_now, proj);
-    static ID3D11ShaderResourceView *srv[RG_MATERIALS];
+    ID3D11ShaderResourceView **srv = g_rg.srv[water];
     static uint8_t want[RG_MATERIALS];
     memset(want, 0, sizeof want);
     int nc = g_rg.across * g_rg.across;
@@ -554,17 +545,21 @@ internal void rg_draw_now(int water, int again) {
         vis[k] = c->vb && rg_visible(c, vpm);
         if (vis[k]) for (int r = 0; r < c->nr; r++) want[c->r[r].m] = 1;
     }
-    int nmat = water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
+    int nmat = again == 2 ? 0 : water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
     if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
     for (int m = 0; m < nmat; m++) {
-        srv[m] = NULL;
         if (!want[m]) continue;
         g_rg.bind[i](g_rg.ras, water ? mesh_water_texture(g_rg.mesh, (unsigned)m) : g_rg.mat[m], g_rg.screen);
         rd_surface *t = d->tex[0];
         if (!t) continue;
-        srv[m] = rd_gpu_texture(t, 0);
+        ID3D11ShaderResourceView *now = rd_gpu_texture(t, 0);
         (t->top ? t->top : t)->rf_used = g_rd_epoch;
+        if (now && now != srv[m]) {
+            ID3D11ShaderResourceView_AddRef(now);
+            D3D_RELEASE(srv[m]);
+            srv[m] = now;
+        }
     }
     // a frame during a step: the game has set no 3D states for it (its draw doesn't run): those of the last frame that did
     if (again) {
@@ -590,12 +585,13 @@ internal void rg_draw_now(int water, int again) {
     g_rb.topo = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     const float *ws = (const float *)((const uint8_t *)g_rg.ras + 0x40);   // the movement's speed, the surface's strength, the seabed's
     if (!water) {
-        rg_fow();
+        if (again != 2) rg_fow();
         LONGLONG now = rd_qpc();
         if (g_rg.at) g_rg.phase = fmod(g_rg.phase + (double)ws[0] * (double)(now - g_rg.at) / (double)rd_qpc_ms(1000), 6.283185307179586 * 1024.0);
         g_rg.at = now;
     }
-    float cb[72] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], rg_revealed() ? 1.0f : 0.0f };
+    if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;
+    float cb[72] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;
     for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }
@@ -649,10 +645,13 @@ internal int __thiscall rg_hook1(void *ras, void *mesh, unsigned screen, int fla
 internal int __thiscall rg_water_hook0(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(0, 1, ras, mesh, screen, flag); }
 internal int __thiscall rg_water_hook1(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(1, 1, ras, mesh, screen, flag); }
 // a frame during a step: the game's draw doesn't run, the ground is drawn from the map all the same - what was made from
-// this map: not while another writer (a load) has the world, nor after one until a real frame has made it anew
+// this map, not after another map's load until a real frame has made it anew. While another writer has the world - the
+// editor's paint on every stroke, the player's clicks, a load - it is drawn too, from the buffers and the views the mod holds:
+// without it such a frame had no ground at all, only the sky's colour (the player, 2026-11-09: "hold a right click down over
+// the 3d view, it will flicker continusly until you let go again").
 internal int rg_again(int water, int writer) {
-    if (writer || !rg_ready() || !g_rg.ras || !g_rg.built || g_rg.map != game_map()) return 0;
-    RD_LOCK(); rg_draw_now(water, 1); RD_UNLOCK();
+    if (!rg_ready() || !g_rg.ras || !g_rg.built || g_rg.map != game_map()) return 0;
+    RD_LOCK(); rg_draw_now(water, writer ? 2 : 1); RD_UNLOCK();
     return 1;
 }
 internal void rg_lights_take(void *ras) {
