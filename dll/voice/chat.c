@@ -237,7 +237,18 @@ internal long __thiscall hook_speed_wait(void *ev, unsigned long ms) {
 internal DWORD WINAPI hook_speed_send(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
     DWORD most = SPEED_TICK_MS / (DWORD)g_speed_steps;
     if (ms != INFINITE && g_speed_fast && ms > most) ms = most;
-    return WaitForMultipleObjects(n, h, all, ms);
+    DWORD r = WaitForMultipleObjects(n, h, all, ms);
+    if (r != WAIT_TIMEOUT || g_speed_steps <= 1 || g_mp) return r;
+    // In single player no tick while the last one's steps aren't used up (the player, 2026-11-09: "x10, x20 can queue steps far
+    // into the furture, making the game unresponsive"): a speed the machine can't reach is left out, not owed; one tick, 15 steps, ahead at most.
+    for (;;) {
+        ee_server *srv = game_server();
+        ee_physics *phys = game_physics();
+        if (!srv || !phys || game_paused() || !game_time() ||
+            (server_get_sent(srv) == server_get_done(srv) && physics_get_steps_granted(phys) == 0)) return WAIT_TIMEOUT;
+        r = WaitForMultipleObjects(n, h, all, 1);
+        if (r != WAIT_TIMEOUT) return r;
+    }
 }
 
 internal void chat_install(void) {
