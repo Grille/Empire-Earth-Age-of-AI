@@ -1191,7 +1191,7 @@ so the pitch does (0x51DA2D goes NaN above 1), and the eye's distance at 1 and t
 far depth doesn't, so going in it waits for the ride's end (else the ground is cut off behind the eye). The ride goes 50 tiles a
 second with a shortest time of 0.12 s (0x51E79C: 15 x (1 / 0.3) over the distance, at most 2.5 / 0.3 a second), and a camera
 move ends it (it snaps): the mod gives every zoom the shortest time. The wheel zooms at the mouse (camera_zoom_at_mouse): the
-point of the terrain under the cursor is kept and every frame of the ride the difference is taken off the look-at's two ends (+0x40, +0x78), which leaves the ride running. Past zoom 1 only: below it the pitch turns toward the horizon. The fog follows by itself:
+point of the terrain under the cursor is kept and every frame of the ride the difference is taken off the look-at's two ends (+0x40, +0x78), which leaves the ride running. In full past zoom 1, fading out from there to 0.5: the pitch turns with the zoom below 1, toward the horizon. The fog follows by itself:
 its range is the far depth less 8 to the far depth (41.5 .. 49.5, at the furthest 56.9 .. 64.9; `ddinfo` with diag_hooks=1). At
 42 tiles back the 8000-unit save's region is 85 x 85 tiles (of the mesh's 101) with the sides' margin 1.49, the top's none.
 

@@ -257,10 +257,11 @@ internal float camera_zoom_notches(int n) {
     return z;
 }
 // The wheel's zoom keeps the ground under the mouse where it is ([camera] camera_zoom_at_mouse; the player 2026-11-09: "the
-// mouse alsways remains on the same world position"), past the game's zoom 1 only ("horizon view and anchor dont mix": below
-// it the pitch turns toward the horizon). A notch takes the point of the terrain under the cursor in the picture drawn now, and
+// mouse alsways remains on the same world position"), in full past the game's zoom 1 and fading out from there to 0.5
+// (the player: "horizon view and anchor dont mix", "the switch from tilting to far camera is a bit jaring"; the pitch turns
+// with the zoom below 1). A notch takes the point of the terrain under the cursor in the picture drawn now, and
 // keeps it through further notches while the cursor stays; every frame of the ride the same ray again, and the difference
-// taken off the look-at, at the ride's start and its end together, so the ride goes on (the player's way: world position,
+// (the fade's share of it, the point then being what the ray hits after that) taken off the look-at, at the ride's start and its end together, so the ride goes on (the player's way: world position,
 // zoom, world position again, remove the difference; one look-at worked out per notch for the ride's end strayed by 70 tiles
 // when notches overlapped). The camera's own move, which ends a ride, runs once at the end: the look-at's height there and
 // the map's borders. No point under the cursor (above the horizon): at the middle of the screen.
@@ -282,11 +283,16 @@ internal int camera_ground_point(const float *eye, const float *d, float low, fl
 internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
 internal int g_cam_now_ok;
 internal struct { int on; float mx, my, at[3]; } g_cam_anchor;
+#define CAM_ANCHOR_FROM 0.5f   // the zoom the fade starts at
+internal float camera_anchor_share(float z) {
+    float t = fmaxf(0, fminf(1.0f, (z - CAM_ANCHOR_FROM) / (1.0f - CAM_ANCHOR_FROM)));
+    return t * t * (3.0f - 2.0f * t);
+}
 internal void camera_zoom_at_mouse(float z) {
     ee_camera *cam = game_camera();
     ee_mouse *m = game_mouse();
-    int ok = g_set.camera_zoom_at_mouse && z >= 1.0f && camera_zoom_now() >= 1.0f && g_cam_now_ok && cam && m && game_map() && !mouse_get_frozen(m);
-    if (!ok && g_cam_anchor.on) {   // into the game's range: the ride ended where it is now, as at its end below
+    int ok = g_set.camera_zoom_at_mouse && fmaxf(z, camera_zoom_now()) > CAM_ANCHOR_FROM && g_cam_now_ok && cam && m && game_map() && !mouse_get_frozen(m);
+    if (!ok && g_cam_anchor.on) {   // past the fade: the ride ended where it is now, as at its end below
         g_cam_anchor.on = 0;
         if (cam) camera_pan(0.001f, 0);
     }
@@ -305,10 +311,13 @@ internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {
     ee_map *map = game_map();
     if (!g_cam_anchor.on) return;
     if (!map) { g_cam_anchor.on = 0; return; }
-    if (rf_screen_ray(now, g_cam_anchor.mx, g_cam_anchor.my, eye, d) && d[2] < 0) {
+    if (rf_screen_ray(now, g_cam_anchor.mx, g_cam_anchor.my, eye, d) && d[2] < -0.05f) {
         float k = (g_cam_anchor.at[2] - eye[2]) / d[2], n = (float)map_get_size(map), x = camera_get_x(cam), y = camera_get_y(cam);
-        float dx = fmaxf(0, fminf(n, x + g_cam_anchor.at[0] - (eye[0] + d[0] * k))) - x;
-        float dy = fmaxf(0, fminf(n, y + g_cam_anchor.at[1] - (eye[1] + d[1] * k))) - y;
+        float qx = eye[0] + d[0] * k, qy = eye[1] + d[1] * k, share = camera_anchor_share(camera_zoom_now());
+        float dx = fmaxf(0, fminf(n, x + (g_cam_anchor.at[0] - qx) * share)) - x;
+        float dy = fmaxf(0, fminf(n, y + (g_cam_anchor.at[1] - qy) * share)) - y;
+        g_cam_anchor.at[0] = qx + dx;
+        g_cam_anchor.at[1] = qy + dy;
         camera_set_x(cam, x + dx);
         camera_set_y(cam, y + dy);
         camera_set_last_x(cam, camera_get_last_x(cam) + dx);

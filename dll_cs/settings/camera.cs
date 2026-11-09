@@ -30,7 +30,8 @@ class camera
     /// staying as at the game's furthest zoom (0, or no more than camera_distance: no further; without the own renderer 42 at most):
     [range(0, 1000, error: true)]
     int camera_distance_max = 42;
-    /// Further out than the game's own zoom range: 1 = the mouse wheel zooms at the mouse, the ground under the cursor stays under it. 0 = at the middle of the screen
+    /// 1 = the mouse wheel zooms at the mouse, the ground under the cursor stays under it: in full further out than the game's own zoom range,
+    /// fading out over its outer half (nearer in the camera tilts toward the horizon). 0 = at the middle of the screen
     bool camera_zoom_at_mouse = true;
     /// How far the camera sees, in tiles (0 = the game's 35); further out it grows with the camera's distance:
     [range(0, 100)]
