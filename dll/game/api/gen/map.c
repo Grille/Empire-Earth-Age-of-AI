@@ -344,6 +344,13 @@ internal inline uint8_t *map_iat_color_table_at(void) { return (uint8_t *)(uintp
 internal inline uint8_t *map_iat_set_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_set_color_set; }
 // GETerrainMesh::SetWaterColorSet (x, y): a corner under the water, from the water's set
 internal inline uint8_t *map_iat_set_water_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_set_water_color_set; }
+// GETerrainMesh::SetZ (thiscall on the mesh: a corner's x, y, its height): what changes the ground's heights, a new
+// building's flattening among them
+internal inline uint8_t *map_iat_set_z_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_set_z; }
+// GETerrainMesh::ComputeVertexNormal (x, y): a corner's normal again after its heights changed
+internal inline uint8_t *map_iat_compute_normal_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_compute_normal; }
+// GETerrainMesh::ComputeShorelines (x, y): a tile's water bits again (GetWaterInfo) after the heights changed
+internal inline uint8_t *map_iat_compute_shorelines_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_compute_shorelines; }
 // GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
 // the slots copied - the map's setup's for every colour type
 internal inline uint8_t *map_iat_register_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_register_color_set; }
@@ -463,6 +470,9 @@ internal int spec_map_select(int build) {
         data_map_iat_color_table = 0x00823914;
         data_map_iat_set_color_set = 0x008238FC;
         data_map_iat_set_water_color_set = 0x00823900;
+        data_map_iat_set_z = 0x0082393C;
+        data_map_iat_compute_normal = 0x00823958;
+        data_map_iat_compute_shorelines = 0x00823954;
         data_map_iat_register_color_set = 0x0082391C;
         data_map_color_types = 0x008D1FF8;
         value_map_of_mesh_color_sets = 80;
@@ -560,6 +570,9 @@ internal int spec_map_select(int build) {
         data_map_iat_color_table = 0x008378F0;
         data_map_iat_set_color_set = 0x008378D8;
         data_map_iat_set_water_color_set = 0x008378DC;
+        data_map_iat_set_z = 0x00837920;
+        data_map_iat_compute_normal = 0x0083793C;
+        data_map_iat_compute_shorelines = 0x00837938;
         data_map_iat_register_color_set = 0x008378F8;
         data_map_color_types = 0x008E86F8;
         value_map_of_mesh_color_sets = 108;
@@ -612,6 +625,9 @@ internal int spec_map_check(void) {
     bad += spec_data(data_map_iat_color_table, "map.iat_color_table");
     bad += spec_data(data_map_iat_set_color_set, "map.iat_set_color_set");
     bad += spec_data(data_map_iat_set_water_color_set, "map.iat_set_water_color_set");
+    bad += spec_data(data_map_iat_set_z, "map.iat_set_z");
+    bad += spec_data(data_map_iat_compute_normal, "map.iat_compute_normal");
+    bad += spec_data(data_map_iat_compute_shorelines, "map.iat_compute_shorelines");
     bad += spec_data(data_map_iat_register_color_set, "map.iat_register_color_set");
     bad += spec_data(data_map_color_types, "map.color_types");
     bad += spec_data(data_map_terrain_current, "map.terrain_current");

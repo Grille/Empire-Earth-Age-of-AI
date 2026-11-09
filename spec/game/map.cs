@@ -388,6 +388,22 @@ static unsafe class map
     [address((ee)0x00823900, (aoc)0x008378DC)]
     static block iat_set_water_color_set;
 
+    /// GETerrainMesh::SetZ (thiscall on the mesh: a corner's x, y, its height): what changes the ground's heights, a new
+    /// building's flattening among them
+    [import_slot("Low-Level Engine.dll", "?SetZ@GETerrainMesh@@QAEXKKM@Z")]
+    [address((ee)0x0082393C, (aoc)0x00837920)]
+    static block iat_set_z;
+
+    /// GETerrainMesh::ComputeVertexNormal (x, y): a corner's normal again after its heights changed
+    [import_slot("Low-Level Engine.dll", "?ComputeVertexNormal@GETerrainMesh@@QAEXKK@Z")]
+    [address((ee)0x00823958, (aoc)0x0083793C)]
+    static block iat_compute_normal;
+
+    /// GETerrainMesh::ComputeShorelines (x, y): a tile's water bits again (GetWaterInfo) after the heights changed
+    [import_slot("Low-Level Engine.dll", "?ComputeShorelines@GETerrainMesh@@QAEXKK@Z")]
+    [address((ee)0x00823954, (aoc)0x00837938)]
+    static block iat_compute_shorelines;
+
     /// GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
     /// the slots copied - the map's setup's for every colour type
     [import_slot("Low-Level Engine.dll", "?RegisterColorSet@GETerrainMesh@@QAEJAAV?$vector@KV?$allocator@K@std@@@std@@AAK@Z")]

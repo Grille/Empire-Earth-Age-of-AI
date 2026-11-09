@@ -1255,6 +1255,7 @@ internal void render_install(const char *autotest_ini) {
     g_rwl_handoff_after = g_set.step_handoff_ms;
     g_mo.on = g_set.gpu_animation;          // [display] gpu_animation (render_morph.c)
     g_rg.on = 1;
+    log_locked("# ground: the mesh's changes hooked %d/3\n", rg_changes_install());
     g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
     g_om_margin = g_set.object_margin;
     tnl_pick_install();   // display.c: the T&L rasterizer, whatever the game's setting

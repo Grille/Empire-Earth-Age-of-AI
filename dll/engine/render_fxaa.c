@@ -231,6 +231,13 @@ internal void cmd_picture(char *out, const char *args) {
         float m = (float)atof(arg);
         if (arg[0] && m >= 0 && m <= 0.5f) g_om_margin = m;
         else { REPLY("error: usage: picture objects <0..0.5>\n"); return; }
+    } else if (!strcmp(mode, "ground") && !strcmp(arg, "raise")) {   // a test: the ground raised 1 at x, y (5 x 5 corners) as the game changes it, through its imports
+        int x = 0, y = 0;
+        if (sscanf(args, "%*s %*s %d %d", &x, &y) != 2 || !g_rg.mesh || x < 3 || y < 3 || x + 3 >= g_rg.size || y + 3 >= g_rg.size) { REPLY("error: usage: picture ground raise <x> <y>\n"); return; }
+        for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) mesh_set_z(g_rg.mesh, (unsigned long)(x + i), (unsigned long)(y + j), g_rg.z(g_rg.mesh, (unsigned long)(x + i), (unsigned long)(y + j)) + 1);
+        for (int j = -3; j <= 3; j++) for (int i = -3; i <= 3; i++) mesh_compute_normal(g_rg.mesh, (unsigned long)(x + i), (unsigned long)(y + j));
+        REPLY("ground raised at %d %d; chunks made again so far %ld\n", x, y, g_rg.remade);
+        return;
     } else if (!strcmp(mode, "ground")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rg.on = arg[1] == 'n';
         else { REPLY("error: usage: picture ground on | off\n"); return; }

@@ -135,6 +135,20 @@ internal inline int patch_mesh_set_color_set(mesh_set_color_set_fn h, mesh_set_c
 internal inline int patch_mesh_set_water_color_set(mesh_set_water_color_set_fn h, mesh_set_water_color_set_fn *orig) {
     return iat_hook(data_map_iat_set_water_color_set, "Low-Level Engine.dll", "?SetWaterColorSet@GETerrainMesh@@QAEXKK@Z", (void *)h, (void **)orig);
 }
+// what changes the ground under a running game, through the exe's imports (the corner's x, y; SetZ its height too)
+typedef void (__thiscall *mesh_set_z_fn)(void *mesh, unsigned long x, unsigned long y, float z);
+typedef void (__thiscall *mesh_at_fn)(void *mesh, unsigned long x, unsigned long y);
+internal inline int patch_mesh_set_z(mesh_set_z_fn h, mesh_set_z_fn *orig) {
+    return iat_hook(data_map_iat_set_z, "Low-Level Engine.dll", "?SetZ@GETerrainMesh@@QAEXKKM@Z", (void *)h, (void **)orig);
+}
+internal inline int patch_mesh_compute_normal(mesh_at_fn h, mesh_at_fn *orig) {
+    return iat_hook(data_map_iat_compute_normal, "Low-Level Engine.dll", "?ComputeVertexNormal@GETerrainMesh@@QAEXKK@Z", (void *)h, (void **)orig);
+}
+internal inline int patch_mesh_compute_shorelines(mesh_at_fn h, mesh_at_fn *orig) {
+    return iat_hook(data_map_iat_compute_shorelines, "Low-Level Engine.dll", "?ComputeShorelines@GETerrainMesh@@QAEXKK@Z", (void *)h, (void **)orig);
+}
+internal inline void mesh_set_z(void *mesh, unsigned long x, unsigned long y, float z) { (*(mesh_set_z_fn *)data_map_iat_set_z)(mesh, x, y, z); }
+internal inline void mesh_compute_normal(void *mesh, unsigned long x, unsigned long y) { (*(mesh_at_fn *)data_map_iat_compute_normal)(mesh, x, y); }
 // a cliff's kind: a tile's, the one a texture gives its tiles
 internal inline int tile_is_cliff(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_cliff; }
 internal inline int terrain_is_cliff(const ee_terrain *t) { return terrain_get_kind(t) == (int)value_map_kind_cliff; }

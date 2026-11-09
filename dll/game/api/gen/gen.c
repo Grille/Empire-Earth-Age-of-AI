@@ -759,6 +759,9 @@ internal int spec_imports(void) {
     bad += spec_import(&data_map_iat_color_table, "Low-Level Engine.dll", "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z", "map.iat_color_table");
     bad += spec_import(&data_map_iat_set_color_set, "Low-Level Engine.dll", "?SetColorSet@GETerrainMesh@@QAEXKKK@Z", "map.iat_set_color_set");
     bad += spec_import(&data_map_iat_set_water_color_set, "Low-Level Engine.dll", "?SetWaterColorSet@GETerrainMesh@@QAEXKK@Z", "map.iat_set_water_color_set");
+    bad += spec_import(&data_map_iat_set_z, "Low-Level Engine.dll", "?SetZ@GETerrainMesh@@QAEXKKM@Z", "map.iat_set_z");
+    bad += spec_import(&data_map_iat_compute_normal, "Low-Level Engine.dll", "?ComputeVertexNormal@GETerrainMesh@@QAEXKK@Z", "map.iat_compute_normal");
+    bad += spec_import(&data_map_iat_compute_shorelines, "Low-Level Engine.dll", "?ComputeShorelines@GETerrainMesh@@QAEXKK@Z", "map.iat_compute_shorelines");
     bad += spec_import(&data_map_iat_register_color_set, "Low-Level Engine.dll", "?RegisterColorSet@GETerrainMesh@@QAEJAAV?$vector@KV?$allocator@K@std@@@std@@AAK@Z", "map.iat_register_color_set");
     bad += spec_import(&data_messages_iat_constructors, "Low-Level Engine.dll", "?sConstructors@NEMessage@@2PAP6APAV1@PAE@ZA", "messages.iat_constructors");
     bad += spec_import(&data_messages_iat_export_header, "Low-Level Engine.dll", "?ExportHeader@NEMessage@@QAEKPAE@Z", "messages.iat_export_header");

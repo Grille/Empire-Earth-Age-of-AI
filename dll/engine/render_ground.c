@@ -21,9 +21,14 @@
 // Round the map the black the game puts there (Generate*EdgePolygons): from each point of the boundary out and down to the
 // level within 5 tiles, then on to the far distance, flat; a wedge of the same at each of the four corners. The game makes it
 // for the camera each update, as far as the view reaches; here once, as far as any view can.
+// When the ground changes under a running game (a building flattens it: SetZ, then the normals and the shores again) the
+// chunks that touches are marked, and made again at the next frame that draws the ground - the game's writer is done by
+// then, the frame holds the world's read lock. The scenario editor paints through paths of its own: what it looks at is made
+// again a few times a second and the rest of the map a chunk at a time.
 #define RG_CHUNK 32
 #define RG_MATERIALS 1024
 #define RG_LAYERS 4     // a quad's textures at most
+#define RG_ACROSS 64    // chunks along a side at most: the marks' table
 #define RG_SKIRT_NEAR 5.0f      // tiles out and down to the level, as the game's
 #define RG_SKIRT_FAR 1000.0f    // and on from there, beyond any view (the game's corners too)
 typedef float (__thiscall *rg_z_fn)(const void *mesh, unsigned long x, unsigned long y);
@@ -45,6 +50,7 @@ typedef struct {
     rg_range *r;
     int nr;
     float lo[3], hi[3];
+    int tris;
 } rg_part;
 typedef struct {
     rg_part p[2];        // the ground, the water
@@ -79,7 +85,7 @@ internal struct {
     uint32_t wcol;
     double phase;
     LONGLONG at;
-    long drawn, tris, frames;
+    long drawn, tris, frames, remade;
     rg_lights lights;
     int lit;
     rg_lit_fn light[2];
@@ -100,6 +106,11 @@ internal struct {
     const float *(__thiscall *water_colour)(const void *mesh, unsigned long x, unsigned long y);
 } g_rg;
 typedef struct { void *tex; int layer; rb_vertex v[3]; } rg_tri;
+// the chunks to make again: marked by whichever thread changes the ground
+internal uint8_t g_rg_dirty[RG_ACROSS * RG_ACROSS];
+internal volatile int g_rg_any;
+internal mesh_set_z_fn g_rg_set_z;
+internal mesh_at_fn g_rg_normal, g_rg_shores;
 
 #define RG_GET(field, name) (*(FARPROC *)&g_rg.field = GetProcAddress(lle, name), g_rg.field != NULL)
 internal int rg_api(void) {
@@ -132,6 +143,26 @@ internal void rg_free(void) {
     free(g_rg.fow_was); free(g_rg.fow_now);
     g_rg.fow_was = g_rg.fow_now = NULL;
     g_rg.built = g_rg.nmat = 0;
+    memset(g_rg_dirty, 0, sizeof g_rg_dirty);
+    g_rg_any = 0;
+}
+// a corner changed: the chunks of the tiles its height, colour or normal reach (a normal is its neighbours' heights: two tiles round)
+internal void rg_touch(unsigned long x, unsigned long y) {
+    int across = g_rg.across;
+    if (!g_rg.built || across <= 0 || across > RG_ACROSS) return;
+    for (int k = 0; k < 4; k++) {
+        long cx = ((long)x - 2 + (k & 1) * 3) / RG_CHUNK, cy = ((long)y - 2 + (k >> 1) * 3) / RG_CHUNK;
+        if (cx < 0) cx = 0; else if (cx >= across) cx = across - 1;
+        if (cy < 0) cy = 0; else if (cy >= across) cy = across - 1;
+        g_rg_dirty[cy * RG_ACROSS + cx] = 1;
+    }
+    g_rg_any = 1;
+}
+internal void __thiscall rg_hook_set_z(void *mesh, unsigned long x, unsigned long y, float z) { g_rg_set_z(mesh, x, y, z); rg_touch(x, y); }
+internal void __thiscall rg_hook_normal(void *mesh, unsigned long x, unsigned long y) { g_rg_normal(mesh, x, y); rg_touch(x, y); }
+internal void __thiscall rg_hook_shores(void *mesh, unsigned long x, unsigned long y) { g_rg_shores(mesh, x, y); rg_touch(x, y); }
+internal int rg_changes_install(void) {
+    return patch_mesh_set_z(rg_hook_set_z, &g_rg_set_z) + patch_mesh_compute_normal(rg_hook_normal, &g_rg_normal) + patch_mesh_compute_shorelines(rg_hook_shores, &g_rg_shores);
 }
 // a colour of the game's for a vertex (bytes B G R, alpha the corner's)
 internal uint32_t rg_bytes(const float *c, int a) {
@@ -279,7 +310,7 @@ internal void rg_part_make(rg_part *c, rg_tri *tris, int n, int water) {
     }
     D3D11_BUFFER_DESC bd = { (UINT)n * 3 * sizeof *v, D3D11_USAGE_DEFAULT, D3D11_BIND_VERTEX_BUFFER, 0, 0, 0 };
     D3D11_SUBRESOURCE_DATA sd = { v, 0, 0 };
-    if (SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &c->vb))) { c->r = r; c->nr = nr; g_rg.tris += n; }
+    if (SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &c->vb))) { c->r = r; c->nr = nr; c->tris = n; g_rg.tris += n; }
     else free(r);
     free(v);
     if (water) lo[2] = hi[2] = 0;   // their z is the ground's under them, the surface lies at the level
@@ -360,6 +391,49 @@ internal void rg_skirt_build(void) {
     D3D11_SUBRESOURCE_DATA sd = { v, 0, 0 };
     if (n && SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_rg.skirt))) g_rg.nskirt = n;
     free(v);
+}
+// the scenario editor: what it looks at again some times a second, the rest a chunk at a time (no game's time: it is the editor)
+#define RG_ED_EVERY 200
+#define RG_ED_GONE 2000
+internal void rg_editor(void) {
+    static DWORD last;
+    static int sweep;
+    LONG seen = g_ws_ed_seen;
+    DWORD now = GetTickCount();
+    ee_camera *cam = game_camera();
+    int across = g_rg.across;
+    if (!seen || !cam || across <= 0 || across > RG_ACROSS || (LONG)(now - (DWORD)seen) > RG_ED_GONE || now - last < RG_ED_EVERY) return;
+    last = now;
+    const float *at = camera_look_at(cam);
+    int cx = (int)at[0] / RG_CHUNK, cy = (int)at[1] / RG_CHUNK;
+    for (int y = cy - 1; y <= cy + 1; y++) for (int x = cx - 1; x <= cx + 1; x++)
+        if (x >= 0 && y >= 0 && x < across && y < across) g_rg_dirty[y * RG_ACROSS + x] = 1;
+    g_rg_dirty[sweep / across * RG_ACROSS + sweep % across] = 1;
+    sweep = (sweep + 1) % (across * across);
+    g_rg_any = 1;
+}
+// the marked chunks made again, and the black round the map with them (its inner points are the ground's)
+internal void rg_rebuild(void) {
+    g_rg_any = 0;
+    rg_tri *tris = malloc(sizeof *tris * (size_t)RG_CHUNK * RG_CHUNK * 2 * RG_LAYERS);
+    if (!tris) return;
+    int made = 0;
+    for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) {
+        if (!g_rg_dirty[cy * RG_ACROSS + cx]) continue;
+        g_rg_dirty[cy * RG_ACROSS + cx] = 0;
+        rg_chunk *c = &g_rg.c[cy * g_rg.across + cx];
+        for (int w = 0; w < 2; w++) { D3D_RELEASE(c->p[w].vb); free(c->p[w].r); g_rg.tris -= c->p[w].tris; }
+        memset(c, 0, sizeof *c);
+        rg_chunk_build(cx, cy, tris);
+        made++;
+    }
+    free(tris);
+    if (made) {
+        D3D_RELEASE(g_rg.skirt);
+        g_rg.nskirt = 0;
+        rg_skirt_build();
+        g_rg.remade += made;
+    }
 }
 internal int rg_build(void) {
     ee_map *map = game_map();
@@ -445,6 +519,7 @@ internal void rg_draw_now(int water, int again) {
     int i = g_rg.dll;
     rg_states *st = &g_rg.st[water];
     if (again && !st->ok) return;
+    if (!water && !again) { rg_editor(); if (g_rg_any) rg_rebuild(); }
     rd3_flush();
     // the projection the game's draw would set: the viewport's (+0x1F0, a GETransformation by rows; +0x1B0 the fixed camera's)
     const float *gp = (const float *)(*(const uint8_t **)(*(const uintptr_t *)((const uint8_t *)g_rg.ras + 0x20) + g_rg.screen * 4) + (g_rg.flag ? 0x1B0 : 0x1F0));
