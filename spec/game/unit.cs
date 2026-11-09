@@ -927,6 +927,8 @@ static unsafe class ghost_unit
     /// EEPreviewPlacement: the ghosts moved to loc (2 floats) - their tiles, footprints, heights, whether they can be
     /// placed - and engine_display.ghosts_changed set; the main game's and the editor's mouse moves call it
     [address((ee)0x005F4DDA, (aoc)0x00604ABA), cdecl]
+    [call_site("se_ghost_preview", (ee)0x0058BA2F, (aoc)0x0059BD85)]    // the editor's units panel, each update
+    [call_site("se_ghost_preview", (ee)0x0058E391, (aoc)0x0059E7A0)]    // the editor's form
     static extern void preview(float32* loc);
 }
 

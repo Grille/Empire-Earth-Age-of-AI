@@ -897,6 +897,7 @@ internal inline void ghost_unit_create(float *loc, int type, ee_player *pl, floa
 typedef void (__cdecl *ghost_unit_preview_fn)(float *);
 internal ghost_unit_preview_fn fn_ghost_unit_preview;
 internal inline void ghost_unit_preview(float *loc) { fn_ghost_unit_preview(loc); }
+internal inline int patch_se_ghost_preview(ghost_unit_preview_fn h, int *of) { return patch_calls(calls_se_ghost_preview, 2, (uintptr_t)fn_ghost_unit_preview, (void *)h, of); }
 
 // static class unit
 // the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
@@ -1319,6 +1320,8 @@ internal int spec_unit_select(int build) {
         fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x005F4DB7;
         fn_ghost_unit_create = (ghost_unit_create_fn)0x005F4608;
         fn_ghost_unit_preview = (ghost_unit_preview_fn)0x005F4DDA;
+        calls_se_ghost_preview[0] = 0x0058BA2F;
+        calls_se_ghost_preview[1] = 0x0058E391;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
         data_unit_fn_op_delete = 0x006836F0;
@@ -1598,6 +1601,8 @@ internal int spec_unit_select(int build) {
         fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x00604A97;
         fn_ghost_unit_create = (ghost_unit_create_fn)0x00604278;
         fn_ghost_unit_preview = (ghost_unit_preview_fn)0x00604ABA;
+        calls_se_ghost_preview[0] = 0x0059BD85;
+        calls_se_ghost_preview[1] = 0x0059E7A0;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
         data_unit_fn_op_delete = 0x0069D150;
@@ -1752,6 +1757,8 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ghost_unit_start_anim, "EEGhostUnit.start_anim");
     bad += spec_code((uintptr_t)fn_ghost_unit_create, "ghost_unit.create");
     bad += spec_code((uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview");
+    bad += spec_call(calls_se_ghost_preview[0], (uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview [call_site se_ghost_preview 0]");
+    bad += spec_call(calls_se_ghost_preview[1], (uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview [call_site se_ghost_preview 1]");
     bad += spec_code(data_unit_call_node_del_1, "unit.call_node_del_1");
     bad += spec_code(data_unit_call_node_del_2, "unit.call_node_del_2");
     bad += spec_code(data_unit_fn_op_delete, "unit.fn_op_delete");

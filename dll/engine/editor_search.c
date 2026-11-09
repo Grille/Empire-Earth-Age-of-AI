@@ -8,6 +8,7 @@
 // text has changed, the panel's shown category is forgotten and refill builds the list anew, at once and in the
 // game's own UI pass. A name is the type's as the list shows it (name_text in the language file) or its internal one
 // from the game data (the same in every language); case is ignored, accented letters' too (Latin-1).
+// The panel's hooks are in place without the setting too: editor_place.c's box comes with the panel.
 #define ES_ID 0x3F8          // the box's control id: the units panel's own are 0x3E9..0x3F7
 #define ES_HEIGHT 18.0f
 #define ES_WIDTH 140.0f      // the left column (world player / player, the player's box)
@@ -91,6 +92,8 @@ internal void *__thiscall hook_es_init(ee_se_unit *p, int *index, ee_ui_form *fo
     void *r = se_unit_init(p, index, form, font, arg);
     ee_ui_control *list = (ee_ui_control *)se_unit_get_list(p);
     if (!list) return r;   // (a box of a panel before this one is its form's: a form deletes its panels with it)
+    ep_panel_init(p, list, form, index);
+    if (!g_es_on) return r;
     float top = ui_control_get_top(list), left = ui_control_get_left(list);
     float rect[4] = { top - ES_GAP, left, left + ES_WIDTH - 1.0f, top - ES_GAP - ES_HEIGHT };   // bottom, left, right, top
     ee_ui_control *box = edit_box_new(ES_ID, rect, form, index);
@@ -109,6 +112,7 @@ internal void *__thiscall hook_es_init(ee_se_unit *p, int *index, ee_ui_form *fo
 // the panel deleted (the editor closed): the box first - the panel deletes its own controls only, the moment they go
 // (a control's destructor doesn't take it out of its form: the form is going too)
 internal void *__thiscall hook_es_delete(ee_se_unit *p, uint8_t flags) {
+    ep_panel_delete(p);
     if (p == g_es_panel) {
         if (g_es_box) ((void (__thiscall *)(void *, int))(*(void ***)g_es_box)[0])(g_es_box, 1);
         g_es_box = NULL;
@@ -120,14 +124,18 @@ internal void *__thiscall hook_es_delete(ee_se_unit *p, uint8_t flags) {
 
 internal void editor_search_install(void) {
     g_es_on = g_set.editor_unit_search;
-    int n = 0;
+    int n = 0, of = 0;
     if (g_es_on) {
         void **kb = edit_box_vtable_copy(g_es_vt, (int)(sizeof g_es_vt / sizeof *g_es_vt));
         if (kb) {
             g_es_keyboard = (ui_control_update_keyboard_fn)*kb;
             *kb = (void *)hook_es_keyboard;
-            n = 1 + patch_se_unit_init(hook_es_init) + patch_se_unit_list_add(hook_es_add) + patch_se_unit_delete(hook_es_delete);
+            n = 1 + patch_se_unit_list_add(hook_es_add);
         }
     }
-    if (g_log) fprintf(g_log, "# editor: editor_unit_search=%d%s\n", g_es_on, !g_es_on ? "" : n == 4 ? " (hooked)" : " (FAILED)");
+    // the panel's two: the sanity check's box is there whatever the search does (editor_place.c)
+    int panel = patch_se_unit_init(hook_es_init) + patch_se_unit_delete(hook_es_delete);
+    int preview = patch_se_ghost_preview(hook_ep_preview, &of);
+    if (g_log) fprintf(g_log, "# editor: editor_unit_search=%d%s, sanity check box %s\n", g_es_on, !g_es_on ? "" : n == 2 ? " (hooked)" : " (FAILED)",
+                       panel == 2 && preview == of ? "hooked" : "FAILED");
 }

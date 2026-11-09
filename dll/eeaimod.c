@@ -457,6 +457,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/lob.c"
 #include "engine/data_order.c"
 #include "engine/walls.c"
+#include "engine/editor_place.c"
 #include "engine/editor_search.c"
 #include "engine/terrain_cliffs.c"
 #include "engine/terrain_palette.c"
