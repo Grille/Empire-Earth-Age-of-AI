@@ -1,4 +1,5 @@
-// THE EDITOR'S "Sanity check" BOX: a check box in the empty strip under the units panel, ticked as the game is. Unticked,
+// THE EDITOR'S "Sanity check" BOX: a check box in the strip under the units panel, ticked as the game is, shown only while
+// a unit type is being placed (the strip holds a selected unit's stats otherwise). Unticked,
 // a unit can be placed where it would collide with another or on ground that doesn't suit it. What may be placed is the
 // ghost's own mark (EEGhostUnit.can_place, drawn green or red), which the preview works out for each ghost at every mouse
 // move and EESEAPlaceUnit reads at the click; so the editor's own two calls of the preview (the game's aren't touched) say
@@ -10,6 +11,7 @@
 #define EP_GAP 18.0f         // under the list: inside the strip
 internal ee_se_unit *g_ep_panel;       // the editor's units panel, while it is
 internal ee_ui_control *g_ep_box;
+internal uint32_t g_ep_shown;          // the box's display mode as made
 
 internal int ep_on_map(int x, int y) {
     ee_map *map = game_map();
@@ -51,7 +53,13 @@ internal void ep_panel_init(ee_se_unit *p, ee_ui_control *list, ee_ui_form *form
     editor_units_add_control(form, box);
     g_ep_panel = p;
     g_ep_box = box;
+    g_ep_shown = ui_control_get_mode_now(box);
+    ui_control_set_display_mode(box, 0);
     if (g_log) log_locked("# editor: sanity check box at %.0f,%.0f\n", left, top);
+}
+internal void __thiscall hook_ep_update(ee_se_unit *p) {
+    eese_unit_update(p);
+    if (p == g_ep_panel && g_ep_box) ui_control_set_display_mode(g_ep_box, se_unit_get_placing(p) ? g_ep_shown : 0);
 }
 // the panel deleted: the box first, as the search box (editor_search.c)
 internal void ep_panel_delete(ee_se_unit *p) {

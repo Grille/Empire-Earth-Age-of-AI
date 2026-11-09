@@ -134,8 +134,8 @@ internal void editor_search_install(void) {
         }
     }
     // the panel's two: the sanity check's box is there whatever the search does (editor_place.c)
-    int panel = patch_se_unit_init(hook_es_init) + patch_se_unit_delete(hook_es_delete);
+    int panel = patch_se_unit_init(hook_es_init) + patch_se_unit_delete(hook_es_delete) + patch_se_unit_update(hook_ep_update);
     int preview = patch_se_ghost_preview(hook_ep_preview, &of);
     if (g_log) fprintf(g_log, "# editor: editor_unit_search=%d%s, sanity check box %s\n", g_es_on, !g_es_on ? "" : n == 2 ? " (hooked)" : " (FAILED)",
-                       panel == 2 && preview == of ? "hooked" : "FAILED");
+                       panel == 3 && preview == of ? "hooked" : "FAILED");
 }

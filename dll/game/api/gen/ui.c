@@ -366,6 +366,10 @@ internal inline void ui_form_set_rectangle(ee_ui_form *ui_form, void *rect) { ((
 // create_control. Its vtable is the DLL's; its slots by the DLL's export names (17 and 18 one empty function there:
 // by their order). Coordinates are floats in the form's design resolution (dbuiforms +0xE8 / +0xEC: 800x600 or
 // 1024x768), rectangles GERectangles, points GE2DPoints
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t ui_control_get_mode_now(const ee_ui_control *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void ui_control_set_mode_now(ee_ui_control *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *ui_control_mode_now_at(const ee_ui_control *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -463,6 +467,10 @@ internal inline int ui_control_draw_border(ee_ui_control *ui_control, void *rect
 // class UIButton (ee_ui_button)
 // a button, Low-Level Engine.dll's UIButton (its vtable the DLL's): the slots it adds
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t ui_button_get_mode_now(const ee_ui_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void ui_button_set_mode_now(ee_ui_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *ui_button_mode_now_at(const ee_ui_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -822,6 +830,7 @@ internal int spec_ui_select(int build) {
         slot_ui_form_draw_text = 17;
         slot_ui_form_open = 18;
         slot_ui_form_set_rectangle = 19;
+        of_ui_control_mode_now = 0x8;
         of_ui_control_bottom = 0x18;
         of_ui_control_left = 0x1C;
         of_ui_control_right = 0x20;
@@ -1058,6 +1067,7 @@ internal int spec_ui_select(int build) {
         slot_ui_form_draw_text = 17;
         slot_ui_form_open = 18;
         slot_ui_form_set_rectangle = 19;
+        of_ui_control_mode_now = 0x8;
         of_ui_control_bottom = 0x18;
         of_ui_control_left = 0x1C;
         of_ui_control_right = 0x20;

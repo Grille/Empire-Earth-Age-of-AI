@@ -131,6 +131,10 @@ internal inline void *eesea_test_scenario_init(eesea_test_scenario *eesea_test_s
 // class EESEBSelect (eeseb_select)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseb_select_get_mode_now(const eeseb_select *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseb_select_set_mode_now(eeseb_select *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseb_select_mode_now_at(const eeseb_select *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -177,6 +181,10 @@ internal inline uint8_t eesecb_max_player_get_fixed_lines(const eesecb_max_playe
 internal inline void eesecb_max_player_set_fixed_lines(eesecb_max_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesecb_max_player_fixed_lines_at(const eesecb_max_player *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesecb_max_player_get_mode_now(const eesecb_max_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesecb_max_player_set_mode_now(eesecb_max_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesecb_max_player_mode_now_at(const eesecb_max_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -536,6 +544,10 @@ internal inline void *eese_instructions_init(eese_instructions *eese_instruction
 // class EESEPSSetPlayers (eeseps_set_players)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseps_set_players_get_mode_now(const eeseps_set_players *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseps_set_players_set_mode_now(eeseps_set_players *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseps_set_players_mode_now_at(const eeseps_set_players *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -574,6 +586,10 @@ internal inline void *eese_player_screen_init(eese_player_screen *eese_player_sc
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeserb_unit_types_get_mode_now(const eeserb_unit_types *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeserb_unit_types_set_mode_now(eeserb_unit_types *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeserb_unit_types_mode_now_at(const eeserb_unit_types *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -614,6 +630,10 @@ internal inline uint8_t eesetsa_combo_box_get_fixed_lines(const eesetsa_combo_bo
 internal inline void eesetsa_combo_box_set_fixed_lines(eesetsa_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesetsa_combo_box_fixed_lines_at(const eesetsa_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetsa_combo_box_get_mode_now(const eesetsa_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetsa_combo_box_set_mode_now(eesetsa_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetsa_combo_box_mode_now_at(const eesetsa_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -642,6 +662,10 @@ internal inline void *eesetsa_combo_box_init(eesetsa_combo_box *eesetsa_combo_bo
 // made in 0x57ED81
 // UIEditBox's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetsa_edit_box_get_mode_now(const eesetsa_edit_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetsa_edit_box_set_mode_now(eesetsa_edit_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetsa_edit_box_mode_now_at(const eesetsa_edit_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -695,6 +719,10 @@ internal inline uint8_t eesetsc_combo_box_get_fixed_lines(const eesetsc_combo_bo
 internal inline void eesetsc_combo_box_set_fixed_lines(eesetsc_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesetsc_combo_box_fixed_lines_at(const eesetsc_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetsc_combo_box_get_mode_now(const eesetsc_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetsc_combo_box_set_mode_now(eesetsc_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetsc_combo_box_mode_now_at(const eesetsc_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -787,6 +815,10 @@ internal inline uint8_t eesetse_combo_box_get_fixed_lines(const eesetse_combo_bo
 internal inline void eesetse_combo_box_set_fixed_lines(eesetse_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesetse_combo_box_fixed_lines_at(const eesetse_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetse_combo_box_get_mode_now(const eesetse_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetse_combo_box_set_mode_now(eesetse_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetse_combo_box_mode_now_at(const eesetse_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -827,6 +859,10 @@ internal inline uint8_t eesetse_scenario_combo_box_get_fixed_lines(const eesetse
 internal inline void eesetse_scenario_combo_box_set_fixed_lines(eesetse_scenario_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesetse_scenario_combo_box_fixed_lines_at(const eesetse_scenario_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetse_scenario_combo_box_get_mode_now(const eesetse_scenario_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetse_scenario_combo_box_set_mode_now(eesetse_scenario_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetse_scenario_combo_box_mode_now_at(const eesetse_scenario_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1144,6 +1180,10 @@ internal inline void *eesets_effect_init(eesets_effect *eesets_effect, uint32_t 
 // class EESETSOUnitList (eesetso_unit_list)
 // UILBString's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetso_unit_list_get_mode_now(const eesetso_unit_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetso_unit_list_set_mode_now(eesetso_unit_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetso_unit_list_mode_now_at(const eesetso_unit_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1187,6 +1227,10 @@ internal inline void eesets_show_i_ds_check_box_set_checked_state(eesets_show_i_
 internal inline uint8_t *eesets_show_i_ds_check_box_checked_state_at(const eesets_show_i_ds_check_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state); }
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesets_show_i_ds_check_box_get_mode_now(const eesets_show_i_ds_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesets_show_i_ds_check_box_set_mode_now(eesets_show_i_ds_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesets_show_i_ds_check_box_mode_now_at(const eesets_show_i_ds_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1234,6 +1278,10 @@ internal inline uint8_t eesets_trigger_ui_combo_box_get_fixed_lines(const eesets
 internal inline void eesets_trigger_ui_combo_box_set_fixed_lines(eesets_trigger_ui_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesets_trigger_ui_combo_box_fixed_lines_at(const eesets_trigger_ui_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesets_trigger_ui_combo_box_get_mode_now(const eesets_trigger_ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesets_trigger_ui_combo_box_set_mode_now(eesets_trigger_ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesets_trigger_ui_combo_box_mode_now_at(const eesets_trigger_ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1277,6 +1325,10 @@ internal inline uint8_t eesetsuicb_player_get_fixed_lines(const eesetsuicb_playe
 internal inline void eesetsuicb_player_set_fixed_lines(eesetsuicb_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
 internal inline uint8_t *eesetsuicb_player_fixed_lines_at(const eesetsuicb_player *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eesetsuicb_player_get_mode_now(const eesetsuicb_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eesetsuicb_player_set_mode_now(eesetsuicb_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eesetsuicb_player_mode_now_at(const eesetsuicb_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1305,6 +1357,10 @@ internal inline void *eesetsuicb_player_init(eesetsuicb_player *eesetsuicb_playe
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eese_tab_get_mode_now(const eese_tab *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eese_tab_set_mode_now(eese_tab *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eese_tab_mode_now_at(const eese_tab *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1339,6 +1395,10 @@ internal inline void *eese_trigger_screen_init(eese_trigger_screen *eese_trigger
 // class EESEUIBDiplomacy (eeseuib_diplomacy)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseuib_diplomacy_get_mode_now(const eeseuib_diplomacy *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseuib_diplomacy_set_mode_now(eeseuib_diplomacy *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseuib_diplomacy_mode_now_at(const eeseuib_diplomacy *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1379,6 +1439,10 @@ internal inline void *eeseui_build_wall_init(eeseui_build_wall *eeseui_build_wal
 // class EESEUICCommandUnits (eeseuic_command_units)
 // EEUICCommandUnits's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseuic_command_units_get_mode_now(const eeseuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseuic_command_units_set_mode_now(eeseuic_command_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseuic_command_units_mode_now_at(const eeseuic_command_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1412,6 +1476,10 @@ internal inline int eeseuic_command_units_mouse_r_button_up(eeseuic_command_unit
 // class EESEUICTriggerSelectUnits (eeseuic_trigger_select_units)
 // EEUICSelectUnits's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseuic_trigger_select_units_get_mode_now(const eeseuic_trigger_select_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseuic_trigger_select_units_set_mode_now(eeseuic_trigger_select_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseuic_trigger_select_units_mode_now_at(const eeseuic_trigger_select_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1451,6 +1519,10 @@ internal inline int eeseuic_trigger_select_units_mouse_r_button_up(eeseuic_trigg
 // class EESEUITechListBox (eeseui_tech_list_box)
 // UILBString's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseui_tech_list_box_get_mode_now(const eeseui_tech_list_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseui_tech_list_box_set_mode_now(eeseui_tech_list_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseui_tech_list_box_mode_now_at(const eeseui_tech_list_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1485,6 +1557,10 @@ internal inline int eeseui_tech_list_box_draw_polygons(eeseui_tech_list_box *ees
 // the terrain panel's colour list (EEUIFSETerrain.color_list, made in 0x59B710): an item a colour type, drawn as a
 // strip of its colours - an item a vector of GEColor (0x10: the allocator, first +4, end +8, 3 floats each)
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t se_color_list_get_mode_now(const ee_se_color_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void se_color_list_set_mode_now(ee_se_color_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *se_color_list_mode_now_at(const ee_se_color_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1575,6 +1651,10 @@ internal inline int se_color_list_update_keyboard(ee_se_color_list *se_color_lis
 
 // class EESEUITerrainTypeLB (eeseui_terrain_type_lb)
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeseui_terrain_type_lb_get_mode_now(const eeseui_terrain_type_lb *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeseui_terrain_type_lb_set_mode_now(eeseui_terrain_type_lb *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeseui_terrain_type_lb_mode_now_at(const eeseui_terrain_type_lb *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1660,6 +1740,11 @@ internal inline int *se_unit_shown_sort_at(const ee_se_unit *o) { return (int *)
 internal inline int se_unit_get_shown_units(const ee_se_unit *o) { return *(int *)((uint8_t *)o + of_se_unit_shown_units); }
 internal inline void se_unit_set_shown_units(ee_se_unit *o, int v) { *(int *)((uint8_t *)o + of_se_unit_shown_units) = v; }
 internal inline int *se_unit_shown_units_at(const ee_se_unit *o) { return (int *)((uint8_t *)o + of_se_unit_shown_units); }
+// a unit type of the list is being placed: set by the list's choice (0x58C025), cleared by a right click on the map
+// and when the panel is left (0x58B9D7); read by the map's click (vf9), a click without it selects what is there
+internal inline uint8_t se_unit_get_placing(const ee_se_unit *o) { return *(uint8_t *)((uint8_t *)o + of_se_unit_placing); }
+internal inline void se_unit_set_placing(ee_se_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_se_unit_placing) = v; }
+internal inline uint8_t *se_unit_placing_at(const ee_se_unit *o) { return (uint8_t *)((uint8_t *)o + of_se_unit_placing); }
 // its constructor: the form's running control index (each control takes one), the editor's form, the labels'
 // font, the form's +0x250
 typedef void *(__thiscall *se_unit_init_fn)(ee_se_unit *, int *, ee_ui_form *, void *, uint32_t);
@@ -1678,10 +1763,20 @@ internal inline void *se_unit_destroy(ee_se_unit *se_unit, uint8_t flags) { retu
 internal se_unit_destroy_fn fn_eese_unit_destroy;
 internal inline void *eese_unit_destroy(ee_se_unit *se_unit, uint8_t flags) { return fn_eese_unit_destroy(se_unit, flags); }
 internal inline int patch_se_unit_delete(se_unit_destroy_fn h) { return patch_vtable(vt_eese_unit, (int)slot_se_unit_destroy, (uintptr_t)fn_eese_unit_destroy, (void *)h); }
+// vf1: every frame while the panel is the one shown (the ghosts' preview)
+typedef void (__thiscall *se_unit_update_fn)(ee_se_unit *);
+internal inline void se_unit_update(ee_se_unit *se_unit) { ((se_unit_update_fn)(*(void ***)se_unit)[slot_se_unit_update])(se_unit); }
+internal se_unit_update_fn fn_eese_unit_update;
+internal inline void eese_unit_update(ee_se_unit *se_unit) { fn_eese_unit_update(se_unit); }
+internal inline int patch_se_unit_update(se_unit_update_fn h) { return patch_vtable(vt_eese_unit, (int)slot_se_unit_update, (uintptr_t)fn_eese_unit_update, (void *)h); }
 
 // class EEUIFSEBRemoveCargo (eeuifseb_remove_cargo)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifseb_remove_cargo_get_mode_now(const eeuifseb_remove_cargo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifseb_remove_cargo_set_mode_now(eeuifseb_remove_cargo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifseb_remove_cargo_mode_now_at(const eeuifseb_remove_cargo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1712,6 +1807,10 @@ internal inline void eeuifseb_remove_cargo_button_up(eeuifseb_remove_cargo *eeui
 // class EEUIFSEBRotation (eeuifseb_rotation)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifseb_rotation_get_mode_now(const eeuifseb_rotation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifseb_rotation_set_mode_now(eeuifseb_rotation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifseb_rotation_mode_now_at(const eeuifseb_rotation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1752,6 +1851,10 @@ internal inline int eeuifseb_rotation_update_keyboard(eeuifseb_rotation *eeuifse
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifseb_unit_type_get_mode_now(const eeuifseb_unit_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifseb_unit_type_set_mode_now(eeuifseb_unit_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifseb_unit_type_mode_now_at(const eeuifseb_unit_type *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1786,6 +1889,10 @@ internal inline uint32_t eeuifsee_map_type_execute(eeuifsee_map_type *eeuifsee_m
 // class EEUIFSEESElevation (eeuifsees_elevation)
 // UISlider's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifsees_elevation_get_mode_now(const eeuifsees_elevation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifsees_elevation_set_mode_now(eeuifsees_elevation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifsees_elevation_mode_now_at(const eeuifsees_elevation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1838,6 +1945,10 @@ internal inline int patch_se_elevation_delete(se_elevation_destroy_fn h) { retur
 // class EEUIFSELBCargoList (eeuifselb_cargo_list)
 // UILBString's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifselb_cargo_list_get_mode_now(const eeuifselb_cargo_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifselb_cargo_list_set_mode_now(eeuifselb_cargo_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifselb_cargo_list_mode_now_at(const eeuifselb_cargo_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1866,6 +1977,10 @@ internal inline void *eeuifselb_cargo_list_init(eeuifselb_cargo_list *eeuifselb_
 // the units panel's list of unit types (EESEUnit.list): their names, the type ids beside them (+0x140)
 // UILBString's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t se_unit_list_get_mode_now(const ee_se_unit_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void se_unit_list_set_mode_now(ee_se_unit_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *se_unit_list_mode_now_at(const ee_se_unit_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1903,6 +2018,10 @@ internal inline int se_unit_list_update_keyboard(ee_se_unit_list *se_unit_list) 
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifse_main_button_get_mode_now(const eeuifse_main_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifse_main_button_set_mode_now(eeuifse_main_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifse_main_button_mode_now_at(const eeuifse_main_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1938,6 +2057,10 @@ internal inline void *eeuifse_map_init(eeuifse_map *eeuifse_map, uint32_t p1, ui
 
 // class EEUIFSEPaint (eeuifse_paint)
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifse_paint_get_mode_now(const eeuifse_paint *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifse_paint_set_mode_now(eeuifse_paint *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifse_paint_mode_now_at(const eeuifse_paint *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -1992,6 +2115,10 @@ internal inline int eeuifse_paint_update_keyboard(eeuifse_paint *eeuifse_paint) 
 // class EEUIFSEPaintElevation (eeuifse_paint_elevation)
 // EEUIFSEPaint's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifse_paint_elevation_get_mode_now(const eeuifse_paint_elevation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifse_paint_elevation_set_mode_now(eeuifse_paint_elevation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifse_paint_elevation_mode_now_at(const eeuifse_paint_elevation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -2032,6 +2159,10 @@ internal inline int eeuifse_paint_elevation_mouse_r_button_up(eeuifse_paint_elev
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifserb_brush_get_mode_now(const eeuifserb_brush *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifserb_brush_set_mode_now(eeuifserb_brush *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifserb_brush_mode_now_at(const eeuifserb_brush *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -2059,6 +2190,10 @@ internal inline void *eeuifserb_brush_init(eeuifserb_brush *eeuifserb_brush, uin
 // class EEUIFSERedo (eeuifse_redo)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifse_redo_get_mode_now(const eeuifse_redo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifse_redo_set_mode_now(eeuifse_redo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifse_redo_mode_now_at(const eeuifse_redo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -2090,6 +2225,10 @@ internal inline void eeuifse_redo_button_up(eeuifse_redo *eeuifse_redo) { fn_eeu
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifsetrb_paint_type_get_mode_now(const eeuifsetrb_paint_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifsetrb_paint_type_set_mode_now(eeuifsetrb_paint_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifsetrb_paint_type_mode_now_at(const eeuifsetrb_paint_type *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -2150,6 +2289,10 @@ internal inline int patch_se_terrain_delete(se_terrain_destroy_fn h) { return pa
 // made in 0x59B710
 // EEUIFSEPaint's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifse_terrain_paint_get_mode_now(const eeuifse_terrain_paint *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifse_terrain_paint_set_mode_now(eeuifse_terrain_paint *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifse_terrain_paint_mode_now_at(const eeuifse_terrain_paint *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -2173,6 +2316,10 @@ internal inline ee_ui_form **eeuifse_terrain_paint_form_at(const eeuifse_terrain
 // class EEUIFSEUndo (eeuifse_undo)
 // UIButton's, the base's
 // UIControl's, the base's
+// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+internal inline uint32_t eeuifse_undo_get_mode_now(const eeuifse_undo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void eeuifse_undo_set_mode_now(eeuifse_undo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *eeuifse_undo_mode_now_at(const eeuifse_undo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
@@ -2733,11 +2880,14 @@ internal int spec_editor_select(int build) {
         of_se_unit_shown_category = 0x12C;
         of_se_unit_shown_sort = 0x130;
         of_se_unit_shown_units = 0x134;
+        of_se_unit_placing = 0x13C;
         fn_se_unit_init = (se_unit_init_fn)0x0058A70E;
         call_se_unit_init = 0x0058EC1F;
         fn_se_unit_refill = (se_unit_refill_fn)0x0058C2F5;
         slot_se_unit_destroy = 0;
         fn_eese_unit_destroy = (se_unit_destroy_fn)0x0058B7C6;
+        slot_se_unit_update = 1;
+        fn_eese_unit_update = (se_unit_update_fn)0x0058B9F4;
         vt_eeuifseb_remove_cargo = 0x0082F524;
         size_eeuifseb_remove_cargo = 0x104;
         fn_eeuifseb_remove_cargo_init = (eeuifseb_remove_cargo_init_fn)0x0058A672;
@@ -3298,11 +3448,14 @@ internal int spec_editor_select(int build) {
         of_se_unit_shown_category = 0x12C;
         of_se_unit_shown_sort = 0x130;
         of_se_unit_shown_units = 0x134;
+        of_se_unit_placing = 0x13C;
         fn_se_unit_init = (se_unit_init_fn)0x0059A93E;
         call_se_unit_init = 0x0059F02E;
         fn_se_unit_refill = (se_unit_refill_fn)0x0059C64B;
         slot_se_unit_destroy = 0;
         fn_eese_unit_destroy = (se_unit_destroy_fn)0x0059BB1C;
+        slot_se_unit_update = 1;
+        fn_eese_unit_update = (se_unit_update_fn)0x0059BD4A;
         vt_eeuifseb_remove_cargo = 0x00844DE8;
         size_eeuifseb_remove_cargo = 0x104;
         fn_eeuifseb_remove_cargo_init = (eeuifseb_remove_cargo_init_fn)0x0059A8A2;
@@ -3851,6 +4004,8 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_se_unit_refill, "EESEUnit.refill");
     bad += spec_code((uintptr_t)fn_eese_unit_destroy, "EESEUnit.destroy");
     bad += spec_slot(vt_eese_unit, slot_se_unit_destroy, (uintptr_t)fn_eese_unit_destroy, "EESEUnit.destroy [slot]");
+    bad += spec_code((uintptr_t)fn_eese_unit_update, "EESEUnit.update");
+    bad += spec_slot(vt_eese_unit, slot_se_unit_update, (uintptr_t)fn_eese_unit_update, "EESEUnit.update [slot]");
     bad += spec_vtable(vt_eeuifseb_remove_cargo, ".?AVEEUIFSEBRemoveCargo@@", "EEUIFSEBRemoveCargo [vtable]");
     bad += spec_code((uintptr_t)fn_eeuifseb_remove_cargo_init, "EEUIFSEBRemoveCargo.init");
     bad += spec_code((uintptr_t)fn_eeuifseb_remove_cargo_button_up, "EEUIFSEBRemoveCargo.button_up");

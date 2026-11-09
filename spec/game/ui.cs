@@ -505,6 +505,10 @@ unsafe struct UIForm
 [c_type("ee_ui_control")]
 unsafe struct UIControl
 {
+    /// what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
+    [offset(0x8), found(c)]
+    uint32 mode_now;
+
     /// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
     /// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
     /// x + w - 1, y}, 0x5898C7)

@@ -1390,6 +1390,11 @@ unsafe struct EESEUnit
     [offset(0x134), found(c)]
     int32 shown_units;
 
+    /// a unit type of the list is being placed: set by the list's choice (0x58C025), cleared by a right click on the map
+    /// and when the panel is left (0x58B9D7); read by the map's click (vf9), a click without it selects what is there
+    [offset(0x13C), found(c)]
+    uint8 placing;
+
     /// its constructor: the form's running control index (each control takes one), the editor's form, the labels'
     /// font, the form's +0x250
     [address((ee)0x0058A70E, (aoc)0x0059A93E)]
@@ -1406,6 +1411,11 @@ unsafe struct EESEUnit
     [slot(0), address((ee)0x0058B7C6, (aoc)0x0059BB1C)]
     [vtable_site("se_unit_delete")]
     extern void* destroy(uint8 flags);
+
+    /// vf1: every frame while the panel is the one shown (the ghosts' preview)
+    [slot(1), address((ee)0x0058B9F4, (aoc)0x0059BD4A)]
+    [vtable_site("se_unit_update")]
+    extern void update();
 }
 
 [@base(typeof(UIButton)), size((ee)0x104, (aoc)0x104), vtable((ee)0x0082F524, (aoc)0x00844DE8)]
