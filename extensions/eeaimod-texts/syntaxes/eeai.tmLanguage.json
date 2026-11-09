@@ -134,6 +134,65 @@
       ]
     },
     {
+      "begin": "^\\s*(priorities)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.name.section.eeaimod"
+        },
+        "2": {
+          "name": "keyword.operator.assignment.eeaimod"
+        },
+        "3": {
+          "name": "punctuation.definition.record.begin.eeaimod"
+        }
+      },
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "begin": "^\\s*((?:fortress|upgrades|landing|outpost|special|forest|epoch|farms|wants|b_\\w+|navy))\\s*(=)",
+          "beginCaptures": {
+            "1": {
+              "name": "support.type.property-name.eeaimod"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.eeaimod"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#value"
+            }
+          ]
+        },
+        {
+          "begin": "^\\s*([\\w:.-]+)\\s*(=)",
+          "beginCaptures": {
+            "1": {
+              "name": "invalid.illegal.unknown-key.eeaimod"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.eeaimod"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#value"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "begin": "^\\s*(lines)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
@@ -578,7 +637,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|modmsg|offmap|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|wallghost|wallplace|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|stepload|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|palette|persona|picture|seltest|shadows|sndchan|targets|terrain|textlog|wallfit|wmclose|behind|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|lineup|modmsg|offmap|record|resume|rprobe|script|status|threat|topbar|board|bqadd|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|water|army|chat|form|gate|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wall|wave|aim|llm|lob|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",
@@ -773,7 +832,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|modmsg|offmap|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|wallghost|wallplace|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|stepload|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|palette|persona|picture|seltest|shadows|sndchan|targets|terrain|textlog|wallfit|wmclose|behind|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|lineup|modmsg|offmap|record|resume|rprobe|script|status|threat|topbar|board|bqadd|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|water|army|chat|form|gate|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wall|wave|aim|llm|lob|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",

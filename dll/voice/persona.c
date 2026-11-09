@@ -84,6 +84,8 @@ struct persona {
     char *color;   // color=: the favoured player colours, an expression - a list in order of preference (persona_colors)
     char *style_key[16], *style_val[16];   // style: ageofai.ini settings for this personality (ai_style=1) - expressions
     int nstyle;
+    char *prio_key[16], *prio_val[16];     // priorities: its priority list (ai_style=1; ai/priority.c) - expressions
+    int nprio;
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // its names outside the records (vars), its includes' after them
     char *decide[D_N];   // decide: a decision's expression (its own, else its includes'); NULL: the built-in rule
@@ -249,7 +251,7 @@ internal void persona_prompt_key(struct persona *p, const char *key, struct tval
 // the records the code reads (the host's code_record): sec's first part one of them - every other record is the
 // file's own, its members names (colors.dark)
 internal int x_code_record(const char *sec) {
-    static const char *const k[] = { "personality", "style", "decide", "lines", "prompt", "system" };
+    static const char *const k[] = { "personality", "style", "priorities", "decide", "lines", "prompt", "system" };
     size_t n = strcspn(sec, ".");
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (strlen(k[i]) == n && !_strnicmp(sec, k[i], n)) return 1;
     return 0;
@@ -353,6 +355,15 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
     } else if (!lstrcmpiA(sec, "style")) {
         if (style_key(key) < 0) { tl_error(l, "an unknown style key"); return; }
         if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->src); }
+    } else if (!lstrcmpiA(sec, "priorities")) {
+        if (prio_row(key) < 0) {   // a building: its identifier, known once the game has read its data
+            if (_strnicmp(key, "b_", 2)) { tl_error(l, "neither a row of the priority list nor a building's identifier (b_stable = 2)"); return; }
+            if (unit_type_named(key, (int)strlen(key)) < 0) {
+                if (g_unit_types_n) { tl_error(l, "an unknown building"); return; }
+                unit_name_later(key, l->file, l->line);
+            }
+        }
+        if (p->nprio < 16) { p->prio_key[p->nprio] = _strdup(key); p->prio_val[p->nprio++] = _strdup(v->src); }
     } else if (!lstrcmpiA(sec, "decide")) {
         int k = decide_key(key);
         if (k == D_N) { tl_error(l, "an unknown decision (peace_score, seek_ally, ally_score)"); return; }
@@ -370,7 +381,7 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         char k[200];
         snprintf(k, sizeof k, "%s.%s", sec, key);
         xvars_set(&p->vars, k, v->src);
-    } else tl_error(l, "a record in a record the code reads (personality, style, decide, lines, prompt take values only)");
+    } else tl_error(l, "a record in a record the code reads (personality, style, priorities, decide, lines, prompt take values only)");
 }
 // THE FOLDER'S LINKS (base/paths.c FOLDER LINKS): the personality folder and its mod\ each the folder its folder.link
 // names, if it has one - resolved once a load (personas_load forgets them: the files may have changed since), a
@@ -482,6 +493,8 @@ internal void persona_layers(struct persona *p, int depth) {
             for (int m = 0; m < p->nstyle && !have; m++) have = !lstrcmpiA(p->style_key[m], q->style_key[k]);
             if (!have && p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(q->style_key[k]); p->style_val[p->nstyle++] = _strdup(q->style_val[k]); }
         }
+        if (!p->nprio)   // the list as a whole: a file's own replaces the one it builds on
+            for (int k = 0; k < q->nprio && k < 16; k++) { p->prio_key[k] = _strdup(q->prio_key[k]); p->prio_val[k] = _strdup(q->prio_val[k]); p->nprio = k + 1; }
     }
 }
 internal int layer_has(const struct persona *p, int k) {   // a line for situation k (or a fallback) in p or its layers
@@ -607,6 +620,25 @@ internal void line_ctx_init(struct line_ctx *l, ee_player *pl, ee_player *other,
 // decision k of AI pl about them (enemy: its strongest enemy, or NULL): the number of its personality's decide
 // expression, worked out with that file's names - or, when it fails now (a mistake, told once; no number), of the
 // next layer's (one a layer took over from the file before it is that one again: skipped); none left: no
+// this AI's priorities = { ... }, worked out now (ai_style=1; every 10 s, ai/priority.c): a row on or off, a building's count.
+// A value that is no number or condition: told, that key as if it weren't written
+internal void persona_priorities(ee_player *pl, unsigned idx) {
+    const struct persona *p = g_ai_style ? persona_of(pl) : NULL;
+    for (int k = 0; p && k < p->nprio; k++) {
+        struct xctx c;
+        memset(&c, 0, sizeof c);
+        texts_load();
+        c.pl = pl; c.found = 1; c.game = 1;
+        c.vars[0] = &p->vars;
+        c.vars[2] = &g_vars_sys;
+        struct xval x;
+        if (!x_eval(p->prio_val[k], &c, &x)) { if (!c.failed) x_log_bad("a priority that is no expression", p->prio_val[k]); continue; }
+        if (!x.w || !x.has_n || x.obj) { x_error("priorities %s of %s: not a number or a condition", p->prio_key[k], p->file); continue; }
+        int row = prio_row(p->prio_key[k]);
+        if (row >= 0) prio_row_set(idx, row, x.n != 0);
+        else prio_want_add(idx, unit_type_named(p->prio_key[k], (int)strlen(p->prio_key[k])), (int)(x.n + 0.5));
+    }
+}
 internal double persona_decide(ee_player *pl, int k, ee_player *them, ee_player *enemy) {
     static const double no[D_N] = { -100, 0, -100 };   // peace refused, no ally sought, nobody asked
     const struct persona *p = persona_of(pl);
@@ -1501,6 +1533,7 @@ internal void persona_install(const char *test_ini) {
     g_ai_talk = g_set.ai_talk;
     g_ai_names = g_set.ai_names;
     g_ai_style = g_set.ai_style;
+    g_prio_refresh = persona_priorities;
     g_strict = g_set.strict_parsing;
     InitializeCriticalSection(&g_x_lock);
     for (int i = 0; i < 16; i++) lstrcpynA(g_persona_force[i], g_set.personality_P[i], sizeof g_persona_force[i]);

@@ -988,6 +988,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     }
     int ep = current_epoch(pl);
     early_tick(pl, ai, now);   // early.c: towers, the bait, the first army
+    prio_wants_tick(pl, ai, now);   // priority.c: what its personality's list wants
     food_log(pl, ai, now);   // food.c
     mine_drops(pl, ai, now);   // mines.c
     wood_drops(pl, ai, now);
@@ -2500,6 +2501,7 @@ internal void econ_new_game(void) {
     memset(g_moved, 0, sizeof g_moved);
     memset(g_fields_open, 0, sizeof g_fields_open);
     memset(g_farm_hold, 0, sizeof g_farm_hold);
+    prio_new_game();
     memset(g_field_at, 0, sizeof g_field_at);
     memset(g_field_n, 0, sizeof g_field_n);
     memset(g_mil, 0, sizeof g_mil);

@@ -70,6 +70,16 @@ style = {
     //home_guard_share = ,
 }
 
+priorities = {
+    // EXPERIMENTAL - only with ai_style=1 in ageofai.ini. What this AI saves for, worked out every 10 seconds with the
+    // game's values (me.soldiers, epoch ...). A building and how many it wants: entries in this order, one at a time, its
+    // cost held back from soldiers and other buildings. A row of the list with a condition: that saving only while it
+    // holds. Uncomment or add. Without this record the AI plays the list as it stands. For example:
+    //b_stable = 2,
+    //b_archery_range = epoch >= epoch.copper ? 2 : 0,
+    //navy = me.soldiers > 50,
+}
+
 // names of your own (vars) for its lines, before those of mod/system.eeai - anywhere outside the records. For example:
 //address = opinion > 30% ? "my friend" : opinion < -30% ? "you dog" : "neighbour"
 

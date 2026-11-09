@@ -15,6 +15,7 @@ root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 def src(name):
     return open(glob.glob(os.path.join(root, 'dll', '**', name), recursive=True)[0], encoding='latin-1').read()   # dll/<folder>/<name>
 
+prio_rows = re.findall(r'\{ "(\w+)",\s+prio_', src('priority.c')) + [r'b_\w+']
 expr, persona, texts, tpl, settings = (src(n) for n in ('expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
 expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 persona += src('players.c')   # the player colours (game/players.c)
@@ -153,6 +154,7 @@ grammar = {
         {'match': r'^\s*(include|register_personality)(?=\s*\()', 'captures': {'1': {'name': 'keyword.control.import.eeaimod'}}},   # include("pack_base.eeai"), register_personality()
         record('personality', ['name', 'civilization', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
         record('style', style_keys, 'support.type.property-name.eeaimod'),
+        record('priorities', prio_rows, 'support.type.property-name.eeaimod'),
         record('lines', situations, 'support.type.property-name.situation.eeaimod'),
         record('decide', decisions, 'support.type.property-name.eeaimod'),
         record('system', sys_keys, 'support.type.property-name.eeaimod'),
