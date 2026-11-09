@@ -156,6 +156,8 @@ internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11DeviceContext_PSSetShaderResources(x, 6, 1, &srv);
 }
 internal int rw_role(int role) { return role == SH_CAST || role == SH_TINT || role == SH_TREE; }   // not SH_AWAY: a tree's stand-in card among them
+// what the water mirrors: those, and the ground from the map (the player, 2026-11-09: "terrain dosnt apear in water reflections yet")
+internal int rw_mirrored(const rf_cmd *c) { return (rw_role(c->role) || (c->gvb && c->ro == RO_TERRAIN)) && c->topo == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST; }
 internal int rw_target(int w, int h) {
     if (g_wa.tex && g_wa.w == w && g_wa.h == h) return 1;
     if (g_wa.failed) return 0;
@@ -296,8 +298,7 @@ internal void rd3_water_reflect(void) {
     int on = g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror;
     if (!on || !g_sh.on || g_sh.ready <= 0 || !g_sh.water_on) { g_wa.drawn = 0; return; }
     const rf_cmd *fc = NULL;
-    for (int i = 0; i < g_rf.n && !fc; i++)
-        if (rw_role(g_rf.cmd[i].role) && g_rf.cmd[i].topo == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) fc = &g_rf.cmd[i];
+    for (int i = 0; i < g_rf.n && !fc; i++) if (rw_mirrored(&g_rf.cmd[i])) fc = &g_rf.cmd[i];
     if (!fc) return;
     D3D11_VIEWPORT port = rs_port(&fc->vport, fc->rtv);
     int w = (int)port.Width / 2, h = (int)port.Height / 2;
@@ -323,7 +324,7 @@ internal void rd3_water_reflect(void) {
     ID3D11ShaderResourceView *lt = (ID3D11ShaderResourceView *)1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
-        if (!rw_role(c->role) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
+        if (!rw_mirrored(c)) continue;
         if (c->depth != ld) { ld = c->depth; ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0); }
         if (c->srv != lt) { lt = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &lt); }
         if (c->samp != ls) { ls = c->samp; ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp); }
@@ -347,7 +348,8 @@ internal void rd3_water_reflect(void) {
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
             lpc = c->pc;
         }
-        rf_call(x, c);
+        if (c->gvb) rg_replay(x, c);
+        else rf_call(x, c);
     }
     ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);
     g_wa.in_pass = 0;
