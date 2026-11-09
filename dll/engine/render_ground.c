@@ -22,13 +22,18 @@
 // level within 5 tiles, then on to the far distance, flat; a wedge of the same at each of the four corners. The game makes it
 // for the camera each update, as far as the view reaches; here once, as far as any view can.
 // When the ground changes under a running game (a building flattens it: SetZ, then the normals and the shores again) the
-// chunks that touches are marked, and made again at the next frame that draws the ground - the game's writer is done by
-// then, the frame holds the world's read lock. The scenario editor paints through paths of its own: what it looks at is made
-// again a few times a second and the rest of the map a chunk at a time.
+// chunks that touches are marked, and made again once the marks have gone quiet for RG_QUIET ms: a change is many calls -
+// the editor's brush writes its corners' heights and colours and spreads the slope before it makes the normals and the shores
+// again, and it doesn't hold the world's lock - and a chunk made in the middle of one had new heights with old normals, put
+// right by the next (the player, 2026-11-09: "changing terrain height gurantes flicker"). The brush held down goes on being
+// shown at least every RG_QUIET_MOST ms. The scenario editor paints through other paths too: what it looks at is made again
+// a few times a second and the rest of the map a chunk at a time.
 #define RG_CHUNK 32
 #define RG_MATERIALS 1024
 #define RG_LAYERS 4     // a quad's textures at most
 #define RG_ACROSS 64    // chunks along a side at most: the marks' table
+#define RG_QUIET 20        // ms without a mark before the marked chunks are made again
+#define RG_QUIET_MOST 150  // ms from the first mark at most
 #define RG_SKIRT_NEAR 5.0f      // tiles out and down to the level, as the game's
 #define RG_SKIRT_FAR 1000.0f    // and on from there, beyond any view (the game's corners too)
 typedef float (__thiscall *rg_z_fn)(const void *mesh, unsigned long x, unsigned long y);
@@ -109,6 +114,7 @@ typedef struct { void *tex; int layer; rb_vertex v[3]; } rg_tri;
 // the chunks to make again: marked by whichever thread changes the ground
 internal uint8_t g_rg_dirty[RG_ACROSS * RG_ACROSS];
 internal volatile int g_rg_any;
+internal volatile DWORD g_rg_marked, g_rg_first;   // the last mark's time, the first's since the chunks were last made
 internal mesh_set_z_fn g_rg_set_z;
 internal mesh_at_fn g_rg_normal, g_rg_shores;
 
@@ -156,6 +162,8 @@ internal void rg_touch(unsigned long x, unsigned long y) {
         if (cy < 0) cy = 0; else if (cy >= across) cy = across - 1;
         g_rg_dirty[cy * RG_ACROSS + cx] = 1;
     }
+    g_rg_marked = GetTickCount();
+    if (!g_rg_any) g_rg_first = g_rg_marked;
     g_rg_any = 1;
 }
 internal void __thiscall rg_hook_set_z(void *mesh, unsigned long x, unsigned long y, float z) { g_rg_set_z(mesh, x, y, z); rg_touch(x, y); }
@@ -410,6 +418,7 @@ internal void rg_editor(void) {
         if (x >= 0 && y >= 0 && x < across && y < across) g_rg_dirty[y * RG_ACROSS + x] = 1;
     g_rg_dirty[sweep / across * RG_ACROSS + sweep % across] = 1;
     sweep = (sweep + 1) % (across * across);
+    if (!g_rg_any) g_rg_first = g_rg_marked = now;
     g_rg_any = 1;
 }
 // the marked chunks made again, and the black round the map with them (its inner points are the ground's)
@@ -519,7 +528,11 @@ internal void rg_draw_now(int water, int again) {
     int i = g_rg.dll;
     rg_states *st = &g_rg.st[water];
     if (again && !st->ok) return;
-    if (!water && !again) { rg_editor(); if (g_rg_any) rg_rebuild(); }
+    if (!water && !again) {
+        rg_editor();
+        DWORD now = GetTickCount();
+        if (g_rg_any && (now - g_rg_marked >= RG_QUIET || now - g_rg_first >= RG_QUIET_MOST)) rg_rebuild();
+    }
     rd3_flush();
     // the projection the game's draw would set: the viewport's (+0x1F0, a GETransformation by rows; +0x1B0 the fixed camera's)
     const float *gp = (const float *)(*(const uint8_t **)(*(const uintptr_t *)((const uint8_t *)g_rg.ras + 0x20) + g_rg.screen * 4) + (g_rg.flag ? 0x1B0 : 0x1F0));
