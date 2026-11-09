@@ -683,6 +683,7 @@ internal void rf_camera_frame(void) {
         }
         g_cam_t = t;
         camera_make_transformation(cam, g_cam_now, t);
+        camera_anchor_frame(cam, g_cam_now, t);
     }
     g_cam_now_ok = rf_camera_view(g_cam_view_now, g_cam_now);
 }

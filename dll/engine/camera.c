@@ -257,12 +257,13 @@ internal float camera_zoom_notches(int n) {
     return z;
 }
 // The wheel's zoom keeps the ground under the mouse where it is ([camera] camera_zoom_at_mouse; the player 2026-11-09: "the
-// mouse alsways remains on the same world position"). The point under the cursor in the picture drawn now, then the look-at
-// that puts it under the cursor at the zoom's end. The camera's ride goes in a straight line from eye to eye, and with the
-// pitch unchanged (past the game's zoom 1) those two eyes and the point lie on one ray, so the point stays put all the way;
-// below 1 the pitch turns too and it holds at the ride's ends. The look-at moves through the game's own move, which keeps it
-// on the map and on the ground: move starts from where the ride is now, not from the look-at, so it is asked again till it
-// lands, and it ends the ride, so the zoom is started once more behind it. No point under the cursor (above the horizon): as before.
+// mouse alsways remains on the same world position"), past the game's zoom 1 only ("horizon view and anchor dont mix": below
+// it the pitch turns toward the horizon). A notch takes the point of the terrain under the cursor in the picture drawn now, and
+// keeps it through further notches while the cursor stays; every frame of the ride the same ray again, and the difference
+// taken off the look-at, at the ride's start and its end together, so the ride goes on (the player's way: world position,
+// zoom, world position again, remove the difference; one look-at worked out per notch for the ride's end strayed by 70 tiles
+// when notches overlapped). The camera's own move, which ends a ride, runs once at the end: the look-at's height there and
+// the map's borders. No point under the cursor (above the horizon): at the middle of the screen.
 #define CAM_RAY_STEP 0.5f     // tiles along the ray
 #define CAM_RAY_MOST 20000
 internal int rf_screen_ray(const float *m, float x, float y, float *eye, float *d);
@@ -280,33 +281,48 @@ internal int camera_ground_point(const float *eye, const float *d, float low, fl
 }
 internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
 internal int g_cam_now_ok;
+internal struct { int on; float sx, sy, mx, my, at[3]; } g_cam_anchor;
 internal void camera_zoom_at_mouse(float z) {
     ee_camera *cam = game_camera();
     ee_mouse *m = game_mouse();
     ee_window *w = game_window();
-    float eye[3], d[3], at[3], end[16];
-    int ok = g_set.camera_zoom_at_mouse && g_cam_now_ok && cam && m && w && game_map() && !mouse_get_frozen(m);
-    float sx = ok ? mouse_get_x(m) / (float)window_get_width(w) : 0, sy = ok ? mouse_get_y(m) / (float)window_get_height(w) : 0;
-    ok = ok && rf_screen_ray(g_cam_now, sx, sy, eye, d) && camera_ground_point(eye, d, camera_look_at(cam)[2], at);
-    camera_zoom_set(z);
-    if (!ok) return;
-    camera_make_transformation(cam, end, 1.0f);
-    if (!rf_screen_ray(end, sx, sy, eye, d) || !(d[2] < 0)) return;
-    float k = (at[2] - eye[2]) / d[2], *look = camera_look_at(cam);
-    float want[2] = { look[0] + at[0] - (eye[0] + d[0] * k), look[1] + at[1] - (eye[1] + d[1] * k) };
-    float dx = want[0] - look[0], dy = want[1] - look[1], det = end[0] * end[5] - end[1] * end[4];
-    if (det == 0 || dx * dx + dy * dy < 1e-6f) return;
-    for (int i = 0; i < 3; i++) {
-        // move's (x, y) are along the camera's own axes, the result's length that of (x, y): the direction solved in those axes
-        float px = (dx * end[5] - dy * end[1]) / det, py = (end[0] * dy - end[4] * dx) / det, n = sqrtf(px * px + py * py);
-        float scale = n > 0 ? sqrtf(dx * dx + dy * dy) / n : 0;
-        camera_pan(px * scale, py * scale);
-        float ex = want[0] - look[0], ey = want[1] - look[1];
-        if (ex * ex + ey * ey < 1e-4f) break;
-        dx += ex;
-        dy += ey;
+    int ok = g_set.camera_zoom_at_mouse && z >= 1.0f && camera_zoom_now() >= 1.0f && g_cam_now_ok && cam && m && w && game_map() && !mouse_get_frozen(m);
+    if (!ok && g_cam_anchor.on) {   // into the game's range: the ride ended where it is now, as at its end below
+        g_cam_anchor.on = 0;
+        if (cam) camera_pan(0.001f, 0);
     }
-    camera_zoom_ride(cam, camera_get_zoom(cam));
+    if (ok && (!g_cam_anchor.on || mouse_get_x(m) != g_cam_anchor.mx || mouse_get_y(m) != g_cam_anchor.my)) {
+        float eye[3], d[3];
+        g_cam_anchor.mx = mouse_get_x(m);
+        g_cam_anchor.my = mouse_get_y(m);
+        g_cam_anchor.sx = g_cam_anchor.mx / (float)window_get_width(w);
+        g_cam_anchor.sy = g_cam_anchor.my / (float)window_get_height(w);
+        g_cam_anchor.on = rf_screen_ray(g_cam_now, g_cam_anchor.sx, g_cam_anchor.sy, eye, d)
+                       && camera_ground_point(eye, d, camera_look_at(cam)[2], g_cam_anchor.at);
+    }
+    camera_zoom_set(z);
+}
+// render_frame.c rf_camera_frame: the camera's transformation now (t: the ride's place in it), put right
+internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {
+    float eye[3], d[3];
+    ee_map *map = game_map();
+    if (!g_cam_anchor.on) return;
+    if (!map) { g_cam_anchor.on = 0; return; }
+    if (rf_screen_ray(now, g_cam_anchor.sx, g_cam_anchor.sy, eye, d) && d[2] < 0) {
+        float k = (g_cam_anchor.at[2] - eye[2]) / d[2], n = (float)map_get_size(map), x = camera_get_x(cam), y = camera_get_y(cam);
+        float dx = fmaxf(0, fminf(n, x + g_cam_anchor.at[0] - (eye[0] + d[0] * k))) - x;
+        float dy = fmaxf(0, fminf(n, y + g_cam_anchor.at[1] - (eye[1] + d[1] * k))) - y;
+        camera_set_x(cam, x + dx);
+        camera_set_y(cam, y + dy);
+        camera_set_last_x(cam, camera_get_last_x(cam) + dx);
+        camera_set_last_y(cam, camera_get_last_y(cam) + dy);
+        now[3] += dx;
+        now[7] += dy;
+    }
+    if (t >= 1.0f && !(camera_get_blend(cam) < 1)) {
+        g_cam_anchor.on = 0;
+        camera_pan(0.001f, 0);
+    }
 }
 // every frame, the render thread: a float the game's step reads; a zoom past 1 ends with a new map or a zoom the game made
 internal void camera_shape_frame(void) {
