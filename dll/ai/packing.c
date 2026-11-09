@@ -28,8 +28,10 @@ internal int can_place(ee_player *pl, int type, ivec2 p);    // defence.c
 internal int raiders_near(ee_player *pl, ivec2 p, int r);    // attack.c
 internal unsigned area_id(ivec2 p, int kind);                // forces.c
 internal int g_tight_build = 0, g_v_tight_build = -1;
+// not the Airport (the player 2026-11-09: airports reaching into forests and mountains): its three runways lie beyond its
+// footprint, towards the map's centre, and only the game's own search (0x466235) tests the whole strip
 internal int tb_type(int t) {   // those this places
-    return UT_IN(t, UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_SIEGE_FACTORY, UT_B_AIRPORT, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY);
+    return UT_IN(t, UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_SIEGE_FACTORY, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY);
 }
 internal int tb_kin(int t) { return tb_type(t) || UT_IN(t, UT_B_HOUSE, UT_B_HOSPITAL, UT_B_TEMPLE, UT_B_UNIVERSITY); }   // those it may touch
 internal ee_unit *tb_kin_on(ee_map *map, int size, int x, int y, ee_player *pl) {   // the player's building to pack against on that tile, NULL none
