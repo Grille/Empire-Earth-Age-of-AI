@@ -186,9 +186,6 @@ class display
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):
         bool gpu_animation = true;
-        /// The own renderer only: the ground drawn from the map itself, the whole map on the graphics card, instead of the
-        /// game's part of it remade for what the camera sees, and the water's surface with it (a test; the control pipe: picture ground on / off):
-        bool own_ground = false;
         /// The own renderer only: the ground is made this much wider and taller than the screen (100% = twice its
         /// size), so that a frame drawn during a step after a scroll or a zoom out still has ground at the edges
         /// (0% = the screen's, as the game had it; limited by the game's 101-tile region; the control pipe: picture

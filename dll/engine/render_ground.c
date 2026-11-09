@@ -1,5 +1,6 @@
-// THE GROUND AS THE MAP HOLDS IT ([display] own_ground, the pipe's picture ground on | off; the player, 2026-11-09: "raw game
-// map data straight to gpu"). The game makes the ground anew at every update for what the camera sees, in arrays of 101 x
+// THE GROUND AS THE MAP HOLDS IT (the own renderer's ground, no choice - the player, 2026-11-09: a fundamental part made
+// optional makes everything after it twice the work; the pipe's picture ground on | off compares it with the game's until
+// that goes; the player, 2026-11-09: "raw game map data straight to gpu"). The game makes the ground anew at every update for what the camera sees, in arrays of 101 x
 // 101 tiles built into the engine and both display DLLs - that is the limit on how far the camera can go back, and what a
 // frame during a step has to do without. Here the whole map lies on the GPU in chunks of RG_CHUNK tiles, made once from the
 // mesh's own public functions (no offsets of its), each frame drawing the chunks in the view with the camera as it is now.

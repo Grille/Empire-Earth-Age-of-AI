@@ -37,6 +37,7 @@ internal struct {
     int water_n;
     int water_on;    // the fading under the water on: water seen in this frame or the last drawn with an update
     int water_frame; // water seen in this frame (rd3_shadow_new_frame)
+    int cast_frame;  // a map drawn in this frame
     double ground_c[3];   // the terrain's vertex colours this frame, summed, and how many - the game's baked shading
     int ground_n;
     float ground_mean[3]; // the last frame's mean (the pipe's reply: does it follow the time of day?)
@@ -93,6 +94,7 @@ internal struct {
     // the map: world -> u, v, depth; camera space (the ground's) -> the same, and -> the world (gw: its height); the
     // colour a shadow leaves; the water (rd3_vcb shl); on while a map of the frame's casters is drawn
     float shm[16], gm[16], gw[16], shk[4], shl[4], inv_depth;
+    float span[3];   // the map's size in tiles across and along the sun's rays, held (sh_span)
     int valid;
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
@@ -572,6 +574,15 @@ internal float shadow_dusk(void) {
     return g_sh.dusk;
 }
 
+// The map is fitted round the casters, and they change from frame to frame - a unit walks, a bird crosses the edge of the
+// view: the fit moved its texels against the ground, each still shadow's edge came out on another grid every frame (the
+// player, 2026-11-09: "the shadows also flicker on terrain"). So the size goes in steps and stays while the casters fit
+// it (not too loosely: the texels' size), and the place goes by whole texels.
+#define SH_SPAN_STEP 4.0f
+internal float sh_span(float *held, float w) {
+    if (w > *held || w < *held - 2 * SH_SPAN_STEP) *held = ceilf(w / SH_SPAN_STEP) * SH_SPAN_STEP;
+    return *held;
+}
 // Before the frame's list is drawn (rf_replay): its casters from the sun into the map, each batch drawn from where it
 // lies in the upload buffers. A list without casters leaves the map as it is (one drawn
 // for the interface alone), with ground but no casters it has no shadows.
@@ -617,7 +628,13 @@ internal void rd3_shadow_frame(void) {
         g_sh.shk[3] = strength;
         shadow_hills();
     }
-    if (!nc) { if (ng) g_sh.valid = 0; return; }
+    // A list without casters keeps the last map: a frame's list is drawn in parts (the upload ring full, a texture it
+    // draws with), and a part of ground alone took the shadows off the ground for that frame - a flash without them,
+    // several a second with the ground from the map, which fills the ring at other moments (the player, 2026-11-09: "the
+    // shadows also flicker on terrain"; 17 such parts in 3400 frames, 1 with the game's ground). Off only after a whole
+    // frame drew no caster (rd3_shadow_new_frame).
+    if (!nc) return;
+    g_sh.cast_frame = 1;
     // the tallest caster: this list's, falling slowly (a list drawn early in a frame has fewer)
     g_sh.tall = fmaxf(fmaxf(g_sh.tall_frame, g_sh.tall * 0.98f), 2);
     g_sh.tall_frame = 0;
@@ -637,7 +654,10 @@ internal void rd3_shadow_frame(void) {
         for (int a = 0; a < 3; a++) { if (q[a] < mn[a]) mn[a] = q[a]; if (q[a] > mx[a]) mx[a] = q[a]; }
     }
     for (int a = 0; a < 3; a++) { mn[a] -= 1; mx[a] += 1; }   // a tile around, the comparisons' reach
-    float wx = mx[0] - mn[0], wy = mx[1] - mn[1], wz = mx[2] - mn[2];
+    mn[2] = floorf(mn[2] / SH_SPAN_STEP) * SH_SPAN_STEP;
+    float wx = sh_span(&g_sh.span[0], mx[0] - mn[0] + 0.5f), wy = sh_span(&g_sh.span[1], mx[1] - mn[1] + 0.5f), wz = sh_span(&g_sh.span[2], mx[2] - mn[2]);
+    mn[0] = floorf(mn[0] * SH_SIZE / wx) * wx / SH_SIZE;
+    mx[1] = ceilf(mx[1] * SH_SIZE / wy) * wy / SH_SIZE;
     float m[16] = { r[0] / wx, -u[0] / wy, f[0] / wz, 0, r[1] / wx, -u[1] / wy, f[1] / wz, 0,
                     r[2] / wx, -u[2] / wy, f[2] / wz, 0, -mn[0] / wx, mx[1] / wy, -mn[2] / wz, 1 };
     ID3D11DeviceContext *x = g_d3d.ctx;
@@ -694,6 +714,8 @@ internal void rd3_shadow_frame(void) {
 }
 // a frame begins (render_frame.c rf_ground_frame) - drawn with an update: the water's fading as the last such frame saw
 internal void rd3_shadow_new_frame(void) {
+    if (!g_sh.cast_frame) g_sh.valid = 0;
+    g_sh.cast_frame = 0;
     g_sh.water_on = g_sh.water_frame;
     g_sh.water_frame = 0;
 }

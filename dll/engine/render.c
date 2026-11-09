@@ -1253,7 +1253,7 @@ internal void render_install(const char *autotest_ini) {
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps, step_handoff_ms (render_3d.c)
     g_rwl_handoff_after = g_set.step_handoff_ms;
     g_mo.on = g_set.gpu_animation;          // [display] gpu_animation (render_morph.c)
-    g_rg.on = g_set.own_ground;
+    g_rg.on = 1;
     g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
     g_om_margin = g_set.object_margin;
     tnl_pick_install();   // display.c: the T&L rasterizer, whatever the game's setting

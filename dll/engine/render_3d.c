@@ -483,7 +483,7 @@ internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
 #include "render_water.c"     // the water by its depth, its reflections ([display] water_look, water_reflections)
 #include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
-#include "render_ground.c"    // the ground from the map itself, on the GPU ([display] own_ground)
+#include "render_ground.c"    // the ground from the map itself, on the GPU (the own renderer's only ground)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
 
 // A picture on the screen (the interface's backgrounds: no depth test, every texture coordinate within 0..1) is
