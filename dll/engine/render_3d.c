@@ -285,9 +285,13 @@ internal const char k_rd3_shader[] =
     "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
     "float4 psil(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float bz = slb.Load(a);"
     " if (i.p.z <= bz + 1e-6 || slz.Load(a) + 2e-6 < bz) discard;"
-    " if (op.w && t.Sample(s, i.t).a < 0.5) discard;"
+    " float e = 1; if (op.w) { e = t.Sample(s, i.t).a; if (e < 0.5) discard; }"
     " float3 c = i.k * max(i.c.r, max(i.c.g, i.c.b)); if (misc.y > 0.5) c = lerp(fogc.rgb, c, saturate(i.f));"
-    " return float4(c, 0.55); }\n";
+    " return float4(c, e); }\n"
+    // the silhouettes' finished picture over the scene, see-through as one
+    "Texture2D slc : register(t12);\n"
+    "float4 pslc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { float4 c = slc.Load(int3(p.xy, 0)); if (c.a == 0) discard;"
+    " return float4(c.rgb, c.a * 0.55); }\n";
 
 // The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
 // A ring full while the list still holds draws draws the list first (rd3_upload) - the frame then in parts, and a

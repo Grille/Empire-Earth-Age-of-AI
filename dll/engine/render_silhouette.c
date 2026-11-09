@@ -5,6 +5,9 @@
 // Only where a building is what the pixel shows and the unit lies behind that: a unit's own front, the unit before it,
 // hills and trees show nothing through. The depth can't tell who wrote it, so the frame's list draws the buildings alone
 // into a depth of their own, and the unit's pixel compares itself with that and that with the picture's.
+// The units go into a picture of their own, solid and with a depth, and that over the scene see-through as one (the player,
+// 2026-11-09: "rendering the silluetes transparent makes the shape hard to read since depth gets thrown out"): an arm before
+// the body stays before it, instead of every layer of the model blending in the order of its triangles.
 // The fill knows a record's kind (sil_tag), the draw only the record: the game's draw of a record is hooked to say whose
 // draws follow, and a batch holds one kind (sil_batch); its player's colour is per draw, the entry's free number.
 enum { SIL_UNIT = 1, SIL_BUILDING = 2 };
@@ -16,12 +19,13 @@ internal struct {
     int force, fail, tag, in;   // the pipe's (-1: the ini's); the record being drawn
     float col;                  // its player's colour, 0xRRGGBB as a whole number
     ID3D11VertexShader *vs;
-    ID3D11PixelShader *ps;
-    void *blend;
+    ID3D11PixelShader *ps, *over;   // the units' into their picture, that picture over the scene
+    void *blend, *solid;
     ID3D11DepthStencilState *depth;
-    ID3D11Texture2D *zt, *bt;   // the picture's depth copied, the buildings' depth
-    ID3D11ShaderResourceView *zs, *bs;
-    ID3D11DepthStencilView *bd;
+    ID3D11Texture2D *zt, *bt, *ct, *ut;   // the picture's depth copied, the buildings' depth, the units' picture and its depth
+    ID3D11ShaderResourceView *zs, *bs, *cs;
+    ID3D11DepthStencilView *bd, *ud;
+    ID3D11RenderTargetView *cr;
     UINT w, h;
 } g_sl = { .force = -1 };
 internal int sil_on(void) { return g_sl.force < 0 ? g_set.unit_silhouettes : g_sl.force; }
@@ -76,9 +80,13 @@ internal int sil_ready(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv) {
         code = SUCCEEDED(hr) ? d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "psil", "ps_4_0") : NULL;
         if (SUCCEEDED(hr)) hr = code ? ID3D11Device_CreatePixelShader(dv, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_sl.ps) : E_FAIL;
         D3D_RELEASE(code);
-        D3D11_DEPTH_STENCIL_DESC ds = { .DepthEnable = FALSE };
+        code = SUCCEEDED(hr) ? d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "pslc", "ps_4_0") : NULL;
+        if (SUCCEEDED(hr)) hr = code ? ID3D11Device_CreatePixelShader(dv, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_sl.over) : E_FAIL;
+        D3D_RELEASE(code);
+        D3D11_DEPTH_STENCIL_DESC ds = { .DepthEnable = TRUE, .DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL, .DepthFunc = D3D11_COMPARISON_LESS_EQUAL };
         if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sl.depth);
         g_sl.blend = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, 1 | D3DBLEND_SRCALPHA << 1 | D3DBLEND_INVSRCALPHA << 5, rd3_mk_blend);
+        g_sl.solid = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, 0, rd3_mk_blend);
     }
     ID3D11Resource *zr = NULL;
     ID3D11Texture2D *zt = NULL;
@@ -90,6 +98,7 @@ internal int sil_ready(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv) {
         if (zd.SampleDesc.Count == 1 && zd.Format == DXGI_FORMAT_D32_FLOAT) {
             if (!g_sl.zt || g_sl.w != zd.Width || g_sl.h != zd.Height) {
                 D3D_RELEASE(g_sl.bd); D3D_RELEASE(g_sl.bs); D3D_RELEASE(g_sl.zs); D3D_RELEASE(g_sl.bt); D3D_RELEASE(g_sl.zt);
+                D3D_RELEASE(g_sl.cr); D3D_RELEASE(g_sl.cs); D3D_RELEASE(g_sl.ct); D3D_RELEASE(g_sl.ud); D3D_RELEASE(g_sl.ut);
                 D3D11_TEXTURE2D_DESC nd = { zd.Width, zd.Height, 1, 1, DXGI_FORMAT_R32_TYPELESS, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
                 D3D11_SHADER_RESOURCE_VIEW_DESC sv = { .Format = DXGI_FORMAT_R32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D, .Texture2D = { 0, 1 } };
                 D3D11_DEPTH_STENCIL_VIEW_DESC dv2 = { .Format = DXGI_FORMAT_D32_FLOAT, .ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D };
@@ -99,6 +108,13 @@ internal int sil_ready(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv) {
                 if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(dv, &nd, NULL, &g_sl.bt);
                 if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sl.bt, &sv, &g_sl.bs);
                 if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(dv, (ID3D11Resource *)g_sl.bt, &dv2, &g_sl.bd);
+                nd.BindFlags = D3D11_BIND_DEPTH_STENCIL; nd.Format = DXGI_FORMAT_D32_FLOAT;
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(dv, &nd, NULL, &g_sl.ut);
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(dv, (ID3D11Resource *)g_sl.ut, &dv2, &g_sl.ud);
+                nd.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE; nd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(dv, &nd, NULL, &g_sl.ct);
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRenderTargetView(dv, (ID3D11Resource *)g_sl.ct, NULL, &g_sl.cr);
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sl.ct, NULL, &g_sl.cs);
                 g_sl.w = zd.Width; g_sl.h = zd.Height;
             }
             if (SUCCEEDED(hr)) { ID3D11DeviceContext_CopySubresourceRegion(x, (ID3D11Resource *)g_sl.zt, 0, 0, 0, 0, zr, 0, NULL); ok = 1; }
@@ -124,22 +140,36 @@ internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first) {
         e.rtv = NULL; e.dsv = g_sl.bd;
         rf_draw(x, &e, b, first);
     }
-    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &u->rtv, NULL);
-    b->rtv = u->rtv; b->dsv = NULL;
-    ID3D11ShaderResourceView *srv[2] = { g_sl.bs, g_sl.zs };
+    static const FLOAT none[4] = { 0, 0, 0, 0 };
+    ID3D11DeviceContext_ClearRenderTargetView(x, g_sl.cr, none);
+    ID3D11DeviceContext_ClearDepthStencilView(x, g_sl.ud, D3D11_CLEAR_DEPTH, 1.0f, 0);
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_sl.cr, g_sl.ud);
+    b->rtv = g_sl.cr; b->dsv = g_sl.ud;
+    ID3D11ShaderResourceView *srv[3] = { g_sl.bs, g_sl.zs, NULL };
     ID3D11DeviceContext_PSSetShaderResources(x, 10, 2, srv);
     ID3D11DeviceContext_VSSetShader(x, g_sl.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, g_sl.ps, NULL, 0);
     for (int i = 0; i < g_rf.n; i++) {
         if (g_rf.cmd[i].sil != SIL_UNIT) continue;
         rf_cmd e = g_rf.cmd[i];
-        e.dsv = NULL; e.depth = g_sl.depth; e.blend = g_sl.blend;
+        e.rtv = g_sl.cr; e.dsv = g_sl.ud; e.depth = g_sl.depth; e.blend = g_sl.solid;
         rf_draw(x, &e, b, first);
     }
-    ID3D11DeviceContext_VSSetShader(x, g_rd3.vs, NULL, 0);
-    ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
-    srv[0] = srv[1] = NULL;
-    ID3D11DeviceContext_PSSetShaderResources(x, 10, 2, srv);
+    // the viewport stays the units': the triangle over the whole target is cut to it
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &u->rtv, NULL);
+    srv[0] = srv[1] = NULL; srv[2] = g_sl.cs;
+    ID3D11DeviceContext_PSSetShaderResources(x, 10, 3, srv);
+    ID3D11DeviceContext_OMSetBlendState(x, g_sl.blend, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_OMSetDepthStencilState(x, NULL, 0);
+    ID3D11DeviceContext_RSSetState(x, NULL);
+    ID3D11DeviceContext_IASetInputLayout(x, NULL);
+    ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ID3D11DeviceContext_VSSetShader(x, g_d3d.vs, NULL, 0);
+    ID3D11DeviceContext_PSSetShader(x, g_sl.over, NULL, 0);
+    ID3D11DeviceContext_Draw(x, 3, 0);
+    srv[2] = NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 10, 3, srv);
+    rf_bind(x);
     *first = 1;
     b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 }
