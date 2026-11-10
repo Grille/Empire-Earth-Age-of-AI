@@ -241,6 +241,17 @@ internal inline void physical_model_set_frame(void *pm, uint32_t frame) { *(uint
 internal inline void physical_model_set_scale(void *pm, float s) { *(float *)((uint8_t *)pm + value_engine_display_of_physical_model_scale) = s; }
 internal inline void transform_orient(void *t, float yaw, float pitch, float roll) { (*(pm_orient_fn *)data_engine_display_iat_set_orientation)(t, yaw, pitch, roll); }
 internal inline void transform_assign(void *t, const void *from) { (*(pm_assign_fn *)data_engine_display_iat_transform_assign)(t, from); }
+// GEModel::PrepareTransforms through the exe's import slot (every call of the exe's): the original in *orig
+typedef void (__thiscall *model_prepare_fn)(ee_model *m);
+internal inline int patch_prepare_transforms(model_prepare_fn h, model_prepare_fn *orig) {
+    return iat_hook(data_engine_display_iat_prepare_transforms, "Low-Level Engine.dll", "?PrepareTransforms@GEModel@@QAEXXZ", (void *)h, (void **)orig);
+}
+// GETransformation::Apply (this one x other into out: 4 x 4 floats each), the engine's export; NULL before it is loaded
+typedef void (__thiscall *transform_mul_fn)(const float *t, const float *other, float *out);
+internal inline transform_mul_fn transform_mul_export(void) {
+    HMODULE m = GetModuleHandleA("Low-Level Engine.dll");
+    return m ? (transform_mul_fn)(void *)GetProcAddress(m, "?Apply@GETransformation@@QBEXABV1@AAV1@@Z") : NULL;
+}
 
 // THE EFFECTS' QUEUES (collect.c: made by the simulation at a step's end, inside the world's lock): the game's five
 // maps; the map's table of effects by region; an effect's calls and its reference (at +4, plain: inside the lock only)

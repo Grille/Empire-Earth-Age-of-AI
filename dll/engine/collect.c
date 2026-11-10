@@ -194,6 +194,100 @@ internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
     memcpy(place, cur, 12); memcpy(angles, cur + 3, 12); *fade = cur[6];
     return r;
 }
+// THE MODELS' FRAME TRANSFORMATIONS BETWEEN FRAMES (with the animation's: picture collect anim): a model moves by its
+// vertices per frame, which the engine blends by next_frame and fraction, and by a transformation per frame (GEModel
+// frame_transforms), which PrepareTransforms takes from the frame alone. A part that hangs on a model flies by the
+// latter: a Minotaur's top thrown off in its death rose 0.64, 1.19, 1.77 and turned half over in frames 13 to 20 - it
+// stood for a frame and jumped a tile to the next, and drawn by its poses (uc_anim_between: that model's vertices hold
+// each pose for two frames) for two (the player, 2026-11-10, at a quarter of the game's speed: "the pieces jump back and
+// fort, still move only in large steps"; a recording at 0.25: the top a tile off in one frame, then still for 100). The
+// exe calls PrepareTransforms through one import slot: here it does the same with the frame's transformation blended
+// to the next one's - the turn by its quaternion, the scale and the place straight - at the place in the animation the
+// frame, next frame and fraction give (forward: the fraction counted from the pose's first frame, between the two frames
+// round that place; back to a loop's start: the two by the fraction). Counted from the frame itself, the game's own
+// values of a frame the walk had none for (frame 14 at 0.55 where the walk draws 13 at 0.55) put the top a frame ahead
+// and back: a jump there and back in two frames of the recording.
+internal model_prepare_fn g_mt_orig;
+internal transform_mul_fn g_mt_apply;
+internal void mt_quat(const float r[9], float q[4]) {   // a turn's 3 x 3 (by row) as a quaternion (w, x, y, z)
+    float t = r[0] + r[4] + r[8];
+    if (t > 0.0f) { float s = sqrtf(t + 1.0f) * 2.0f; q[0] = 0.25f * s; q[1] = (r[7] - r[5]) / s; q[2] = (r[2] - r[6]) / s; q[3] = (r[3] - r[1]) / s; }
+    else if (r[0] > r[4] && r[0] > r[8]) { float s = sqrtf(1.0f + r[0] - r[4] - r[8]) * 2.0f; q[0] = (r[7] - r[5]) / s; q[1] = 0.25f * s; q[2] = (r[1] + r[3]) / s; q[3] = (r[2] + r[6]) / s; }
+    else if (r[4] > r[8]) { float s = sqrtf(1.0f + r[4] - r[0] - r[8]) * 2.0f; q[0] = (r[2] - r[6]) / s; q[1] = (r[1] + r[3]) / s; q[2] = 0.25f * s; q[3] = (r[5] + r[7]) / s; }
+    else { float s = sqrtf(1.0f + r[8] - r[0] - r[4]) * 2.0f; q[0] = (r[3] - r[1]) / s; q[1] = (r[2] + r[6]) / s; q[2] = (r[5] + r[7]) / s; q[3] = 0.25f * s; }
+}
+internal void mt_blend(const float *a, const float *b, float k, float *out) {   // 4 x 4 by row, the place in the fourth column
+    float sa[3], sb[3], ra[9], rb[9], qa[4], qb[4], q[4];
+    for (int c = 0; c < 3; c++) {
+        sa[c] = sqrtf(a[c] * a[c] + a[4 + c] * a[4 + c] + a[8 + c] * a[8 + c]);
+        sb[c] = sqrtf(b[c] * b[c] + b[4 + c] * b[4 + c] + b[8 + c] * b[8 + c]);
+        if (sa[c] < 1e-6f || sb[c] < 1e-6f) {   // no turn to take out: straight
+            for (int i = 0; i < 16; i++) out[i] = a[i] + (b[i] - a[i]) * k;
+            return;
+        }
+        for (int r = 0; r < 3; r++) ra[r * 3 + c] = a[r * 4 + c] / sa[c], rb[r * 3 + c] = b[r * 4 + c] / sb[c];
+    }
+    mt_quat(ra, qa), mt_quat(rb, qb);
+    float d = qa[0] * qb[0] + qa[1] * qb[1] + qa[2] * qb[2] + qa[3] * qb[3], wa = 1.0f - k, wb = k;
+    if (d < 0.0f) d = -d, wb = -wb;   // the short way round
+    if (d < 0.9995f) {
+        float th = acosf(d), sn = sinf(th);
+        wa = sinf((1.0f - k) * th) / sn, wb = (wb < 0.0f ? -1.0f : 1.0f) * sinf(k * th) / sn;
+    }
+    float n = 0.0f;
+    for (int i = 0; i < 4; i++) q[i] = qa[i] * wa + qb[i] * wb, n += q[i] * q[i];
+    n = 1.0f / sqrtf(n);
+    for (int i = 0; i < 4; i++) q[i] *= n;
+    float w = q[0], x = q[1], y = q[2], z = q[3];
+    float r[9] = { 1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
+                   2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
+                   2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y) };
+    for (int c = 0; c < 3; c++) {
+        float s = sa[c] + (sb[c] - sa[c]) * k;
+        for (int rr = 0; rr < 3; rr++) out[rr * 4 + c] = r[rr * 3 + c] * s;
+    }
+    for (int rr = 0; rr < 3; rr++) out[rr * 4 + 3] = a[rr * 4 + 3] + (b[rr * 4 + 3] - a[rr * 4 + 3]) * k;
+    for (int i = 12; i < 16; i++) out[i] = a[i];
+}
+// the first frame of the pose frame f is in: the frames before it that share its vertices (a model that holds each pose
+// for several frames - the game's fraction is the way from that frame on)
+internal uint32_t mt_pose_first(ee_model *m, uint32_t f) {
+    ee_vertices **v = model_get_vertices(m);
+    while (v && f > 0 && v[f] && v[f - 1] == v[f]) f--;
+    return f;
+}
+internal void mt_prepare(ee_model *m) {   // PrepareTransforms (engine 0x317F1) with the frames' transformations blended
+    const float *ft = model_get_frame_transforms(m), *src = ft + model_get_frame(m) * 16;
+    uint32_t f = model_get_frame(m), nx = model_get_next_frame(m);
+    float fr = model_get_fraction(m), x[16], y[16];
+    if (fr > 0.0f && nx != f) {
+        uint32_t a = f, b = nx;
+        float k = fr;
+        if (nx > f) {   // the place in the animation: from the pose's first frame (the game's frame 14 at 0.55 of a pose
+                        // that holds 13 and 14 is where 13 at 0.55 is - both come: the game's own values and the walk's)
+            uint32_t a0 = mt_pose_first(m, f), b0 = mt_pose_first(m, nx);
+            if (b0 <= a0) a0 = f, b0 = nx;
+            float t = (float)a0 + fr * (float)(b0 - a0);
+            a = (uint32_t)t;
+            if (a < a0) a = a0;
+            if (a >= b0) a = b0 - 1;
+            b = a + 1, k = t - (float)a;
+        }
+        if (memcmp(ft + a * 16, ft + b * 16, 16 * sizeof(float))) mt_blend(ft + a * 16, ft + b * 16, k, x), src = x;
+        else src = ft + a * 16;
+    }
+    g_mt_apply(src, model_own_at(m), y);
+    float s = model_get_scale(m);
+    for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) y[r * 4 + c] *= s;
+    y[12] = y[13] = y[14] = 0.0f, y[15] = 1.0f;
+    g_mt_apply(model_outer_at(m), y, model_transform_at(m));
+    ee_model **ch = model_get_children(m);
+    for (uint32_t i = 0, n = model_get_child_count(m); i < n; i++) mt_prepare(ch[i]);
+}
+internal void __thiscall mt_hook_prepare(ee_model *m) {
+    if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_mt_apply || !model_get_frame_transforms(m)) { g_mt_orig(m); return; }
+    mt_prepare(m);
+}
 // after the walk: the followed object's step on the screen, while it moves
 internal void uc_smooth_probe(void) {
     if (!g_cp_smooth || !g_cs_u) return;
@@ -1181,6 +1275,9 @@ internal void collect_install(void) {
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
     int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts), fx_of = 0;
     if (!patch_particle3d_draw(pt_hook_draw) && g_log) fprintf(g_log, "# collect: the flying pieces' draw NOT hooked\n");
+    g_mt_apply = transform_mul_export();
+    if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
+        fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");
     if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);

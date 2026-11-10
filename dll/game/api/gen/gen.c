@@ -723,6 +723,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_engine_display_iat_transform_assign, "Low-Level Engine.dll", "??4GETransformation@@QAEAAV0@ABV0@@Z", "engine_display.iat_transform_assign");
     bad += spec_import(&data_engine_display_iat_set_model, "Low-Level Engine.dll", "?SetModel@GEPhysicalModel@@QAEXPAVGEModel@@@Z", "engine_display.iat_set_model");
     bad += spec_import(&data_engine_display_iat_model_free, "Low-Level Engine.dll", "??1GEPhysicalModel@@QAE@XZ", "engine_display.iat_model_free");
+    bad += spec_import(&data_engine_display_iat_prepare_transforms, "Low-Level Engine.dll", "?PrepareTransforms@GEModel@@QAEXXZ", "engine_display.iat_prepare_transforms");
     bad += spec_import(&data_engine_display_iat_transform_new, "Low-Level Engine.dll", "??0GETransformation@@QAE@XZ", "engine_display.iat_transform_new");
     bad += spec_import(&data_engine_display_iat_wstring_assign, "Low-Level Engine.dll", "??4UWideString@@QAEAAV0@ABV0@@Z", "engine_display.iat_wstring_assign");
     bad += spec_import(&data_engine_display_iat_transform_apply_vector, "Low-Level Engine.dll", "?Apply@GETransformation@@QBEXABVGEVector@@AAV2@@Z", "engine_display.iat_transform_apply_vector");

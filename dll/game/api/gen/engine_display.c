@@ -413,6 +413,22 @@ internal inline float **model_radii_at(const ee_model *o) { return (float **)((u
 internal inline float model_get_transform(const ee_model *o, int i) { return ((float *)((uint8_t *)o + of_model_transform))[i]; }
 internal inline void model_set_transform(ee_model *o, int i, float v) { ((float *)((uint8_t *)o + of_model_transform))[i] = v; }
 internal inline float *model_transform_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_transform); }
+// its own transformation (a GETransformation, 4 x 4 floats by row, the translation in the fourth column): its
+// frame's is applied to it (PrepareTransforms: transform = outer x (frame_transforms[frame] x own, its 3 x 3 times
+// scale))
+internal inline float model_get_own(const ee_model *o, int i) { return ((float *)((uint8_t *)o + of_model_own))[i]; }
+internal inline void model_set_own(ee_model *o, int i, float v) { ((float *)((uint8_t *)o + of_model_own))[i] = v; }
+internal inline float *model_own_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_own); }
+// the transformation over the frame's (PrepareTransforms, above)
+internal inline float model_get_outer(const ee_model *o, int i) { return ((float *)((uint8_t *)o + of_model_outer))[i]; }
+internal inline void model_set_outer(ee_model *o, int i, float v) { ((float *)((uint8_t *)o + of_model_outer))[i] = v; }
+internal inline float *model_outer_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_outer); }
+// a transformation per frame of its animation (16 floats each; the .cem's frame chunk, SaveFrameChunk):
+// PrepareTransforms takes the frame's alone, without next_frame and fraction - a part that hangs on a model (a
+// Minotaur's top thrown off in its death) moves by these, and stood a frame and jumped to the next
+internal inline float *model_get_frame_transforms(const ee_model *o) { return *(float **)((uint8_t *)o + of_model_frame_transforms); }
+internal inline void model_set_frame_transforms(ee_model *o, float *v) { *(float **)((uint8_t *)o + of_model_frame_transforms) = v; }
+internal inline float **model_frame_transforms_at(const ee_model *o) { return (float **)((uint8_t *)o + of_model_frame_transforms); }
 // what hangs on it (child_count), each drawn after it under its transformation (DrawModelHierarchy)
 internal inline ee_model **model_get_children(const ee_model *o) { return *(ee_model ***)((uint8_t *)o + of_model_children); }
 internal inline void model_set_children(ee_model *o, ee_model **v) { *(ee_model ***)((uint8_t *)o + of_model_children) = v; }
@@ -824,6 +840,9 @@ internal inline uint8_t *engine_display_iat_set_orientation_at(void) { return (u
 internal inline uint8_t *engine_display_iat_transform_assign_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_assign; }
 internal inline uint8_t *engine_display_iat_set_model_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_set_model; }
 internal inline uint8_t *engine_display_iat_model_free_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_model_free; }
+// GEModel::PrepareTransforms (thiscall on the model): its transform and its children's from their frames before a
+// draw - the exe calls it through this slot alone (49 places: the units' draw, the effects' ...)
+internal inline uint8_t *engine_display_iat_prepare_transforms_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_prepare_transforms; }
 internal inline uint8_t *engine_display_iat_transform_new_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_new; }
 // THE UNITS' FILL (EEROUnits' FillUnit, EE 0x502622, AoC 0x50D3AD; collect.c's port uc_fill) reads and writes
 // these. The ambient sounds' (thiscall ambient_add / ambient_add_object on it, while the update's info asks: its
@@ -1124,6 +1143,9 @@ internal int spec_engine_display_select(int build) {
         of_model_center = 0xC8;
         of_model_radii = 0x124;
         of_model_transform = 0x88;
+        of_model_own = 0x8;
+        of_model_outer = 0x48;
+        of_model_frame_transforms = 0xF0;
         of_model_children = 0xFC;
         of_model_child_count = 0x13C;
         of_model_scale = 0x128;
@@ -1280,6 +1302,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_transform_assign = 0x008232F4;
         data_engine_display_iat_set_model = 0x00823848;
         data_engine_display_iat_model_free = 0x0082384C;
+        data_engine_display_iat_prepare_transforms = 0x00823748;
         data_engine_display_iat_transform_new = 0x00823254;
         value_engine_display_size_physical_model = 76;
         value_engine_display_of_physical_model_model = 64;
@@ -1473,6 +1496,9 @@ internal int spec_engine_display_select(int build) {
         of_model_center = 0xC8;
         of_model_radii = 0x124;
         of_model_transform = 0x88;
+        of_model_own = 0x8;
+        of_model_outer = 0x48;
+        of_model_frame_transforms = 0xF0;
         of_model_children = 0xFC;
         of_model_child_count = 0x13C;
         of_model_scale = 0x128;
@@ -1629,6 +1655,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_transform_assign = 0x0083738C;
         data_engine_display_iat_set_model = 0x00837818;
         data_engine_display_iat_model_free = 0x0083781C;
+        data_engine_display_iat_prepare_transforms = 0x00837708;
         data_engine_display_iat_transform_new = 0x00837250;
         value_engine_display_size_physical_model = 76;
         value_engine_display_of_physical_model_model = 64;
@@ -1834,6 +1861,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_iat_transform_assign, "engine_display.iat_transform_assign");
     bad += spec_data(data_engine_display_iat_set_model, "engine_display.iat_set_model");
     bad += spec_data(data_engine_display_iat_model_free, "engine_display.iat_model_free");
+    bad += spec_data(data_engine_display_iat_prepare_transforms, "engine_display.iat_prepare_transforms");
     bad += spec_data(data_engine_display_iat_transform_new, "engine_display.iat_transform_new");
     bad += spec_data(data_engine_display_ambient_sounds, "engine_display.ambient_sounds");
     bad += spec_data(data_engine_display_bar_ids, "engine_display.bar_ids");

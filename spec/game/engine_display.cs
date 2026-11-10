@@ -495,6 +495,22 @@ unsafe struct GEModel
     [offset(0x88), found(c)]
     fixed float32 transform[12];
 
+    /// its own transformation (a GETransformation, 4 x 4 floats by row, the translation in the fourth column): its
+    /// frame's is applied to it (PrepareTransforms: transform = outer x (frame_transforms[frame] x own, its 3 x 3 times
+    /// scale))
+    [offset(0x8), found(c)]
+    fixed float32 own[16];
+
+    /// the transformation over the frame's (PrepareTransforms, above)
+    [offset(0x48), found(c)]
+    fixed float32 outer[16];
+
+    /// a transformation per frame of its animation (16 floats each; the .cem's frame chunk, SaveFrameChunk):
+    /// PrepareTransforms takes the frame's alone, without next_frame and fraction - a part that hangs on a model (a
+    /// Minotaur's top thrown off in its death) moves by these, and stood a frame and jumped to the next
+    [offset(0xF0), found(c)]
+    float32* frame_transforms;
+
     /// what hangs on it (child_count), each drawn after it under its transformation (DrawModelHierarchy)
     [offset(0xFC), found(c)]
     GEModel** children;
@@ -1180,6 +1196,12 @@ static unsafe class engine_display
     [import_slot("Low-Level Engine.dll", "??1GEPhysicalModel@@QAE@XZ")]
     [address((ee)0x0082384C, (aoc)0x0083781C)]
     static block iat_model_free;
+
+    /// GEModel::PrepareTransforms (thiscall on the model): its transform and its children's from their frames before a
+    /// draw - the exe calls it through this slot alone (49 places: the units' draw, the effects' ...)
+    [import_slot("Low-Level Engine.dll", "?PrepareTransforms@GEModel@@QAEXXZ")]
+    [address((ee)0x00823748, (aoc)0x00837708)]
+    static block iat_prepare_transforms;
 
     [import_slot("Low-Level Engine.dll", "??0GETransformation@@QAE@XZ")]
     [address((ee)0x00823254, (aoc)0x00837250)]
