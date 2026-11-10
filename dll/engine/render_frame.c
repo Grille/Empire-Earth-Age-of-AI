@@ -21,6 +21,7 @@ typedef struct {
     int vc, pc;      // the constants' snapshots (g_rf.vcs, pcs)
     void *soft;      // its soft edges are drawn apart, with this depth state (rf_edges); NULL: drawn whole
     int sil;         // its part in the silhouettes (render_silhouette.c SIL_), of a batch that writes the depth
+    int wat;         // its place around the water's surface in this list (RF_W_, rf_replay)
     int role, ro;    // the shadows' role (render_shadows.c SH_), the render object drawing it
     UINT at, n;      // the indices in the upload buffer
     INT base;        // the vertices' (in vertices)
@@ -618,7 +619,9 @@ internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal void rd3_water_reflect(void);   // render_water.c
 internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c);   // render_ground.c
-internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
+internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
+internal int rd3_water_first(void);
+internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_shadow_only(int role);
@@ -845,6 +848,26 @@ internal void rf_edges_part(ID3D11DeviceContext *x, int part) {
     g_fe.part = part;
     ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &g_fe.cb[part]);
 }
+// the shader's wsp, which pixels of a draw are wanted: 0 all, 1 under the water's level, 2 not under it, 3 over the land, 4 over
+// the water and under its level, 5 over the water and not under it. A slot of its own: the shadows' maps leave their constants
+// in the edges' (rd3_shadow_frame)
+internal struct { ID3D11Buffer *cb[6]; int part, fail; } g_wsp;
+internal void rf_water_part(ID3D11DeviceContext *x, int part) {
+    if (!g_wsp.cb[0] && !g_wsp.fail) {
+        static const float v[6][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 1, 2 }, { -1, 2 } };
+        for (int i = 0; i < 6 && !g_wsp.fail; i++) {
+            float k[4] = { v[i][0], v[i][1], 0, 0 };
+            D3D11_BUFFER_DESC bd = { sizeof k, D3D11_USAGE_IMMUTABLE, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+            D3D11_SUBRESOURCE_DATA sd = { k, 0, 0 };
+            HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_wsp.cb[i]);
+            if (FAILED(hr)) { g_wsp.fail = 1; rd_fail("the water's sides' constants", hr); }
+        }
+        g_wsp.part = -1;
+    }
+    if (g_wsp.fail || part == g_wsp.part) return;
+    g_wsp.part = part;
+    ID3D11DeviceContext_PSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
+}
 // a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first) {
     if (rd3_shadow_only(c->role)) return;   // a caster off the screen: in the map only
@@ -873,7 +896,7 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
     }
     *b = *c;
     *first = 0;
-    rd3_water_pass(x, c);
+    if (rd3_water_pass(x, c)) return;
     if (c->gvb) rg_replay(x, c);
     else rf_call(x, c);
     g_rb.batches++;
@@ -889,6 +912,20 @@ internal void rf_scene_done(ID3D11DeviceContext *x, const rf_cmd *s, rf_cmd *b, 
     rf_bind(x);
     *first = 1;
     b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+}
+// A batch's place around the water's surface. RF_W_SPLIT: see-through and no depth written, in two parts by its height
+// (render_water.c rd3_water_late). RF_W_TOP: what the 3D passes draw in pixels (the selected units' health bars, the lines
+// of orders) knows no height and stands over the picture: after the surface and the water's own effects (the player,
+// 2026-11-10: "the confirmation cicles are drawn behind the water surface, as do the healthbasr of selected units, and on
+// smoke etc"). RF_W_RING: the circles on the ground, a move's and the selected units', drawn at depth 0 (the viewport's depth
+// range) and left to what comes after to cover them: over the land they stay where the game draws them, or a circle would
+// lie over the building in front of it; over the water, as the first kind.
+enum { RF_W_PLACE, RF_W_SPLIT, RF_W_TOP, RF_W_RING };
+internal int rf_water_place(const rf_cmd *c, int lastw, int i) {
+    if (lastw < 0 || g_wsp.fail) return RF_W_PLACE;
+    if (i < lastw && (c->ro == RO_TERRAIN || c->ro == RO_UNITS) && rf_pixels(g_rf.vcs[c->vc].view)) return RF_W_TOP;
+    if (!rd3_water_late(c)) return RF_W_PLACE;
+    return c->vport.MaxDepth <= 0 && i < lastw ? RF_W_RING : RF_W_SPLIT;
 }
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
 // before (the 2D path, the present, the overlay set their own). At the first of the interface's draws after the 3D
@@ -908,7 +945,12 @@ internal void rf_replay(void) {
     memset(&b, 0, sizeof b);
     b.vc = b.pc = -1;
     b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-    int first = 1, lastw = rd3_water_last(), first3 = -1, last3 = -1;
+    rf_water_part(x, 0);
+    int first = 1, lastw = rd3_water_last(), firstw = lastw >= 0 ? rd3_water_first() : -1, lastp = -1, first3 = -1, last3 = -1;
+    for (int i = 0; i < g_rf.n; i++) {
+        g_rf.cmd[i].wat = rf_water_place(&g_rf.cmd[i], lastw, i);
+        if (g_rf.cmd[i].ro == RO_WATER) lastp = i;
+    }
     const rf_cmd *scene = NULL;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
@@ -918,11 +960,19 @@ internal void rf_replay(void) {
         if (!scene && !rf_pixels(g_rf.vcs[c->vc].view)) scene = c;
     }
     // the silhouettes after the units' last batch drawn in its place: one held back for after the water is passed over below
-    for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && rd3_water_late(&g_rf.cmd[i]))) lastu = i;
+    for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && (g_rf.cmd[i].wat == RF_W_SPLIT || g_rf.cmd[i].wat == RF_W_TOP))) lastu = i;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
-        if (i < lastw && rd3_water_late(c)) continue;
+        if (i == firstw) {
+            rd3_water_steps(x, lastw, &b, &first);
+            rf_water_part(x, 1);
+            for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) rf_draw(x, &g_rf.cmd[j], &b, &first);
+            rf_water_part(x, 4);
+            for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);
+        }
+        if (i < lastw && (c->wat == RF_W_SPLIT || c->wat == RF_W_TOP)) continue;
+        rf_water_part(x, c->wat == RF_W_SPLIT ? 2 : c->wat == RF_W_RING ? 3 : 0);
         if (!g_fe.fail) rf_edges_part(x, edges && c->soft ? 1 : 0);
         rf_draw(x, c, &b, &first);
         if (i == laste) {
@@ -931,10 +981,19 @@ internal void rf_replay(void) {
             rf_edges_part(x, 0);
         }
         if (i == lastu) rd3_silhouettes(x, &b, &first);
-        if (i == lastw)
-            for (int j = 0; j < lastw; j++) if (rd3_water_late(&g_rf.cmd[j])) rf_draw(x, &g_rf.cmd[j], &b, &first);
+        if (i == lastw) {
+            rf_water_part(x, 2);
+            for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) rf_draw(x, &g_rf.cmd[j], &b, &first);
+            rf_water_part(x, 5);
+            for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);
+        }
+        if (i == lastp && lastw >= 0) {
+            rf_water_part(x, 0);
+            for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_TOP) rf_draw(x, &g_rf.cmd[j], &b, &first);
+        }
         if (i == last3 && scene) rf_scene_done(x, scene, &b, &first, i + 1 < g_rf.n);
     }
+    rf_water_part(x, 0);
     g_rf.n = g_rf.nvc = g_rf.npc = 0;
     g_rf.vc_new = g_rf.pc_new = 1;   // the next batch's constants a snapshot of their own
     g_rf.replays++;

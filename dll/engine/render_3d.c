@@ -165,6 +165,7 @@ internal const char k_rd3_shader[] =
     "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
+    "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not (render_frame.c rf_water_part)
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
@@ -239,6 +240,10 @@ internal const char k_rd3_shader[] =
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
     " if (edp.x > 0 ? x.a < edp.x : edp.x < 0 && x.a >= -edp.x) discard;"
+    // a move's circle lies at the level itself, a selected ship's a hundredth under it: what counts as under starts a little below
+    " if (wsp.x > 0 ? i.w.z >= sea.z - 0.05 : wsp.x < 0 && i.w.z < sea.z - 0.05) discard;"
+    // and a circle on the ground: over the land (wsp.y 1) or over the water (2), by the hills' map's ground under the pixel
+    " if (wsp.y > 0) { float2 wg = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool wr = shh.w == 0 || wg.x - wg.y < sea.z - 0.05; if (wsp.y > 1.5 ? !wr : wr) discard; }"
     // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, its colour in a shadow as
     // the vertex shader worked it out; with shadows all on the units, buildings and trees too, their colour without
     // the sun's part. The hills' map: in their shadow below its height (a soft edge); the darker of the two shadows

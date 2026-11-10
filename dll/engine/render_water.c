@@ -47,7 +47,8 @@ internal struct {
     float za;        // the projection's depth term (rw_depth)
     ID3D11PixelShader *fps;
     ID3D11DepthStencilState *fdepth;
-    int late;        // see-through batches of the units after the water (rd3_water_late)
+    int late;        // see-through batches around the surface by their height (rd3_water_late)
+    int stage;       // this list's surface (rd3_water_pass): 0 each batch's step with it, 1 only the steps, 2 only the batches
     int ffail, have, cw, ch, zw, zh;   // the step's shader could not be made; this list's copies are there; their sizes
     DXGI_FORMAT cfmt;
     long copied;     // the list they are of, + 1
@@ -239,19 +240,36 @@ internal int rw_copy(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, ID3D11
     D3D_RELEASE(ct); D3D_RELEASE(zt); D3D_RELEASE(cr); D3D_RELEASE(zr);
     return ok;
 }
-// what is see-through and writes no depth leaves nothing in the depth the step reads: a move's green circle on the seabed
+// What is see-through and writes no depth leaves nothing in the depth the step reads: a move's green circle on the seabed
 // went under the fog with the seabed (the player, 2026-11-09: "the navigation confirmation (green circle) is hidden by the
-// fog"), smoke over the sea would have been fogged by the seabed under it. Those batches of the units' pass are drawn after
-// the list's last batch of the water (rf_replay); -1: none wait
+// fog"), smoke over the sea would have been fogged by the seabed under it. And the surface writes no depth either, so the
+// order alone says which of the two is in front: the game's move circle (the ground's pass) lay under the surface although it
+// is drawn at the level, the smoke (the water's own pass, after the surface) over it from wherever it started (the player,
+// 2026-11-10: "id like them to draw behind the water surface when they are under it"). So such a batch is drawn in two
+// parts by the height of each pixel, the part under the level after the surface's step and before the surface, the rest
+// after the surface (rf_replay); -1: the list has no surface or the order is the game's
 internal int rd3_water_last(void) {
+    g_wa.stage = 0;
     if (!g_wa.late || g_wa.ffail || rw_opaque() <= 0) return -1;
     for (int i = g_rf.n - 1; i >= 0; i--) if (g_rf.cmd[i].role == SH_WATER) return i;
     return -1;
 }
+internal int rd3_water_first(void) {
+    for (int i = 0; i < g_rf.n; i++) if (g_rf.cmd[i].role == SH_WATER) return i;
+    return -1;
+}
+// the step of the whole surface, from here on its batches without it: what lies under the level comes between the two
+internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first) {
+    g_wa.stage = 1;
+    for (int j = 0; j <= lastw; j++) if (g_rf.cmd[j].role == SH_WATER) rf_draw(x, &g_rf.cmd[j], b, first);
+    g_wa.stage = 2;
+}
+// The ground's pass: only what is tested with "less" (the game's move circle), not what lies under everything at "less or
+// equal", the sky's plane 200 tiles up among it
 internal int rd3_water_late(const rf_cmd *c) {
     static void *lb, *ld;
-    static int late;
-    if (c->ro != RO_UNITS || !c->blend || !c->depth) return 0;
+    static int late, less;
+    if ((c->ro != RO_UNITS && c->ro != RO_WATER && c->ro != RO_TERRAIN) || c->role == SH_WATER || !c->blend || !c->depth) return 0;
     if (c->blend != lb || c->depth != ld) {
         D3D11_BLEND_DESC bd;
         D3D11_DEPTH_STENCIL_DESC dd;
@@ -259,13 +277,14 @@ internal int rd3_water_late(const rf_cmd *c) {
         ID3D11DepthStencilState_GetDesc((ID3D11DepthStencilState *)c->depth, &dd);
         lb = c->blend; ld = c->depth;
         late = bd.RenderTarget[0].BlendEnable && dd.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ZERO;
+        less = dd.DepthFunc == D3D11_COMPARISON_LESS;
     }
-    return late;
+    return late && (c->ro != RO_TERRAIN || less);
 }
 // the water's step (render_frame.c rf_replay, each batch before it is drawn): a batch of the surface first over the copy;
 // no depth written, its overlaps come out alike
-internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c) {
-    if (c->role != SH_WATER || g_wa.ffail || rw_opaque() <= 0) return;
+internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
+    if (g_wa.ffail || rw_opaque() <= 0) return;
     if (!g_wa.fps) {
         ID3DBlob *code = d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "wfog", "ps_4_0");
         HRESULT hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_wa.fps) : E_FAIL;
@@ -291,6 +310,12 @@ internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0);
     srv[0] = srv[1] = NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 8, 2, srv);
+}
+// a batch about to be drawn; 1: only its step was wanted
+internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c) {
+    if (c->role != SH_WATER) return 0;
+    if (g_wa.stage != 2) rw_step(x, c);
+    return g_wa.stage == 1;
 }
 internal void rd3_water_reflect(void) {
     rw_table();
