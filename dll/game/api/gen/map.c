@@ -206,6 +206,10 @@ internal inline uint8_t **terrain_name_at(const ee_terrain *o) { return (uint8_t
 internal inline uint32_t terrain_get_set(const ee_terrain *o) { return *(uint32_t *)((uint8_t *)o + of_terrain_set); }
 internal inline void terrain_set_set(ee_terrain *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_terrain_set) = v; }
 internal inline uint32_t *terrain_set_at(const ee_terrain *o) { return (uint32_t *)((uint8_t *)o + of_terrain_set); }
+// how many kinds of objects painting it scatters (trees ...): the terrain paint's 0x598B7A and a new map's fill read it
+internal inline int terrain_get_objects_n(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_objects_n); }
+internal inline void terrain_set_objects_n(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_objects_n) = v; }
+internal inline int *terrain_objects_n_at(const ee_terrain *o) { return (int *)((uint8_t *)o + of_terrain_objects_n); }
 // the language file's string that names it in the editor's lists (GetString)
 internal inline int terrain_get_name_text(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_name_text); }
 internal inline void terrain_set_name_text(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_name_text) = v; }
@@ -320,6 +324,9 @@ internal inline uint16_t continent_mgr_region(ee_continent_mgr *continent_mgr, i
 // vf2: its picture of tiles x_lo .. x_hi, y_hi down to y_lo made anew (what the paints' vf1 call)
 typedef void (__thiscall *minimap_redraw_tiles_fn)(ee_minimap *, int, int, int, int);
 internal inline void minimap_redraw_tiles(ee_minimap *minimap, int x_lo, int x_hi, int y_hi, int y_lo) { ((minimap_redraw_tiles_fn)(*(void ***)minimap)[slot_minimap_redraw_tiles])(minimap, x_lo, x_hi, y_hi, y_lo); }
+internal minimap_redraw_tiles_fn fn_ee_mini_map_redraw_tiles;
+internal inline void ee_mini_map_redraw_tiles(ee_minimap *minimap, int x_lo, int x_hi, int y_hi, int y_lo) { fn_ee_mini_map_redraw_tiles(minimap, x_lo, x_hi, y_hi, y_lo); }
+internal inline int patch_minimap_redraw(minimap_redraw_tiles_fn h) { return patch_vtable(vt_ee_mini_map, (int)slot_minimap_redraw_tiles, (uintptr_t)fn_ee_mini_map_redraw_tiles, (void *)h); }
 // the end of a paint's vf1, whatever it changed (thiscall on the minimap, both builds)
 typedef void (__thiscall *minimap_paint_done_fn)(ee_minimap *);
 internal minimap_paint_done_fn fn_minimap_paint_done;
@@ -451,6 +458,7 @@ internal int spec_map_select(int build) {
         size_ee_terrain = 0x8C;
         of_terrain_name = 0x8;
         of_terrain_set = 0x40;
+        of_terrain_objects_n = 0x7C;
         of_terrain_name_text = 0x54;
         of_terrain_in_editor = 0x85;
         of_terrain_kind = 0x5C;
@@ -478,6 +486,7 @@ internal int spec_map_select(int build) {
         fn_continent_mgr_region = (continent_mgr_region_fn)0x00425F9F;
         vt_ee_mini_map = 0x0082C5A8;
         slot_minimap_redraw_tiles = 2;
+        fn_ee_mini_map_redraw_tiles = (minimap_redraw_tiles_fn)0x00515AC4;
         fn_minimap_paint_done = (minimap_paint_done_fn)0x00515611;
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
         fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
@@ -555,6 +564,7 @@ internal int spec_map_select(int build) {
         size_ee_terrain = 0x8C;
         of_terrain_name = 0x8;
         of_terrain_set = 0x40;
+        of_terrain_objects_n = 0x7C;
         of_terrain_name_text = 0x54;
         of_terrain_in_editor = 0x85;
         of_terrain_kind = 0x5C;
@@ -582,6 +592,7 @@ internal int spec_map_select(int build) {
         fn_continent_mgr_region = (continent_mgr_region_fn)0x00422B86;
         vt_ee_mini_map = 0x00841D44;
         slot_minimap_redraw_tiles = 2;
+        fn_ee_mini_map_redraw_tiles = (minimap_redraw_tiles_fn)0x00520115;
         fn_minimap_paint_done = (minimap_paint_done_fn)0x0051FC62;
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
         fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
@@ -641,6 +652,8 @@ internal int spec_map_check(void) {
     bad += spec_code((uintptr_t)fn_continent_mgr_area_at, "EEAIContinentManager.area_at");
     bad += spec_code((uintptr_t)fn_continent_mgr_region, "EEAIContinentManager.region");
     bad += spec_vtable(vt_ee_mini_map, ".?AVEEMiniMap@@", "EEMiniMap [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_mini_map_redraw_tiles, "EEMiniMap.redraw_tiles");
+    bad += spec_slot(vt_ee_mini_map, slot_minimap_redraw_tiles, (uintptr_t)fn_ee_mini_map_redraw_tiles, "EEMiniMap.redraw_tiles [slot]");
     bad += spec_code((uintptr_t)fn_minimap_paint_done, "EEMiniMap.paint_done");
     bad += spec_code((uintptr_t)fn_minimap_sight_add, "EEMiniMap.sight_add");
     bad += spec_code((uintptr_t)fn_minimap_tile, "EEMiniMap.tile");

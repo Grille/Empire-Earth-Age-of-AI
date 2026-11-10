@@ -122,6 +122,10 @@ internal inline int patch_se_paint_mountains(se_paint_mountains_run_fn h) { retu
 // class EESEAPaintTerrain (ee_se_paint_terrain)
 // made in 0x5955FE, 0x59B234
 // EESEAPaint's, the base's
+// the terrain painted with (its ee_terrain's index)
+internal inline int se_paint_terrain_get_terrain(const ee_se_paint_terrain *o) { return *(int *)((uint8_t *)o + of_se_paint_terrain_terrain); }
+internal inline void se_paint_terrain_set_terrain(ee_se_paint_terrain *o, int v) { *(int *)((uint8_t *)o + of_se_paint_terrain_terrain) = v; }
+internal inline int *se_paint_terrain_terrain_at(const ee_se_paint_terrain *o) { return (int *)((uint8_t *)o + of_se_paint_terrain_terrain); }
 // vf1: the ground painted (editor_undo.c: what it changes kept)
 typedef void (__thiscall *se_paint_terrain_run_fn)(ee_se_paint_terrain *);
 internal inline void se_paint_terrain_run(ee_se_paint_terrain *se_paint_terrain) { ((se_paint_terrain_run_fn)(*(void ***)se_paint_terrain)[slot_se_paint_terrain_run])(se_paint_terrain); }
@@ -2588,6 +2592,7 @@ internal int spec_editor_select(int build) {
         fn_eesea_paint_moutains_run = (se_paint_mountains_run_fn)0x005984E0;
         vt_eesea_paint_terrain = 0x00830044;
         size_eesea_paint_terrain = 0x28;
+        of_se_paint_terrain_terrain = 0x20;
         slot_se_paint_terrain_run = 1;
         fn_eesea_paint_terrain_run = (se_paint_terrain_run_fn)0x00598CA8;
         vt_eesea_place_gate = 0x0082F680;
@@ -3191,6 +3196,7 @@ internal int spec_editor_select(int build) {
         fn_eesea_paint_moutains_run = (se_paint_mountains_run_fn)0x005A86FF;
         vt_eesea_paint_terrain = 0x00845914;
         size_eesea_paint_terrain = 0x28;
+        of_se_paint_terrain_terrain = 0x20;
         slot_se_paint_terrain_run = 1;
         fn_eesea_paint_terrain_run = (se_paint_terrain_run_fn)0x005A8E6C;
         vt_eesea_place_gate = 0x00844F18;

@@ -219,6 +219,10 @@ unsafe struct ee_terrain
     [offset(0x40), found(c)]
     uint32 set;
 
+    /// how many kinds of objects painting it scatters (trees ...): the terrain paint's 0x598B7A and a new map's fill read it
+    [offset(0x7C), found(c)]
+    int32 objects_n;
+
     /// the language file's string that names it in the editor's lists (GetString)
     [offset(0x54), found(c)]
     int32 name_text;
@@ -343,7 +347,8 @@ unsafe struct EEAIContinentManager
 unsafe struct EEMiniMap
 {
     /// vf2: its picture of tiles x_lo .. x_hi, y_hi down to y_lo made anew (what the paints' vf1 call)
-    [slot(2)]
+    [slot(2), address((ee)0x00515AC4, (aoc)0x00520115)]
+    [vtable_site("minimap_redraw")]
     extern void redraw_tiles(int32 x_lo, int32 x_hi, int32 y_hi, int32 y_lo);
 
     /// the end of a paint's vf1, whatever it changed (thiscall on the minimap, both builds)

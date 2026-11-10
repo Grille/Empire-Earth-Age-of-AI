@@ -8,6 +8,10 @@ internal void rd_world_rebuild(int on);   // render_3d.c
 // are told. Lossy on purpose: a unit comes back without its cargo, orders or what else it held.
 // A stroke of the paint tools is one step: the game makes an action per mouse move, the step stays open between them and
 // is closed by the next thing done. A move is one step from the units' pick-up (off the map) to their putting down.
+// Painting has to stay smooth (the player, 2026-11-10: "painting terrain now still has a noticable delay"), so a stroke
+// reads no more than it touched: one copy of the whole ground runs along (made at the first stroke, a map's only full
+// read), the tools tell the minimap what they changed and only that box is compared and brought up to date; the units are
+// listed for a stroke only if its terrain scatters objects.
 #define EU_STEPS 200
 #define EU_STROKE_MS 500     // a paint action this soon after one of its kind goes on the same stroke
 struct eu_unit { int id, type, player, x, y, hp, anim; float m[16]; };
@@ -25,8 +29,9 @@ internal struct eu_step g_eu_steps[EU_STEPS];
 internal int g_eu_n, g_eu_cur;      // the steps kept; those below cur are done (cur < n: the rest undone, for a redo)
 internal struct eu_unit *g_eu_was;  // the open step: the units before it, by id
 internal int g_eu_was_n, g_eu_open;
-internal struct eu_ground *g_eu_ground;   // its ground before it (a paint tool's), (size + 1)^2
+internal struct eu_ground *g_eu_ground;   // the ground as of the last step, (size + 1)^2: what a stroke is compared with
 internal int g_eu_ground_size;
+internal int g_eu_stroke_open, g_eu_dirty, g_eu_dx0, g_eu_dx1, g_eu_dy0, g_eu_dy1;   // a paint tool's step open, the box it changed
 internal int g_eu_depth;            // an action inside another (a paint's own): the outer's step holds
 internal int g_eu_busy;             // the undo itself is at work
 internal void *g_eu_stroke_vt;
@@ -71,11 +76,18 @@ internal struct eu_unit *eu_units(int *n) {
     *n = a ? k : 0;
     return a;
 }
-// the ground's data the undo keeps of a corner and its tile; the array's (size + 1)^2
-internal void eu_ground_read(const ee_map *map, unsigned size, struct eu_ground *g) {
+internal double eu_ms(LONGLONG since) {
+    LARGE_INTEGER now, f;
+    QueryPerformanceCounter(&now);
+    QueryPerformanceFrequency(&f);
+    return (double)(now.QuadPart - since) * 1000.0 / (double)f.QuadPart;
+}
+internal LONGLONG eu_now(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+// the ground's data the undo keeps of the corners and tiles of a box, row by row
+internal void eu_ground_read(const ee_map *map, unsigned size, unsigned x0, unsigned x1, unsigned y0, unsigned y1, struct eu_ground *g) {
     ee_tile *const *tiles = map_get_tiles(map);
-    for (unsigned y = 0; y <= size; y++)
-        for (unsigned x = 0; x <= size; x++, g++) {
+    for (unsigned y = y0; y <= y1; y++)
+        for (unsigned x = x0; x <= x1; x++, g++) {
             const ee_tile *t = x < size && y < size ? tiles[y * size + x] : NULL;
             const ee_corner *c = map_corner(map, (int)x, (int)y);
             int tex = t ? map_tile_texture(map, (int)x, (int)y) : -1;
@@ -94,6 +106,8 @@ internal void eu_clear(void) {
     g_eu_n = g_eu_cur = 0;
     free(g_eu_was), free(g_eu_ground);
     g_eu_was = NULL, g_eu_ground = NULL;
+    g_eu_ground_size = 0;
+    g_eu_stroke_open = 0;
     g_eu_open = g_eu_depth = 0;
     g_eu_stroke_vt = NULL;
     free(g_eu_late);
@@ -122,45 +136,83 @@ internal void eu_diff_units(struct eu_step *s, struct eu_unit *now, int n) {
         }
     }
 }
-// the ground's change into a step
+#define EU_MARGIN 4           // round what a tool says it changed: the cliff pass and the corners beside its tiles
+// the running copy ready for this map (the one full read)
+internal int eu_ground_ready(const ee_map *map) {
+    unsigned size = map_get_size(map);
+    if (g_eu_ground && (unsigned)g_eu_ground_size == size) return 1;
+    free(g_eu_ground);
+    g_eu_ground = malloc((size_t)(size + 1) * (size + 1) * sizeof *g_eu_ground);
+    g_eu_ground_size = g_eu_ground ? (int)size : 0;
+    if (g_eu_ground) eu_ground_read(map, size, 0, size, 0, size, g_eu_ground);
+    return g_eu_ground != NULL;
+}
+internal void eu_clamp_box(int *x0, int *x1, int *y0, int *y1, int size) {
+    *x0 = *x0 - EU_MARGIN < 0 ? 0 : *x0 - EU_MARGIN;
+    *y0 = *y0 - EU_MARGIN < 0 ? 0 : *y0 - EU_MARGIN;
+    *x1 = *x1 + EU_MARGIN > size ? size : *x1 + EU_MARGIN;
+    *y1 = *y1 + EU_MARGIN > size ? size : *y1 + EU_MARGIN;
+}
+// the stroke's box against the running copy: what differs into the step, the copy brought up to date
 internal void eu_diff_ground(struct eu_step *s, const ee_map *map) {
-    unsigned size = (unsigned)g_eu_ground_size, all = (size + 1) * (size + 1), n = 0;
-    if (!g_eu_ground || !map || map_get_size(map) != size) return;
-    struct eu_ground *now = malloc(all * sizeof *now);
+    if (!g_eu_dirty || !g_eu_ground || !map || (int)map_get_size(map) != g_eu_ground_size) return;
+    int size = g_eu_ground_size, bx0 = g_eu_dx0, bx1 = g_eu_dx1, by0 = g_eu_dy0, by1 = g_eu_dy1;
+    eu_clamp_box(&bx0, &bx1, &by0, &by1, size);
+    if (bx0 > bx1 || by0 > by1) return;
+    int w = bx1 - bx0 + 1, h = by1 - by0 + 1, n = 0;
+    struct eu_ground *now = malloc((size_t)w * (size_t)h * sizeof *now);
     if (!now) return;
-    eu_ground_read(map, size, now);
-    for (unsigned i = 0; i < all; i++) n += memcmp(&g_eu_ground[i], &now[i], sizeof *now) != 0;
-    if (n && (s->cells = malloc(n * sizeof *s->cells)) != NULL) {
-        s->x0 = s->y0 = (int)size, s->x1 = s->y1 = 0;
-        for (unsigned y = 0, i = 0; y <= size; y++)
-            for (unsigned x = 0; x <= size; x++, i++) {
-                const struct eu_ground *a = &g_eu_ground[i], *b = &now[i];
-                if (!memcmp(a, b, sizeof *a)) continue;
-                struct eu_cell c = { (uint16_t)x, (uint16_t)y, { a->h, b->h }, { a->kind, b->kind }, { a->tex, b->tex }, { a->color, b->color } };
-                s->cells[s->ncells++] = c;
-                if ((int)x < s->x0) s->x0 = (int)x;
-                if ((int)x > s->x1) s->x1 = (int)x;
-                if ((int)y < s->y0) s->y0 = (int)y;
-                if ((int)y > s->y1) s->y1 = (int)y;
-            }
+    eu_ground_read(map, (unsigned)size, (unsigned)bx0, (unsigned)bx1, (unsigned)by0, (unsigned)by1, now);
+    for (int y = 0; y < h; y++) {
+        const struct eu_ground *a = &g_eu_ground[(size_t)(y + by0) * (size_t)(size + 1) + (size_t)bx0], *b = &now[(size_t)y * (size_t)w];
+        for (int x = 0; x < w; x++) n += memcmp(&a[x], &b[x], sizeof *a) != 0;
     }
+    if (n && (s->cells = malloc((size_t)n * sizeof *s->cells)) != NULL) {
+        s->x0 = s->y0 = size, s->x1 = s->y1 = 0;
+        for (int y = 0; y < h; y++) {
+            const struct eu_ground *a = &g_eu_ground[(size_t)(y + by0) * (size_t)(size + 1) + (size_t)bx0], *b = &now[(size_t)y * (size_t)w];
+            for (int x = 0; x < w; x++) {
+                if (!memcmp(&a[x], &b[x], sizeof *a)) continue;
+                struct eu_cell c = { (uint16_t)(x + bx0), (uint16_t)(y + by0), { a[x].h, b[x].h }, { a[x].kind, b[x].kind }, { a[x].tex, b[x].tex }, { a[x].color, b[x].color } };
+                s->cells[s->ncells++] = c;
+                if (x + bx0 < s->x0) s->x0 = x + bx0;
+                if (x + bx0 > s->x1) s->x1 = x + bx0;
+                if (y + by0 < s->y0) s->y0 = y + by0;
+                if (y + by0 > s->y1) s->y1 = y + by0;
+            }
+        }
+    }
+    for (int y = 0; y < h; y++)
+        memcpy(&g_eu_ground[(size_t)(y + by0) * (size_t)(size + 1) + (size_t)bx0], &now[(size_t)y * (size_t)w], (size_t)w * sizeof *now);
     free(now);
+}
+// the running copy after an undo or redo of a step's box
+internal void eu_ground_sync(const struct eu_step *s) {
+    ee_map *map = game_map();
+    if (!s->ncells || !g_eu_ground || !map || (int)map_get_size(map) != g_eu_ground_size) return;
+    int size = g_eu_ground_size, bx0 = s->x0, bx1 = s->x1, by0 = s->y0, by1 = s->y1;
+    eu_clamp_box(&bx0, &bx1, &by0, &by1, size);
+    for (int y = by0; y <= by1; y++)
+        eu_ground_read(map, (unsigned)size, (unsigned)bx0, (unsigned)bx1, (unsigned)y, (unsigned)y, &g_eu_ground[(size_t)y * (size_t)(size + 1) + (size_t)bx0]);
 }
 // the open step finished: what it changed kept, if anything
 internal void eu_close(void) {
     if (!g_eu_open) return;
-    DWORD t0 = GetTickCount();
+    LONGLONG t0 = eu_now();
     g_eu_open = 0;
     g_eu_stroke_vt = NULL;
     struct eu_step s;
     memset(&s, 0, sizeof s);
-    int n = 0;
-    struct eu_unit *now = eu_units(&n);
-    if (now && g_eu_was) eu_diff_units(&s, now, n);
-    free(now);
-    if (g_eu_ground) eu_diff_ground(&s, game_map());
-    free(g_eu_was), free(g_eu_ground);
-    g_eu_was = NULL, g_eu_ground = NULL;
+    if (g_eu_was) {
+        int n = 0;
+        struct eu_unit *now = eu_units(&n);
+        if (now) eu_diff_units(&s, now, n);
+        free(now);
+    }
+    if (g_eu_stroke_open) eu_diff_ground(&s, game_map());
+    g_eu_stroke_open = 0;
+    free(g_eu_was);
+    g_eu_was = NULL;
     if (!s.nmade && !s.ngone && !s.nmoved && !s.ncells) { eu_step_free(&s); return; }
     while (g_eu_n > g_eu_cur) eu_step_free(&g_eu_steps[--g_eu_n]);   // what was undone can't be redone after this
     if (g_eu_n == EU_STEPS) {
@@ -171,29 +223,27 @@ internal void eu_close(void) {
     }
     g_eu_steps[g_eu_n++] = s;
     g_eu_cur = g_eu_n;
-    if (g_log) log_locked("# editor undo: step %d: %d made, %d gone, %d changed, %d of the ground, %lu ms\n", g_eu_n, s.nmade, s.ngone, s.nmoved, s.ncells, GetTickCount() - t0);
+    if (g_log) log_locked("# editor undo: step %d: %d made, %d gone, %d changed, %d of the ground, %.1f ms\n", g_eu_n, s.nmade, s.ngone, s.nmoved, s.ncells, eu_ms(t0));
 }
-// before an action that changes the scenario. stroke: 1 a paint tool's, its ground kept too; 2 a move, open from the pick-up
-internal void eu_before(void *vt, int stroke) {
+// before an action that changes the scenario. stroke: 1 a paint tool's, its ground watched; 2 a move, open from the pick-up;
+// units: the units' list wanted
+internal void eu_before(void *vt, int stroke, int units) {
     if (g_eu_depth++ || g_eu_busy) return;
     eu_settle();
     DWORD now = GetTickCount();
-    int same = stroke && vt == g_eu_stroke_vt && g_eu_open && (stroke == 2 || now - g_eu_stroke_at < EU_STROKE_MS);
+    // (the button held: a pause in the stroke doesn't end it)
+    int same = stroke && vt == g_eu_stroke_vt && g_eu_open && (stroke == 2 || now - g_eu_stroke_at < EU_STROKE_MS || GetAsyncKeyState(VK_LBUTTON) < 0);
     g_eu_stroke_at = now;
     if (same) return;
     eu_close();
-    DWORD t0 = GetTickCount();
-    g_eu_was = eu_units(&g_eu_was_n);
+    LONGLONG t0 = eu_now();
+    g_eu_was = NULL, g_eu_was_n = 0;
+    if (units) g_eu_was = eu_units(&g_eu_was_n);
     ee_map *map = game_map();
-    if (stroke == 1 && map) {
-        g_eu_ground_size = (int)map_get_size(map);
-        unsigned all = (unsigned)(g_eu_ground_size + 1) * (unsigned)(g_eu_ground_size + 1);
-        g_eu_ground = malloc(all * sizeof *g_eu_ground);
-        if (g_eu_ground) eu_ground_read(map, (unsigned)g_eu_ground_size, g_eu_ground);
-    }
+    if (stroke == 1 && map && eu_ground_ready(map)) { g_eu_stroke_open = 1; g_eu_dirty = 0; }
     g_eu_open = 1;
     g_eu_stroke_vt = stroke ? vt : NULL;
-    if (g_log && GetTickCount() - t0 > 5) log_locked("# editor undo: %d units kept in %lu ms\n", g_eu_was_n, GetTickCount() - t0);
+    if (g_log) log_locked("# editor undo: opened (%d units listed) in %.1f ms\n", g_eu_was_n, eu_ms(t0));
 }
 // (a step is closed by the next thing done or by the undo, not here: a new unit is on the map's grid only after the world's step)
 internal void eu_after(void) { g_eu_depth--; }
@@ -306,6 +356,7 @@ internal void eu_apply(struct eu_step *s, int undo) {
     for (int i = 0; i < nb; i++) eu_make(&bring[i]);
     for (int i = 0; i < s->nmoved; i++) eu_pose(undo ? &s->moved[i].was : &s->moved[i].now);
     eu_ground_set(s, !undo);
+    eu_ground_sync(s);
     g_eu_busy = 0;
     if (g_log) log_locked("# editor undo: %s: %d taken, %d brought back, %d moved, %d of the ground, %lu ms\n", undo ? "undo" : "redo", nt, nb, s->nmoved, s->ncells, GetTickCount() - t0);
 }
@@ -345,7 +396,7 @@ internal void editor_undo_hotkeys(ee_editor_form *form) {
 }
 
 #define EU_HOOK(site, klass, stroke) \
-    internal void __thiscall hook_eu_##site(ee_##site *a) { eu_before(*(void **)a, stroke); eesea_##klass##_run(a); eu_after(); }
+    internal void __thiscall hook_eu_##site(ee_##site *a) { eu_before(*(void **)a, stroke, stroke != 1); eesea_##klass##_run(a); eu_after(); }
 EU_HOOK(se_place_unit, place_unit, 0)
 EU_HOOK(se_place_wall, place_wall, 0)
 EU_HOOK(se_place_gate, place_gate, 0)
@@ -354,12 +405,31 @@ EU_HOOK(se_rotate, rotate_units, 0)
 EU_HOOK(se_paint_area, paint_area, 1)
 EU_HOOK(se_paint_elevation, paint_elevation, 1)
 EU_HOOK(se_paint_mountains, paint_moutains, 1)
-EU_HOOK(se_paint_terrain, paint_terrain, 1)
+// the terrain paint: its units listed only if its terrain scatters objects
+internal void __thiscall hook_eu_se_paint_terrain(ee_se_paint_terrain *a) {
+    const ee_terrain *t = terrain_at((uint32_t)se_paint_terrain_get_terrain(a));
+    eu_before(*(void **)a, 1, t && terrain_get_objects_n(t) > 0);
+    eesea_paint_terrain_run(a);
+    eu_after();
+}
+// the paint tools tell the minimap what they changed: the open stroke's box
+internal void __thiscall hook_eu_minimap(ee_minimap *m, int x_lo, int x_hi, int y_hi, int y_lo) {
+    if (g_eu_stroke_open && !g_eu_busy) {
+        if (!g_eu_dirty) { g_eu_dirty = 1; g_eu_dx0 = x_lo, g_eu_dx1 = x_hi, g_eu_dy0 = y_lo, g_eu_dy1 = y_hi; }
+        else {
+            if (x_lo < g_eu_dx0) g_eu_dx0 = x_lo;
+            if (x_hi > g_eu_dx1) g_eu_dx1 = x_hi;
+            if (y_lo < g_eu_dy0) g_eu_dy0 = y_lo;
+            if (y_hi > g_eu_dy1) g_eu_dy1 = y_hi;
+        }
+    }
+    ee_mini_map_redraw_tiles(m, x_lo, x_hi, y_hi, y_lo);
+}
 // a move: the pick-up opens the step, the putting down closes it
 internal void __thiscall hook_eu_se_move(ee_se_move *a) {
     int same = g_eu_stroke_vt == *(void **)a && g_eu_open && !se_move_get_lift(a);
     if (same) { eesea_move_unit_run(a); return; }
-    eu_before(*(void **)a, 2);
+    eu_before(*(void **)a, 2, 1);
     eesea_move_unit_run(a);
     eu_after();
 }
@@ -373,7 +443,7 @@ internal void editor_undo_install(void) {
             + patch_se_blank_map(hook_eu_se_blank_map) + patch_se_random_map(hook_eu_se_random_map)
             + patch_se_paint_area(hook_eu_se_paint_area) + patch_se_paint_elevation(hook_eu_se_paint_elevation)
             + patch_se_paint_mountains(hook_eu_se_paint_mountains) + patch_se_paint_terrain(hook_eu_se_paint_terrain)
-            + patch_se_undo(hook_eu_undo) + patch_se_redo(hook_eu_redo);
+            + patch_se_undo(hook_eu_undo) + patch_se_redo(hook_eu_redo) + patch_minimap_redraw(hook_eu_minimap);
     int read = patch_se_quick_read(hook_eu_read);
-    if (g_log) fprintf(g_log, "# editor: undo %s\n", n == 14 && read ? "hooked" : "FAILED");
+    if (g_log) fprintf(g_log, "# editor: undo %s\n", n == 15 && read ? "hooked" : "FAILED");
 }

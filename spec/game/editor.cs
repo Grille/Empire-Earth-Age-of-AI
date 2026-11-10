@@ -146,6 +146,10 @@ unsafe struct EESEAPaintMoutains
 [@base(typeof(EESEAPaint)), size((ee)0x28, (aoc)0x28), vtable((ee)0x00830044, (aoc)0x00845914), c_type("ee_se_paint_terrain")]
 unsafe struct EESEAPaintTerrain
 {
+    /// the terrain painted with (its ee_terrain's index)
+    [offset(0x20), found(c)]
+    int32 terrain;
+
     /// vf1: the ground painted (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00598CA8, (aoc)0x005A8E6C)]
     [vtable_site("se_paint_terrain")]
