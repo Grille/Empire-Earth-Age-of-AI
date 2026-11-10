@@ -111,6 +111,7 @@ typedef struct { void *tex; int layer; rb_vertex v[3]; } rg_tri;
 // the chunks to make again: marked by whichever thread changes the ground
 internal uint8_t g_rg_dirty[RG_ACROSS * RG_ACROSS];
 internal volatile int g_rg_any;
+internal volatile int g_rg_new_map;
 internal mesh_set_z_fn g_rg_set_z;
 internal mesh_at_fn g_rg_normal, g_rg_shores;
 
@@ -164,6 +165,14 @@ internal void rg_touch(unsigned long x, unsigned long y) {
 internal void __thiscall rg_hook_set_z(void *mesh, unsigned long x, unsigned long y, float z) { g_rg_set_z(mesh, x, y, z); rg_touch(x, y); }
 internal void __thiscall rg_hook_normal(void *mesh, unsigned long x, unsigned long y) { g_rg_normal(mesh, x, y); rg_touch(x, y); }
 internal void __thiscall rg_hook_shores(void *mesh, unsigned long x, unsigned long y) { g_rg_shores(mesh, x, y); rg_touch(x, y); }
+// a new map is set up (each map's mesh gets its colour table once: terrain_palette.c's hook). What the renderer keeps of a
+// map goes by the map's address, and that doesn't tell: the editor's Create Map frees its map and news one of the same size,
+// mostly the same block, and the ground went on binding the textures of the map gone (the player, 2026-11-10: "game died in
+// editor as i clicked on generate new map"). The next real frame makes all of it anew.
+internal void render_new_map(void) {
+    g_rg_new_map = 1;
+    g_sh.hmap = NULL;
+}
 internal int rg_changes_install(void) {
     return patch_mesh_set_z(rg_hook_set_z, &g_rg_set_z) + patch_mesh_compute_normal(rg_hook_normal, &g_rg_normal) + patch_mesh_compute_shorelines(rg_hook_shores, &g_rg_shores);
 }
@@ -441,7 +450,8 @@ internal void rg_rebuild(void) {
 internal int rg_build(void) {
     ee_map *map = game_map();
     if (!map || !rg_api()) return 0;
-    if (g_rg.built && g_rg.map == map) return 1;
+    if (g_rg.built && g_rg.map == map && !g_rg_new_map) return 1;
+    g_rg_new_map = 0;
     rg_free();
     g_rg.map = map;
     g_rg.size = (int)map_get_size(map);
@@ -650,7 +660,7 @@ internal int __thiscall rg_water_hook1(void *ras, void *mesh, unsigned screen, i
 // without it such a frame had no ground at all, only the sky's colour (the player, 2026-11-09: "hold a right click down over
 // the 3d view, it will flicker continusly until you let go again").
 internal int rg_again(int water, int writer) {
-    if (!rg_ready() || !g_rg.ras || !g_rg.built || g_rg.map != game_map()) return 0;
+    if (!rg_ready() || !g_rg.ras || !g_rg.built || g_rg.map != game_map() || g_rg_new_map) return 0;
     RD_LOCK(); rg_draw_now(water, writer ? 2 : 1); RD_UNLOCK();
     return 1;
 }

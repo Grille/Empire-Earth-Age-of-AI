@@ -179,6 +179,9 @@ internal void __thiscall hook_tp_paint_colors(ee_map *map, int x_lo, int x_hi, i
 
 internal void __thiscall hook_tp_color_table(void *mesh, void *colors) {
     g_tp_color_table(mesh, colors);
+    render_new_map();
+    g_fx_map = NULL;   // (collect_copy.c) the effects it holds went with the old map, at whatever address the new one is: their references stay unpaid
+    if (!g_tp_on) return;
     unsigned n;
     uint8_t *sets = mesh_color_sets(mesh, &n);
     for (unsigned s = 0; s < TP_SLOTS; s++) g_tp_to[s] = (uint8_t)s, g_tp_free[s] = 1;
@@ -410,9 +413,9 @@ internal int terrain_filter_install(void);   // terrain_filter.c
 #define TF_HOOKS 2
 internal void terrain_palette_install(void) {
     g_tp_on = g_set.terrain_palette;
-    int n = 0;
+    int n = patch_mesh_color_table(hook_tp_color_table, &g_tp_color_table);   // without the palette too: the renderer's "a new map"
     if (g_tp_on)
-        n = patch_mesh_color_table(hook_tp_color_table, &g_tp_color_table) + patch_map_paint_colors(hook_tp_paint_colors) +
+        n += patch_map_paint_colors(hook_tp_paint_colors) +
             patch_se_terrain_init(hook_tp_panel_init) + patch_se_terrain_delete(hook_tp_panel_delete) + terrain_dialog_install() +
             terrain_cliffs_install() + terrain_filter_install();
     if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 + TC_HOOKS + TF_HOOKS ? " (hooked)" : " (FAILED)");
