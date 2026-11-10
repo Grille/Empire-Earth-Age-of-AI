@@ -154,7 +154,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
 // 2026-11-08). The ground isn't: the land lies within hundredths of the level on most maps. A list without
 // casters leaves the last picture (a frame's list is drawn in parts).
 // The caustics ([display] water_caustics, the player 2026-11-10: "could our water throw casutics? (a cheap
-// version)"): the water surface's own pixel shader lights a moving net of lines by the depth under it, nothing drawn on its own -
+// version)"): the water surface's own pixel shader lights a moving net of lines on the seabed it looks onto, by the depth there, nothing drawn on its own -
 // render_3d.c's shader, render_ground.c's constants. The pipe's water caustics <0..2> over the setting.
 #define RW_CAUSTICS_SCALE 1.2f   // the net's cells a little under a tile across
 internal float g_rw_caustics = -1;   // the pipe's, -1 the setting's

@@ -277,13 +277,24 @@ internal const char k_rd3_shader[] =
     " if (wat.x > 0 && shd.x == 6 && shh.w > 0) { float2 wh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "  float wd = max(0, i.w.z - (wh.x - wh.y));"
     "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w);"
-    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale): a net of lines along the
-    // edges of slowly moving cells (cvor), bent by a sine so they curve, lit by the water's own light, drawn into the surface over the seabed by the depth there -
-    // on the seabed itself the surface covered it - none at the waterline, fading with the depth, gone where a line would
-    // be thinner than a pixel (far out it would only shimmer)
-    "  if (gnd.x == 2 && gca.x > 0) { float2 cp = i.w.xy * gca.y + gnd.y * 0.03, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
-    "   float cn = cvor(cp + 0.22 * sin(cp.yx * 1.9 + gnd.y * 0.4), gnd.y * 0.5);"
-    "   c.rgb += i.gl * (gca.x * pow(saturate(1 - cn * 4), 4) * saturate(wd * 3) * exp(-wd * 0.4) * saturate(2 - cw * 8)); } }"
+    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale), drawn by the surface - drawn
+    // on the seabed itself the surface covered it - but of the place on the seabed the line of sight reaches: the ray from the
+    // camera on through the surface, bent toward the vertical as water bends it (its slope times 0.75, at most 3), to the
+    // depth the hills' map gives there, once more from that place's depth; it moves with the seabed as the camera does.
+    // The pattern (the player, 2026-11-10: "the used cellular pattern is way to noticable"): lines along the edges of slowly
+    // moving cells (cvor), their place bent by smooth noise of about a cell (curved edges, cells of all shapes), their width
+    // by a larger noise, each line's light by another of about a cell (the net broken, bright runs and gaps) and the whole by
+    // a large one (patches). Tried: a second, smaller net turned over the first - busier, a web of cracked glass. Lit by the
+    // water's own light; none at the waterline, fading with the way through the water, gone where a line would be thinner
+    // than a pixel (far out it would only shimmer)
+    "  if (gnd.x == 2 && gca.x > 0) { float3 cv = i.w - wop.xyz; float2 cs = cv.xy / max(-cv.z, 1e-3) * 0.75; cs *= min(1, 3 / max(length(cs), 1e-3));"
+    "   float2 cb = i.w.xy + cs * wd, ch = hm.SampleLevel(hs, cb * shh.x, 0); float cd = max(0, i.w.z - (ch.x - ch.y)); cb = i.w.xy + cs * cd;"
+    "   float ct = gnd.y; float2 cp = cb * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
+    "   float2 cq = cp + float2(gbn(cp * 1.1 + float2(ct * 0.05, 0)), gbn(cp * 1.1 + float2(31.7, 11.3 - ct * 0.05))) - 0.5;"
+    "   float ck = pow(saturate(1 - cvor(cq, ct * 0.5) * (2.5 + 3.5 * gbn(cp * 0.5 + float2(5, ct * 0.02)))), 3) * 1.2"
+    "    * (0.15 + 0.85 * smoothstep(0.25, 0.65, gbn(cp * 0.9 + float2(3 - ct * 0.03, 7))))"
+    "    * (0.35 + 0.65 * smoothstep(0.2, 0.8, gbn(cp * 0.17 + float2(ct, -ct) * 0.01)));"
+    "   c.rgb += i.gl * (gca.x * ck * saturate(cd * 3) * exp(-cd * sqrt(1 + dot(cs, cs)) * 0.8) * saturate(2 - cw * 8)); } }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
