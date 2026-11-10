@@ -393,6 +393,11 @@ unsafe struct EEE3DParticle
     [offset(0x98), found(c)]
     float32 angles;
 
+    /// the game time of its last move (EEPhysics time_ms): its update (EE 0x4EB498, AoC 0x4F50B2, from vf9) moves it
+    /// whenever that time has gone on since, by the time gone, and sets it - so it moves once a step
+    [offset(0xA8), found(c)]
+    float32 moved_ms;
+
     /// vf6: draws it
     [slot(6), address((ee)0x004EB951, (aoc)0x004F556B)]
     [vtable_site("particle3d_draw")]

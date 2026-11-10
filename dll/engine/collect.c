@@ -125,32 +125,36 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
     *next = f + s <= last ? f + s : k == pose ? o->next_frame : first;
 }
 // THE FLYING PIECES BETWEEN STEPS (with the animation's: picture collect anim): what a dying mech throws - a Minotaur's torso,
-// the shards - is no part of its model but an effect (EEE3DParticle, moved in the step), so it stood for a step's time and
-// jumped (the player, 2026-11-10: "the death animation of a minotaurus cyborg, its still in single frames"). Its draw reads
-// three plain things, the place, the angles and the fade: drawn as they were a step ago, blended on to the last step's by the
-// time since it came, a step behind as the units are. A piece isn't in any copy of the world: seen new at the draw.
+// the shards - is no part of its model but an effect (EEE3DParticle), in no copy of the world, so it stood for a step and
+// jumped (the player, 2026-11-10: "the death animation of a minotaurus cyborg, its still in single frames"). Its update
+// moves it whenever the game time has gone on, by the time gone, and stamps it with that time (moved_ms): once a step. Its
+// draw reads three plain things, the place, the angles and the fade: drawn as they were at the game time the walk drew the
+// units at (g_pt_show_ms: between the last copy but one and the last by their alpha), blended between its last two moves by
+// their stamps. Blended by the real time between its changes instead (39d8ee4) it kept the steps' unevenness and ran a step
+// apart from the units now and then: "the minotours top flying off still is far from smoth" (the player, 2026-11-10).
 #define PT_SLOTS 4096
-typedef struct { ee_particle3d *o; LONGLONG seen, at, period; float was[7], now[7]; } pt_e;
+typedef struct { ee_particle3d *o; LONGLONG seen; float ms_was, ms_now, was[7], now[7]; } pt_e;
 internal pt_e g_pt[PT_SLOTS];
+internal float g_pt_show_ms = -1.0f;   // the game time of the walk's units; < 0 none (drawn as the game has them)
 internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
     if (!g_uc_anim_smooth || g_cp_smooth != 1) return eee3_d_particle_draw(o);
-    static LONGLONG hz;
-    if (!hz) { LARGE_INTEGER f; QueryPerformanceFrequency(&f); hz = f.QuadPart; }
     float *place = particle3d_place_at(o), *fade = particle3d_fade_at(o), *angles = particle3d_angles_at(o), cur[7];
+    float ms = particle3d_get_moved_ms(o);
     memcpy(cur, place, 12); memcpy(cur + 3, angles, 12); cur[6] = *fade;
     pt_e *e = &g_pt[((uint32_t)(uintptr_t)o >> 4) * 2654435761u >> 20];
     LONGLONG t = rd_qpc();
-    if (e->o != o || t - e->seen > hz / 4) {   // new here, or one before it in this memory
-        e->o = o, e->at = t, e->period = 0;
+    if (e->o != o || t - e->seen > rd_qpc_ms(250)) {   // new here, or one before it in this memory
+        e->o = o, e->ms_was = e->ms_now = ms;
         memcpy(e->was, cur, sizeof cur); memcpy(e->now, cur, sizeof cur);
     }
     e->seen = t;
-    if (memcmp(cur, e->now, sizeof cur)) {
-        e->period = t - e->at, e->at = t;
+    if (ms != e->ms_now) {
+        e->ms_was = e->ms_now, e->ms_now = ms;
         memcpy(e->was, e->now, sizeof cur); memcpy(e->now, cur, sizeof cur);
-    }
-    if (!e->period || e->period > hz / 2 || t - e->at >= e->period) return eee3_d_particle_draw(o);
-    float a = (float)((double)(t - e->at) / (double)e->period), dx = e->now[0] - e->was[0], dy = e->now[1] - e->was[1], b[7];
+    } else memcpy(e->now, cur, sizeof cur);   // (changed without a move: a load)
+    float d = g_pt_show_ms, span = e->ms_now - e->ms_was;
+    if (d < 0.0f || span <= 0.0f || span > 2000.0f || d >= e->ms_now) return eee3_d_particle_draw(o);
+    float a = d <= e->ms_was ? 0.0f : (d - e->ms_was) / span, dx = e->now[0] - e->was[0], dy = e->now[1] - e->was[1], b[7];
     if (dx * dx + dy * dy > 16.0f) return eee3_d_particle_draw(o);   // not the same flight
     for (int i = 0; i < 7; i++) b[i] = e->was[i] + (e->now[i] - e->was[i]) * a;
     for (int i = 3; i < 6; i++) if (fabsf(e->now[i] - e->was[i]) > 1.6f) b[i] = e->now[i];   // an angle come round
@@ -995,10 +999,14 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     uint32_t dopp = 0;
     uc_copy *c = during ? (by0 <= by1 && cp_fits(g_uc_during_c, map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) ? g_uc_during_c : NULL)
                         : by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
-    g_uc_alpha = 1.0f;
+    g_uc_alpha = 1.0f, g_pt_show_ms = -1.0f;
     if (c && g_cp_smooth == 1 && c->dt > 0) {
         double a = (double)(rd_qpc() - c->at) / (double)c->dt;
         g_uc_alpha = a < 1.0 ? (float)a : 1.0f;
+    }
+    if (c && g_cp_smooth == 1 && c->clock_rdt > 0) {   // (the 2017 update: the units' alpha; AoC: over its copies of one time)
+        double a = (double)(rd_qpc() - c->clock_at) / (double)c->clock_rdt;
+        g_pt_show_ms = c->clock - (a < 1.0 ? (float)(1.0 - a) : 0.0f) * c->clock_dt;
     }
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;

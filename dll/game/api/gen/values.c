@@ -625,6 +625,7 @@ internal uint32_t vt_eee3_d_particle;
 internal uint32_t of_particle3d_place;
 internal uint32_t of_particle3d_fade;
 internal uint32_t of_particle3d_angles;
+internal uint32_t of_particle3d_moved_ms;
 internal uint32_t slot_particle3d_draw;
 internal uint32_t of_screen_modes_begin;
 internal uint32_t of_screen_ddraw;

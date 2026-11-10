@@ -59,6 +59,8 @@ typedef struct {
     ee_player *pl;
     int free_cam, hidden_mode, made_by;   // made_by: 1 the simulation, 2 the frame
     LONGLONG at, dt;      // the simulation's copy: when it was made, and the time since the one before (0: none to move from)
+    float clock, clock_dt;   // the game time (ms) at the copy; g_cp_clock's when it was made (clock_rdt 0: none to move from)
+    LONGLONG clock_at, clock_rdt;
     uc_ctile *tiles;
     uint32_t tiles_cap;
     uc_obj *objs;
@@ -71,6 +73,12 @@ typedef struct {
     uint32_t n_pool, pool_cap;
     int ok;               // the arrays held everything
 } uc_copy;
+// the game time's last move as the simulation's copies saw it (the flying pieces' time, collect.c g_pt_show_ms): the time,
+// when the copy that saw it was made, how far it went and in how much real time since the move before (0: none to move
+// from). Art of Conquest writes the world with the step's return now and then without the time going on: a copy of the
+// same game time, which the moves are told apart from.
+internal float g_cp_clock, g_cp_clock_dt;
+internal LONGLONG g_cp_clock_at, g_cp_clock_rdt;
 
 internal int cp_grow(void **p, uint32_t *cap, uint32_t need, size_t elem) {
     if (need <= *cap) return 1;
@@ -339,6 +347,9 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
     c->x0 = x0, c->y0 = y0, c->w = x1 - x0 + 1, c->h = y1 - y0 + 1;
     c->map = map, c->pl = pl, c->free_cam = free_cam, c->hidden_mode = mode, c->made_by = made_by;
     c->at = c->dt = 0;
+    c->clock = physics_get_time_ms(game_physics());
+    int same = c->clock == g_cp_clock;   // a frame's copy: the time's last move still the one it shows
+    c->clock_dt = same ? g_cp_clock_dt : 0.0f, c->clock_at = same ? g_cp_clock_at : 0, c->clock_rdt = same ? g_cp_clock_rdt : 0;
     if (g_cp_smooth && made_by == 1) cp_pose_turn(c->objs_cap);
     c->n_objs = c->n_seq = c->n_dopps = c->n_pool = 0;
     c->ok = 1;
@@ -632,6 +643,12 @@ internal void collect_copy_written(uintptr_t ret) {
     g_cp[i].at = t1;
     g_cp[i].dt = g_cp_last_at && t1 - g_cp_last_at < rd_qpc_ms(UC_SMOOTH_MAX_MS) ? t1 - g_cp_last_at : 0;   // none after a pause
     g_cp_last_at = t1;
+    float clock = g_cp[i].clock;
+    if (clock != g_cp_clock) {
+        g_cp_clock_rdt = g_cp_clock_at && clock > g_cp_clock && t1 - g_cp_clock_at < rd_qpc_ms(UC_SMOOTH_MAX_MS) ? t1 - g_cp_clock_at : 0;
+        g_cp_clock_dt = clock - g_cp_clock, g_cp_clock = clock, g_cp_clock_at = t1;
+    }
+    g_cp[i].clock_dt = g_cp_clock_dt, g_cp[i].clock_at = g_cp_clock_at, g_cp[i].clock_rdt = g_cp_clock_rdt;
     collect_fx_step(map);
     EnterCriticalSection(&g_cp_cs);
     if (ok) g_cp_new = i, g_cp_stale = 0, g_cp_by_step++, g_cp_objs = (LONG)g_cp[i].n_objs;

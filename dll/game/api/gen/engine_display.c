@@ -321,6 +321,11 @@ internal inline float *particle3d_fade_at(const ee_particle3d *o) { return (floa
 internal inline float particle3d_get_angles(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_angles); }
 internal inline void particle3d_set_angles(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_angles) = v; }
 internal inline float *particle3d_angles_at(const ee_particle3d *o) { return (float *)((uint8_t *)o + of_particle3d_angles); }
+// the game time of its last move (EEPhysics time_ms): its update (EE 0x4EB498, AoC 0x4F50B2, from vf9) moves it
+// whenever that time has gone on since, by the time gone, and sets it - so it moves once a step
+internal inline float particle3d_get_moved_ms(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_moved_ms); }
+internal inline void particle3d_set_moved_ms(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_moved_ms) = v; }
+internal inline float *particle3d_moved_ms_at(const ee_particle3d *o) { return (float *)((uint8_t *)o + of_particle3d_moved_ms); }
 // vf6: draws it
 typedef uint32_t (__thiscall *particle3d_draw_fn)(ee_particle3d *);
 internal inline uint32_t particle3d_draw(ee_particle3d *particle3d) { return ((particle3d_draw_fn)(*(void ***)particle3d)[slot_particle3d_draw])(particle3d); }
@@ -1096,6 +1101,7 @@ internal int spec_engine_display_select(int build) {
         of_particle3d_place = 0x80;
         of_particle3d_fade = 0x90;
         of_particle3d_angles = 0x98;
+        of_particle3d_moved_ms = 0xA8;
         slot_particle3d_draw = 6;
         fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004EB951;
         of_screen_modes_begin = 0x10;
@@ -1444,6 +1450,7 @@ internal int spec_engine_display_select(int build) {
         of_particle3d_place = 0x80;
         of_particle3d_fade = 0x90;
         of_particle3d_angles = 0x98;
+        of_particle3d_moved_ms = 0xA8;
         slot_particle3d_draw = 6;
         fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004F556B;
         of_screen_modes_begin = 0x10;
