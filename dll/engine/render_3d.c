@@ -1153,9 +1153,13 @@ internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) {
     RO_DRAW(RO_SHADOWS, if (g_kg_skip && g_ks.nb) rf_ground_again(&g_ks); else ro_shadows_draw(o));
 }
 internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
-// during a step the last real frame's water, as its ground (render_frame.c rf_ground_again)
+// during a step the last real frame's water, as its ground (render_frame.c rf_ground_again): the surface first, then what is
+// kept of the water's pass, as a real frame has them (EEROWater's draw: the mesh, then the fifth queue's effects, the ships'
+// ripples among them) - the other way round the surface lay over the ripples, and every ripple on the screen dimmed in the
+// frames during a step and came back with the next real one (the player, 2026-11-10: "the ships water ripple effect flicker
+// sin and out, all at once together")
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
-    RO_DRAW(RO_WATER, if (g_kg_skip && (g_kw.nb || rg_ready())) { rf_ground_again(&g_kw); rg_again(1, g_rwl_nonstep > 0); } else ro_water_draw(o));
+    RO_DRAW(RO_WATER, if (g_kg_skip && (g_kw.nb || rg_ready())) { rg_again(1, g_rwl_nonstep > 0); rf_ground_again(&g_kw); } else ro_water_draw(o));
 }
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
