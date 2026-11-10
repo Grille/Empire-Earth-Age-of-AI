@@ -1,0 +1,10 @@
+// The game's answer to a Wonder (attack.c hook_wonder, wonder_reactions): at minute 20 P3 gets a finished Temple of
+// Zeus by one of its buildings; every other player is told. Log: "# wonder: P2 ... left out" with the default, "runs" with
+// wonder_reactions=1 (and then P2's groups sent at it).
+
+wait_until(20min)
+let tc = first(player(3).units(kind.building))
+let at = tc != null ? tc.pos : vec(0, 0)
+spawn(3, unit.w_temple_of_zeus, int(at.x) + 6, int(at.y) + 6, 1)
+wait_until(21min)
+objs(3, unit.w_temple_of_zeus)

@@ -54,6 +54,14 @@ unsafe struct EECPCombatManager
     /// held (EEComputerPlayer::hold_unit)
     [address((ee)0x00471F8E, (aoc)0x00475047)]
     extern void unregister_unit(EEUnit* u);
+
+    /// thiscall(cm, unit): a Wonder appeared - EEPlayer::vf26 0x555CE7 tells every other player of a building of tech
+    /// category 4 while the byte at 0x918E96 is set (EEComputerPlayer::vf53 0x43FF5F calls this): the player's own or an
+    /// ally's is defended (0x47283E), an enemy's attacked (0x472427: every subgroup and 5 groups once enough Wonders
+    /// stand, else one group and a share; +0x60 launches at once, +0x61 keeps attacking Wonders every 150 s, 0x472120)
+    [address((ee)0x00472BC1, (aoc)0x00475C90)]
+    [call_site("wonder", (ee)0x0043FF69, (aoc)0x0043F7C4)]
+    extern void wonder(EEUnit* u);
 }
 
 /// the object at the combat manager's +0x4C

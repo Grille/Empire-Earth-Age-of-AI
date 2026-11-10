@@ -94,6 +94,7 @@ internal uint32_t of_combat_mgr_player;
 internal uint32_t of_combat_mgr_commander;
 internal uint32_t of_combat_mgr_0x4c;
 internal uint32_t of_combat_mgr_att_62;
+internal uint32_t call_wonder;
 internal uint32_t of_combat_mgr_4c_0x48;
 internal uint32_t of_attack_cmd_groups;
 internal uint32_t call_unit_to_group;

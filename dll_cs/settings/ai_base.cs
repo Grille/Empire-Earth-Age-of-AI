@@ -122,6 +122,10 @@ class ai_base
         /// minutes). 0 = never, -1 = the game's own (9)
         [range(-1, 999), game("the buildings left under which the AI's citizens make a last all-out attack", "9", -1)]
         int last_stand_buildings = 0;
+        /// the game's answer to a Wonder: its groups sent at an enemy's Wonder, or to defend its own or an ally's (only with
+        /// Wonders for victory). Off (the player 2026-11-10: "it just baits the ai to its death"); the mod has no answer of
+        /// its own yet
+        bool wonder_reactions = false;
     }
 
     class AttackRouting

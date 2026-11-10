@@ -1821,6 +1821,19 @@ internal char __thiscall hook_unit_to_group(ee_attack_cmd *cmd, ee_unit *unit) {
     return attack_cmd_unit_to_group(cmd, unit);
 }
 
+// WONDERS ([ai_base] wonder_reactions, default off - the player 2026-11-10: "it just baits the ai to its death"): a
+// Wonder that appears is told to every other player (EECPCombatManager::wonder), and the game's AI throws its groups
+// at an enemy's or sends them to its own; for the mod's players that answer is left out.
+internal int g_wonder_reactions = 0;
+internal void __thiscall hook_wonder(ee_combat_mgr *cm, ee_unit *u) {
+    ee_player *pl = combat_mgr_get_player(cm);
+    int skip = !g_wonder_reactions && pl && !is_vanilla(pl);
+    if (g_log && pl && u)
+        fprintf(g_log, "# wonder: P%d at %.1f min: a Wonder (type %d) of P%d - the game's answer %s\n", player_get_index(pl),
+                game_time() / 60000.0, unit_type_get_id(unit_get_type_data(u)), player_get_index(unit_get_owner(u)), skip ? "left out" : "runs");
+    if (!skip) combat_mgr_wonder(cm, u);
+}
+
 // UNIT LIST: every unit - also the PathPoint markers (type 223) of an attack's route - sits in one list sorted by tile
 // x (unit +8 -> node {next, prev}; the head the RTSDummyUnit at 0x918314, its +4 the first), re-sorted at each move
 // (0x616F9D -> 0x5310B3) and walked by range searches (0x62FE01). The call-off frees a subgroup's PathPoints
@@ -1926,6 +1939,8 @@ internal void attack_install(void) {
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
     BOOL add_guard = patch_unit_to_group(hook_unit_to_group);
     if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %s\n", add_guard ? "ok" : "FAILED");
+    g_wonder_reactions = g_set_ai[1].wonder_reactions;
+    if (!patch_wonder(hook_wonder) && g_log) fprintf(g_log, "# wonder: the combat manager's Wonder answer not hooked - the game's stays\n");
     g_avoid_towers = g_set_ai[1].avoid_towers;
     g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
     g_cit_threats = g_set_ai[1].citizen_threats;

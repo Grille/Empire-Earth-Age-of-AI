@@ -54,6 +54,14 @@ internal inline void combat_mgr_register_unit(ee_combat_mgr *combat_mgr, ee_unit
 typedef void (__thiscall *combat_mgr_unregister_unit_fn)(ee_combat_mgr *, ee_unit *);
 internal combat_mgr_unregister_unit_fn fn_combat_mgr_unregister_unit;
 internal inline void combat_mgr_unregister_unit(ee_combat_mgr *combat_mgr, ee_unit *u) { fn_combat_mgr_unregister_unit(combat_mgr, u); }
+// thiscall(cm, unit): a Wonder appeared - EEPlayer::vf26 0x555CE7 tells every other player of a building of tech
+// category 4 while the byte at 0x918E96 is set (EEComputerPlayer::vf53 0x43FF5F calls this): the player's own or an
+// ally's is defended (0x47283E), an enemy's attacked (0x472427: every subgroup and 5 groups once enough Wonders
+// stand, else one group and a share; +0x60 launches at once, +0x61 keeps attacking Wonders every 150 s, 0x472120)
+typedef void (__thiscall *combat_mgr_wonder_fn)(ee_combat_mgr *, ee_unit *);
+internal combat_mgr_wonder_fn fn_combat_mgr_wonder;
+internal inline void combat_mgr_wonder(ee_combat_mgr *combat_mgr, ee_unit *u) { fn_combat_mgr_wonder(combat_mgr, u); }
+internal inline int patch_wonder(combat_mgr_wonder_fn h) { return patch_call(call_wonder, (uintptr_t)fn_combat_mgr_wonder, (void *)h); }
 
 // class ee_combat_mgr_4c (void)
 // the object at the combat manager's +0x4C
@@ -503,6 +511,8 @@ internal int spec_attack_select(int build) {
         fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x004707D8;
         fn_combat_mgr_register_unit = (combat_mgr_register_unit_fn)0x00471F29;
         fn_combat_mgr_unregister_unit = (combat_mgr_unregister_unit_fn)0x00471F8E;
+        fn_combat_mgr_wonder = (combat_mgr_wonder_fn)0x00472BC1;
+        call_wonder = 0x0043FF69;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x0045106C;
@@ -646,6 +656,8 @@ internal int spec_attack_select(int build) {
         fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x0047377E;
         fn_combat_mgr_register_unit = (combat_mgr_register_unit_fn)0x00474FD8;
         fn_combat_mgr_unregister_unit = (combat_mgr_unregister_unit_fn)0x00475047;
+        fn_combat_mgr_wonder = (combat_mgr_wonder_fn)0x00475C90;
+        call_wonder = 0x0043F7C4;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x00451D8E;
@@ -789,6 +801,8 @@ internal int spec_attack_check(void) {
     bad += spec_code((uintptr_t)fn_combat_mgr_unit_free, "EECPCombatManager.unit_free");
     bad += spec_code((uintptr_t)fn_combat_mgr_register_unit, "EECPCombatManager.register_unit");
     bad += spec_code((uintptr_t)fn_combat_mgr_unregister_unit, "EECPCombatManager.unregister_unit");
+    bad += spec_code((uintptr_t)fn_combat_mgr_wonder, "EECPCombatManager.wonder");
+    bad += spec_call(call_wonder, (uintptr_t)fn_combat_mgr_wonder, "EECPCombatManager.wonder [call_site wonder]");
     bad += spec_code((uintptr_t)fn_attack_cmd_new_group, "ee_attack_cmd.new_group");
     bad += spec_code((uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group");
     bad += spec_call(call_unit_to_group, (uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group [call_site unit_to_group]");
