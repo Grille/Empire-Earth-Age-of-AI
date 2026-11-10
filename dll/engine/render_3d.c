@@ -291,24 +291,25 @@ internal const char k_rd3_shader[] =
     " if (wat.x > 0 && shd.x == 6 && shh.w > 0) { float2 wh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "  float wd = max(0, i.w.z - (wh.x - wh.y));"
     "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w);"
-    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale, the wind's way), drawn by the
-    // surface - drawn on the seabed itself the surface covered it - but of the place behind the surface: with the water's step
-    // (wop.w) its copy of the depth gives that place as the step finds it (the seabed, a hull under the water) and the way
-    // through the water to it; else a guess by the hills' map (the ray from the camera on through the surface, its slope at most
-    // 3, to the depth there, once more from that place's depth). A guess with the slope capped stuck to the surface in a low
-    // view (the player, 2026-11-10: "zoomed in with the horizontal view its also very obvius that they are projected from the
-    // water surface"). The pattern: the waves' (cwl), the seabed's depth their f - soft at the waterline, sharp lines from
-    // half a tile down, never past 0.35 (blots beyond). Before (the player: "to uniform", "in realithy they move in one direction, not random
-    // cells"): a net of moving cells, bent and broken by noise. Lit by the water's own light; none at the waterline, fading
-    // with the way through the water as the seabed does, gone where a line would be thinner than a pixel (far out it would
-    // only shimmer)
-    "  if (gnd.x == 2 && gca.x > 0) { float3 cv = i.w - wop.xyz, cb; float cl, cz = wop.w > 0 ? wsd.Load(int3(i.p.xy, 0)) : 0;"
-    "   if (cz < 0.99999 && cz > i.p.z) { float cr = (i.p.z - wfc.w) / (cz - wfc.w); cb = wop.xyz + cv * cr; cl = length(cv) * max(cr - 1, 0); }"
-    "   else { float2 cs = cv.xy / max(-cv.z, 1e-3); cs *= min(1, 3 / max(length(cs), 1e-3));"
-    "    float2 ch = hm.SampleLevel(hs, (i.w.xy + cs * wd) * shh.x, 0); float ce = max(0, i.w.z - (ch.x - ch.y)); cb = float3(i.w.xy + cs * ce, i.w.z - ce); cl = ce * sqrt(1 + dot(cs, cs)); }"
-    "   float cd = max(0, sea.z - cb.z); float2 cp = float2(dot(cb.xy, gca.zw), dot(cb.xy, float2(-gca.w, gca.z))) * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
-    "   float3 ck = cwl(cp, gnd.y * 0.5, 0.35 * (1 - exp(-cd * 4)));"
-    "   c.rgb = max(0, c.rgb + i.gl * ck * (gca.x * saturate(cd * 3) * exp(-cl * 0.8) * saturate(2 - cw * 8))); } }"
+    " }"
+    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale, the wind's way): the ground
+    // under the level, from the map, lit by the pattern of the waves (cwl) at its own place - what lies over it comes after
+    // as for the seabed's own colour: the water's step fogs it by the way through the water, the shadows here darken it, the
+    // surface covers part of it. Drawn by the surface before, of the place behind it (the player, 2026-11-10: "instead of
+    // bothering the water shader, should this maybe be part of the terrain renderer? blur and fogging come than for free
+    // later") - the surface shows itself at less than half, so what it drew showed about as much as the seabed's own light
+    // does under it. The depth sets the focus: soft at the waterline, sharp lines from half a tile down, never past 0.35
+    // (blots beyond); less the deeper (the light scattered on its way down), none at the waterline - the shallower of its own depth
+    // and the hills' map's, by which the surface thins out at the shore: by its own alone a line lay on sand the surface no
+    // longer covered, a white streak on the beach -, gone where a line would
+    // be thinner than a pixel (far out it would only shimmer). Added to each of the ground's layers alike: their blend
+    // keeps it. The pattern before (the player: "to uniform", "in realithy they move in one direction, not random cells"):
+    // a net of moving cells, bent and broken by noise
+    " if (gnd.x == 1 && wat.x > 0 && gca.x > 0 && sea.w == 0 && i.w.z < sea.z) { float cd = sea.z - i.w.z;"
+    "  float2 cp = float2(dot(i.w.xy, gca.zw), dot(i.w.xy, float2(-gca.w, gca.z))) * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
+    "  float3 ck = cwl(cp, gnd.y * 0.5, 0.35 * (1 - exp(-cd * 4))); float cf = cd;"
+    "  if (shh.w > 0) { float2 ch = hm.SampleLevel(hs, i.w.xy * shh.x, 0); cf = min(cf, max(0, sea.z - (ch.x - ch.y))); }"
+    "  c.rgb = max(0, c.rgb + i.gl * ck * (gca.x * smoothstep(0.08, 0.45, cf) * exp(-cd * 0.8) * saturate(2 - cw * 8))); }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"

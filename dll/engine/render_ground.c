@@ -690,7 +690,7 @@ internal void rg_draw_now(int water, int again) {
     float cb[80] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
-    if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the water's surface)
+    if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the seabed)
         cb[76] = g_rw_caustics >= 0 ? g_rw_caustics : (float)g_set.water_caustics * 0.01f;
         cb[77] = RW_CAUSTICS_SCALE;
         cb[78] = cosf(RW_CAUSTICS_WIND); cb[79] = sinf(RW_CAUSTICS_WIND);
