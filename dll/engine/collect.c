@@ -128,36 +128,67 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
 // the shards - is no part of its model but an effect (EEE3DParticle), in no copy of the world, so it stood for a step and
 // jumped (the player, 2026-11-10: "the death animation of a minotaurus cyborg, its still in single frames"). Its update
 // moves it whenever the game time has gone on, by the time gone, and stamps it with that time (moved_ms): once a step. Its
-// draw reads three plain things, the place, the angles and the fade: drawn as they were at the game time the walk drew the
-// units at (g_pt_show_ms: between the last copy but one and the last by their alpha), blended between its last two moves by
-// their stamps. Blended by the real time between its changes instead (39d8ee4) it kept the steps' unevenness and ran a step
-// apart from the units now and then: "the minotours top flying off still is far from smoth" (the player, 2026-11-10).
+// draw reads three plain things, the place, the angles and the fade: drawn as they were at a game time of their own
+// (pt_clock), blended between the two of its last moves whose stamps hold it. Blended by the real time between its changes
+// (39d8ee4) it kept the steps' unevenness; at the units' time (8c70134) it stood whenever a step came late and leapt when
+// two came at once - at the normal speed a step is about 23 ms, the simulation runs up to two at a time, and a late one
+// stood the piece for one to three frames: "the flying piece still dosnt move smoth" (the player, 2026-11-10). That clock
+// runs on with the real time at the rate the game time goes (g_cp_rate) and is drawn toward a step and a half behind the
+// newest game time, never past it: a step late, or two at once, only bends its pace. So the pieces run about half a step
+// behind the units.
 #define PT_SLOTS 4096
-typedef struct { ee_particle3d *o; LONGLONG seen; float ms_was, ms_now, was[7], now[7]; } pt_e;
+#define PT_MOVES 4
+typedef struct { ee_particle3d *o; LONGLONG seen; int n; float ms[PT_MOVES], v[PT_MOVES][7]; } pt_e;   // its last moves, the newest last
 internal pt_e g_pt[PT_SLOTS];
-internal float g_pt_show_ms = -1.0f;   // the game time of the walk's units; < 0 none (drawn as the game has them)
+internal double g_pt_show_ms = -1.0;   // the pieces' game time; < 0 none (drawn as the game has them)
+internal LONGLONG g_pt_show_at;
+internal LONG g_pt_frame = -1;
+internal void pt_clock(void) {   // once a frame
+    LONG f = g_rd_frames;
+    if (f == g_pt_frame) return;
+    g_pt_frame = f;
+    EnterCriticalSection(&g_cp_cs);
+    double newest = g_cp_clock, step = g_cp_step_ms, rate = g_cp_rate;
+    LONGLONG at = g_cp_clock_at;
+    LeaveCriticalSection(&g_cp_cs);
+    LONGLONG now = rd_qpc();
+    double per_ms = (double)rd_qpc_ms(1), aim = newest + (double)(now - at) / per_ms * rate - 1.5 * step, t = g_pt_show_ms;
+    if (!at || !(rate > 0.0) || !(step > 0.0)) t = -1.0;
+    else if (t < 0.0 || fabs(aim - t) > 6.0 * step + 100.0) t = aim;   // the first, or the time gone elsewhere (a load)
+    else {
+        double real = (double)(now - g_pt_show_at) / per_ms, k = real / 150.0, was = t;
+        t += real * rate;
+        t += (aim - t) * (k < 1.0 ? k : 1.0);
+        if (t < was) t = was;
+    }
+    if (t > newest) t = newest;
+    g_pt_show_ms = t, g_pt_show_at = now;
+}
 internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
-    if (!g_uc_anim_smooth || g_cp_smooth != 1) return eee3_d_particle_draw(o);
+    if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok) return eee3_d_particle_draw(o);
+    pt_clock();
     float *place = particle3d_place_at(o), *fade = particle3d_fade_at(o), *angles = particle3d_angles_at(o), cur[7];
     float ms = particle3d_get_moved_ms(o);
     memcpy(cur, place, 12); memcpy(cur + 3, angles, 12); cur[6] = *fade;
     pt_e *e = &g_pt[((uint32_t)(uintptr_t)o >> 4) * 2654435761u >> 20];
     LONGLONG t = rd_qpc();
-    if (e->o != o || t - e->seen > rd_qpc_ms(250)) {   // new here, or one before it in this memory
-        e->o = o, e->ms_was = e->ms_now = ms;
-        memcpy(e->was, cur, sizeof cur); memcpy(e->now, cur, sizeof cur);
-    }
+    if (e->o != o || t - e->seen > rd_qpc_ms(250) || ms < e->ms[e->n - 1]) e->o = o, e->n = 0;   // new here (or a load)
     e->seen = t;
-    if (ms != e->ms_now) {
-        e->ms_was = e->ms_now, e->ms_now = ms;
-        memcpy(e->was, e->now, sizeof cur); memcpy(e->now, cur, sizeof cur);
-    } else memcpy(e->now, cur, sizeof cur);   // (changed without a move: a load)
-    float d = g_pt_show_ms, span = e->ms_now - e->ms_was;
-    if (d < 0.0f || span <= 0.0f || span > 2000.0f || d >= e->ms_now) return eee3_d_particle_draw(o);
-    float a = d <= e->ms_was ? 0.0f : (d - e->ms_was) / span, dx = e->now[0] - e->was[0], dy = e->now[1] - e->was[1], b[7];
+    if (!e->n || ms != e->ms[e->n - 1]) {
+        if (e->n == PT_MOVES) memmove(e->ms, e->ms + 1, sizeof e->ms - sizeof e->ms[0]), memmove(e->v, e->v + 1, sizeof e->v - sizeof e->v[0]), e->n--;
+        e->ms[e->n++] = ms;
+    }
+    memcpy(e->v[e->n - 1], cur, sizeof cur);   // (changed without a move: a load)
+    double d = g_pt_show_ms;
+    if (d < 0.0 || d >= e->ms[e->n - 1]) return eee3_d_particle_draw(o);
+    int i = e->n - 2;
+    while (i >= 0 && e->ms[i] > d) i--;
+    float b[7], *p = e->v[i < 0 ? 0 : i], *q = e->v[i < 0 ? 0 : i + 1], span = i < 0 ? 0.0f : e->ms[i + 1] - e->ms[i];
+    if (span > 2000.0f) return eee3_d_particle_draw(o);
+    float a = span > 0.0f ? (float)((d - e->ms[i]) / span) : 0.0f, dx = q[0] - p[0], dy = q[1] - p[1];
     if (dx * dx + dy * dy > 16.0f) return eee3_d_particle_draw(o);   // not the same flight
-    for (int i = 0; i < 7; i++) b[i] = e->was[i] + (e->now[i] - e->was[i]) * a;
-    for (int i = 3; i < 6; i++) if (fabsf(e->now[i] - e->was[i]) > 1.6f) b[i] = e->now[i];   // an angle come round
+    for (int k = 0; k < 7; k++) b[k] = p[k] + (q[k] - p[k]) * a;
+    for (int k = 3; k < 6; k++) if (fabsf(q[k] - p[k]) > 1.6f) b[k] = q[k];   // an angle come round
     memcpy(place, b, 12); memcpy(angles, b + 3, 12); *fade = b[6];
     uint32_t r = eee3_d_particle_draw(o);
     memcpy(place, cur, 12); memcpy(angles, cur + 3, 12); *fade = cur[6];
@@ -999,14 +1030,10 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     uint32_t dopp = 0;
     uc_copy *c = during ? (by0 <= by1 && cp_fits(g_uc_during_c, map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) ? g_uc_during_c : NULL)
                         : by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
-    g_uc_alpha = 1.0f, g_pt_show_ms = -1.0f;
+    g_uc_alpha = 1.0f;
     if (c && g_cp_smooth == 1 && c->dt > 0) {
         double a = (double)(rd_qpc() - c->at) / (double)c->dt;
         g_uc_alpha = a < 1.0 ? (float)a : 1.0f;
-    }
-    if (c && g_cp_smooth == 1 && c->clock_rdt > 0) {   // (the 2017 update: the units' alpha; AoC: over its copies of one time)
-        double a = (double)(rd_qpc() - c->clock_at) / (double)c->clock_rdt;
-        g_pt_show_ms = c->clock - (a < 1.0 ? (float)(1.0 - a) : 0.0f) * c->clock_dt;
     }
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;
