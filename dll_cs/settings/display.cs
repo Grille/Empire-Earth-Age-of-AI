@@ -154,20 +154,15 @@ class display
         share ambient_occlusion_strength = 1.0;
         enum anisotropy_choice
         {
-            /// off, as the game had it
-            [name("1")]
-            x1,
+            /// as the game had it
+            off,
             /// 2 samples
-            [name("2")]
             x2,
             /// 4 samples
-            [name("4")]
             x4,
             /// 8 samples
-            [name("8")]
             x8,
             /// 16 samples, the sharpest
-            [name("16")]
             x16,
         }
         /// The own renderer only: textures seen at a slant - the ground far off - kept sharp (anisotropic filtering; the

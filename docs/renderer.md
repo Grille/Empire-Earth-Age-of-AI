@@ -758,7 +758,7 @@ the display DLLs import it) but never called; DDrawCompat hooks parts of Windows
 ## The picture's sharpness
 
 engine/render_fxaa.c, 2026-11-05 (the player: "start with them" - of the ideas after the shadows):
-- Anisotropic filtering (`[display] anisotropy`, 1, 2, 4, 8 or 16, default 16; the pipe: `picture aniso <n>`): the game's samplers
+- Anisotropic filtering (`[display] anisotropy`, off, x2, x4, x8 or x16, default x16; the pipe: `picture aniso <n>`): the game's samplers
   with linear minifying and mip levels are anisotropic (rd3_mk_samp, the level in the sampler key's bits 20..24). The
   ground at the camera's slant kept its grass far into the picture instead of a blur.
 - FXAA (`[display] antialias`, default on; the pipe: `picture aa on | off`, `picture edge <0..1>`): the simple form
