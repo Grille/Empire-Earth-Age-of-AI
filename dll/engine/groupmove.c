@@ -798,8 +798,9 @@ internal vec2 ff_point(const struct ff_group *gr, vec2 anchor, vec2 way, vec2 fa
 // fit at its members' mean spacing; it widens again once that room is there along all of it. The jam it had made
 // at a gap crawled through: its units couldn't all fit, the formation waited for them
 #define FF_NARROW_LOOK 6.0f    // tiles beyond its front
-#define FF_NARROW_AT 0.4f
-#define FF_WIDEN_AT 0.7f
+#define FF_NARROW_AT ((float)g_set.formation_narrow)   // of the formation's width (formation_narrow, 40%)
+#define FF_WIDEN_AT (FF_NARROW_AT + (1 - FF_NARROW_AT) * 0.5f)   // 70% at 40%
+#define FF_TIGHT_AT 0.4f       // of the formation's width: with less room the column is packed tight (FF_COL_GAP), with more its units keep the formation's own spacing
 internal unsigned g_ff_narrowed;   // steps a formation went narrowed
 internal vec2 ff_off(const struct ff_group *gr, const struct ff_unit *e) { return gr->cols ? e->col : e->off; }
 // how far along the formation's line (the anchor's trail behind it, the way ahead, straight back before the trail
@@ -886,6 +887,7 @@ internal void ff_fill_column(struct ff_group *gr, float room, int fresh) {
         vec3 p = unit_get_pos(u);
         float sz = unit_get_size(u);
         e->cw = (sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz) + FF_COL_GAP;
+        if (room >= gr->fw * FF_TIGHT_AT && e->w > e->cw) e->cw = e->w;
         idx[n] = i;
         prog[n] = ff_progress(gr, gr->anchor, v2(p.x, p.y), &side[n]);
         key[n] = fresh ? prog[n] : e->col.y * 1000.0f + prog[n];
@@ -928,8 +930,12 @@ internal void ff_fill_column(struct ff_group *gr, float room, int fresh) {
 // 11 wide never narrowed. To the blocked tile's edge: sampled every half tile alone it read 2.5 for a channel of 3
 // (the edge lay between the last sample passed and the first blocked), and two tanks 1.15 apart didn't fit it less the
 // margins
-internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size, vec2 p, vec2 dir, float lim) {
+// *wall: what blocks goes on along the ray for FF_WALL_RUN tiles or more (a wall across the way, the ray along it; a
+// tree or a house ends sooner)
+#define FF_WALL_RUN 3.0f
+internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size, vec2 p, vec2 dir, float lim, int *wall) {
     float room = 0;
+    *wall = 0;
     for (float d = 0.5f; d <= lim; d += 0.5f) {
         vec2 q = vec2_add(p, vec2_scale(dir, d));
         int tx = (int)floorf(q.x), ty = (int)floorf(q.y);
@@ -938,6 +944,11 @@ internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size,
             float ey = dir.y > 1e-6f ? ((float)ty - p.y) / dir.y : dir.y < -1e-6f ? ((float)ty + 1 - p.y) / dir.y : -1e9f;
             float e = ex > ey ? ex : ey;
             if (e > room && e < d) room = e;
+            *wall = 1;
+            for (float b = d + 0.5f; b <= d + FF_WALL_RUN && *wall; b += 0.5f) {
+                vec2 w = vec2_add(p, vec2_scale(dir, b));
+                if (sr_pass(map, u, td, size, (int)floorf(w.x), (int)floorf(w.y))) *wall = 0;
+            }
             break;
         }
         room = d;
@@ -947,13 +958,17 @@ internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size,
 // the room left and right of a line of n points (pts, the line's heading at each in dirs): rooms[i][0] left, [1] right
 // - a point's the most of its own and its neighbours' along the line (a tree or a house beside the way is passed, a
 // wall or a shore runs on: the nearest thing that blocks narrowed a formation in the open, and it came apart), -1 where
-// the line's own tile is blocked (a bend: no measure)
-internal void ff_rooms(ee_map *map, ee_unit *u, ee_unit_type *td, int size, const vec2 *pts, const vec2 *dirs, int n, float lim, float rooms[][2]) {
+// the line's own tile is blocked (a bend: no measure). A wall across the way (ff_room_side: what blocks runs on along
+// the ray) is its own point's measure whatever its neighbours': a wall a tile thick with a gap in it was passed like
+// a tree, and a formation twice the gap's width never narrowed for it (2026-11-10)
+internal void ff_rooms(ee_map *map, ee_unit *u, ee_unit_type *td, int size, const vec2 *pts, const vec2 *dirs, int n, float lim, float rooms[][2], int walls) {
     float raw[FF_ROOM_TILES + 1][2];
+    int wall[FF_ROOM_TILES + 1][2];
     for (int i = 0; i < n; i++) {
         vec2 q = pts[i], right = v2(dirs[i].y, -dirs[i].x), left = v2(-dirs[i].y, dirs[i].x);
         raw[i][0] = raw[i][1] = -1;
-        if (sr_pass(map, u, td, size, (int)floorf(q.x), (int)floorf(q.y))) { raw[i][0] = ff_room_side(map, u, td, size, q, left, lim); raw[i][1] = ff_room_side(map, u, td, size, q, right, lim); }
+        wall[i][0] = wall[i][1] = 0;
+        if (sr_pass(map, u, td, size, (int)floorf(q.x), (int)floorf(q.y))) { raw[i][0] = ff_room_side(map, u, td, size, q, left, lim, &wall[i][0]); raw[i][1] = ff_room_side(map, u, td, size, q, right, lim, &wall[i][1]); }
     }
     for (int i = 0; i < n; i++) {
         rooms[i][0] = rooms[i][1] = -1;
@@ -962,6 +977,8 @@ internal void ff_rooms(ee_map *map, ee_unit *u, ee_unit_type *td, int size, cons
             if (raw[j][0] > rooms[i][0]) rooms[i][0] = raw[j][0];
             if (raw[j][1] > rooms[i][1]) rooms[i][1] = raw[j][1];
         }
+        if (walls && wall[i][0]) rooms[i][0] = raw[i][0];
+        if (walls && wall[i][1]) rooms[i][1] = raw[i][1];
     }
 }
 // the formation's line as it runs, as points a tile apart (at most cap, further apart then) from `back` tiles behind
@@ -1015,6 +1032,7 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l, vec2 q, int qi) {
     ee_unit_type *td = l ? unit_get_type_data(l) : NULL;
     int size = map ? (int)map_get_size(map) : 0;
     if (gr->n < 2 || gr->sp <= 0 || !td || size <= 0 || !sr_alloc((uint32_t)(size * size))) return;
+    if (gr->in_place == 2) return;   // a formation moved as it stands: it goes across its facing, the room across its way is no measure of it (form_turn's 104 turned 2.7 tiles away narrowed to a column and drained for 54 s)
     st_stamp_step();
     int full = (int)(gr->fw / gr->sp);   // abreast as laid out (about)
     float back = gr->rear;   // its rear: the laid out one's, or the narrowed one's
@@ -1034,7 +1052,7 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l, vec2 q, int qi) {
     float room = 1e9f, lim = gr->fw * 0.5f + 1, rooms[FF_ROOM_TILES + 1][2], ts[FF_ROOM_TILES + 1];
     vec2 pts[FF_ROOM_TILES + 1], dirs[FF_ROOM_TILES + 1];
     int nr = ff_line(gr, l, q, qi, back, gr->front + FF_NARROW_LOOK, pts, dirs, ts, FF_ROOM_TILES + 1);
-    ff_rooms(map, l, td, size, pts, dirs, nr, lim, rooms);
+    ff_rooms(map, l, td, size, pts, dirs, nr, lim, rooms, FF_NARROW_AT > FF_TIGHT_AT);   // walls across the way only with formation_narrow raised: at 40% march_gap's 3-tile gap read 2.0 so (3.0 by its neighbours), one abreast, the last unit 28 s later
     float narrow_to = -1e9f;   // where the narrow ends: the last point along the line with too little room for the whole formation (the drain lets a unit go past it)
     gr->line_n = nr;
     for (int i = 0; i < nr; i++) {
@@ -1092,7 +1110,7 @@ internal float ff_side(struct ff_group *gr, ee_unit *l, vec2 q, int qi, int rout
         float lim = hw * 2, rooms[FF_ROOM_TILES + 1][2];
         vec2 pts[FF_ROOM_TILES + 1], dirs[FF_ROOM_TILES + 1];
         int n = ff_line(gr, l, q, qi, 0, gr->front + FF_NARROW_LOOK, pts, dirs, NULL, FF_ROOM_TILES + 1);   // ahead: the body behind is where it is
-        ff_rooms(map, l, td, size, pts, dirs, n, lim, rooms);
+        ff_rooms(map, l, td, size, pts, dirs, n, lim, rooms, gr->cols != 0);   // a wall across the way only for a formation narrowed for it: for any, the end of a wood by the way moved the line (three units: one 43 s late)
         // each tile allows the line moved right by hw - left room up to right room - hw (a move that leaves it the
         // half-width to each side; none when its corridor is narrower than the formation)
         float lo = -1e9f, hi = 1e9f, min_l = lim, min_r = lim;
@@ -1440,7 +1458,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float de = vec2_len(vec2_sub(gr->end, vec2_add(gr->anchor, vec2_scale(fo_half(way0, gr->way), (vn + v) * 0.5f * dt)))), end_r = gr->in_place == 2 ? FF_END_PLACE : FF_END;
     if (de < end_r && !gr->through) {
         if (gr->cols && !gr->naval) ff_narrow(gr, l, q, qi);   // the narrow as it lies from the anchor where it stands now (as measured a step before it lay a step's travel back)
-        if (gr->cols && !gr->naval && ff_held(gr)) {   // narrowed: the anchor stands here, the column drains (above)
+        if (gr->cols && !gr->naval && gr->col_w < gr->fw * FF_TIGHT_AT && ff_held(gr)) {   // narrowed to a tight column: the anchor stands here, the column drains (above); a loose one's units find their spots as an unnarrowed formation's do
             gr->drain = gr->rel_at = step ? step : 1;
             if (g_log) fprintf(g_log, "# formation: %d units at %.1f,%.1f: at its end narrowed, the column drains past the narrow %.1f tiles back\n", gr->n, gr->anchor.x, gr->anchor.y, -gr->narrow_to);
             gr->vel_from = gr->vel = 0;

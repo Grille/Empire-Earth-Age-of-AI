@@ -198,6 +198,13 @@ class general
         /// below a straggler's speed (the straggler never gains on it)
         [range(0, 1)]
         factor formation_wait = 1;
+        /// Formation narrowing (with formation follow): a marching formation becomes a narrower, deeper column where the
+        /// room across its way is less than this share of its width, and spreads out again where the ground opens. Under
+        /// 40% of its width the column is always packed tight and files through in order. Higher = it re-forms already
+        /// for gaps a little narrower than itself (its units keep the formation's spacing, the ranks are filled anew),
+        /// lower = it squeezes through those as it is, the flanks drawn in
+        [range(0.1, 1)]
+        factor formation_narrow = 0.4;
         /// Friendly collision (with land collide / ship collide): two units of one player or of allies push each other off
         /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as
         /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units
