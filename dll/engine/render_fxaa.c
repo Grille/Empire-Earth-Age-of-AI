@@ -241,6 +241,7 @@ internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
     if (rao_pipe(out, mode, arg)) return;   // render_ao.c
+    if (rgb_pipe(out, mode, arg)) return;   // render_ground.c
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }

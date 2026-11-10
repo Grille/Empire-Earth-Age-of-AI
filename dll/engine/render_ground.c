@@ -79,6 +79,7 @@ internal struct {
     void *mat[RG_MATERIALS];
     int nmat;
     ID3D11ShaderResourceView *srv[2][RG_MATERIALS];   // the ground's and the water's textures as last looked up, a reference held: all a frame under another writer has of them
+    ID3D11ShaderResourceView *hgt[RG_MATERIALS];      // the ground's textures' heights (rgb_height), once each
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
     uint8_t *fow_was, *fow_now;
@@ -146,6 +147,7 @@ internal void rg_free(void) {
     free(g_rg.fow_was); free(g_rg.fow_now);
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
+    for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.hgt[m]);
     g_rg.built = g_rg.nmat = 0;
     memset(g_rg_dirty, 0, sizeof g_rg_dirty);
     g_rg_any = 0;
@@ -471,7 +473,7 @@ internal int rg_build(void) {
     if (!g_rg.fow_was || !g_rg.fow_now || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rg.fow))
         || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.fow, NULL, &g_rg.fow_srv))) { rg_free(); return 0; }
     if (!g_rg.cb) {
-        D3D11_BUFFER_DESC bd = { 72 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { 76 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb)) || FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cbw))) { rg_free(); return 0; }
     }
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 1;   // differs: the first frame sends it
@@ -505,6 +507,88 @@ internal void rg_fow(void) {
     ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)g_rg.fow, 0);
     memcpy(g_rg.fow_was, o, (size_t)g_rg.size * g_rg.size);
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 0;
+}
+// THE GROUND'S BORDERS ([display] ground_blend, ground_blend_noise, ground_blend_soft; the pipe's picture gb, gbnoise, gbsoft,
+// gbscale; the player, 2026-11-10: a height from the colours for the blending, normalized per texture). A layer of the ground
+// fades between a quad's corners, a soft gradient along the tile grid. With this its high texels come first and its low ones
+// last, and noise over the map bends the border away from the grid (the textures repeat, their heights alone would follow
+// it). A texture's height is the brightness of its texels, a little blurred so that it comes in clumps, and ranked: the share
+// of the texture's texels darker than this one. So at any fade that share of every texture shows, bright sand and dark rock
+// alike, and a texture of little contrast has the whole range too. Each pass sees only its own texture, not what it covers.
+internal struct {
+    int force, fail;     // the pipe's on / off (-1: the setting); no height could be made
+    float soft, noise, scale;   // the pipe's (< 0: the settings')
+    LONG made;
+    LONGLONG qpc;
+} g_rgb = { .force = -1, .soft = -1, .noise = -1, .scale = 1.3f };
+internal int rgb_on(void) { return !g_rgb.fail && (g_rgb.force < 0 ? g_set.ground_blend : g_rgb.force); }
+internal float rgb_soft(void) { float v = g_rgb.soft >= 0 ? g_rgb.soft : (float)g_set.ground_blend_soft; return v < 0.02f ? 0.02f : v; }
+internal float rgb_noise(void) { return g_rgb.noise >= 0 ? g_rgb.noise : (float)g_set.ground_blend_noise; }
+// a texture's heights, with their mip levels; NULL: they can't be made
+internal ID3D11ShaderResourceView *rgb_height(rd_surface *t) {
+    LONGLONG t0 = rd_qpc();
+    if (t->top) t = t->top;
+    uint8_t *m = rd_mem(t);
+    int w = (int)t->desc.dwWidth, h = (int)t->desc.dwHeight;
+    size_t n = (size_t)w * h;
+    uint32_t *px = malloc(n * 4);
+    uint16_t *a = malloc(n * 2), *b = malloc(n * 2);
+    uint8_t *o = malloc(n * 3 + 64);
+    ID3D11Texture2D *tex = NULL;
+    ID3D11ShaderResourceView *srv = NULL;
+    if (m && w > 0 && h > 0 && px && a && b && o) {
+        for (int y = 0; y < h; y++) rf_to_bgra(t->fmt, m + (size_t)y * t->desc.lPitch, px + (size_t)y * w, w, 0, 0);
+        for (size_t i = 0; i < n; i++) a[i] = (uint16_t)((((px[i] >> 16) & 255) * 77 + ((px[i] >> 8) & 255) * 150 + (px[i] & 255) * 29));
+        for (int pass = 0; pass < 2; pass++) {   // twice three texels each way, over the texture's edges: it repeats
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+                b[y * w + x] = (uint16_t)((a[y * w + (x + w - 1) % w] + (uint32_t)a[y * w + x] + a[y * w + (x + 1) % w]) / 3);
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+                a[y * w + x] = (uint16_t)((b[(y + h - 1) % h * w + x] + (uint32_t)b[y * w + x] + b[(y + 1) % h * w + x]) / 3);
+        }
+        static uint32_t count[4096];
+        memset(count, 0, sizeof count);
+        for (size_t i = 0; i < n; i++) count[a[i] >> 4]++;
+        static uint8_t rank[4096];
+        uint32_t below = 0;
+        for (int k = 0; k < 4096; k++) { rank[k] = (uint8_t)((below + count[k] / 2) * 255ull / n); below += count[k]; }
+        for (size_t i = 0; i < n; i++) o[i] = rank[a[i] >> 4];
+        D3D11_SUBRESOURCE_DATA sd[16];
+        int lv = 0, mw = w, mh = h;
+        uint8_t *p = o;
+        for (;;) {
+            sd[lv].pSysMem = p; sd[lv].SysMemPitch = (UINT)mw; sd[lv].SysMemSlicePitch = 0;
+            lv++;
+            if ((mw == 1 && mh == 1) || lv == 16) break;
+            int nw = mw > 1 ? mw / 2 : 1, nh = mh > 1 ? mh / 2 : 1;
+            uint8_t *q = p + (size_t)mw * mh;
+            for (int y = 0; y < nh; y++) for (int x = 0; x < nw; x++) {
+                int x0 = x * mw / nw, y0 = y * mh / nh, x1 = x0 + 1 < mw ? x0 + 1 : x0, y1 = y0 + 1 < mh ? y0 + 1 : y0;
+                q[y * nw + x] = (uint8_t)((p[y0 * mw + x0] + p[y0 * mw + x1] + p[y1 * mw + x0] + p[y1 * mw + x1] + 2) / 4);
+            }
+            p = q; mw = nw; mh = nh;
+        }
+        D3D11_TEXTURE2D_DESC td = { (UINT)w, (UINT)h, (UINT)lv, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_IMMUTABLE, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+        if (SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, sd, &tex))) ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)tex, NULL, &srv);
+        D3D_RELEASE(tex);
+    }
+    free(px); free(a); free(b); free(o);
+    if (srv) { g_rgb.made++; g_rgb.qpc += rd_qpc() - t0; }
+    else { g_rgb.fail = 1; log_locked("# ground: a texture's heights could not be made (%d x %d): its borders as the game's\n", w, h); }
+    return srv;
+}
+// the pipe: picture gb on | off, gbsoft <0.02..1>, gbnoise <0..1>, gbscale <per tile>
+internal int rgb_pipe(char *out, const char *mode, const char *arg) {
+    if (!strcmp(mode, "gb")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rgb.force = arg[1] == 'n';
+        else if (arg[0]) { REPLY("error: usage: picture gb on | off\n"); return 1; }
+    } else if (!strcmp(mode, "gbsoft") || !strcmp(mode, "gbnoise") || !strcmp(mode, "gbscale")) {
+        float e = (float)atof(arg);
+        if (!arg[0] || e < 0 || e > 16) { REPLY("error: usage: picture %s <0..16>\n", mode); return 1; }
+        *(mode[3] == 'o' ? &g_rgb.soft : mode[2] == 'n' ? &g_rgb.noise : &g_rgb.scale) = e;
+    } else return 0;
+    REPLY("the ground's borders %s, %ld textures' heights made in %.1f ms, soft %.2f, noise %.2f at %.2f a tile\n", rgb_on() ? "on" : "off", (long)g_rgb.made,
+          (double)g_rgb.qpc / (double)rd_qpc_ms(1), (double)rgb_soft(), (double)rgb_noise(), (double)g_rgb.scale);
+    return 1;
 }
 // a chunk wholly outside one plane of the view (a little beyond it: the wobble, and the camera moved at the list's replay)
 internal int rg_visible(const rg_part *c, const float *m) {
@@ -570,6 +654,7 @@ internal void rg_draw_now(int water, int again) {
             D3D_RELEASE(srv[m]);
             srv[m] = now;
         }
+        if (!water && rgb_on() && !g_rg.hgt[m]) g_rg.hgt[m] = rgb_height(t);
     }
     // a frame during a step: the game has set no 3D states for it (its draw doesn't run): those of the last frame that did
     if (again) {
@@ -601,7 +686,9 @@ internal void rg_draw_now(int water, int again) {
         g_rg.at = now;
     }
     if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;
-    float cb[72] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
+    float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
+    int blend = !water && rgb_on();
+    if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;
     for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }
@@ -615,7 +702,7 @@ internal void rg_draw_now(int water, int again) {
             if (!srv[c->r[r].m]) continue;
             g_rd3.srv = srv[c->r[r].m];
             rf_record((UINT)c->r[r].first, (UINT)c->r[r].n, 0);
-            if (g_rf.n) g_rf.cmd[g_rf.n - 1].gvb = c->vb;
+            if (g_rf.n) { g_rf.cmd[g_rf.n - 1].gvb = c->vb; if (blend) g_rf.cmd[g_rf.n - 1].ghs = g_rg.hgt[c->r[r].m]; }
             drawn++;
         }
     }
@@ -638,10 +725,14 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &c->gvb, &st, &off);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &g_rg.fow_srv);
+    ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
+    ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &c->ghs);
     ID3D11DeviceContext_Draw(x, c->n, c->at);
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &st, &off);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, &none);
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &nos);
+    ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, &none);
+    ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &nos);
 }
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {
     // Art of Conquest's maps with space tiles (GETerrainMesh::SetIsSpace) are the game's still: the mesh draws those its own way, not yet done here

@@ -162,8 +162,9 @@ internal const char k_rd3_shader[] =
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
-    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour
+    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
+    "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not (render_frame.c rf_water_part)
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
@@ -174,7 +175,7 @@ internal const char k_rd3_shader[] =
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
-    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; };\n"
+    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float2 gw : TEXCOORD4; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -218,7 +219,7 @@ internal const char k_rd3_shader[] =
     "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a);"
     // a caster in a shadow (shadows all on): its colour without the lights' diffuse part, as much as the strength takes
     "  o.k = saturate(e.rgb + a.rgb * am + d.rgb * df * (1 - shk.w)) / max(c.rgb, 0.001); }"
-    " o.c = c; o.t = i.t;"
+    " o.c = c; o.t = i.t; o.gw = i.p.xy;"
     " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = fog_at(z);"
     // what lies under the water takes the fog of the place the line of sight enters it (render_water.c) - the game's
     // own again toward the fog's end, where the ground's mesh stops
@@ -229,13 +230,22 @@ internal const char k_rd3_shader[] =
     "float4 arg(int a, float4 x, float4 d) { a = a & 15; return a == 2 ? x : a == 3 ? tf : d; }\n"
     "float4 top(int o, float4 a, float4 b) { return o == 2 ? a : o == 3 ? b : o == 4 ? a * b : o == 5 ? saturate(a * b * 2)"
     " : o == 6 ? saturate(a * b * 4) : o == 7 ? saturate(a + b) : o == 8 ? saturate(a + b - 0.5) : a * b; }\n"
+    // the ground's borders (render_ground.c): noise over the map, smooth between whole numbers
+    "float gbh(float2 p) { float3 q = frac(p.xyx * 0.1031); q += dot(q, q.yzx + 33.33); return frac((q.x + q.y) * q.z); }\n"
+    "float gbn(float2 p) { float2 a = floor(p), f = p - a; f = f * f * (3 - 2 * f);"
+    " return lerp(lerp(gbh(a), gbh(a + float2(1, 0)), f.x), lerp(gbh(a + float2(0, 1)), gbh(a + float2(1, 1)), f.x), f.y); }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
+    " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
     " if (misc.z > 0.5 && x.a == 0) discard;"
     // the seabed loses its texture's detail with the depth, keeping its colour: toward the texture's last mip level
     " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"
     "  sea.x * (1 - exp(-(sea.z - i.w.z) * sea.y)));"
     " if (op.x != 1) { c.rgb = top(op.x, arg(op.y, x, d), arg(op.z, x, d)).rgb;"
     "  if (aop.x != 1) c.a = top(aop.x, arg(aop.y, x, d), arg(aop.z, x, d)).a; }"
+    // a layer of the ground, in its fade between two corners: its high texels first. 0 stays 0 and 1 stays 1 whatever the
+    // height, so that neighbouring tiles still meet
+    " [branch] if (gnd.x == 1 && gbl.x > 0 && c.a > 0 && c.a < 1) { float gn = saturate((gbn(i.gw * gbl.w) * 0.65 + gbn(i.gw * gbl.w * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5);"
+    "  float gh = lerp(ght.SampleGrad(s, i.t, gdx, gdy), gn, gbl.z); c.a = saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y); }"
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"

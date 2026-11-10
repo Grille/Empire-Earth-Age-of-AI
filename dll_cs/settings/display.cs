@@ -223,6 +223,18 @@ class display
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):
         bool gpu_animation = true;
+        /// The own renderer only: the borders between the ground's textures ragged instead of a soft fade along the tile
+        /// grid: a texture's lighter clumps come first, its darker cracks last, and noise bends the border (the control
+        /// pipe: picture gb on / off):
+        bool ground_blend = false;
+        /// With ground_blend: how much of the border goes by the noise and not by the texture's own heights (the control
+        /// pipe: picture gbnoise <n>, 1 is 100%):
+        [range(0, 1)]
+        share ground_blend_noise = 0.5;
+        /// With ground_blend: how soft the border is itself, from 2% (a hard line) (the control pipe: picture gbsoft <n>,
+        /// 1 is 100%):
+        [range(0.02, 1)]
+        share ground_blend_soft = 0.25;
         /// The own renderer only: the ground is made this much wider and taller than the screen (100% = twice its
         /// size), so that a frame drawn during a step after a scroll or a zoom out still has ground at the edges
         /// (0% = the screen's, as the game had it; limited by the game's 101-tile region; the control pipe: picture
