@@ -152,10 +152,27 @@ class display
         /// <n>, 1 is 100%):
         [range(0, 4)]
         share ambient_occlusion_strength = 1.0;
-        /// The own renderer only: textures seen at a slant - the ground far off - kept sharp (anisotropic filtering, its
-        /// samples; 1 = off, as the game had it, 16 the sharpest; the control pipe: picture aniso <n>):
-        [range(1, 16)]
-        int anisotropy = 16;
+        enum anisotropy_choice
+        {
+            /// off, as the game had it
+            [name("1")]
+            x1,
+            /// 2 samples
+            [name("2")]
+            x2,
+            /// 4 samples
+            [name("4")]
+            x4,
+            /// 8 samples
+            [name("8")]
+            x8,
+            /// 16 samples, the sharpest
+            [name("16")]
+            x16,
+        }
+        /// The own renderer only: textures seen at a slant - the ground far off - kept sharp (anisotropic filtering; the
+        /// control pipe: picture aniso <n>):
+        anisotropy_choice anisotropy = anisotropy_choice.x16;
         /// The own renderer only: a frame that comes while the simulation runs a step is drawn from the last one's
         /// units, the camera and cursor moved, instead of waiting for the step (the picture stood, then jumped, in big
         /// games; the control pipe: picture steps on / off):

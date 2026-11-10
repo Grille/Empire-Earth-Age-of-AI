@@ -1251,7 +1251,7 @@ internal void render_install(const char *autotest_ini) {
     g_sh.on = g_set.shadows == 1;   // [display] shadows = dynamic (render_shadows.c)
     g_fx.on = g_set.antialias;      // [display] antialias, anisotropy (render_fxaa.c)
     g_fx.depth = g_set.antialias_depth;
-    g_fx.aniso = g_set.anisotropy;
+    g_fx.aniso = 1 << g_set.anisotropy;   // the CHOICE's index: 0 is 1 sample ... 4 is 16
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps, step_handoff_ms (render_3d.c)
     g_rwl_handoff_after = g_set.step_handoff_ms;
     g_mo.on = g_set.gpu_animation;          // [display] gpu_animation (render_morph.c)
