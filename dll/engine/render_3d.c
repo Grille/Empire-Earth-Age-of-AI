@@ -235,13 +235,27 @@ internal const char k_rd3_shader[] =
     "float gbh(float2 p) { float3 q = frac(p.xyx * 0.1031); q += dot(q, q.yzx + 33.33); return frac((q.x + q.y) * q.z); }\n"
     "float gbn(float2 p) { float2 a = floor(p), f = p - a; f = f * f * (3 - 2 * f);"
     " return lerp(lerp(gbh(a), gbh(a + float2(1, 0)), f.x), lerp(gbh(a + float2(0, 1)), gbh(a + float2(1, 1)), f.x), f.y); }\n"
-    // the caustics' net (render_water.c): how near p lies to the edge between the two nearest of points that circle slowly
-    // in their cells - the second nearest's distance less the nearest's
-    "float2 cvh(float2 p) { float3 q = frac(p.xyx * float3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return frac((q.xx + q.yz) * q.zy); }\n"
-    "float cvor(float2 p, float t) { float2 a = floor(p); float f1 = 9, f2 = 9;"
-    " for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { float2 c = a + float2(x, y), h = cvh(c);"
-    "  float2 d = c + 0.5 + 0.4 * sin(t + 6.2831 * h) - p; float e = dot(d, d); if (e < f1) { f2 = f1; f1 = e; } else if (e < f2) f2 = e; }"
-    " return sqrt(f2) - sqrt(f1); }\n"
+    // the caustics' waves (render_water.c): eight running within 0.66 of a radian of the wind's way (x here), from 2.45 to
+    // 0.43 of the pattern's units long, each as curved as the others (its height 1 / k^2), each as fast as deep water's
+    // waves of its length (sqrt k) - longer ones faster, all downwind. kx, ky, sqrt k, phase
+    "static const float4 cwk[8] = { float4(2.087, -1.490, 1.601, 0.0), float4(3.270, -1.047, 1.853, 1.7), float4(4.572, -0.367, 2.142, 4.1),"
+    " float4(5.870, 0.827, 2.435, 2.6), float4(7.232, 2.805, 2.785, 5.3), float4(7.879, 6.115, 3.158, 0.9), float4(10.773, -5.472, 3.476, 3.3),"
+    " float4(14.260, 3.189, 3.823, 2.2) };\n"
+    // their sum's slope at p at the time t, h its curvature (xx, yy, xy)
+    "float2 cwg(float2 p, float t, out float3 h) { float2 g = 0; h = 0;"
+    " for (int j = 0; j < 8; j++) { float4 k = cwk[j]; float a = 1 / dot(k.xy, k.xy), e = dot(k.xy, p) - k.z * t - k.w;"
+    "  g += a * cos(e) * k.xy; h -= a * sin(e) * float3(k.x * k.x, k.y * k.y, k.x * k.y); } return g; }\n"
+    // The light they gather at p on a seabed f below (in the pattern's terms): a ray of sunlight from above moves by f times
+    // the slope where it enters; the place it entered found back by three steps from p, and the light there the inverse of
+    // how much the rays round it are squeezed together (the determinant of the move's derivative) - where they fold, a line.
+    // Red a little less bent than blue: a faint fringe. Prototyped in numpy against the rays themselves counted on the
+    // seabed: alike up to f 0.45, beyond it the steps miss the place (blots). The light is moved, not added: more than the
+    // mean on the lines, less in the cells (the mean about none) - only what is over the mean, and the web fell apart into a
+    // few long folds. p bent a little by a large, still noise first: the folds' lines curve
+    "float3 cwl(float2 p, float t, float f) { p += float2(gbn(p * 0.23), gbn(p * 0.23 + float2(17.1, 5.3))) * 1.6 - 0.8;"
+    " float3 h; float2 q = p; for (int j = 0; j < 3; j++) q = p + f * cwg(q, t, h); cwg(q, t, h);"
+    " float3 F = f * float3(0.97, 1, 1.03), e = (1 - F * h.x) * (1 - F * h.y) - F * F * h.z * h.z, v = 1 / max(abs(e), 0.08) - 1;"
+    " return v > 0 ? 1 - exp(-v * 0.9) : v * 0.5; }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
@@ -277,24 +291,24 @@ internal const char k_rd3_shader[] =
     " if (wat.x > 0 && shd.x == 6 && shh.w > 0) { float2 wh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "  float wd = max(0, i.w.z - (wh.x - wh.y));"
     "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w);"
-    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale), drawn by the surface - drawn
-    // on the seabed itself the surface covered it - but of the place on the seabed the line of sight reaches: the ray from the
-    // camera on through the surface, bent toward the vertical as water bends it (its slope times 0.75, at most 3), to the
-    // depth the hills' map gives there, once more from that place's depth; it moves with the seabed as the camera does.
-    // The pattern (the player, 2026-11-10: "the used cellular pattern is way to noticable"): lines along the edges of slowly
-    // moving cells (cvor), their place bent by smooth noise of about a cell (curved edges, cells of all shapes), their width
-    // by a larger noise, each line's light by another of about a cell (the net broken, bright runs and gaps) and the whole by
-    // a large one (patches). Tried: a second, smaller net turned over the first - busier, a web of cracked glass. Lit by the
-    // water's own light; none at the waterline, fading with the way through the water, gone where a line would be thinner
-    // than a pixel (far out it would only shimmer)
-    "  if (gnd.x == 2 && gca.x > 0) { float3 cv = i.w - wop.xyz; float2 cs = cv.xy / max(-cv.z, 1e-3) * 0.75; cs *= min(1, 3 / max(length(cs), 1e-3));"
-    "   float2 cb = i.w.xy + cs * wd, ch = hm.SampleLevel(hs, cb * shh.x, 0); float cd = max(0, i.w.z - (ch.x - ch.y)); cb = i.w.xy + cs * cd;"
-    "   float ct = gnd.y; float2 cp = cb * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
-    "   float2 cq = cp + float2(gbn(cp * 1.1 + float2(ct * 0.05, 0)), gbn(cp * 1.1 + float2(31.7, 11.3 - ct * 0.05))) - 0.5;"
-    "   float ck = pow(saturate(1 - cvor(cq, ct * 0.5) * (2.5 + 3.5 * gbn(cp * 0.5 + float2(5, ct * 0.02)))), 3) * 1.2"
-    "    * (0.15 + 0.85 * smoothstep(0.25, 0.65, gbn(cp * 0.9 + float2(3 - ct * 0.03, 7))))"
-    "    * (0.35 + 0.65 * smoothstep(0.2, 0.8, gbn(cp * 0.17 + float2(ct, -ct) * 0.01)));"
-    "   c.rgb += i.gl * (gca.x * ck * saturate(cd * 3) * exp(-cd * sqrt(1 + dot(cs, cs)) * 0.8) * saturate(2 - cw * 8)); } }"
+    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale, the wind's way), drawn by the
+    // surface - drawn on the seabed itself the surface covered it - but of the place behind the surface: with the water's step
+    // (wop.w) its copy of the depth gives that place as the step finds it (the seabed, a hull under the water) and the way
+    // through the water to it; else a guess by the hills' map (the ray from the camera on through the surface, its slope at most
+    // 3, to the depth there, once more from that place's depth). A guess with the slope capped stuck to the surface in a low
+    // view (the player, 2026-11-10: "zoomed in with the horizontal view its also very obvius that they are projected from the
+    // water surface"). The pattern: the waves' (cwl), the seabed's depth their f - soft at the waterline, sharp lines from
+    // half a tile down, never past 0.35 (blots beyond). Before (the player: "to uniform", "in realithy they move in one direction, not random
+    // cells"): a net of moving cells, bent and broken by noise. Lit by the water's own light; none at the waterline, fading
+    // with the way through the water as the seabed does, gone where a line would be thinner than a pixel (far out it would
+    // only shimmer)
+    "  if (gnd.x == 2 && gca.x > 0) { float3 cv = i.w - wop.xyz, cb; float cl, cz = wop.w > 0 ? wsd.Load(int3(i.p.xy, 0)) : 0;"
+    "   if (cz < 0.99999 && cz > i.p.z) { float cr = (i.p.z - wfc.w) / (cz - wfc.w); cb = wop.xyz + cv * cr; cl = length(cv) * max(cr - 1, 0); }"
+    "   else { float2 cs = cv.xy / max(-cv.z, 1e-3); cs *= min(1, 3 / max(length(cs), 1e-3));"
+    "    float2 ch = hm.SampleLevel(hs, (i.w.xy + cs * wd) * shh.x, 0); float ce = max(0, i.w.z - (ch.x - ch.y)); cb = float3(i.w.xy + cs * ce, i.w.z - ce); cl = ce * sqrt(1 + dot(cs, cs)); }"
+    "   float cd = max(0, sea.z - cb.z); float2 cp = float2(dot(cb.xy, gca.zw), dot(cb.xy, float2(-gca.w, gca.z))) * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
+    "   float3 ck = cwl(cp, gnd.y * 0.5, 0.35 * (1 - exp(-cd * 4)));"
+    "   c.rgb = max(0, c.rgb + i.gl * ck * (gca.x * saturate(cd * 3) * exp(-cl * 0.8) * saturate(2 - cw * 8))); } }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"

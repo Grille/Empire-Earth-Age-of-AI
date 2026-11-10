@@ -693,6 +693,7 @@ internal void rg_draw_now(int water, int again) {
     if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the water's surface)
         cb[76] = g_rw_caustics >= 0 ? g_rw_caustics : (float)g_set.water_caustics * 0.01f;
         cb[77] = RW_CAUSTICS_SCALE;
+        cb[78] = cosf(RW_CAUSTICS_WIND); cb[79] = sinf(RW_CAUSTICS_WIND);
     }
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;

@@ -154,9 +154,10 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
 // 2026-11-08). The ground isn't: the land lies within hundredths of the level on most maps. A list without
 // casters leaves the last picture (a frame's list is drawn in parts).
 // The caustics ([display] water_caustics, the player 2026-11-10: "could our water throw casutics? (a cheap
-// version)"): the water surface's own pixel shader lights a moving net of lines on the seabed it looks onto, by the depth there, nothing drawn on its own -
+// version)"): the water surface's own pixel shader draws the light its waves focus onto the seabed behind it, nothing drawn on its own -
 // render_3d.c's shader, render_ground.c's constants. The pipe's water caustics <0..2> over the setting.
-#define RW_CAUSTICS_SCALE 1.2f   // the net's cells a little under a tile across
+#define RW_CAUSTICS_SCALE 1.1f   // the waves' pattern units a tile: its cells about a tile across
+#define RW_CAUSTICS_WIND 0.0f    // the way the waves run (radians from the map's x): along an axis, the lines run diagonally on the screen (along the screen's own axes they read as streaks)
 internal float g_rw_caustics = -1;   // the pipe's, -1 the setting's
 internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
@@ -306,7 +307,8 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
         g_wa.copied = g_rf.replays + 1;
         g_wa.have = rw_copy(x, c->rtv, c->dsv);
     }
-    if (!g_wa.have) return;
+    ID3D11ShaderResourceView *none = NULL;
+    if (!g_wa.have) { ID3D11DeviceContext_PSSetShaderResources(x, 9, 1, &none); return; }
     ID3D11ShaderResourceView *srv[2] = { g_wa.csrv, g_wa.zsrv };
     ID3D11DeviceContext_PSSetShaderResources(x, 8, 2, srv);
     ID3D11DeviceContext_PSSetShader(x, g_wa.fps, NULL, 0);
@@ -317,8 +319,9 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
     ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0);
-    srv[0] = srv[1] = NULL;
-    ID3D11DeviceContext_PSSetShaderResources(x, 8, 2, srv);
+    // the depth copy stays for the surface's own draw: its caustics read the place behind each pixel from it (render_3d.c)
+    srv[0] = NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 8, 1, srv);
 }
 // a batch about to be drawn; 1: only its step was wanted
 internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c) {
