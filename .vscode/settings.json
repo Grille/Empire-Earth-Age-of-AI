@@ -1,0 +1,5 @@
+{
+    // The C# extension opens the repo's own two projects (spec/, dll_cs/) through this solution, not the copies of
+    // them the build scripts leave in local/work/ (over 400 .csproj: it asked for a solution at every .cs file).
+    "dotnet.defaultSolution": "eeaimod.sln"
+}
