@@ -91,22 +91,39 @@ internal void uc_smooth(ee_unit *u, float *t, const uc_obj *o) {
 // next frame does.
 internal int g_uc_anim_smooth = 1;
 internal int collect_anim_mode(int on) { g_uc_anim_smooth = on; return 0; }
+// An animation may step by more than one of its model's frames (a dying artillery piece by 2, next_frame = frame + 2): the
+// fraction then is the way between two such steps and the frame the whole part of the place, so frame + fraction jumped by 1.28,
+// then 0.28 frames (the player, 2026-11-10: "the death animation of attilery ... stutters"), the place itself goes on evenly:
+// frame + the fractional part of step x fraction.
+internal float uc_anim_place(int32_t frame, int32_t next, float fraction, int32_t n) {
+    int32_t step = next - frame;
+    if (step < 0) step += n;   // past the last frame it goes on at the first
+    if (step <= 1) return (float)frame + fraction;
+    float k = (float)step * fraction;
+    return (float)frame + (k - floorf(k));
+}
 internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, float *fraction) {
-    if (!g_uc_anim_smooth || !o->has_was || g_cp_smooth != 1 || o->was_anim != o->anim) return;
+    if (!g_uc_anim_smooth || g_cp_smooth != 1) return;
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
     int32_t first = ((const int32_t *)dmg_model_anim_first_at(o->gfx))[o->anim], last = ((const int32_t *)dmg_model_anim_last_at(o->gfx))[o->anim];
     int32_t n = last - first + 1;
-    if (!m || n < 2 || first < 0 || (uint32_t)last >= model_get_frames(m) || o->anim_frame < first || o->anim_frame > last
-        || o->was_frame < first || o->was_frame > last) return;
-    float at = (float)o->was_frame + o->was_fraction, by = (float)o->anim_frame + o->fraction - at;
-    if (by < 0.0f) by += (float)n;
-    if (by <= 0.0f || by > (float)n * 0.5f) return;
-    float p = at + by * g_uc_alpha;
+    if (!m || n < 2 || first < 0 || (uint32_t)last >= model_get_frames(m) || o->anim_frame < first || o->anim_frame > last) return;
+    int32_t step = o->next_frame - o->anim_frame;
+    float now = uc_anim_place(o->anim_frame, o->next_frame, o->fraction, n), p = now;
+    int between = 0;
+    if (o->has_was && o->was_anim == o->anim && o->was_frame >= first && o->was_frame <= last) {
+        float at = uc_anim_place(o->was_frame, o->was_next, o->was_fraction, n), by = now - at;
+        if (by < 0.0f) by += (float)n;
+        if (by > 0.0f && by <= (float)n * 0.5f) p = at + by * g_uc_alpha, between = 1;
+    }
+    if (!between && step >= -1 && step <= 1) return;   // the game's own values
     if (p >= (float)(last + 1)) p -= (float)n;
     int32_t f = (int32_t)p;
     *fraction = p - (float)f;
     *frame = f;
-    *next = f < last ? f + 1 : first;
+    // past the last frame: as the game's own next frame there says - the first in a loop, itself where the animation ends and
+    // stays (a death's: blended toward its first frame it went back to its beginning for a moment and came back)
+    *next = f < last ? f + 1 : o->anim_frame == last ? o->next_frame : first;
 }
 // after the walk: the followed object's step on the screen, while it moves
 internal void uc_smooth_probe(void) {

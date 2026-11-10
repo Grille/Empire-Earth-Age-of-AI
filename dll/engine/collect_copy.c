@@ -33,7 +33,7 @@ typedef struct {
             open, has_was, in_group;   // in_group: only for an update during a step (uc_in_group)
     uint32_t walked;            // the frame's: the walk during a step that drew it last
     float was[12];              // the moving between steps: its pose in the steps' copy before (has_was)
-    int32_t was_anim, was_frame;   // ... and its animation there
+    int32_t was_anim, was_frame, was_next;   // ... and its animation there
     float was_fraction;
     __attribute__((aligned(8))) uint8_t pm[UC_PM];   // its complex unit's physical model (its pose, model, scale, frame)
 } uc_obj;
@@ -141,7 +141,7 @@ internal ee_tile *uc_tile(ee_map *map, int x, int y) {
 // picture's steps counted, nothing moved.
 internal volatile int g_cp_smooth;
 internal volatile int g_uc_during_on;   // the pipe's picture collect during: the units' update run during a step (collect.c)
-typedef struct { ee_unit *u; uint32_t gen; float t[12]; int32_t anim, frame; float fraction; } cp_pose_e;
+typedef struct { ee_unit *u; uint32_t gen; float t[12]; int32_t anim, frame, next; float fraction; } cp_pose_e;
 internal cp_pose_e *g_cp_pose;
 internal uint32_t g_cp_pose_cap, g_cp_pose_n, g_cp_pose_gen;
 // a new copy's turn: the table at most half full, those of older copies than the last dropped when it is rebuilt
@@ -170,11 +170,11 @@ internal int cp_pose_swap(ee_unit *u, uc_obj *o) {
     while (g_cp_pose[h].u && g_cp_pose[h].u != u) h = (h + 1) & (g_cp_pose_cap - 1);
     cp_pose_e *e = &g_cp_pose[h];
     int had = e->u == u && e->gen + 1 == g_cp_pose_gen;
-    if (had) memcpy(o->was, e->t, sizeof e->t), o->was_anim = e->anim, o->was_frame = e->frame, o->was_fraction = e->fraction;
+    if (had) memcpy(o->was, e->t, sizeof e->t), o->was_anim = e->anim, o->was_frame = e->frame, o->was_next = e->next, o->was_fraction = e->fraction;
     if (!e->u) e->u = u, g_cp_pose_n++;
     e->gen = g_cp_pose_gen;
     memcpy(e->t, o->pm, sizeof e->t);
-    e->anim = o->anim, e->frame = o->anim_frame, e->fraction = o->fraction;
+    e->anim = o->anim, e->frame = o->anim_frame, e->next = o->next_frame, e->fraction = o->fraction;
     return had;
 }
 
@@ -688,7 +688,7 @@ internal void cp_check(const uc_copy *c) {
         uc_obj a = c->objs[i], b = f->objs[i];
         a.hidden = b.hidden, a.moved = b.moved;   // update_hidden's: the copy's call cleared its moved bit
         a.has_was = b.has_was, memcpy(a.was, b.was, sizeof a.was);   // the pose before: only the simulation's copy has it
-        a.was_anim = b.was_anim, a.was_frame = b.was_frame, a.was_fraction = b.was_fraction;
+        a.was_anim = b.was_anim, a.was_frame = b.was_frame, a.was_next = b.was_next, a.was_fraction = b.was_fraction;
         a.walked = b.walked;   // the frame's
         if (memcmp(&a, &b, sizeof a)) {
             what = "object", at = i;
