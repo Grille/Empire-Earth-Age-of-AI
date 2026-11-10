@@ -257,6 +257,10 @@ internal inline void world_resort(ee_world *world, ee_unit *handle) { ((world_re
 internal world_resort_fn fn_ee_world_resort;
 internal inline void ee_world_resort(ee_world *world, ee_unit *handle) { fn_ee_world_resort(world, handle); }
 internal inline int patch_world_resort(world_resort_fn h) { return patch_vtable(vt_ee_world, (int)slot_world_resort, (uintptr_t)fn_ee_world_resort, (void *)h); }
+// a placement ghost onto the end of engine_display.ghost_units (+0x9C0; EEGhostUnit::Create's push)
+typedef void (__thiscall *world_push_ghost_fn)(ee_world *, ee_ghost_unit *);
+internal world_push_ghost_fn fn_world_push_ghost;
+internal inline void world_push_ghost(ee_world *world, ee_ghost_unit *g) { fn_world_push_ghost(world, g); }
 
 // class EEGameState (ee_game_state)
 // the game being started (EEGameState, EE 0x917588 - its constructor 0x53B48D, RTTI by its vtable; not the world,
@@ -337,6 +341,7 @@ internal int spec_world_select(int build) {
         fn_world_set_time_of_day = (world_set_time_of_day_fn)0x00531292;
         slot_world_resort = 5;
         fn_ee_world_resort = (world_resort_fn)0x005310B3;
+        fn_world_push_ghost = (world_push_ghost_fn)0x0052D062;
         vt_ee_game_state = 0x0082CA14;
         fn_game_state_start = (game_state_start_fn)0x0052599B;
         call_game_start = 0x004CEC14;
@@ -403,6 +408,7 @@ internal int spec_world_select(int build) {
         fn_world_set_time_of_day = (world_set_time_of_day_fn)0x0053C301;
         slot_world_resort = 5;
         fn_ee_world_resort = (world_resort_fn)0x0053C105;
+        fn_world_push_ghost = (world_push_ghost_fn)0x00537F68;
         vt_ee_game_state = 0x00842178;
         fn_game_state_start = (game_state_start_fn)0x005306F2;
         call_game_start = 0x004D4443;
@@ -433,6 +439,7 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_world_set_time_of_day, "EEWorld.set_time_of_day");
     bad += spec_code((uintptr_t)fn_ee_world_resort, "EEWorld.resort");
     bad += spec_slot(vt_ee_world, slot_world_resort, (uintptr_t)fn_ee_world_resort, "EEWorld.resort [slot]");
+    bad += spec_code((uintptr_t)fn_world_push_ghost, "EEWorld.push_ghost");
     bad += spec_vtable(vt_ee_game_state, ".?AVEEGameState@@", "EEGameState [vtable]");
     bad += spec_code((uintptr_t)fn_game_state_start, "EEGameState.start");
     bad += spec_call(call_game_start, (uintptr_t)fn_game_state_start, "EEGameState.start [call_site game_start]");

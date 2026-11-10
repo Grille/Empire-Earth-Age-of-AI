@@ -870,6 +870,20 @@ internal inline uint8_t *ghost_unit_cells_at(const ee_ghost_unit *o) { return (u
 internal inline uint8_t ghost_unit_get_can_place(const ee_ghost_unit *o) { return *(uint8_t *)((uint8_t *)o + of_ghost_unit_can_place); }
 internal inline void ghost_unit_set_can_place(ee_ghost_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ghost_unit_can_place) = v; }
 internal inline uint8_t *ghost_unit_can_place_at(const ee_ghost_unit *o) { return (uint8_t *)((uint8_t *)o + of_ghost_unit_can_place); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// Create copies its type's +0x59C here for family 0x18; check (0x5F4064) looks for a unit on the tile that passes
+// 0x4A7618(that unit's type, this) - what the type must stand on, by what the code does with it
+internal inline int ghost_unit_get_stands_on(const ee_ghost_unit *o) { return *(int *)((uint8_t *)o + of_ghost_unit_stands_on); }
+internal inline void ghost_unit_set_stands_on(ee_ghost_unit *o, int v) { *(int *)((uint8_t *)o + of_ghost_unit_stands_on) = v; }
+internal inline int *ghost_unit_stands_on_at(const ee_ghost_unit *o) { return (int *)((uint8_t *)o + of_ghost_unit_stands_on); }
+// its constructor (Create's): type id, its player, untold (the field's)
+typedef void *(__thiscall *ghost_unit_init_fn)(ee_ghost_unit *, int, ee_player *, uint8_t);
+internal ghost_unit_init_fn fn_ghost_unit_init;
+internal inline void *ghost_unit_init(ee_ghost_unit *ghost_unit, int type, ee_player *pl, uint8_t no_tell) { return fn_ghost_unit_init(ghost_unit, type, pl, no_tell); }
+// the preview's check of the place it stands at (tile_x, tile_y, transform): heights, cells, can_place
+typedef void (__thiscall *ghost_unit_check_fn)(ee_ghost_unit *);
+internal ghost_unit_check_fn fn_ghost_unit_check;
+internal inline void ghost_unit_check(ee_ghost_unit *ghost_unit) { fn_ghost_unit_check(ghost_unit); }
 // GetModel: its player's stats of its type's graphics
 typedef ee_dmg_model *(__thiscall *ghost_unit_model_fn)(ee_ghost_unit *);
 internal ghost_unit_model_fn fn_ghost_unit_model;
@@ -1315,6 +1329,9 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_anim = 0x290;
         of_ghost_unit_cells = 0x2A0;
         of_ghost_unit_can_place = 0x330;
+        of_ghost_unit_stands_on = 0x29C;
+        fn_ghost_unit_init = (ghost_unit_init_fn)0x005F3D4C;
+        fn_ghost_unit_check = (ghost_unit_check_fn)0x005F4189;
         fn_ghost_unit_model = (ghost_unit_model_fn)0x00506208;
         fn_ghost_unit_scale = (ghost_unit_scale_fn)0x00506227;
         fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x005F4DB7;
@@ -1596,6 +1613,9 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_anim = 0x290;
         of_ghost_unit_cells = 0x2A0;
         of_ghost_unit_can_place = 0x330;
+        of_ghost_unit_stands_on = 0x29C;
+        fn_ghost_unit_init = (ghost_unit_init_fn)0x0060360E;
+        fn_ghost_unit_check = (ghost_unit_check_fn)0x00603DD6;
         fn_ghost_unit_model = (ghost_unit_model_fn)0x0050CB62;
         fn_ghost_unit_scale = (ghost_unit_scale_fn)0x0050CB81;
         fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x00604A97;
@@ -1752,6 +1772,8 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_hp, "EEComplexDoppelganger.hp");
     bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_hp, (uintptr_t)fn_ee_complex_doppelganger_hp, "EEComplexDoppelganger.hp [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_ghost_unit_init, "EEGhostUnit.init");
+    bad += spec_code((uintptr_t)fn_ghost_unit_check, "EEGhostUnit.check");
     bad += spec_code((uintptr_t)fn_ghost_unit_model, "EEGhostUnit.model");
     bad += spec_code((uintptr_t)fn_ghost_unit_scale, "EEGhostUnit.scale");
     bad += spec_code((uintptr_t)fn_ghost_unit_start_anim, "EEGhostUnit.start_anim");

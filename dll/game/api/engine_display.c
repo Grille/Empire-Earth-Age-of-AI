@@ -401,6 +401,35 @@ internal inline void transform_identity(void *t) { (*(make_identity_fn *)data_en
 internal inline void *ghost_units(void) { return (void *)(uintptr_t)data_engine_display_ghost_units; }
 internal inline void *ghost_lock(void) { return *(void *const *)data_engine_display_ghost_lock; }
 internal inline int ghosts_changed(void) { return *(const uint8_t *)data_engine_display_ghosts_changed != 0; }
+internal inline void ghosts_enter(void) {
+    static ts_cs_fn enter;
+    if (!enter) enter = ts_cs_import("?Enter@TSCriticalSection@@QAEXXZ");
+    if (enter) enter(ghost_lock());
+}
+internal inline void ghosts_leave(void) {
+    static ts_cs_fn leave;
+    if (!leave) leave = ts_cs_import("?Leave@TSCriticalSection@@QAEXXZ");
+    if (leave) leave(ghost_lock());
+}
+// a ghost as Create makes one, on the end of the vector; NULL: no memory (the vector's as it was)
+internal inline ee_ghost_unit *ghost_unit_add(int type, ee_player *pl) {
+    ee_ghost_unit *g = game_new(size_ee_ghost_unit);
+    if (!g) return NULL;
+    ghost_unit_init(g, type, pl, 0);
+    world_push_ghost(game_state(), g);
+    return g;
+}
+// the vector's last ghost deleted, as the world's clear (0x52E1AD) does
+internal inline void ghost_units_drop_last(void) {
+    ee_ghost_unit ***end = (ee_ghost_unit ***)((uint8_t *)ghost_units() + 8);
+    ee_ghost_unit *g = *--*end;
+    ((void (__thiscall *)(void *, int))(*(void ***)g)[0])(g, 1);
+}
+// the vector's end moved to its first n, the ones behind it kept: for a call inside the ghosts' lock, put back after it
+internal inline void ghost_units_set_end(uint32_t n) {
+    uint8_t *v = (uint8_t *)ghost_units();
+    *(void ***)(v + 8) = *(void ***)(v + 4) + n;
+}
 internal inline void *ghost_records(void) { return (void *)(uintptr_t)data_engine_display_ghost_records; }
 internal inline float ghost_lift(void) { return *(const float *)data_engine_display_ghost_lift; }
 internal inline uint32_t ghost_record_size(void) { return value_engine_display_size_ghost_record; }

@@ -19,6 +19,14 @@ sanity_check = {
     en = "Sanity check",
     de = "Platzierung prüfen",
 }
+rows = {
+    en = "Rows",
+    de = "Reihen",
+}
+columns = {
+    en = "Columns",
+    de = "Spalten",
+}
 
 // THE SCENARIO EDITOR: terrain
 cliff_rock_1 = {

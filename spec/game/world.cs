@@ -274,6 +274,10 @@ unsafe struct EEWorld
     [slot(5), address((ee)0x005310B3, (aoc)0x0053C105)]
     [vtable_site("world_resort")]
     extern void resort(EEUnit* handle);
+
+    /// a placement ghost onto the end of engine_display.ghost_units (+0x9C0; EEGhostUnit::Create's push)
+    [address((ee)0x0052D062, (aoc)0x00537F68)]
+    extern void push_ghost(EEGhostUnit* g);
 }
 
 /// the game being started (EEGameState, EE 0x917588 - its constructor 0x53B48D, RTTI by its vtable; not the world,

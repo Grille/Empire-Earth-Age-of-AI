@@ -1395,6 +1395,14 @@ unsafe struct EESEUnit
     [offset(0x13C), found(c)]
     uint8 placing;
 
+    /// with placing: it is a wall's line that is being laid (the list's choice, the builder at +0x1C)
+    [offset(0x13D), found(c)]
+    uint8 placing_wall;
+
+    /// with placing: it is a gate that is being placed (the list's choice, the builder at +0x3C)
+    [offset(0x13E), found(c)]
+    uint8 placing_gate;
+
     /// its constructor: the form's running control index (each control takes one), the editor's form, the labels'
     /// font, the form's +0x250
     [address((ee)0x0058A70E, (aoc)0x0059A93E)]

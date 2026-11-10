@@ -5,7 +5,7 @@
 // that isn't here, or one here that the file lacks, is a mistake, told when it is read.
 internal const char *const k_words[] = {
     "vassal", "vassal_of",                                                 // the diplomacy screen (mod/system.eeai)
-    "sanity_check",                                                        // editor_place.c
+    "sanity_check", "rows", "columns",                                     // editor_place.c
     "cliff_rock_1", "cliff_rock_2", "cliff_color", "water_color",          // terrain_cliffs.c
     "min_height", "max_height", "min_slope", "max_slope", "water_at",      // terrain_filter.c
     "cliffs", "cliffs_any", "cliffs_none", "cliffs_only",

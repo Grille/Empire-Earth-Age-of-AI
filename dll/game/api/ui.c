@@ -206,6 +206,9 @@ internal inline void **edit_box_vtable_copy(void **vt, int room) {
     memcpy(vt, (void **)(uintptr_t)vt_ui_edit_box - 1, (size_t)n * sizeof *vt);
     return &vt[1 + slot_ui_control_update_keyboard];
 }
+// the left mouse button's release's slot in such a copy, and the box's whole text selected (what is typed next replaces it)
+internal inline void **edit_box_vtable_mouse_up(void **vt) { return &vt[1 + slot_ui_control_mouse_l_button_up]; }
+internal inline void edit_box_select_text(ee_ui_control *box) { ((void (__thiscall *)(ee_ui_control *))*(void **)data_ui_imports_iat_edit_box_select_text)(box); }
 // the form's pixel x, y within the control's rectangle (GERectangle::Contains, as UIForm::UpdateMouseLocation finds
 // the control under the mouse)
 internal inline int ui_control_contains(const ee_ui_control *c, float x, float y) {

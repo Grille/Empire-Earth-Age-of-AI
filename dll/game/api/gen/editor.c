@@ -1745,6 +1745,14 @@ internal inline int *se_unit_shown_units_at(const ee_se_unit *o) { return (int *
 internal inline uint8_t se_unit_get_placing(const ee_se_unit *o) { return *(uint8_t *)((uint8_t *)o + of_se_unit_placing); }
 internal inline void se_unit_set_placing(ee_se_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_se_unit_placing) = v; }
 internal inline uint8_t *se_unit_placing_at(const ee_se_unit *o) { return (uint8_t *)((uint8_t *)o + of_se_unit_placing); }
+// with placing: it is a wall's line that is being laid (the list's choice, the builder at +0x1C)
+internal inline uint8_t se_unit_get_placing_wall(const ee_se_unit *o) { return *(uint8_t *)((uint8_t *)o + of_se_unit_placing_wall); }
+internal inline void se_unit_set_placing_wall(ee_se_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_se_unit_placing_wall) = v; }
+internal inline uint8_t *se_unit_placing_wall_at(const ee_se_unit *o) { return (uint8_t *)((uint8_t *)o + of_se_unit_placing_wall); }
+// with placing: it is a gate that is being placed (the list's choice, the builder at +0x3C)
+internal inline uint8_t se_unit_get_placing_gate(const ee_se_unit *o) { return *(uint8_t *)((uint8_t *)o + of_se_unit_placing_gate); }
+internal inline void se_unit_set_placing_gate(ee_se_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_se_unit_placing_gate) = v; }
+internal inline uint8_t *se_unit_placing_gate_at(const ee_se_unit *o) { return (uint8_t *)((uint8_t *)o + of_se_unit_placing_gate); }
 // its constructor: the form's running control index (each control takes one), the editor's form, the labels'
 // font, the form's +0x250
 typedef void *(__thiscall *se_unit_init_fn)(ee_se_unit *, int *, ee_ui_form *, void *, uint32_t);
@@ -2885,6 +2893,8 @@ internal int spec_editor_select(int build) {
         of_se_unit_shown_sort = 0x130;
         of_se_unit_shown_units = 0x134;
         of_se_unit_placing = 0x13C;
+        of_se_unit_placing_wall = 0x13D;
+        of_se_unit_placing_gate = 0x13E;
         fn_se_unit_init = (se_unit_init_fn)0x0058A70E;
         call_se_unit_init = 0x0058EC1F;
         fn_se_unit_refill = (se_unit_refill_fn)0x0058C2F5;
@@ -3454,6 +3464,8 @@ internal int spec_editor_select(int build) {
         of_se_unit_shown_sort = 0x130;
         of_se_unit_shown_units = 0x134;
         of_se_unit_placing = 0x13C;
+        of_se_unit_placing_wall = 0x13D;
+        of_se_unit_placing_gate = 0x13E;
         fn_se_unit_init = (se_unit_init_fn)0x0059A93E;
         call_se_unit_init = 0x0059F02E;
         fn_se_unit_refill = (se_unit_refill_fn)0x0059C64B;

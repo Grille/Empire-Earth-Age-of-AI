@@ -901,6 +901,19 @@ unsafe struct EEGhostUnit
     [offset(0x330), found(c)]
     uint8 can_place;
 
+    /// Create copies its type's +0x59C here for family 0x18; check (0x5F4064) looks for a unit on the tile that passes
+    /// 0x4A7618(that unit's type, this) - what the type must stand on, by what the code does with it
+    [offset(0x29C), found(c), guess]
+    int32 stands_on;
+
+    /// its constructor (Create's): type id, its player, untold (the field's)
+    [address((ee)0x005F3D4C, (aoc)0x0060360E)]
+    extern void* init(int32 type, EEPlayer* pl, uint8 no_tell);
+
+    /// the preview's check of the place it stands at (tile_x, tile_y, transform): heights, cells, can_place
+    [address((ee)0x005F4189, (aoc)0x00603DD6)]
+    extern void check();
+
     /// GetModel: its player's stats of its type's graphics
     [address((ee)0x00506208, (aoc)0x0050CB62)]
     extern EEGraphicObject* model();
