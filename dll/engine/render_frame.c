@@ -629,6 +629,7 @@ internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_shadow_only(int role);
 internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first);   // render_silhouette.c
 internal int rao_on(void);   // render_ao.c
+internal void rd3_ao_ground(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv);
 internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first);
 internal void rf_edges_part(ID3D11DeviceContext *x, int part);
@@ -956,7 +957,7 @@ internal void rf_replay(void) {
         if (g_rf.cmd[i].ro == RO_WATER) lastp = i;
     }
     const rf_cmd *scene = NULL;
-    int unit3 = -1;   // a batch of the units' with the camera's own projection (the ground's view is another: render_ao.c)
+    int unit3 = -1, lastg = -1;   // a batch of the units' with the camera's own projection (the ground's view is another: render_ao.c); the ground's last batch
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->ro < RO_TERRAIN || c->ro > RO_WATER) continue;
@@ -964,6 +965,7 @@ internal void rf_replay(void) {
         last3 = i;
         if (!scene && !rf_pixels(g_rf.vcs[c->vc].view)) scene = c;
         if (unit3 < 0 && c->ro == RO_UNITS && !rf_pixels(g_rf.vcs[c->vc].view)) unit3 = i;
+        if (c->ro == RO_TERRAIN && c->gvb) lastg = i;
     }
     // the silhouettes after the units' last batch drawn in its place: one held back for after the water is passed over below
     for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && (g_rf.cmd[i].wat == RF_W_SPLIT || g_rf.cmd[i].wat == RF_W_TOP))) lastu = i;
@@ -981,6 +983,7 @@ internal void rf_replay(void) {
         rf_water_part(x, c->wat == RF_W_SPLIT ? 2 : c->wat == RF_W_RING ? 3 : 0);
         if (!g_fe.fail) rf_edges_part(x, edges && c->soft ? 1 : 0);
         rf_draw(x, c, &b, &first);
+        if (i == lastg) rd3_ao_ground(x, c->dsv);
         if (i == laste) {
             rf_edges_part(x, 2);
             for (int j = 0; j <= laste; j++) if (g_rf.cmd[j].soft) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }

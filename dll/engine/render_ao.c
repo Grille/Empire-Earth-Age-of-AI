@@ -23,13 +23,17 @@ internal struct {
     ID3D11Query *q[3];              // what the pass takes on the graphics card: every few frames, read when it has come back
     int asked;
     float ms;                       // the last measured
+    ID3D11Texture2D *zg;            // the depth with only the ground drawn (rd3_ao_ground): what still equals it is ground
+    ID3D11ShaderResourceView *zgs;
+    UINT zw, zh;
+    int zg_ok, self;                // made this frame; self: the pipe's aoself on, the ground darkens itself as it did at first
 } g_ao = { .force = -1, .radius = -1, .strength = -1 };
 
 internal const char k_ao_shader[] =
     "#define RAO_N 12\n"
-    "Texture2D<float> zt : register(t0); Texture2D<float> at : register(t1); cbuffer k : register(b0) { float4 kp; float4 kd; float4 ka; float4 ko; };\n"
+    "Texture2D<float> zt : register(t0); Texture2D<float> at : register(t1); Texture2D<float> zg : register(t2); cbuffer k : register(b0) { float4 kp; float4 kd; float4 ka; float4 ko; };\n"
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
-    // kp: from the pixel to the view's x, y at depth 1 (x = (px * kp.x + kp.y) * z ...); kd: depth d = A + B / z;
+    // kp: from the pixel to the view's x, y at depth 1 (x = (px * kp.x + kp.y) * z ...); kd: depth d = A + B / z, z: the ground's depth is there;
     // ka: the radius in tiles, the most it may be in pixels, what a tile is in pixels at depth 1, the strength; ko: the viewport's corner on the target
     "float zof(float d) { return kd.y / min(d - kd.x, -1e-7); }\n"
     "float3 at3(int2 p) { float z = zof(zt.Load(int3(p, 0))); return float3((p.x + 0.5 - ko.x) * kp.x + kp.y, (p.y + 0.5 - ko.y) * kp.z + kp.w, 1) * z; }\n"
@@ -42,10 +46,15 @@ internal const char k_ao_shader[] =
     " float rt = ka.z * ka.x / m.z, r = min(rt, ka.y), R = ka.x * r / max(rt, 1e-6), R2 = R * R; if (r < 1) return 1;"
     // the spiral's turn per pixel (interleaved gradient noise, Jimenez's)
     " float ph = 6.2831853 * frac(52.9829189 * frac(dot(float2(p), float2(0.06711056, 0.00583715)))), s = 0;"
+    // the ground doesn't darken itself (the player, 2026-11-10): a pixel and a sample that are still what the ground drew, or
+    // lie flat on it (a field: a hair nearer). A wider tolerance took a wall's lowest pixels for ground, a bright line at its foot
+    " float tol = 0.005; bool pg = kd.z > 0 && abs(zof(zg.Load(int3(p, 0))) - m.z) < tol;"
     " for (int j = 0; j < RAO_N; j++) { float a = (j + 0.5) / RAO_N, t = a * 6.2831853 * 3 + ph; int2 q = p + int2(float2(cos(t), sin(t)) * a * r);"
     "  float dq = zt.Load(int3(q, 0)); if (dq <= 0 || dq >= 1) continue;"
-    "  float3 v = at3(q) - m; float vv = dot(v, v), f = max(R2 - vv, 0);"
-    "  s += f * f * f * max((dot(v, n) - 0.002 * m.z) / (vv + 0.03 * R2), 0); }"
+    "  float3 v = at3(q) - m; float vv = dot(v, v), f = R2 - vv, o = dot(v, n) - 0.002 * m.z; if (f <= 0 || o <= 0) continue;"
+    // only a sample that would darken the pixel reads the ground's depth: on every sample it took the pass from 0.40 to 0.82 ms
+    "  [branch] if (pg) { if (abs(zof(zg.Load(int3(q, 0))) - v.z - m.z) < tol) continue; }"
+    "  s += f * f * f * o / (vv + 0.03 * R2); }"
     " return saturate(1 - s * 5 * ka.w * R / (RAO_N * R2 * R2 * R2)); }\n"
     // the blur, 7 pixels along ko.z's axis (0: x, 1: y), weighed by the depth's nearness
     "float bl(int2 p, int2 s) { float z = zof(zt.Load(int3(p + int2(ko.xy), 0))), o = 0, w = 0;"
@@ -136,6 +145,32 @@ internal int rao_projection(const float *m, float *sx, float *sy, float *a, floa
     return *sx > 1e-6f && *sy > 1e-6f && fabsf(*b) > 1e-9f;
 }
 internal int rao_on(void) { return !g_ao.fail && (g_ao.force < 0 ? g_set.ambient_occlusion : g_ao.force); }
+// the depth as it stands when the ground is drawn and nothing else (rf_replay, after the ground's last batch)
+internal void rd3_ao_ground(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv) {
+    g_ao.zg_ok = 0;
+    if (!rao_on() || g_ao.self || !dsv) return;
+    ID3D11Resource *zr = NULL;
+    ID3D11Texture2D *zt = NULL;
+    ID3D11View_GetResource((ID3D11View *)dsv, &zr);
+    if (zr && SUCCEEDED(ID3D11Resource_QueryInterface(zr, &IID_ID3D11Texture2D, (void **)&zt))) {
+        D3D11_TEXTURE2D_DESC zd;
+        ID3D11Texture2D_GetDesc(zt, &zd);
+        if (zd.SampleDesc.Count == 1 && zd.Format == DXGI_FORMAT_D32_FLOAT) {
+            HRESULT hr = S_OK;
+            if (!g_ao.zg || g_ao.zw != zd.Width || g_ao.zh != zd.Height) {
+                D3D_RELEASE(g_ao.zgs); D3D_RELEASE(g_ao.zg);
+                D3D11_TEXTURE2D_DESC nd = { zd.Width, zd.Height, 1, 1, DXGI_FORMAT_R32_TYPELESS, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+                D3D11_SHADER_RESOURCE_VIEW_DESC sv = { .Format = DXGI_FORMAT_R32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D, .Texture2D = { 0, 1 } };
+                hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &nd, NULL, &g_ao.zg);
+                if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_ao.zg, &sv, &g_ao.zgs);
+                g_ao.zw = zd.Width; g_ao.zh = zd.Height;
+            }
+            if (SUCCEEDED(hr)) { ID3D11DeviceContext_CopySubresourceRegion(x, (ID3D11Resource *)g_ao.zg, 0, 0, 0, 0, zr, 0, NULL); g_ao.zg_ok = 1; }
+            else rd_fail("the ambient occlusion's copy of the ground's depth", hr);
+        }
+    }
+    D3D_RELEASE(zt); D3D_RELEASE(zr);
+}
 // the scene so far on rtv within vp, with its depth dsv and its camera vpm, darkened (the caller binds its states again)
 internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm) {
     float sx, sy, a, b;
@@ -157,9 +192,9 @@ internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const 
     float w = (float)(x1 - x0), h = (float)(y1 - y0);
     float r = g_ao.radius >= 0 ? g_ao.radius : (float)g_set.ambient_occlusion_radius;
     float st = g_ao.strength >= 0 ? g_ao.strength : (float)g_set.ambient_occlusion_strength;
-    float k[16] = { 2 / (w * sx), -1 / sx, -2 / (h * sy), 1 / sy,   a, b, 0, 0,   r, h / 15, sy * h / 2, st,   (float)x0, (float)y0, 0, 0 };
+    float k[16] = { 2 / (w * sx), -1 / sx, -2 / (h * sy), 1 / sy,   a, b, g_ao.zg_ok ? 1.0f : 0.0f, 0,   r, h / 15, sy * h / 2, st,   (float)x0, (float)y0, 0, 0 };
     D3D11_VIEWPORT v = { 0, 0, w, h, 0, 1 }, on = { (float)x0, (float)y0, w, h, 0, 1 };
-    ID3D11ShaderResourceView *none[2] = { NULL, NULL };
+    ID3D11ShaderResourceView *none[3] = { NULL, NULL, NULL };
     ID3D11DeviceContext_OMSetBlendState(x, NULL, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, NULL, 0);
     ID3D11DeviceContext_RSSetState(x, NULL);
@@ -169,6 +204,7 @@ internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const 
     ID3D11DeviceContext_PSSetConstantBuffers(x, 0, 1, &g_ao.cb);
     ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_ao.cb, 0, NULL, k, 0, 0);
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &g_fx.zsrv);
+    if (g_ao.zg_ok) ID3D11DeviceContext_PSSetShaderResources(x, 2, 1, &g_ao.zgs);
     // the occlusion
     ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_ao.rtv[0], NULL);
     ID3D11DeviceContext_RSSetViewports(x, 1, &v);
@@ -187,7 +223,7 @@ internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const 
     ID3D11DeviceContext_OMSetBlendState(x, g_ao.view ? NULL : g_ao.mul, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_PSSetShader(x, g_ao.ps[g_ao.view ? 3 : 2], NULL, 0);
     ID3D11DeviceContext_Draw(x, 3, 0);
-    ID3D11DeviceContext_PSSetShaderResources(x, 0, 2, none);
+    ID3D11DeviceContext_PSSetShaderResources(x, 0, 3, none);
     rao_time(x, 0);
     g_ao.passes++;
 }
@@ -197,6 +233,9 @@ internal int rao_pipe(char *out, const char *mode, const char *arg) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) { g_ao.force = arg[1] == 'n'; g_ao.view = 0; }
         else if (!strcmp(arg, "view")) { g_ao.force = 1; g_ao.view = 1; }
         else if (arg[0]) { REPLY("error: usage: picture ao on | off | view\n"); return 1; }
+    } else if (!strcmp(mode, "aoself")) {   // on: the ground darkens itself too (the comparison)
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_ao.self = arg[1] == 'n';
+        else { REPLY("error: usage: picture aoself on | off\n"); return 1; }
     } else if (!strcmp(mode, "aoradius") || !strcmp(mode, "aostrength")) {
         float e = (float)atof(arg);
         if (!arg[0] || e < 0 || e > 16) { REPLY("error: usage: picture %s <0..16>\n", mode); return 1; }
