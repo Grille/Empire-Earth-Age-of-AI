@@ -1027,6 +1027,81 @@ internal float ff_since(uint32_t step) {
     ee_physics *ph = game_physics();
     return (float)(ff_step() - step) * (ph ? physics_get_step_s(ph) : 0.05f);
 }
+// TRADING PLACES (the player, 2026-11-11: "when the group had to narrow on its march they break into chaos on arrival
+// at their destination, could it be that they reform into the original layout then? never updating the destination
+// with the renegotiated position in the formation?" - so it was: each unit kept the spot of the order's layout, and
+// the column had changed who is in front): when a narrowed formation spreads out again, or reaches its end narrowed,
+// its places are given out anew among the units of one type - the type's places front to back, row by row, to its
+// units as far along the line as they are now, a row's left to right as they stand - so the layout stays and nobody
+// walks through the others to an old place. A unit with a new place gets its offset in the march, its spot at the
+// goal and a move there in place of its own (one with orders queued after this move keeps its place)
+internal unsigned g_ff_traded;   // units given another unit's place
+internal int ff_on_this(const struct ff_unit *e, ee_unit *u);
+internal void ff_trade(struct ff_group *gr) {
+    static int idx[FF_UNITS], slot[FF_UNITS];
+    static float prog[FF_UNITS], side[FF_UNITS];
+    static struct { vec2 off, home; uint32_t yaw; int order; float w; } was[FF_UNITS];
+    int gi = (int)(gr - g_ff), n = 0;
+    if (gr->naval || gr->in_place) return;
+    for (int i = 0; i < FF_UNITS; i++) {
+        struct ff_unit *e = &g_ff_u[i];
+        if (!e->id || e->g != gi || e->out || e->rel) continue;
+        ee_unit *u = unit_by_id(e->id);
+        if (!u || unit_get_hp(u) <= 0 || unit_orders(u) != 1 || !ff_on_this(e, u)) continue;
+        vec3 p = unit_get_pos(u);
+        idx[n] = slot[n] = i;
+        prog[i] = ff_progress(gr, gr->anchor, v2(p.x, p.y), &side[i]);
+        was[i].off = e->off; was[i].home = e->home; was[i].yaw = e->yaw; was[i].order = e->order; was[i].w = e->w;
+        n++;
+    }
+    // by type; a type's units the furthest along first, its places the foremost first (and left to right)
+    #define FF_TYPE_OF(i) unit_type_get_id(unit_get_type_data(unit_by_id(g_ff_u[i].id)))
+    for (int a = 1; a < n; a++) {
+        int v = idx[a], b = a, tv = FF_TYPE_OF(v);
+        for (; b > 0; b--) { int w = idx[b - 1], tw = FF_TYPE_OF(w); if (tw < tv || (tw == tv && prog[w] >= prog[v])) break; idx[b] = w; }
+        idx[b] = v;
+    }
+    for (int a = 1; a < n; a++) {
+        int v = slot[a], b = a, tv = FF_TYPE_OF(v);
+        for (; b > 0; b--) {
+            int w = slot[b - 1], tw = FF_TYPE_OF(w);
+            if (tw < tv || (tw == tv && (was[w].off.y > was[v].off.y + 0.05f || (was[w].off.y >= was[v].off.y - 0.05f && was[w].off.x <= was[v].off.x)))) break;
+            slot[b] = w;
+        }
+        slot[b] = v;
+    }
+    for (int at = 0; at < n;) {   // a row of one type's places: at .. end-1, its units by where they stand across
+        int end = at + 1, t = FF_TYPE_OF(slot[at]);
+        while (end < n && FF_TYPE_OF(slot[end]) == t && was[slot[end]].off.y > was[slot[at]].off.y - 0.05f) end++;
+        for (int a = at + 1; a < end; a++) {
+            int v = idx[a], b = a;
+            for (; b > at && side[idx[b - 1]] > side[v]; b--) idx[b] = idx[b - 1];
+            idx[b] = v;
+        }
+        at = end;
+    }
+    #undef FF_TYPE_OF
+    for (int k = 0; k < n; k++) {
+        if (idx[k] == slot[k]) continue;
+        struct ff_unit *e = &g_ff_u[idx[k]];
+        ee_unit *u = unit_by_id(e->id);
+        void *mem = goal_move_alloc();
+        if (!mem) return;
+        e->off = was[slot[k]].off; e->home = was[slot[k]].home; e->yaw = was[slot[k]].yaw; e->order = was[slot[k]].order; e->w = was[slot[k]].w;
+        float xy[2] = { e->home.x, e->home.y }, yaw;
+        ee_goal *g = gr->attack ? goal_attack_move_init(mem, xy) : goal_move_init(mem, xy);
+        memcpy(&yaw, &e->yaw, sizeof yaw);
+        if (e->yaw == 0) yaw = fo_atan2(-gr->fwd.x, gr->fwd.y);
+        location_goal_set_yaw((ee_location_goal *)g, yaw);
+        location_goal_set_face((ee_location_goal *)g, 1);
+        unit_assign_goal(u, g, 0, 0);
+        unit_set_state(u, 0x1F40);
+        unit_type_goal_assigned(unit_get_type_data(u), u);
+        if (e->id == gr->leader) gr->goal = unit_get_goal(u);
+        g_ff_traded++;
+    }
+    if (g_log) fprintf(g_log, "# formation: %d units at %.1f,%.1f: places given out anew%c", gr->n, gr->anchor.x, gr->anchor.y, 10);
+}
 internal void ff_narrow(struct ff_group *gr, ee_unit *l, vec2 q, int qi) {
     ee_map *map = game_map();
     ee_unit_type *td = l ? unit_get_type_data(l) : NULL;
@@ -1079,6 +1154,7 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l, vec2 q, int qi) {
         fprintf(g_log, "# formation: %d units at %.1f,%.1f %s (room %.1f of its %.1f tiles%s)\n", gr->n, gr->anchor.x, gr->anchor.y,
                 cols ? "narrowed to a column" : "as laid out again", room, gr->fw, cols ? "" : "");
     if (cols && g_log && cols != gr->cols) fprintf(g_log, "# formation: the column %.1f wide, %.1f tiles deep\n", gr->col_w, gr->front - gr->col_rear);
+    if (!cols && gr->cols) ff_trade(gr);
     gr->cols = cols;
     if (cols) g_ff_narrowed++;
 }
@@ -1460,6 +1536,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         if (gr->cols && !gr->naval) ff_narrow(gr, l, q, qi);   // the narrow as it lies from the anchor where it stands now (as measured a step before it lay a step's travel back)
         if (gr->cols && !gr->naval && gr->col_w < gr->fw * FF_TIGHT_AT && ff_held(gr)) {   // narrowed to a tight column: the anchor stands here, the column drains (above); a loose one's units find their spots as an unnarrowed formation's do
             gr->drain = gr->rel_at = step ? step : 1;
+            ff_trade(gr);
             if (g_log) fprintf(g_log, "# formation: %d units at %.1f,%.1f: at its end narrowed, the column drains past the narrow %.1f tiles back\n", gr->n, gr->anchor.x, gr->anchor.y, -gr->narrow_to);
             gr->vel_from = gr->vel = 0;
             gr->way_from = gr->way;
@@ -1786,6 +1863,18 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
             lat = lat < lo - slack ? lo - slack : lat > hi + slack ? hi + slack : lat;
             if ((across_now < lo - 0.25f || across_now > hi + 0.25f) && t > gr->line_t[mi] - adv - FF_MOUTH_IN - FF_AHEAD) t = gr->line_t[mi] - adv - FF_MOUTH_IN - FF_AHEAD;
         }
+        // within the room where it is (the line's point nearest its progress, as last measured): a unit fallen behind
+        // a front rank's place - the head spread out past the gap, 5 tiles aside - steered at the wall beside it and
+        // stood in the channel's mouth till the drain gave up (the way back north, 2026-11-11)
+        {
+            int ni = -1;
+            for (int i = 0; i < gr->line_n; i++) if (gr->line_room[i] >= 0 && (ni < 0 || fabsf(gr->line_t[i] - adv - t) < fabsf(gr->line_t[ni] - adv - t))) ni = i;
+            if (ni >= 0 && fabsf(gr->line_t[ni] - adv - t) < 2.0f) {
+                float half = unit_get_size(u) * 0.5f + FF_COL_MARGIN, lo = half - gr->line_l[ni], hi = gr->line_r[ni] - half;
+                if (lo > hi) lo = hi = (lo + hi) * 0.5f;
+                lat = lat < lo ? lo : lat > hi ? hi : lat;
+            }
+        }
         vec2 ld = way, lp = t < 0 ? ff_trail_at(gr, anchor, way, -t, &ld) : vec2_add(anchor, vec2_scale(way, t));
         base = vec2_add(lp, vec2_scale(v2(ld.y, -ld.x), lat));
         fd = ld;
@@ -1824,6 +1913,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // behind and ahead by the way it steers (at its point): a follower with its point on the far side, against the way
     // (two blocks sent to the point between them: the leader's block walks to the other), walks back to it - by the way
     // it stood waiting for a point that came at the leader's crawl, and the leader for the formation
+    if (g_ff_watch && g_log && gr->cols) fprintf(g_log, "# ffcol %u %06x prog %.2f off %.2f %.2f lead %.2f merge %d d %.1f pt %.1f,%.1f at %.1f,%.1f ok %d conv %.1f anchor %.1f,%.1f%c", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, e->prog, off.x, off.y, lead, e->merge, merge_d, pt.x, pt.y, at.x, at.y, ok, gr->conv, anchor.x, anchor.y, 10);
     vec2 to = vec2_sub(at, v2(pos[0], pos[1]));
     float tl = vec2_len(to);
     vec2 a = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : way;
