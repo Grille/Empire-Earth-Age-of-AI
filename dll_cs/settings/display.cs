@@ -207,6 +207,9 @@ class display
         /// The own renderer: the water moves by the game time - its waves, its caustics and its animation stand while the
         /// game is paused and go slower at a slower speed. The game's own water moves by the real time, paused or not:
         bool water_game_time = false;
+        /// The own renderer: the deeper ground under the water sways up and down, as the game
+        /// draws it (its stand-in for the water bending the light); off, the seabed lies still:
+        bool seabed_wobble = true;
         /// The own renderer: the half see-through edges of units' and buildings' textures (a ladder's rails) drawn after
         /// everything solid and without writing the depth, so that what lies behind them shows through them (the control
         /// pipe: water edges on / off):

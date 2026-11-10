@@ -718,7 +718,9 @@ internal void rg_draw_now(int water, int again) {
         g_rg.at = now;
     }
     if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;
-    float cb[80] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
+    // the wobble's strength: the surface's, the seabed's - none with [display] seabed_wobble off (the player, 2026-11-10:
+    // "add an option to disable the terrain wobble underwater that tries to fake refraction")
+    float cb[80] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? ws[1] : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
     if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the seabed)
