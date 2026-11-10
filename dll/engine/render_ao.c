@@ -30,20 +30,23 @@ internal const char k_ao_shader[] =
     "Texture2D<float> zt : register(t0); Texture2D<float> at : register(t1); cbuffer k : register(b0) { float4 kp; float4 kd; float4 ka; float4 ko; };\n"
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
     // kp: from the pixel to the view's x, y at depth 1 (x = (px * kp.x + kp.y) * z ...); kd: depth d = A + B / z;
-    // ka: the radius in tiles, its square, what a tile is in pixels at depth 1, the strength; ko: the viewport's corner on the target
+    // ka: the radius in tiles, the most it may be in pixels, what a tile is in pixels at depth 1, the strength; ko: the viewport's corner on the target
     "float zof(float d) { return kd.y / min(d - kd.x, -1e-7); }\n"
     "float3 at3(int2 p) { float z = zof(zt.Load(int3(p, 0))); return float3((p.x + 0.5 - ko.x) * kp.x + kp.y, (p.y + 0.5 - ko.y) * kp.z + kp.w, 1) * z; }\n"
     "float3 side(float3 m, int2 p, int2 s) { float3 a = at3(p + s), b = at3(p - s); float3 da = a - m, db = m - b; return abs(da.z) < abs(db.z) ? da : db; }\n"
     "float4 ao(V i) : SV_Target { int2 p = int2(i.p.xy) + int2(ko.xy); float d = zt.Load(int3(p, 0)); if (d <= 0 || d >= 1) return 1;"
     " float3 m = at3(p), n = normalize(cross(side(m, p, int2(0, 1)), side(m, p, int2(1, 0)))); if (n.z > 0) n = -n;"
-    " float r = min(ka.z * ka.x / m.z, ko.w); if (r < 1) return 1;"
+    // the radius in pixels has a limit, and close up that is less than the radius in tiles: the weights go by what is really
+    // sampled, or all the samples lie close to the pixel at the full weight of a far larger radius (the player's close-up:
+    // the steps and the columns' feet black)
+    " float rt = ka.z * ka.x / m.z, r = min(rt, ka.y), R = ka.x * r / max(rt, 1e-6), R2 = R * R; if (r < 1) return 1;"
     // the spiral's turn per pixel (interleaved gradient noise, Jimenez's)
     " float ph = 6.2831853 * frac(52.9829189 * frac(dot(float2(p), float2(0.06711056, 0.00583715)))), s = 0;"
     " for (int j = 0; j < RAO_N; j++) { float a = (j + 0.5) / RAO_N, t = a * 6.2831853 * 3 + ph; int2 q = p + int2(float2(cos(t), sin(t)) * a * r);"
     "  float dq = zt.Load(int3(q, 0)); if (dq <= 0 || dq >= 1) continue;"
-    "  float3 v = at3(q) - m; float vv = dot(v, v), f = max(ka.y - vv, 0);"
-    "  s += f * f * f * max((dot(v, n) - 0.002 * m.z) / (vv + 0.01), 0); }"
-    " return saturate(1 - s * 5 * ka.w * ka.x / (RAO_N * ka.y * ka.y * ka.y)); }\n"
+    "  float3 v = at3(q) - m; float vv = dot(v, v), f = max(R2 - vv, 0);"
+    "  s += f * f * f * max((dot(v, n) - 0.002 * m.z) / (vv + 0.03 * R2), 0); }"
+    " return saturate(1 - s * 5 * ka.w * R / (RAO_N * R2 * R2 * R2)); }\n"
     // the blur, 7 pixels along ko.z's axis (0: x, 1: y), weighed by the depth's nearness
     "float bl(int2 p, int2 s) { float z = zof(zt.Load(int3(p + int2(ko.xy), 0))), o = 0, w = 0;"
     " for (int j = -3; j <= 3; j++) { int2 q = p + s * j; float g = 1 - abs(j) * 0.2, zq = zof(zt.Load(int3(q + int2(ko.xy), 0))), e = g * max(1 - abs(zq - z) / (0.02 * z + 0.05), 0);"
@@ -154,7 +157,7 @@ internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const 
     float w = (float)(x1 - x0), h = (float)(y1 - y0);
     float r = g_ao.radius >= 0 ? g_ao.radius : (float)g_set.ambient_occlusion_radius;
     float st = g_ao.strength >= 0 ? g_ao.strength : (float)g_set.ambient_occlusion_strength;
-    float k[16] = { 2 / (w * sx), -1 / sx, -2 / (h * sy), 1 / sy,   a, b, 0, 0,   r, r * r, sy * h / 2, st,   (float)x0, (float)y0, 0, 96 };
+    float k[16] = { 2 / (w * sx), -1 / sx, -2 / (h * sy), 1 / sy,   a, b, 0, 0,   r, h / 15, sy * h / 2, st,   (float)x0, (float)y0, 0, 0 };
     D3D11_VIEWPORT v = { 0, 0, w, h, 0, 1 }, on = { (float)x0, (float)y0, w, h, 0, 1 };
     ID3D11ShaderResourceView *none[2] = { NULL, NULL };
     ID3D11DeviceContext_OMSetBlendState(x, NULL, NULL, 0xFFFFFFFF);
