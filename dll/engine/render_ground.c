@@ -715,7 +715,7 @@ internal void rg_draw_now(int water, int again) {
             double ms = rg_water_ms((double)(now - g_rg.at) * 1000.0 / (double)rd_qpc_ms(1000));
             g_rg.phase = fmod(g_rg.phase + (double)ws[0] * ms / 1000.0, 6.283185307179586 * 1024.0);
             g_rg.wms += ms;
-            g_rg.ctime = fmod(g_rg.ctime + (double)ws[0] * ms / 1000.0 * 0.5 * (double)g_set.water_caustics_speed * 0.01, 6.283185307179586 * 1024.0);
+            g_rg.ctime = fmod(g_rg.ctime + (double)ws[0] * ms / 1000.0 * 0.5 * (double)g_set.water_caustics_speed, 6.283185307179586 * 1024.0);
         }
         g_rg.at = now;
     }
@@ -726,8 +726,8 @@ internal void rg_draw_now(int water, int again) {
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
     if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the seabed)
-        cb[76] = g_rw_caustics >= 0 ? g_rw_caustics : (float)g_set.water_caustics * 0.01f;
-        cb[77] = RW_CAUSTICS_SCALE * 100.0f / (float)(g_set.water_caustics_size > 0 ? g_set.water_caustics_size : 100);   // [display] water_caustics_size
+        cb[76] = g_rw_caustics >= 0 ? g_rw_caustics : g_set.water_caustics;
+        cb[77] = RW_CAUSTICS_SCALE / (g_set.water_caustics_size > 0.01f ? g_set.water_caustics_size : 1.0f);   // [display] water_caustics_size
         cb[78] = cosf(RW_CAUSTICS_WIND); cb[79] = sinf(RW_CAUSTICS_WIND);
         cb[80] = (float)g_rg.ctime;
     }

@@ -199,17 +199,17 @@ class display
         /// colours (the control pipe: water color <red green blue> / water color map):
         [length(32)]
         string water_fog_color = "";
-        /// With water_look: the light the waves gather on the seabed, a slowly moving net of lit lines under the
-        /// water, none at the waterline and fading with the depth; how bright, in percent of the light on the ground
-        /// (0 = none; the control pipe: water caustics <0..2>):
-        [range(0, 200)]
-        int water_caustics = 60;
-        /// With water_caustics: how large their pattern is, in percent (100: its cells about a tile across):
-        [range(25, 400)]
-        int water_caustics_size = 100;
-        /// With water_caustics: how fast they move at the game's normal speed, in percent (0 = they stand):
-        [range(0, 400)]
-        int water_caustics_speed = 100;
+        /// With water_look: the light the waves gather on the seabed, lines of light that run with the waves, none at
+        /// the waterline and fading with the depth; how bright, of the light on the ground (0% = none; the control
+        /// pipe: water caustics <0..2>):
+        [range(0, 2)]
+        share water_caustics = 0.6;
+        /// With water_caustics: how large their pattern is (100%: its cells about a tile across):
+        [range(0.25, 4)]
+        factor water_caustics_size = 1;
+        /// With water_caustics: how fast they move at the game's normal speed (0% = they stand):
+        [range(0, 4)]
+        factor water_caustics_speed = 1;
         /// The own renderer: the water moves by the game time - its waves, its caustics and its animation stand while the
         /// game is paused and go slower at a slower speed. The game's own water moves by the real time, paused or not:
         bool water_game_time = false;
