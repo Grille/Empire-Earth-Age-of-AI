@@ -204,10 +204,27 @@ unsafe struct EEUICChatLine
     extern int32 update_keyboard();
 }
 
-/// control type 1008 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
+/// control type 1008 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it. The right button on the map:
+/// its press (vf34 0x641C7F, AoC 0x65829C) keeps the point under it, the drag (mouse_move) the facing from there to
+/// the cursor - a move's facing in the game, the selected units' turn in the editor (EESEUICCommandUnits)
 [@base(typeof(UIControl)), size((ee)0xD0, (aoc)0xD0), vtable((ee)0x00833DE8, (aoc)0x00849E8C)]
 unsafe struct EEUICCommandUnits
 {
+    /// the point on the map under the right button's press (vf34: the cursor's ray met with the ground, 0x66326E);
+    /// mouse_move meets the cursor's ray with the plane at its z (both builds' mouse_move)
+    [offset(0xA8), found(c)]
+    vec3 press_at;
+
+    /// the drag's facing: atan2(-dx, dy) from press_at to the point under the cursor (0x64138B, AoC 0x6579A8) - a
+    /// unit's heading as SetOrientationYPR's yaw (EESEARotateUnits turns the units to it)
+    [offset(0xB4), found(c)]
+    float32 drag_angle;
+
+    /// a drag going on: mouse_move sets it once the cursor is far enough from the press, the press clears it (vf34);
+    /// the editor's right button up deletes the unit under the cursor without it (EESEUICCommandUnits)
+    [offset(0xB9), found(c)]
+    uint8 dragging;
+
     /// its constructor (4 arguments, not typed yet)
     [address((ee)0x00641264, (aoc)0x00657881)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4);

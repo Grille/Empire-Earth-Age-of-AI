@@ -299,7 +299,9 @@ internal eeuic_chat_line_update_keyboard_fn fn_eeuic_chat_line_update_keyboard;
 internal inline int eeuic_chat_line_update_keyboard(eeuic_chat_line *eeuic_chat_line) { return fn_eeuic_chat_line_update_keyboard(eeuic_chat_line); }
 
 // class EEUICCommandUnits (eeuic_command_units)
-// control type 1008 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
+// control type 1008 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it. The right button on the map:
+// its press (vf34 0x641C7F, AoC 0x65829C) keeps the point under it, the drag (mouse_move) the facing from there to
+// the cursor - a move's facing in the game, the selected units' turn in the editor (EESEUICCommandUnits)
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuic_command_units_get_mode_now(const eeuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -324,6 +326,21 @@ internal inline float *eeuic_command_units_top_at(const eeuic_command_units *o) 
 internal inline ee_ui_form *eeuic_command_units_get_form(const eeuic_command_units *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuic_command_units_set_form(eeuic_command_units *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuic_command_units_form_at(const eeuic_command_units *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the point on the map under the right button's press (vf34: the cursor's ray met with the ground, 0x66326E);
+// mouse_move meets the cursor's ray with the plane at its z (both builds' mouse_move)
+internal inline vec3 eeuic_command_units_get_press_at(const eeuic_command_units *o) { return *(vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at); }
+internal inline void eeuic_command_units_set_press_at(eeuic_command_units *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at) = v; }
+internal inline vec3 *eeuic_command_units_press_at_at(const eeuic_command_units *o) { return (vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at); }
+// the drag's facing: atan2(-dx, dy) from press_at to the point under the cursor (0x64138B, AoC 0x6579A8) - a
+// unit's heading as SetOrientationYPR's yaw (EESEARotateUnits turns the units to it)
+internal inline float eeuic_command_units_get_drag_angle(const eeuic_command_units *o) { return *(float *)((uint8_t *)o + of_eeuic_command_units_drag_angle); }
+internal inline void eeuic_command_units_set_drag_angle(eeuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_eeuic_command_units_drag_angle) = v; }
+internal inline float *eeuic_command_units_drag_angle_at(const eeuic_command_units *o) { return (float *)((uint8_t *)o + of_eeuic_command_units_drag_angle); }
+// a drag going on: mouse_move sets it once the cursor is far enough from the press, the press clears it (vf34);
+// the editor's right button up deletes the unit under the cursor without it (EESEUICCommandUnits)
+internal inline uint8_t eeuic_command_units_get_dragging(const eeuic_command_units *o) { return *(uint8_t *)((uint8_t *)o + of_eeuic_command_units_dragging); }
+internal inline void eeuic_command_units_set_dragging(eeuic_command_units *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeuic_command_units_dragging) = v; }
+internal inline uint8_t *eeuic_command_units_dragging_at(const eeuic_command_units *o) { return (uint8_t *)((uint8_t *)o + of_eeuic_command_units_dragging); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_command_units_init_fn)(eeuic_command_units *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_command_units_init_fn fn_eeuic_command_units_init;
@@ -1913,6 +1930,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuic_chat_line_update_keyboard = (eeuic_chat_line_update_keyboard_fn)0x004D84A2;
         vt_eeuic_command_units = 0x00833DE8;
         size_eeuic_command_units = 0xD0;
+        of_eeuic_command_units_press_at = 0xA8;
+        of_eeuic_command_units_drag_angle = 0xB4;
+        of_eeuic_command_units_dragging = 0xB9;
         fn_eeuic_command_units_init = (eeuic_command_units_init_fn)0x00641264;
         fn_eeuic_command_units_copy_data = (eeuic_command_units_copy_data_fn)0x006413C8;
         fn_eeuic_command_units_draw_polygons = (eeuic_command_units_draw_polygons_fn)0x00641630;
@@ -2256,6 +2276,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuic_chat_line_update_keyboard = (eeuic_chat_line_update_keyboard_fn)0x005AD67E;
         vt_eeuic_command_units = 0x00849E8C;
         size_eeuic_command_units = 0xD0;
+        of_eeuic_command_units_press_at = 0xA8;
+        of_eeuic_command_units_drag_angle = 0xB4;
+        of_eeuic_command_units_dragging = 0xB9;
         fn_eeuic_command_units_init = (eeuic_command_units_init_fn)0x00657881;
         fn_eeuic_command_units_copy_data = (eeuic_command_units_copy_data_fn)0x006579E5;
         fn_eeuic_command_units_draw_polygons = (eeuic_command_units_draw_polygons_fn)0x00657C4D;

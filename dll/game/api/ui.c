@@ -232,6 +232,12 @@ internal inline void ground_tell(int x_lo, int x_hi, int y_hi, int y_lo) {
     ground_changed(*(void **)editor_ground_listeners_at(), x_lo, y_hi, x_hi, y_lo);
     if (mm) minimap_paint_done(mm);
 }
+// THE SCENARIO EDITOR'S SELECTION (engine/editor_formation.c): its units (EEUnit*, a vector of the form: begin, end)
+internal inline int editor_selection_n(const ee_editor_form *f) {
+    ee_unit **const *v = (ee_unit **const *)(const void *)editor_form_selection_at(f);   // v[0] begin, v[1] end
+    return v[0] && v[1] > v[0] ? (int)(v[1] - v[0]) : 0;
+}
+internal inline ee_unit *editor_selection_unit(const ee_editor_form *f, int i) { return (*(ee_unit **const *)(const void *)editor_form_selection_at(f))[i]; }
 // the action the Undo or Redo button queues, of the mod's own making (a hotkey's)
 internal inline void se_undo_queue(int redo) {
     uint32_t *a = game_new(value_ui_size_key_scroll);

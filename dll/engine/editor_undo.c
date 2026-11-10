@@ -226,13 +226,13 @@ internal void eu_close(void) {
     if (g_log) log_locked("# editor undo: step %d: %d made, %d gone, %d changed, %d of the ground, %.1f ms\n", g_eu_n, s.nmade, s.ngone, s.nmoved, s.ncells, eu_ms(t0));
 }
 // before an action that changes the scenario. stroke: 1 a paint tool's, its ground watched; 2 a move, open from the pick-up;
-// units: the units' list wanted
+// 3 the right-button drag's turn; units: the units' list wanted
 internal void eu_before(void *vt, int stroke, int units) {
     if (g_eu_depth++ || g_eu_busy) return;
     eu_settle();
     DWORD now = GetTickCount();
     // (the button held: a pause in the stroke doesn't end it)
-    int same = stroke && vt == g_eu_stroke_vt && g_eu_open && (stroke == 2 || now - g_eu_stroke_at < EU_STROKE_MS || GetAsyncKeyState(VK_LBUTTON) < 0);
+    int same = stroke && vt == g_eu_stroke_vt && g_eu_open && (stroke == 2 || now - g_eu_stroke_at < EU_STROKE_MS || GetAsyncKeyState(stroke == 3 ? VK_RBUTTON : VK_LBUTTON) < 0);
     g_eu_stroke_at = now;
     if (same) return;
     eu_close();
@@ -401,7 +401,12 @@ EU_HOOK(se_place_unit, place_unit, 0)
 EU_HOOK(se_place_wall, place_wall, 0)
 EU_HOOK(se_place_gate, place_gate, 0)
 EU_HOOK(se_delete, delete_unit, 0)
-EU_HOOK(se_rotate, rotate_units, 0)
+// the right-button drag's turn, or its formation (editor_formation.c): a turn at every move of the mouse, one step a drag
+internal void __thiscall hook_eu_se_rotate(ee_se_rotate *a) {
+    eu_before(*(void **)a, 3, 1);
+    if (!editor_formation_turn(a)) eesea_rotate_units_run(a);
+    eu_after();
+}
 EU_HOOK(se_paint_area, paint_area, 1)
 EU_HOOK(se_paint_elevation, paint_elevation, 1)
 EU_HOOK(se_paint_mountains, paint_moutains, 1)

@@ -193,6 +193,11 @@ internal inline void *eesea_quick_save_load_init(eesea_quick_save_load *eesea_qu
 
 // class EESEARotateUnits (ee_se_rotate)
 // made in 0x58702B
+// the heading every selected unit is turned to (the right-button drag's EEUICCommandUnits.drag_angle, set by its
+// queue 0x59A6DC, AoC 0x5AA7EC); vf1 skips a unit without a physics part or whose type's +0x43C (AoC +0x140) is 0
+internal inline float se_rotate_get_angle(const ee_se_rotate *o) { return *(float *)((uint8_t *)o + of_se_rotate_angle); }
+internal inline void se_rotate_set_angle(ee_se_rotate *o, float v) { *(float *)((uint8_t *)o + of_se_rotate_angle) = v; }
+internal inline float *se_rotate_angle_at(const ee_se_rotate *o) { return (float *)((uint8_t *)o + of_se_rotate_angle); }
 // vf1: units turned (editor_undo.c: what it changes kept)
 typedef void (__thiscall *se_rotate_run_fn)(ee_se_rotate *);
 internal inline void se_rotate_run(ee_se_rotate *se_rotate) { ((se_rotate_run_fn)(*(void ***)se_rotate)[slot_se_rotate_run])(se_rotate); }
@@ -1525,6 +1530,21 @@ internal inline void *eeseui_build_wall_init(eeseui_build_wall *eeseui_build_wal
 
 // class EESEUICCommandUnits (eeseuic_command_units)
 // EEUICCommandUnits's, the base's
+// the point on the map under the right button's press (vf34: the cursor's ray met with the ground, 0x66326E);
+// mouse_move meets the cursor's ray with the plane at its z (both builds' mouse_move)
+internal inline vec3 eeseuic_command_units_get_press_at(const eeseuic_command_units *o) { return *(vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at); }
+internal inline void eeseuic_command_units_set_press_at(eeseuic_command_units *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at) = v; }
+internal inline vec3 *eeseuic_command_units_press_at_at(const eeseuic_command_units *o) { return (vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at); }
+// the drag's facing: atan2(-dx, dy) from press_at to the point under the cursor (0x64138B, AoC 0x6579A8) - a
+// unit's heading as SetOrientationYPR's yaw (EESEARotateUnits turns the units to it)
+internal inline float eeseuic_command_units_get_drag_angle(const eeseuic_command_units *o) { return *(float *)((uint8_t *)o + of_eeuic_command_units_drag_angle); }
+internal inline void eeseuic_command_units_set_drag_angle(eeseuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_eeuic_command_units_drag_angle) = v; }
+internal inline float *eeseuic_command_units_drag_angle_at(const eeseuic_command_units *o) { return (float *)((uint8_t *)o + of_eeuic_command_units_drag_angle); }
+// a drag going on: mouse_move sets it once the cursor is far enough from the press, the press clears it (vf34);
+// the editor's right button up deletes the unit under the cursor without it (EESEUICCommandUnits)
+internal inline uint8_t eeseuic_command_units_get_dragging(const eeseuic_command_units *o) { return *(uint8_t *)((uint8_t *)o + of_eeuic_command_units_dragging); }
+internal inline void eeseuic_command_units_set_dragging(eeseuic_command_units *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeuic_command_units_dragging) = v; }
+internal inline uint8_t *eeseuic_command_units_dragging_at(const eeseuic_command_units *o) { return (uint8_t *)((uint8_t *)o + of_eeuic_command_units_dragging); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeseuic_command_units_get_mode_now(const eeseuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -1553,9 +1573,12 @@ internal inline ee_ui_form **eeseuic_command_units_form_at(const eeseuic_command
 typedef void *(__thiscall *eeseuic_command_units_init_fn)(eeseuic_command_units *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseuic_command_units_init_fn fn_eeseuic_command_units_init;
 internal inline void *eeseuic_command_units_init(eeseuic_command_units *eeseuic_command_units, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4) { return fn_eeseuic_command_units_init(eeseuic_command_units, p1, p2, p3, p4); }
+// the base's, then while dragging the turn of the selected units to drag_angle queued (EESEARotateUnits, the
+// control's +0xD0; editor_formation.c: a drag begun away from them lays them out in formation instead)
 typedef int (__thiscall *eeseuic_command_units_mouse_move_fn)(eeseuic_command_units *, void *);
 internal eeseuic_command_units_mouse_move_fn fn_eeseuic_command_units_mouse_move;
 internal inline int eeseuic_command_units_mouse_move(eeseuic_command_units *eeseuic_command_units, void *at) { return fn_eeseuic_command_units_mouse_move(eeseuic_command_units, at); }
+internal inline int patch_se_command_move(eeseuic_command_units_mouse_move_fn h) { return patch_vtable(vt_eeseuic_command_units, (int)slot_ui_control_mouse_move, (uintptr_t)fn_eeseuic_command_units_mouse_move, (void *)h); }
 typedef int (__thiscall *eeseuic_command_units_mouse_r_button_up_fn)(eeseuic_command_units *);
 internal eeseuic_command_units_mouse_r_button_up_fn fn_eeseuic_command_units_mouse_r_button_up;
 internal inline int eeseuic_command_units_mouse_r_button_up(eeseuic_command_units *eeseuic_command_units) { return fn_eeseuic_command_units_mouse_r_button_up(eeseuic_command_units); }
@@ -2485,6 +2508,10 @@ internal inline int patch_editor_form(editor_form_init_fn h) { return patch_call
 internal inline eeui_mini_map *editor_form_get_minimap(const ee_editor_form *o) { return *(eeui_mini_map **)((uint8_t *)o + of_editor_form_minimap); }
 internal inline void editor_form_set_minimap(ee_editor_form *o, eeui_mini_map *v) { *(eeui_mini_map **)((uint8_t *)o + of_editor_form_minimap) = v; }
 internal inline eeui_mini_map **editor_form_minimap_at(const ee_editor_form *o) { return (eeui_mini_map **)((uint8_t *)o + of_editor_form_minimap); }
+// the units selected (EEUnit*; begin here, end +0x220): the select 0x58E1E7 adds one and sets its selected, the
+// clear 0x58F623 takes them all off; EESEARotateUnits' vf1 walks them ([game.ui_manager] +0x130, the form shown;
+// both builds)
+internal inline uint8_t *editor_form_selection_at(const ee_editor_form *o) { return (uint8_t *)o + of_editor_form_selection; }
 // every frame the editor is on screen (walls.c: the editor's walls watched while it is)
 typedef int (__thiscall *editor_form_draw_background_fn)(ee_editor_form *, void *);
 internal editor_form_draw_background_fn fn_editor_form_draw_background;
@@ -2620,6 +2647,7 @@ internal int spec_editor_select(int build) {
         size_eesea_quick_save_scenario = 0x10;
         vt_eesea_rotate_units = 0x0082F080;
         size_eesea_rotate_units = 0x10;
+        of_se_rotate_angle = 0xC;
         slot_se_rotate_run = 1;
         fn_eesea_rotate_units_run = (se_rotate_run_fn)0x0059A63F;
         vt_eesea_save_scenario = 0x008300B8;
@@ -3127,6 +3155,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_init = (editor_form_init_fn)0x0058D3E1;
         call_editor_form = 0x0065BA13;
         of_editor_form_minimap = 0x238;
+        of_editor_form_selection = 0x21C;
         fn_editor_form_draw_background = (editor_form_draw_background_fn)0x0058F0D0;
         fn_editor_form_update_keyboard = (editor_form_update_keyboard_fn)0x0058F997;
         fn_editor_form_update_mouse = (editor_form_update_mouse_fn)0x0058FC52;
@@ -3224,6 +3253,7 @@ internal int spec_editor_select(int build) {
         size_eesea_quick_save_scenario = 0x10;
         vt_eesea_rotate_units = 0x00844940;
         size_eesea_rotate_units = 0x10;
+        of_se_rotate_angle = 0xC;
         slot_se_rotate_run = 1;
         fn_eesea_rotate_units_run = (se_rotate_run_fn)0x005AA74F;
         vt_eesea_save_scenario = 0x008459A4;
@@ -3731,6 +3761,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_init = (editor_form_init_fn)0x0059D615;
         call_editor_form = 0x00673E9B;
         of_editor_form_minimap = 0x238;
+        of_editor_form_selection = 0x21C;
         fn_editor_form_draw_background = (editor_form_draw_background_fn)0x0059F501;
         fn_editor_form_update_keyboard = (editor_form_update_keyboard_fn)0x0059FDC8;
         fn_editor_form_update_mouse = (editor_form_update_mouse_fn)0x005A0083;

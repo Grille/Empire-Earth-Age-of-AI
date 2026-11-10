@@ -229,6 +229,11 @@ unsafe struct EESEAQuickSaveScenario
 [size((ee)0x10, (aoc)0x10), vtable((ee)0x0082F080, (aoc)0x00844940), c_type("ee_se_rotate")]
 unsafe struct EESEARotateUnits
 {
+    /// the heading every selected unit is turned to (the right-button drag's EEUICCommandUnits.drag_angle, set by its
+    /// queue 0x59A6DC, AoC 0x5AA7EC); vf1 skips a unit without a physics part or whose type's +0x43C (AoC +0x140) is 0
+    [offset(0xC), found(c)]
+    float32 angle;
+
     /// vf1: units turned (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x0059A63F, (aoc)0x005AA74F)]
     [vtable_site("se_rotate")]
@@ -1283,7 +1288,10 @@ unsafe struct EESEUICCommandUnits
     [address((ee)0x0058702B, (aoc)0x00597261)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4);
 
+    /// the base's, then while dragging the turn of the selected units to drag_angle queued (EESEARotateUnits, the
+    /// control's +0xD0; editor_formation.c: a drag begun away from them lays them out in formation instead)
     [address((ee)0x005870B0, (aoc)0x005972E6), overrides(typeof(UIControl))]
+    [vtable_site("se_command_move")]
     extern int32 mouse_move(void* at);
 
     [address((ee)0x005870E0, (aoc)0x00597316), overrides(typeof(UIControl))]
@@ -1783,6 +1791,12 @@ unsafe struct EEUIFScenarioEditor
     /// its minimap (0x58D3E1 makes it; the form's copy_data marks it dirty when its picture has changed)
     [offset(0x238), found(c)]
     EEUIMiniMap* minimap;
+
+    /// the units selected (EEUnit*; begin here, end +0x220): the select 0x58E1E7 adds one and sets its selected, the
+    /// clear 0x58F623 takes them all off; EESEARotateUnits' vf1 walks them ([game.ui_manager] +0x130, the form shown;
+    /// both builds)
+    [offset(0x21C), found(c)]
+    vector selection;
 
     /// every frame the editor is on screen (walls.c: the editor's walls watched while it is)
     [address((ee)0x0058F0D0, (aoc)0x0059F501), overrides(typeof(UIForm))]

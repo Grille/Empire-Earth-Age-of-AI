@@ -89,6 +89,7 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
 // The arrow keys: the game's form registers them (four EEUIEKeyboardScroll hotkeys, 0x64D0AB), the editor's
 // never did (in neither build: it scrolls only at the screen edge and by dragging) - given to it the same way.
 internal void editor_undo_hotkeys(ee_editor_form *form);   // editor_undo.c
+internal void editor_formation_form(ee_editor_form *form);   // editor_formation.c
 internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
     if (g_editor_layout) {
         int w = 800, h = 600;
@@ -105,6 +106,7 @@ internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
     }
     if (g_log) { log_locked("# editor: arrow keys scroll %d/4\n", n); }
     editor_undo_hotkeys(form);
+    editor_formation_form(form);
     return r;
 }
 
@@ -2025,15 +2027,16 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
         REPLY("ok: posted %d characters\n", n);
         return;
     }
-    if (!strcmp(verb, "vdrag")) {   // vdrag x0 y0 x1 y1: left button down at x0, y0, carried to x1, y1, up there
+    if (!strcmp(verb, "vdrag")) {   // vdrag x0 y0 x1 y1 [right]: the left (or right) button down at x0, y0, carried to x1, y1, up there
         int x0, y0, x1, y1;
-        if (sscanf(args, "%d %d %d %d", &x0, &y0, &x1, &y1) < 4 || x0 < 0 || y0 < 0 || x1 < 0 || y1 < 0) { REPLY("usage: vdrag x0 y0 x1 y1\n"); return; }
+        char which[16] = "";
+        if (sscanf(args, "%d %d %d %d %15s", &x0, &y0, &x1, &y1, which) < 4 || x0 < 0 || y0 < 0 || x1 < 0 || y1 < 0) { REPLY("usage: vdrag x0 y0 x1 y1 [right]\n"); return; }
         g_vm_x = x0; g_vm_y = y0;
         Sleep(100);   // a frame at the start first (hover)
         LONG before = g_vm_clicks;
         g_vm_to_x = x1; g_vm_to_y = y1;
         g_vm_step = 0;
-        g_vm_button = 0;
+        g_vm_button = !strcmp(which, "right") ? 1 : 0;
         for (int i = 0; i < 400 && g_vm_clicks == before; i++) Sleep(10);
         REPLY(g_vm_clicks != before ? "ok: dragged %d,%d to %d,%d\n" : "error: drag not taken within 4 s (%d,%d to %d,%d)\n", x0, y0, x1, y1);
         return;
