@@ -307,8 +307,9 @@ internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return pat
 // from world points (0x50DD81, AoC 0x518676)
 
 // class EEE3DParticle (ee_particle3d)
-// a flying model: the pieces a dying mech or machine throws (a Minotaur's torso, an artillery piece's shards), an effect of
-// the fifth queue, moved once a step
+// a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
+// artillery piece's shards; the Minotaur's top is no such piece but its model's child, flown by GEModel
+// frame_transforms), an effect of the fifth queue, moved once a step
 // where it is drawn: x, then y and z after it (vf6 reads the three into its transformation)
 internal inline float particle3d_get_place(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_place); }
 internal inline void particle3d_set_place(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_place) = v; }
@@ -332,6 +333,33 @@ internal inline uint32_t particle3d_draw(ee_particle3d *particle3d) { return ((p
 internal particle3d_draw_fn fn_eee3_d_particle_draw;
 internal inline uint32_t eee3_d_particle_draw(ee_particle3d *particle3d) { return fn_eee3_d_particle_draw(particle3d); }
 internal inline int patch_particle3d_draw(particle3d_draw_fn h) { return patch_vtable(vt_eee3_d_particle, (int)slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, (void *)h); }
+
+// class EEE2DParticle (ee_particle2d)
+// a flat particle: the flames and smoke of a burning or dying thing, sparks ... (a sprite turned to the camera), an
+// effect of the fifth queue, moved once a step as EEE3DParticle is (its update EE 0x4DDE48, AoC 0x4E4C31, from vf9;
+// not while the game is paused)
+// where it is drawn: x, then y and z after it (vf6)
+internal inline float particle2d_get_place(const ee_particle2d *o) { return *(float *)((uint8_t *)o + of_particle2d_place); }
+internal inline void particle2d_set_place(ee_particle2d *o, float v) { *(float *)((uint8_t *)o + of_particle2d_place) = v; }
+internal inline float *particle2d_place_at(const ee_particle2d *o) { return (float *)((uint8_t *)o + of_particle2d_place); }
+// how far gone (its age over its type's life): its size grows or shrinks and its alpha fades with it (vf6)
+internal inline float particle2d_get_fade(const ee_particle2d *o) { return *(float *)((uint8_t *)o + of_particle2d_fade); }
+internal inline void particle2d_set_fade(ee_particle2d *o, float v) { *(float *)((uint8_t *)o + of_particle2d_fade) = v; }
+internal inline float *particle2d_fade_at(const ee_particle2d *o) { return (float *)((uint8_t *)o + of_particle2d_fade); }
+// its turn on the screen (vf12: at random, kept)
+internal inline float particle2d_get_angle(const ee_particle2d *o) { return *(float *)((uint8_t *)o + of_particle2d_angle); }
+internal inline void particle2d_set_angle(ee_particle2d *o, float v) { *(float *)((uint8_t *)o + of_particle2d_angle) = v; }
+internal inline float *particle2d_angle_at(const ee_particle2d *o) { return (float *)((uint8_t *)o + of_particle2d_angle); }
+// the game time of its last move (EEPhysics time_ms), as EEE3DParticle moved_ms
+internal inline float particle2d_get_moved_ms(const ee_particle2d *o) { return *(float *)((uint8_t *)o + of_particle2d_moved_ms); }
+internal inline void particle2d_set_moved_ms(ee_particle2d *o, float v) { *(float *)((uint8_t *)o + of_particle2d_moved_ms) = v; }
+internal inline float *particle2d_moved_ms_at(const ee_particle2d *o) { return (float *)((uint8_t *)o + of_particle2d_moved_ms); }
+// vf6: draws it
+typedef uint32_t (__thiscall *particle2d_draw_fn)(ee_particle2d *);
+internal inline uint32_t particle2d_draw(ee_particle2d *particle2d) { return ((particle2d_draw_fn)(*(void ***)particle2d)[slot_particle2d_draw])(particle2d); }
+internal particle2d_draw_fn fn_eee2_d_particle_draw;
+internal inline uint32_t eee2_d_particle_draw(ee_particle2d *particle2d) { return fn_eee2_d_particle_draw(particle2d); }
+internal inline int patch_particle2d_draw(particle2d_draw_fn h) { return patch_vtable(vt_eee2_d_particle, (int)slot_particle2d_draw, (uintptr_t)fn_eee2_d_particle_draw, (void *)h); }
 
 // class DX7Screen (ee_screen)
 internal inline uint8_t *screen_get_modes_begin(const ee_screen *o) { return *(uint8_t **)((uint8_t *)o + of_screen_modes_begin); }
@@ -1123,6 +1151,13 @@ internal int spec_engine_display_select(int build) {
         of_particle3d_moved_ms = 0xA8;
         slot_particle3d_draw = 6;
         fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004EB951;
+        vt_eee2_d_particle = 0x0082B0EC;
+        of_particle2d_place = 0x60;
+        of_particle2d_fade = 0x70;
+        of_particle2d_angle = 0x78;
+        of_particle2d_moved_ms = 0x80;
+        slot_particle2d_draw = 6;
+        fn_eee2_d_particle_draw = (particle2d_draw_fn)0x004DE279;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -1476,6 +1511,13 @@ internal int spec_engine_display_select(int build) {
         of_particle3d_moved_ms = 0xA8;
         slot_particle3d_draw = 6;
         fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004F556B;
+        vt_eee2_d_particle = 0x0083FEA4;
+        of_particle2d_place = 0x60;
+        of_particle2d_fade = 0x70;
+        of_particle2d_angle = 0x78;
+        of_particle2d_moved_ms = 0x80;
+        slot_particle2d_draw = 6;
+        fn_eee2_d_particle_draw = (particle2d_draw_fn)0x004E5078;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -1799,6 +1841,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_vtable(vt_eee3_d_particle, ".?AVEEE3DParticle@@", "EEE3DParticle [vtable]");
     bad += spec_code((uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw");
     bad += spec_slot(vt_eee3_d_particle, slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw [slot]");
+    bad += spec_vtable(vt_eee2_d_particle, ".?AVEEE2DParticle@@", "EEE2DParticle [vtable]");
+    bad += spec_code((uintptr_t)fn_eee2_d_particle_draw, "EEE2DParticle.draw");
+    bad += spec_slot(vt_eee2_d_particle, slot_particle2d_draw, (uintptr_t)fn_eee2_d_particle_draw, "EEE2DParticle.draw [slot]");
     bad += spec_code((uintptr_t)fn_pick_list_reset, "EEPickList.reset");
     bad += spec_code((uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units");
     bad += spec_call(call_units_pick_rect, (uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units [call_site units_pick_rect]");

@@ -124,9 +124,9 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
     // stays (a death's: blended toward its first frame it went back to its beginning for a moment and came back)
     *next = f + s <= last ? f + s : k == pose ? o->next_frame : first;
 }
-// THE FLYING PIECES BETWEEN STEPS (with the animation's: picture collect anim): what a dying mech throws - a Minotaur's torso,
-// the shards - is no part of its model but an effect (EEE3DParticle), in no copy of the world, so it stood for a step and
-// jumped (the player, 2026-11-10: "the death animation of a minotaurus cyborg, its still in single frames"). Its update
+// THE FLYING PIECES, THE FLAMES AND THE SMOKE BETWEEN STEPS (with the animation's: picture collect anim): what a dying mech
+// throws - a Minotaur's three pieces, the shards - is no part of its model but an effect (EEE3DParticle), in no copy of
+// the world, so it stood for a step and jumped (the player, 2026-11-10: "the death animation of a minotaurus cyborg, its still in single frames"). Its update
 // moves it whenever the game time has gone on, by the time gone, and stamps it with that time (moved_ms): once a step. Its
 // draw reads three plain things, the place, the angles and the fade: drawn as they were at a game time of their own
 // (pt_clock), blended between the two of its last moves whose stamps hold it. Blended by the real time between its changes
@@ -135,11 +135,16 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
 // stood the piece for one to three frames: "the flying piece still dosnt move smoth" (the player, 2026-11-10). That clock
 // runs on with the real time at the rate the game time goes (g_cp_rate) and is drawn toward a step and a half behind the
 // newest game time, never past it: a step late, or two at once, only bends its pace. So the pieces run about half a step
-// behind the units.
-#define PT_SLOTS 4096
+// behind the units. The flames and smoke (EEE2DParticle, sprites) are made and moved the same way, by their place, their
+// fade (size and alpha) and their turn, and stood the same: at a quarter of the game's speed they changed every third
+// frame of a recording (the player, 2026-11-10: "do Flames and smoke first"). A burning field holds hundreds at once:
+// the table is looked up by the pointer over 8 slots, a slot not seen for a quarter of a second free again.
+#define PT_SLOTS 16384   // a power of two
+#define PT_PROBE 8
 #define PT_MOVES 4
-typedef struct { ee_particle3d *o; LONGLONG seen; int n; float ms[PT_MOVES], v[PT_MOVES][7]; } pt_e;   // its last moves, the newest last
+typedef struct { void *o; LONGLONG seen; int n; float ms[PT_MOVES], v[PT_MOVES][7]; } pt_e;   // its last moves, the newest last
 internal pt_e g_pt[PT_SLOTS];
+internal LONG g_pt_evicted;   // entries taken from a piece still drawn (the table too small)
 internal double g_pt_show_ms = -1.0;   // the pieces' game time; < 0 none (drawn as the game has them)
 internal LONGLONG g_pt_show_at;
 internal LONG g_pt_frame = -1;
@@ -164,34 +169,64 @@ internal void pt_clock(void) {   // once a frame
     if (t > newest) t = newest;
     g_pt_show_ms = t, g_pt_show_at = now;
 }
-internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
-    if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok) return eee3_d_particle_draw(o);
+// the entry of piece o: its own, else one free (or the longest unseen of the probed), emptied
+internal pt_e *pt_entry(void *o, LONGLONG now) {
+    uint32_t h = ((uint32_t)(uintptr_t)o >> 4) * 2654435761u;
+    pt_e *take = NULL;
+    for (uint32_t i = 0; i < PT_PROBE; i++) {
+        pt_e *e = &g_pt[(h + i) & (PT_SLOTS - 1)];
+        if (e->o == o) return e;
+        if (!take || e->seen < take->seen) take = e;
+    }
+    if (take->o && now - take->seen < rd_qpc_ms(250)) g_pt_evicted++;
+    take->o = o, take->n = 0;
+    return take;
+}
+// a piece's values (n of them: its place's three, its turn's, its fade last) at the pieces' time into vals: 1 when they
+// are blended (the caller draws with them and puts cur back), 0 drawn as it is
+internal int pt_blend(void *o, float ms, float *vals, int n, const float *cur) {
+    if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok) return 0;
     pt_clock();
-    float *place = particle3d_place_at(o), *fade = particle3d_fade_at(o), *angles = particle3d_angles_at(o), cur[7];
-    float ms = particle3d_get_moved_ms(o);
-    memcpy(cur, place, 12); memcpy(cur + 3, angles, 12); cur[6] = *fade;
-    pt_e *e = &g_pt[((uint32_t)(uintptr_t)o >> 4) * 2654435761u >> 20];
     LONGLONG t = rd_qpc();
-    if (e->o != o || t - e->seen > rd_qpc_ms(250) || ms < e->ms[e->n - 1]) e->o = o, e->n = 0;   // new here (or a load)
+    pt_e *e = pt_entry(o, t);
+    // one before it in this memory: unseen for a while, its time gone back (a load) or its fade (its age: it only grows)
+    // smaller - the game makes a new flame in the memory of one just gone, and blended from that one's last moves it was
+    // drawn swept and grown across the gap between them for a step (a recording at a quarter of the speed)
+    if (e->n && (t - e->seen > rd_qpc_ms(250) || ms < e->ms[e->n - 1] || cur[n - 1] < e->v[e->n - 1][n - 1])) e->n = 0;
     e->seen = t;
     if (!e->n || ms != e->ms[e->n - 1]) {
         if (e->n == PT_MOVES) memmove(e->ms, e->ms + 1, sizeof e->ms - sizeof e->ms[0]), memmove(e->v, e->v + 1, sizeof e->v - sizeof e->v[0]), e->n--;
         e->ms[e->n++] = ms;
     }
-    memcpy(e->v[e->n - 1], cur, sizeof cur);   // (changed without a move: a load)
+    memcpy(e->v[e->n - 1], cur, (size_t)n * sizeof *cur);   // (changed without a move: a load)
     double d = g_pt_show_ms;
-    if (d < 0.0 || d >= e->ms[e->n - 1]) return eee3_d_particle_draw(o);
+    if (d < 0.0 || d >= e->ms[e->n - 1]) return 0;
     int i = e->n - 2;
     while (i >= 0 && e->ms[i] > d) i--;
-    float b[7], *p = e->v[i < 0 ? 0 : i], *q = e->v[i < 0 ? 0 : i + 1], span = i < 0 ? 0.0f : e->ms[i + 1] - e->ms[i];
-    if (span > 2000.0f) return eee3_d_particle_draw(o);
+    float *p = e->v[i < 0 ? 0 : i], *q = e->v[i < 0 ? 0 : i + 1], span = i < 0 ? 0.0f : e->ms[i + 1] - e->ms[i];
+    if (span > 2000.0f) return 0;
     float a = span > 0.0f ? (float)((d - e->ms[i]) / span) : 0.0f, dx = q[0] - p[0], dy = q[1] - p[1];
-    if (dx * dx + dy * dy > 16.0f) return eee3_d_particle_draw(o);   // not the same flight
-    for (int k = 0; k < 7; k++) b[k] = p[k] + (q[k] - p[k]) * a;
-    for (int k = 3; k < 6; k++) if (fabsf(q[k] - p[k]) > 1.6f) b[k] = q[k];   // an angle come round
+    if (dx * dx + dy * dy > 16.0f) return 0;   // not the same flight
+    for (int k = 0; k < n; k++) vals[k] = p[k] + (q[k] - p[k]) * a;
+    for (int k = 3; k < n - 1; k++) if (fabsf(q[k] - p[k]) > 1.6f) vals[k] = q[k];   // an angle come round
+    return 1;
+}
+internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
+    float *place = particle3d_place_at(o), *fade = particle3d_fade_at(o), *angles = particle3d_angles_at(o), cur[7], b[7];
+    memcpy(cur, place, 12); memcpy(cur + 3, angles, 12); cur[6] = *fade;
+    if (!pt_blend(o, particle3d_get_moved_ms(o), b, 7, cur)) return eee3_d_particle_draw(o);
     memcpy(place, b, 12); memcpy(angles, b + 3, 12); *fade = b[6];
     uint32_t r = eee3_d_particle_draw(o);
     memcpy(place, cur, 12); memcpy(angles, cur + 3, 12); *fade = cur[6];
+    return r;
+}
+internal uint32_t __thiscall pt_hook_draw2d(ee_particle2d *o) {
+    float *place = particle2d_place_at(o), *fade = particle2d_fade_at(o), *angle = particle2d_angle_at(o), cur[5], b[5];
+    memcpy(cur, place, 12); cur[3] = *angle, cur[4] = *fade;
+    if (!pt_blend(o, particle2d_get_moved_ms(o), b, 5, cur)) return eee2_d_particle_draw(o);
+    memcpy(place, b, 12); *angle = b[3], *fade = b[4];
+    uint32_t r = eee2_d_particle_draw(o);
+    memcpy(place, cur, 12); *angle = cur[3], *fade = cur[4];
     return r;
 }
 // THE MODELS' FRAME TRANSFORMATIONS BETWEEN FRAMES (with the animation's: picture collect anim): a model moves by its
@@ -1275,6 +1310,7 @@ internal void collect_install(void) {
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
     int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts), fx_of = 0;
     if (!patch_particle3d_draw(pt_hook_draw) && g_log) fprintf(g_log, "# collect: the flying pieces' draw NOT hooked\n");
+    if (!patch_particle2d_draw(pt_hook_draw2d) && g_log) fprintf(g_log, "# collect: the flames' and smoke's draw NOT hooked\n");
     g_mt_apply = transform_mul_export();
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");
@@ -1427,6 +1463,8 @@ internal void collect_print(void) {
         log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects, %ld finished ones passed over), %ld taken by frames during a step; checked %ld, %ld differ\n",
                    g_fx_on == 2 ? "check" : "on", (long)g_fx_builds, g_fx_builds ? (double)g_fx_qpc / rd_qpc_ms(1) / g_fx_builds : 0.0,
                    g_fx_builds ? (double)g_fx_queued / g_fx_builds : 0.0, (long)g_fx_dead, (long)g_fx_takes, (long)g_fx_chk_n, (long)g_fx_chk_diff);
+    if (g_cp_smooth == 1 && g_uc_anim_smooth)
+        log_locked("# collect: the pieces, flames and smoke between steps: %ld times a piece still drawn lost its moves (the table full)\n", (long)g_pt_evicted);
     if (g_cp_smooth)
         log_locked("# collect: the moving between steps (%s): %u frames of a moving object, its step on the screen %.4f tiles on average, rms %.4f (%.2f times the average: 1 is even), %u frames it did not move\n",
                    g_cp_smooth == 1 ? "on" : "probe", g_cs_n, g_cs_n ? g_cs_sum / g_cs_n : 0.0, g_cs_n ? sqrt(g_cs_sq / g_cs_n) : 0.0,

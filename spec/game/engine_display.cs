@@ -376,8 +376,9 @@ unsafe struct EEE3DMarchingLine
 {
 }
 
-/// a flying model: the pieces a dying mech or machine throws (a Minotaur's torso, an artillery piece's shards), an effect of
-/// the fifth queue, moved once a step
+/// a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
+/// artillery piece's shards; the Minotaur's top is no such piece but its model's child, flown by GEModel
+/// frame_transforms), an effect of the fifth queue, moved once a step
 [vtable((ee)0x0082BAF8, (aoc)0x00840AC4), c_type("ee_particle3d")]
 unsafe struct EEE3DParticle
 {
@@ -401,6 +402,34 @@ unsafe struct EEE3DParticle
     /// vf6: draws it
     [slot(6), address((ee)0x004EB951, (aoc)0x004F556B)]
     [vtable_site("particle3d_draw")]
+    extern uint32 draw();
+}
+
+/// a flat particle: the flames and smoke of a burning or dying thing, sparks ... (a sprite turned to the camera), an
+/// effect of the fifth queue, moved once a step as EEE3DParticle is (its update EE 0x4DDE48, AoC 0x4E4C31, from vf9;
+/// not while the game is paused)
+[vtable((ee)0x0082B0EC, (aoc)0x0083FEA4), c_type("ee_particle2d")]
+unsafe struct EEE2DParticle
+{
+    /// where it is drawn: x, then y and z after it (vf6)
+    [offset(0x60), found(c)]
+    float32 place;
+
+    /// how far gone (its age over its type's life): its size grows or shrinks and its alpha fades with it (vf6)
+    [offset(0x70), found(c)]
+    float32 fade;
+
+    /// its turn on the screen (vf12: at random, kept)
+    [offset(0x78), found(c)]
+    float32 angle;
+
+    /// the game time of its last move (EEPhysics time_ms), as EEE3DParticle moved_ms
+    [offset(0x80), found(c)]
+    float32 moved_ms;
+
+    /// vf6: draws it
+    [slot(6), address((ee)0x004DE279, (aoc)0x004E5078)]
+    [vtable_site("particle2d_draw")]
     extern uint32 draw();
 }
 
