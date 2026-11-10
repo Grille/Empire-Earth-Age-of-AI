@@ -27,6 +27,47 @@ columns = {
     en = "Columns",
     de = "Spalten",
 }
+// the formation list: what a right-button drag does with the units selected, and how a block is laid out
+formation = {
+    en = "Formation",
+    de = "Formation",
+}
+form_rotate = {
+    en = "Rotate",
+    de = "Drehen",
+}
+form_short_line = {
+    en = "Short line",
+    de = "Kurze Linie",
+}
+form_long_line = {
+    en = "Long line",
+    de = "Lange Linie",
+}
+form_loose_line = {
+    en = "Loose line",
+    de = "Lockere Linie",
+}
+form_staggered_line = {
+    en = "Staggered line",
+    de = "Versetzte Linie",
+}
+form_deep_wedge = {
+    en = "Deep wedge",
+    de = "Tiefer Keil",
+}
+form_shallow_wedge = {
+    en = "Shallow wedge",
+    de = "Flacher Keil",
+}
+form_inward_circle = {
+    en = "Circle facing in",
+    de = "Kreis nach innen",
+}
+form_outward_circle = {
+    en = "Circle facing out",
+    de = "Kreis nach außen",
+}
 
 // THE SCENARIO EDITOR: terrain
 cliff_rock_1 = {

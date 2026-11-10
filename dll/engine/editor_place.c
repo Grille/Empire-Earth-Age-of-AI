@@ -19,6 +19,22 @@
 #define EP_FIELD_CHARS 2
 #define EP_BLOCK_MAX 50      // a side: what a frame's checks and records can take
 enum { EP_ROWS_LABEL, EP_ROWS, EP_COLUMNS_LABEL, EP_COLUMNS, EP_FIELDS };
+// THE FORMATION LIST (the player, 2026-11-10: "maybe an dropbox with available formations? with rotate being one of them.
+// the row collum should also use the selected formation aswell as the rotation"): on the strip's last line, below a
+// selected unit's stats and above the panel's buttons, shown with the panel. What a right-button drag does with the units
+// selected (editor_formation.c): Rotate turns them where they stand, a formation lays them out. And how a block of a
+// type that moves is laid out: around the mouse, turned with the ghost's rotation - Rotate and the lines in rows and
+// columns (the lines spaced by the units' size, a loose line's twice as wide, the staggered line's every other row half
+// a unit aside), a wedge or a circle of rows x columns units as a group move lays them. A block of a type that doesn't
+// move (a building) keeps its rows and columns along the map's tiles
+#define EP_FORM_DOWN 92.0f   // its line under the list (2048 x 1152: the list ends at 989, a unit's stats at 1076, the buttons from 1116)
+#define EP_LABEL_FORM 60.0f
+#define EP_FORM_WIDTH 140.0f
+#define EP_FORMS 9           // Rotate, then the formation kinds in their order
+internal const char *const k_ep_form_word[EP_FORMS] = { "form_rotate", "form_short_line", "form_long_line", "form_loose_line", "form_staggered_line",
+                                                        "form_deep_wedge", "form_shallow_wedge", "form_inward_circle", "form_outward_circle" };
+internal ee_ui_control *g_ep_form_label, *g_ep_form;
+internal int g_ep_form_kind = FORMATION_SHORT_LINE;   // the list as last read: -1 Rotate, else a formation_kind
 internal ee_se_unit *g_ep_panel;       // the editor's units panel, while it is
 internal ee_ui_control *g_ep_box;
 internal uint32_t g_ep_shown;          // the box's display mode as made
@@ -67,9 +83,117 @@ internal void ep_block_fit(void *v, uint32_t want) {
     while (vector_size(v) > want) ghost_units_drop_last();
     while (vector_size(v) < want && ghost_unit_add(unit_type_get_id(ghost_unit_get_type_data(g)), ghost_unit_get_player(g))) {}
 }
-// the extra ghosts laid around the first, which the game has put under the mouse, each a footprint from the next: its
-// pose (the first's turn) moved by whole tiles, so a type the game doesn't snap to the tiles stays where the mouse has it
+// the formation list's choice: -1 Rotate, else a formation_kind (kept when the panel goes)
+internal int ep_form_kind(void) {
+    if (g_ep_form) {
+        uint32_t line = ui_combo_box_get_current_selection((ui_combo_box *)g_ep_form);
+        if (line < EP_FORMS) g_ep_form_kind = (int)line - 1;
+    }
+    return g_ep_form_kind;
+}
+// the block's spots in its own frame (x to the right, y ahead; their middle at 0) and each one's turn from the block's
+// facing (a circle's units face out or in): the n = rows x columns units each w wide, the grid's (Rotate) step apart
+internal void ep_form_spots(int kind, int rows, int columns, float w, float step, vec2 *at, float *turn) {
+    int n = rows * columns;
+    if (kind >= FORMATION_DEEP_WEDGE && n > FO_MAX) kind = FORMATION_SHORT_LINE;   // (the layout's table)
+    if (kind < FORMATION_DEEP_WEDGE) {
+        float d = kind < 0 ? step : w;
+        for (int r = 0, i = 0; r < rows; r++)
+            for (int c = 0; c < columns; c++, i++) {
+                float shift = kind == FORMATION_LOOSE_STAGGERED_LINE && (r & 1) ? d * 0.5f : 0;
+                at[i] = v2(((float)c - (float)(columns - 1) * 0.5f) * d + shift, -(float)r * d);
+                turn[i] = 0;
+            }
+    } else {
+        const float TWO_PI = 6.28318531f;
+        for (int i = 0; i < n; i++) {
+            struct fo_unit *f = &g_fo[i];
+            memset(f, 0, sizeof *f);
+            f->w = w;
+            f->p = v2(cosf(TWO_PI * (float)i / (float)n), sinf(TWO_PI * (float)i / (float)n));   // a circle's order round it
+            g_fo_order[i] = i;
+        }
+        if (kind >= FORMATION_INWARD_CIRCLE) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind, columns);
+        for (int i = 0; i < n; i++) {
+            at[i] = g_fo[i].at;
+            float out = at[i].x * at[i].x + at[i].y * at[i].y > 1e-6f ? atan2f(-at[i].x, at[i].y) : 0;   // the heading away from the middle
+            turn[i] = kind == FORMATION_OUTWARD_CIRCLE ? out : kind == FORMATION_INWARD_CIRCLE ? out + 3.14159265f : 0;
+        }
+    }
+    vec2 mid = v2(0, 0);
+    for (int i = 0; i < n; i++) mid = vec2_add(mid, at[i]);
+    mid = vec2_scale(mid, 1.0f / (float)n);
+    for (int i = 0; i < n; i++) at[i] = vec2_sub(at[i], mid);
+}
+// a transformation turned about the upright by a (its axes: the rows of its 3 x 3, its scale kept)
+internal void ep_turn(float *t, float a) {
+    float c = cosf(a), s = sinf(a);
+    for (int k = 0; k < 3; k++) {
+        float x = t[k], y = t[4 + k];
+        t[k] = c * x - s * y;
+        t[4 + k] = s * x + c * y;
+    }
+}
+// a block of a type that moves: every ghost (the first too) on its spot round the mouse, where the game has put the
+// first, facing as the first. The first keeps its own turn (the game's preview moves it, its turn stays as the
+// ghost was made): a circle's other units are turned by their spot's turn less the first's
+internal void ep_block_form(void *v, int rows, int columns, int kind) {
+    static vec2 at[EP_BLOCK_MAX * EP_BLOCK_MAX];
+    static float turn[EP_BLOCK_MAX * EP_BLOCK_MAX];
+    ee_ghost_unit *g = ep_ghost(v, 0);
+    ee_unit_type *td = ghost_unit_get_type_data(g);
+    ee_map *map = game_map();
+    int size = unit_type_get_size(td);
+    uint32_t n = vector_size(v);
+    if (n > (uint32_t)(rows * columns)) n = (uint32_t)(rows * columns);
+    float t0[16];
+    memcpy(t0, ghost_unit_transform_at(g), sizeof t0);
+    vec2 mouse = v2(t0[3], t0[7]), fwd = v2(t0[1], t0[5]);
+    float fl = vec2_len(fwd), cs = unit_type_get_collider_size(td);
+    fwd = fl > 1e-4f ? vec2_scale(fwd, 1.0f / fl) : v2(0, 1);
+    ep_form_spots(kind, rows, columns, (cs < FO_MIN_SIZE ? FO_MIN_SIZE : cs) * FO_PAD[kind < 0 ? 0 : kind], (float)(size < 2 ? 1 : size), at, turn);
+    if (turn[0] != 0) {   // the block's facing: the first's less its spot's turn
+        float c = cosf(-turn[0]), s = sinf(-turn[0]);
+        fwd = v2(c * fwd.x - s * fwd.y, s * fwd.x + c * fwd.y);
+    }
+    vec2 right = v2(fwd.y, -fwd.x);
+    for (uint32_t i = 0; i < n; i++) {
+        ee_ghost_unit *e = ep_ghost(v, i);
+        float *t = ghost_unit_transform_at(e), m[16];
+        memcpy(m, t0, sizeof m);
+        if (i && turn[i] != turn[0]) ep_turn(m, turn[i] - turn[0]);
+        vec2 p = vec2_add(mouse, vec2_add(vec2_scale(right, at[i].x), vec2_scale(fwd, at[i].y)));
+        m[3] = p.x, m[7] = p.y;
+        int x = (int)floorf(p.x), y = (int)floorf(p.y), on = ep_on_map(x, y);
+        if (on) m[11] = fmaxf(mesh_z(map_mesh_at(map), p.x, p.y), 0.0f);
+        memcpy(t, m, sizeof m);
+        if (i) {
+            ghost_unit_set_frame(e, ghost_unit_get_frame(g));
+            ghost_unit_set_anim(e, ghost_unit_get_anim(g));
+            ghost_unit_set_stands_on(e, ghost_unit_get_stands_on(g));
+        }
+        ghost_unit_set_tile_x(e, x);
+        ghost_unit_set_tile_y(e, y);
+        ghost_unit_check(e);
+        if (!on) ghost_unit_set_can_place(e, 0);
+    }
+}
+// whether the ghosts' type moves (its owner's stats: a unit, not a building)
+internal int ep_moves(ee_ghost_unit *g) {
+    ee_player *pl = ghost_unit_get_player(g);
+    ee_unit_type *td = ghost_unit_get_type_data(g);
+    ee_unit_stats *st = pl && td ? player_stats_of(pl, unit_type_get_id(td)) : NULL;
+    return st && unit_stats_get_speed(st) > 0;
+}
+internal void ep_block_grid(void *v, int rows, int columns);
 internal void ep_block_lay(void *v, int rows, int columns) {
+    if (ep_moves(ep_ghost(v, 0))) ep_block_form(v, rows, columns, ep_form_kind());
+    else ep_block_grid(v, rows, columns);
+}
+// a building's block: the extra ghosts laid around the first, which the game has put under the mouse, each a footprint
+// from the next: its pose (the first's turn) moved by whole tiles, so a type the game doesn't snap to the tiles stays
+// where the mouse has it
+internal void ep_block_grid(void *v, int rows, int columns) {
     ee_ghost_unit *g = ep_ghost(v, 0);
     ee_unit_type *td = ghost_unit_get_type_data(g);
     ee_map *map = game_map();
@@ -146,7 +270,34 @@ internal void ep_field_add(int i, const char *label, float *left, float width, f
     g_ep_field_shown[i] = ui_control_get_mode_now(c);
     ui_control_set_display_mode(c, 0);
 }
+// the formation list with its label, on the strip's last line
+internal void ep_form_add(float left, float top, ee_ui_form *form, int *index) {
+    float rect[4] = { top + EP_HEIGHT, left, left + EP_LABEL_FORM, top };   // bottom, left, right, top
+    __attribute__((aligned(8))) uint8_t w[32];
+    wstring_init_text(w, word("formation"));
+    g_ep_form_label = text_label_new(EP_ID + 1 + EP_FIELDS, w, ui_get_font_label(), rect, form, index);
+    wstring_free(w);
+    if (g_ep_form_label) {
+        ui_control_set_bg_opacity(g_ep_form_label, 0.4f);
+        editor_units_add_control(form, g_ep_form_label);
+    }
+    float box[4] = { top + EP_HEIGHT, left + EP_LABEL_FORM, left + EP_LABEL_FORM + EP_FORM_WIDTH, top };
+    g_ep_form = combo_box_new(EP_ID + 2 + EP_FIELDS, ui_get_font_label(), box, form, index);   // (the panel's font is larger than its labels')
+    if (!g_ep_form) return;
+    ui_combo_box *c = (ui_combo_box *)g_ep_form;
+    for (int i = 0; i < EP_FORMS; i++) {
+        wstring_init_text(w, word(k_ep_form_word[i]));
+        combo_box_append(c, w);
+        wstring_free(w);
+    }
+    combo_box_select(c, (unsigned)(g_ep_form_kind + 1));
+    ui_control_set_bg_opacity(ui_combo_box_get_text_box(c), 0.4f);
+    combo_box_style(c);
+    editor_units_add_control(form, g_ep_form);
+    if (g_log) log_locked("# editor: formation list at %.0f,%.0f\n", left, top);
+}
 internal void ep_panel_init(ee_se_unit *p, ee_ui_control *list, ee_ui_form *form, int *index) {
+    ep_form_add(ui_control_get_left(list) + 6.0f, ui_control_get_bottom(list) + EP_FORM_DOWN, form, index);
     float top = ui_control_get_bottom(list) + EP_GAP, left = ui_control_get_left(list) + 6.0f;
     float rect[4] = { top + EP_HEIGHT, left, left + EP_WIDTH, top };   // bottom, left, right, top
     __attribute__((aligned(8))) uint8_t w[32];
@@ -180,6 +331,12 @@ internal void __thiscall hook_ep_update(ee_se_unit *p) {
 // the panel deleted: the box first, as the search box (editor_search.c)
 internal void ep_panel_delete(ee_se_unit *p) {
     if (p != g_ep_panel) return;
+    ep_form_kind();
+    ee_ui_control **form[2] = { &g_ep_form_label, &g_ep_form };
+    for (int i = 0; i < 2; i++) {
+        if (*form[i]) ((void (__thiscall *)(void *, int))(*(void ***)*form[i])[0])(*form[i], 1);
+        *form[i] = NULL;
+    }
     if (g_ep_box) ((void (__thiscall *)(void *, int))(*(void ***)g_ep_box)[0])(g_ep_box, 1);
     for (int i = 0; i < EP_FIELDS; i++) {
         if (g_ep_field[i]) ((void (__thiscall *)(void *, int))(*(void ***)g_ep_field[i])[0])(g_ep_field[i], 1);
