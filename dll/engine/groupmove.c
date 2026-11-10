@@ -331,7 +331,7 @@ internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
 // step: the last it followed; pend (1-based, into g_ff_p): the first of the queued moves' marches it joins, each when it
 // sets out; home its spot at the goal
-struct ff_unit { uint32_t id; int g, pend; vec2 off, home, col; float w, cw, gap, prog; uint32_t ahead, prog_at; int rel, resent; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order, waited, merge; uint32_t wait_at, jam_at; float wait_along; };   // jam_at: the step it was first held up (behind its point, asking its top speed, going slower), 0: not now   // waited: 1 a straggler the formation waits for (formation_wait), till it is within its catch-up of its point, -1 one it gave up on till then (wait_at, wait_along: the step it last gained on its point, and how far behind it was then)   // order: its place front to back, left to right in its formation; col: its place in the narrowed column (ff_off), w its width as laid out, cw its width in a column (ff_fill_column), ahead the first unit of the rank before its (0: the front rank) and gap the spacing to that rank, prog how far along the line it was at its last tick (ff_progress), at step prog_at; rel: let go to its spot as the column drained; out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
+struct ff_unit { uint32_t id; int g, pend; vec2 off, home, col; float w, cw, gap, prog; uint32_t ahead, prog_at; int rel, resent; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order, waited, merge, halt; uint32_t wait_at, jam_at; float wait_along, debt; };   // halt: held standing by the merge (ff_stand), debt: how far its place has moved on meanwhile   // jam_at: the step it was first held up (behind its point, asking its top speed, going slower), 0: not now   // waited: 1 a straggler the formation waits for (formation_wait), till it is within its catch-up of its point, -1 one it gave up on till then (wait_at, wait_along: the step it last gained on its point, and how far behind it was then)   // order: its place front to back, left to right in its formation; col: its place in the narrowed column (ff_off), w its width as laid out, cw its width in a column (ff_fill_column), ahead the first unit of the rank before its (0: the front rank) and gap the spacing to that rank, prog how far along the line it was at its last tick (ff_progress), at step prog_at; rel: let go to its spot as the column drained; out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal unsigned g_ff_in_place;    // re-forms in place: no march
 internal unsigned g_ff_wait_gave_up;   // stragglers the formation stopped waiting for (formation_wait): not gaining on their points
@@ -1922,13 +1922,54 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     return 1;
 }
 
+// STAND OR WALK (the player, 2026-11-10: "the formation can slow down to silly looking speeds, the result is soldiers
+// walking on the same spot, or gliding slowly towards the chokepoint" - their rule: slower than a quarter of its
+// speed, and its target not yet twice its size away, it stops; and standing it shows its standing animation): a
+// merging unit whose speed (want) would be under FF_STAND_AT of its top speed stands - at rest in the game's idle
+// animation (7; a move's walk, 0xD, runs on whatever the speed) - till the way it would have crept adds up to
+// FF_STAND_STEP times its size, then walks that off at FF_WALK_MIN of its top speed or more, and stands again. Only
+// the two animations are changed, and only for a unit this held (halt 2: its walk put back when it goes on, leaves
+// the merge or the march)
+#define FF_STAND_AT 0.25f
+#define FF_STAND_STEP 2.0f
+#define FF_WALK_MIN 0.5f
+#define FF_ANIM_IDLE 7
+#define FF_ANIM_IDLE2 8        // the game's other idle animation: a unit standing in 7 goes on to it by itself
+#define FF_ANIM_WALK 0xD
+internal unsigned g_ff_stands;   // times a merging unit was stood
+internal void ff_walk_on(struct ff_unit *e, ee_unit *u) {
+    if (e->halt == 2 && (unit_get_anim(u) == FF_ANIM_IDLE || unit_get_anim(u) == FF_ANIM_IDLE2) && unit_orders(u)) unit_start_anim(u, FF_ANIM_WALK, -1, 0);
+    e->halt = 0;
+    e->debt = 0;
+}
+internal float ff_stand(struct ff_unit *e, ee_unit *u, float want, float top, float dt) {
+    float sz = unit_get_size(u), step_len = FF_STAND_STEP * (sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz), v = unit_get_speed(u);
+    if (!e->halt) {
+        if (want >= FF_STAND_AT * top && e->debt <= 0) return want;
+        if (e->debt > 0) {   // walking a stand's way off
+            e->debt += (want - v) * dt;
+            return want > FF_WALK_MIN * top ? want : FF_WALK_MIN * top;
+        }
+        e->halt = 1;
+        g_ff_stands++;
+    }
+    e->debt += want * dt;
+    if (e->debt >= step_len || want >= FF_WALK_MIN * top) {   // its place far enough on, or the column flowing again
+        ff_walk_on(e, u);
+        e->debt = step_len < 0.01f ? 0.01f : e->debt > 0.01f ? e->debt : 0.01f;
+        return want > FF_WALK_MIN * top ? want : FF_WALK_MIN * top;
+    }
+    if (e->halt == 1 && v < 0.01f && unit_get_anim(u) == FF_ANIM_WALK) { unit_start_anim(u, FF_ANIM_IDLE, -1, 0); e->halt = 2; }
+    return 0;
+}
+
 // the land models' speed step: the leader at the march's speed (the slowest member's top speed), less while a member
 // lags (formation_wait); a follower that steered this step at its point's speed (the leader's) its way plus
 // FF_GAIN for each tile behind it - while behind up to formation_catchup (or formation_reform) of its own top speed (the slowest ones could never catch up at their top speed,
 // and the formation as a whole still goes no faster than its slowest unit) - towards it by its own acceleration a tick;
 // the game's own step while it turns more than 45 degrees
 // (ships: shiproute.c's speed step calls it with the game's step s)
-internal float ff_speed(ee_unit *u, float s, float angle) {
+internal float ff_speed_step(ee_unit *u, float s, float angle) {
     struct ff_unit *e = g_ff_on && u ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
     if (!e) return s;
     uint32_t step = ff_step();
@@ -1936,19 +1977,22 @@ internal float ff_speed(ee_unit *u, float s, float angle) {
     // point by the follow (this tick or the last): the game's angle is to its own waypoint then, behind a unit waiting
     // abreast for its point, and the game's step turned it round and walked it back, ours turned it forward again - a
     // twitch every second while it waited (the save's 27-tile march: a unit 0 -> 0.34 -> 0.60 -> 0.26 -> 0, five times)
-    if (fabsf(angle) > 0.7853982f && (e->step == ~0u || step - e->step > 1)) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x game s %.3f ang %.2f steered %d own %d\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, angle, e->step == ~0u ? -1 : (int)(ff_step() - e->step), e->own); return s; }
+    if (fabsf(angle) > 0.7853982f && (e->step == ~0u || step - e->step > 1)) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x game s %.3f ang %.2f steered %d own %d\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, angle, e->step == ~0u ? -1 : (int)(ff_step() - e->step), e->own); ff_walk_on(e, u); return s; }
     ee_unit *l;
     struct ff_group *gr = ff_march(e, u, step, &l);
-    if (!gr) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x nomarch s %.3f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s); return s; }
+    if (!gr) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x nomarch s %.3f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s); ff_walk_on(e, u); return s; }
     float top = unit_max_speed(u), want, cap = top;
-    if (e->step == ~0u || step - e->step > FF_KEEP) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x own s %.3f since %u\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, e->step == ~0u ? 0 : step - e->step); return s; }   // steered at its point lately (a ship isn't every tick)
+    if ((e->halt || e->debt > 0) && step - e->step > 1) ff_walk_on(e, u);   // no longer steered (its own route, let go): it walks
+    if (e->step == ~0u || step - e->step > FF_KEEP) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x own s %.3f since %u\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, e->step == ~0u ? 0 : step - e->step); ff_walk_on(e, u); return s; }   // steered at its point lately (a ship isn't every tick)
     want = e->with + FF_GAIN * e->along;   // its point's speed its way, and closing
     if (e->merge) want = e->with;   // a column's unit ahead of its place: the merge's speed (fo_follow_aim)
     if (e->along > 0) cap = top * (1 + ff_boost(e, u, step));   // near its place only, or in the re-form's grace
     if (want > cap) want = cap;
     if (want < 0) want = 0;
-    e->want = want;
     ee_physics *ph = game_physics();
+    if (!gr->naval && gr->started && !gr->fight) want = ff_stand(e, u, want, top, ph ? physics_get_step_s(ph) : 0.05f);   // any steered land unit: a formation slowed to a crawl (a jam ahead, a draining column) goes on in steps too
+    else if (e->halt || e->debt > 0) ff_walk_on(e, u);
+    e->want = want;
     // by its own acceleration: capped (0.5 tiles/s/s against a halberdier's 1.3) the units arrived late - one stopped
     // by a push near its spot got going too slowly (form_place's last at 104 s, 64 uncapped; form_back 82, 68); and
     // the march slowed into its goal (over the last 2-4 tiles, to 40-50%) doubled the pushes at rest and left a unit
@@ -1956,6 +2000,18 @@ internal float ff_speed(ee_unit *u, float s, float angle) {
     float v = unit_get_speed(u), acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
     if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x ff s %.3f ang %.2f want %.3f v %.3f along %.2f with %.3f acc %.3f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, angle, want, v, e->along, e->with, acc);
     return v < want ? (v + acc < want ? v + acc : want) : (v - acc > want ? v - acc : want);
+}
+// (and no land unit of a march goes on in a standing animation: one stood by ff_stand whose entry was given to a new
+// march, or that stood on in the game's second idle animation, glided - 4% of the moving steps of the player's centre
+// group; without ff_stand none moves so)
+internal float ff_speed(ee_unit *u, float s, float angle) {
+    float r = ff_speed_step(u, s, angle);
+    struct ff_unit *e = g_ff_on && u && r > 0.02f ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
+    if (e && e->g >= 0 && !g_ff[e->g].naval && (unit_get_anim(u) == FF_ANIM_IDLE || unit_get_anim(u) == FF_ANIM_IDLE2)) {
+        ee_goal *g = unit_get_goal(u);
+        if (g && goal_is_location(g)) unit_start_anim(u, FF_ANIM_WALK, -1, 0);
+    }
+    return r;
 }
 // a ship's turn at its point (shiproute.c, after the game's turn towards it: *left the angle off its bow then): at a
 // rate of the angle left over FF_TURN_T, within its top turn rate and changed by its turn acceleration a tick - the
