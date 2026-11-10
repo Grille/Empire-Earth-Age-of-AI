@@ -36,6 +36,7 @@ struct ai_cfg {
     float home_guard_share; // of the military room (defence.c)
     int pop_follow;         // pop_follow_human: 1 = the game's cap that follows the humans, 0 = the game limit (econ.c)
     int attention;          // attention_activities, 0 = leave (the game's own 5)
+    int last_stand;         // last_stand_buildings, -1 = leave (the game's own 9)
 };
 enum { PACE_CLASSIC, PACE_TIMER, PACE_RUSH, PACE_FOLLOW, PACE_INDEPENDENT, PACE_N };
 internal const char *const k_pacing[PACE_N] = { "classic", "timer", "rush", "follow", "independent" };
@@ -141,6 +142,7 @@ internal void settings_load(void) {
         c->home_guard_share = v->home_guard_share;
         c->pop_follow = v->pop_follow_human;
         c->attention = v->attention_activities;
+        c->last_stand = v->last_stand_buildings;
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) cost=%d%% "
                     "pacing=%s epoch=%d-%d attacks first %d-%d every %d-%d group %d%% "
@@ -197,5 +199,6 @@ internal void settings_apply(ee_player *pl) {
     if (c->attack_revenge >= 0) player_set_attack_revenge(pl, c->attack_revenge);
     if (c->citizen_share > 0.0f && c->citizen_share < 1.0f) player_set_citizen_share(pl, c->citizen_share);
     if (c->attention > 0) player_set_attention(pl, c->attention - 1);   // the game takes +0xE20 + 1 of them (0x42F912)
+    if (c->last_stand >= 0) player_set_bonzai_level(pl, c->last_stand);   // 0x475120: fewer buildings than this; 0: never
     if (g_log) fprintf(g_log, "# settings applied: P%d difficulty %d\n", player_get_index(pl), d);
 }

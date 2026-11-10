@@ -9,7 +9,7 @@ it and Art of Conquest's routines were not compared. "The mod's players" are tho
 - **ALONE**: no hook on it and nothing of the mod feeds it. **ALONE (gate)**: the decision is the game's and unvetted, only
   `hook_place` or `hook_train_units`, which everything passes, can refuse it afterwards.
 
-76 rows: 7 REPLACED, 37 FILTERED (4 of them ALONE (gate) below), 31 ALONE, 1 unknown. A count of rows, not of importance.
+76 rows: 8 REPLACED, 37 FILTERED (4 of them ALONE (gate) below), 30 ALONE, 1 unknown. A count of rows, not of importance.
 
 ## Economy and the player
 
@@ -91,7 +91,7 @@ it and Art of Conquest's routines were not compared. "The mod's players" are tho
 | 30 | 0x4751F1, 0x4746AD, 0x4777EA, 0x4753A9 town guards | each defence pass | guard groups per own town, strength 0x47A686 | ALONE | none (pool without land soldiers on ar_on) | no town guards. No replacement: bunker.c town_guards is off, towns.c fort is off (not in default towns) |
 | 31 | 0x474E85 aid to allies | each defence pass | whether another player's or ally's town gets a package (threat > +0xC48) | ALONE | none | allies get no help. diplo.c has no military help. No replacement |
 | 32 | 0x474CC8 reinforcement | +0x3C timer (defence_update_ms) | random vs town_guard_pct +0xBD8: attack group 0x47462A, or reinforce a town | ALONE | none | no extra defence group or defenders' attack. No replacement |
-| 33 | 0x475120, 0x47562C Bonzai attack | 80 s (300 s after one) | buildings left under +0xD3C: last all-out attack and every citizen sent directly | ALONE | none: citizen_attacks=0 only sees groups (attack.c citizen_attack_scan, hook_asg_route); these citizens get goals directly | no last stand. diplo.c surrender is the mod's alternative (lost all citizens; resign) |
+| 33 | 0x475120, 0x47562C Bonzai attack | 80 s (300 s after one) | buildings left under +0xD3C: last all-out attack and every citizen sent directly | REPLACED | `last_stand_buildings` = 0 (default since 2026-11-10): settings_apply writes +0xD3C, the count is never under 0 | off. diplo.c surrender is the mod's alternative (lost all citizens; resign) |
 | 34 | 0x4779FA naval maintenance | +0x40 (naval_check_min) | ships to maintain: opens a Defend group, may delete units for room | FILTERED | fleet.c hook_nv_maint_delete skips the deletion while fleet_on | no Defend group of ships. fleet.c on water maps; none on land maps |
 | 35 | 0x48294D EECPPersonnel update (combat +0x54): requests 0x484D94, trim 0x482E8A | 30 s | serves personnel requests from the pool, trims population | ALONE | none (0x483D97 below) | unit requests by groups stall. No replacement |
 | 36 | 0x483D97 idle loaded transport unload | 30 s, inside 35 | where an idle loaded transport unloads | FILTERED | landing.c hook_idle_unload_shore returns 0 for landing and ferry ships (call site 0x483E24) | transports with cargo stay loaded. No replacement |
@@ -180,3 +180,8 @@ pass their stock checks, up to the count. 5 / 9 / 9 with the stock checks remove
 the end 132 / 147 / 131, losses 69 / 60 / 68, razed 31 / 32 / 36, the AI won 7 / 8 / 5 of 10, workers at minute 40 98 / 94 / 96;
 islands: soldiers 126 / 127 / 130, losses 55 / 37 / 40, razed 13.5 / 17 / 11, won 6 / 7 / 5, workers at minute 40 88 / 80 / 77.
 The building plan's flag stood at 2% at 5 and at 9 and 99% only without the stock checks, which played no better. Off.
+
+Last stand (0x475120), 2026-11-10: `tests/scenarios/last_stand.eeai` (Continental huge, 2 AIs, P2 cut to 5 buildings and no towers at
+minute 45, 30 minutes more), 10 games each, the game's level 9 / `last_stand_buildings=0`: P2's citizens 6 minutes later 127 / 143, 10
+minutes later 82 / 144, 15 later 67 / 120; its buildings 15 minutes later 34 / 60; P2 out of the game before the end in 5 of 10 / 0 of
+10. Soldiers about the same at every reading (15 minutes later 43 / 41). On.

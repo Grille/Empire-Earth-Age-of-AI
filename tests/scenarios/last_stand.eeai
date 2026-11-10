@@ -1,0 +1,18 @@
+// An AI all but destroyed: at minute 45 P2 keeps 5 of its buildings and no tower, wall or anti-aircraft gun, its units
+// stay. Under the game's Bonzai Attack Level (9) its last-stand round (0x475120) sends every citizen at an enemy.
+// last_stand_buildings=0 switches that off: what is left of P2 a few minutes later, with it and without.
+
+wait_until(45min)
+let b = player(2).units(kind.building)
+for i in 5..len(b) {
+    b[i].remove()
+}
+for k in [kind.towers, kind.walls, kind.aa_building] {
+    for u in player(2).units(k) {
+        u.remove()
+    }
+}
+every(1min, 45min, 75min, (run) => {
+    let p = player(2)
+    ping("laststand {run}: citizens {p.count(kind.citizen)} soldiers {p.soldiers} buildings {p.buildings} alive {p.alive}")
+})

@@ -118,6 +118,10 @@ class ai_base
         /// checks. 0 = the game's own (5), 9 = all that pass
         [range(0, 9), game("how many of its activities the AI attends to each period", "5", 0)]
         int attention_activities = 0;
+        /// with fewer buildings than this the game sends every citizen at an enemy (its Bonzai Attack, repeated every 5
+        /// minutes). 0 = never, -1 = the game's own (9)
+        [range(-1, 999), game("the buildings left under which the AI's citizens make a last all-out attack", "9", -1)]
+        int last_stand_buildings = 0;
     }
 
     class AttackRouting
