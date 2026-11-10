@@ -48,6 +48,7 @@ internal struct {
     ID3D11PixelShader *fps;
     ID3D11DepthStencilState *fdepth;
     int late;        // see-through batches around the surface by their height (rd3_water_late)
+    int away;        // what lies off the screen in the mirrored picture too (rw_role)
     int stage;       // this list's surface (rd3_water_pass): 0 each batch's step with it, 1 only the steps, 2 only the batches
     int ffail, have, cw, ch, zw, zh;   // the step's shader could not be made; this list's copies are there; their sizes
     DXGI_FORMAT cfmt;
@@ -66,7 +67,7 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     ID3D11ShaderResourceView *srv;
     ID3D11RasterizerState *raster;
-} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .owned = -1, .late = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
+} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .owned = -1, .late = 1, .away = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
 // the game's colours for the depths, once a map: the mesh's water colour set, a list of slots of its colour table, first the
 // shallowest (GETerrainMesh::SetWaterColorSet) - the last one's the colour under the water
@@ -156,7 +157,10 @@ internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 6, 1, &srv);
 }
-internal int rw_role(int role) { return role == SH_CAST || role == SH_TINT || role == SH_TREE; }   // not SH_AWAY: a tree's stand-in card among them
+// Not a tree's card (SH_CARD): a stand-in for the shadow. What lies off the screen is in the list for the shadows' sake (the rows
+// widened, render_shadows.c) and counts here too: mirrored, an object beyond the top of the screen comes down onto it (the
+// player, 2026-11-10: "the culling loses reflections taht are just out of screen")
+internal int rw_role(int role) { return role == SH_CAST || role == SH_TINT || role == SH_TREE || (g_wa.away && (role == SH_AWAY || role == SH_GONE)); }
 // what the water mirrors: those, and the ground from the map (the player, 2026-11-09: "terrain dosnt apear in water reflections yet")
 internal int rw_mirrored(const rf_cmd *c) { return (rw_role(c->role) || (c->gvb && c->ro == RO_TERRAIN)) && c->topo == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST; }
 internal int rw_target(int w, int h) {
@@ -382,7 +386,7 @@ internal void rd3_water_reflect(void) {
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
-// | haze on | off | late on | off | edges on | off (not the water's: the units' soft edges, render_frame.c rf_edges) | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
+// | haze on | off | late on | off | away on | off (what lies off the screen in the mirrored picture) | edges on | off (not the water's: the units' soft edges, render_frame.c rf_edges) | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -409,6 +413,7 @@ internal void cmd_water(char *out, const char *args) {
         else { REPLY("error: usage: water color <red green blue> | map\n"); return; }
     }
     else if (!strcmp(mode, "late")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.late = 1; else if (!strcmp(a, "off")) g_wa.late = 0; }
+    else if (!strcmp(mode, "away")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.away = 1; else if (!strcmp(a, "off")) g_wa.away = 0; }
     else if (!strcmp(mode, "edges")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_fe.force = 1; else if (!strcmp(a, "off")) g_fe.force = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
     else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }

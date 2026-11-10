@@ -39,6 +39,7 @@ internal int rec_step(void) {
 
 // a draw's role counted for the frame (rd3_shadow_classify)
 internal void rec_count(int role, DWORD nv) {
+    if (role == SH_CARD) role = SH_AWAY;   // counted with what casts and isn't drawn, as ever
     if (role < 0 || role >= REC_ROLES - 1) return;
     g_rec.draws[role]++;
     g_rec.verts[role] += (int)nv;

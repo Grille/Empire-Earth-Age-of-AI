@@ -226,7 +226,7 @@ internal void in_cards_flush(rd_device *d) {
     rd_surface *tex = d->tex[0];
     int role = d->sh_role, in = g_sl.in;
     D3DMATRIX keep = d->world;
-    d->tex[0] = g_ic.tex; d->sh_role = SH_AWAY; d->changed |= RD_CH_VC | RD_CH_TEX;
+    d->tex[0] = g_ic.tex; d->sh_role = SH_CARD; d->changed |= RD_CH_VC | RD_CH_TEX;
     g_sl.in = 0;
     if (rd3_prepare(d, 0))
         for (int i = 0; i < g_ic.nq; i++) {

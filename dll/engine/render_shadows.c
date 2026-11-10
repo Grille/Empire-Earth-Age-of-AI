@@ -21,7 +21,7 @@
 // when the list is drawn (rd3_shadow_vc).
 // SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen); SH_TREE: drawn,
 // not casting (a tree whose card casts)
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE };
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE, SH_CARD };
 #define SH_SIZE 4096
 #define SH_BLOCK 8   // tiles a block of the ground's highest and lowest (g_sh.bmax)
 internal struct {
@@ -357,7 +357,7 @@ internal void rd3_shadow_card(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DW
     int role = d->sh_role;
     memset(&d->world, 0, sizeof d->world);
     d->world._11 = d->world._22 = d->world._33 = d->world._44 = 1;
-    d->sh_role = SH_AWAY;
+    d->sh_role = SH_CARD;
     d->changed |= RD_CH_VC;
     rd_vb card = { NULL, 0, vb->caps, vb->fvf, nv, 36, nv, g_card.v };
     if (rd3_prepare(d, 0)) rd3_append(d, type, &card, 0, nv, idx, ni);
@@ -367,7 +367,7 @@ internal void rd3_shadow_card(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DW
 }
 
 // the list's draw left out of the frame (rf_replay): only drawn into the casters' map, or nowhere
-internal int rd3_shadow_only(int role) { return role == SH_AWAY || role == SH_GONE; }
+internal int rd3_shadow_only(int role) { return role == SH_AWAY || role == SH_GONE || role == SH_CARD; }
 // the draw's role on the device: a change is a change of the vertex constants (a new batch)
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     d->sh_card = 0;
@@ -596,7 +596,7 @@ internal void rd3_shadow_frame(void) {
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
-        if (c->role == SH_CAST || c->role == SH_TINT || c->role == SH_AWAY) nc++;
+        if (c->role == SH_CAST || c->role == SH_TINT || c->role == SH_AWAY || c->role == SH_CARD) nc++;
         else if (c->role == SH_RECEIVE || c->role == SH_WATER) ng++;
     }
     // the water's level: its vertices' mean height, and the fading under it on - for the frame, not this list: a
@@ -696,7 +696,7 @@ internal void rd3_shadow_frame(void) {
     ID3D11ShaderResourceView *srv = (ID3D11ShaderResourceView *)1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
-        if ((c->role != SH_CAST && c->role != SH_TINT && c->role != SH_AWAY) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
+        if ((c->role != SH_CAST && c->role != SH_TINT && c->role != SH_AWAY && c->role != SH_CARD) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         const rd3_pcb *pc = &g_rf.pcs[c->pc];
         float a = pc->aop[3] && c->srv ? pc->misc[0] / 255.0f : -1;   // alpha tested: its texture's alpha
         if (a != aref) {
