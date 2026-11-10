@@ -11,19 +11,15 @@ unsafe struct EESEAChangeLoadText
 }
 
 /// made in 0x563D1B
-[size((ee)0x10, (aoc)0x10), vtable((ee)0x0082D85C, (aoc)0x0084310C), c_type("ee_se_player_count")]
+[size((ee)0x10, (aoc)0x10), vtable((ee)0x0082D85C, (aoc)0x0084310C)]
 unsafe struct EESEAChangeWorldPlayerCount
 {
-    /// vf1: the number of players changed (editor_undo.c: the scenario kept first)
-    [slot(1), address((ee)0x00566D7D, (aoc)0x005737A3)]
-    [vtable_site("se_player_count")]
-    extern void run();
 }
 
 [size((ee)0x18, (aoc)0x18), vtable((ee)0x00830034, (aoc)0x00845904), c_type("ee_se_blank_map")]
 unsafe struct EESEACreateBlankMap
 {
-    /// vf1: a blank map made (editor_undo.c: the scenario kept first)
+    /// vf1: a blank map made (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x005955FE, (aoc)0x005A58BC)]
     [vtable_site("se_blank_map")]
     extern void run();
@@ -36,7 +32,7 @@ unsafe struct EESEACreateBlankMap
 [size((ee)0x14, (aoc)0x14), vtable((ee)0x00830070, (aoc)0x00845944), c_type("ee_se_random_map")]
 unsafe struct EESEACreateRandomMap
 {
-    /// vf1: a random map made (editor_undo.c: the scenario kept first)
+    /// vf1: a random map made (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00596426, (aoc)0x005A66E2)]
     [vtable_site("se_random_map")]
     extern void run();
@@ -49,7 +45,15 @@ unsafe struct EESEACreateRandomMap
 [vtable((ee)0x00830080, (aoc)0x00845958), c_type("ee_se_delete")]
 unsafe struct EESEADeleteUnit
 {
-    /// vf1: units deleted (editor_undo.c: the scenario kept first)
+    /// the unit's id, what its 1-argument constructor sets (-1: the selection)
+    [offset(0xC), found(c)]
+    int32 unit_id;
+
+    /// that unit's owner's index
+    [offset(0x10), found(c)]
+    int32 player;
+
+    /// vf1: units deleted (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00596990, (aoc)0x005A6C4C)]
     [vtable_site("se_delete")]
     extern void run();
@@ -92,7 +96,11 @@ unsafe struct EESEAMouseClick
 [size((ee)0x10, (aoc)0x10), vtable((ee)0x008300A0, (aoc)0x0084597C), c_type("ee_se_move")]
 unsafe struct EESEAMoveUnit
 {
-    /// vf1: a unit moved (editor_undo.c: the scenario kept first)
+    /// 1: the units picked up (taken off the map, the ghost made), 0: put down where the ghost is
+    [offset(0x1C), found(c)]
+    uint8 lift;
+
+    /// vf1: a unit moved (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00597472, (aoc)0x005A7646)]
     [vtable_site("se_move")]
     extern void run();
@@ -106,7 +114,7 @@ unsafe struct EESEAPaint
 [size((ee)0x2C, (aoc)0x2C), vtable((ee)0x0082DFF0, (aoc)0x008438A4), c_type("ee_se_paint_area")]
 unsafe struct EESEAPaintArea
 {
-    /// vf1: an area painted (editor_undo.c: the scenario kept first)
+    /// vf1: an area painted (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x005980DF, (aoc)0x005A8284)]
     [vtable_site("se_paint_area")]
     extern void run();
@@ -119,7 +127,7 @@ unsafe struct EESEAPaintArea
 [@base(typeof(EESEAPaint)), size((ee)0x38, (aoc)0x38), vtable((ee)0x0082FD3C, (aoc)0x00845604), c_type("ee_se_paint_elevation")]
 unsafe struct EESEAPaintElevation
 {
-    /// vf1: the ground raised or lowered (editor_undo.c: the scenario kept first)
+    /// vf1: the ground raised or lowered (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00598165, (aoc)0x005A830A)]
     [vtable_site("se_paint_elevation")]
     extern void run();
@@ -128,7 +136,7 @@ unsafe struct EESEAPaintElevation
 [@base(typeof(EESEAPaint)), size((ee)0x20, (aoc)0x20), vtable((ee)0x00830694, (aoc)0x008459DC), c_type("ee_se_paint_mountains")]
 unsafe struct EESEAPaintMoutains
 {
-    /// vf1: cliffs painted (editor_undo.c: the scenario kept first)
+    /// vf1: cliffs painted (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x005984E0, (aoc)0x005A86FF)]
     [vtable_site("se_paint_mountains")]
     extern void run();
@@ -138,7 +146,7 @@ unsafe struct EESEAPaintMoutains
 [@base(typeof(EESEAPaint)), size((ee)0x28, (aoc)0x28), vtable((ee)0x00830044, (aoc)0x00845914), c_type("ee_se_paint_terrain")]
 unsafe struct EESEAPaintTerrain
 {
-    /// vf1: the ground painted (editor_undo.c: the scenario kept first)
+    /// vf1: the ground painted (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00598CA8, (aoc)0x005A8E6C)]
     [vtable_site("se_paint_terrain")]
     extern void run();
@@ -198,24 +206,13 @@ unsafe struct EESEAPlaceWall
     extern void run();
 }
 
-[vtable((ee)0x0082F888, (aoc)0x0084516C), c_type("ee_se_quick_load"), size(0x2C)]
+[vtable((ee)0x0082F888, (aoc)0x0084516C)]
 unsafe struct EESEAQuickSaveLoad
 {
     /// its constructor (1 argument, not typed yet)
     [address((ee)0x0058ECA2, (aoc)0x0059F0B1)]
     extern void* init(uint32 p1);
 
-    /// its base's (EEAQuickSaveLoad) constructor, what the editor's form makes it with: the folder (editor.scenario_dir)
-    [address((ee)0x0058FDF4, (aoc)0x005A00C6)]
-    extern void* init_base(void* dir);
-
-    /// 1: vf1 loads the quick save (0 saves it)
-    [offset(0x28), found(c)]
-    uint8 load;
-
-    /// vf1: the quick save or load done, then the panel shown told (the form's vf 0x14)
-    [slot(1), address((ee)0x0059A5FE, (aoc)0x005AA70E)]
-    extern void run();
 }
 
 /// made in 0x59F61B
@@ -228,7 +225,7 @@ unsafe struct EESEAQuickSaveScenario
 [size((ee)0x10, (aoc)0x10), vtable((ee)0x0082F080, (aoc)0x00844940), c_type("ee_se_rotate")]
 unsafe struct EESEARotateUnits
 {
-    /// vf1: units turned (editor_undo.c: the scenario kept first)
+    /// vf1: units turned (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x0059A63F, (aoc)0x005AA74F)]
     [vtable_site("se_rotate")]
     extern void run();
@@ -243,13 +240,9 @@ unsafe struct EESEASaveScenario
 }
 
 /// made in 0x563603
-[size((ee)0x1C, (aoc)0x1C), vtable((ee)0x0082D6DC, (aoc)0x00842F8C), c_type("ee_se_tech_tree")]
+[size((ee)0x1C, (aoc)0x1C), vtable((ee)0x0082D6DC, (aoc)0x00842F8C)]
 unsafe struct EESEATechTree
 {
-    /// vf1: a player's technologies changed (editor_undo.c: the scenario kept first)
-    [slot(1), address((ee)0x0059A968, (aoc)0x005AAA78)]
-    [vtable_site("se_tech_tree")]
-    extern void run();
 }
 
 [size((ee)0xC, (aoc)0xC), vtable((ee)0x008300DC, (aoc)0x008459C8)]
@@ -1810,17 +1803,9 @@ unsafe struct EEUIFScenarioEditor
 
 static unsafe class editor
 {
-    /// the scenarios' folder, what the quick save's action is made with (a UString)
-    [address((ee)0x00919718, (aoc)0x00930B98)]
-    static block scenario_dir;
-
-    /// the exe's vtable over an FSMemoryFile (EEAQuickSaveLoad's: its destructor the exe's delete)
-    [address((ee)0x0082FF54, (aoc)0x00845824)]
-    static block vt_scenario_memory;
-
-    /// an FSMemoryFile (the quick save's new)
-    [value(0x78)]
-    static uint32 size_memory_file;
+    /// the listeners told of a change of the ground (a list; what EESEAPaintElevation's end tells, editor_functions.ground_changed)
+    [address((ee)0x00918E1C, (aoc)0x0093185C)]
+    static block ground_listeners;
 
     /// the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
     /// 0x58A70E): shown while the panel is
@@ -1840,9 +1825,9 @@ static unsafe class editor
 [c_prefix("")]
 static unsafe class editor_functions
 {
-    /// the running scenario written into mem (an FSMemoryFile, passed twice), as the quick save does: 0 done
-    [address((ee)0x0054086A, (aoc)0x0054CE06), cdecl]
-    static extern int32 scenario_write(void* name, uint32 time, void* mem, void* mem_2);
+    /// the listeners (editor.ground_listeners) told the ground changed in x_lo .. x_hi, y_lo .. y_hi (the end of EESEAPaintElevation's vf1)
+    [address((ee)0x004FC9C7, (aoc)0x005074C9), thiscall]
+    static extern void ground_changed(void* list, int32 x_lo, int32 y_hi, int32 x_hi, int32 y_lo);
 
     /// the scenario in the file (an FSFileSpec) loaded over the running one, as the quick load does (1, 1, 1): 0 done
     [address((ee)0x00540997, (aoc)0x0054CF33), cdecl]

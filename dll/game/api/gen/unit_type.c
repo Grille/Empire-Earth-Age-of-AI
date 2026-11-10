@@ -341,6 +341,10 @@ internal inline int unit_type_launch(ee_unit_type *unit_type, ee_unit *m, float 
 // the world's settle and the map's place (game/api/unit.c unit_create)
 typedef ee_unit *(__thiscall *unit_type_create_fn)(ee_unit_type *, int, int, int, int, int);
 internal inline ee_unit *unit_type_create(ee_unit_type *unit_type, int x, int y, int player, int p4, int p5) { return ((unit_type_create_fn)(*(void ***)unit_type)[slot_unit_type_create])(unit_type, x, y, player, p4, p5); }
+// vf13: a new unit of this type for a player at matrix m (a GETransformation), thiscall(type, m, player, 0, 0) - placed,
+// what EESEAPlaceUnit's vf1 makes each with
+typedef ee_unit *(__thiscall *unit_type_place_at_fn)(ee_unit_type *, float *, int, int, int);
+internal inline ee_unit *unit_type_place_at(ee_unit_type *unit_type, float *m, int player, int p3, int p4) { return ((unit_type_place_at_fn)(*(void ***)unit_type)[slot_unit_type_place_at])(unit_type, m, player, p3, p4); }
 // vf1: thiscall(type, float pos[3]) - the units' fill moves an object without a complex unit's place by it (its
 // tile's middle and the ground's height in) [guess: what it changes]
 typedef void (__thiscall *unit_type_place_drawn_fn)(ee_unit_type *, float *);
@@ -550,6 +554,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[3] = 0x0060B33C;
         slot_unit_type_launch = 42;
         slot_unit_type_create = 12;
+        slot_unit_type_place_at = 13;
         slot_unit_type_place_drawn = 1;
         slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00832E90;
@@ -656,6 +661,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[3] = 0x0061D997;
         slot_unit_type_launch = 43;
         slot_unit_type_create = 12;
+        slot_unit_type_place_at = 13;
         slot_unit_type_place_drawn = 1;
         slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00848CF8;

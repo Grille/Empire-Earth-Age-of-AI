@@ -80,6 +80,14 @@ internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((u
 // Create's last step (unit.c unit_create)
 typedef void (__thiscall *map_place_fn)(ee_map *, ee_unit *);
 internal inline void map_place(ee_map *map, ee_unit *u) { ((map_place_fn)(*(void ***)map)[slot_map_place])(map, u); }
+// a corner's height just changed (SetZ): the normals, shores and tile data round it (the elevation brush calls it after SetZ)
+typedef void (__thiscall *map_refresh_corner_fn)(ee_map *, int, int);
+internal map_refresh_corner_fn fn_map_refresh_corner;
+internal inline void map_refresh_corner(ee_map *map, int x, int y) { fn_map_refresh_corner(map, x, y); }
+// after heights changed: the tiles x_lo .. x_hi - 1, y_lo .. y_hi - 1 made anew (EESEAPaintElevation's vf1)
+typedef void (__thiscall *map_refresh_tiles_fn)(ee_map *, uint32_t, uint32_t, uint32_t, uint32_t);
+internal map_refresh_tiles_fn fn_map_refresh_tiles;
+internal inline void map_refresh_tiles(ee_map *map, uint32_t x_lo, uint32_t x_hi, uint32_t y_lo, uint32_t y_hi) { fn_map_refresh_tiles(map, x_lo, x_hi, y_lo, y_hi); }
 // the terrain paint's stroke (EESEAPaintTerrain vf1): the tiles x_lo .. x_hi, y_hi down to y_lo given the texture
 // and kind of a terrain record (its index), then paint_colors with the colour list's type
 typedef void (__thiscall *map_paint_terrain_fn)(ee_map *, int, int, int, int, int, int);
@@ -309,6 +317,13 @@ internal inline uint16_t continent_mgr_region(ee_continent_mgr *continent_mgr, i
 
 // class EEMiniMap (ee_minimap)
 // the minimap (EEMiniMap)
+// vf2: its picture of tiles x_lo .. x_hi, y_hi down to y_lo made anew (what the paints' vf1 call)
+typedef void (__thiscall *minimap_redraw_tiles_fn)(ee_minimap *, int, int, int, int);
+internal inline void minimap_redraw_tiles(ee_minimap *minimap, int x_lo, int x_hi, int y_hi, int y_lo) { ((minimap_redraw_tiles_fn)(*(void ***)minimap)[slot_minimap_redraw_tiles])(minimap, x_lo, x_hi, y_hi, y_lo); }
+// the end of a paint's vf1, whatever it changed (thiscall on the minimap, both builds)
+typedef void (__thiscall *minimap_paint_done_fn)(ee_minimap *);
+internal minimap_paint_done_fn fn_minimap_paint_done;
+internal inline void minimap_paint_done(ee_minimap *minimap) { fn_minimap_paint_done(minimap); }
 // thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
 typedef void (__thiscall *minimap_sight_add_fn)(ee_minimap *, int, int);
 internal minimap_sight_add_fn fn_minimap_sight_add;
@@ -400,6 +415,8 @@ internal int spec_map_select(int build) {
         of_map_grid = 0x181724;
         of_map_flags = 0x181730;
         slot_map_place = 8;
+        fn_map_refresh_corner = (map_refresh_corner_fn)0x00517F1D;
+        fn_map_refresh_tiles = (map_refresh_tiles_fn)0x0051357B;
         fn_map_paint_terrain = (map_paint_terrain_fn)0x00512C6A;
         call_map_paint_terrain = 0x00598D22;
         fn_map_paint_colors = (map_paint_colors_fn)0x00512DFB;
@@ -460,6 +477,8 @@ internal int spec_map_select(int build) {
         fn_continent_mgr_area_at = (continent_mgr_area_at_fn)0x00425F16;
         fn_continent_mgr_region = (continent_mgr_region_fn)0x00425F9F;
         vt_ee_mini_map = 0x0082C5A8;
+        slot_minimap_redraw_tiles = 2;
+        fn_minimap_paint_done = (minimap_paint_done_fn)0x00515611;
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
         fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
         fn_minimap_rebuild = (minimap_rebuild_fn)0x005150F2;
@@ -500,6 +519,8 @@ internal int spec_map_select(int build) {
         of_map_grid = 0x195640;
         of_map_flags = 0x19564C;
         slot_map_place = 8;
+        fn_map_refresh_corner = (map_refresh_corner_fn)0x005225FA;
+        fn_map_refresh_tiles = (map_refresh_tiles_fn)0x0051DBF1;
         fn_map_paint_terrain = (map_paint_terrain_fn)0x0051D2A2;
         call_map_paint_terrain = 0x005A8EE6;
         fn_map_paint_colors = (map_paint_colors_fn)0x0051D433;
@@ -560,6 +581,8 @@ internal int spec_map_select(int build) {
         fn_continent_mgr_area_at = (continent_mgr_area_at_fn)0x00422AD9;
         fn_continent_mgr_region = (continent_mgr_region_fn)0x00422B86;
         vt_ee_mini_map = 0x00841D44;
+        slot_minimap_redraw_tiles = 2;
+        fn_minimap_paint_done = (minimap_paint_done_fn)0x0051FC62;
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
         fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
         fn_minimap_rebuild = (minimap_rebuild_fn)0x0051F743;
@@ -589,6 +612,8 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_map_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_map_refresh_corner, "EEMap.refresh_corner");
+    bad += spec_code((uintptr_t)fn_map_refresh_tiles, "EEMap.refresh_tiles");
     bad += spec_code((uintptr_t)fn_map_paint_terrain, "EEMap.paint_terrain");
     bad += spec_call(call_map_paint_terrain, (uintptr_t)fn_map_paint_terrain, "EEMap.paint_terrain [call_site map_paint_terrain]");
     bad += spec_code((uintptr_t)fn_map_paint_colors, "EEMap.paint_colors");
@@ -616,6 +641,7 @@ internal int spec_map_check(void) {
     bad += spec_code((uintptr_t)fn_continent_mgr_area_at, "EEAIContinentManager.area_at");
     bad += spec_code((uintptr_t)fn_continent_mgr_region, "EEAIContinentManager.region");
     bad += spec_vtable(vt_ee_mini_map, ".?AVEEMiniMap@@", "EEMiniMap [vtable]");
+    bad += spec_code((uintptr_t)fn_minimap_paint_done, "EEMiniMap.paint_done");
     bad += spec_code((uintptr_t)fn_minimap_sight_add, "EEMiniMap.sight_add");
     bad += spec_code((uintptr_t)fn_minimap_tile, "EEMiniMap.tile");
     bad += spec_code((uintptr_t)fn_minimap_rebuild, "EEMiniMap.rebuild");

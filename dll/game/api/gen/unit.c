@@ -707,6 +707,10 @@ internal inline int patch_train_citizen_at(unit_enqueue_fn h, int *of) { return 
 // map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
 // whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire
 // Earth.exe+228D6F under a holder's unload 0x5F04AD); (-10000, -10000) takes it off the map (garrisoned, loaded)
+// put at matrix m (a GETransformation; its tile set by it, link as set_tile's): EESEARotateUnits' vf1
+typedef void (__thiscall *unit_place_matrix_fn)(ee_unit *, float *, char);
+internal unit_place_matrix_fn fn_unit_place_matrix;
+internal inline void unit_place_matrix(ee_unit *unit, float *m, char link) { fn_unit_place_matrix(unit, m, link); }
 // the placing by x, y (0x5F0252); AoC's (0x5FE611) is the other two placings' too - by a vector (0x5F033A) and by a
 // matrix (0x5F043B) call it there (0x5FE76E, 0x5FE7A8), so their own calls are EE's only
 // AoC's only: a unit made beside another and put on its tile (0x6340A7, after a check of the place 0x4C7486)
@@ -1266,6 +1270,7 @@ internal int spec_unit_select(int build) {
         fn_unit_enqueue = (unit_enqueue_fn)0x005E8908;
         calls_train_citizen_at[0] = 0x0048F043;
         calls_train_citizen_at[1] = 0x0048F07E;
+        fn_unit_place_matrix = (unit_place_matrix_fn)0x005F043B;
         fn_unit_set_tile = (unit_set_tile_fn)0x00616F9D;
         calls_set_tile[0] = 0x005974DF;
         calls_set_tile[1] = 0x0059763E;
@@ -1550,6 +1555,7 @@ internal int spec_unit_select(int build) {
         fn_unit_enqueue = (unit_enqueue_fn)0x005F5F97;
         calls_train_citizen_at[0] = 0x00493D5F;
         calls_train_citizen_at[1] = 0x00493D9A;
+        fn_unit_place_matrix = (unit_place_matrix_fn)0x005FE7A8;
         fn_unit_set_tile = (unit_set_tile_fn)0x00629AC3;
         calls_set_tile[0] = 0x005A76B3;
         calls_set_tile[1] = 0x005A7814;
@@ -1713,6 +1719,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_enqueue, "EEComplexUnit.enqueue");
     bad += spec_call(calls_train_citizen_at[0], (uintptr_t)fn_unit_enqueue, "EEComplexUnit.enqueue [call_site train_citizen_at 0]");
     bad += spec_call(calls_train_citizen_at[1], (uintptr_t)fn_unit_enqueue, "EEComplexUnit.enqueue [call_site train_citizen_at 1]");
+    bad += spec_code((uintptr_t)fn_unit_place_matrix, "EEComplexUnit.place_matrix");
     bad += spec_code((uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile");
     bad += spec_call(calls_set_tile[0], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 0]");
     bad += spec_call(calls_set_tile[1], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 1]");

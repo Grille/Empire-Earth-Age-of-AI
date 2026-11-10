@@ -716,6 +716,10 @@ unsafe struct EEComplexUnit
     /// map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
     /// whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire
     /// Earth.exe+228D6F under a holder's unload 0x5F04AD); (-10000, -10000) takes it off the map (garrisoned, loaded)
+    /// put at matrix m (a GETransformation; its tile set by it, link as set_tile's): EESEARotateUnits' vf1
+    [address((ee)0x005F043B, (aoc)0x005FE7A8)]
+    extern void place_matrix(float32* m, char8 link);
+
     [address((ee)0x00616F9D, (aoc)0x00629AC3)]
     [call_site("set_tile", (ee)0x005974DF, (aoc)0x005A76B3)]
     [call_site("set_tile", (ee)0x0059763E, (aoc)0x005A7814)]

@@ -208,69 +208,29 @@ internal inline void **edit_box_vtable_copy(void **vt, int room) {
 }
 // the left mouse button's release's slot in such a copy, and the box's whole text selected (what is typed next replaces it)
 internal inline void **edit_box_vtable_mouse_up(void **vt) { return &vt[1 + slot_ui_control_mouse_l_button_up]; }
-// THE SCENARIO EDITOR'S UNDO (engine/editor_undo.c): the running scenario written to a file as the quick save writes it
-// (into an FSMemoryFile, that saved to the file: Low-Level Engine's, by name), the file's spec of a whole path
-#define UI_FILE_SPEC_ROOM 0x100     // for an FSFileSpec (the quick save's local: 0x48)
-internal inline void *lle_proc(const char *name) {
-    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
-    return lle ? (void *)GetProcAddress(lle, name) : NULL;
+// THE SCENARIO EDITOR'S UNDO (engine/editor_undo.c): a unit taken off as the editor's Delete takes one (the action's vf1, of an
+// action on the stack: not queued, nothing but the id read), made as EESEAPlaceUnit makes one; the ground's corner colour by its slot
+#define UI_DELETE_ROOM 0x20      // for an EESEADeleteUnit
+internal inline void se_unit_delete_by_id(int id, int player) {
+    __attribute__((aligned(8))) uint8_t a[UI_DELETE_ROOM] = { 0 };
+    se_delete_set_unit_id((ee_se_delete *)a, id);
+    se_delete_set_player((ee_se_delete *)a, player);
+    eesea_delete_unit_run((ee_se_delete *)a);
 }
-internal inline void *file_spec_init(void *spec, const char *path) {
-    typedef void *(__thiscall *ctor_fn)(void *, const void *);
-    ctor_fn ctor = (ctor_fn)lle_proc("??0FSFileSpec@@QAE@ABVUString@@@Z");
-    if (!ctor) return NULL;
-    __attribute__((aligned(8))) uint8_t s[32];
-    ustring_init(s);
-    ustring_set(s, path);
-    ctor(spec, s);
-    ustring_free(s);
-    return spec;
+internal inline ee_unit *se_unit_make(ee_unit_type *t, float *m, int player) {
+    ee_unit *h = unit_type_place_at(t, m, player, 0, 0);
+    return h ? unit_get_physics(h) : NULL;
 }
-internal inline void file_spec_free(void *spec) { ((void (__thiscall *)(void *))lle_proc("??1FSFileSpec@@UAE@XZ"))(spec); }
-internal inline int scenario_save_to(const char *path) {
-    typedef void *(__thiscall *mem_ctor_fn)(void *, unsigned long, char, unsigned long);
-    typedef long (__thiscall *fs_fn)(void *);
-    typedef long (__thiscall *fs_open_fn)(void *, unsigned long);
-    typedef long (__thiscall *mem_save_fn)(void *, void *);
-    mem_ctor_fn ctor = (mem_ctor_fn)lle_proc("??0FSMemoryFile@@QAE@K_NK@Z");
-    fs_fn create = (fs_fn)lle_proc("?Create@FSFileSpec@@UAEJXZ"), close = (fs_fn)lle_proc("?Close@FSFileSpec@@UAEJXZ");
-    fs_open_fn open = (fs_open_fn)lle_proc("?Open@FSFileSpec@@UAEJK@Z");
-    mem_save_fn save = (mem_save_fn)lle_proc("?Save@FSMemoryFile@@QAEJAAVFSFile@@@Z");
-    if (!ctor || !create || !close || !open || !save) return 0;
-    void *mem = game_new(value_editor_size_memory_file);
-    if (!mem) return 0;
-    ctor(mem, 0x400, 1, 1000);   // the quick save's
-    *(uintptr_t *)mem = data_editor_vt_scenario_memory;
-    __attribute__((aligned(8))) uint8_t name[32], spec[UI_FILE_SPEC_ROOM];
-    ustring_init(name);
-    ustring_set(name, "EEQuickSave");
-    int ok = scenario_write(name, 0, mem, mem) == 0;   // no time in its header: the same scenario makes the same file
-    ustring_free(name);
-    if (ok && file_spec_init(spec, path)) {
-        create(spec);
-        ok = open(spec, 2) == 0;
-        if (ok) { ok = save(mem, spec) == 0; close(spec); }
-        file_spec_free(spec);
-    } else ok = 0;
-    ((void (__thiscall *)(void *, int))(*(void ***)mem)[0])(mem, 1);
-    return ok;
+internal inline void mesh_set_color_index(void *mesh, unsigned long x, unsigned long y, uint8_t i) {
+    static void *f;
+    if (!f) { HMODULE lle = GetModuleHandleA("Low-Level Engine.dll"); f = lle ? (void *)GetProcAddress(lle, "?SetColorFromColorTableIndex@GETerrainMesh@@QAEXKKE@Z") : NULL; }
+    if (f) ((void (__thiscall *)(void *, unsigned long, unsigned long, uint8_t))f)(mesh, x, y, i);
 }
-// the quick load's reading of the scenario in the file at path instead of the one it was given: its result, -1: no such file spec
-internal inline int scenario_read_from(const char *path, int a, int b, uint8_t c) {
-    __attribute__((aligned(8))) uint8_t spec[UI_FILE_SPEC_ROOM];
-    if (!file_spec_init(spec, path)) return -1;
-    int r = scenario_read(spec, a, b, c);
-    file_spec_free(spec);
-    return r;
-}
-// the editor's quick load as an action of the mod's own, not queued (run, deleted by whoever made it)
-internal inline ee_se_quick_load *se_quick_load_new(void) {
-    ee_se_quick_load *a = game_new(size_eesea_quick_save_load);
-    if (!a) return NULL;
-    se_quick_load_init_base(a, editor_scenario_dir_at());
-    *(uintptr_t *)a = vt_eesea_quick_save_load;
-    se_quick_load_set_load(a, 1);
-    return a;
+internal inline void ground_tell(int x_lo, int x_hi, int y_hi, int y_lo) {
+    ee_minimap *mm = *(ee_minimap **)game_minimap_at();
+    if (mm) minimap_redraw_tiles(mm, x_lo, x_hi, y_hi, y_lo);
+    ground_changed(*(void **)editor_ground_listeners_at(), x_lo, y_hi, x_hi, y_lo);
+    if (mm) minimap_paint_done(mm);
 }
 // the action the Undo or Redo button queues, of the mod's own making (a hotkey's)
 internal inline void se_undo_queue(int redo) {

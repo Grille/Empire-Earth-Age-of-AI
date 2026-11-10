@@ -336,6 +336,11 @@ unsafe struct EEUnitClass
     [slot(12)]
     extern EEUnit* create(int32 x, int32 y, int32 player, int32 p4, int32 p5);
 
+    /// vf13: a new unit of this type for a player at matrix m (a GETransformation), thiscall(type, m, player, 0, 0) - placed,
+    /// what EESEAPlaceUnit's vf1 makes each with
+    [slot(13)]
+    extern EEUnit* place_at(float32* m, int32 player, int32 p3, int32 p4);
+
     /// vf1: thiscall(type, float pos[3]) - the units' fill moves an object without a complex unit's place by it (its
     /// tile's middle and the ground's height in) [guess: what it changes]
     [slot(1)]

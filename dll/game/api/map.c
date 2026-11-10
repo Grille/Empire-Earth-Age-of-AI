@@ -151,6 +151,7 @@ internal inline int patch_mesh_compute_shorelines(mesh_at_fn h, mesh_at_fn *orig
 }
 internal inline void mesh_set_z(void *mesh, unsigned long x, unsigned long y, float z) { (*(mesh_set_z_fn *)data_map_iat_set_z)(mesh, x, y, z); }
 internal inline void mesh_compute_normal(void *mesh, unsigned long x, unsigned long y) { (*(mesh_at_fn *)data_map_iat_compute_normal)(mesh, x, y); }
+internal inline void mesh_compute_shorelines(void *mesh, unsigned long x, unsigned long y) { (*(mesh_at_fn *)data_map_iat_compute_shorelines)(mesh, x, y); }
 // a cliff's kind: a tile's, the one a texture gives its tiles
 internal inline int tile_is_cliff(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_cliff; }
 internal inline int terrain_is_cliff(const ee_terrain *t) { return terrain_get_kind(t) == (int)value_map_kind_cliff; }

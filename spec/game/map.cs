@@ -83,6 +83,14 @@ unsafe struct EEMap
     [slot(8)]
     extern void place(EEUnit* u);
 
+    /// a corner's height just changed (SetZ): the normals, shores and tile data round it (the elevation brush calls it after SetZ)
+    [address((ee)0x00517F1D, (aoc)0x005225FA)]
+    extern void refresh_corner(int32 x, int32 y);
+
+    /// after heights changed: the tiles x_lo .. x_hi - 1, y_lo .. y_hi - 1 made anew (EESEAPaintElevation's vf1)
+    [address((ee)0x0051357B, (aoc)0x0051DBF1)]
+    extern void refresh_tiles(uint32 x_lo, uint32 x_hi, uint32 y_lo, uint32 y_hi);
+
     /// the terrain paint's stroke (EESEAPaintTerrain vf1): the tiles x_lo .. x_hi, y_hi down to y_lo given the texture
     /// and kind of a terrain record (its index), then paint_colors with the colour list's type
     [address((ee)0x00512C6A, (aoc)0x0051D2A2)]
@@ -334,6 +342,14 @@ unsafe struct EEAIContinentManager
 [c_type("ee_minimap"), vtable((ee)0x0082C5A8, (aoc)0x00841D44)]
 unsafe struct EEMiniMap
 {
+    /// vf2: its picture of tiles x_lo .. x_hi, y_hi down to y_lo made anew (what the paints' vf1 call)
+    [slot(2)]
+    extern void redraw_tiles(int32 x_lo, int32 x_hi, int32 y_hi, int32 y_lo);
+
+    /// the end of a paint's vf1, whatever it changed (thiscall on the minimap, both builds)
+    [address((ee)0x00515611, (aoc)0x0051FC62)]
+    extern void paint_done();
+
     /// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
     [address((ee)0x0051426E, (aoc)0x0051E8BF)]
     extern void sight_add(int32 x, int32 y);
