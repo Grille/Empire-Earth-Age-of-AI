@@ -164,7 +164,7 @@ War:
 - attack_on_contact, attack_for_resources, attack_revenge are read in 0x46F4FF only as weights of the target pick (0xCD8, 0xCDC); 0xCE0 has no reader besides init 0x431697 and persist 0x43DED9. The settings' text ("chance of an extra, immediate attack") does not match the code. By grep of the decompilation, not by xrefs of the disassembly.
 - 0x918E96, the byte that lets a Wonder reach vf53 0x472BC1: which option it is, and that vf26 means the Wonder is finished rather than begun.
 - Submarine, helicopter and air-transport vtables not being patched is from the code; whether fleet ships really sit in such subgroups in play was not observed.
-- Landing on mixed maps: ld_phase_plan needs land subgroups with members, which the hold removes on ar_on. Inference from the code; not tested.
+- Landing on mixed maps: ld_phase_plan needs land subgroups with members, which the hold removes on ar_on. Played 2026-11-10: on land maps (Mediterranean, 4 AIs) every landing pass says "no attack on", so the game's groups are empty there as read; no mixed map came up (Large Islands with 4 AIs: each AI on an island of its own, islands; Mediterranean: land; none of the 1500 logs before), so a mixed map's landings are still untested - a custom map would be needed.
 - Whether outdated_attack (needs combat_mgr_unit_free, i.e. not held) still finds 8 units on ar_on players: not measured.
 - Whether a defence group with no land soldiers in the pool still forms from what is left (0x4753A9 → new_group): not traced to its end.
 - 0x470E16 exact conditions; EECPAttackFormation's decisions (row 28: unknown).
