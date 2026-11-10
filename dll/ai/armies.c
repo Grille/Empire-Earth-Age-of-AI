@@ -266,7 +266,17 @@ internal ivec2 g_ar_site[16]; internal int g_ar_site_set[16];   // TAKE MINES: t
 internal uint32_t g_ar_ask_t[16];   // THE SITES' MEMORY: when the force at home last looked for a site asked of it
 internal int ar_det_out(unsigned idx);   // MINE RAIDS: a detachment is out (it has the citizens)
 #define AR_CREW_MAIN(idx) (TN_TAKE(idx) || (TN_RAID(idx) && !ar_det_out(idx)))   // the force may take and keep the citizens
-internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && MOD_ARMIES(idx) && navy_land(idx); }
+// OVER THE SEA ([ai_base] mod_armies_sea, default off until measured; [autotest] v_mod_armies_sea; the player 2026-11-10:
+// the game's commander is to go on every map, and no map types): the force on island maps too. It fights what it can
+// reach over land; at an attack time with no enemy building known on its own land the nearest known one across the
+// water is the landing's (landing.c landing_ask), whose soldiers come from the force at home (armies_lend: out of the
+// force while the landing has them) and go back to it once the landing lets them go on the force's land. Before: on
+// island maps the commander kept every land soldier and the landing took its groups, and on a map with enemies on
+// both (mixed) the landing found the commander's groups empty and never went.
+internal int g_ar_sea = 0, g_v_ar_sea = -1;
+#define AR_SEA(idx) PV(idx, g_v_ar_sea, g_ar_sea)
+internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && MOD_ARMIES(idx) && (navy_land(idx) || (AR_SEA(idx) && navy_islands(idx))); }
+internal struct { struct { ee_unit *u; int id; } u[256]; int n; unsigned lent, back, asked; uint32_t look_t, ask_t; } g_ar_lent[16];   // OVER THE SEA: the force's soldiers the landing has (not saved: a load's first tick takes the held back in)
 internal int ar_ptr_cmp(const void *x, const void *y) { ee_unit *a = *(ee_unit *const *)x, *b = *(ee_unit *const *)y; return a < b ? -1 : a > b; }
 internal int ou_members(ee_player *pl, ee_unit **out, int max);   // army.c: the units in pl's attack subgroups
 internal int ar_held(struct armies_st *a, ee_unit *u) {
@@ -692,7 +702,7 @@ internal float ar_judge(ee_player *pl, struct armies_st *a, int out, ivec2 d) {
 }
 // the enemy building nearest from that pl knows of (seen or remembered; no walls: seen_by's intel_remembers covers
 // buildings and fortresses, walls are neither)
-internal ee_unit *ar_target(ee_player *pl, ivec2 from) {
+internal ee_unit *ar_target_on(ee_player *pl, ivec2 from, unsigned land) {   // land: only on that land (map_area), 0 any
     ee_unit *best = NULL;
     long bd = 0;
     for (int pass = TN_TAKE((unsigned)player_get_index(pl) & 15) ? 0 : 1; pass < 2 && !best; pass++)   // TAKE MINES: as ar_route
@@ -700,12 +710,14 @@ internal ee_unit *ar_target(ee_player *pl, ivec2 from) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        if (land && map_area(unit_get_tile(u), 2) != land) continue;
         if (!pass && !tn_mine_drop(pl, u, it.td)) continue;
         long d = ivec2_dist2(unit_get_tile(u), from);
         if (!best || d < bd) { best = u; bd = d; }
     }
     return best;
 }
+internal ee_unit *ar_target(ee_player *pl, ivec2 from) { return ar_target_on(pl, from, 0); }
 // TAKE MINES: the known enemy building nearest p within r of it - what still stands in the way of a town there
 internal ee_unit *ar_near_building(ee_player *pl, ivec2 p, int r) {
     ee_unit *best = NULL;
@@ -1315,6 +1327,22 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
     // sees nothing of an enemy base it hasn't scouted) by AR_GO_PCT, AR_PRESS_HOME_PCT of it gathered, and the target
     // judged as at the attack time. The first try waited for the force's own hit points as it went out: a push of 123
     // that razed three buildings and came home with 50 never pressed again.
+    // OVER THE SEA: home with nothing known on its land, the landing is asked all along (every 30 s) - asked only at the
+    // attack times it went 0.5 times a game against the commander's 1.7 (10 games each on Small Islands); when it goes
+    // is the landing's (the beach against what the force can spare, its tries' pauses)
+    if (AR_SEA(idx) && n >= AR_MIN_LAUNCH && (!g_ar_lent[idx].look_t || now < g_ar_lent[idx].look_t || now - g_ar_lent[idx].look_t >= 30000)) {
+        g_ar_lent[idx].look_t = now ? now : 1;
+        unsigned land = map_area(a->home, 2);
+        ee_unit *across = land && !ar_target_on(pl, a->home, land) ? ar_target(pl, a->home) : NULL;
+        if (across) {
+            if (!g_ar_lent[idx].ask_t || now < g_ar_lent[idx].ask_t || now - g_ar_lent[idx].ask_t > 300000) {
+                g_ar_lent[idx].asked++;
+                ar_log(idx, now, "the force of %d at %d,%d has no enemy known on its land - a landing asked on P%d", n, a->home.x, a->home.y, player_get_index(unit_get_owner(across)));
+            }
+            g_ar_lent[idx].ask_t = now ? now : 1;
+            landing_ask(pl, unit_get_owner(across), now);
+        }
+    }
     uint32_t due = player_get_next_attack(pl);
     int press = 0;
     int press_mode = PV(idx, g_v_ar_press, AR_PRESS);
@@ -1338,7 +1366,19 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         int way_d = 0, line_d = 0, routed = 0;
         a->nway = 0;
         if (PV(idx, g_v_ar_route, AR_ROUTE)) { ivec2 mid; ar_side(a, 0, &mid); routed = ar_route(pl, idx, a, mid, &t, &way_d, &line_d, now); }
-        if (!routed) t = ar_target(pl, a->home);
+        unsigned land = AR_SEA(idx) ? map_area(a->home, 2) : 0;   // OVER THE SEA: the force walks only to what it can reach
+        if (!routed) t = ar_target_on(pl, a->home, land);
+        if (!t && land && !press && !asked) {   // nothing on its land: the nearest known across the water is the landing's
+            ee_unit *across = ar_target(pl, a->home);
+            if (across) {
+                ivec2 fp = unit_get_tile(across);
+                g_ar_lent[idx].asked++;
+                landing_ask(pl, unit_get_owner(across), now);
+                ar_log(idx, now, "the attack time: the force of %d stays at %d,%d - the nearest enemy building known, %d,%d of P%d, lies across the water: a landing asked",
+                       n, a->home.x, a->home.y, fp.x, fp.y, player_get_index(unit_get_owner(across)));
+                return;
+            }
+        }
         ivec2 d = t ? unit_get_tile(t) : a->home;
         float r = t ? ar_judge(pl, a, 0, d) : 0.0f, foe_hp = 0.0f;
         float ra = t ? ar_assumed(idx, a, now, &foe_hp) : 99.0f;
@@ -1398,6 +1438,42 @@ internal int ar_take(ee_player *pl, ee_unit *u) {
         return 1;
     }
     return 0;
+}
+// OVER THE SEA: the force's soldiers at home a landing may take (landing.c), at most max; none while the force is out
+internal int armies_home_soldiers(ee_player *pl, unsigned idx, ee_unit **out, int max) {
+    struct armies_st *a = &g_armies[idx & 15];
+    if (!ar_on(pl, idx) || a->out) return 0;
+    int n = 0;
+    for (int k = 0; k < a->n && n < max; k++) {
+        ee_unit *u = a->held[k].u;
+        if (!a->held[k].back && cv_alive(u) && unit_get_x(u) >= 0 && ivec2_dist2(unit_get_tile(u), a->home) <= 4 * AR_HOME_R * AR_HOME_R) out[n++] = u;
+    }
+    return n;
+}
+// ... one taken by the landing: out of the force (still held) until the landing lets it go (armies_tick)
+internal void armies_lend(ee_player *pl, ee_unit *u) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct armies_st *a = &g_armies[idx];
+    for (int k = 0; k < a->n; k++) {
+        if (a->held[k].u != u) continue;
+        a->held[k] = a->held[--a->n];
+        if (g_ar_lent[idx].n < 256) { g_ar_lent[idx].u[g_ar_lent[idx].n].u = u; g_ar_lent[idx].u[g_ar_lent[idx].n++].id = unit_get_serial(u); }
+        g_ar_lent[idx].lent++;
+        return;
+    }
+}
+// the lent the landing has let go: back into the force on its land; those left on other land stay held where they are
+internal void ar_lent_back(ee_player *pl, unsigned idx, struct armies_st *a) {
+    unsigned land = map_area(a->home, 2);
+    int m = 0;
+    for (int k = 0; k < g_ar_lent[idx].n; k++) {
+        ee_unit *u = g_ar_lent[idx].u[k].u;
+        if (unit_get_serial(u) != g_ar_lent[idx].u[k].id || unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
+        if (landing_has_unit(pl, u) || unit_get_x(u) < 0 || map_area(unit_get_tile(u), 2) != land || a->n >= AR_HELD) { g_ar_lent[idx].u[m++] = g_ar_lent[idx].u[k]; continue; }
+        a->held[a->n].u = u; a->held[a->n].id = unit_get_serial(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->held[a->n].hp = -1; a->n++;
+        g_ar_lent[idx].back++;
+    }
+    g_ar_lent[idx].n = m;
 }
 internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     if (!ar_on(pl, idx)) return;
@@ -1881,7 +1957,7 @@ internal void ar_det_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint
 internal void armies_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct armies_st *a = &g_armies[idx];
-    if (now < a->t) memset(a, 0, sizeof *a);   // a new game
+    if (now < a->t) { memset(a, 0, sizeof *a); memset(&g_ar_lent[idx], 0, sizeof g_ar_lent[idx]); }   // a new game
     if (g_ar_load && !(g_ar_loaded & (1u << idx))) {   // the first tick after a load: the force found again, or the held taken in
         g_ar_loaded |= 1u << idx;
         if (g_ar_load == 2) ar_found_again(a);
@@ -1898,6 +1974,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (unit_get_serial(u) == a->held[k].id && unit_get_owner(u) == pl && unit_get_hp(u) > 0) a->held[m++] = a->held[k];
     }
     a->n = m;
+    ar_lent_back(pl, idx, a);
     // every free land soldier held - not a member of an attack subgroup (unit_free is no group test: a member passes
     // it, army.c)
     static ee_unit *mem[4096];
@@ -1936,9 +2013,11 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), judgements in contact %u, homes by the trade %u, pushes routed %u (a way round %u), breaches %u (pushed %u, home %u, stand-offs back %u, looks %u), fire marks %u, next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
+        if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
+            ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, g_ar_lent[idx].n);
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); g_ar_load = from_save; g_ar_loaded = 0; }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;
@@ -1952,10 +2031,12 @@ internal void armies_loaded(void) {
 }
 internal void armies_install(const char *autotest_ini) {
     g_mod_armies = g_set_ai[1].mod_armies;
+    g_ar_sea = g_set_ai[1].mod_armies_sea;
     g_ar_raid_answer = g_set_ai[1].raid_answer;
     g_ar_leash = g_set_ai[1].raid_leash;
     if (autotest_ini) {
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
+        g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
         g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
@@ -1971,5 +2052,5 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_fire = ini_int("autotest", "v_ar_fire", -1, autotest_ini);
         g_v_ar_price = ini_int("autotest", "v_ar_price", -1, autotest_ini);
     }
-    if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
+    if (g_log) fprintf(g_log, "# mod armies: %d (variant %d), over the sea %d (variant %d)\n", g_mod_armies, g_v_mod_armies, g_ar_sea, g_v_ar_sea);
 }

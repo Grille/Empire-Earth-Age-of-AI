@@ -185,3 +185,10 @@ Last stand (0x475120), 2026-11-10: `tests/scenarios/last_stand.eeai` (Continenta
 minute 45, 30 minutes more), 10 games each, the game's level 9 / `last_stand_buildings=0`: P2's citizens 6 minutes later 127 / 143, 10
 minutes later 82 / 144, 15 later 67 / 120; its buildings 15 minutes later 34 / 60; P2 out of the game before the end in 5 of 10 / 0 of
 10. Soldiers about the same at every reading (15 minutes later 43 / 41). On.
+
+The commander on island maps (`mod_armies_sea`, armies.c OVER THE SEA, landing.c THE FORCE'S LANDINGS), 2026-11-10: Small Islands
+large from epoch 5, 90 min, 10 games each against the non-cheating game AI, the commander / the force with landings asked only at
+the attack times / asked all along (mod - game AI per game, standard error): landings 1.7 / 0.5 / 1.1, kills +4 (28) / +5 (35) /
++33 (35), losses +23 (47) / -13 (54) / -23 (50), the mod's buildings lost 10.2 / 16.8 / 8.2, razed -3.1 / -6.3 / -3.1, soldiers
++12 (23) / +26 (30) / +29 (20), workers +4 (12) / +6 (22) / +15 (13), ships lost 61 / 32 / 44. Asked all along: level or a little
+better everywhere, nothing beyond the noise. Off until the player decides or a larger run shows it; mixed maps still unplayed.

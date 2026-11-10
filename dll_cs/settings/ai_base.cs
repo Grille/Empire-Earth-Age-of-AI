@@ -613,6 +613,11 @@ class ai_base
         /// is losing; a raid near home is answered by the whole force. Measured against the commander on four setups
         /// (README): fewer losses, more razed, far fewer buildings lost. 0 = the game's commander
         bool mod_armies = true;
+        /// ... on every map, islands too (the player 2026-11-10: no map types): the force fights what it can reach over land,
+        /// and an enemy only across the water is the landing's - its soldiers taken from the force at home, given back
+        /// once they are home again. Off: on island maps the game's commander keeps the land soldiers and the landing
+        /// takes its groups
+        bool mod_armies_sea = false;
         /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
         /// to spare; 100% = an even fight, as before)
         [range(1, 5), commented]

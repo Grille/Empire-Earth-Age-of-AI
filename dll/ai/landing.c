@@ -153,7 +153,27 @@ internal int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, war
     for (int k = 0; k < l->nw; k++) if (l->wpass[k] == u) return 1;
     return 0;
 }
-internal int fleet_leads(ee_attack_subgroup *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
+// THE FORCE'S LANDINGS (armies.c OVER THE SEA, mod_armies_sea): where the mod's force has the land soldiers (ar_on),
+// the commander's groups are empty - the landing's target is the enemy the force asked for at its attack time (an
+// enemy building known only across the water), its soldiers the force's at home (armies_lend: out of the force while
+// the landing has them, back once it lets them go on the force's land). The commander's groups stay the source where
+// the commander has them.
+internal int ar_on(ee_player *pl, unsigned idx);                                       // armies.c
+internal int armies_home_soldiers(ee_player *pl, unsigned idx, ee_unit **out, int max);   // armies.c
+internal void armies_lend(ee_player *pl, ee_unit *u);                                  // armies.c
+#define LD_ASK_MS 300000           // an attack time's request stands this long
+internal struct { ee_player *target; uint32_t t; } g_ld_ask[16];
+internal void landing_ask(ee_player *pl, ee_player *target, uint32_t now) {
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    g_ld_ask[pi].target = target; g_ld_ask[pi].t = now ? now : 1;
+}
+internal ee_player *ld_asked(ee_player *pl, unsigned pi, uint32_t now) {   // the force's request, while it stands and the target is an enemy
+    ee_player *t = g_ld_ask[pi].target;
+    if (!t || now < g_ld_ask[pi].t || now - g_ld_ask[pi].t > LD_ASK_MS || !is_enemy(pl, t)) return NULL;
+    return t;
+}
+internal ee_unit *g_ld_force[LD_PASS * 4];   // the force's soldiers at home (armies_home_soldiers), a pass's
+internal int fleet_leads(ee_attack_subgroup *sg);               // fleet.c: a sea subgroup holding a ship the fleet leads
 internal int fleet_refuses(ee_attack_subgroup *sg, ee_unit *u);  // fleet.c: an order to one of them
 internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal);   // mass.c: an order to a reinforcement held at the rally
 internal int expand_ship(ee_unit *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
@@ -679,18 +699,42 @@ internal ee_goal *ld_unload(ee_unit *sh, ivec2 p) {
     return g;
 }
 // called off with soldiers aboard: each transport unloads on the land nearest to it (at home)
+internal int ld_unload_near(ee_unit *sh) {
+    int x0 = unit_get_x(sh), y0 = unit_get_y(sh), ux = -1, uy = -1;
+    for (int d = 1; d <= 10 && ux < 0; d++)
+        for (int dx = -d; dx <= d && ux < 0; dx++)
+            for (int dy = -d; dy <= d && ux < 0; dy += (abs(dx) == d ? 1 : 2 * d))
+                if (area_id(iv2(x0 + dx, y0 + dy), 2) && !area_id(iv2(x0 + dx, y0 + dy), 1) && ld_tile_free(iv2(x0 + dx, y0 + dy))) { ux = x0 + dx; uy = y0 + dy; }
+    return ux < 0 ? 0 : unit_goal(sh, ld_unload(sh, iv2(ux, uy)), 0, 0x1F40);
+}
+// THE FORCE'S LANDINGS: a transport called off with the force's soldiers aboard is the landing's until it is empty -
+// one unload order often didn't take, and without the commander's transport subgroup nothing unloaded it (the smoke
+// game: 11 of 12 aboard for the last 28 minutes). Again every 20 s, 5 minutes at most.
+internal struct { struct { ee_unit *u; int id; uint32_t t, again; } s[LD_SHIPS]; int n; } g_ld_home_ships[16];
 internal void ld_unload_home(struct landing *l) {
+    unsigned pi = (unsigned)(l - g_ld) & 15;
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
         if (unit_count_inside(sh) <= 0) continue;   // nothing aboard
-        int x0 = unit_get_x(sh), y0 = unit_get_y(sh), ux = -1, uy = -1;
-        for (int d = 1; d <= 10 && ux < 0; d++)
-            for (int dx = -d; dx <= d && ux < 0; dx++)
-                for (int dy = -d; dy <= d && ux < 0; dy += (abs(dx) == d ? 1 : 2 * d))
-                    if (area_id(iv2(x0 + dx, y0 + dy), 2) && !area_id(iv2(x0 + dx, y0 + dy), 1) && ld_tile_free(iv2(x0 + dx, y0 + dy))) { ux = x0 + dx; uy = y0 + dy; }
-        if (ux < 0) continue;
-        l->orders += unit_goal(sh, ld_unload(sh, iv2(ux, uy)), 0, 0x1F40);
+        l->orders += ld_unload_near(sh);
+        if (g_ld_home_ships[pi].n < LD_SHIPS) {
+            int j = g_ld_home_ships[pi].n++;
+            uint32_t now = game_time();
+            g_ld_home_ships[pi].s[j].u = sh; g_ld_home_ships[pi].s[j].id = unit_get_serial(sh); g_ld_home_ships[pi].s[j].t = now; g_ld_home_ships[pi].s[j].again = now;
+        }
     }
+}
+internal void ld_home_ships_tick(ee_player *pl, unsigned pi, uint32_t now) {
+    int m = 0;
+    for (int k = 0; k < g_ld_home_ships[pi].n; k++) {
+        ee_unit *sh = g_ld_home_ships[pi].s[k].u;
+        if (unit_get_serial(sh) != g_ld_home_ships[pi].s[k].id || unit_get_owner(sh) != pl || !ld_alive(sh) || unit_count_inside(sh) <= 0 ||
+            now - g_ld_home_ships[pi].s[k].t > 300000 || landing_has_unit(pl, sh)) continue;
+        ee_goal *g = unit_get_goal(sh);
+        if (now - g_ld_home_ships[pi].s[k].again >= 20000 && !(g && goal_is_unload(g))) { g_ld_home_ships[pi].s[k].again = now; ld_unload_near(sh); }
+        g_ld_home_ships[pi].s[m++] = g_ld_home_ships[pi].s[k];
+    }
+    g_ld_home_ships[pi].n = m;
 }
 
 // every subgroup holding a transport, warship or soldier of the landing is led by it - checked every tick: the game
@@ -1018,8 +1062,9 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         // soldiers at home in land subgroups the game leads (whole subgroups, as the first boarding); an enemy army
         // at its door: one for each of its soldiers stays
         ld_home_scan(pl);
-        int home = 0;
-        for (unsigned k = 0; k < cnt && k < 64; k++) {
+        int home = 0, force = ar_on(pl, pi), nf = force ? armies_home_soldiers(pl, pi, g_ld_force, LD_PASS * 4) : 0;   // the force's (THE FORCE'S LANDINGS)
+        for (int k = 0; k < nf; k++) home += ld_alive(g_ld_force[k]) && is_soldier(unit_get_type_data(g_ld_force[k]));
+        for (unsigned k = 0; k < cnt && k < 64 && !force; k++) {
             ee_attack_group *g = deque_at(dq, first + k);
             for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++) {
                 if (!*sp || !attack_subgroup_is_land(*sp) || landing_leads(*sp)) continue;
@@ -1033,7 +1078,13 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         if (want > l->nships * cap) want = l->nships * cap;
         if (want < 4) return;
         l->nw = 0;
-        for (unsigned k = 0; k < cnt && k < 64 && l->nw < want; k++) {
+        for (int k = 0; k < nf && l->nw < want && l->nw < LD_PASS; k++) {
+            ee_unit *u = g_ld_force[k];
+            if (!ld_alive(u) || ld_aboard(u) || !is_soldier(unit_get_type_data(u)) || expand_has(pl, u)) continue;
+            armies_lend(pl, u);
+            l->wpass[l->nw++] = u;
+        }
+        for (unsigned k = 0; k < cnt && k < 64 && l->nw < want && !force; k++) {
             ee_attack_group *g = deque_at(dq, first + k);
             for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g) && l->nw < want; sp++) {
                 ee_attack_subgroup *sg = *sp;
@@ -1425,9 +1476,10 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     (void)um;
     if (now < l->next_try) return;
     l->next_try = now + 30000;
+    int force = ar_on(pl, pi);   // the mod's force has the land soldiers: its request and its soldiers (THE FORCE'S LANDINGS)
     // the attack's target: the group with the most land members
     ee_player *tgt[16] = { 0 }; int tn[16] = { 0 }, nt = 0;
-    for (unsigned k = 0; k < cnt && k < 64; k++) {
+    for (unsigned k = 0; k < cnt && k < 64 && !force; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         ee_player *t = g ? attack_group_get_target(g) : NULL;
         if (!t || !is_enemy(pl, t)) continue;
@@ -1439,7 +1491,8 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     }
     ee_player *target = NULL;
     for (int j = 0, bn = 0; j < nt; j++) if (tn[j] > bn) { bn = tn[j]; target = tgt[j]; }
-    if (!target) { ld_why(pi, now, "no attack on"); return; }
+    if (force) target = ld_asked(pl, pi, now);
+    if (!target) { ld_why(pi, now, force ? "the force asked for none" : "no attack on"); return; }
     memset(s, 0, sizeof *s); s->pl = pl; s->target = target;
     grid_each(ld_unit, s);
     if (!s->nd || !s->nb) { ld_why(pi, now, !s->nd ? "no dock" : "no building of the target seen"); return; }
@@ -1451,7 +1504,11 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     ld_home_scan(pl);
     int home = 0;
     float ahp = 0, aatt = 0;
-    for (unsigned k = 0; k < cnt && k < 64; k++) {
+    for (int k = 0, nf = force ? armies_home_soldiers(pl, pi, g_ld_force, LD_PASS * 4) : 0; k < nf; k++) {
+        ee_unit *u = g_ld_force[k];
+        if (ld_alive(u) && is_soldier(unit_get_type_data(u))) { home++; ahp += (float)unit_get_hp(u); aatt += ld_attack(u); }
+    }
+    for (unsigned k = 0; k < cnt && k < 64 && !force; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++) {
             if (!*sp || !attack_subgroup_is_land(*sp)) continue;
@@ -1540,6 +1597,7 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
 // 1 = waiting (or given up), 0 = boarding begins (phase 2)
 internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
+    int force = ar_on(pl, pi);   // the passengers: the force's (THE FORCE'S LANDINGS)
     memset(s, 0, sizeof *s); s->pl = pl; s->target = l->target;
     grid_each(ld_unit, s);
     int want = l->want_ships;
@@ -1616,7 +1674,7 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
                 n++; home += ld_at_home(unit_get_tile(u));
             }
             if (mine) { l->frozen[l->nfrozen++] = sg; continue; }
-            if (!attack_subgroup_is_land(sg) || !n || home * 2 < n ||
+            if (force || !attack_subgroup_is_land(sg) || !n || home * 2 < n ||
                 l->npass >= l->want_n)
                 continue;
             l->frozen[l->nfrozen++] = sg;
@@ -1626,6 +1684,12 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
                     l->pass[l->npass++] = u;
             }
         }
+    }
+    for (int k = 0, nf = force ? armies_home_soldiers(pl, pi, g_ld_force, LD_PASS * 4) : 0; k < nf && l->npass < l->want_n && l->npass < LD_PASS; k++) {
+        ee_unit *u = g_ld_force[k];   // the force's at home (THE FORCE'S LANDINGS): taken out of the force
+        if (!ld_alive(u) || !is_soldier(unit_get_type_data(u)) || expand_has(pl, u)) continue;
+        armies_lend(pl, u);
+        l->pass[l->npass++] = u;
     }
     if (l->npass < 6) { l->aborted++; l->next_try = now + 300000; ld_release(pi, "too few passengers", now); return 1; }
     l->phase = 2; l->since = now; l->reissue = 0; l->gathered = 0;
@@ -1961,6 +2025,7 @@ internal void landing_tick(ee_player *pl, uint32_t now) {
         return;
     }
     l->last = now;
+    ld_home_ships_tick(pl, pi, now);
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
@@ -2455,4 +2520,5 @@ internal void landing_new_game(void) {
     memset(g_ld_stat, 0, sizeof g_ld_stat);
     memset(g_fu, 0, sizeof g_fu);
     memset(&g_ld_home, 0, sizeof g_ld_home);
+    memset(g_ld_home_ships, 0, sizeof g_ld_home_ships);
 }
