@@ -69,6 +69,8 @@ internal inline uint16_t sight_raw(unsigned count) {
     return (uint16_t)((d / 254u) << 8 | (2u + d % 254u));
 }
 
+// the mesh's visible tile rows as a vector's first and end pointers, { y, first x, last x } each
+internal inline long **map_visible_rows_at(ee_map *map) { return (long **)(map_mesh_at(map) + value_engine_display_of_mesh_visible_rows + 4); }
 // THE GROUND'S COLOURS (the map's mesh, map_get_mesh: Low-Level Engine.dll's GETerrainMesh): a corner's colour is a
 // slot of the mesh's table (corner_get_color), the table 256 slots of 3 floats, the colour sets each a list of slots
 internal inline float *mesh_color(void *mesh, unsigned slot) { return (float *)FIELD_AT(mesh, value_map_of_mesh_color_table) + slot * 3; }

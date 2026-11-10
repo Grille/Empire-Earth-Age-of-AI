@@ -638,6 +638,9 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // UpdateVisibleTerrain from GetTileRowsInVolume's corners (the 2017 update's engine 0x1003CD4D, AoC's 0x1002C299
 // writes it at +0x1905B8). Its arrays per tile of the region are 101 x 101 (a row 0x65, memset 0x27D9 twice, a tile
 // and its +1 neighbours written) and nothing checks the size against them
+// GETerrainMesh: the visible tile rows, a vector (MSVC: the first element at +4, the end at +8) of { y, first x, last x }:
+// GetNumVisibleTileRows and GetVisibleTileRow read it (the 2017 update's engine: +0x24, +0x28), and EEROEffects' update
+// directly, as the map's +0x3C (0x5010A9, AoC 0x50BDD2; the map's mesh is at +0x1C in both)
 // GETerrainMesh's polygons (GETMPolygon, 0x30 each: three vertex pointers first, the clip codes the display DLLs'
 // TransformToCamera reads at a vertex's +0x20), which UpdateVisibleTerrain makes for its region from two pools in the
 // mesh, taken in turn and never checked: the ground's (12000 - every tile's two, two more for each of up to four
@@ -1158,6 +1161,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_terrain_visible = 0x00503B05;
         data_engine_display_iat_terrain_visible = 0x00823860;
         value_engine_display_of_mesh_visible_size = 1558188;
+        value_engine_display_of_mesh_visible_rows = 32;
         value_engine_display_of_mesh_ground_polygons = 3308;
         value_engine_display_of_mesh_water_polygons = 946544;
         value_engine_display_mesh_ground_polygons = 12000;
@@ -1499,6 +1503,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_terrain_visible = 0x0050E9AA;
         data_engine_display_iat_terrain_visible = 0x00837830;
         value_engine_display_of_mesh_visible_size = 1639864;
+        value_engine_display_of_mesh_visible_rows = 32;
         value_engine_display_of_mesh_ground_polygons = 3368;
         value_engine_display_of_mesh_water_polygons = 987408;
         value_engine_display_mesh_ground_polygons = 12000;

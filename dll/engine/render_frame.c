@@ -390,6 +390,24 @@ internal void vr_make(const void *viewport, const float *was) {
     o->n = n;
     g_vr_cur = o == &g_vr[0] ? 0 : 1;
 }
+// What lies on the ground - a farm's fields, the roads, the craters - the effects' update finds by the mesh's visible rows too,
+// reading the vector itself, no call to hook: with the region cut down past the arrays only those round the camera's foot came
+// (the player, 2026-11-10: "on heiger zoom, the farms only render when being somewhat centered"). Through that update the
+// vector holds the rows made above.
+internal long g_vr_flat[VR_MAX][3];
+internal void vr_effects_update(ee_ro_effects *o) {
+    ee_map *map = game_map();
+    LONG c = g_vr_cur;
+    if (c < 0 || !map) { ro_effects_update(o); return; }
+    const vr_list *l = &g_vr[c];
+    for (int i = 0; i < l->n; i++) { g_vr_flat[i][0] = l->y[i]; g_vr_flat[i][1] = l->x0[i]; g_vr_flat[i][2] = l->x1[i]; }
+    long **rows = map_visible_rows_at(map), *first = rows[0], *end = rows[1];
+    rows[0] = g_vr_flat[0];
+    rows[1] = g_vr_flat[0] + l->n * 3;
+    ro_effects_update(o);
+    rows[0] = first;
+    rows[1] = end;
+}
 // the region the game's update may make: far depth, then the rectangle, drawn in until it fits the arrays; 0: it can't be told
 internal int rf_region_fit(void *viewport, float *r, const float *was) {
     float *fd = viewport_far_at(viewport), lowest = viewport_near(viewport) + 2, k = 1;

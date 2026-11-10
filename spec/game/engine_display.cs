@@ -776,6 +776,12 @@ static unsafe class engine_display
     [value((ee)0x17C6AC, (aoc)0x1905B8)]
     static uint32 of_mesh_visible_size;
 
+    /// GETerrainMesh: the visible tile rows, a vector (MSVC: the first element at +4, the end at +8) of { y, first x, last x }:
+    /// GetNumVisibleTileRows and GetVisibleTileRow read it (the 2017 update's engine: +0x24, +0x28), and EEROEffects' update
+    /// directly, as the map's +0x3C (0x5010A9, AoC 0x50BDD2; the map's mesh is at +0x1C in both)
+    [value((ee)0x20, (aoc)0x20)]
+    static uint32 of_mesh_visible_rows;
+
     /// GETerrainMesh's polygons (GETMPolygon, 0x30 each: three vertex pointers first, the clip codes the display DLLs'
     /// TransformToCamera reads at a vertex's +0x20), which UpdateVisibleTerrain makes for its region from two pools in the
     /// mesh, taken in turn and never checked: the ground's (12000 - every tile's two, two more for each of up to four

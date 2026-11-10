@@ -1108,9 +1108,10 @@ internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) {
 }
 internal void __thiscall rd_hook_ro_shadows_update(ee_ro_shadows *o) { if (!g_rwl_pass) ro_shadows_update(o); }
 internal void collect_fx_take(void), collect_fx_check(void);   // collect_copy.c: the effects' queues the simulation makes
+internal void vr_effects_update(ee_ro_effects *o);   // render_frame.c
 internal void __thiscall rd_hook_ro_effects_update(ee_ro_effects *o) {
     if (g_rwl_pass) { collect_fx_take(); return; }
-    ro_effects_update(o);
+    vr_effects_update(o);
     collect_fx_check();
 }
 internal int rd_world_lock_install(void) {
