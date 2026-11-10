@@ -314,13 +314,14 @@ internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
     r = shelf_wanted(pl, r, unit_mgr_citizens(um));   // bunker.c: none while citizens go onto the shelf or wait there
     return cz_mine_cap(pl, idx, wf_cap_wanted(idx, r));   // workforce_plan CAP: no more than the economy uses; MINE CAP
 }
+// the food a minute that keeps every finished producer training citizens without a pause
+internal float cz_nonstop_food(ee_player *pl) { return (float)cz_producers(pl) * (float)unit_cost(pl, UT(CITIZEN), 2) * 60000.0f / (float)g_cit_train_ms; }
 // FIRST (train_budget, a citizen's food): the stock without the epoch reserve while the income pays both
 internal int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int visible) {
     if (!(CIT_PLAN(idx) & 8) || current_epoch(pl) < 1) return visible;
     int goal = g_czp[idx].goal ? g_czp[idx].goal : g_czp[idx].game;
     if (goal && workforce(pl) >= goal) return visible;
-    float spend = (float)cz_producers(pl) * (float)unit_cost(pl, UT(CITIZEN), 2) * 60000.0f / (float)g_cit_train_ms;
-    if (g_rate[idx].rate[2] < 2.0f * spend) return visible;
+    if (g_rate[idx].rate[2] < 2.0f * cz_nonstop_food(pl)) return visible;
     return stock[2] > visible ? stock[2] : visible;
 }
 // ---- workforce_plan ([ai_base], bits; [autotest] v_workforce_plan for the variant players; docs/economy.md "Workforce

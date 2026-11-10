@@ -16,11 +16,19 @@
 // no enemy near - a Settlement before the rest (5 make a Town Center: a second citizen producer too) - gets up to
 // GU_BATCH spare citizens on its land, the nearest first: idle ones, then wood cutters while the wood stock is over
 // GU_WOOD. A holder ordered waits GU_WAIT (they walk there) before it is ordered again.
+// An idle citizen is spare only when the AI trains no more of them or the food income keeps every producer training
+// without a pause (the player 2026-11-09: citizens went in during the Stone Age "while it has clearly not enough food" to
+// keep one Capitol training). The game's own two rounds wait for the same: they fill a Settlement with no look at the
+// food (a Town Center at minute 6 in a game where the mod sent none), so otherwise their timers (the civilization
+// manager's 3: Settlement to Town Center, 4: Town Center to Capitol) are kept from running out. Waiting for all the
+// citizens wanted alone was too much: a Town Center is a producer too, none stood by minute 60 and the workers at minute
+// 40 fell from 105 to 75 (10 games).
 // "# garrison:" at every order, and once a game minute (autotest) the towns by kind and what was sent.
 #define GU_EVERY 20000
 #define GU_WOOD 5000
 #define GU_BATCH 10
 #define GU_WAIT 60000
+#define GU_HOLD (2 * GU_EVERY)     // how far ahead the game's rounds are kept: beyond the next pass here
 #define GU_REACH2 20.0f            // the bonus: a mine within this squared distance of the building (0x833AB4)
 #define GU_MINES_R 5
 #define GU_SAFE_R 12               // no enemy soldiers within this of the holder
@@ -74,6 +82,13 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     if (now < g->t) memset(g, 0, sizeof *g);   // a new game
     if (!pl || !GARRISON(idx) || (g->t && now - g->t < GU_EVERY)) return;
     g->t = now ? now : 1;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    int idle_spare = um && (unit_mgr_citizens(um) >= hook_cit_wanted(um) || g_rate[idx].rate[2] >= cz_nonstop_food(pl));
+    for (int k = 3; cm && !idle_spare && k <= 4; k++) {
+        uint32_t t = civ_mgr_get_timer(cm, k);
+        if (t && (int)(t - now) < GU_HOLD) civ_mgr_set_timer(cm, k, now + GU_HOLD);   // 0: the game hasn't set it yet
+    }
     // the holder: the most metal mines in reach, a Settlement first
     ee_unit *best = NULL;
     int best_score = 0, best_kind = 0, towns[4] = { 0 };
@@ -101,13 +116,14 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     ivec2 bp = unit_get_tile(best);
     unsigned land = map_area(bp, 2);
     int wood_spare = player_get_stock(pl, 3) > GU_WOOD;
+    if (!idle_spare && !wood_spare) return;
     static ee_unit *cand[4096];
     static int cd[4096];
     int nc = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && nc < 4096; ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || !is_citizen_type(unit_type_get_id(it.td))) continue;
-        int idle = citizen_free(u, 1);
+        int idle = idle_spare && citizen_free(u, 1);
         if (!idle) {
             if (!wood_spare || !citizen_free(u, 0)) continue;
             ee_unit *site = goal_get_site(unit_get_goal(u));
