@@ -113,6 +113,11 @@ class ai_base
         /// share of the population cap for citizens (the rest is military), e.g. 60%; 0 = the game's own (default)
         [range(0, 1), game("the AI's share of the population cap for citizens", "45%", 0), commented("0")]
         share citizen_share = 0;
+        /// how many of its 9 activities the AI attends to each 30 seconds (citizens, gatherers, research, the building plan,
+        /// the epoch's techs, defence, exploring, its attacks, houses): the game takes the first ones that pass its own stock
+        /// checks. 0 = the game's own (5), 9 = all that pass
+        [range(0, 9), game("how many of its activities the AI attends to each period", "5", 0)]
+        int attention_activities = 0;
     }
 
     class AttackRouting

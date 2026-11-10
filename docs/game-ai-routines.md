@@ -171,3 +171,12 @@ War:
 - Whether land explorers (0x47AC74) can be caught by the armies_tick hold; whether vf50 0x43F7CD's `this[0xb].selected` clear is ai_held.
 - Cause of the idle soldiers in the memory note (the group path above is what the code offers; which one it was is unknown).
 - AoC addresses not checked for this list.
+
+## Measured
+
+Attention (0x42F912), 2026-11-10: `attention_activities` (default 0, the game's own 5), Continental huge and Small Islands, 90 min,
+10 games a cell against the non-cheating game AI. The pick isn't random: the activities in a fixed order by strategy, those that
+pass their stock checks, up to the count. 5 / 9 / 9 with the stock checks removed (`min_stock` zeroed, not kept), land: soldiers at
+the end 132 / 147 / 131, losses 69 / 60 / 68, razed 31 / 32 / 36, the AI won 7 / 8 / 5 of 10, workers at minute 40 98 / 94 / 96;
+islands: soldiers 126 / 127 / 130, losses 55 / 37 / 40, razed 13.5 / 17 / 11, won 6 / 7 / 5, workers at minute 40 88 / 80 / 77.
+The building plan's flag stood at 2% at 5 and at 9 and 99% only without the stock checks, which played no better. Off.
