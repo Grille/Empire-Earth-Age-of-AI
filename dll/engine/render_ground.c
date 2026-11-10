@@ -87,6 +87,7 @@ internal struct {
     int nskirt;
     uint32_t wcol;
     double phase;
+    double wms;   // the water's time (ms) for the frames of its animation (rg_water_frame)
     LONGLONG at;
     long drawn, tris, frames, remade;
     rg_lights lights;
@@ -609,6 +610,31 @@ internal int rg_revealed(void) {
     ee_player *p = game_players()[local_player_index()];
     return *game_free_camera_at() || (p && player_get_explore_all(p));
 }
+// THE WATER BY THE GAME TIME ([display] water_game_time, the player 2026-11-10: "water surface and caustics should probably
+// respect game time?", "add it as an option"). The game moves its water by the real time, paused or not: the wobble of the
+// seabed and the surface (the exe's ground update 0x503A7F hands TransformToCamera the TMGetTime gone) and the frames of its
+// animation (GETerrainMesh::UpdateWaterAnimation: TMGetTime) - paused, the game's own ground and water drawn (picture ground
+// off), 37% of the water's pixels changed in 2 s. With the setting the phase of the wobble (the caustics run on it) goes by
+// the game time, and so do the frames: the game's water groups hold the animation's textures in turn (group j frame
+// (counter + j) % groups), so a group drawn with the texture of group j + ours - the game's counter shows frame ours + j,
+// ours counted in the game's ms a frame. The game time: the real time gone at the rate the game time runs (collect_copy.c's
+// measure of the steps), none while paused; without a measure in the last second the game's speed setting.
+internal float g_cp_rate;          // collect_copy.c, included after this file
+internal LONGLONG g_cp_clock_at;
+internal double rg_water_ms(double real_ms) {
+    if (!g_set.water_game_time) return real_ms;
+    if (game_paused()) return 0;
+    float r = g_cp_rate;
+    if (!(r > 0.0f) || !g_cp_clock_at || rd_qpc() - g_cp_clock_at > rd_qpc_ms(1000)) r = *game_speed_var();
+    return r > 0.0f && r < 100.0f ? real_ms * (double)r : real_ms;
+}
+// the group whose texture the water's group 0 is drawn with now (+ j for group j, round the groups)
+internal unsigned rg_water_frame(void) {
+    unsigned n = mesh_water_groups(g_rg.mesh), per = n ? mesh_water_frame_ms(g_rg.mesh) : 0;
+    if (!g_set.water_game_time || !per) return 0;
+    unsigned ours = (unsigned)fmod(floor(g_rg.wms / (double)per), (double)n);
+    return (ours + n - mesh_water_frame(g_rg.mesh) % n) % n;
+}
 internal int rg_ready(void) { return g_rg.on && g_rg.lit && g_rg.api >= 0 && g_rd3.scene_view[15] == 1 && g_rd3.prep_dev && g_cam_now_ok && game_map(); }   // the units have drawn once: the projection, from the frame before
 // the ground (water 0) or the water of this frame into the list, on the game's states for it. again: 1 a frame during a step,
 // 2 one while another writer has the world - nothing of the game's is read then, a load is freeing it
@@ -643,9 +669,10 @@ internal void rg_draw_now(int water, int again) {
     int nmat = again == 2 ? 0 : water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
     if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
+    unsigned wf = water && nmat ? rg_water_frame() : 0, wn = water && nmat ? mesh_water_groups(g_rg.mesh) : 1;
     for (int m = 0; m < nmat; m++) {
         if (!want[m]) continue;
-        g_rg.bind[i](g_rg.ras, water ? mesh_water_texture(g_rg.mesh, (unsigned)m) : g_rg.mat[m], g_rg.screen);
+        g_rg.bind[i](g_rg.ras, water ? mesh_water_texture(g_rg.mesh, ((unsigned)m + wf) % wn) : g_rg.mat[m], g_rg.screen);
         rd_surface *t = d->tex[0];
         if (!t) continue;
         ID3D11ShaderResourceView *now = rd_gpu_texture(t, 0);
@@ -683,7 +710,11 @@ internal void rg_draw_now(int water, int again) {
     if (!water) {
         if (again != 2) rg_fow();
         LONGLONG now = rd_qpc();
-        if (g_rg.at) g_rg.phase = fmod(g_rg.phase + (double)ws[0] * (double)(now - g_rg.at) / (double)rd_qpc_ms(1000), 6.283185307179586 * 1024.0);
+        if (g_rg.at) {
+            double ms = rg_water_ms((double)(now - g_rg.at) * 1000.0 / (double)rd_qpc_ms(1000));
+            g_rg.phase = fmod(g_rg.phase + (double)ws[0] * ms / 1000.0, 6.283185307179586 * 1024.0);
+            g_rg.wms += ms;
+        }
         g_rg.at = now;
     }
     if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;

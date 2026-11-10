@@ -878,6 +878,14 @@ static unsafe class engine_display
     [value((ee)0x17C6C4, (aoc)0x1905D0)]
     static uint32 of_mesh_water_set;
 
+    /// GETerrainMesh: the water's animation (UpdateWaterAnimation, the 2017 update's engine 0x1003CCA1): the frame its first
+    /// group shows - group j shows (this + j) % groups -, moved on by the TMGetTime gone (the real time); the ms a frame
+    [value((ee)0x17C6BC, (aoc)0x1905C8)]
+    static uint32 of_mesh_water_frame;
+
+    [value((ee)0x17C6C8, (aoc)0x1905D4)]
+    static uint32 of_mesh_water_frame_ms;
+
     /// GETerrainMesh: 33 x 33 numbers, which of the water's groups a tile takes: the one at (x % 33) * 33 + y % 33
     /// (SetGlobalWaterState fills them at random, UpdateVisibleTerrain reads them) - tiles side by side at different
     /// frames of the animation

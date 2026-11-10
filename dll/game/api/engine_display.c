@@ -270,6 +270,9 @@ internal inline unsigned mesh_water_groups(const void *mesh) {
     return g ? (unsigned)(*(uint8_t *const *)(v + 8) - g) / value_engine_display_size_mesh_group : 0;
 }
 internal inline unsigned mesh_water_patch(const void *mesh, unsigned x, unsigned y) { return ((const unsigned *)((const uint8_t *)mesh + value_engine_display_of_mesh_water_patches))[(x % 33) * 33 + y % 33]; }
+// the water's animation: the frame its first group shows (group j: that + j, round the groups), the ms a frame (UpdateWaterAnimation)
+internal inline unsigned mesh_water_frame(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_frame, unsigned); }
+internal inline unsigned mesh_water_frame_ms(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_frame_ms, unsigned); }
 internal inline void *mesh_water_texture(const void *mesh, unsigned group) {
     return *(void **)(*(uint8_t *const *)((const uint8_t *)mesh + value_engine_display_of_mesh_water_groups + 4) + group * value_engine_display_size_mesh_group);
 }
