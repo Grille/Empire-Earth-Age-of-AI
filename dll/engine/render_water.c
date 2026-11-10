@@ -264,6 +264,12 @@ internal int rd3_water_last(void) {
     for (int i = g_rf.n - 1; i >= 0; i--) if (g_rf.cmd[i].role == SH_WATER) return i;
     return -1;
 }
+// A ship's wake is a decal of the units' pass (SH_DECAL, see-through, no depth written: the rings a ship leaves, 6 indices
+// each) lying at the level, and "under" starts 0.05 below it so that a move's circle stays over the surface - the rings came
+// out over the surface (the player, 2026-11-11: "the wave circle behind ships is suposed to render under the water surface, not
+// over it"). Such a decal's split lies RF_HIGH_SPLIT higher (render_frame.c rf_water_split): the rings under the surface, as
+// a decal on land is drawn where it was - no surface over it
+internal int rd3_water_high(const rf_cmd *c) { return c->ro == RO_UNITS && c->role == SH_DECAL; }
 internal int rd3_water_first(void) {
     for (int i = 0; i < g_rf.n; i++) if (g_rf.cmd[i].role == SH_WATER) return i;
     return -1;
