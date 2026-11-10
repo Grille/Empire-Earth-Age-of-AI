@@ -376,6 +376,29 @@ unsafe struct EEE3DMarchingLine
 {
 }
 
+/// a flying model: the pieces a dying mech or machine throws (a Minotaur's torso, an artillery piece's shards), an effect of
+/// the fifth queue, moved once a step
+[vtable((ee)0x0082BAF8, (aoc)0x00840AC4), c_type("ee_particle3d")]
+unsafe struct EEE3DParticle
+{
+    /// where it is drawn: x, then y and z after it (vf6 reads the three into its transformation)
+    [offset(0x80), found(c)]
+    float32 place;
+
+    /// how far gone: its size and alpha shrink with it (vf6)
+    [offset(0x90), found(c)]
+    float32 fade;
+
+    /// its turn about the axes: x, then y and z after it (vf6)
+    [offset(0x98), found(c)]
+    float32 angles;
+
+    /// vf6: draws it
+    [slot(6), address((ee)0x004EB951, (aoc)0x004F556B)]
+    [vtable_site("particle3d_draw")]
+    extern uint32 draw();
+}
+
 [c_type("ee_screen")]
 unsafe struct DX7Screen
 {

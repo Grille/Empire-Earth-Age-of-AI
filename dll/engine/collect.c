@@ -124,6 +124,41 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
     // stays (a death's: blended toward its first frame it went back to its beginning for a moment and came back)
     *next = f + s <= last ? f + s : k == pose ? o->next_frame : first;
 }
+// THE FLYING PIECES BETWEEN STEPS (with the animation's: picture collect anim): what a dying mech throws - a Minotaur's torso,
+// the shards - is no part of its model but an effect (EEE3DParticle, moved in the step), so it stood for a step's time and
+// jumped (the player, 2026-11-10: "the death animation of a minotaurus cyborg, its still in single frames"). Its draw reads
+// three plain things, the place, the angles and the fade: drawn as they were a step ago, blended on to the last step's by the
+// time since it came, a step behind as the units are. A piece isn't in any copy of the world: seen new at the draw.
+#define PT_SLOTS 4096
+typedef struct { ee_particle3d *o; LONGLONG seen, at, period; float was[7], now[7]; } pt_e;
+internal pt_e g_pt[PT_SLOTS];
+internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
+    if (!g_uc_anim_smooth || g_cp_smooth != 1) return eee3_d_particle_draw(o);
+    static LONGLONG hz;
+    if (!hz) { LARGE_INTEGER f; QueryPerformanceFrequency(&f); hz = f.QuadPart; }
+    float *place = particle3d_place_at(o), *fade = particle3d_fade_at(o), *angles = particle3d_angles_at(o), cur[7];
+    memcpy(cur, place, 12); memcpy(cur + 3, angles, 12); cur[6] = *fade;
+    pt_e *e = &g_pt[((uint32_t)(uintptr_t)o >> 4) * 2654435761u >> 20];
+    LONGLONG t = rd_qpc();
+    if (e->o != o || t - e->seen > hz / 4) {   // new here, or one before it in this memory
+        e->o = o, e->at = t, e->period = 0;
+        memcpy(e->was, cur, sizeof cur); memcpy(e->now, cur, sizeof cur);
+    }
+    e->seen = t;
+    if (memcmp(cur, e->now, sizeof cur)) {
+        e->period = t - e->at, e->at = t;
+        memcpy(e->was, e->now, sizeof cur); memcpy(e->now, cur, sizeof cur);
+    }
+    if (!e->period || e->period > hz / 2 || t - e->at >= e->period) return eee3_d_particle_draw(o);
+    float a = (float)((double)(t - e->at) / (double)e->period), dx = e->now[0] - e->was[0], dy = e->now[1] - e->was[1], b[7];
+    if (dx * dx + dy * dy > 16.0f) return eee3_d_particle_draw(o);   // not the same flight
+    for (int i = 0; i < 7; i++) b[i] = e->was[i] + (e->now[i] - e->was[i]) * a;
+    for (int i = 3; i < 6; i++) if (fabsf(e->now[i] - e->was[i]) > 1.6f) b[i] = e->now[i];   // an angle come round
+    memcpy(place, b, 12); memcpy(angles, b + 3, 12); *fade = b[6];
+    uint32_t r = eee3_d_particle_draw(o);
+    memcpy(place, cur, 12); memcpy(angles, cur + 3, 12); *fade = cur[6];
+    return r;
+}
 // after the walk: the followed object's step on the screen, while it moves
 internal void uc_smooth_probe(void) {
     if (!g_cp_smooth || !g_cs_u) return;
@@ -1110,6 +1145,7 @@ internal void collect_install(void) {
     memcpy(want + 2, &g_uc_lock_at, 4);
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
     int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts), fx_of = 0;
+    if (!patch_particle3d_draw(pt_hook_draw) && g_log) fprintf(g_log, "# collect: the flying pieces' draw NOT hooked\n");
     if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);

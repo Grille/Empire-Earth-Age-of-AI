@@ -306,6 +306,28 @@ internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return pat
 // a line from an airport to its target (the graphical goal manager's kind 0): an effect of the third queue, drawn in pixels
 // from world points (0x50DD81, AoC 0x518676)
 
+// class EEE3DParticle (ee_particle3d)
+// a flying model: the pieces a dying mech or machine throws (a Minotaur's torso, an artillery piece's shards), an effect of
+// the fifth queue, moved once a step
+// where it is drawn: x, then y and z after it (vf6 reads the three into its transformation)
+internal inline float particle3d_get_place(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_place); }
+internal inline void particle3d_set_place(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_place) = v; }
+internal inline float *particle3d_place_at(const ee_particle3d *o) { return (float *)((uint8_t *)o + of_particle3d_place); }
+// how far gone: its size and alpha shrink with it (vf6)
+internal inline float particle3d_get_fade(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_fade); }
+internal inline void particle3d_set_fade(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_fade) = v; }
+internal inline float *particle3d_fade_at(const ee_particle3d *o) { return (float *)((uint8_t *)o + of_particle3d_fade); }
+// its turn about the axes: x, then y and z after it (vf6)
+internal inline float particle3d_get_angles(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_angles); }
+internal inline void particle3d_set_angles(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_angles) = v; }
+internal inline float *particle3d_angles_at(const ee_particle3d *o) { return (float *)((uint8_t *)o + of_particle3d_angles); }
+// vf6: draws it
+typedef uint32_t (__thiscall *particle3d_draw_fn)(ee_particle3d *);
+internal inline uint32_t particle3d_draw(ee_particle3d *particle3d) { return ((particle3d_draw_fn)(*(void ***)particle3d)[slot_particle3d_draw])(particle3d); }
+internal particle3d_draw_fn fn_eee3_d_particle_draw;
+internal inline uint32_t eee3_d_particle_draw(ee_particle3d *particle3d) { return fn_eee3_d_particle_draw(particle3d); }
+internal inline int patch_particle3d_draw(particle3d_draw_fn h) { return patch_vtable(vt_eee3_d_particle, (int)slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, (void *)h); }
+
 // class DX7Screen (ee_screen)
 internal inline uint8_t *screen_get_modes_begin(const ee_screen *o) { return *(uint8_t **)((uint8_t *)o + of_screen_modes_begin); }
 internal inline void screen_set_modes_begin(ee_screen *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_screen_modes_begin) = v; }
@@ -1070,6 +1092,12 @@ internal int spec_engine_display_select(int build) {
         size_eero_effects = 0x4;
         fn_ro_effects_update = (ro_effects_update_fn)0x005067CF;
         vt_eee3_d_marching_line = 0x0082B9D4;
+        vt_eee3_d_particle = 0x0082BAF8;
+        of_particle3d_place = 0x80;
+        of_particle3d_fade = 0x90;
+        of_particle3d_angles = 0x98;
+        slot_particle3d_draw = 6;
+        fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004EB951;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -1412,6 +1440,12 @@ internal int spec_engine_display_select(int build) {
         size_eero_effects = 0x4;
         fn_ro_effects_update = (ro_effects_update_fn)0x00511D76;
         vt_eee3_d_marching_line = 0x0084099C;
+        vt_eee3_d_particle = 0x00840AC4;
+        of_particle3d_place = 0x80;
+        of_particle3d_fade = 0x90;
+        of_particle3d_angles = 0x98;
+        slot_particle3d_draw = 6;
+        fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004F556B;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -1728,6 +1762,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_effects_update, "EEROEffects.update");
     bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
     bad += spec_vtable(vt_eee3_d_marching_line, ".?AVEEE3DMarchingLine@@", "EEE3DMarchingLine [vtable]");
+    bad += spec_vtable(vt_eee3_d_particle, ".?AVEEE3DParticle@@", "EEE3DParticle [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw");
+    bad += spec_slot(vt_eee3_d_particle, slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw [slot]");
     bad += spec_code((uintptr_t)fn_pick_list_reset, "EEPickList.reset");
     bad += spec_code((uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units");
     bad += spec_call(call_units_pick_rect, (uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units [call_site units_pick_rect]");
