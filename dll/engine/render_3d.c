@@ -175,7 +175,7 @@ internal const char k_rd3_shader[] =
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
-    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float2 gw : TEXCOORD4; };\n"
+    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float2 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -194,11 +194,12 @@ internal const char k_rd3_shader[] =
     // the ground from the map: its seabed moved as TransformToCamera does, its brightness the fog of war (GETerrainMesh::UpdateFogOfWar),
     // the game's lights on the table's colour, clamped before it as DX7Rasterizer::Light does (a warm stone washes out otherwise);
     // the water (gnd.x 2): the height it holds is the ground's under it, the surface moves about the level, over land half as much and below it
-    "void ground(inout I i) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
+    // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light
+    "void ground(inout I i, out float4 gt, out float3 gl) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
-    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); if (gnd.x > 0) ground(i); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); gt = float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
+    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
@@ -236,6 +237,9 @@ internal const char k_rd3_shader[] =
     " return lerp(lerp(gbh(a), gbh(a + float2(1, 0)), f.x), lerp(gbh(a + float2(0, 1)), gbh(a + float2(1, 1)), f.x), f.y); }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
+    // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
+    // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
+    " if (gnd.x == 1 && gbl.x > 0 && i.gt.a > 0.001) c.rgb = d.rgb = i.gt.rgb / i.gt.a * i.gl;"
     " if (misc.z > 0.5 && x.a == 0) discard;"
     // the seabed loses its texture's detail with the depth, keeping its colour: toward the texture's last mip level
     " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"

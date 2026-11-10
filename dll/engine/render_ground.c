@@ -191,9 +191,9 @@ internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const fl
     float *f = (float *)o->fvf;
     f[0] = (float)x; f[1] = (float)y; f[2] = g_rg.z(g_rg.mesh, x, y);
     memcpy(f + 3, g_rg.normal(g_rg.mesh, x, y), 12);
-    *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, x, y), a);
+    *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, x, y), a & 255);
     f[7] = uv[0]; f[8] = uv[1];
-    o->w = 0;
+    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour)
 }
 internal int rg_tri_order(const void *pa, const void *pb) {
     const rg_tri *a = pa, *b = pb;
@@ -242,8 +242,9 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
         b[0] = xy[0]; b[1] = v1;
         c[0] = u1; c[1] = xy[1];
         e[0] = u1; e[1] = v1;
-        // a corner's alpha: the whole base; a layer where the corner's cell has its texture
-        int aa = k < 0 || t[2] == tex ? 255 : 0, ab = k < 0 || t[1] == tex ? 255 : 0, ac = k < 0 || t[3] == tex ? 255 : 0, ad = k < 0 || t[0] == tex ? 255 : 0;
+        // a corner's alpha: the whole base; a layer where the corner's cell has its texture. Bit 8: the cell has it (a point has one cell, so one texture and one colour)
+        int aa = (k < 0 || t[2] == tex ? 255 : 0) | (t[2] == tex) << 8, ab = (k < 0 || t[1] == tex ? 255 : 0) | (t[1] == tex) << 8;
+        int ac = (k < 0 || t[3] == tex ? 255 : 0) | (t[3] == tex) << 8, ad = (k < 0 || t[0] == tex ? 255 : 0) | (t[0] == tex) << 8;
         int layer = k < 0 ? 0 : 1;
         #define RG_V(i, X, Y, UV, AL) rg_vertex(&out[n].v[i], X, Y, UV, AL)
         #define RG_TRI(X0, Y0, U0, A0, X1, Y1, U1_, A1, X2, Y2, U2, A2) do { out[n].tex = tex; out[n].layer = layer; \
