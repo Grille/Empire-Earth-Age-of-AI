@@ -175,7 +175,7 @@ internal const char k_rd3_shader[] =
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
-    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float2 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6; };\n"
+    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float3 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -220,7 +220,7 @@ internal const char k_rd3_shader[] =
     "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a);"
     // a caster in a shadow (shadows all on): its colour without the lights' diffuse part, as much as the strength takes
     "  o.k = saturate(e.rgb + a.rgb * am + d.rgb * df * (1 - shk.w)) / max(c.rgb, 0.001); }"
-    " o.c = c; o.t = i.t; o.gw = i.p.xy;"
+    " o.c = c; o.t = i.t; o.gw = i.p;"
     " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = fog_at(z);"
     // what lies under the water takes the fog of the place the line of sight enters it (render_water.c) - the game's
     // own again toward the fog's end, where the ground's mesh stops
@@ -239,7 +239,11 @@ internal const char k_rd3_shader[] =
     " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
     // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
-    " if (gnd.x == 1 && gbl.x > 0 && i.gt.a > 0.001) c.rgb = d.rgb = i.gt.rgb / i.gt.a * i.gl;"
+    // Under the level the game's own blending and colours (the seabed's depth is painted in them, and a ragged border showed
+    // through the water as streaks - the player, 2026-11-10), over a band of 0.005 below it: land on an island map lies within
+    // hundredths of the level, a wider band took its borders too
+    " float gk = gnd.x == 1 && gbl.x > 0 ? saturate((i.gw.z + 0.005) * 200) : 0;"
+    " if (gk > 0 && i.gt.a > 0.001) c.rgb = d.rgb = lerp(d.rgb, i.gt.rgb / i.gt.a * i.gl, gk);"
     " if (misc.z > 0.5 && x.a == 0) discard;"
     // the seabed loses its texture's detail with the depth, keeping its colour: toward the texture's last mip level
     " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"
@@ -248,8 +252,8 @@ internal const char k_rd3_shader[] =
     "  if (aop.x != 1) c.a = top(aop.x, arg(aop.y, x, d), arg(aop.z, x, d)).a; }"
     // a layer of the ground, in its fade between two corners: its high texels first. 0 stays 0 and 1 stays 1 whatever the
     // height, so that neighbouring tiles still meet
-    " [branch] if (gnd.x == 1 && gbl.x > 0 && c.a > 0 && c.a < 1) { float gn = saturate((gbn(i.gw * gbl.w) * 0.65 + gbn(i.gw * gbl.w * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5);"
-    "  float gh = lerp(ght.SampleGrad(s, i.t, gdx, gdy), gn, gbl.z); c.a = saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y); }"
+    " [branch] if (gk > 0 && c.a > 0 && c.a < 1) { float gn = saturate((gbn(i.gw.xy * gbl.w) * 0.65 + gbn(i.gw.xy * gbl.w * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5);"
+    "  float gh = lerp(ght.SampleGrad(s, i.t, gdx, gdy), gn, gbl.z); c.a = lerp(c.a, saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y), gk); }"
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
