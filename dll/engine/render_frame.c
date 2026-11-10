@@ -626,6 +626,8 @@ internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_shadow_only(int role);
 internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first);   // render_silhouette.c
+internal int rao_on(void);   // render_ao.c
+internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first);
 internal void rf_edges_part(ID3D11DeviceContext *x, int part);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
@@ -952,12 +954,14 @@ internal void rf_replay(void) {
         if (g_rf.cmd[i].ro == RO_WATER) lastp = i;
     }
     const rf_cmd *scene = NULL;
+    int unit3 = -1;   // a batch of the units' with the camera's own projection (the ground's view is another: render_ao.c)
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->ro < RO_TERRAIN || c->ro > RO_WATER) continue;
         if (first3 < 0) first3 = i;
         last3 = i;
         if (!scene && !rf_pixels(g_rf.vcs[c->vc].view)) scene = c;
+        if (unit3 < 0 && c->ro == RO_UNITS && !rf_pixels(g_rf.vcs[c->vc].view)) unit3 = i;
     }
     // the silhouettes after the units' last batch drawn in its place: one held back for after the water is passed over below
     for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && (g_rf.cmd[i].wat == RF_W_SPLIT || g_rf.cmd[i].wat == RF_W_TOP))) lastu = i;
@@ -979,6 +983,13 @@ internal void rf_replay(void) {
             rf_edges_part(x, 2);
             for (int j = 0; j <= laste; j++) if (g_rf.cmd[j].soft) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
             rf_edges_part(x, 0);
+        }
+        if (i == lastu && scene && rao_on()) {   // all that writes the depth drawn (render_ao.c), the water and the silhouettes yet to come
+            D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv);
+            rd3_ao(x, scene->rtv, &port, scene->dsv, g_rf.vcs[unit3 >= 0 ? g_rf.cmd[unit3].vc : scene->vc].vpm);
+            rf_bind(x);
+            first = 1;
+            b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
         }
         if (i == lastu) rd3_silhouettes(x, &b, &first);
         if (i == lastw) {

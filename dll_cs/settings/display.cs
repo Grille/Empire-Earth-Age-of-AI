@@ -140,6 +140,18 @@ class display
         /// stand out while the textures stay sharp, and each edge is followed to its ends (the control pipe: picture
         /// aadepth on / off):
         bool antialias_depth = false;
+        /// The own renderer only: the picture darkened where things stand close to each other - at the foot of a unit or a
+        /// building, in a building's corners -, worked out from the scene's depth (the control pipe: picture ao on / off /
+        /// view, view shows it alone):
+        bool ambient_occlusion = false;
+        /// With ambient_occlusion: how far from a surface what stands near it still darkens it, in tiles (the control
+        /// pipe: picture aoradius <n>):
+        [range(0.1, 4)]
+        share ambient_occlusion_radius = 0.6;
+        /// With ambient_occlusion: how dark it gets (100% as the method works it out; the control pipe: picture aostrength
+        /// <n>, 1 is 100%):
+        [range(0, 4)]
+        share ambient_occlusion_strength = 1.0;
         /// The own renderer only: textures seen at a slant - the ground far off - kept sharp (anisotropic filtering, its
         /// samples; 1 = off, as the game had it, 16 the sharpest; the control pipe: picture aniso <n>):
         [range(1, 16)]
