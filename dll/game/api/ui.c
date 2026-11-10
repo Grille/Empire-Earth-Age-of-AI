@@ -208,6 +208,99 @@ internal inline void **edit_box_vtable_copy(void **vt, int room) {
 }
 // the left mouse button's release's slot in such a copy, and the box's whole text selected (what is typed next replaces it)
 internal inline void **edit_box_vtable_mouse_up(void **vt) { return &vt[1 + slot_ui_control_mouse_l_button_up]; }
+// THE SCENARIO EDITOR'S UNDO (engine/editor_undo.c): the running scenario written to a file as the quick save writes it
+// (into an FSMemoryFile, that saved to the file: Low-Level Engine's, by name), the file's spec of a whole path
+#define UI_FILE_SPEC_ROOM 0x100     // for an FSFileSpec (the quick save's local: 0x48)
+internal inline void *lle_proc(const char *name) {
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    return lle ? (void *)GetProcAddress(lle, name) : NULL;
+}
+internal inline void *file_spec_init(void *spec, const char *path) {
+    typedef void *(__thiscall *ctor_fn)(void *, const void *);
+    ctor_fn ctor = (ctor_fn)lle_proc("??0FSFileSpec@@QAE@ABVUString@@@Z");
+    if (!ctor) return NULL;
+    __attribute__((aligned(8))) uint8_t s[32];
+    ustring_init(s);
+    ustring_set(s, path);
+    ctor(spec, s);
+    ustring_free(s);
+    return spec;
+}
+internal inline void file_spec_free(void *spec) { ((void (__thiscall *)(void *))lle_proc("??1FSFileSpec@@UAE@XZ"))(spec); }
+internal inline int scenario_save_to(const char *path) {
+    typedef void *(__thiscall *mem_ctor_fn)(void *, unsigned long, char, unsigned long);
+    typedef long (__thiscall *fs_fn)(void *);
+    typedef long (__thiscall *fs_open_fn)(void *, unsigned long);
+    typedef long (__thiscall *mem_save_fn)(void *, void *);
+    mem_ctor_fn ctor = (mem_ctor_fn)lle_proc("??0FSMemoryFile@@QAE@K_NK@Z");
+    fs_fn create = (fs_fn)lle_proc("?Create@FSFileSpec@@UAEJXZ"), close = (fs_fn)lle_proc("?Close@FSFileSpec@@UAEJXZ");
+    fs_open_fn open = (fs_open_fn)lle_proc("?Open@FSFileSpec@@UAEJK@Z");
+    mem_save_fn save = (mem_save_fn)lle_proc("?Save@FSMemoryFile@@QAEJAAVFSFile@@@Z");
+    if (!ctor || !create || !close || !open || !save) return 0;
+    void *mem = game_new(value_editor_size_memory_file);
+    if (!mem) return 0;
+    ctor(mem, 0x400, 1, 1000);   // the quick save's
+    *(uintptr_t *)mem = data_editor_vt_scenario_memory;
+    __attribute__((aligned(8))) uint8_t name[32], spec[UI_FILE_SPEC_ROOM];
+    ustring_init(name);
+    ustring_set(name, "EEQuickSave");
+    int ok = scenario_write(name, 0, mem, mem) == 0;   // no time in its header: the same scenario makes the same file
+    ustring_free(name);
+    if (ok && file_spec_init(spec, path)) {
+        create(spec);
+        ok = open(spec, 2) == 0;
+        if (ok) { ok = save(mem, spec) == 0; close(spec); }
+        file_spec_free(spec);
+    } else ok = 0;
+    ((void (__thiscall *)(void *, int))(*(void ***)mem)[0])(mem, 1);
+    return ok;
+}
+// the quick load's reading of the scenario in the file at path instead of the one it was given: its result, -1: no such file spec
+internal inline int scenario_read_from(const char *path, int a, int b, uint8_t c) {
+    __attribute__((aligned(8))) uint8_t spec[UI_FILE_SPEC_ROOM];
+    if (!file_spec_init(spec, path)) return -1;
+    int r = scenario_read(spec, a, b, c);
+    file_spec_free(spec);
+    return r;
+}
+// the editor's quick load as an action of the mod's own, not queued (run, deleted by whoever made it)
+internal inline ee_se_quick_load *se_quick_load_new(void) {
+    ee_se_quick_load *a = game_new(size_eesea_quick_save_load);
+    if (!a) return NULL;
+    se_quick_load_init_base(a, editor_scenario_dir_at());
+    *(uintptr_t *)a = vt_eesea_quick_save_load;
+    se_quick_load_set_load(a, 1);
+    return a;
+}
+// the action the Undo or Redo button queues, of the mod's own making (a hotkey's)
+internal inline void se_undo_queue(int redo) {
+    uint32_t *a = game_new(value_ui_size_key_scroll);
+    if (!a) return;
+    a[0] = redo ? vt_eea_redo : vt_eea_undo;
+    a[1] = 1;
+    a[2] = 0;
+    ui_queue_action(game_get_ui(), a);
+    action_release(a);
+}
+// a hotkey's event of the mod's own: vt room for UI_EVENT_SLOTS, the arrow key's event's (the destructor, Initialize ...
+// the engine calls) with exec(event, form, arg) as what it does
+#define UI_EVENT_SLOTS 8
+internal inline void *ui_event_own(void **vt, void *exec) {
+    uint32_t *ev = game_new(value_ui_size_key_scroll);
+    if (!ev) return NULL;
+    memcpy(vt, (void *)(uintptr_t)vt_eeuie_keyboard_scroll, UI_EVENT_SLOTS * sizeof *vt);
+    vt[1] = exec;
+    ev[0] = (uint32_t)(uintptr_t)vt;
+    ev[1] = 1;
+    ev[2] = 0;
+    ev[3] = 0;
+    return ev;
+}
+// Ctrl + key: the event the first of the four, its pressing (the editor's own Ctrl+S has it the third, the key's release)
+internal inline void ui_form_add_ctrl_hotkey(void *form, unsigned long key, void *ev) {
+    typedef void (__thiscall *AddHotKeyFn)(void *, unsigned long, unsigned long, unsigned long, unsigned long, void *, void *, void *, void *, unsigned long, char);
+    (*(AddHotKeyFn *)data_ui_iat_uiform_add_hotkey)(form, key, 0xE0, 0x7FFF, 0x7FFF, ev, NULL, NULL, NULL, 0, 0);
+}
 internal inline void edit_box_select_text(ee_ui_control *box) { ((void (__thiscall *)(ee_ui_control *))*(void **)data_ui_imports_iat_edit_box_select_text)(box); }
 // the form's pixel x, y within the control's rectangle (GERectangle::Contains, as UIForm::UpdateMouseLocation finds
 // the control under the mouse)

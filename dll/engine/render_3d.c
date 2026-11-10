@@ -1006,6 +1006,14 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
         g_sim_thread = GetCurrentThreadId();
     }
 }
+// A load from an action (the editor's quick load, its undo): the map goes away under the frame, whose draws read it with
+// no lock held (the water's rows: a crash in two of two). While it is rebuilt no frame begins (the picture stands, the
+// last one) and the world's draws of the frame under way are left out; one inside its draw is waited for.
+internal volatile LONG g_rd_rebuild, g_rd_in_draw;
+internal void rd_world_rebuild(int on) {
+    InterlockedExchange(&g_rd_rebuild, on);
+    if (on) for (DWORD t0 = GetTickCount(); g_rd_in_draw && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
+}
 internal void collect_copy_written(uintptr_t ret);   // collect_copy.c: the units' copy of the world at a write's end
 internal void __thiscall rd_hook_write_unlock(void *lock) {
     if (lock == g_rwl_world && g_rwl_counted) collect_copy_written(g_rwl_write_ret);
@@ -1058,6 +1066,7 @@ internal LONG g_rwl_skips, g_rwl_updates, g_rwl_bare;
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
 internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step (1) or bare (2)
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
+    while (g_rd_rebuild) Sleep(1);
     int free = g_rwl_updates && g_rwl_free && g_rwl_world, ui = -1;
     if (free)
         while ((ui = ui_lock_try()) == 0 && !g_rwl_writers) Sleep(0);   // its holder at the interface, not waiting
@@ -1145,8 +1154,9 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 // next draw with other states), so the ground's last went in with the units' first and the water's last with the
 // interface's - left out of the kept ground and water, and the water's not moved with the camera during a step (drawn
 // where the camera had been: pieces of water over the map's edge, squares of the seabed on the water - AoC, 2026-11-05)
-#define RO_DRAW(i, call) do { g_ro_obj[i] = (ee_render_object *)o; if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
-    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); in_cards_end(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
+#define RO_DRAW(i, call) do { g_ro_obj[i] = (ee_render_object *)o; if (g_rp_skip & 1 << (i)) return; \
+    InterlockedIncrement(&g_rd_in_draw); if (g_rd_rebuild) { InterlockedDecrement(&g_rd_in_draw); return; } int was_ = g_ro_cur; g_ro_cur = (i); \
+    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); in_cards_end(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; InterlockedDecrement(&g_rd_in_draw); } while (0)
 // during a step the last real frame's ground instead of the game's draw, which in Art of Conquest draws its last lists
 // again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
 // rf_ground_again)

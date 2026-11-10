@@ -88,6 +88,7 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
 // The arrow keys: the game's form registers them (four EEUIEKeyboardScroll hotkeys, 0x64D0AB), the editor's
 // never did (in neither build: it scrolls only at the screen edge and by dragging) - given to it the same way.
+internal void editor_undo_hotkeys(ee_editor_form *form);   // editor_undo.c
 internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
     if (g_editor_layout) {
         int w = 800, h = 600;
@@ -103,6 +104,7 @@ internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
         if (ev) { ui_form_add_hotkey(form, keys[i], ev); n++; }
     }
     if (g_log) { log_locked("# editor: arrow keys scroll %d/4\n", n); }
+    editor_undo_hotkeys(form);
     return r;
 }
 

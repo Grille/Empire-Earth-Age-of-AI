@@ -4,30 +4,54 @@
 // class EESEAChangeLoadText (eesea_change_load_text)
 // made in 0x5628EE
 
-// class EESEAChangeWorldPlayerCount (eesea_change_world_player_count)
+// class EESEAChangeWorldPlayerCount (ee_se_player_count)
 // made in 0x563D1B
+// vf1: the number of players changed (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_player_count_run_fn)(ee_se_player_count *);
+internal inline void se_player_count_run(ee_se_player_count *se_player_count) { ((se_player_count_run_fn)(*(void ***)se_player_count)[slot_se_player_count_run])(se_player_count); }
+internal se_player_count_run_fn fn_eesea_change_world_player_count_run;
+internal inline void eesea_change_world_player_count_run(ee_se_player_count *se_player_count) { fn_eesea_change_world_player_count_run(se_player_count); }
+internal inline int patch_se_player_count(se_player_count_run_fn h) { return patch_vtable(vt_eesea_change_world_player_count, (int)slot_se_player_count_run, (uintptr_t)fn_eesea_change_world_player_count_run, (void *)h); }
 
-// class EESEACreateBlankMap (eesea_create_blank_map)
+// class EESEACreateBlankMap (ee_se_blank_map)
+// vf1: a blank map made (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_blank_map_run_fn)(ee_se_blank_map *);
+internal inline void se_blank_map_run(ee_se_blank_map *se_blank_map) { ((se_blank_map_run_fn)(*(void ***)se_blank_map)[slot_se_blank_map_run])(se_blank_map); }
+internal se_blank_map_run_fn fn_eesea_create_blank_map_run;
+internal inline void eesea_create_blank_map_run(ee_se_blank_map *se_blank_map) { fn_eesea_create_blank_map_run(se_blank_map); }
+internal inline int patch_se_blank_map(se_blank_map_run_fn h) { return patch_vtable(vt_eesea_create_blank_map, (int)slot_se_blank_map_run, (uintptr_t)fn_eesea_create_blank_map_run, (void *)h); }
 // its constructor (3 arguments, not typed yet)
-typedef void *(__thiscall *eesea_create_blank_map_init_fn)(eesea_create_blank_map *, uint32_t, uint32_t, uint32_t);
-internal eesea_create_blank_map_init_fn fn_eesea_create_blank_map_init;
-internal inline void *eesea_create_blank_map_init(eesea_create_blank_map *eesea_create_blank_map, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_eesea_create_blank_map_init(eesea_create_blank_map, p1, p2, p3); }
+typedef void *(__thiscall *se_blank_map_init_fn)(ee_se_blank_map *, uint32_t, uint32_t, uint32_t);
+internal se_blank_map_init_fn fn_se_blank_map_init;
+internal inline void *se_blank_map_init(ee_se_blank_map *se_blank_map, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_se_blank_map_init(se_blank_map, p1, p2, p3); }
 
-// class EESEACreateRandomMap (eesea_create_random_map)
+// class EESEACreateRandomMap (ee_se_random_map)
+// vf1: a random map made (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_random_map_run_fn)(ee_se_random_map *);
+internal inline void se_random_map_run(ee_se_random_map *se_random_map) { ((se_random_map_run_fn)(*(void ***)se_random_map)[slot_se_random_map_run])(se_random_map); }
+internal se_random_map_run_fn fn_eesea_create_random_map_run;
+internal inline void eesea_create_random_map_run(ee_se_random_map *se_random_map) { fn_eesea_create_random_map_run(se_random_map); }
+internal inline int patch_se_random_map(se_random_map_run_fn h) { return patch_vtable(vt_eesea_create_random_map, (int)slot_se_random_map_run, (uintptr_t)fn_eesea_create_random_map_run, (void *)h); }
 // its constructor (2 arguments, not typed yet)
-typedef void *(__thiscall *eesea_create_random_map_init_fn)(eesea_create_random_map *, uint32_t, uint32_t);
-internal eesea_create_random_map_init_fn fn_eesea_create_random_map_init;
-internal inline void *eesea_create_random_map_init(eesea_create_random_map *eesea_create_random_map, uint32_t p1, uint32_t p2) { return fn_eesea_create_random_map_init(eesea_create_random_map, p1, p2); }
+typedef void *(__thiscall *se_random_map_init_fn)(ee_se_random_map *, uint32_t, uint32_t);
+internal se_random_map_init_fn fn_se_random_map_init;
+internal inline void *se_random_map_init(ee_se_random_map *se_random_map, uint32_t p1, uint32_t p2) { return fn_se_random_map_init(se_random_map, p1, p2); }
 
-// class EESEADeleteUnit (eesea_delete_unit)
+// class EESEADeleteUnit (ee_se_delete)
+// vf1: units deleted (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_delete_run_fn)(ee_se_delete *);
+internal inline void se_delete_run(ee_se_delete *se_delete) { ((se_delete_run_fn)(*(void ***)se_delete)[slot_se_delete_run])(se_delete); }
+internal se_delete_run_fn fn_eesea_delete_unit_run;
+internal inline void eesea_delete_unit_run(ee_se_delete *se_delete) { fn_eesea_delete_unit_run(se_delete); }
+internal inline int patch_se_delete(se_delete_run_fn h) { return patch_vtable(vt_eesea_delete_unit, (int)slot_se_delete_run, (uintptr_t)fn_eesea_delete_unit_run, (void *)h); }
 // its constructor (2 arguments, not typed yet)
-typedef void *(__thiscall *eesea_delete_unit_init_fn)(eesea_delete_unit *, uint32_t, uint32_t);
-internal eesea_delete_unit_init_fn fn_eesea_delete_unit_init;
-internal inline void *eesea_delete_unit_init(eesea_delete_unit *eesea_delete_unit, uint32_t p1, uint32_t p2) { return fn_eesea_delete_unit_init(eesea_delete_unit, p1, p2); }
+typedef void *(__thiscall *se_delete_init_fn)(ee_se_delete *, uint32_t, uint32_t);
+internal se_delete_init_fn fn_se_delete_init;
+internal inline void *se_delete_init(ee_se_delete *se_delete, uint32_t p1, uint32_t p2) { return fn_se_delete_init(se_delete, p1, p2); }
 // its constructor (1 argument, not typed yet)
-typedef void *(__thiscall *eesea_delete_unit_init_2_fn)(eesea_delete_unit *, uint32_t);
-internal eesea_delete_unit_init_2_fn fn_eesea_delete_unit_init_2;
-internal inline void *eesea_delete_unit_init_2(eesea_delete_unit *eesea_delete_unit, uint32_t p1) { return fn_eesea_delete_unit_init_2(eesea_delete_unit, p1); }
+typedef void *(__thiscall *se_delete_init_2_fn)(ee_se_delete *, uint32_t);
+internal se_delete_init_2_fn fn_se_delete_init_2;
+internal inline void *se_delete_init_2(ee_se_delete *se_delete, uint32_t p1) { return fn_se_delete_init_2(se_delete, p1); }
 
 // class EESEAExitScenario (eesea_exit_scenario)
 // its constructor (0 arguments, not typed yet)
@@ -48,26 +72,56 @@ typedef void *(__thiscall *eesea_mouse_click_init_fn)(eesea_mouse_click *);
 internal eesea_mouse_click_init_fn fn_eesea_mouse_click_init;
 internal inline void *eesea_mouse_click_init(eesea_mouse_click *eesea_mouse_click) { return fn_eesea_mouse_click_init(eesea_mouse_click); }
 
-// class EESEAMoveUnit (eesea_move_unit)
+// class EESEAMoveUnit (ee_se_move)
 // made in 0x59743E
+// vf1: a unit moved (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_move_run_fn)(ee_se_move *);
+internal inline void se_move_run(ee_se_move *se_move) { ((se_move_run_fn)(*(void ***)se_move)[slot_se_move_run])(se_move); }
+internal se_move_run_fn fn_eesea_move_unit_run;
+internal inline void eesea_move_unit_run(ee_se_move *se_move) { fn_eesea_move_unit_run(se_move); }
+internal inline int patch_se_move(se_move_run_fn h) { return patch_vtable(vt_eesea_move_unit, (int)slot_se_move_run, (uintptr_t)fn_eesea_move_unit_run, (void *)h); }
 
 // class EESEAPaint (eesea_paint)
 
-// class EESEAPaintArea (eesea_paint_area)
+// class EESEAPaintArea (ee_se_paint_area)
+// vf1: an area painted (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_paint_area_run_fn)(ee_se_paint_area *);
+internal inline void se_paint_area_run(ee_se_paint_area *se_paint_area) { ((se_paint_area_run_fn)(*(void ***)se_paint_area)[slot_se_paint_area_run])(se_paint_area); }
+internal se_paint_area_run_fn fn_eesea_paint_area_run;
+internal inline void eesea_paint_area_run(ee_se_paint_area *se_paint_area) { fn_eesea_paint_area_run(se_paint_area); }
+internal inline int patch_se_paint_area(se_paint_area_run_fn h) { return patch_vtable(vt_eesea_paint_area, (int)slot_se_paint_area_run, (uintptr_t)fn_eesea_paint_area_run, (void *)h); }
 // its constructor (2 arguments, not typed yet)
-typedef void *(__thiscall *eesea_paint_area_init_fn)(eesea_paint_area *, uint32_t, uint32_t);
-internal eesea_paint_area_init_fn fn_eesea_paint_area_init;
-internal inline void *eesea_paint_area_init(eesea_paint_area *eesea_paint_area, uint32_t p1, uint32_t p2) { return fn_eesea_paint_area_init(eesea_paint_area, p1, p2); }
+typedef void *(__thiscall *se_paint_area_init_fn)(ee_se_paint_area *, uint32_t, uint32_t);
+internal se_paint_area_init_fn fn_se_paint_area_init;
+internal inline void *se_paint_area_init(ee_se_paint_area *se_paint_area, uint32_t p1, uint32_t p2) { return fn_se_paint_area_init(se_paint_area, p1, p2); }
 
-// class EESEAPaintElevation (eesea_paint_elevation)
+// class EESEAPaintElevation (ee_se_paint_elevation)
 // EESEAPaint's, the base's
+// vf1: the ground raised or lowered (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_paint_elevation_run_fn)(ee_se_paint_elevation *);
+internal inline void se_paint_elevation_run(ee_se_paint_elevation *se_paint_elevation) { ((se_paint_elevation_run_fn)(*(void ***)se_paint_elevation)[slot_se_paint_elevation_run])(se_paint_elevation); }
+internal se_paint_elevation_run_fn fn_eesea_paint_elevation_run;
+internal inline void eesea_paint_elevation_run(ee_se_paint_elevation *se_paint_elevation) { fn_eesea_paint_elevation_run(se_paint_elevation); }
+internal inline int patch_se_paint_elevation(se_paint_elevation_run_fn h) { return patch_vtable(vt_eesea_paint_elevation, (int)slot_se_paint_elevation_run, (uintptr_t)fn_eesea_paint_elevation_run, (void *)h); }
 
-// class EESEAPaintMoutains (eesea_paint_moutains)
+// class EESEAPaintMoutains (ee_se_paint_mountains)
 // EESEAPaint's, the base's
+// vf1: cliffs painted (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_paint_mountains_run_fn)(ee_se_paint_mountains *);
+internal inline void se_paint_mountains_run(ee_se_paint_mountains *se_paint_mountains) { ((se_paint_mountains_run_fn)(*(void ***)se_paint_mountains)[slot_se_paint_mountains_run])(se_paint_mountains); }
+internal se_paint_mountains_run_fn fn_eesea_paint_moutains_run;
+internal inline void eesea_paint_moutains_run(ee_se_paint_mountains *se_paint_mountains) { fn_eesea_paint_moutains_run(se_paint_mountains); }
+internal inline int patch_se_paint_mountains(se_paint_mountains_run_fn h) { return patch_vtable(vt_eesea_paint_moutains, (int)slot_se_paint_mountains_run, (uintptr_t)fn_eesea_paint_moutains_run, (void *)h); }
 
-// class EESEAPaintTerrain (eesea_paint_terrain)
+// class EESEAPaintTerrain (ee_se_paint_terrain)
 // made in 0x5955FE, 0x59B234
 // EESEAPaint's, the base's
+// vf1: the ground painted (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_paint_terrain_run_fn)(ee_se_paint_terrain *);
+internal inline void se_paint_terrain_run(ee_se_paint_terrain *se_paint_terrain) { ((se_paint_terrain_run_fn)(*(void ***)se_paint_terrain)[slot_se_paint_terrain_run])(se_paint_terrain); }
+internal se_paint_terrain_run_fn fn_eesea_paint_terrain_run;
+internal inline void eesea_paint_terrain_run(ee_se_paint_terrain *se_paint_terrain) { fn_eesea_paint_terrain_run(se_paint_terrain); }
+internal inline int patch_se_paint_terrain(se_paint_terrain_run_fn h) { return patch_vtable(vt_eesea_paint_terrain, (int)slot_se_paint_terrain_run, (uintptr_t)fn_eesea_paint_terrain_run, (void *)h); }
 
 // class EESEAPlaceGate (ee_se_place_gate)
 // its constructor (0 arguments, not typed yet)
@@ -80,6 +134,23 @@ internal inline void se_place_gate_run(ee_se_place_gate *se_place_gate) { ((se_p
 internal se_place_gate_run_fn fn_eesea_place_gate_run;
 internal inline void eesea_place_gate_run(ee_se_place_gate *se_place_gate) { fn_eesea_place_gate_run(se_place_gate); }
 internal inline int patch_se_place_gate(se_place_gate_run_fn h) { return patch_vtable(vt_eesea_place_gate, (int)slot_se_place_gate_run, (uintptr_t)fn_eesea_place_gate_run, (void *)h); }
+
+// class EEAUndo (ee_se_undo)
+// what the editor's Undo button queues (EEUIFSEUndo +0x104): the game's own takes the last action back by its vf2,
+// which is empty in every editor action (editor_undo.c does the undo instead)
+typedef void (__thiscall *se_undo_run_fn)(ee_se_undo *);
+internal inline void se_undo_run(ee_se_undo *se_undo) { ((se_undo_run_fn)(*(void ***)se_undo)[slot_se_undo_run])(se_undo); }
+internal se_undo_run_fn fn_eea_undo_run;
+internal inline void eea_undo_run(ee_se_undo *se_undo) { fn_eea_undo_run(se_undo); }
+internal inline int patch_se_undo(se_undo_run_fn h) { return patch_vtable(vt_eea_undo, (int)slot_se_undo_run, (uintptr_t)fn_eea_undo_run, (void *)h); }
+
+// class EEARedo (ee_se_redo)
+// what the editor's Redo button queues
+typedef void (__thiscall *se_redo_run_fn)(ee_se_redo *);
+internal inline void se_redo_run(ee_se_redo *se_redo) { ((se_redo_run_fn)(*(void ***)se_redo)[slot_se_redo_run])(se_redo); }
+internal se_redo_run_fn fn_eea_redo_run;
+internal inline void eea_redo_run(ee_se_redo *se_redo) { fn_eea_redo_run(se_redo); }
+internal inline int patch_se_redo(se_redo_run_fn h) { return patch_vtable(vt_eea_redo, (int)slot_se_redo_run, (uintptr_t)fn_eea_redo_run, (void *)h); }
 
 // class EESEAPlaceUnit (ee_se_place_unit)
 // vf1: the units placed, finished (walls.c: the joins beside a tower)
@@ -101,17 +172,36 @@ internal se_place_wall_run_fn fn_eesea_place_wall_run;
 internal inline void eesea_place_wall_run(ee_se_place_wall *se_place_wall) { fn_eesea_place_wall_run(se_place_wall); }
 internal inline int patch_se_place_wall(se_place_wall_run_fn h) { return patch_vtable(vt_eesea_place_wall, (int)slot_se_place_wall_run, (uintptr_t)fn_eesea_place_wall_run, (void *)h); }
 
-// class EESEAQuickSaveLoad (eesea_quick_save_load)
+// class EESEAQuickSaveLoad (ee_se_quick_load)
 // its constructor (1 argument, not typed yet)
-typedef void *(__thiscall *eesea_quick_save_load_init_fn)(eesea_quick_save_load *, uint32_t);
-internal eesea_quick_save_load_init_fn fn_eesea_quick_save_load_init;
-internal inline void *eesea_quick_save_load_init(eesea_quick_save_load *eesea_quick_save_load, uint32_t p1) { return fn_eesea_quick_save_load_init(eesea_quick_save_load, p1); }
+typedef void *(__thiscall *se_quick_load_init_fn)(ee_se_quick_load *, uint32_t);
+internal se_quick_load_init_fn fn_se_quick_load_init;
+internal inline void *se_quick_load_init(ee_se_quick_load *se_quick_load, uint32_t p1) { return fn_se_quick_load_init(se_quick_load, p1); }
+// its base's (EEAQuickSaveLoad) constructor, what the editor's form makes it with: the folder (editor.scenario_dir)
+typedef void *(__thiscall *se_quick_load_init_base_fn)(ee_se_quick_load *, void *);
+internal se_quick_load_init_base_fn fn_se_quick_load_init_base;
+internal inline void *se_quick_load_init_base(ee_se_quick_load *se_quick_load, void *dir) { return fn_se_quick_load_init_base(se_quick_load, dir); }
+// 1: vf1 loads the quick save (0 saves it)
+internal inline uint8_t se_quick_load_get_load(const ee_se_quick_load *o) { return *(uint8_t *)((uint8_t *)o + of_se_quick_load_load); }
+internal inline void se_quick_load_set_load(ee_se_quick_load *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_se_quick_load_load) = v; }
+internal inline uint8_t *se_quick_load_load_at(const ee_se_quick_load *o) { return (uint8_t *)((uint8_t *)o + of_se_quick_load_load); }
+// vf1: the quick save or load done, then the panel shown told (the form's vf 0x14)
+typedef void (__thiscall *se_quick_load_run_fn)(ee_se_quick_load *);
+internal inline void se_quick_load_run(ee_se_quick_load *se_quick_load) { ((se_quick_load_run_fn)(*(void ***)se_quick_load)[slot_se_quick_load_run])(se_quick_load); }
+internal se_quick_load_run_fn fn_eesea_quick_save_load_run;
+internal inline void eesea_quick_save_load_run(ee_se_quick_load *se_quick_load) { fn_eesea_quick_save_load_run(se_quick_load); }
 
 // class EESEAQuickSaveScenario (eesea_quick_save_scenario)
 // made in 0x59F61B
 
-// class EESEARotateUnits (eesea_rotate_units)
+// class EESEARotateUnits (ee_se_rotate)
 // made in 0x58702B
+// vf1: units turned (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_rotate_run_fn)(ee_se_rotate *);
+internal inline void se_rotate_run(ee_se_rotate *se_rotate) { ((se_rotate_run_fn)(*(void ***)se_rotate)[slot_se_rotate_run])(se_rotate); }
+internal se_rotate_run_fn fn_eesea_rotate_units_run;
+internal inline void eesea_rotate_units_run(ee_se_rotate *se_rotate) { fn_eesea_rotate_units_run(se_rotate); }
+internal inline int patch_se_rotate(se_rotate_run_fn h) { return patch_vtable(vt_eesea_rotate_units, (int)slot_se_rotate_run, (uintptr_t)fn_eesea_rotate_units_run, (void *)h); }
 
 // class EESEASaveScenario (eesea_save_scenario)
 // its constructor (0 arguments, not typed yet)
@@ -119,8 +209,14 @@ typedef void *(__thiscall *eesea_save_scenario_init_fn)(eesea_save_scenario *);
 internal eesea_save_scenario_init_fn fn_eesea_save_scenario_init;
 internal inline void *eesea_save_scenario_init(eesea_save_scenario *eesea_save_scenario) { return fn_eesea_save_scenario_init(eesea_save_scenario); }
 
-// class EESEATechTree (eesea_tech_tree)
+// class EESEATechTree (ee_se_tech_tree)
 // made in 0x563603
+// vf1: a player's technologies changed (editor_undo.c: the scenario kept first)
+typedef void (__thiscall *se_tech_tree_run_fn)(ee_se_tech_tree *);
+internal inline void se_tech_tree_run(ee_se_tech_tree *se_tech_tree) { ((se_tech_tree_run_fn)(*(void ***)se_tech_tree)[slot_se_tech_tree_run])(se_tech_tree); }
+internal se_tech_tree_run_fn fn_eesea_tech_tree_run;
+internal inline void eesea_tech_tree_run(ee_se_tech_tree *se_tech_tree) { fn_eesea_tech_tree_run(se_tech_tree); }
+internal inline int patch_se_tech_tree(se_tech_tree_run_fn h) { return patch_vtable(vt_eesea_tech_tree, (int)slot_se_tech_tree_run, (uintptr_t)fn_eesea_tech_tree_run, (void *)h); }
 
 // class EESEATestScenario (eesea_test_scenario)
 // its constructor (0 arguments, not typed yet)
@@ -1765,6 +1861,10 @@ internal inline int patch_se_unit_init(se_unit_init_fn h) { return patch_call(ca
 typedef void (__thiscall *se_unit_refill_fn)(ee_se_unit *);
 internal se_unit_refill_fn fn_se_unit_refill;
 internal inline void se_unit_refill(ee_se_unit *se_unit) { fn_se_unit_refill(se_unit); }
+// the list's chosen type taken up again when placing: the ghosts made anew (the player switch's event)
+typedef void (__thiscall *se_unit_reselect_fn)(ee_se_unit *);
+internal se_unit_reselect_fn fn_se_unit_reselect;
+internal inline void se_unit_reselect(ee_se_unit *se_unit) { fn_se_unit_reselect(se_unit); }
 // vf0: deleted - its controls with it (0x58B7E2), each by its own vf0
 typedef void *(__thiscall *se_unit_destroy_fn)(ee_se_unit *, uint8_t);
 internal inline void *se_unit_destroy(ee_se_unit *se_unit, uint8_t flags) { return ((se_unit_destroy_fn)(*(void ***)se_unit)[slot_se_unit_destroy])(se_unit, flags); }
@@ -2416,6 +2516,11 @@ internal editor_form_open_fn fn_editor_form_open;
 internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_form_open(editor_form); }
 
 // static class editor
+// the scenarios' folder, what the quick save's action is made with (a UString)
+internal inline uint8_t *editor_scenario_dir_at(void) { return (uint8_t *)(uintptr_t)data_editor_scenario_dir; }
+// the exe's vtable over an FSMemoryFile (EEAQuickSaveLoad's: its destructor the exe's delete)
+internal inline uint8_t *editor_vt_scenario_memory_at(void) { return (uint8_t *)(uintptr_t)data_editor_vt_scenario_memory; }
+// an FSMemoryFile (the quick save's new)
 // the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
 // 0x58A70E): shown while the panel is
 // the elevation panel's (0x590734)
@@ -2423,6 +2528,15 @@ internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_f
 
 // static class editor_functions
 // the game's functions the editor's code wraps, by the names the C side gives them
+// the running scenario written into mem (an FSMemoryFile, passed twice), as the quick save does: 0 done
+typedef int (__cdecl *scenario_write_fn)(void *, uint32_t, void *, void *);
+internal scenario_write_fn fn_scenario_write;
+internal inline int scenario_write(void *name, uint32_t time, void *mem, void *mem_2) { return fn_scenario_write(name, time, mem, mem_2); }
+// the scenario in the file (an FSFileSpec) loaded over the running one, as the quick load does (1, 1, 1): 0 done
+typedef int (__cdecl *scenario_read_fn)(void *, int, int, uint8_t);
+internal scenario_read_fn fn_scenario_read;
+internal inline int scenario_read(void *spec, int a, int b, uint8_t c) { return fn_scenario_read(spec, a, b, c); }
+internal inline int patch_se_quick_read(scenario_read_fn h) { return patch_call(call_se_quick_read, (uintptr_t)fn_scenario_read, (void *)h); }
 // push_back on a vector of pointers (MSVC: the vector's allocator first, thiscall on it; the item by reference) -
 // the terrain panel's constructor's for its colour types (0x59B7D3)
 typedef void (__thiscall *ptr_vector_push_fn)(void *, void **);
@@ -2443,15 +2557,23 @@ internal int spec_editor_select(int build) {
         size_eesea_change_load_text = 0x20;
         vt_eesea_change_world_player_count = 0x0082D85C;
         size_eesea_change_world_player_count = 0x10;
+        slot_se_player_count_run = 1;
+        fn_eesea_change_world_player_count_run = (se_player_count_run_fn)0x00566D7D;
         vt_eesea_create_blank_map = 0x00830034;
         size_eesea_create_blank_map = 0x18;
-        fn_eesea_create_blank_map_init = (eesea_create_blank_map_init_fn)0x005955C3;
+        slot_se_blank_map_run = 1;
+        fn_eesea_create_blank_map_run = (se_blank_map_run_fn)0x005955FE;
+        fn_se_blank_map_init = (se_blank_map_init_fn)0x005955C3;
         vt_eesea_create_random_map = 0x00830070;
         size_eesea_create_random_map = 0x14;
-        fn_eesea_create_random_map_init = (eesea_create_random_map_init_fn)0x005963F2;
+        slot_se_random_map_run = 1;
+        fn_eesea_create_random_map_run = (se_random_map_run_fn)0x00596426;
+        fn_se_random_map_init = (se_random_map_init_fn)0x005963F2;
         vt_eesea_delete_unit = 0x00830080;
-        fn_eesea_delete_unit_init = (eesea_delete_unit_init_fn)0x00596889;
-        fn_eesea_delete_unit_init_2 = (eesea_delete_unit_init_2_fn)0x005968C5;
+        slot_se_delete_run = 1;
+        fn_eesea_delete_unit_run = (se_delete_run_fn)0x00596990;
+        fn_se_delete_init = (se_delete_init_fn)0x00596889;
+        fn_se_delete_init_2 = (se_delete_init_2_fn)0x005968C5;
         vt_eesea_exit_scenario = 0x00830090;
         size_eesea_exit_scenario = 0xC;
         fn_eesea_exit_scenario_init = (eesea_exit_scenario_init_fn)0x0059718F;
@@ -2463,21 +2585,37 @@ internal int spec_editor_select(int build) {
         fn_eesea_mouse_click_init = (eesea_mouse_click_init_fn)0x00583508;
         vt_eesea_move_unit = 0x008300A0;
         size_eesea_move_unit = 0x10;
+        slot_se_move_run = 1;
+        fn_eesea_move_unit_run = (se_move_run_fn)0x00597472;
         vt_eesea_paint = 0x00830058;
         vt_eesea_paint_area = 0x0082DFF0;
         size_eesea_paint_area = 0x2C;
-        fn_eesea_paint_area_init = (eesea_paint_area_init_fn)0x0056E07A;
+        slot_se_paint_area_run = 1;
+        fn_eesea_paint_area_run = (se_paint_area_run_fn)0x005980DF;
+        fn_se_paint_area_init = (se_paint_area_init_fn)0x0056E07A;
         vt_eesea_paint_elevation = 0x0082FD3C;
         size_eesea_paint_elevation = 0x38;
+        slot_se_paint_elevation_run = 1;
+        fn_eesea_paint_elevation_run = (se_paint_elevation_run_fn)0x00598165;
         vt_eesea_paint_moutains = 0x00830694;
         size_eesea_paint_moutains = 0x20;
+        slot_se_paint_mountains_run = 1;
+        fn_eesea_paint_moutains_run = (se_paint_mountains_run_fn)0x005984E0;
         vt_eesea_paint_terrain = 0x00830044;
         size_eesea_paint_terrain = 0x28;
+        slot_se_paint_terrain_run = 1;
+        fn_eesea_paint_terrain_run = (se_paint_terrain_run_fn)0x00598CA8;
         vt_eesea_place_gate = 0x0082F680;
         size_eesea_place_gate = 0x1C;
         fn_se_place_gate_init = (se_place_gate_init_fn)0x0058C8A5;
         slot_se_place_gate_run = 1;
         fn_eesea_place_gate_run = (se_place_gate_run_fn)0x00598E97;
+        vt_eea_undo = 0x0082FE98;
+        slot_se_undo_run = 1;
+        fn_eea_undo_run = (se_undo_run_fn)0x00594C34;
+        vt_eea_redo = 0x0082FDF0;
+        slot_se_redo_run = 1;
+        fn_eea_redo_run = (se_redo_run_fn)0x00594B3B;
         vt_eesea_place_unit = 0x0082F694;
         slot_se_place_unit_run = 1;
         fn_eesea_place_unit_run = (se_place_unit_run_fn)0x005994EF;
@@ -2487,16 +2625,25 @@ internal int spec_editor_select(int build) {
         slot_se_place_wall_run = 1;
         fn_eesea_place_wall_run = (se_place_wall_run_fn)0x00599F78;
         vt_eesea_quick_save_load = 0x0082F888;
-        fn_eesea_quick_save_load_init = (eesea_quick_save_load_init_fn)0x0058ECA2;
+        size_eesea_quick_save_load = 0x2C;
+        fn_se_quick_load_init = (se_quick_load_init_fn)0x0058ECA2;
+        fn_se_quick_load_init_base = (se_quick_load_init_base_fn)0x0058FDF4;
+        of_se_quick_load_load = 0x28;
+        slot_se_quick_load_run = 1;
+        fn_eesea_quick_save_load_run = (se_quick_load_run_fn)0x0059A5FE;
         vt_eesea_quick_save_scenario = 0x008306BC;
         size_eesea_quick_save_scenario = 0x10;
         vt_eesea_rotate_units = 0x0082F080;
         size_eesea_rotate_units = 0x10;
+        slot_se_rotate_run = 1;
+        fn_eesea_rotate_units_run = (se_rotate_run_fn)0x0059A63F;
         vt_eesea_save_scenario = 0x008300B8;
         size_eesea_save_scenario = 0xC;
         fn_eesea_save_scenario_init = (eesea_save_scenario_init_fn)0x0059A6F2;
         vt_eesea_tech_tree = 0x0082D6DC;
         size_eesea_tech_tree = 0x1C;
+        slot_se_tech_tree_run = 1;
+        fn_eesea_tech_tree_run = (se_tech_tree_run_fn)0x0059A968;
         vt_eesea_test_scenario = 0x008300DC;
         size_eesea_test_scenario = 0xC;
         fn_eesea_test_scenario_init = (eesea_test_scenario_init_fn)0x0059A99D;
@@ -2898,6 +3045,7 @@ internal int spec_editor_select(int build) {
         fn_se_unit_init = (se_unit_init_fn)0x0058A70E;
         call_se_unit_init = 0x0058EC1F;
         fn_se_unit_refill = (se_unit_refill_fn)0x0058C2F5;
+        fn_se_unit_reselect = (se_unit_reselect_fn)0x0058BD07;
         slot_se_unit_destroy = 0;
         fn_eese_unit_destroy = (se_unit_destroy_fn)0x0058B7C6;
         slot_se_unit_update = 1;
@@ -3002,9 +3150,15 @@ internal int spec_editor_select(int build) {
         fn_editor_form_close = (editor_form_close_fn)0x0058E26B;
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0058E30D;
         fn_editor_form_open = (editor_form_open_fn)0x0058F363;
+        data_editor_scenario_dir = 0x00919718;
+        data_editor_vt_scenario_memory = 0x0082FF54;
+        value_editor_size_memory_file = 120;
         value_editor_group_units = 6;
         value_editor_group_elevation = 2;
         value_editor_group_terrain = 3;
+        fn_scenario_write = (scenario_write_fn)0x0054086A;
+        fn_scenario_read = (scenario_read_fn)0x00540997;
+        call_se_quick_read = 0x005953F4;
         fn_ptr_vector_push = (ptr_vector_push_fn)0x0059C98E;
         fn_ambient_can_place = (ambient_can_place_fn)0x00638D2A;
         call_ambient_can_place = 0x00598C64;
@@ -3014,15 +3168,23 @@ internal int spec_editor_select(int build) {
         size_eesea_change_load_text = 0x20;
         vt_eesea_change_world_player_count = 0x0084310C;
         size_eesea_change_world_player_count = 0x10;
+        slot_se_player_count_run = 1;
+        fn_eesea_change_world_player_count_run = (se_player_count_run_fn)0x005737A3;
         vt_eesea_create_blank_map = 0x00845904;
         size_eesea_create_blank_map = 0x18;
-        fn_eesea_create_blank_map_init = (eesea_create_blank_map_init_fn)0x005A5881;
+        slot_se_blank_map_run = 1;
+        fn_eesea_create_blank_map_run = (se_blank_map_run_fn)0x005A58BC;
+        fn_se_blank_map_init = (se_blank_map_init_fn)0x005A5881;
         vt_eesea_create_random_map = 0x00845944;
         size_eesea_create_random_map = 0x14;
-        fn_eesea_create_random_map_init = (eesea_create_random_map_init_fn)0x005A66AE;
+        slot_se_random_map_run = 1;
+        fn_eesea_create_random_map_run = (se_random_map_run_fn)0x005A66E2;
+        fn_se_random_map_init = (se_random_map_init_fn)0x005A66AE;
         vt_eesea_delete_unit = 0x00845958;
-        fn_eesea_delete_unit_init = (eesea_delete_unit_init_fn)0x005A6B45;
-        fn_eesea_delete_unit_init_2 = (eesea_delete_unit_init_2_fn)0x005A6B81;
+        slot_se_delete_run = 1;
+        fn_eesea_delete_unit_run = (se_delete_run_fn)0x005A6C4C;
+        fn_se_delete_init = (se_delete_init_fn)0x005A6B45;
+        fn_se_delete_init_2 = (se_delete_init_2_fn)0x005A6B81;
         vt_eesea_exit_scenario = 0x00845968;
         size_eesea_exit_scenario = 0xC;
         fn_eesea_exit_scenario_init = (eesea_exit_scenario_init_fn)0x005A7331;
@@ -3034,21 +3196,37 @@ internal int spec_editor_select(int build) {
         fn_eesea_mouse_click_init = (eesea_mouse_click_init_fn)0x0059176B;
         vt_eesea_move_unit = 0x0084597C;
         size_eesea_move_unit = 0x10;
+        slot_se_move_run = 1;
+        fn_eesea_move_unit_run = (se_move_run_fn)0x005A7646;
         vt_eesea_paint = 0x00845928;
         vt_eesea_paint_area = 0x008438A4;
         size_eesea_paint_area = 0x2C;
-        fn_eesea_paint_area_init = (eesea_paint_area_init_fn)0x0057D991;
+        slot_se_paint_area_run = 1;
+        fn_eesea_paint_area_run = (se_paint_area_run_fn)0x005A8284;
+        fn_se_paint_area_init = (se_paint_area_init_fn)0x0057D991;
         vt_eesea_paint_elevation = 0x00845604;
         size_eesea_paint_elevation = 0x38;
+        slot_se_paint_elevation_run = 1;
+        fn_eesea_paint_elevation_run = (se_paint_elevation_run_fn)0x005A830A;
         vt_eesea_paint_moutains = 0x008459DC;
         size_eesea_paint_moutains = 0x20;
+        slot_se_paint_mountains_run = 1;
+        fn_eesea_paint_moutains_run = (se_paint_mountains_run_fn)0x005A86FF;
         vt_eesea_paint_terrain = 0x00845914;
         size_eesea_paint_terrain = 0x28;
+        slot_se_paint_terrain_run = 1;
+        fn_eesea_paint_terrain_run = (se_paint_terrain_run_fn)0x005A8E6C;
         vt_eesea_place_gate = 0x00844F18;
         size_eesea_place_gate = 0x1C;
         fn_se_place_gate_init = (se_place_gate_init_fn)0x0059BA16;
         slot_se_place_gate_run = 1;
         fn_eesea_place_gate_run = (se_place_gate_run_fn)0x005A9112;
+        vt_eea_undo = 0x00845768;
+        slot_se_undo_run = 1;
+        fn_eea_undo_run = (se_undo_run_fn)0x005A4E8E;
+        vt_eea_redo = 0x008456C0;
+        slot_se_redo_run = 1;
+        fn_eea_redo_run = (se_redo_run_fn)0x005A4DB3;
         vt_eesea_place_unit = 0x00844F04;
         slot_se_place_unit_run = 1;
         fn_eesea_place_unit_run = (se_place_unit_run_fn)0x005A9650;
@@ -3058,16 +3236,25 @@ internal int spec_editor_select(int build) {
         slot_se_place_wall_run = 1;
         fn_eesea_place_wall_run = (se_place_wall_run_fn)0x005AA0D1;
         vt_eesea_quick_save_load = 0x0084516C;
-        fn_eesea_quick_save_load_init = (eesea_quick_save_load_init_fn)0x0059F0B1;
+        size_eesea_quick_save_load = 0x2C;
+        fn_se_quick_load_init = (se_quick_load_init_fn)0x0059F0B1;
+        fn_se_quick_load_init_base = (se_quick_load_init_base_fn)0x005A00C6;
+        of_se_quick_load_load = 0x28;
+        slot_se_quick_load_run = 1;
+        fn_eesea_quick_save_load_run = (se_quick_load_run_fn)0x005AA70E;
         vt_eesea_quick_save_scenario = 0x00845FC0;
         size_eesea_quick_save_scenario = 0x10;
         vt_eesea_rotate_units = 0x00844940;
         size_eesea_rotate_units = 0x10;
+        slot_se_rotate_run = 1;
+        fn_eesea_rotate_units_run = (se_rotate_run_fn)0x005AA74F;
         vt_eesea_save_scenario = 0x008459A4;
         size_eesea_save_scenario = 0xC;
         fn_eesea_save_scenario_init = (eesea_save_scenario_init_fn)0x005AA802;
         vt_eesea_tech_tree = 0x00842F8C;
         size_eesea_tech_tree = 0x1C;
+        slot_se_tech_tree_run = 1;
+        fn_eesea_tech_tree_run = (se_tech_tree_run_fn)0x005AAA78;
         vt_eesea_test_scenario = 0x008459C8;
         size_eesea_test_scenario = 0xC;
         fn_eesea_test_scenario_init = (eesea_test_scenario_init_fn)0x005AAAAD;
@@ -3469,6 +3656,7 @@ internal int spec_editor_select(int build) {
         fn_se_unit_init = (se_unit_init_fn)0x0059A93E;
         call_se_unit_init = 0x0059F02E;
         fn_se_unit_refill = (se_unit_refill_fn)0x0059C64B;
+        fn_se_unit_reselect = (se_unit_reselect_fn)0x0059C05D;
         slot_se_unit_destroy = 0;
         fn_eese_unit_destroy = (se_unit_destroy_fn)0x0059BB1C;
         slot_se_unit_update = 1;
@@ -3573,9 +3761,15 @@ internal int spec_editor_select(int build) {
         fn_editor_form_close = (editor_form_close_fn)0x0059E68A;
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0059E72C;
         fn_editor_form_open = (editor_form_open_fn)0x0059F794;
+        data_editor_scenario_dir = 0x00930B98;
+        data_editor_vt_scenario_memory = 0x00845824;
+        value_editor_size_memory_file = 120;
         value_editor_group_units = 6;
         value_editor_group_elevation = 2;
         value_editor_group_terrain = 3;
+        fn_scenario_write = (scenario_write_fn)0x0054CE06;
+        fn_scenario_read = (scenario_read_fn)0x0054CF33;
+        call_se_quick_read = 0x005A5679;
         fn_ptr_vector_push = (ptr_vector_push_fn)0x005ACAFA;
         fn_ambient_can_place = (ambient_can_place_fn)0x0064F1F8;
         call_ambient_can_place = 0x005A8E28;
@@ -3590,13 +3784,21 @@ internal int spec_editor_check(void) {
     int bad = 0;
     bad += spec_vtable(vt_eesea_change_load_text, ".?AVEESEAChangeLoadText@@", "EESEAChangeLoadText [vtable]");
     bad += spec_vtable(vt_eesea_change_world_player_count, ".?AVEESEAChangeWorldPlayerCount@@", "EESEAChangeWorldPlayerCount [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_change_world_player_count_run, "EESEAChangeWorldPlayerCount.run");
+    bad += spec_slot(vt_eesea_change_world_player_count, slot_se_player_count_run, (uintptr_t)fn_eesea_change_world_player_count_run, "EESEAChangeWorldPlayerCount.run [slot]");
     bad += spec_vtable(vt_eesea_create_blank_map, ".?AVEESEACreateBlankMap@@", "EESEACreateBlankMap [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_create_blank_map_init, "EESEACreateBlankMap.init");
+    bad += spec_code((uintptr_t)fn_eesea_create_blank_map_run, "EESEACreateBlankMap.run");
+    bad += spec_slot(vt_eesea_create_blank_map, slot_se_blank_map_run, (uintptr_t)fn_eesea_create_blank_map_run, "EESEACreateBlankMap.run [slot]");
+    bad += spec_code((uintptr_t)fn_se_blank_map_init, "EESEACreateBlankMap.init");
     bad += spec_vtable(vt_eesea_create_random_map, ".?AVEESEACreateRandomMap@@", "EESEACreateRandomMap [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_create_random_map_init, "EESEACreateRandomMap.init");
+    bad += spec_code((uintptr_t)fn_eesea_create_random_map_run, "EESEACreateRandomMap.run");
+    bad += spec_slot(vt_eesea_create_random_map, slot_se_random_map_run, (uintptr_t)fn_eesea_create_random_map_run, "EESEACreateRandomMap.run [slot]");
+    bad += spec_code((uintptr_t)fn_se_random_map_init, "EESEACreateRandomMap.init");
     bad += spec_vtable(vt_eesea_delete_unit, ".?AVEESEADeleteUnit@@", "EESEADeleteUnit [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_delete_unit_init, "EESEADeleteUnit.init");
-    bad += spec_code((uintptr_t)fn_eesea_delete_unit_init_2, "EESEADeleteUnit.init_2");
+    bad += spec_code((uintptr_t)fn_eesea_delete_unit_run, "EESEADeleteUnit.run");
+    bad += spec_slot(vt_eesea_delete_unit, slot_se_delete_run, (uintptr_t)fn_eesea_delete_unit_run, "EESEADeleteUnit.run [slot]");
+    bad += spec_code((uintptr_t)fn_se_delete_init, "EESEADeleteUnit.init");
+    bad += spec_code((uintptr_t)fn_se_delete_init_2, "EESEADeleteUnit.init_2");
     bad += spec_vtable(vt_eesea_exit_scenario, ".?AVEESEAExitScenario@@", "EESEAExitScenario [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_exit_scenario_init, "EESEAExitScenario.init");
     bad += spec_vtable(vt_eesea_lasso, ".?AVEESEALasso@@", "EESEALasso [vtable]");
@@ -3604,16 +3806,32 @@ internal int spec_editor_check(void) {
     bad += spec_vtable(vt_eesea_mouse_click, ".?AVEESEAMouseClick@@", "EESEAMouseClick [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_mouse_click_init, "EESEAMouseClick.init");
     bad += spec_vtable(vt_eesea_move_unit, ".?AVEESEAMoveUnit@@", "EESEAMoveUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_move_unit_run, "EESEAMoveUnit.run");
+    bad += spec_slot(vt_eesea_move_unit, slot_se_move_run, (uintptr_t)fn_eesea_move_unit_run, "EESEAMoveUnit.run [slot]");
     bad += spec_vtable(vt_eesea_paint, ".?AVEESEAPaint@@", "EESEAPaint [vtable]");
     bad += spec_vtable(vt_eesea_paint_area, ".?AVEESEAPaintArea@@", "EESEAPaintArea [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_paint_area_init, "EESEAPaintArea.init");
+    bad += spec_code((uintptr_t)fn_eesea_paint_area_run, "EESEAPaintArea.run");
+    bad += spec_slot(vt_eesea_paint_area, slot_se_paint_area_run, (uintptr_t)fn_eesea_paint_area_run, "EESEAPaintArea.run [slot]");
+    bad += spec_code((uintptr_t)fn_se_paint_area_init, "EESEAPaintArea.init");
     bad += spec_vtable(vt_eesea_paint_elevation, ".?AVEESEAPaintElevation@@", "EESEAPaintElevation [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_paint_elevation_run, "EESEAPaintElevation.run");
+    bad += spec_slot(vt_eesea_paint_elevation, slot_se_paint_elevation_run, (uintptr_t)fn_eesea_paint_elevation_run, "EESEAPaintElevation.run [slot]");
     bad += spec_vtable(vt_eesea_paint_moutains, ".?AVEESEAPaintMoutains@@", "EESEAPaintMoutains [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_paint_moutains_run, "EESEAPaintMoutains.run");
+    bad += spec_slot(vt_eesea_paint_moutains, slot_se_paint_mountains_run, (uintptr_t)fn_eesea_paint_moutains_run, "EESEAPaintMoutains.run [slot]");
     bad += spec_vtable(vt_eesea_paint_terrain, ".?AVEESEAPaintTerrain@@", "EESEAPaintTerrain [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_paint_terrain_run, "EESEAPaintTerrain.run");
+    bad += spec_slot(vt_eesea_paint_terrain, slot_se_paint_terrain_run, (uintptr_t)fn_eesea_paint_terrain_run, "EESEAPaintTerrain.run [slot]");
     bad += spec_vtable(vt_eesea_place_gate, ".?AVEESEAPlaceGate@@", "EESEAPlaceGate [vtable]");
     bad += spec_code((uintptr_t)fn_se_place_gate_init, "EESEAPlaceGate.init");
     bad += spec_code((uintptr_t)fn_eesea_place_gate_run, "EESEAPlaceGate.run");
     bad += spec_slot(vt_eesea_place_gate, slot_se_place_gate_run, (uintptr_t)fn_eesea_place_gate_run, "EESEAPlaceGate.run [slot]");
+    bad += spec_vtable(vt_eea_undo, ".?AVEEAUndo@@", "EEAUndo [vtable]");
+    bad += spec_code((uintptr_t)fn_eea_undo_run, "EEAUndo.run");
+    bad += spec_slot(vt_eea_undo, slot_se_undo_run, (uintptr_t)fn_eea_undo_run, "EEAUndo.run [slot]");
+    bad += spec_vtable(vt_eea_redo, ".?AVEEARedo@@", "EEARedo [vtable]");
+    bad += spec_code((uintptr_t)fn_eea_redo_run, "EEARedo.run");
+    bad += spec_slot(vt_eea_redo, slot_se_redo_run, (uintptr_t)fn_eea_redo_run, "EEARedo.run [slot]");
     bad += spec_vtable(vt_eesea_place_unit, ".?AVEESEAPlaceUnit@@", "EESEAPlaceUnit [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_place_unit_run, "EESEAPlaceUnit.run");
     bad += spec_slot(vt_eesea_place_unit, slot_se_place_unit_run, (uintptr_t)fn_eesea_place_unit_run, "EESEAPlaceUnit.run [slot]");
@@ -3622,12 +3840,19 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_eesea_place_wall_run, "EESEAPlaceWall.run");
     bad += spec_slot(vt_eesea_place_wall, slot_se_place_wall_run, (uintptr_t)fn_eesea_place_wall_run, "EESEAPlaceWall.run [slot]");
     bad += spec_vtable(vt_eesea_quick_save_load, ".?AVEESEAQuickSaveLoad@@", "EESEAQuickSaveLoad [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_quick_save_load_init, "EESEAQuickSaveLoad.init");
+    bad += spec_code((uintptr_t)fn_se_quick_load_init, "EESEAQuickSaveLoad.init");
+    bad += spec_code((uintptr_t)fn_se_quick_load_init_base, "EESEAQuickSaveLoad.init_base");
+    bad += spec_code((uintptr_t)fn_eesea_quick_save_load_run, "EESEAQuickSaveLoad.run");
+    bad += spec_slot(vt_eesea_quick_save_load, slot_se_quick_load_run, (uintptr_t)fn_eesea_quick_save_load_run, "EESEAQuickSaveLoad.run [slot]");
     bad += spec_vtable(vt_eesea_quick_save_scenario, ".?AVEESEAQuickSaveScenario@@", "EESEAQuickSaveScenario [vtable]");
     bad += spec_vtable(vt_eesea_rotate_units, ".?AVEESEARotateUnits@@", "EESEARotateUnits [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_rotate_units_run, "EESEARotateUnits.run");
+    bad += spec_slot(vt_eesea_rotate_units, slot_se_rotate_run, (uintptr_t)fn_eesea_rotate_units_run, "EESEARotateUnits.run [slot]");
     bad += spec_vtable(vt_eesea_save_scenario, ".?AVEESEASaveScenario@@", "EESEASaveScenario [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_save_scenario_init, "EESEASaveScenario.init");
     bad += spec_vtable(vt_eesea_tech_tree, ".?AVEESEATechTree@@", "EESEATechTree [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_tech_tree_run, "EESEATechTree.run");
+    bad += spec_slot(vt_eesea_tech_tree, slot_se_tech_tree_run, (uintptr_t)fn_eesea_tech_tree_run, "EESEATechTree.run [slot]");
     bad += spec_vtable(vt_eesea_test_scenario, ".?AVEESEATestScenario@@", "EESEATestScenario [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_test_scenario_init, "EESEATestScenario.init");
     bad += spec_vtable(vt_eeseb_select, ".?AVEESEBSelect@@", "EESEBSelect [vtable]");
@@ -4020,6 +4245,7 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_se_unit_init, "EESEUnit.init");
     bad += spec_call(call_se_unit_init, (uintptr_t)fn_se_unit_init, "EESEUnit.init [call_site se_unit_init]");
     bad += spec_code((uintptr_t)fn_se_unit_refill, "EESEUnit.refill");
+    bad += spec_code((uintptr_t)fn_se_unit_reselect, "EESEUnit.reselect");
     bad += spec_code((uintptr_t)fn_eese_unit_destroy, "EESEUnit.destroy");
     bad += spec_slot(vt_eese_unit, slot_se_unit_destroy, (uintptr_t)fn_eese_unit_destroy, "EESEUnit.destroy [slot]");
     bad += spec_code((uintptr_t)fn_eese_unit_update, "EESEUnit.update");
@@ -4129,6 +4355,11 @@ internal int spec_editor_check(void) {
     bad += spec_slot(vt_eeuif_scenario_editor, slot_ui_form_copy_data, (uintptr_t)fn_editor_form_copy_data, "EEUIFScenarioEditor.copy_data [slot]");
     bad += spec_code((uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open");
     bad += spec_slot(vt_eeuif_scenario_editor, slot_ui_form_open, (uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open [slot]");
+    bad += spec_data(data_editor_scenario_dir, "editor.scenario_dir");
+    bad += spec_data(data_editor_vt_scenario_memory, "editor.vt_scenario_memory");
+    bad += spec_code((uintptr_t)fn_scenario_write, "editor_functions.scenario_write");
+    bad += spec_code((uintptr_t)fn_scenario_read, "editor_functions.scenario_read");
+    bad += spec_call(call_se_quick_read, (uintptr_t)fn_scenario_read, "editor_functions.scenario_read [call_site se_quick_read]");
     bad += spec_code((uintptr_t)fn_ptr_vector_push, "editor_functions.ptr_vector_push");
     bad += spec_code((uintptr_t)fn_ambient_can_place, "editor_functions.ambient_can_place");
     bad += spec_call(call_ambient_can_place, (uintptr_t)fn_ambient_can_place, "editor_functions.ambient_can_place [call_site ambient_can_place]");

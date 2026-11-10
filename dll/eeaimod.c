@@ -58,6 +58,7 @@ internal void collide_new_game(void);      // engine/collide.c
 internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void build_retry_new_game(void);  // engine/buildretry.c
 internal void walls_new_game(void);        // engine/walls.c
+internal void editor_undo_new_game(void);  // engine/editor_undo.c
 internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
@@ -348,6 +349,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     groupmove_new_game();
     build_retry_new_game();
     walls_new_game();
+    editor_undo_new_game();
     units_first_new_game();
     danger_new_game();
     landing_new_game();
@@ -459,6 +461,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/data_order.c"
 #include "engine/walls.c"
 #include "engine/editor_place.c"
+#include "engine/editor_undo.c"
 #include "engine/editor_search.c"
 #include "engine/editor_camera.c"
 #include "engine/terrain_cliffs.c"
@@ -701,6 +704,7 @@ internal void install(HMODULE self) {
     walls_install();
     editor_search_install();
     editor_camera_install();
+    editor_undo_install();
     terrain_palette_install();
     map_file_install();
     llm_install();
