@@ -266,7 +266,7 @@ internal ivec2 g_ar_site[16]; internal int g_ar_site_set[16];   // TAKE MINES: t
 internal uint32_t g_ar_ask_t[16];   // THE SITES' MEMORY: when the force at home last looked for a site asked of it
 internal int ar_det_out(unsigned idx);   // MINE RAIDS: a detachment is out (it has the citizens)
 #define AR_CREW_MAIN(idx) (TN_TAKE(idx) || (TN_RAID(idx) && !ar_det_out(idx)))   // the force may take and keep the citizens
-// OVER THE SEA ([ai_base] mod_armies_sea, default off until measured; [autotest] v_mod_armies_sea; the player 2026-11-10:
+// OVER THE SEA ([ai_base] mod_armies_sea, on since 2026-11-11 (the player's call, measured level or a little better, docs/game-ai-routines.md); [autotest] v_mod_armies_sea; the player 2026-11-10:
 // the game's commander is to go on every map, and no map types): the force on island maps too. It fights what it can
 // reach over land; at an attack time with no enemy building known on its own land the nearest known one across the
 // water is the landing's (landing.c landing_ask), whose soldiers come from the force at home (armies_lend: out of the

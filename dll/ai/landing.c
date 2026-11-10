@@ -153,7 +153,7 @@ internal int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, war
     for (int k = 0; k < l->nw; k++) if (l->wpass[k] == u) return 1;
     return 0;
 }
-// THE FORCE'S LANDINGS (armies.c OVER THE SEA, mod_armies_sea): where the mod's force has the land soldiers (ar_on),
+// THE FORCE'S LANDINGS (armies.c OVER THE SEA, mod_armies_sea, on since 2026-11-11): where the mod's force has the land soldiers (ar_on),
 // the commander's groups are empty - the landing's target is the enemy the force asked for at its attack time (an
 // enemy building known only across the water), its soldiers the force's at home (armies_lend: out of the force while
 // the landing has them, back once it lets them go on the force's land). The commander's groups stay the source where

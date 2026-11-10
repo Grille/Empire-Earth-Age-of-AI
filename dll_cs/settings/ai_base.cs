@@ -616,8 +616,8 @@ class ai_base
         /// ... on every map, islands too (the player 2026-11-10: no map types): the force fights what it can reach over land,
         /// and an enemy only across the water is the landing's - its soldiers taken from the force at home, given back
         /// once they are home again. Off: on island maps the game's commander keeps the land soldiers and the landing
-        /// takes its groups
-        bool mod_armies_sea = false;
+        /// takes its groups. On by the player's call (2026-11-11), measured level or a little better (README)
+        bool mod_armies_sea = true;
         /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
         /// to spare; 100% = an even fight, as before)
         [range(1, 5), commented]
