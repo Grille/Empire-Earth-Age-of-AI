@@ -218,9 +218,9 @@ def read_file(path):
                 master = k.name
             attr_text, doc = '', []
         elif depth in (1, 2) and cur and re.match(r'^static\s', code):   # a name for its vec2 keys' expressions
-            m = re.match(r'^static\s+readonly\s+vec2\s+@?(\w+)\s*=\s*(.+);$', code)
+            m = re.match(r'^static\s+readonly\s+vec2\s+@?(\w+)\s*=\s*(vec\(.+\)|game_input<vec2>\(\));$', code)
             if not m:
-                raise SystemExit('%s: a name is static readonly vec2 name = vec(x, y);: %s' % (where, code))
+                raise SystemExit('%s: a name is static readonly vec2 name = vec(x, y); or = game_input<vec2>();: %s' % (where, code))
             cur.consts[m.group(1)] = m.group(2)
             attr_text, doc = '', []
         elif depth in (1, 2) and cur and code.endswith(';'):

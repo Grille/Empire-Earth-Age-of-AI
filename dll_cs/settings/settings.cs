@@ -62,7 +62,8 @@
 //
 // A SIZE: vec2 k = aoc;  a key the language's expression gives a vec2 of (1920x1080, aoc * 150%, vec(1024, 768)): kept as its
 // text (rows.h STR, its b 1), told when read if it is no size, worked out where it is used (settings.c setting_vec2). Its
-// names: static readonly vec2 aoc = vec(1024, 768); in the section's class, and the code's own at that place over them.
+// names: static readonly vec2 aoc = vec(1024, 768); in the section's class. One the game's code gives where the key is
+// worked out (setting_vec2's extra): static readonly vec2 game = game_input<vec2>();
 //
 // MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
 // [also("section")] the tool

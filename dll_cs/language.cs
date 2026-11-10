@@ -10,8 +10,12 @@ using System;
 
 namespace ageofai;
 
-// what a setting's declaration writes as the language writes it (static readonly vec2 aoc = vec(1024, 768))
-static class language_functions { public static vec2 vec(double x, double y) => default; }
+// what a setting's declaration writes as the language writes it (static readonly vec2 aoc = vec(1024, 768)); game_input:
+// a name with no value of its own, the game's code gives it where the key is worked out (settings.cs "A SIZE")
+static class language_functions {
+    public static vec2 vec(double x, double y) => default;
+    public static T game_input<T>() where T : struct => default;
+}
 
 // the language's own types (lang/language.cs "TYPES": what each is). int, float, bool and void are written with C#'s
 // words because the language has the same names (a script's x: int) - but they are the language's, not C#'s:

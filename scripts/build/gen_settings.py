@@ -108,6 +108,8 @@ def rows_h(secs):   # the file below its header
     seen = {}
     for sec in secs:
         for cname, text in sec.consts.items():
+            if text == 'game_input<vec2>()':   # the code's own value goes over it; this one only for the check when the file is read (1: dividing by it is no mistake)
+                text = 'vec(1, 1)'
             named.append('N(%s %s %s)' % ((sec.name + ',').ljust(10), (cname + ',').ljust(10), c_str(text)))
         for k in sec.keys if sec.kind != 'DIFF' else []:
             if k.name in seen:

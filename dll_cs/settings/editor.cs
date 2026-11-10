@@ -5,11 +5,11 @@ namespace ageofai.settings;
 [section(40), title("Scenario editor")]
 class editor
 {
-    // the names the sizes below may use (game: the code's own, the resolution of Game Settings)
+    // the names the sizes below may use (game: the resolution of Game Settings)
     static readonly vec2 off = vec(0, 0);
     static readonly vec2 ee = vec(800, 600);
     static readonly vec2 aoc = vec(1024, 768);
-    static readonly vec2 game = vec(1024, 768);
+    static readonly vec2 game = game_input<vec2>();
 
     /// Resolution of the scenario editor:
     ///   ee   = 800x600 (original Empire Earth)
