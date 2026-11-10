@@ -162,7 +162,7 @@ internal const char k_rd3_shader[] =
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
-    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gca; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
+    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gca; float4 gcc; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
@@ -307,7 +307,7 @@ internal const char k_rd3_shader[] =
     // a net of moving cells, bent and broken by noise
     " if (gnd.x == 1 && wat.x > 0 && gca.x > 0 && sea.w == 0 && i.w.z < sea.z) { float cd = sea.z - i.w.z;"
     "  float2 cp = float2(dot(i.w.xy, gca.zw), dot(i.w.xy, float2(-gca.w, gca.z))) * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
-    "  float3 ck = cwl(cp, gnd.y * 0.5, 0.35 * (1 - exp(-cd * 4))); float cf = cd;"
+    "  float3 ck = cwl(cp, gcc.x, 0.35 * (1 - exp(-cd * 4))); float cf = cd;"
     "  if (shh.w > 0) { float2 ch = hm.SampleLevel(hs, i.w.xy * shh.x, 0); cf = min(cf, max(0, sea.z - (ch.x - ch.y))); }"
     "  c.rgb = max(0, c.rgb + i.gl * ck * (gca.x * smoothstep(0.08, 0.45, cf) * exp(-cd * 0.8) * saturate(2 - cw * 8))); }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"

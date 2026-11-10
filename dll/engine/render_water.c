@@ -156,7 +156,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
 // The caustics ([display] water_caustics, the player 2026-11-10: "could our water throw casutics? (a cheap
 // version)"): the ground's pixel shader lights the seabed with what the waves focus onto it, nothing drawn on its own -
 // render_3d.c's shader, render_ground.c's constants (the ground's and the water's). The pipe's water caustics <0..2> over the setting.
-#define RW_CAUSTICS_SCALE 1.1f   // the waves' pattern units a tile: its cells about a tile across
+#define RW_CAUSTICS_SCALE 1.1f   // the waves' pattern units a tile: its cells about a tile across ([display] water_caustics_size 100)
 #define RW_CAUSTICS_WIND 0.0f    // the way the waves run (radians from the map's x): along an axis, the lines run diagonally on the screen (along the screen's own axes they read as streaks)
 internal float g_rw_caustics = -1;   // the pipe's, -1 the setting's
 internal void rd3_water_bind(ID3D11DeviceContext *x) {

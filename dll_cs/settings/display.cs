@@ -204,6 +204,12 @@ class display
         /// (0 = none; the control pipe: water caustics <0..2>):
         [range(0, 200)]
         int water_caustics = 60;
+        /// With water_caustics: how large their pattern is, in percent (100: its cells about a tile across):
+        [range(25, 400)]
+        int water_caustics_size = 100;
+        /// With water_caustics: how fast they move at the game's normal speed, in percent (0 = they stand):
+        [range(0, 400)]
+        int water_caustics_speed = 100;
         /// The own renderer: the water moves by the game time - its waves, its caustics and its animation stand while the
         /// game is paused and go slower at a slower speed. The game's own water moves by the real time, paused or not:
         bool water_game_time = false;
