@@ -773,12 +773,18 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, &none);
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &nos);
 }
+internal int g_rw_fx_only;   // a frame during a step: the water's draw for its effects alone (render_3d.c rd_hook_ro_water)
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {
+    if (water && g_rw_fx_only) return 0;
+    int r = 0;
     // Art of Conquest's maps with space tiles (GETerrainMesh::SetIsSpace) are the game's still: the mesh draws those its own way, not yet done here
-    if (!rg_ready() || !rg_api() || (g_rg.is_space && g_rg.is_space(mesh))) return (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
-    g_rg.ras = ras; g_rg.mesh = mesh; g_rg.screen = screen; g_rg.dll = i; g_rg.flag = flag & 0xFF;
-    RD_LOCK(); rg_draw_now(water, 0); RD_UNLOCK();
-    return 0;
+    if (!rg_ready() || !rg_api() || (g_rg.is_space && g_rg.is_space(mesh))) r = (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
+    else {
+        g_rg.ras = ras; g_rg.mesh = mesh; g_rg.screen = screen; g_rg.dll = i; g_rg.flag = flag & 0xFF;
+        RD_LOCK(); rg_draw_now(water, 0); RD_UNLOCK();
+    }
+    if (water && !g_kg_skip) { RD_LOCK(); rd3_flush(); g_kw_surface = g_kw.nb; RD_UNLOCK(); }   // what is kept of the surface so far
+    return r;
 }
 internal int __thiscall rg_hook0(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(0, 0, ras, mesh, screen, flag); }
 internal int __thiscall rg_hook1(void *ras, void *mesh, unsigned screen, int flag) { return rg_hook(1, 0, ras, mesh, screen, flag); }

@@ -377,6 +377,14 @@ drawn. AoC: the interface's lock at the same place (0x50989F), a short game norm
   ground replaces the game's ground draw - in AoC that draws its last lists again (`rprobe step`: the same 73 draws
   as the frame before), the ground came twice. Checked on that AoC map, a 4.5-tile pan during a 2 s step: none of
   either, no hole; the 2017 update's 8000-unit save the same, its pond whole.
+  The water's pass is its surface and then the fifth queue's effects (the flames, the smoke, the pieces a dying mech
+  throws, the ships' ripples): kept whole, those stood through every frame during a step and jumped at the next real
+  one (2026-11-10: at a step load of 30 ms every frame but one in 30 is drawn during a step, and none of them drew an
+  effect). Since then a real frame notes how many of the water's kept batches are its surface (render_ground.c rg_hook,
+  after the game's DrawWater: g_kw_surface), and a frame during a step draws only those again, then the game's water
+  draw with its surface left out (g_rw_fx_only) - its effects anew, from the simulation's queues - when the queues in
+  use are the simulation's (collect_copy.c collect_fx_sims: they hold their effects, a step can't free them); else
+  all of it kept, as before.
 Checked on the reference save (slot 21, speed 2.5, the pipe's stepload 9 - each step held 9 ms, the simulation 410 ms
 a second): frames waiting 8 ms or more 260-383 a minute off, 0-2 on; frames a minute 7300-8700 off, 11200-13300 on;
 an 842 ms step no wait. Shots in steps held 600-4000 ms: complete frames (six over 3 s of one step the same); a 3-tile
@@ -581,11 +589,15 @@ copying only the rows and their margin is the next saving (the box holds about t
 
 Step 4, the moving between steps (collect.c uc_smooth, collect_copy.c cp_pose_swap, 2026-11-08; `[display] units_smooth`,
 default off, which turns the mod's walk, fills and the steps' copy on with it; the pipe: `picture collect smooth off |
-on | probe`). The frame draws a moving object a step behind the simulation, between its pose in the last copy but one
-and its last: alpha = the time since the last copy / the time between the two (none when they are more than a second
-apart, a pause), clamped to 1 - where it stands as the game has it. The poses of the last copy are kept by the object's
-pointer in a table of the simulation's (a frame's own copy neither reads nor writes it; an object not in the last copy
-has none to come from). The record's transformation is blended number by number where it differs (an unchanged -0
+on | probe`). The frame draws a moving object at a game time of its own - the pieces' clock (`pt_clock`: it runs on
+with the real time at the rate the game time goes, drawn toward a step and a half behind the newest step, never past
+it) - between the two of its last three poses whose game times hold it; at or past its newest (a pause) it stands as the
+game has it. The poses are kept with their game times by the object's pointer in a table of the simulation's (a copy of
+the same game time as the last - Art of Conquest's writes without a step - replaces the newest; a frame's own copy reads
+them, never writes; an object not in the last copy has none to come from). Until 2026-11-10 the way was the real time
+since the last copy over the time between the last two: the units stood whenever a step came late, and until the next
+one when two came at once (their copies 0.2 ms apart) - 12 frames at a time in a recording with a step load of 30 ms -
+and a frame's own copy (after another writer) drew them as they stood. The record's transformation is blended number by number where it differs (an unchanged -0
 stays -0: a still object byte for byte); not across a jump of more than 4 tiles (a unit set down, teleported), and a
 turn of more than about 25 degrees (the first column's dot product under 0.9) only moves, because blended matrices
 shrink on the way. The picker takes the blended pose - what is clicked is where it is drawn; the view test keeps the

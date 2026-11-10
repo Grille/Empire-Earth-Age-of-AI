@@ -1231,8 +1231,22 @@ internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro
 // ripples among them) - the other way round the surface lay over the ripples, and every ripple on the screen dimmed in the
 // frames during a step and came back with the next real one (the player, 2026-11-10: "the ships water ripple effect flicker
 // sin and out, all at once together")
+// The fifth queue's effects - the flames, the smoke, the pieces a dying mech throws, the ships' ripples - are drawn anew
+// when the queues in use are the simulation's (collect_copy.c collect_fx_take, which holds them): kept with the water they
+// stood through every frame during a step and jumped at the next real one, for 10 to 30 frames at a step load of 30 ms (the
+// player, 2026-11-10: "on heigh stepload its stuttering"; the frames during a step drew none of them). The kept water's
+// surface first, then the game's water draw with its surface left out (render_ground.c g_rw_fx_only).
+internal int collect_fx_sims(void);   // collect_copy.c
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
-    RO_DRAW(RO_WATER, if (g_kg_skip && (g_kw.nb || rg_ready())) { rg_again(1, g_rwl_nonstep > 0); rf_ground_again(&g_kw); } else ro_water_draw(o));
+    RO_DRAW(RO_WATER, if (g_kg_skip && (g_kw.nb || rg_ready())) {
+        rg_again(1, g_rwl_nonstep > 0);
+        if (g_kw_surface >= 0 && collect_fx_sims()) {
+            rf_ground_again_part(&g_kw, 0, g_kw_surface);
+            g_rw_fx_only = 1;
+            ro_water_draw(o);
+            g_rw_fx_only = 0;
+        } else rf_ground_again(&g_kw);
+    } else ro_water_draw(o));
 }
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {

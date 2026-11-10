@@ -22,13 +22,29 @@ internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's
 #include "collect_copy.c"   // step 3: the world's copy the walk reads
 
 // STEP 4: THE MOVING BETWEEN STEPS (the pipe: picture collect smooth; collect_copy.c cp_pose_swap has the poses). A
-// moving object's record drawn between its pose in the last copy but one and its last, g_uc_alpha of the way (the time
-// since the last copy over the time between the two) - a step behind the simulation, so that a frame always has both.
-// 1 (a pause, or the time up) is the object as the game has it. Not across a jump (a unit set down or teleported:
-// further than UC_SMOOTH_FAR tiles), and a turn of more than about 25 degrees only moved, not turned: the matrices are
-// blended by their numbers, and a big turn would shrink the model on the way.
+// moving object's record drawn at the game time g_uc_show - the pieces' clock (pt_clock: running on with the real time, a
+// step and a half behind the newest step) - between the two of its last three poses whose game times hold it. At or past
+// its newest (a pause) it is the object as the game has it. Not across a jump (a unit set down or teleported: further than
+// UC_SMOOTH_FAR tiles), and a turn of more than about 25 degrees only moved, not turned: the matrices are blended by their
+// numbers, and a big turn would shrink the model on the way. Blended from the last copy but one to the last by the real
+// time since the last over the time between the two (until 2026-11-10) the units stood whenever a step came late, and
+// when two came at once (their copies 0.2 ms apart: the way done at once) until the next, 12 frames in a recording at a
+// step load of 30 ms (the player: "on heigh stepload its stuttering").
 #define UC_SMOOTH_FAR 16.0f   // tiles, squared
-internal float g_uc_alpha = 1.0f;
+internal double g_uc_show = -1.0;   // the walk's game time (< 0: drawn as the game has them)
+typedef struct { const float *t; int32_t anim, frame, next; float fraction; } uc_pose_v;   // a pose and its animation
+// the two poses of an object round g_uc_show and the way between them: 0 none to blend (drawn as it is)
+internal int uc_between(const uc_obj *o, uc_pose_v *f, uc_pose_v *to, float *a) {
+    double d = g_uc_show;
+    if (!o->has_was || g_cp_smooth != 1 || d < 0.0 || d >= o->ms[0]) return 0;
+    uc_pose_v now = { (const float *)o->pm, o->anim, o->anim_frame, o->next_frame, o->fraction },
+              was = { o->was, o->was_anim, o->was_frame, o->was_next, o->was_fraction },
+              was2 = { o->was2, o->was2_anim, o->was2_frame, o->was2_next, o->was2_fraction };
+    if (d >= o->ms[1]) *f = was, *to = now, *a = (float)((d - o->ms[1]) / (o->ms[0] - o->ms[1]));
+    else if (o->has_was2 && d >= o->ms[2]) *f = was2, *to = was, *a = (float)((d - o->ms[2]) / (o->ms[1] - o->ms[2]));
+    else *f = *to = o->has_was2 ? was2 : was, *a = 0.0f;   // further back than its poses: its oldest
+    return 1;
+}
 internal ee_unit *g_cs_u;     // the probe: the moving object it follows, its last drawn place
 internal float g_cs_x, g_cs_y, g_cs_now_x, g_cs_now_y;
 internal int g_cs_have, g_cs_seen, g_cs_moving, g_cs_still;
@@ -66,16 +82,20 @@ internal ee_unit *__thiscall uc_hook_pick_mouse(ee_pick_list *l, void *point, in
     return g_uc_during ? NULL : pick_list_pick_unit(l, point, prefer);
 }
 internal void uc_smooth(ee_unit *u, float *t, const uc_obj *o) {
-    int on = o->has_was && g_uc_alpha < 1.0f && g_cp_smooth == 1;
-    float dx = t[3] - o->was[3], dy = t[7] - o->was[7], dz = t[11] - o->was[11];
-    int moved = o->has_was && (dx != 0.0f || dy != 0.0f || dz != 0.0f);
-    if (on && dx * dx + dy * dy + dz * dz <= UC_SMOOTH_FAR) {
-        float a = g_uc_alpha;
-        float len = t[0] * t[0] + t[4] * t[4] + t[8] * t[8], dot = t[0] * o->was[0] + t[4] * o->was[4] + t[8] * o->was[8];
-        if (dot >= 0.9f * len)
-            for (int i = 0; i < 12; i++) { if (t[i] != o->was[i]) t[i] = o->was[i] + (t[i] - o->was[i]) * a; }   // (an unchanged -0 stays -0: a still unit byte for byte)
-        else
-            for (int i = 3; i < 12; i += 4) { if (t[i] != o->was[i]) t[i] = o->was[i] + (t[i] - o->was[i]) * a; }
+    uc_pose_v f, to;
+    float a;
+    int moved = o->has_was && (t[3] != o->was[3] || t[7] != o->was[7] || t[11] != o->was[11]);
+    if (uc_between(o, &f, &to, &a)) {
+        const float *p = f.t, *q = to.t;
+        float dx = q[3] - p[3], dy = q[7] - p[7], dz = q[11] - p[11];
+        if (q != t) memcpy(t, q, 12 * sizeof *t);   // a pose before its newest: from there
+        if (dx * dx + dy * dy + dz * dz <= UC_SMOOTH_FAR) {
+            float len = q[0] * q[0] + q[4] * q[4] + q[8] * q[8], dot = q[0] * p[0] + q[4] * p[4] + q[8] * p[8];
+            if (dot >= 0.9f * len)
+                for (int i = 0; i < 12; i++) { if (q[i] != p[i]) t[i] = p[i] + (q[i] - p[i]) * a; }   // (an unchanged -0 stays -0: a still unit byte for byte)
+            else
+                for (int i = 3; i < 12; i += 4) { if (q[i] != p[i]) t[i] = p[i] + (q[i] - p[i]) * a; }
+        }
     }
     if (!g_cp_smooth) return;
     if (!g_cs_u && moved) g_cs_u = u, g_cs_have = 0, g_cs_still = 0;
@@ -102,27 +122,31 @@ internal int32_t uc_anim_stride(int32_t frame, int32_t next, int32_t n) {
     return d < 1 ? 1 : d;
 }
 internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, float *fraction) {
-    if (!g_uc_anim_smooth || !o->has_was || g_cp_smooth != 1 || o->was_anim != o->anim) return;
+    uc_pose_v from, to;
+    float alpha;
+    // a pose before its newest in another animation than the record's: as it is (its frames are another stretch)
+    if (!g_uc_anim_smooth || !uc_between(o, &from, &to, &alpha) || to.anim != o->anim) return;
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
     int32_t first = ((const int32_t *)dmg_model_anim_first_at(o->gfx))[o->anim], last = ((const int32_t *)dmg_model_anim_last_at(o->gfx))[o->anim];
     int32_t n = last - first + 1;
-    if (!m || n < 2 || first < 0 || (uint32_t)last >= model_get_frames(m) || o->anim_frame < first || o->anim_frame > last
-        || o->was_frame < first || o->was_frame > last) return;
+    if (!m || n < 2 || first < 0 || (uint32_t)last >= model_get_frames(m) || to.frame < first || to.frame > last) return;
+    *frame = to.frame, *next = to.next, *fraction = to.fraction;
+    if (from.anim != to.anim || from.frame < first || from.frame > last) return;
     // the larger of the two: at the animation's end the game's next frame stops at the last, a smaller step than the pose's
-    int32_t s = uc_anim_stride(o->anim_frame, o->next_frame, n), sw = uc_anim_stride(o->was_frame, o->was_next, n);
+    int32_t s = uc_anim_stride(to.frame, to.next, n), sw = uc_anim_stride(from.frame, from.next, n);
     if (sw > s) s = sw;
-    int32_t poses = (n + s - 1) / s, pose = (o->anim_frame - first) / s;
-    float at = (float)((o->was_frame - first) / s) + o->was_fraction, by = (float)pose + o->fraction - at;
+    int32_t poses = (n + s - 1) / s, pose = (to.frame - first) / s;
+    float at = (float)((from.frame - first) / s) + from.fraction, by = (float)pose + to.fraction - at;
     if (by < 0.0f) by += (float)poses;
     if (by <= 0.0f || by > (float)poses * 0.5f) return;
-    float p = at + by * g_uc_alpha;
+    float p = at + by * alpha;
     if (p >= (float)poses) p -= (float)poses;
     int32_t k = (int32_t)p, f = first + k * s;
     *fraction = p - (float)k;
     *frame = f;
     // past the last frame: as the game's own next frame there says - the first in a loop, itself where the animation ends and
     // stays (a death's: blended toward its first frame it went back to its beginning for a moment and came back)
-    *next = f + s <= last ? f + s : k == pose ? o->next_frame : first;
+    *next = f + s <= last ? f + s : k == pose ? to.next : first;
 }
 // THE FLYING PIECES, THE FLAMES AND THE SMOKE BETWEEN STEPS (with the animation's: picture collect anim): what a dying mech
 // throws - a Minotaur's three pieces, the shards - is no part of its model but an effect (EEE3DParticle), in no copy of
@@ -134,8 +158,8 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
 // two came at once - at the normal speed a step is about 23 ms, the simulation runs up to two at a time, and a late one
 // stood the piece for one to three frames: "the flying piece still dosnt move smoth" (the player, 2026-11-10). That clock
 // runs on with the real time at the rate the game time goes (g_cp_rate) and is drawn toward a step and a half behind the
-// newest game time, never past it: a step late, or two at once, only bends its pace. So the pieces run about half a step
-// behind the units. The flames and smoke (EEE2DParticle, sprites) are made and moved the same way, by their place, their
+// newest game time, never past it: a step late, or two at once, only bends its pace. The units are drawn at the same
+// time (uc_between). The flames and smoke (EEE2DParticle, sprites) are made and moved the same way, by their place, their
 // fade (size and alpha) and their turn, and stood the same: at a quarter of the game's speed they changed every third
 // frame of a recording (the player, 2026-11-10: "do Flames and smoke first"). A burning field holds hundreds at once:
 // the table is looked up by the pointer over 8 slots, a slot not seen for a quarter of a second free again.
@@ -1159,11 +1183,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     uint32_t dopp = 0;
     uc_copy *c = during ? (by0 <= by1 && cp_fits(g_uc_during_c, map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) ? g_uc_during_c : NULL)
                         : by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
-    g_uc_alpha = 1.0f;
-    if (c && g_cp_smooth == 1 && c->dt > 0) {
-        double a = (double)(rd_qpc() - c->at) / (double)c->dt;
-        g_uc_alpha = a < 1.0 ? (float)a : 1.0f;
-    }
+    g_uc_show = -1.0;
+    if (c && g_cp_smooth == 1 && g_cp_cs_ok) pt_clock(), g_uc_show = g_pt_show_ms;
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;
         w.row(mesh, r, &y, &x0, &x1);
@@ -1213,8 +1234,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     }
     if (c && g_cp_on == 2 && !during) cp_check(c);
     uc_smooth_probe();
-    g_uc_walked_at = c ? c->at : 0, g_uc_walked_alpha = g_uc_alpha;
-    g_uc_alpha = 1.0f;
+    g_uc_walked_at = c ? c->at : 0, g_uc_walked_alpha = g_uc_show >= 0.0 && g_uc_show < g_cp_clock ? 0.0f : 1.0f;   // still moving on
     if (during) ((uc_info *)info)->picked = NULL;   // (the update's end would release the reference a pick took)
     else {
         cp_release();

@@ -30,11 +30,15 @@ typedef struct {
     float tint[3], at[3];
     uint8_t tree, has_cu, food, moved, hidden, rotting, cloakable, cloaked, cloak_friend, marker, pp_shown, dead,
             foundation, finished, tint_on, selected, gate, gate_shown, own_seen, lit, bars_friend, marker_ok, t_foundation,
-            open, has_was, in_group;   // in_group: only for an update during a step (uc_in_group)
+            open, has_was, has_was2, in_group;   // in_group: only for an update during a step (uc_in_group)
     uint32_t walked;            // the frame's: the walk during a step that drew it last
-    float was[12];              // the moving between steps: its pose in the steps' copy before (has_was)
+    float was[12];              // the moving between steps: its pose at the game time before its last (has_was)
     int32_t was_anim, was_frame, was_next;   // ... and its animation there
     float was_fraction;
+    float was2[12];             // ... and the one before that (has_was2)
+    int32_t was2_anim, was2_frame, was2_next;
+    float was2_fraction;
+    float ms[3];                // the game times of its pose now, was and was2
     __attribute__((aligned(8))) uint8_t pm[UC_PM];   // its complex unit's physical model (its pose, model, scale, frame)
 } uc_obj;
 typedef struct {
@@ -59,6 +63,7 @@ typedef struct {
     ee_player *pl;
     int free_cam, hidden_mode, made_by;   // made_by: 1 the simulation, 2 the frame
     LONGLONG at, dt;      // the simulation's copy: when it was made, and the time since the one before (0: none to move from)
+    float clock;          // the game time it shows
     uc_ctile *tiles;
     uint32_t tiles_cap;
     uc_obj *objs;
@@ -141,7 +146,8 @@ internal ee_tile *uc_tile(ee_map *map, int x, int y) {
 // picture's steps counted, nothing moved.
 internal volatile int g_cp_smooth;
 internal volatile int g_uc_during_on;   // the pipe's picture collect during: the units' update run during a step (collect.c)
-typedef struct { ee_unit *u; uint32_t gen; float t[12]; int32_t anim, frame, next; float fraction; } cp_pose_e;
+typedef struct { float t[12]; int32_t anim, frame, next; float fraction, ms; } cp_pose_p;   // a pose and its game time
+typedef struct { ee_unit *u; uint32_t gen; int n; cp_pose_p p[3]; } cp_pose_e;   // its last n poses, the newest first
 internal cp_pose_e *g_cp_pose;
 internal uint32_t g_cp_pose_cap, g_cp_pose_n, g_cp_pose_gen;
 // a new copy's turn: the table at most half full, those of older copies than the last dropped when it is rebuilt
@@ -163,19 +169,48 @@ internal void cp_pose_turn(uint32_t want) {
     free(o);
     g_cp_pose = q, g_cp_pose_cap = cap, g_cp_pose_n = n;
 }
-// the object's pose and animation now in, those of the last copy out: 1 when it was in it
-internal int cp_pose_swap(ee_unit *u, uc_obj *o) {
-    if (!g_cp_pose_cap || g_cp_pose_n * 4 >= g_cp_pose_cap * 3) return 0;
+// the object's poses before its own of the game time now_ms: the two newest of the entry's older than it
+internal void cp_pose_give(uc_obj *o, const cp_pose_e *e, float now_ms) {
+    o->ms[0] = now_ms;
+    for (int i = 0, k = 0; i < e->n && k < 2; i++) {
+        const cp_pose_p *p = &e->p[i];
+        if (p->ms >= now_ms) continue;
+        if (!k) memcpy(o->was, p->t, sizeof p->t), o->was_anim = p->anim, o->was_frame = p->frame, o->was_next = p->next, o->was_fraction = p->fraction, o->has_was = 1;
+        else memcpy(o->was2, p->t, sizeof p->t), o->was2_anim = p->anim, o->was2_frame = p->frame, o->was2_next = p->next, o->was2_fraction = p->fraction, o->has_was2 = 1;
+        o->ms[++k] = p->ms;
+    }
+}
+internal cp_pose_e *cp_pose_find(ee_unit *u) {
     uint32_t h = ((uint32_t)(uintptr_t)u >> 3) * 2654435761u & (g_cp_pose_cap - 1);
     while (g_cp_pose[h].u && g_cp_pose[h].u != u) h = (h + 1) & (g_cp_pose_cap - 1);
-    cp_pose_e *e = &g_cp_pose[h];
-    int had = e->u == u && e->gen + 1 == g_cp_pose_gen;
-    if (had) memcpy(o->was, e->t, sizeof e->t), o->was_anim = e->anim, o->was_frame = e->frame, o->was_next = e->next, o->was_fraction = e->fraction;
+    return &g_cp_pose[h];
+}
+// the simulation's copy (game time ms): the object's pose and animation now into its entry, the poses before out. A copy
+// of the same game time as the last (Art of Conquest writes the world with the step's return now and then without a step)
+// replaces the newest instead of pushing the others out.
+internal void cp_pose_swap(ee_unit *u, uc_obj *o, float ms) {
+    if (!g_cp_pose_cap || g_cp_pose_n * 4 >= g_cp_pose_cap * 3) return;
+    cp_pose_e *e = cp_pose_find(u);
     if (!e->u) e->u = u, g_cp_pose_n++;
+    if (e->gen + 1 != g_cp_pose_gen) e->n = 0;   // not in the last copy: no pose to come from
+    cp_pose_p now;
+    memcpy(now.t, o->pm, sizeof now.t);
+    now.anim = o->anim, now.frame = o->anim_frame, now.next = o->next_frame, now.fraction = o->fraction, now.ms = ms;
+    if (e->n && e->p[0].ms == ms) e->p[0] = now;
+    else {
+        memmove(e->p + 1, e->p, 2 * sizeof *e->p);
+        e->p[0] = now;
+        if (e->n < 3) e->n++;
+    }
     e->gen = g_cp_pose_gen;
-    memcpy(e->t, o->pm, sizeof e->t);
-    e->anim = o->anim, e->frame = o->anim_frame, e->next = o->next_frame, e->fraction = o->fraction;
-    return had;
+    cp_pose_give(o, e, ms);
+}
+// a frame's own copy (a writer other than the steps came): the poses of the steps' last copy, read only - else such
+// frames drew the units as they stood, a step and a half ahead of the others
+internal void cp_pose_peek(ee_unit *u, uc_obj *o, float ms) {
+    if (!g_cp_pose_cap) return;
+    cp_pose_e *e = cp_pose_find(u);
+    if (e->u == u && e->gen == g_cp_pose_gen) cp_pose_give(o, e, ms);
 }
 
 // an object's values as the fills read them (the expressions theirs, in their order where a call may write)
@@ -236,7 +271,8 @@ internal void cp_obj(uc_copy *c, uc_obj *o, ee_unit *u, ee_player *me, ee_map *m
     o->anim_frame = unit_get_anim_frame(cu);
     o->next_frame = unit_get_next_frame(cu);
     o->fraction = unit_get_fraction(cu);
-    if (g_cp_smooth && c->made_by == 1) o->has_was = (uint8_t)cp_pose_swap(u, o);
+    if (g_cp_smooth && c->made_by == 1) cp_pose_swap(u, o, c->clock);
+    else if (g_cp_smooth) cp_pose_peek(u, o, c->clock);
     o->dead = (uint8_t)unit_dead(cu);
     o->foundation = unit_is_foundation(cu) != 0;
     o->finished = unit_get_finished(cu) != 0;
@@ -339,6 +375,7 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
     c->x0 = x0, c->y0 = y0, c->w = x1 - x0 + 1, c->h = y1 - y0 + 1;
     c->map = map, c->pl = pl, c->free_cam = free_cam, c->hidden_mode = mode, c->made_by = made_by;
     c->at = c->dt = 0;
+    c->clock = physics_get_time_ms(game_physics());
     if (g_cp_smooth && made_by == 1) cp_pose_turn(c->objs_cap);
     c->n_objs = c->n_seq = c->n_dopps = c->n_pool = 0;
     c->ok = 1;
@@ -445,6 +482,7 @@ enum { FX_EMPTY, FX_BUILDING, FX_READY };
 internal uint8_t g_fx_p[EFFECT_QUEUES_SIZE], g_fx_r[EFFECT_QUEUES_SIZE];   // the next, the retired
 internal int g_fx_made;
 internal volatile int g_fx_on;                 // the pipe: 0 off, 1 on, 2 check
+internal int g_fx_sims;                        // the queues in use are the simulation's (collect_fx_sims)
 internal volatile LONG g_fx_state, g_fx_retired;
 internal ee_map *g_fx_map;                     // the map g_fx_p is of
 internal float g_fx_cam[16];                   // the camera it was made for (the check's)
@@ -593,9 +631,13 @@ internal void collect_fx_take(void) {
         g_fx_retired = 1;
         g_fx_state = FX_EMPTY;
         g_fx_takes++;
+        g_fx_sims = 1;
     }
     LeaveCriticalSection(&g_cp_cs);
 }
+// the queues in use are the simulation's - they hold their effects, which a step can't free: a frame during a step may
+// draw them anew (render_3d.c rd_hook_ro_water). A real frame's update (collect_fx_check after it) makes the game's again.
+internal int collect_fx_sims(void) { return g_fx_sims; }
 // the check, after a full update made the game's queues (its read lock held: the simulation's aren't being made): the
 // same effects in the same order, when no other writer came since they were made and the camera is as it was
 // the game's scene released (a game's end, a load: render-thread hook of EEReleaseScene): what the simulation's queues
@@ -621,6 +663,7 @@ internal int fx_sum_one(void *ctx, int q, uint32_t key, void *e) {
     return 1;
 }
 internal void collect_fx_check(void) {
+    g_fx_sims = 0;
     if (g_fx_on != 2 || !g_fx_made || g_fx_state != FX_READY || g_cp_stale || g_fx_map != game_map() ||
         memcmp(g_fx_cam, camera_transformation_at(game_camera()), sizeof g_fx_cam))
         return;
@@ -709,8 +752,10 @@ internal void cp_check(const uc_copy *c) {
     for (uint32_t i = 0; !what && i < c->n_objs; i++) {
         uc_obj a = c->objs[i], b = f->objs[i];
         a.hidden = b.hidden, a.moved = b.moved;   // update_hidden's: the copy's call cleared its moved bit
-        a.has_was = b.has_was, memcpy(a.was, b.was, sizeof a.was);   // the pose before: only the simulation's copy has it
+        a.has_was = b.has_was, memcpy(a.was, b.was, sizeof a.was);   // the poses before: the simulation's copy's
         a.was_anim = b.was_anim, a.was_frame = b.was_frame, a.was_next = b.was_next, a.was_fraction = b.was_fraction;
+        a.has_was2 = b.has_was2, memcpy(a.was2, b.was2, sizeof a.was2), memcpy(a.ms, b.ms, sizeof a.ms);
+        a.was2_anim = b.was2_anim, a.was2_frame = b.was2_frame, a.was2_next = b.was2_next, a.was2_fraction = b.was2_fraction;
         a.walked = b.walked;   // the frame's
         if (memcmp(&a, &b, sizeof a)) {
             what = "object", at = i;

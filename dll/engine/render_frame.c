@@ -122,6 +122,7 @@ typedef struct {
 internal int rf_camera_view(float *v, const float *m);
 internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
 internal rf_ground g_kw;   // its water (the same: rf_water_again)
+internal int g_kw_surface = -1;   // of those the surface's (the ones before the fifth queue's effects: render_ground.c rg_hook); -1 not known
 internal rf_ground g_ks;   // the game's shadows' decals, the farms' fields: the same (their draw, as the ground's, draws
                            // nothing during a step - every frame drawn during one showed the farms without their fields,
                            // the player 2026-11-06: "farms flicker in visibility", the pipe's record: fields 0 in those)
@@ -572,6 +573,7 @@ internal void rf_ground_frame(int skip) {
     g_kg_view_ok = rf_camera_view(g_kg_view, m);
     rf_ground_clear(&g_kg);
     rf_ground_clear(&g_kw);
+    g_kw_surface = -1;
     rf_ground_clear(&g_ks);
 }
 // a frame during a step: the last frame's ground into the list
@@ -586,10 +588,12 @@ internal int rf_ground_line(void *ctx, int q, uint32_t key, void *e) {
     return 1;
 }
 internal void rf_ground_lines(void) { effect_queues_each(effect_queues_at(), rf_ground_line, NULL); }
-internal void rf_ground_again(rf_ground *g) {
+// the kept batches k0 .. k1 - 1 drawn again
+internal void rf_ground_again_part(rf_ground *g, int k0, int k1) {
     if (!g_kg_skip || !g->nb) return;
+    if (k1 > g->nb) k1 = g->nb;
     rd3_flush();
-    for (int k = 0; k < g->nb; k++) {
+    for (int k = k0; k < k1; k++) {
         const rf_kept *b = &g->b[k];
         g_rd3.rtv = b->c.rtv; g_rd3.dsv = b->c.dsv;
         g_rd3.blend = b->c.blend; g_rd3.depth = b->c.depth; g_rd3.raster = b->c.raster; g_rd3.samp = b->c.samp;
@@ -613,6 +617,7 @@ internal void rf_ground_again(rf_ground *g) {
     }
     g_rd3.bound = 0;   // the game's next draw binds all its states again
 }
+internal void rf_ground_again(rf_ground *g) { rf_ground_again_part(g, 0, g->nb); }
 
 internal void rd3_rigid_inverse(float *r, const float *m);
 internal void rd3_shadow_frame(void);
