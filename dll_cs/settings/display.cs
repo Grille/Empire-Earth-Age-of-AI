@@ -199,6 +199,11 @@ class display
         /// colours (the control pipe: water color <red green blue> / water color map):
         [length(32)]
         string water_fog_color = "";
+        /// With water_look: the light the waves gather on the seabed, a slowly moving net of lit lines under the
+        /// water, none at the waterline and fading with the depth; how bright, in percent of the light on the ground
+        /// (0 = none; the control pipe: water caustics <0..2>):
+        [range(0, 200)]
+        int water_caustics = 60;
         /// The own renderer: the half see-through edges of units' and buildings' textures (a ladder's rails) drawn after
         /// everything solid and without writing the depth, so that what lies behind them shows through them (the control
         /// pipe: water edges on / off):

@@ -162,7 +162,7 @@ internal const char k_rd3_shader[] =
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
-    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
+    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gca; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
@@ -235,6 +235,13 @@ internal const char k_rd3_shader[] =
     "float gbh(float2 p) { float3 q = frac(p.xyx * 0.1031); q += dot(q, q.yzx + 33.33); return frac((q.x + q.y) * q.z); }\n"
     "float gbn(float2 p) { float2 a = floor(p), f = p - a; f = f * f * (3 - 2 * f);"
     " return lerp(lerp(gbh(a), gbh(a + float2(1, 0)), f.x), lerp(gbh(a + float2(0, 1)), gbh(a + float2(1, 1)), f.x), f.y); }\n"
+    // the caustics' net (render_water.c): how near p lies to the edge between the two nearest of points that circle slowly
+    // in their cells - the second nearest's distance less the nearest's
+    "float2 cvh(float2 p) { float3 q = frac(p.xyx * float3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return frac((q.xx + q.yz) * q.zy); }\n"
+    "float cvor(float2 p, float t) { float2 a = floor(p); float f1 = 9, f2 = 9;"
+    " for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { float2 c = a + float2(x, y), h = cvh(c);"
+    "  float2 d = c + 0.5 + 0.4 * sin(t + 6.2831 * h) - p; float e = dot(d, d); if (e < f1) { f2 = f1; f1 = e; } else if (e < f2) f2 = e; }"
+    " return sqrt(f2) - sqrt(f1); }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
@@ -269,7 +276,14 @@ internal const char k_rd3_shader[] =
     // ceiling less how far the ground lies under it) under the surface's own height
     " if (wat.x > 0 && shd.x == 6 && shh.w > 0) { float2 wh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "  float wd = max(0, i.w.z - (wh.x - wh.y));"
-    "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w); }"
+    "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w);"
+    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale): a net of lines along the
+    // edges of slowly moving cells (cvor), bent by a sine so they curve, lit by the water's own light, drawn into the surface over the seabed by the depth there -
+    // on the seabed itself the surface covered it - none at the waterline, fading with the depth, gone where a line would
+    // be thinner than a pixel (far out it would only shimmer)
+    "  if (gnd.x == 2 && gca.x > 0) { float2 cp = i.w.xy * gca.y + gnd.y * 0.03, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
+    "   float cn = cvor(cp + 0.22 * sin(cp.yx * 1.9 + gnd.y * 0.4), gnd.y * 0.5);"
+    "   c.rgb += i.gl * (gca.x * pow(saturate(1 - cn * 4), 4) * saturate(wd * 3) * exp(-wd * 0.4) * saturate(2 - cw * 8)); } }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"

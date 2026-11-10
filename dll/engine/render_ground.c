@@ -474,7 +474,7 @@ internal int rg_build(void) {
     if (!g_rg.fow_was || !g_rg.fow_now || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rg.fow))
         || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.fow, NULL, &g_rg.fow_srv))) { rg_free(); return 0; }
     if (!g_rg.cb) {
-        D3D11_BUFFER_DESC bd = { 76 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { 80 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb)) || FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cbw))) { rg_free(); return 0; }
     }
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 1;   // differs: the first frame sends it
@@ -687,9 +687,13 @@ internal void rg_draw_now(int water, int again) {
         g_rg.at = now;
     }
     if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;
-    float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
+    float cb[80] = { water ? 2.0f : 1.0f, (float)g_rg.phase, ws[water ? 1 : 2], st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
+    if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the water's surface)
+        cb[76] = g_rw_caustics >= 0 ? g_rw_caustics : (float)g_set.water_caustics * 0.01f;
+        cb[77] = RW_CAUSTICS_SCALE;
+    }
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;
     for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }
