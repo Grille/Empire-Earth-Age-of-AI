@@ -372,6 +372,89 @@ internal void cmd_spawn(char *out, const char *args) {
           off ? " (the rest off the map's diamond)" : "");
 }
 
+// airraid P ax ay tx ty T W: P's air force raids as a player masses it (the player, 2026-11-11: "a proper bombing run is 2
+// full airports with 15 bombers each ... single airplanes are useless, players mass them and do multiple runs, i usually
+// keep the airport targets until i lost half the planes and are meeting resistance, enemy anti air and airfields are the
+// first target, than economy"). Called every 20 s (a script's every): the wave is W of type T. While at least half of it
+// lives, a run goes once two thirds of those alive are ready (no goal: landed and rearmed, in their airport or by it):
+// each ready one gets a target within AIRRAID_R of tx, ty - the enemy's anti-air first (AA buildings and units), then its
+// airports, then its citizens, then its other buildings, then anything - massed: each target as many as its hit points
+// need (hp / the type's attack, one more), the nearest the attacker's airports (ax, ay) first in each kind; by the game's
+// air order (airstrike.c as_order: a plane in its airport takes it). Fewer than half: home AIRRAID_REST, then the wave
+// filled up to W again at ax, ay (the attacker's production: spawn) and on. "# airraid:" lines.
+#define AIRRAID_R 25
+#define AIRRAID_REST 240000u
+internal struct { int phase; uint32_t t; unsigned runs, sent, refills, filled; } g_raid[16];
+internal void cmd_airraid(char *out, const char *args) {
+    int p, ax, ay, tx, ty, tt, w;
+    if (sscanf(args, "%d %d %d %d %d %d %d", &p, &ax, &ay, &tx, &ty, &tt, &w) < 7 || p <= 0 || p > 15 || w < 1 || !type_data(tt)) {
+        REPLY("error: usage: airraid P ax ay tx ty T W\n"); return;
+    }
+    ee_player *pl = player_at(p);
+    ee_civ_mgr *cm = pl ? player_get_civ_mgr(pl) : NULL;
+    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    if (!um) { REPLY("error: P%d is no AI player\n", p); return; }
+    uint32_t now = game_time();
+    __typeof__(g_raid[0]) *r = &g_raid[p];
+    if (now < r->t) memset(r, 0, sizeof *r);
+    static ee_unit *pl_u[256];
+    int alive = 0, ready = 0;
+    uint8_t *q = type_list(um, tt);
+    for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && alive < 256; j++) {
+        ee_unit *u = deque_at(q, f + j);
+        if (!u || unit_get_hp(u) <= 0 || unit_get_owner(u) != pl) continue;
+        alive++;
+        if (!unit_get_goal(u)) pl_u[ready++] = u;
+    }
+    if (r->phase == 1) {   // home: the rest's time, then the wave filled up again
+        if (now - r->t < AIRRAID_REST) { REPLY("ok: P%d's raid rests (%d of %d alive)\n", p, alive, w); return; }
+        char a[96];
+        static char o2[256];
+        int n = w - alive;
+        if (n > 100) n = 100;
+        if (n > 0) { snprintf(a, sizeof a, "%d %d %d %d %d", p, tt, ax, ay, n); cmd_spawn(o2, a); }
+        r->phase = 0; r->refills++; r->filled += (unsigned)(n > 0 ? n : 0);
+        if (g_log) fprintf(g_log, "# airraid: P%d at %.1f min: the wave filled up again - %d more of type %d (%d alive of %d)\n", p, now / 60000.0, n, tt, alive, w);
+        REPLY("ok: P%d's wave filled with %d\n", p, n); return;
+    }
+    if (alive * 2 < w) {
+        r->phase = 1; r->t = now ? now : 1;
+        if (g_log) fprintf(g_log, "# airraid: P%d at %.1f min: half the wave lost (%d of %d alive) - home %.0f min\n", p, now / 60000.0, alive, w, AIRRAID_REST / 60000.0);
+        REPLY("ok: P%d's raid goes home\n", p); return;
+    }
+    if (!ready || ready * 3 < alive * 2) { REPLY("ok: P%d waits - %d of %d ready\n", p, ready, alive); return; }
+    // the targets by kind, the nearest the attacker's airports first
+    struct tg { ee_unit *u; int kind, need; long d; };
+    static struct tg t[512];
+    int nt = 0, at = unit_type_get_attack(type_data(tt));
+    if (at < 1) at = 1;
+    for (struct grid_it it = grid_it_box(tx, ty, AIRRAID_R, 1); grid_it_next(&it) && nt < 512; ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || o == pl || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0) continue;
+        ivec2 up = unit_get_tile(u);
+        if (ivec2_dist2(up, iv2(tx, ty)) > AIRRAID_R * AIRRAID_R) continue;
+        int fam = unit_type_get_family(it.td), cls = unit_type_get_class_id(it.td), ty2 = unit_type_get_id(it.td);
+        int kind = fam == KIND_AA_BUILDING || fam == KIND_LAND_AA ? 0 : ty2 == UT(B_AIRPORT) ? 1 : is_citizen_type(ty2) ? 2 :
+                   cls == CLS_BUILDING || cls == CLS_FORTRESS ? 3 : 4;
+        t[nt].u = u; t[nt].kind = kind; t[nt].need = unit_get_hp(u) / at + 1; t[nt].d = ivec2_dist2(up, iv2(ax, ay)); nt++;
+    }
+    for (int i = 1; i < nt; i++) {   // by kind, then the nearest
+        struct tg x = t[i]; int j = i;
+        while (j > 0 && (t[j - 1].kind > x.kind || (t[j - 1].kind == x.kind && t[j - 1].d > x.d))) { t[j] = t[j - 1]; j--; }
+        t[j] = x;
+    }
+    int sent = 0, k = 0, on = 0, kinds[5] = { 0 };
+    for (int i = 0; i < ready && k < nt; i++) {
+        ee_goal *g = goal_attack(pl_u[i], t[k].u);
+        if (as_order(pl_u[i], g)) { sent++; kinds[t[k].kind]++; }
+        if (++on >= t[k].need) { k++; on = 0; }
+    }
+    r->runs++; r->sent += (unsigned)sent;
+    if (g_log) fprintf(g_log, "# airraid: P%d at %.1f min: a run of %d (%d alive of %d, %d targets): at anti-air %d, airports %d, citizens %d, buildings %d, other %d\n",
+                       p, now / 60000.0, sent, alive, w, nt, kinds[0], kinds[1], kinds[2], kinds[3], kinds[4]);
+    REPLY("ok: P%d's run of %d at %d targets\n", p, sent, nt);
+}
 // spawnline <player> <type> <x0> <y0> <x1> <y1> [step]: one unit every <step> tiles (default 1) along the line,
 // e.g. a wall. Same spawner as spawn.
 internal void cmd_spawnline(char *out, const char *args) {

@@ -1,0 +1,20 @@
+// air_raid_nuclear.eeai: air_raid.eeai with 30 atomic bombers (70 B-29: 2200 a hit) (the player, 2026-11-11: "a proper bombing run is 2 full airports
+// with 15 bombers each ... single airplanes are useless, players mass them and do multiple runs, i usually keep the
+// airport targets until i lost half the planes and are meeting resistance, enemy anti air and airfields are the first
+// target, than economy"; the scripted single waves of air_war.eeai killed ~8 citizens a game). Small Islands seed 101,
+// 2 AIs, start epoch 10 (base ini random_map=Small Islands,seed=101,start_epoch=10, landing=0,navy=0,surrender=0, and
+// variant_players=2,v_air_strike=0: P2's own air force would hold the bombers): P2 home ~77,28, P3 home ~12,52. P2 gets
+// two airports at 12 min and 30 B-29s (70) at 14; from then on the pipe's airraid flies them - a run once two thirds are
+// ready, the anti-air first, then airports, citizens, buildings, massed by each target's hit points; half lost: home 4
+// minutes, then filled up to 30 again. Measure P3's citizens killed from the air, workers, buildings lost, kills:
+// defence.c anti_air, aa_strong.
+
+defence(2, 0)
+wait_until(12min)
+spawn(2, unit.b_airport, 80, 24, 1)
+spawn(2, unit.b_airport, 72, 32, 1)
+wait_until(14min)
+spawn(2, unit.a_bombernuc11_b_29, 76, 28, 30)
+every(0.33min, 14.2min, 59.9min, (run) => {
+    airraid(2, 77, 28, 12, 52, unit.a_bombernuc11_b_29, 30)
+})
