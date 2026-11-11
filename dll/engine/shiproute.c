@@ -872,9 +872,11 @@ internal int st_aim_point(ee_unit *u, float px, float py, float reach, const flo
 internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim);   // groupmove.c: formation_follow's point
 internal float ff_speed(ee_unit *u, float s, float angle);              // ... and its speed
 internal void ff_turn(ee_unit *u, const float *left, float *rate, float *heading);   // ... and a ship's turn
+internal int uc_slide_aim(ee_unit *u, const float *pos, const float *to, float *out);   // collide.c: the aim along a hull pressed into
 internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
-    float aim[3], *to = target;
+    float aim[3], slid[3], *to = target;
     if (!facing && fo_follow_aim(u, pos, aim)) {   // a unit of a formation's march (land units and ships)
+        if (uc_slide_aim(u, pos, aim, slid)) memcpy(aim, slid, sizeof aim);
         physics_model_turn_towards(model, u, pos, aim, left, rate, heading, facing);
         if (model_kind(model) != MODEL_LAND) ff_turn(u, left, rate, heading);   // a ship turns steadily (land units at a fixed rate in their own tick)
         return;
@@ -918,6 +920,7 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
         g_st_aim_x = to[0];
         g_st_aim_y = to[1];
     }
+    if (!facing && uc_slide_aim(u, pos, to, slid)) to = slid;   // the speed's arc keeps the point on the route (g_st_aim_*)
     physics_model_turn_towards(model, u, pos, to, left, rate, heading, facing);
 }
 

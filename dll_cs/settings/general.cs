@@ -146,6 +146,12 @@ class general
         /// (gathering, building) are passed as in the game. 0 = the original
         [commented("0")]
         bool land_collide = true;
+        /// Collision slide (with ship collide): a moving ship pressed against another one steers along it instead of into
+        /// it, so it points the way it is actually going - before, a ship whose place lay beyond its neighbour kept steering
+        /// at it and was pushed along sideways, a fleet sailing one way with some of its ships turned across it. It turns
+        /// back to its place once nothing is in the way. 0 = it keeps steering at its place
+        [commented("0")]
+        bool collide_slide = true;
         /// Formations: a group sent somewhere takes up its formation (line, staggered, wedge, circle - as chosen) laid out
         /// by its units' own sizes around the clicked point, each unit keeping its place in the group (the front ones in front,
         /// the left ones left) - instead of the game's grid, spaced by the largest unit in only 5 columns behind the point, with

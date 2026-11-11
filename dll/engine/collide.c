@@ -31,15 +31,53 @@ internal unsigned g_uc_rest;                 // pushes of units at rest off each
 #define UC_TOUCH 0.1f           // tiles: a gap this narrow counts as touching (uc_weight_against)
 #define UC_BEHIND 0.5f          // a neighbour within 60 degrees of the push's direction is in its way
 #define UC_MEM 16384
-struct uc_rest { uint32_t id; int n; vec2 last; };   // a unit's reversals at rest and its last push
+struct uc_rest { uint32_t id; int n; vec2 last; vec2 slide; uint32_t slide_ms; };   // a unit's reversals at rest and its last push; the way off the hulls it last pressed into and when (collide_slide)
 internal struct uc_rest g_uc_mem[UC_MEM];
 
 internal struct uc_rest *uc_rest_of(ee_unit *u) {
     uint32_t id = (uint32_t)unit_get_serial(u), h = (id * 2654435761u) % UC_MEM, i = h;
     for (int k = 0; k < 8; k++, i = (h + (uint32_t)k) % UC_MEM)
         if (g_uc_mem[i].id == id || !g_uc_mem[i].id) break;
-    if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = 0; g_uc_mem[i].last = v2(0, 0); }
+    if (g_uc_mem[i].id != id) { memset(&g_uc_mem[i], 0, sizeof g_uc_mem[i]); g_uc_mem[i].id = id; }
     return &g_uc_mem[i];
+}
+
+// SLIDING (`collide_slide`; the player, 2026-11-11: a fleet of battleships sailing one way, some of them turned
+// sideways): a moving unit steers at its point - its place in the formation, a point on its route -, and one whose
+// point lies beyond a neighbour presses into it, is pushed back off it and so moves the way the others do while it
+// points at its point: tests/probes/fleet_heading.eeai, 24 dreadnoughts, a ship heading 175 degrees and moving 152 for
+// seconds, nothing turning. Here the hull it pressed into (uc_separate: the way off it, summed over those it heads
+// into) bends its aim: the part of the way to its point that goes into that hull is taken out (shiproute.c's turn
+// hook), so it steers along the hull - the way it is actually moving - and turns back to its point once nothing is in
+// the way. Kept UC_SLIDE_MS of game time after the last press, else the aim flicked between the two each step it
+// parted. Head-on (little left of the way) the aim stays: the sidestep takes it past. 24 dreadnoughts (game_seed 1-4),
+// off / on: sailing straight (the heading turning 8 degrees a second or less) off their way by more than 20 degrees
+// 4.2% / 1.0% of the time (90% within 10 / 1.8 degrees), turning p90 17-23 / 9-10 degrees; the median ship in 1 s
+// later, the paths 3% longer. Ships only: land units (march_gap.eeai, 51 through a 3-tile gap, game_seed 1-3) stood
+// short of the goal 637-870 s together against 236-332, 1-2 never arrived - a crowd sliding along itself stops
+// pushing through.
+#define UC_SLIDE_MS 1000
+#define UC_SLIDE_LEFT 0.3f      // less than this share of the way to the point left along the hull: head-on, the aim stays
+internal int g_uc_slide;
+internal unsigned g_uc_slid;   // turns whose aim was bent
+
+// u's aim from pos at to, bent along the hull it last pressed into (into out): 1, else 0 (the aim as it is)
+internal int uc_slide_aim(ee_unit *u, const float *pos, const float *to, float *out) {
+    if (!g_uc_slide || !u) return 0;
+    struct uc_rest *r = NULL;   // looked up, not taken: every unit's turn comes here, land units' too
+    uint32_t id = (uint32_t)unit_get_serial(u), h = (id * 2654435761u) % UC_MEM;
+    for (int k = 0; k < 8 && !r; k++)
+        if (g_uc_mem[(h + (uint32_t)k) % UC_MEM].id == id) r = &g_uc_mem[(h + (uint32_t)k) % UC_MEM];
+    if (!r || !r->slide_ms || game_time() - r->slide_ms > UC_SLIDE_MS) return 0;
+    vec2 d = v2(to[0] - pos[0], to[1] - pos[1]);
+    float into = vec2_dot(d, r->slide), len = vec2_len(d);
+    if (into >= 0 || len < 0.01f) return 0;
+    vec2 s = vec2_sub(d, vec2_scale(r->slide, into));
+    if (vec2_len(s) < UC_SLIDE_LEFT * len) return 0;
+    s = vec2_scale(s, len / vec2_len(s));   // as far ahead as the point was: the turn's distance stays
+    out[0] = pos[0] + s.x; out[1] = pos[1] + s.y; out[2] = to[2];
+    g_uc_slid++;
+    return 1;
 }
 // a and b friendly: one owner, or two players allied both ways (not nature's: its animals stay strangers)
 internal int uc_friendly(ee_unit *a, ee_unit *b) {
@@ -156,7 +194,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
     if (dt <= 0) return 0;
     struct uc_hull h = uc_hull_of(u, kind);
     float mu = h.len * h.len;
-    vec2 corr = v2(0, 0);
+    vec2 corr = v2(0, 0), slide = v2(0, 0);
     vec3 p = unit_get_pos(u);
     if (h.len > g_uc_biggest[kind]) g_uc_biggest[kind] = h.len;
     int reach = (int)((h.len + g_uc_biggest[kind]) * 0.5f) + 1;   // the farthest centre an overlap can have
@@ -187,6 +225,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
             d = vec2_scale(side, (vec2_dot(side, rel) < 0 ? -1.0f : 1.0f) / sl);
         }
         float k = -vec2_dot(h.dir, d);
+        if (k > 0 && !resting && kind != MODEL_LAND) slide = vec2_add(slide, d);   // it heads into this one: its aim slides along it (collide_slide; ships only)
         if (k > 0 && unit_get_speed(u) > 0.05f) {   // u heads into it: off to a side as well, so it slides past
             vec2 right = v2(h.dir.y, -h.dir.x);
             float side = vec2_dot(d, right) < -0.05f ? -1.0f : 1.0f;
@@ -208,6 +247,12 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
             uc_push_quiet(unit_type_get_model(unit_get_type_data(c)), c);
         }
         g_uc_hits++;
+    }
+    float sl = vec2_len(slide);
+    if (g_uc_slide && sl > 0.0001f) {
+        struct uc_rest *r = uc_rest_of(u);
+        r->slide = vec2_scale(slide, 1.0f / sl);
+        r->slide_ms = game_time() | 1u;   // never 0: none
     }
     if (corr.x == 0 && corr.y == 0) return 0;
     unit_set_push(u, vec2_add(unit_get_push(u), vec2_scale(corr, 1.0f / dt)));
@@ -243,13 +288,14 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
     model_push(model, u);
 }
 
-internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; memset(g_uc_biggest, 0, sizeof g_uc_biggest); memset(g_uc_mem, 0, sizeof g_uc_mem); }
+internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = g_uc_slid = 0; g_uc_deepest = 0; memset(g_uc_biggest, 0, sizeof g_uc_biggest); memset(g_uc_mem, 0, sizeof g_uc_mem); }
 
 internal void collide_install(void) {
     g_uc_on[MODEL_SHIPS] = g_uc_on[MODEL_SUBS] = g_set.ship_collide;
     g_uc_on[MODEL_LAND] = g_set.land_collide;
+    g_uc_slide = g_set.collide_slide && g_set.ship_collide;
     int n[4] = { 0 };
     for (int k = MODEL_SHIPS; k <= MODEL_LAND; k++) n[k] = g_uc_on[k] ? patch_collide(k, hook_collide) : 0;
-    if (g_log) fprintf(g_log, "# collide: ship_collide=%d land_collide=%d (hooks: ships %d, submarines %d, land %d/2)\n", g_set.ship_collide, g_set.land_collide,
+    if (g_log) fprintf(g_log, "# collide: ship_collide=%d land_collide=%d collide_slide=%d (hooks: ships %d, submarines %d, land %d/2)\n", g_set.ship_collide, g_set.land_collide, g_uc_slide,
                        n[MODEL_SHIPS], n[MODEL_SUBS], n[MODEL_LAND]);
 }
