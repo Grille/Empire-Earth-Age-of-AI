@@ -506,7 +506,8 @@ typedef struct {
                              // (world); an airplane's tailplane, fin and nose weight after them (US_PTS_AIR)
     float body[9][3];        // ... in the hull's own space times its scale, the floats at its waterline
     int32_t n;               // its points: US_PTS, an airplane's US_PTS_AIR
-    float wing[2];           // an airplane's wings' strengths, port and starboard (1 whole, 0 gone: US_WING)
+    float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
+                             // tailplane's (nose up), its fin's (a yaw) - us_wings
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
     float leak[4][3];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s)
     float dig[9];            // how deep each point can go into the seabed (tiles; the floats' and the ballast's)
@@ -608,14 +609,21 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // sinking plane is held up and noses over slowly - a glide that steepens; a weak wing drops, it rolls toward it and
 // spirals in; both whole hold a roll back (the kick's levels out). No planing in the air (in the water as a ship's).
 #define US_PTS_AIR 9    // the floats, the ballast; the tailplane's port and starboard points, the fin's, the nose weight
-#define US_WING 16.0f   // a wing point's (1/s, wholly in the air), times its strength
+#define US_WING 16.0f   // a wing point's (1/s, wholly in the air)
 #define US_TAILPLANE 12.0f
 #define US_FIN 12.0f
-// a wing meets the air at a small angle, its front up (the player, the same day: "no plane started rotating, are you sure
-// the brocken wings work?"): a surface that only cancels the way across it pushes nothing once the tail has turned the
-// nose into the way - a weak wing then made no difference, its bank of the first second levelled out again; tilted,
-// each wing lifts by the speed along it, the whole one more than the broken one as long as it flies: it rolls on
-#define US_WING_TILT 0.14f   // its sine: 8 degrees
+// Its surfaces meet the air at angles of their own (the player, the same day: "no plane started rotating, are you sure
+// the brocken wings work?" - a surface that only cancels the way across it pushes nothing once the tail has turned the
+// nose into the way, so a weak wing made no difference after its first second; then "maybe disabeling/softening wings is
+// the wrong lever, your (8 degrees nose-up) ... add a random number ... the same for the tailfins, instead of just not
+// doing their job when failing they stear the plane. pitch the plane up and stall it, yaw it into a trun"): each
+// pushes by the speed along it, across its tilted surface. Each wing between 8 degrees front up and 6 front down (by
+// its serial, us_wings): two alike glide, two apart roll it; the tailplane pitches its nose up (a stall: it rears and
+// sinks, slowed by its wings across the way) or down, the fin yaws it into a turn
+#define US_WING_UP 8.0f     // degrees, the most front up
+#define US_WING_DOWN 6.0f   // ... front down
+#define US_TAIL_TURN 20.0f  // the tailplane's, the most either way (8 hardly lifted a nose: they die at about 1 tile/s)
+#define US_FIN_TURN 15.0f
 #define US_TAIL_SPAN 0.35f   // the tailplane's half span: a share of the wings' (a P-51's: 4 m to 11 m)
 #define US_FIN_W 0.5f   // the tail's points' weights, a float's 1
 #define US_NOSE 2.0f    // the nose weight's
@@ -647,17 +655,14 @@ internal int uc_is_ship(const ee_unit_type *ty) {
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // a point's weight (a float's 1): the ballast, an airplane's tail points and nose weight
 internal float us_w(int i) { return i < 4 ? 1.0f : i == 4 ? US_BALLAST : i == 8 ? US_NOSE : US_FIN_W; }
-// an airplane's wings by its serial (a stream of their own): whole half the time, one weakened (to 0 .. 0.6) a quarter,
-// one gone an eighth, both weakened (0.2 .. 0.7) an eighth
+// an airplane's surfaces' angles by its serial (a stream of their own, its seed hashed), even over their ranges
 internal void us_wings(uc_corpse *k, int32_t serial) {
-    uint32_t s = (uint32_t)serial * 3266489917u + 0x165667B1u;
-    us_rnd(&s);
-    float plan = us_rnd(&s);
-    int side = us_rnd(&s) < 0.5f;
-    k->wing[0] = k->wing[1] = 1.0f;
-    if (plan >= 0.875f) k->wing[0] = 0.2f + 0.5f * us_rnd(&s), k->wing[1] = 0.2f + 0.5f * us_rnd(&s);
-    else if (plan >= 0.75f) k->wing[side] = 0.0f;
-    else if (plan >= 0.5f) k->wing[side] = 0.6f * us_rnd(&s);
+    uint32_t s = (uint32_t)serial ^ 0x165667B1u;   // mixed whole: ids one apart drew nearly alike by a product alone
+    s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+    const float rad = 3.14159265f / 180.0f;
+    for (int i = 0; i < 2; i++) k->tilt[i] = sinf((-US_WING_DOWN + (US_WING_UP + US_WING_DOWN) * us_rnd(&s)) * rad);
+    k->tilt[2] = sinf(US_TAIL_TURN * (2.0f * us_rnd(&s) - 1.0f) * rad);
+    k->tilt[3] = sinf(US_FIN_TURN * (2.0f * us_rnd(&s) - 1.0f) * rad);
 }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
 internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
@@ -855,8 +860,15 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     for (int j = 0; j < 3; j++) lu += un[j] * un[j];
     lu = sqrtf(lu);
     for (int j = 0; j < 3; j++) un[j] = lu > 1e-6f ? un[j] / lu : 0.0f;
-    float wn[3], ct = sqrtf(1.0f - US_WING_TILT * US_WING_TILT);   // the wings' up: tilted back by their angle
-    for (int j = 0; j < 3; j++) wn[j] = ct * un[j] - US_WING_TILT * ln[j];
+    // each surface's up tilted by its angle: a wing's front up (back), the tailplane's to pitch the nose up (forward: it
+    // pushes the tail down), the fin's to yaw it
+    float nw[4][3];
+    if (k->n == US_PTS_AIR)
+        for (int s = 0; s < 4; s++) {
+            const float *base = s == 3 ? sn : un;
+            float st = k->tilt[s] * (s == 2 ? 1.0f : -1.0f), ct = sqrtf(1.0f - k->tilt[s] * k->tilt[s]);
+            for (int j = 0; j < 3; j++) nw[s][j] = ct * base[j] + st * ln[j];
+        }
     for (int i = 0; i < k->n; i++) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
@@ -877,9 +889,9 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float in_water = a * ln[j] * f_along + (v[j] - a * ln[j]) * f_across, in_air = v[j] * f_air;
             v[j] = in_air + (in_water - in_air) * wd;
         }
-        float surf = k->n != US_PTS_AIR ? 0.0f : i == 2 || i == 3 ? US_WING * k->wing[i - 2] : i == 5 || i == 6 ? US_TAILPLANE : i == 7 ? US_FIN : 0.0f;
+        float surf = k->n != US_PTS_AIR ? 0.0f : i == 2 || i == 3 ? US_WING : i == 5 || i == 6 ? US_TAILPLANE : i == 7 ? US_FIN : 0.0f;
         if (surf > 0.0f) {   // its way through its surface cancelled, as far as it is dry
-            const float *nv = i == 7 ? sn : i < 4 ? wn : un;
+            const float *nv = nw[i == 2 ? 0 : i == 3 ? 1 : i == 7 ? 3 : 2];
             float c = 0.0f, f = expf(-surf * (1.0f - wd) * dt);
             for (int j = 0; j < 3; j++) c += v[j] * nv[j];
             for (int j = 0; j < 3; j++) v[j] -= (1.0f - f) * c * nv[j];

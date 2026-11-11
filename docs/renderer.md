@@ -894,6 +894,17 @@ the unit (k->in_game); one it has that the walk didn't meet is kept and drawn as
 its own pose (uc_corpses_walk), one it no longer has is removed (kept, its time on). Checked headless with the player's
 ini and a probe of the corpses' walk: P-51s and Apaches killed over the water, the camera away and back - three wrecks
 unmet while the game had them, kept (none made anew), two of them drawn by their own place.
+An airplane's surfaces steer it instead of failing (the player, the same day: "maybe disabeling/softening wings is the
+wrong lever, your (8 degrees nose-up) ... add a random number ... the same for the tailfins, instead of just not doing
+their job when failing they stear the plane. pitch the plane up and stall it, yaw it into a trun"): each wing's angle
+between 8 degrees front up and 6 front down (US_WING_UP, US_WING_DOWN), the tailplane's within 20 degrees either way
+(US_TAIL_TURN; positive pitches the nose up), the fin's within 15 (US_FIN_TURN), by its serial - hashed first: ids one
+apart drew nearly alike (all eight of a test's tailplanes at -4 or -5). Every surface works whole; each pushes by the
+speed along it across its tilted surface: two wings alike glide, two apart roll it, the tailplane rears or dives it, the
+fin yaws it, and a bank turns it. Checked headless with the player's ini and a probe logging the angles, pitch, bank and
+heading of eight P-51s: tailplanes at 13 - 15 reared them to about 6 degrees nose up and they sank slowly, 5 s instead of
+3 (8 had hardly lifted a nose), nose down ones dived at 55 - 60; wings 8 - 11 degrees apart banked them to 33 - 52, and
+the banked ones turned 45 - 75 degrees as they fell. A plane dies at about 1 tile/s here, so no surface flips it.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
