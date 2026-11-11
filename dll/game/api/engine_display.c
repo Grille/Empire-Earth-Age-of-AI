@@ -388,6 +388,10 @@ internal inline void graphics_acquire(ee_dmg_model *g) {
     if (build_is("aoc")) ((int (__thiscall *)(ee_dmg_model *))(*(void ***)g)[1])(g);
     else dmg_model_acquire(g);
 }
+internal inline void graphics_release(ee_dmg_model *g) {
+    if (build_is("aoc")) ((void (__thiscall *)(ee_dmg_model *))(*(void ***)g)[2])(g);
+    else dmg_model_release(g);
+}
 internal inline ee_unit_stats *player_stats_of(const ee_player *p, int type_id) {
     return (*(ee_unit_stats ***)(player_type_stats_at(p) + 4))[type_id];
 }

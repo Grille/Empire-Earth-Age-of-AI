@@ -44,6 +44,12 @@ unsafe struct EEGraphicObject
     [address((ee)0x004D29BC, (aoc)0x004D85ED)]
     extern int32 acquire();
 
+    /// one user less (acquire's other half; under the engine's lock, waiting while its models load): the last frees
+    /// its models and empties anim_model - a drawn record's are given back so at the units' update, the mod's kept
+    /// corpses' (collect.c) when they go. AoC: vf2 (EEGraphicObject::vf2, the same code, its fields 0x10 on)
+    [address((ee)0x004D343B, (aoc)0x004D907E)]
+    extern void release();
+
     /// its users (acquire counts them, under engine_display.graphics_lock; the first loads its models)
     [offset((ee)0x4A8, (aoc)0x4B8), found(c)]
     int32 users;

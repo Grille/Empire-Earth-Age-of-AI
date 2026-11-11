@@ -223,9 +223,15 @@ class display
         /// The own renderer, with units_smooth: buildings stay whole, and units behind one are seen through it as a shape
         /// in their player's colour, lit as they are (the control pipe: picture sil on / off):
         bool unit_silhouettes = false;
-        /// With units_smooth: the dead sink slowly into the ground instead of fading out - they lie as they fell for a
-        /// while, then go down, gone when the game would have faded them away:
+        /// With units_smooth: the dead sink slowly into the ground instead of fading out, every kind the same time - the
+        /// game's own fade takes from a few seconds to minutes by the unit's kind:
         bool corpses_sink = true;
+        /// With corpses_sink: how long the dead lie as they fell (seconds of game time):
+        [range(0, 600)]
+        int corpses_lie_seconds = 30;
+        /// With corpses_sink: and how long they then take to sink into the ground, at an even pace (seconds):
+        [range(1, 600)]
+        int corpses_sink_seconds = 120;
         /// With unit_silhouettes: a silhouette is at full strength up to this many tiles behind the building or tree it
         /// appears on (the control pipe: picture silfade <start> <end>):
         [range(0, 1000)]

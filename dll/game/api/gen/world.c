@@ -33,6 +33,12 @@ internal inline uint8_t *dmg_model_anim_strike_at(const ee_dmg_model *o) { retur
 typedef int (__thiscall *dmg_model_acquire_fn)(ee_dmg_model *);
 internal dmg_model_acquire_fn fn_dmg_model_acquire;
 internal inline int dmg_model_acquire(ee_dmg_model *dmg_model) { return fn_dmg_model_acquire(dmg_model); }
+// one user less (acquire's other half; under the engine's lock, waiting while its models load): the last frees
+// its models and empties anim_model - a drawn record's are given back so at the units' update, the mod's kept
+// corpses' (collect.c) when they go. AoC: vf2 (EEGraphicObject::vf2, the same code, its fields 0x10 on)
+typedef void (__thiscall *dmg_model_release_fn)(ee_dmg_model *);
+internal dmg_model_release_fn fn_dmg_model_release;
+internal inline void dmg_model_release(ee_dmg_model *dmg_model) { fn_dmg_model_release(dmg_model); }
 // its users (acquire counts them, under engine_display.graphics_lock; the first loads its models)
 internal inline int dmg_model_get_users(const ee_dmg_model *o) { return *(int *)((uint8_t *)o + of_dmg_model_users); }
 internal inline void dmg_model_set_users(ee_dmg_model *o, int v) { *(int *)((uint8_t *)o + of_dmg_model_users) = v; }
@@ -290,6 +296,7 @@ internal int spec_world_select(int build) {
         of_dmg_model_anim_last = 0x388;
         of_dmg_model_anim_strike = 0x3F8;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D29BC;
+        fn_dmg_model_release = (dmg_model_release_fn)0x004D343B;
         of_dmg_model_users = 0x4A8;
         of_dmg_model_loading = 0x4DE;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D291F;
@@ -357,6 +364,7 @@ internal int spec_world_select(int build) {
         of_dmg_model_anim_last = 0x398;
         of_dmg_model_anim_strike = 0x408;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D85ED;
+        fn_dmg_model_release = (dmg_model_release_fn)0x004D907E;
         of_dmg_model_users = 0x4B8;
         of_dmg_model_loading = 0x4EE;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D84EC;
@@ -424,6 +432,7 @@ internal const char *const k_spec_world_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_world_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_dmg_model_acquire, "EEGraphicObject.acquire");
+    bad += spec_code((uintptr_t)fn_dmg_model_release, "EEGraphicObject.release");
     bad += spec_code((uintptr_t)fn_dmg_model_damage_points, "EEGraphicObject.damage_points");
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     bad += spec_code((uintptr_t)fn_physics_step_end, "EEPhysics.step_end");

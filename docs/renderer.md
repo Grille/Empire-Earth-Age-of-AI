@@ -723,13 +723,21 @@ are few now, the game's own work per draw (the T&L DLL's model draw, its visibil
 the drawing thread) is what is left.
 
 The dead sink into the ground (2026-11-11, the player: "how about letting them slowly sink into the ground instead of
-the fafing out?"; [display] corpses_sink, on, with units_smooth - the fill is the mod's). collect.c uc_sink lowers a
-rotting object's record: still for the first 30 % of its rot time, down by 0.15 of its model's radius by 85 %, smoothly
-at both ends, then faded as the game fades it (uc_cloak: whole until then). The rot left is its rot_ms plus the time
-between its copy's step and the walk's game time (the game takes the step's ms off rot_ms each step), so it goes down
-between steps too. The depth from pictures of a Clubman (40 s rot, radius x scale 0.70 tiles; its corpse shows hardly
-0.06 tiles over the ground): by twice the radius it was gone 2 s into the sink, by 0.4 of it in 3, by 0.15 it goes
-down over about 6 s, from 15 s to 22 s after its death; a bigger wreck that isn't under by then fades at the end.
+the fafing out?"; [display] corpses_sink, on, with units_smooth - the fill is the mod's). First by a share of the type's
+rot time; then (the player, the same day: "the games remains fade out times are weirdly mixed, lets try uniform times:
+30s where they just lay, 2m where they linelary sink into the ground") every kind alike: corpses_lie_seconds (30) as it
+fell, then down at an even pace over corpses_sink_seconds (120) by 0.1 of its model's radius x scale, faded over the
+last 5 s (what a slope or a tall wreck leaves out; uc_cloak: whole until then). Its age: the type's rot time less
+rot_ms (the game sets it at the death and takes each step's ms off), plus the time from its copy's step to the walk's
+game time, so it goes down between steps too. The game removes a corpse at the end of its rot time (a Clubman's 40 s):
+collect.c keeps it then (uc_corpse: its last pose, graphics, animation and parts; a user of the graphics of ours -
+EEGraphicObject.release in the spec, EE 0x4D343B, AoC vf2 - as the last user's release frees the models) and the walk
+draws it where the player sees, as the remembered buildings are drawn, until its time is up; let go at the scene's
+release. One not met by a walk was removed when its rot_ms was under 2 s at its last sight, else it went out of view.
+The depth from pictures of a Clubman (radius x scale 0.70 tiles; its corpse shows hardly 0.06 over the ground): by
+twice the radius over a share of the 40 s it was gone in 2 s. With the uniform times (checked 2026-11-11, pictures from
+5 s to 152 s after the kill): still to 32 s, no change across the game's removal at 40 s, mostly under at 90 s, a sliver
+of the head to 145 s, gone at 152 s; the game quit with kept corpses cleanly.
 A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 

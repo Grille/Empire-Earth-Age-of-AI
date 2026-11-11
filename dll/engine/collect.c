@@ -363,34 +363,201 @@ internal void uc_smooth_probe(void) {
     g_cs_x = g_cs_now_x, g_cs_y = g_cs_now_y, g_cs_have = 1;
 }
 
-// THE DEAD SINKING ([display] corpses_sink; the player, 2026-11-11: "dead units next, how about letting them slowly sink
-// into the ground instead of the fafing out?"): a rotting object lies as it fell for the first UC_SINK_FROM of its rot time
-// (the death's animation plays then), goes down by UC_SINK_DEPTH of its model's radius until UC_SINK_DOWN, smoothly at
-// both ends, and fades only after that - what a slope leaves out of the ground, as before at its end (the opacity's check
-// then tells the rotting apart from the game's). The radius is the standing unit's (a Clubman's 0.70 tiles, rotting 40 s),
-// and one lying dead shows hardly 0.06 over the ground: down by twice the radius it was gone in the sink's first 2 s, by
-// 0.4 of it in 3, by 0.15 (0.1 tiles) it goes down over about 6 - a bigger wreck sunk as far fades out at the end as
-// before. Its share left at the walk's game time g_uc_show: the game counts rot_ms down by the
-// step's ms (the rotting state's updates), and the copy's is of its newest pose's time ms[0] - so the time between them
-// added, it goes down smoothly, not a step at a time
-#define UC_SINK_FROM 0.3
-#define UC_SINK_DOWN 0.85
-#define UC_SINK_DEPTH 0.15
-internal double uc_rot_left(const uc_obj *o) {
-    if (o->rot_t <= 0) return 0.0;
-    double r = o->rot_ms;
-    if (g_cp_smooth == 1 && o->has_was && g_uc_show >= 0.0 && g_uc_show < o->ms[0]) r += o->ms[0] - g_uc_show;
-    r /= o->rot_t;
-    return r < 0.0 ? 0.0 : r > 1.0 ? 1.0 : r;
+// THE DEAD SINKING ([display] corpses_sink, corpses_lie_seconds, corpses_sink_seconds; the player, 2026-11-11: "dead units
+// next, how about letting them slowly sink into the ground instead of the fafing out?", then "the games remains fade out
+// times are weirdly mixed, lets try uniform times: 30s where they just lay, 2m where they linelary sink into the ground").
+// The game fades a corpse over its type's rot time - rot_ms set to it at the death, a step's ms taken off each step (the
+// rotting state's updates), the object removed at 0: a Clubman's 40 s - and the opacity's check tells the rotting apart
+// from the game's then. Here every corpse lies as it fell for corpses_lie_seconds of game time (the death's animation
+// plays then), goes down at an even pace over corpses_sink_seconds by UC_SINK_DEPTH of its model's radius, and fades over
+// the last UC_FADE_MS (what a slope or a tall wreck leaves out of the ground); whole until then. The radius is the
+// standing unit's (a Clubman's 0.70 tiles with its scale), and one lying dead shows hardly 0.06 over the ground: sunk 0.1
+// of it, it is under shortly before the end (by twice the radius over 55 % of its 40 s it was gone in 2 s). Its age at the
+// walk's game time: its type's rot time less rot_ms is its age at the copy's clock, the time from there to the walk's added
+// (the walk shows the game a step and a half behind: it goes down between steps too).
+#define UC_SINK_DEPTH 0.1
+#define UC_FADE_MS 5000.0
+internal double g_uc_clock = -1.0, g_uc_now = -1.0;   // the walk's copy's game time and its own (-1: no walk of a copy)
+internal double uc_lie_ms(void) { return g_set.corpses_lie_seconds * 1000.0; }
+internal double uc_end_ms(void) { return (g_set.corpses_lie_seconds + g_set.corpses_sink_seconds) * 1000.0; }
+internal double uc_dead_ms(const uc_obj *o) {   // a rotting object's age at the walk's game time
+    double d = (double)o->rot_t - o->rot_ms;
+    if (g_uc_now >= 0.0 && g_uc_clock >= 0.0) d += g_uc_now - g_uc_clock;
+    return d < 0.0 ? 0.0 : d;
 }
-// the record's place t lowered by how far its rot has gone
-internal void uc_sink(const uc_obj *o, float *t) {
-    double q = (1.0 - uc_rot_left(o) - UC_SINK_FROM) / (UC_SINK_DOWN - UC_SINK_FROM);
-    if (q <= 0.0 || !o->gfx) return;
-    ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
+internal float uc_dead_opacity(double d) {   // how much of a corpse is seen at its age
+    double end = uc_end_ms();
+    return d >= end ? 0.0f : d <= end - UC_FADE_MS ? 1.0f : (float)((end - d) / UC_FADE_MS);
+}
+// a corpse's pose t lowered as far as its age has taken it
+internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t frame, float scale, double d) {
+    double q = (d - uc_lie_ms()) / (g_set.corpses_sink_seconds * 1000.0);
+    if (q <= 0.0 || !gfx) return;
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(gfx))[anim];
     if (!m) return;
     if (q > 1.0) q = 1.0;
-    t[11] = (float)(t[11] - UC_SINK_DEPTH * model_get_radii(m)[o->anim_frame] * o->cu_height * q * q * (3.0 - 2.0 * q));
+    t[11] = (float)(t[11] - UC_SINK_DEPTH * model_get_radii(m)[frame] * scale * q);
+}
+// THE CORPSES KEPT: one the game removes before its time is up (most: a Clubman's after 40 s) is kept here - its last
+// record's pose, graphics, animation and parts - and drawn by the walk where the player sees, the way the remembered
+// buildings are (uc_corpses_walk), until it has sunk; the game's graphics kept by a user of ours meanwhile (the last
+// user's release frees the models: every Clubman gone, the Clubman's models with them). An entry is made when the walk
+// meets a rotting object; one not met by a walk was removed when its rot_ms was nearly done at its last sight
+// (UC_GONE_ROT: more than a step's ms), else it went out of the view (let go: made anew when met again). Met again (the
+// game's still), it is the game's again. Emptied at the scene's release (a game's end, a load: fx_hook_scene_release).
+#define UC_CORPSES 4096
+#define UC_KC_PARTS 8
+#define UC_GONE_ROT 2000
+typedef struct {
+    ee_unit *u;              // the object as it was (only compared)
+    ee_dmg_model *gfx;       // its graphics: a user of ours
+    ee_unit_type *ty;
+    ee_player *owner;
+    float t[16];             // its record's pose, not sunk
+    float scale, part[UC_KC_PARTS];
+    double died;             // the game time of its death
+    int32_t anim, frame, rot, n_parts;
+    uint32_t gen;            // the walk that met it last
+    uint8_t gone;            // removed by the game: drawn by the walk
+} uc_corpse;
+internal uc_corpse g_kc[UC_CORPSES];
+internal uint32_t g_kc_n, g_kc_full, g_kc_drawn;
+internal CRITICAL_SECTION g_kc_cs;
+internal int g_kc_cs_ok;
+internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, const float *t, double d) {
+    if (!g_kc_cs_ok || g_uc_now < 0.0 || !o->gfx) return;
+    EnterCriticalSection(&g_kc_cs);
+    uc_corpse *k = NULL;
+    for (uint32_t i = 0; i < g_kc_n && !k; i++) if (g_kc[i].u == o->u) k = &g_kc[i];
+    if (!k && g_kc_n < UC_CORPSES) {
+        k = &g_kc[g_kc_n++];
+        memset(k, 0, sizeof *k);
+        k->u = o->u;
+    } else if (!k) g_kc_full++;
+    if (k) {
+        if (k->gfx != o->gfx) {
+            graphics_acquire(o->gfx);
+            if (k->gfx) graphics_release(k->gfx);
+            k->gfx = o->gfx;
+        }
+        k->ty = o->ty, k->owner = o->owner;
+        memcpy(k->t, t, sizeof k->t);
+        k->scale = o->cu_height, k->anim = o->anim, k->frame = o->anim_frame, k->rot = o->rot_ms;
+        k->n_parts = o->foundation ? 0 : (int32_t)(o->n_parts < UC_KC_PARTS ? o->n_parts : UC_KC_PARTS);
+        for (int32_t i = 0; i < k->n_parts; i++) memcpy(&k->part[i], c->pool + o->parts_at + i, 4);
+        k->died = g_uc_now - d;
+        k->gen = g_uc_walk_gen, k->gone = 0;
+    }
+    LeaveCriticalSection(&g_kc_cs);
+}
+internal void uc_corpses_clear(void) {
+    if (!g_kc_cs_ok) return;
+    EnterCriticalSection(&g_kc_cs);
+    for (uint32_t i = 0; i < g_kc_n; i++) graphics_release(g_kc[i].gfx);
+    g_kc_n = 0;
+    LeaveCriticalSection(&g_kc_cs);
+}
+// a kept corpse into the record rec at its age d, as uc_fill_dopp fills a remembered building: whole or see-through by
+// its fade, not fogged, never picked, no silhouette, its parts as last seen; 0 when outside the view
+internal int uc_fill_corpse(const uc_corpse *k, uint8_t *rec, uint8_t *maps, double d) {
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[k->anim];
+    if (!m) return 0;
+    __attribute__((aligned(8))) uint8_t pm[0x60];
+    physical_model_new(pm);
+    physical_model_set_model(pm, m);
+    physical_model_set_frame(pm, k->frame);
+    transform_assign(pm, k->t);
+    physical_model_set_scale(pm, k->scale);
+    int in = units_view_call(4)(pm, opacity_viewport(), *game_camera_fixed_at()) != 0;
+    physical_model_free(pm);
+    if (!in) return 0;
+    opacity_consts oc = opacity_consts_now();
+    ee_map *map = game_map();
+    ee_unit_type *ty = k->ty;
+    float op = uc_dead_opacity(d), pos[3], ground[3] = { 0, 0, 0 };
+    sil_tag(rec, g_uc_walk_gen, 0);
+    draw_record_set_type(rec, ty);
+    draw_record_set_size(rec, unit_type_get_size(ty));
+    memcpy(draw_record_color_at(rec), player_color_at(k->owner), 12);
+    draw_record_set_class_id(rec, unit_type_get_class_id(ty));
+    draw_record_set_type_id(rec, unit_type_get_id(ty));
+    draw_record_set_family(rec, unit_type_get_family(ty));
+    draw_record_set_bar_x(rec, 0.0f);
+    draw_record_set_bar_y(rec, 0.0f);
+    draw_record_set_circle(rec, unit_type_get_mark_size(ty));
+    draw_record_set_player(rec, player_get_index(k->owner));
+    draw_record_set_producing(rec, (int)producing_none());
+    draw_record_set_serial(rec, 0);
+    draw_record_set_gfx_built(rec, NULL);
+    draw_record_set_tinted(rec, 0);
+    draw_record_set_gated(rec, 0);
+    uint8_t *label = draw_record_label_at(rec);   // the string emptied: its first character, its length and room
+    **(uint8_t **)(label + 4) = 0;
+    *(uint32_t *)(label + 0xC) = 0;
+    *(uint32_t *)(label + 8) = 0;
+    draw_record_set_goal_value(rec, 0);
+    draw_record_set_fogged(rec, 0);
+    draw_record_set_opacity(rec, op);
+    draw_record_set_scale(rec, k->scale);
+    draw_record_set_gfx(rec, k->gfx);
+    graphics_acquire(k->gfx);   // the record's own, given back by the units' update as every record's
+    vector_resize(draw_record_part_values_at(rec), (uint32_t)k->n_parts, 0);
+    vector_resize(draw_record_part_models_at(rec), (uint32_t)k->n_parts, 0);
+    for (int32_t i = 0; i < k->n_parts; i++) {
+        memcpy((float *)vector_first(draw_record_part_values_at(rec)) + i, &k->part[i], 4);
+        uint8_t *part = *type_stats_game((uint8_t *)k->gfx + 4, (int)i);
+        ((uint32_t *)vector_first(draw_record_part_models_at(rec)))[i] = *(uint32_t *)(part + 0x4C);
+    }
+    vector_resize(draw_record_list_a_c_at(rec), 0, 0);
+    vector_resize(draw_record_list_a_4_at(rec), 0, 0);
+    vector_resize(draw_record_list_b_c_at(rec), 0, 0);
+    vector_resize(draw_record_list_b_4_at(rec), 0, 0);
+    draw_record_set_frame(rec, k->frame);
+    draw_record_set_next_frame(rec, k->frame);
+    draw_record_set_fraction(rec, 0.0f);
+    draw_record_set_state(rec, 0);
+    draw_record_set_anim(rec, k->anim);
+    transform_assign(rec, k->t);
+    float *t = draw_record_transform_at(rec);
+    if (map_tile_lit(map, (int)floorf(t[3]), (int)floorf(t[7])) && t[11] >= oc.zero) draw_record_set_ground_z(rec, 0.0f);
+    else {
+        pos[0] = t[3], pos[1] = t[7], pos[2] = t[11];
+        ground_point(map, pos, ground);
+        draw_record_set_ground_z(rec, ground[2]);
+    }
+    uc_sink_at(t, k->gfx, k->anim, k->frame, k->scale, d);
+    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
+    sort_map_insert(maps + (op < 1.0f ? 0xC : 0), found, pair);
+    pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(k->gfx);
+    pair[1] = rec;
+    sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+    return 1;
+}
+// the walk's end: those it didn't meet removed (kept) or out of the view (let go), the kept ones drawn on the tiles of the
+// copy the player sees, those whose time is up let go
+internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint32_t room, uint8_t *maps, int free_cam) {
+    if (!g_kc_cs_ok || g_uc_now < 0.0) return;
+    EnterCriticalSection(&g_kc_cs);
+    double end = uc_end_ms();
+    uint32_t j = 0;
+    for (uint32_t i = 0; i < g_kc_n; i++) {
+        uc_corpse *k = &g_kc[i];
+        if (k->gen != g_uc_walk_gen && !k->gone) k->gone = k->rot <= UC_GONE_ROT ? 1 : 2;
+        double d = g_uc_now - k->died;
+        if (k->gone == 2 || (k->gone && d >= end)) {
+            graphics_release(k->gfx);
+            continue;
+        }
+        if (k->gone && g_set.corpses_sink && *n < room) {
+            int x = (int)floorf(k->t[3]) - c->x0, y = (int)floorf(k->t[7]) - c->y0;
+            const uc_ctile *ct = x >= 0 && y >= 0 && x < c->w && y < c->h ? &c->tiles[y * c->w + x] : NULL;
+            if (ct && ct->t && (ct->seen || free_cam) && uc_fill_corpse(k, recs + (size_t)*n * DRAW_REC, maps, d)) ++*n, g_kc_drawn++;
+        }
+        if (j != i) g_kc[j] = *k;
+        j++;
+    }
+    g_kc_n = j;
+    LeaveCriticalSection(&g_kc_cs);
 }
 
 // STEP 2, THE FILLS OURS: THE OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity: EE 0x5044D7, AoC
@@ -403,8 +570,7 @@ internal void uc_sink(const uc_obj *o, float *t) {
 // copy (collect_copy.c: what the game reads of the unit and its complex unit), the camera the frame's.
 internal int uc_cloak(const uc_obj *o, int see, float *out, const opacity_consts *c) {
     if (o->rotting && g_set.corpses_sink) {   // whole while it sinks, then faded out
-        double p = 1.0 - uc_rot_left(o);
-        *out = p <= UC_SINK_DOWN ? 1.0f : (float)((1.0 - p) / (1.0 - UC_SINK_DOWN));
+        *out = uc_dead_opacity(uc_dead_ms(o));
         return see;
     }
     if (o->rotting) {
@@ -776,7 +942,11 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         ground_point(map, p, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
-    if (cu && o->rotting && g_set.corpses_sink) uc_sink(o, t);   // after the ground's height under it: that stays the ground's
+    if (cu && o->rotting && g_set.corpses_sink) {   // after the ground's height under it: that stays the ground's
+        double d = uc_dead_ms(o);
+        uc_corpse_saw(c, o, t, d);
+        uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);
+    }
     uc_pick_add(u, rec, draw_record_get_opacity(rec));
     void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
     sort_map_insert(sort_map, found, pair);
@@ -1222,6 +1392,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                         : by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
     g_uc_show = -1.0;
     if (c && g_cp_smooth == 1 && g_cp_cs_ok) pt_clock(), g_uc_show = g_pt_show_ms;
+    g_uc_clock = c ? c->clock : -1.0;   // the corpses' clock (uc_dead_ms)
+    g_uc_now = g_uc_show >= 0.0 ? g_uc_show : g_uc_clock;
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;
         w.row(mesh, r, &y, &x0, &x1);
@@ -1269,6 +1441,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
             }
         }
     }
+    if (c) uc_corpses_walk(c, recs, n, room, maps, free_cam);
+    g_uc_clock = g_uc_now = -1.0;
     if (c && g_cp_on == 2 && !during) cp_check(c);
     uc_smooth_probe();
     g_uc_walked_at = c ? c->at : 0, g_uc_walked_alpha = g_uc_show >= 0.0 && g_uc_show < g_cp_clock ? 0.0f : 1.0f;   // still moving on
@@ -1359,6 +1533,8 @@ internal void collect_install(void) {
     g_uc_leave = lle ? (uc_lock_fn)(void *)GetProcAddress(lle, "?Leave@TSCriticalSection@@QAEXXZ") : NULL;
     g_uc_transform_ctor = lle ? (transform_ctor_fn)(void *)GetProcAddress(lle, "??0GETransformation@@QAE@XZ") : NULL;
     InitializeCriticalSection(&g_cp_cs);
+    InitializeCriticalSection(&g_kc_cs);
+    g_kc_cs_ok = 1;
     g_cp_cs_ok = 1;
     g_uc_lock_at = (uintptr_t)engine_display_picker_lock_at();
     g_uc_end = (uintptr_t)engine_display_units_walk_end_at();

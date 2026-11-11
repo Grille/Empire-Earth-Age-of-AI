@@ -641,8 +641,11 @@ internal int collect_fx_sims(void) { return g_fx_sims; }
 // the check, after a full update made the game's queues (its read lock held: the simulation's aren't being made): the
 // same effects in the same order, when no other writer came since they were made and the camera is as it was
 // the game's scene released (a game's end, a load: render-thread hook of EEReleaseScene): what the simulation's queues
-// hold given back while the effects are there, inside the read lock as the game's own release
+// hold given back while the effects are there, inside the read lock as the game's own release; the corpses collect.c keeps
+// let go (their graphics' users given back while the game's graphics are there)
+internal void uc_corpses_clear(void);   // collect.c
 internal void __cdecl fx_hook_scene_release(void) {
+    uc_corpses_clear();
     if (g_fx_made && g_rwl_world) {
         g_rwl_read(g_rwl_world);
         EnterCriticalSection(&g_cp_cs);
