@@ -207,8 +207,24 @@ internal int g_rd_on;   // display.c: the own renderer draws
 // in it would cut the ground off behind the eye still far out (the sky's colour over the picture while the wheel turned fast;
 // out it only sees further than yet needed), so going in it waits for the ride's end (camera_shape_frame). g_cam_far_v: the zoom it is made for.
 internal float g_cam_far_v = 1.0f;
+// The far depths written before the one now: the camera's step copies the float into the viewport (0x51CE31), so a viewport
+// whose far depth is one of them is a step behind - the frames until the step comes draw with the one now (render_frame.c
+// rf_depth_frame: zooming out the top of the screen stood in the fog for two frames, 180 tiles away with the far depth at 99).
+#define CAM_FAR_OLD 8
+internal float g_cam_far_old[CAM_FAR_OLD];
+internal int g_cam_far_olds;
 internal void camera_far_write(void) {
-    *camera_far_at() = g_cam_view + g_cam_dist * (g_cam_far_v - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE);
+    float *at = camera_far_at(), v = g_cam_view + g_cam_dist * (g_cam_far_v - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE);
+    if (*at == v) return;
+    g_cam_far_old[g_cam_far_olds++ % CAM_FAR_OLD] = *at;
+    *at = v;
+}
+// the far depth the camera's next step gives a viewport whose far depth is f: further only (going in waits for the ride's end)
+internal float camera_far_pending(float f) {
+    float now = *camera_far_at();
+    if (!g_cam_shape || !(now > f)) return f;
+    for (int i = 0; i < CAM_FAR_OLD && i < g_cam_far_olds; i++) if (g_cam_far_old[i] == f) return now;
+    return f;
 }
 internal void camera_shape_write(float v) {
     if (!g_cam_shape) return;

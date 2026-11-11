@@ -786,6 +786,7 @@ internal void rg_draw_now(int water, int again) {
     if (again) memcpy(proj, st->proj, sizeof proj);
     else for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) proj[r * 4 + c] = gp[c * 4 + r];
     rd3_mul(vpm, g_cam_view_now, proj);
+    rf_depth_vpm(vpm);   // the frame's depths: a chunk between them and the step's is in the view (render_frame.c)
     ID3D11ShaderResourceView **srv = g_rg.srv[water];
     static uint8_t want[RG_MATERIALS];
     memset(want, 0, sizeof want);

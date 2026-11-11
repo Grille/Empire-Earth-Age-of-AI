@@ -165,7 +165,9 @@ internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first) {
     b->rtv = g_sl.cr; b->dsv = g_sl.ud;
     // the depth as the view's distance: depth = a + b / w, w a multiple of the distance along the view (the third column of
     // the view x projection against the fourth; the camera's place, which the frame moves, falls out of b)
-    const float *m = g_rf.vcs[u->vc].vpm;
+    float m[16];
+    memcpy(m, g_rf.vcs[u->vc].vpm, sizeof m);
+    rf_depth_vpm(m);   // the depth as the frame's draws wrote it (render_frame.c)
     int ka = 0;
     for (int j = 1; j < 3; j++) if (fabsf(m[j * 4 + 3]) > fabsf(m[ka * 4 + 3])) ka = j;
     float wl = sqrtf(m[3] * m[3] + m[7] * m[7] + m[11] * m[11]), za = fabsf(m[ka * 4 + 3]) > 1e-6f ? m[ka * 4 + 2] / m[ka * 4 + 3] : 0;

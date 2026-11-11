@@ -368,6 +368,22 @@ drawn. AoC: the interface's lock at the same place (0x50989F), a short game norm
   again with the planes widened by 1 + the margin (render_shadows.c's hooks of both, render_frame.c rf_object_again).
   The 8000-unit save, a 3-tile pan during a step: the units at the right edge reach about 70 px further; the units'
   draw 1.35 -> 1.55 ms a frame.
+- The frame's depths (the pipe: `picture depths on | off`, its reply the frames that had their own; the player,
+  2026-11-11: "when zooming in the near plane clips, and when zooming out the fog and draw distance kick in"): the
+  camera's step (0x51EE75, the simulation thread's loop) sets the viewport's near depth - the nearest ground under three
+  points of the screen less about 14 tiles, 0.1 .. 85 (0x51CE31) - and its far depth (camera.c's value), and the
+  projection and the fog (far - 8 .. far) come from them; the camera is made every frame, the step comes every third
+  frame or so, with or without a step load. Zooming in from 200 tiles back the eye moves 12 tiles a frame: the ground
+  at the bottom of the screen came 57 tiles away with the near depth at 62, the bottom third cut off (light blue) in two
+  frames of each zoom; zooming out from zoom 1 the far depth stayed at 99 for two frames with the top 180 tiles away. A
+  frame whose camera isn't the step's now draws with depths of its own (render_frame.c rf_depth_frame): the near depth
+  less how much nearer the ground under the screen's bottom edge is than from the step's camera (more than a tile), the
+  far depth the one the next step sets (camera.c camera_far_pending: the step copies the float, so a far depth that is
+  one written before is a step behind), the fog moved with it - in every draw with the map's perspective (rf_shift),
+  in what reads the depth back (the water, the ambient occlusion, the smoothing, the silhouettes), the ground's chunks'
+  test and the display DLL's test of a model (near and far widened by the eye's way since the step). A draw whose
+  depths are already the frame's is left as it is; a frame during a step's ground, drawn with the projection of the
+  last frame that updated it, gets the step's newer ones (at a 30 ms step load it cut at 85 with the step at 62).
 - The water during a step (AoC, after a long move: dark and sandy squares on the water, pieces of water over the
   map's edge; the same at margin 0): a batch takes the render object current when it is flushed, which is at the next
   draw with other states - the ground's last batch went in with the units' first, the water's last with the

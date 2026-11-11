@@ -189,6 +189,7 @@ internal void rf_keep_ground(void) {
 // off - the ground and the debris on it jumped against each other while scrolling, the player 2026-11-05)
 internal void rf_camera_frame(void);
 internal void rf_view_now(void);
+internal void rf_depth_frame(void);
 // The ground's margin ([display] ground_margin; the pipe: picture margin): the kept ground is the last update's visible
 // region, the screen's - a frame during a long step that had scrolled or zoomed out past it showed the sky (the
 // player's 8000-unit save: half the screen before the next update). The region is made by the ground's update through
@@ -562,6 +563,7 @@ internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     shadow_light_read();
     rf_camera_frame();
+    rf_depth_frame();
     rf_view_now();
     if (!g_rwl_bare_now) rf_ground_clear(&g_ku);
     if (skip) return;
@@ -747,6 +749,103 @@ internal void rf_view_install(void) {
     int n = patch_viewport_view(g_view_now);
     if (g_log) fprintf(g_log, "# render: the units' draw projects with the camera now (%d places)\n", n);
 }
+// THE FRAME'S DEPTHS (the player, 2026-11-11: "when zooming in the near plane clips, and when zooming out the fog and draw
+// distance kick in. are the projection matrices updates on the simulation thread??"). They are: the camera's step (0x51EE75,
+// in the simulation thread's loop between its steps) sets the map viewport's near depth - the nearest ground under three
+// points of the screen less about 14 tiles, 0.1 .. 85 (0x51CE31, GEViewport::SetFrontClippingDistance) - and its far depth
+// (SetRearClippingDistance: camera.c's far value); the projection and the fog's range come from them. The camera itself is
+// made anew every frame (rf_camera_frame), the step comes every third frame or so - with or without a step load - and far out
+// the eye moves 12 tiles a frame in a zoom: zooming in from 200 tiles back the ground at the bottom of the screen came 57
+// tiles away with the near depth at 62, the bottom third of the picture cut off in one frame of three; zooming out the far
+// depth stayed at 99 for two frames with the top of the screen 180 tiles away. So a frame whose camera isn't the step's gets
+// depths of its own: the near depth the step's less how much nearer the ground under the screen's bottom edge is than from
+// the step's camera (when that is more than RF_NEAR_SLACK: the game's 14 tiles take a pan), the far depth the one the next
+// step sets (camera.c camera_far_pending), the fog's range moved with it. Every draw with the map's perspective gets them,
+// the kept ones too (rf_shift), and so do what reads the depth back (the water, the ambient occlusion, the smoothing, the
+// silhouettes), the ground's chunks' test against the view (render_ground.c) and the display DLL's test of a model
+// (render_shadows.c shr_hook_visible). Where the step's camera is the frame's nothing changes.
+#define RF_NEAR_LEAST 0.1f   // the game's least near depth (0x82C6F4)
+#define RF_NEAR_SLACK 1.0f   // tiles the ground may come nearer before the near depth follows
+internal struct {
+    int on;                // this frame's depths aren't the step's
+    int off;               // the pipe: picture depths off
+    float n0, f0, n, f;    // the step's near and far, this frame's
+    float moved;           // the eye's way from the step's
+    float was[16], was_z;  // the step's camera, the depth of the ground under the screen's bottom edge from it
+    long frames, nearer, further;   // frames with depths of their own, with a nearer near depth, a further far depth (the pipe)
+} g_dz;
+// the depth along the view of the nearest ground under the screen's bottom edge (its corners and middle) for the camera's
+// transformation m; -1: none
+internal float rf_bottom_depth(const float *m, float low) {
+    const D3D11_VIEWPORT *port = &g_rd3.scene_port;
+    float eye[3], f[3], d[3], at[3], best = -1;
+    if (!rf_screen_ray(m, port->TopLeftX + port->Width * 0.5f, port->TopLeftY + port->Height * 0.5f, eye, f)) return -1;
+    float fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+    if (!(fl > 0)) return -1;
+    for (int i = 0; i < 3; i++) {
+        if (!rf_screen_ray(m, port->TopLeftX + port->Width * 0.5f * (float)i, port->TopLeftY + port->Height - 1, eye, d)) continue;
+        if (!camera_ground_point(eye, d, low, at)) continue;
+        float z = ((at[0] - eye[0]) * f[0] + (at[1] - eye[1]) * f[1] + (at[2] - eye[2]) * f[2]) / fl;
+        if (best < 0 || z < best) best = z;
+    }
+    return best;
+}
+internal void rf_depth_frame(void) {
+    g_dz.on = 0;
+    void *vp = opacity_viewport();
+    ee_camera *cam = game_camera();
+    if (g_dz.off || !vp || !cam || !g_cam_now_ok || camera_fixed_view() || !(g_rd3.scene_port.Height > 0)) return;
+    float was[16];
+    memcpy(was, viewport_camera(vp), sizeof was);   // (the step writes it on its thread: a copy, read once)
+    float n0 = viewport_near(vp), f0 = viewport_far(vp), n = n0, f = camera_far_pending(f0);
+    if (!(n0 > 0) || !(f0 > n0)) return;
+    float dx = g_cam_now[3] - was[3], dy = g_cam_now[7] - was[7], dz = g_cam_now[11] - was[11];
+    float moved = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (moved > 0.01f) {
+        float low = camera_look_at(cam)[2];
+        if (memcmp(g_dz.was, was, sizeof was)) { memcpy(g_dz.was, was, sizeof was); g_dz.was_z = rf_bottom_depth(was, low); }
+        float now = rf_bottom_depth(g_cam_now, low);
+        if (g_dz.was_z > 0 && now >= 0 && g_dz.was_z - now > RF_NEAR_SLACK) n = fmaxf(fminf(n0, RF_NEAR_LEAST), n0 - (g_dz.was_z - now));
+    }
+    // on even where they are the step's: a frame during a step draws the ground with the projection of the last frame
+    // that updated it, and the step may have moved the viewport's since (at a step load of 30 ms the kept ground cut at
+    // a near depth of 85 while the step's was 62)
+    g_dz.n0 = n0; g_dz.f0 = f0; g_dz.n = n; g_dz.f = f; g_dz.moved = moved;
+    g_dz.on = 1;
+    if (n == n0 && f == f0) return;
+    g_dz.frames++;
+    if (n < n0) g_dz.nearer++;
+    if (f > f0) g_dz.further++;
+}
+// the near and far depths of a view x projection m (its depth a + b / w, w along the view's axis); 0: no perspective along w's axis
+internal int rf_depth_of(const float *m, float *n, float *f) {
+    int k = 0;
+    for (int j = 1; j < 3; j++) if (fabsf(m[j * 4 + 3]) > fabsf(m[k * 4 + 3])) k = j;
+    if (!(fabsf(m[k * 4 + 3]) > 1e-6f)) return 0;
+    float a = m[k * 4 + 2] / m[k * 4 + 3], b = m[14] - a * m[15];
+    for (int j = 0; j < 3; j++) if (fabsf(m[j * 4 + 2] - a * m[j * 4 + 3]) > 1e-4f * fabsf(m[k * 4 + 2])) return 0;
+    if (!(a > 1.0f) || !(b < 0)) return 0;
+    *n = -b / a;
+    *f = b / (1.0f - a);
+    return 1;
+}
+// whether depths n, f are this frame's (to the matrix's rounding: one that has them is left as it is, to the bit)
+internal int rf_depth_same(float n, float f) { return fabsf(n - g_dz.n) <= 1e-3f * g_dz.n && fabsf(f - g_dz.f) <= 1e-3f * g_dz.f; }
+// a view x projection of the map's perspective with this frame's depths
+internal void rf_depth_vpm(float *m) {
+    float n, f;
+    if (!g_dz.on || !rf_depth_of(m, &n, &f) || rf_depth_same(n, f)) return;
+    float a = g_dz.f / (g_dz.f - g_dz.n), b = -g_dz.n * a;
+    for (int j = 0; j < 3; j++) m[j * 4 + 2] = a * m[j * 4 + 3];
+    m[14] = a * m[15] + b;
+}
+// a draw's constants: its view x projection, and the fog's range moved as far as its far depth
+internal void rf_depth_vc(rd3_vcb *vc) {
+    float n, f;
+    if (!g_dz.on || !rf_depth_of(vc->vpm, &n, &f) || rf_depth_same(n, f)) return;
+    rf_depth_vpm(vc->vpm);
+    if (vc->fog[0] == 3) { vc->fog[1] += g_dz.f - f; vc->fog[2] += g_dz.f - f; }
+}
 // a frame drawn with an update: the axes from its view where its eye is the transformation's - to 0.01 tile: the
 // view's eye made back from its rotation and place is a float's rounding off, more far out on the map (eyes 130 tiles
 // out in the player's 8000-unit save). Taken before the overlay's frame end (rd_dev_end),
@@ -774,6 +873,7 @@ internal void rf_shift(rd3_vcb *vc, int ro) {
     // plane on one side of a line: the bars there cut off (the player's game: 71 bars from x 628 to 1061, those left
     // of 900 not drawn - "it changes with camera movement, when the camera is still the healthbars are stable")
     if (rf_pixels(vc->view)) return;
+    rf_depth_vc(vc);   // this frame's depths (above)
     memcpy(now, g_cam_view_now, sizeof now);
     if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) {
         rd3_rigid_inverse(inv, vc->view);
@@ -920,7 +1020,10 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
 internal void rf_scene_done(ID3D11DeviceContext *x, const rf_cmd *s, rf_cmd *b, int *first, int more) {
     D3D11_VIEWPORT port = rs_port(&s->vport, s->rtv);
     rd3_bars(x, s->rtv, &port, 1);
-    if (more) rd3_fxaa(s->rtv, &port, s->dsv, g_rf.vcs[s->vc].vpm);
+    float vpm[16];
+    memcpy(vpm, g_rf.vcs[s->vc].vpm, sizeof vpm);
+    rf_depth_vpm(vpm);   // the depth as the frame's draws wrote it
+    if (more) rd3_fxaa(s->rtv, &port, s->dsv, vpm);
     rf_bind(x);
     *first = 1;
     b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
@@ -999,7 +1102,10 @@ internal void rf_replay(void) {
         }
         if (i == lastu && scene && rao_on()) {   // all that writes the depth drawn (render_ao.c), the water and the silhouettes yet to come
             D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv);
-            rd3_ao(x, scene->rtv, &port, scene->dsv, g_rf.vcs[unit3 >= 0 ? g_rf.cmd[unit3].vc : scene->vc].vpm);
+            float vpm[16];
+            memcpy(vpm, g_rf.vcs[unit3 >= 0 ? g_rf.cmd[unit3].vc : scene->vc].vpm, sizeof vpm);
+            rf_depth_vpm(vpm);   // the depth as the frame's draws wrote it
+            rd3_ao(x, scene->rtv, &port, scene->dsv, vpm);
             rf_bind(x);
             first = 1;
             b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;

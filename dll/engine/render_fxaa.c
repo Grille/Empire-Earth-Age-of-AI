@@ -236,7 +236,7 @@ internal int collect_anim_mode(int on), collect_own(int on), collect_opacity(int
 internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
-// the pipe: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
+// the pipe: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -286,6 +286,13 @@ internal void cmd_picture(char *out, const char *args) {
         int ms = atoi(arg);
         if (arg[0] && ms >= 0 && ms <= 1000) g_rwl_handoff_after = ms;
         else { REPLY("error: usage: picture handoff <0..1000 ms>\n"); return; }
+    } else if (!strcmp(mode, "depths")) {   // render_frame.c: the frame's own near and far depths
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_dz.off = arg[1] != 'n';
+        else {
+            REPLY("depths: the frame's own %s; frames with them %ld (nearer %ld, further %ld); the last: near %.2f (the step's %.2f), far %.2f (%.2f)\n",
+                  g_dz.off ? "off" : "on", g_dz.frames, g_dz.nearer, g_dz.further, (double)g_dz.n, (double)g_dz.n0, (double)g_dz.f, (double)g_dz.f0);
+            return;
+        }
     } else if (!strcmp(mode, "objects")) {
         float m = (float)atof(arg);
         if (arg[0] && m >= 0 && m <= 0.5f) g_om_margin = m;
@@ -356,7 +363,7 @@ internal void cmd_picture(char *out, const char *args) {
         int m = how[0] == 'g' ? 0 : how[0] == 'c' ? 1 : 2;
         int r = !fill ? collect_own(arg[0] == 'o') : fill == 1 ? collect_opacity(m) : fill == 2 ? collect_drawn(m) : collect_fill_mode(m);
         if (r < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]\n"); return; }
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]\n"); return; }
     REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest; by the depth %s, jump %.3f, contrast %.3f, sub %.2f), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
           " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's), its opacity %s, its view test %s, its fill %s, its copy of the world %s\n", g_fx.on ? "on" : "off",
           g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",

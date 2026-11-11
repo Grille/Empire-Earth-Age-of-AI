@@ -933,10 +933,14 @@ internal void __thiscall shr_hook_visible(void *ras, void *model, float lod, voi
                                           uint8_t *clip) {
     if (shr_pass()) { *visible = 1; *clip = 1; return; }
     g_shr_visible(ras, model, lod, viewport, at, visible, clip);
-    if (!*visible && g_ro_cur == RO_UNITS && g_om_margin > 0) {   // the objects' margin (render_frame.c)
-        float was[4][3];
+    if (!*visible && g_ro_cur == RO_UNITS && (g_om_margin > 0 || g_dz.on)) {   // the objects' margin (render_frame.c)
+        // and the frame's depths (render_frame.c rf_depth_frame): the test takes a model's depth from the step's camera,
+        // which may be as far off as the eye has moved since
+        float was[4][3], *nd = viewport_near_at(viewport), *fd = viewport_far_at(viewport), n0 = *nd, f0 = *fd;
         rf_view_widen(viewport, 1.0f + g_om_margin, was);
+        if (g_dz.on) { *nd = fmaxf(0.01f, fminf(n0, g_dz.n - g_dz.moved)); *fd = fmaxf(f0, g_dz.f + g_dz.moved); }
         g_shr_visible(ras, model, lod, viewport, at, visible, clip);
+        if (g_dz.on) { *nd = n0; *fd = f0; }
         rf_view_restore(viewport, was);
         if (*visible) *clip = 1;
     }
