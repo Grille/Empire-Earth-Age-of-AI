@@ -827,7 +827,12 @@ internal void rf_depth_frame(void) {
     if (n < n0) g_dz.nearer++;
     if (f > f0) g_dz.further++;
 }
-// the near and far depths of a view x projection m (its depth a + b / w, w along the view's axis); 0: no perspective along w's axis
+// the near and far depths of a view x projection m (its depth a + b / w, w along the view's axis); 0: no perspective along
+// w's axis, or none of the map's: the sky (a box 10000 tiles out, drawn with the terrain) has the map's near depth and a
+// far depth of 20002 - given the frame's it was cut off, and above the horizon stood what the frames before left there
+// (the game clears only the depth; the player, 2026-11-11: "sky is gone, just uncleared buffer"). A far depth beyond the
+// furthest the camera gives (camera.c camera_far_most; with a margin for the matrices' rounding) isn't the map's.
+#define RF_FAR_SLACK 1.25f
 internal int rf_depth_of(const float *m, float *n, float *f) {
     int k = 0;
     for (int j = 1; j < 3; j++) if (fabsf(m[j * 4 + 3]) > fabsf(m[k * 4 + 3])) k = j;
@@ -837,7 +842,7 @@ internal int rf_depth_of(const float *m, float *n, float *f) {
     if (!(a > 1.0f) || !(b < 0)) return 0;
     *n = -b / a;
     *f = b / (1.0f - a);
-    return 1;
+    return *f <= camera_far_most() * RF_FAR_SLACK;
 }
 // whether depths n, f are this frame's (to the matrix's rounding: one that has them is left as it is, to the bit)
 internal int rf_depth_same(float n, float f) { return fabsf(n - g_dz.n) <= 1e-3f * g_dz.n && fabsf(f - g_dz.f) <= 1e-3f * g_dz.f; }

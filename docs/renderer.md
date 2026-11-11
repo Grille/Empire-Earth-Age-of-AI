@@ -383,7 +383,12 @@ drawn. AoC: the interface's lock at the same place (0x50989F), a short game norm
   in what reads the depth back (the water, the ambient occlusion, the smoothing, the silhouettes), the ground's chunks'
   test and the display DLL's test of a model (near and far widened by the eye's way since the step). A draw whose
   depths are already the frame's is left as it is; a frame during a step's ground, drawn with the projection of the
-  last frame that updated it, gets the step's newer ones (at a 30 ms step load it cut at 85 with the step at 62).
+  last frame that updated it, gets the step's newer ones (at a 30 ms step load it cut at 85 with the step at 62). The
+  sky - a box 10000 tiles out, drawn with the terrain on the map's near depth but a far depth of 20002 - isn't the
+  map's perspective: a far depth beyond the furthest the camera gives keeps its own (given the frame's, the sky was cut
+  off, and above the horizon stood what the frames before left there - the game clears only the depth; the player:
+  "sky is gone, just uncleared buffer"). The checks of the cuts above count the sky's colour: from 471d71e7 until the
+  sky came back they saw no cut either way.
 - The water during a step (AoC, after a long move: dark and sandy squares on the water, pieces of water over the
   map's edge; the same at margin 0): a batch takes the render object current when it is flushed, which is at the next
   draw with other states - the ground's last batch went in with the units' first, the water's last with the

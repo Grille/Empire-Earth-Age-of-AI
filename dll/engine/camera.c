@@ -226,6 +226,12 @@ internal float camera_far_pending(float f) {
     for (int i = 0; i < CAM_FAR_OLD && i < g_cam_far_olds; i++) if (g_cam_far_old[i] == f) return now;
     return f;
 }
+// the furthest far depth the camera gives (at camera_distance_max; the game's own while the shape isn't set)
+internal float camera_far_most(void) {
+    float now = *camera_far_at();
+    if (!g_cam_shape) return now;
+    return fmaxf(now, g_cam_view + g_cam_dist * (g_cam_v_max - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE));
+}
 internal void camera_shape_write(float v) {
     if (!g_cam_shape) return;
     *camera_eye_far_at() = -g_cam_dist * v;
