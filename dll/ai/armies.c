@@ -2032,6 +2032,13 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
             ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, g_ar_lent[idx].n);
         if (g_ar_aid > 0) ar_log(idx, now, "ally aid: raids on an ally answered %u", g_ar_aids[idx]);
+        static struct av_sum sum;   // ARMY VIEW (army_view.c): the force as one, for the log only so far
+        static char line[1600];
+        av_clear(&sum);
+        for (int k = 0; k < a->n; k++) if (cv_alive(a->held[k].u)) av_add(&sum, a->held[k].u);
+        av_done(&sum);
+        av_line(&sum, av_enemy_kinds(pl), line, (int)sizeof line);
+        ar_log(idx, now, "the force as one: %s", line);
     }
 }
 internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); g_ar_load = from_save; g_ar_loaded = 0; }

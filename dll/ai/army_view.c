@@ -1,0 +1,91 @@
+// ARMY VIEW (the player 2026-11-11: "maybe on a high level it should only see armies as one entity, how strong is it,
+// what is it good against, has it siege etc. the ai than can command reinforce or split these armies as it needs
+// without ever looking at what is in it"; on how many: "if its smart enough it should be allowed as much as it needs
+// ... we should get away from hard limits"): what an army is, summed from its members, for the deciding parts to read
+// instead of the members. Step 1: the force's summary (armies.c), written to the log each minute; nothing decides on
+// it yet. Included by eeaimod.c after stats.c (st_shot_t, st_range ...) and before armies.c.
+//
+// What it is good against: its damage a second at each family (the game's "Family ID", kind.*: the armour and bonus
+// class its hit table reads as the target's row), from the game's own numbers (stats.c st_shot_t: attack x the damage
+// table x the hit factor, the time of a shot with ST_SHOT_OVERHEAD as the fight estimate takes it) at one type of that
+// family, no armour - armour is the target's, a summary of the army can't know it. Siege and rams are the roles the
+// game's data gives (unit_ids.h UTR_SIEGE, UTR_RAM). Members of a type share their owner's stats of it, so the work is
+// once per type, not per member.
+
+struct av_sum {
+    int n, siege, rams, ranged;   // members alive; of role siege, of role ram; shooting from 2 tiles on
+    float hp, hp_full;            // hit points now and at full health
+    float reach, slowest, speed;  // the longest range; the slowest mover's and the mean speed (tiles/s)
+    ivec2 mid; float spread;      // the members' middle and their distance from it (root mean square)
+    float vs[UNIT_KINDS];         // damage a second at each family
+    double sx, sy, sxx, syy, ssp;
+    unsigned short cnt[G_TYPES_N];   // members by type (the per-type work in av_done)
+    ee_unit *rep[G_TYPES_N];
+};
+internal ee_unit_type *av_kind_type(int k) {   // a type of family k, NULL: none in the game's data
+    unit_types_load();
+    return k >= 0 && k < UNIT_KINDS && g_kind_first[k] < g_kind_first[k + 1] ? type_data(g_kind_types[g_kind_first[k]]) : NULL;
+}
+internal void av_clear(struct av_sum *s) { memset(s, 0, sizeof *s); }
+internal void av_add(struct av_sum *s, ee_unit *u) {
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    int t = td ? unit_type_get_id(td) : -1, hp = u ? unit_get_hp(u) : 0;
+    if (t < 0 || t >= G_TYPES_N || hp <= 0 || unit_get_x(u) < 0) return;
+    ee_unit_stats *st = unit_get_stats(u);
+    ivec2 p = unit_get_tile(u);
+    float rg = st_range(u), sp = st_speed(u);
+    s->n++;
+    s->hp += (float)hp; s->hp_full += (float)st_maxhp(td, st);
+    if (rg > s->reach) s->reach = rg;
+    if (rg >= 2.0f) s->ranged++;
+    if (sp > 0 && (s->slowest <= 0 || sp < s->slowest)) s->slowest = sp;
+    s->ssp += sp;
+    s->siege += ut_role(t, UTR_SIEGE) != 0; s->rams += ut_role(t, UTR_RAM) != 0;
+    s->sx += p.x; s->sy += p.y; s->sxx += (double)p.x * p.x; s->syy += (double)p.y * p.y;
+    if (s->cnt[t] < 0xFFFF) s->cnt[t]++;
+    if (!s->rep[t]) s->rep[t] = u;
+}
+internal void av_done(struct av_sum *s) {
+    if (!s->n) return;
+    double mx = s->sx / s->n, my = s->sy / s->n, v = s->sxx / s->n - mx * mx + s->syy / s->n - my * my;
+    s->mid = iv2((int)mx, (int)my);
+    s->spread = v > 0 ? (float)sqrt(v) : 0.0f;
+    s->speed = (float)(s->ssp / s->n);
+    for (int t = 0; t < G_TYPES_N; t++) {
+        ee_unit *u = s->rep[t];
+        if (!s->cnt[t] || !u) continue;
+        ee_unit_type *td = unit_get_type_data(u);
+        ee_unit_stats *st = unit_get_stats(u);
+        int pi = st_pidx(u), own = unit_get_reload(u);
+        float shot = (own > 0 ? own / 1000.0f : st_reload_t(td, st)) + ST_SHOT_OVERHEAD;
+        for (int k = 0; k < UNIT_KINDS; k++) {
+            ee_unit_type *tt = av_kind_type(k);
+            if (tt) s->vs[k] += (float)s->cnt[t] * (float)st_shot_t(td, st, pi, tt, NULL, pi) / shot;
+        }
+    }
+}
+// the families of what pl sees of its enemies now - their fighters and buildings (a bit each; UNIT_KINDS fits in 64)
+internal uint64_t av_enemy_kinds(ee_player *pl) {
+    uint64_t m = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_player *o = unit_get_owner(it.u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(it.u) || !(cv_mil(it.td) || fr_building(it.td)) || !seen_by(it.u, pl)) continue;
+        int f = unit_type_get_family(it.td);
+        if (f >= 0 && f < UNIT_KINDS && f < 64) m |= 1ull << f;
+    }
+    return m;
+}
+// the summary as a line: what it is, then its damage a second at each family of the enemy's it sees, the most first
+internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) {
+    int w = snprintf(o, (size_t)cap, "%d alive, hp %.0f of %.0f, at %d,%d spread %.1f, reach %.1f, slowest %.2f (mean %.2f), siege %d, rams %d, ranged %d; damage a second at the enemy's:",
+                     s->n, s->hp, s->hp_full, s->mid.x, s->mid.y, s->spread, s->reach, s->slowest, s->speed, s->siege, s->rams, s->ranged);
+    uint64_t left = kinds;
+    while (left && w > 0 && w < cap - 32) {
+        int b = -1;
+        for (int k = 0; k < UNIT_KINDS && k < 64; k++) if (left >> k & 1 && (b < 0 || s->vs[k] > s->vs[b])) b = k;
+        if (b < 0) break;
+        left &= ~(1ull << b);
+        w += snprintf(o + w, (size_t)(cap - w), " %s %.0f", k_kind_ident[b], s->vs[b]);
+    }
+    if (!kinds && w > 0 && w < cap - 8) snprintf(o + w, (size_t)(cap - w), " none seen");
+}

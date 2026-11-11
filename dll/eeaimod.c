@@ -430,6 +430,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/metal.c"
 #include "ai/cover.c"
 #include "ai/stage.c"
+#include "ai/army_view.c"
 #include "ai/armies.c"
 #include "ai/garrison.c"
 #include "ai/airstrike.c"
