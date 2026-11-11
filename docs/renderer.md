@@ -789,6 +789,15 @@ low side over 1.5 s (US_SHIFT, as a cargo shifts), and the hull stays over: held
 ship as it filled - all ten of the test came to rest upright, their sails out of the water. Checked headless, the ten
 ships beside the build before (the same plans): the dives as before, the rolled ones lying on their sides or keel up,
 the level ones upright on the bottom.
+The submarines too (the player, the same day: "next add subs to the system"; the class submerged naval, rot time 0 - the
+game slid them down and removed them). The game holds one 0.4 tiles under the water, its model standing on its keel
+(0 to 0.5 of its scale, logged for the U-boat and the Trident): its floats are at its hull's middle height, the keel
+depth from there, their buoyancy neutral (US_SUB_FLOAT 1: it hangs at its depth until the leaks take it down - the same
+plans, dives, rolls, level), and it is met already sinking only by its tilt or its rot, not by lying under the water.
+No point is pushed up out of the bottom where the game had it (a ship's or a submarine's alike): one below its stop at
+the start digs in as deep as it was - a Trident in the shallows came up with its nose out of the water. Checked
+headless, four U-boats and four Tridents sunk by the coast beside the game's own sinking: the U-boats dived and rolled
+to the bottom, the Tridents in the shallows stayed in the sand, one dug in nose down.
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
 simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
 seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes

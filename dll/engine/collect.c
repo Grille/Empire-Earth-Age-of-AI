@@ -20,6 +20,7 @@ __attribute__((used)) volatile int g_uc_own;              // the walk ours (the 
 internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's constructor (collect_install)
 
 #include "collect_copy.c"   // step 3: the world's copy the walk reads
+#include "collect_maps.c"   // the sort maps built at once after the walk
 
 // STEP 4: THE MOVING BETWEEN STEPS (the pipe: picture collect smooth; collect_copy.c cp_pose_swap has the poses). A
 // moving object's record drawn at the game time g_uc_show - the pieces' clock (pt_clock: running on with the real time, a
@@ -507,7 +508,8 @@ typedef struct {
     float dig[5];            // how deep each point can go into the seabed (tiles)
     float shift;             // how far its ballast has slid to the low side (0 .. 1), once it heeled past US_SHIFT
     int32_t shift_to;        // ... that side's float (2 port, 3 starboard; 0 not yet)
-    float zw, range, keel;   // the water's level; a float's depth from dry to fully under; the keel's under the waterline
+    float zw, range, keel;   // the water's level; a float's depth from dry to fully under; the keel's under the floats
+    float lift;              // the floats' buoyancy before the leaks (g's, fully under): US_FLOAT, a submarine's US_SUB_FLOAT
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
@@ -552,10 +554,13 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_GLIDE 0.5f
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
+#define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
 #define US_DIG 0.6f     // the deepest a float goes into the seabed: a share of the beam
 #define US_FAST 1.5f    // a move between its poses faster than this times its top speed (at least US_JUMP tiles/s)
 #define US_JUMP 4.0f    // was no sailing but a jump: a ship of 170 tiles/s stopped dead at a fixed 4 (the player)
-internal int uc_is_ship(const ee_unit_type *ty) { return class_is_ship(unit_type_get_class_id(ty)); }
+// the ships on the water and the submarines (the player, the same day: "next add subs to the system"): a submarine's
+// floats at its hull's middle height, neutral (US_SUB_FLOAT) - it hangs at its depth until the leaks take it down
+internal int uc_is_ship(const ee_unit_type *ty) { int k = unit_type_get_class_id(ty); return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL; }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
 internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
@@ -604,8 +609,11 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         vec3 a = box_get_min(box), b = box_get_max(box);
         if (b.x > a.x && b.y > a.y) lo[0] = a.x, lo[1] = a.y, lo[2] = a.z, hi[0] = b.x, hi[1] = b.y, hi[2] = b.z;
     }
-    int x_long = hi[0] - lo[0] >= hi[1] - lo[1];
-    float c[3] = { 0.5f * (lo[0] + hi[0]) * s, 0.5f * (lo[1] + hi[1]) * s, 0.0f };
+    // a ship's floats at its waterline (its model's 0), a submarine's at its hull's middle height: its model stands on
+    // its keel (0 .. 0.5 of its scale, logged), the game holds it 0.4 tiles under the water, wholly under
+    int sub = unit_type_get_class_id(o->ty) == CLS_SUBMERGED_NAVAL, x_long = hi[0] - lo[0] >= hi[1] - lo[1];
+    float fz = sub ? 0.5f * (lo[2] + hi[2]) * s : 0.0f;
+    float c[3] = { 0.5f * (lo[0] + hi[0]) * s, 0.5f * (lo[1] + hi[1]) * s, fz };
     float half_long = 0.4f * (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s, half_across = 0.4f * (x_long ? hi[1] - lo[1] : hi[0] - lo[0]) * s;
     float al[3] = { x_long ? 1.0f : 0.0f, x_long ? 0.0f : 1.0f, 0.0f }, ac[3] = { x_long ? 0.0f : -1.0f, x_long ? 1.0f : 0.0f, 0.0f };   // across: up x along
     memcpy(k->along, al, sizeof al), memcpy(k->across, ac, sizeof ac);
@@ -613,8 +621,9 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         k->body[0][j] = c[j] + half_long * al[j], k->body[1][j] = c[j] - half_long * al[j];
         k->body[2][j] = c[j] + half_across * ac[j], k->body[3][j] = c[j] - half_across * ac[j];
     }
-    k->keel = fminf(fmaxf(-lo[2] * s, 0.05f), 1.0f);
-    k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = -US_LOW * k->keel;
+    k->keel = fminf(fmaxf(fz - lo[2] * s, 0.05f), 1.0f);
+    k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
+    k->lift = sub ? US_SUB_FLOAT : US_FLOAT;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
@@ -623,9 +632,18 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             const float *b = k->body[i];
             k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
         }
-    int late = o->rotting || t[10] < 0.98f || t[11] < k->zw - 0.05f;
+    int late = o->rotting || t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f);   // (a submarine is under anyway)
     us_leaks(k, o->serial, late);
     for (int i = 0; i < US_PTS; i++) k->dig[i] *= US_DIG * 2.5f * half_across;   // the beam: half_across is 0.4 of it
+    // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
+    // in the sand and came up with its nose out: a point below its stop at the start digs in as deep as it was
+    const void *mesh = game_map() ? map_mesh_at(game_map()) : NULL;
+    for (int i = 0; i < US_PTS && mesh; i++) {
+        const float *p = k->sp[i];
+        if (!mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1]))) continue;
+        float stop = mesh_z(mesh, p[0], p[1]) + (i == 4 ? 1.0f - US_LOW : 1.0f) * k->keel;   // upright: the keel under it
+        if (p[2] < stop - k->dig[i]) k->dig[i] = stop - p[2];
+    }
     float v[2] = { 0.0f, 0.0f };
     if (!late) us_velocity(o, v);
     for (int i = 0; i < US_PTS; i++) k->sq[i][0] -= v[0] * (float)US_DT, k->sq[i][1] -= v[1] * (float)US_DT;   // Verlet: a step's way behind
@@ -642,7 +660,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         if (i < 4) {
             float u = (t - k->leak[i][1]) / k->leak[i][2];
             u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
-            b = (US_FLOAT + (k->leak[i][0] - US_FLOAT) * u) * carry;
+            b = (k->lift + (k->leak[i][0] - k->lift) * u) * carry;
         }
         float f = expf(-(under > 0.0f ? US_DRAG : US_AIR) * dt), g = expf(-(under > 0.0f ? US_GLIDE : US_AIR) * dt), v[3];
         for (int j = 0; j < 3; j++) v[j] = (p[j] - q[j]) * (j < 2 ? g : f);
@@ -850,11 +868,11 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
         draw_record_set_ground_z(rec, ground[2]);
     }
     if (!k->ship) uc_sink_at(t, k->gfx, k->anim, k->frame, k->scale, d);
-    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
-    sort_map_insert(maps + (op < 1.0f ? 0xC : 0), found, pair);
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
+    uc_map_insert(maps + (op < 1.0f ? 0xC : 0), pair);
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(k->gfx);
     pair[1] = rec;
-    sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+    uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
     return 1;
 }
 // the walk's end: those it didn't meet removed (kept) or out of the view (let go), the kept ones drawn on the tiles of the
@@ -1274,12 +1292,12 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         if (!ship) uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);
     }
     uc_pick_add(u, rec, draw_record_get_opacity(rec));
-    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
-    sort_map_insert(sort_map, found, pair);
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
+    uc_map_insert(sort_map, pair);
     if (second && !second_foundation) {
         pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
         pair[1] = rec;
-        sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+        uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
     }
 }
 
@@ -1334,12 +1352,12 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
         draw_small_record_set_sway(rec, (float)s);
     } else draw_small_record_set_sway(rec, 0.0f);
     if (dry) return;
-    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
-    sort_map_insert(sort_map, found, pair);
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
+    uc_map_insert(sort_map, pair);
     uc_pick_add(o->u, t, draw_small_record_get_opacity(rec));
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
     pair[1] = rec;
-    sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
+    uc_map_insert(engine_display_sort_maps_at() + 0x3C, pair);
 }
 
 // the walk's trees' fill: the game's, or the game's held against ours (fill check: the record as it was before the
@@ -1448,11 +1466,11 @@ internal int uc_fill_dopp(const uc_dopp *p, uint8_t *rec, uint32_t *count, void 
         draw_record_set_state(rec, 0);
         if (!dry) {
             uc_pick_add(p->u, rec, draw_record_get_opacity(rec));
-            void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), 0), rec };
-            sort_map_insert(sort_map, found, pair);
+            void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), 0), rec };
+            uc_map_insert(sort_map, pair);
             pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
             pair[1] = rec;
-            sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+            uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
             ++*count;
         }
     }
@@ -1505,12 +1523,12 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
         } else draw_small_record_set_sway(rec, 0.0f);
         if (!dry) {
             if (info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), p->u);
-            void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
-            sort_map_insert(sort_map, found, pair);
+            void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
+            uc_map_insert(sort_map, pair);
             uc_pick_add(p->u, t, draw_small_record_get_opacity(rec));
             pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
             pair[1] = rec;
-            sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
+            uc_map_insert(engine_display_sort_maps_at() + 0x3C, pair);
             ++*count;
         }
     }
@@ -1831,7 +1849,9 @@ internal void collect_during_end(void) {
 __attribute__((used)) int __cdecl collect_at(uint8_t *f) {
     if (!g_uc_grown) picker_grow();
     if (!g_uc_own) return 0;
+    um_walk_begin();
     collect_walk(f);
+    um_walk_end();
     return 1;
 }
 
@@ -1874,6 +1894,7 @@ internal void collect_install(void) {
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");
     if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
+    if (g_uc_installed) collect_maps_install();
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);
     if (g_uc_installed && g_set.units_smooth) {   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on, and during the steps
