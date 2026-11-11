@@ -1629,17 +1629,23 @@ internal unsigned g_ff_walks, g_ff_walks_lost, g_ff_resent;   // walks back give
 #define FF_STATE_LOOK 2015
 internal unsigned g_ff_looks;   // such looks given
 internal void ff_scan_tick(struct ff_group *gr, uint32_t step) {
-    int gi = (int)(gr - g_ff);
+    int gi = (int)(gr - g_ff), members = 0, steered = 0, advancing = 0, found = 0;
     for (int i = 0; i < FF_UNITS; i++) {
         const struct ff_unit *e = &g_ff_u[i];
+        if (e->id && e->g == gi) members++;
         if (!e->id || e->g != gi || e->out || e->rel || e->step == ~0u || step - e->step > 2) continue;   // steered this step or the last
+        steered++;
         ee_unit *u = unit_by_id(e->id);
         if (!u || unit_get_hp(u) <= 0 || unit_ai_state_id(u) != FF_STATE_ADVANCE) continue;
+        advancing++;
         unit_set_scan_ms(u, 0);
-        if (!find_target(u)) continue;   // the game's own search first: the look state itself stops the unit a tick, every half second it made the march stutter (164 s for 146)
+        if (!find_target(u)) continue;
+        found++;   // the game's own search first: the look state itself stops the unit a tick, every half second it made the march stutter (164 s for 146)
         unit_set_state(u, FF_STATE_LOOK);
         g_ff_looks++;
     }
+    // for the player's games, every 10 s of a march that steers anyone (the player, 2026-11-11: an attack-move of 303 "just walking through the enemy" - 66 of them within 6 tiles of knights, none with a target, no look given in 2.5 s; not reproduced from their orders: this line tells next time whether the game's search found nothing)
+    if (g_log && steered && step % 200 == 0) fprintf(g_log, "# formation: %d units at %.1f,%.1f: attack-move, %d steered, %d of them advancing, %d with an enemy in sight this look (%u looks given so far)%c", gr->n, gr->anchor.x, gr->anchor.y, steered, advancing, found, g_ff_looks, 10);
 }
 // a land march on its way (the units sent on again while it goes - ships keep their own routes)
 internal int ff_marching(const struct ff_group *gr) { return gr->on && gr->started && !gr->naval && gr->in_place != 1 && !gr->drain; }   // not in the drain: a unit sent on again there is on its own goal, and the leader re-sent ended the march (the given up on walk back once it drained)
