@@ -753,6 +753,24 @@ artillery, howitzer 40 s, Minotaur 10, tanks 7); kept, an Apache stood whole on 
 player's picture, "the rotors are still rotating here"), so those are neither kept nor drawn. And a corpse's parts stay
 as they were when it was first met (the record draw 0x50B4AC turns the parts' models by their values and the two lists'
 by theirs, which the simulation goes on turning on a dead unit).
+
+Ships sink by their floats (2026-11-11, the player: "maybe 4 points (one front, one back, and 2 in the middle to keep it
+upright) - each point has a buoyancy, 1 to 3 point get a negative buoyancy"; the outcomes weighted, a wreck half out of
+the water in the shallows welcome; [display] ship_sinking, with corpses_sink). The game sinks every ship alike, moving
+the unit itself, its animation still (logged, a frigate: state 6000 turned about one axis to 36 degrees in 2 s, down at
+0.28 tiles a second to 1.3 tiles under, then rotting 2 s, gone). collect.c (us_*) draws a dead ship (hit points 0, the
+naval classes) from its first sight by four floats - bow and stern 0.8 of the way to its hull's ends along the longer
+side of its frame's bounding box, port and starboard as far out, at the waterline - a rigid frame (six distances held,
+Verlet, 10 ms steps of game time) under gravity, each float lifted by its buoyancy times how deep it lies, slowed by the
+water, stopped by the seabed at the hull's depth under it (the keel as far as it is upright, half the beam under bow and
+stern as far as it lies on its side: held at the keel alone, a ship that rolled over stood up again on the bottom). The
+buoyancy leaks: all four slowly to less than their weight, and by the plan of the ship's serial one or two fast to below
+nothing - by the bow or the stern half the time (now and then with a list), onto one side a quarter (the other holding
+on longest), level a quarter. The water's level is the renderer's measured one (else the ship's own height at its
+death), the hull's pose its floats' (along, across, up), kept with the corpses after the game removes it and its time
+theirs from its death. Checked headless, ten ships sunk at once on shallow water by the coast: dives by the bow and the
+stern (one stood near upright on its bow), rolls, level ones, all on the bottom in 4 to 10 s with their masts out of the
+water, the rolled one on its side.
 A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 

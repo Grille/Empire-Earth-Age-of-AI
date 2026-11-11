@@ -489,15 +489,175 @@ typedef struct {
     uint32_t gen;            // the walk that met it last
     uint8_t gone;            // removed by the game: drawn by the walk
     uint8_t held;            // its turns taken
+    uint8_t ship;            // a ship going down by its floats (uc_ship_*)
+    float sp[4][3], sq[4][3];   // its floats - bow, stern, port, starboard: where they are and were a step before (world)
+    float body[4][3];        // ... in the hull's own space times its scale, at its waterline
+    float along[3], across[3];  // the hull's own axes bow-ward and port-ward
+    float leak[4][3];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s)
+    float zw, range, keel;   // the water's level; a float's depth from dry to fully under; the keel's under the waterline
+    double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
 internal uint32_t g_kc_n, g_kc_full, g_kc_drawn;
 internal CRITICAL_SECTION g_kc_cs;
 internal int g_kc_cs_ok;
 internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC_KC_PARTS); }
-// a rotting object the walk met, its record rec filled and its pose t not yet sunk: its entry made or brought up to date,
-// and the record's turns its held ones
-internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, const float *t, double d) {
+// THE SHIPS SINKING ([display] ship_sinking, with corpses_sink; the player, 2026-11-11: "i wonderd if we could make sinking
+// ships more intretsing. maybe 4 points (one front, one back, and 2 in the middle to keep it upright) - each point has a
+// buoyancy, 1 to 3 point get a negative buoyancy ... ships that sink similar to now, ships that fall over etc", the
+// outcomes weighted, a wreck half out of the water in the shallows welcome). The game sinks every ship alike - it moves
+// the unit itself, its animation still: turned about one axis to 36 degrees in 2 s, down at 0.28 tiles a second to
+// 1.3 tiles under, 2 s still rotting, gone (logged 2026-11-11, a frigate: state 6000, then the rotting 6002 with a rot
+// time of 2 s). Here a dead ship (its hit points at 0) is drawn by four floats of its own from its first sight on: bow and
+// stern 0.8 of the way to its hull's ends along its longer side (the frame's bounding box, GEModel boxes), port and
+// starboard as far to its sides, at its waterline; a rigid frame (their six distances held) under gravity, each float
+// lifted by its buoyancy times how deep it lies (0 dry, 1 fully under over range: half under at rest), slowed by the
+// water's drag, and stopped by the seabed under it at its keel's depth. Their buoyancy leaks away: all of them slowly to
+// less than their weight (it goes down in the end), and by the plan of its serial (the same on every PC, the picture only)
+// one or two fast to below nothing - a dive by the bow or the stern half the time (now and then with a list), a roll onto
+// one side a quarter (the other side holding on longest), level a quarter. Stepped by the game time (stands while paused),
+// US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death.
+#define US_G 3.0f       // gravity (tiles/s^2)
+#define US_DT 0.01      // the step (s of game time)
+#define US_DRAG 1.6f    // the water's drag (1/s), the air's
+#define US_AIR 0.3f
+#define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
+internal int uc_is_ship(const ee_unit_type *ty) {
+    int k = unit_type_get_class_id(ty);
+    return k == CLS_NAVAL || k == CLS_NAVAL_TRANSPORT || k == CLS_NAVAL_CITIZEN;
+}
+internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
+// its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
+internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
+    uint32_t s = (uint32_t)serial * 2654435761u + 0x9E3779B9u;
+    us_rnd(&s);
+    float plan = us_rnd(&s);
+    for (int i = 0; i < 4; i++)   // the slow leaks: each float to less than its weight
+        k->leak[i][0] = 0.55f + 0.3f * us_rnd(&s), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&s);
+    int fast = plan < 0.25f ? 0 : plan < 0.5f ? 1 : plan < 0.75f ? 2 + (us_rnd(&s) < 0.5f) : -1;   // bow, stern, a side, level
+    if (fast >= 0) {
+        k->leak[fast][0] = -0.6f - 0.6f * us_rnd(&s), k->leak[fast][1] = 0.2f * us_rnd(&s), k->leak[fast][2] = 1.5f + 2.0f * us_rnd(&s);
+        if (fast >= 2) {   // the other side holds on longest: it rolls over before it goes
+            int o = fast ^ 1;
+            k->leak[o][0] = 0.8f + 0.15f * us_rnd(&s), k->leak[o][1] = 4.0f + 2.0f * us_rnd(&s), k->leak[o][2] = 10.0f + 8.0f * us_rnd(&s);
+        } else if (us_rnd(&s) < 0.4f) {   // a dive with a list to one side
+            int o = 2 + (us_rnd(&s) < 0.5f);
+            k->leak[o][0] = 0.1f + 0.4f * us_rnd(&s), k->leak[o][1] = 0.5f + us_rnd(&s), k->leak[o][2] = 3.0f + 3.0f * us_rnd(&s);
+        }
+    }
+    if (late) for (int i = 0; i < 4; i++) k->leak[i][1] = -1000.0f, k->leak[i][2] = 0.01f;
+}
+// its floats set up from the game's pose t (rows; the model's scale apart) and its model's frame
+internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
+    ee_box *box = m ? model_box(m, (uint32_t)o->anim_frame) : NULL;
+    float r = m ? model_get_radii(m)[o->anim_frame] : 1.0f, s = o->cu_height;
+    float lo[3] = { -0.9f * r, -0.3f * r, -0.2f * r }, hi[3] = { 0.9f * r, 0.3f * r, 0.5f * r };
+    if (box) {
+        vec3 a = box_get_min(box), b = box_get_max(box);
+        if (b.x > a.x && b.y > a.y) lo[0] = a.x, lo[1] = a.y, lo[2] = a.z, hi[0] = b.x, hi[1] = b.y, hi[2] = b.z;
+    }
+    int x_long = hi[0] - lo[0] >= hi[1] - lo[1];
+    float c[3] = { 0.5f * (lo[0] + hi[0]) * s, 0.5f * (lo[1] + hi[1]) * s, 0.0f };
+    float half_long = 0.4f * (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s, half_across = 0.4f * (x_long ? hi[1] - lo[1] : hi[0] - lo[0]) * s;
+    float al[3] = { x_long ? 1.0f : 0.0f, x_long ? 0.0f : 1.0f, 0.0f }, ac[3] = { x_long ? 0.0f : -1.0f, x_long ? 1.0f : 0.0f, 0.0f };   // across: up x along
+    memcpy(k->along, al, sizeof al), memcpy(k->across, ac, sizeof ac);
+    for (int j = 0; j < 3; j++) {
+        k->body[0][j] = c[j] + half_long * al[j], k->body[1][j] = c[j] - half_long * al[j];
+        k->body[2][j] = c[j] + half_across * ac[j], k->body[3][j] = c[j] - half_across * ac[j];
+    }
+    k->keel = fminf(fmaxf(-lo[2] * s, 0.05f), 1.0f);
+    k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
+    k->zw = g_sh.water_on ? g_sh.level : t[11];
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 3; j++) {
+            const float *b = k->body[i];
+            k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
+        }
+    us_leaks(k, o->serial, o->rotting || t[10] < 0.98f || t[11] < k->zw - 0.05f);
+    k->sim = k->died;
+    k->ship = 1;
+}
+// one step at t s after its death: each float moved by its forces (Verlet: its velocity its way since the step before),
+// then the frame's distances and the seabed held, four times round
+internal void us_step(uc_corpse *k, float t, const void *mesh) {
+    const float dt = (float)US_DT;
+    for (int i = 0; i < 4; i++) {
+        float *p = k->sp[i], *q = k->sq[i], u = (t - k->leak[i][1]) / k->leak[i][2];
+        u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
+        float b = US_FLOAT + (k->leak[i][0] - US_FLOAT) * u, under = 0.5f + (k->zw - p[2]) / k->range;
+        under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
+        float f = expf(-(under > 0.0f ? US_DRAG : US_AIR) * dt), v[3];
+        for (int j = 0; j < 3; j++) v[j] = (p[j] - q[j]) * f;
+        v[2] += (-US_G + b * US_G * under) * dt * dt;
+        for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
+    }
+    // how far the hull reaches under each float as it lies now: the keel as far as it is upright, and under the bow and
+    // the stern half its beam as far as it lies on its side (the side floats are at its sides) - a ship rolled over
+    // comes to rest on its side; held at the keel alone, all four came to rest level and it stood up again on the bottom
+    float al[3], ac[3], lal = 0.0f, lac = 0.0f, uz, below[4];
+    for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], lal += al[j] * al[j], lac += ac[j] * ac[j];
+    lal = sqrtf(lal), lac = sqrtf(lac);
+    uz = lal > 1e-6f && lac > 1e-6f ? (al[0] * ac[1] - al[1] * ac[0]) / (lal * lac) : 1.0f;   // the hull's up, its height
+    float side = lac > 1e-6f ? fabsf(ac[2]) / lac : 0.0f, beam = 0.5f * lac;
+    below[0] = below[1] = k->keel * fmaxf(uz, 0.0f) + beam * side;
+    below[2] = below[3] = k->keel * fmaxf(uz, 0.0f);
+    for (int round = 0; round < 4; round++) {
+        for (int i = 0; i < 4; i++)
+            for (int j = i + 1; j < 4; j++) {
+                float d[3], e[3], len = 0.0f, rest = 0.0f;
+                for (int c = 0; c < 3; c++) d[c] = k->sp[j][c] - k->sp[i][c], e[c] = k->body[j][c] - k->body[i][c], len += d[c] * d[c], rest += e[c] * e[c];
+                len = sqrtf(len), rest = sqrtf(rest);
+                if (len < 1e-6f) continue;
+                float w = 0.5f * (len - rest) / len;
+                for (int c = 0; c < 3; c++) k->sp[i][c] += d[c] * w, k->sp[j][c] -= d[c] * w;
+            }
+        for (int i = 0; i < 4; i++) {
+            float *p = k->sp[i], *q = k->sq[i];
+            int x = (int)floorf(p[0]), y = (int)floorf(p[1]);
+            if (!mesh_has_tile(mesh, x, y)) continue;
+            float bottom = mesh_z(mesh, p[0], p[1]) + below[i];
+            if (p[2] < bottom) {   // on the bottom: held up, and dragged along it
+                p[2] = bottom;
+                if (q[2] < p[2]) q[2] = p[2];
+                q[0] = p[0] - (p[0] - q[0]) * 0.8f, q[1] = p[1] - (p[1] - q[1]) * 0.8f;
+            }
+        }
+    }
+}
+// simulated on to the walk's game time (at most 3 s at once: one long out of the view jumps there)
+internal void us_run(uc_corpse *k) {
+    if (g_uc_now < 0.0) return;
+    if (g_uc_now - k->sim > 3000.0) k->sim = g_uc_now - 3000.0;
+    const void *mesh = map_mesh_at(game_map());
+    while (k->sim + US_DT * 1000.0 <= g_uc_now) {
+        k->sim += US_DT * 1000.0;
+        us_step(k, (float)((k->sim - k->died) / 1000.0), mesh);
+    }
+}
+// its pose into t (rows, the place in the fourth column) from its floats: bow-ward from the stern to the bow, port-ward
+// from starboard to port square to it, up square to both - the hull's own axes there
+internal void us_pose(const uc_corpse *k, float *t) {
+    float a[3], b[3], u[3], la = 0.0f, lb = 0.0f, ab = 0.0f, mean[3] = { 0, 0, 0 }, body[3] = { 0, 0, 0 };
+    for (int j = 0; j < 3; j++) a[j] = k->sp[0][j] - k->sp[1][j], b[j] = k->sp[2][j] - k->sp[3][j], la += a[j] * a[j];
+    la = sqrtf(la);
+    if (la < 1e-6f) return;
+    for (int j = 0; j < 3; j++) a[j] /= la, ab += a[j] * b[j];
+    for (int j = 0; j < 3; j++) b[j] -= ab * a[j], lb += b[j] * b[j];
+    lb = sqrtf(lb);
+    if (lb < 1e-6f) return;
+    for (int j = 0; j < 3; j++) b[j] /= lb;
+    u[0] = a[1] * b[2] - a[2] * b[1], u[1] = a[2] * b[0] - a[0] * b[2], u[2] = a[0] * b[1] - a[1] * b[0];
+    const float up[3] = { 0.0f, 0.0f, 1.0f };
+    for (int r = 0; r < 3; r++)   // the world's axes over the hull's: [a b u] times [along across up] turned
+        for (int c = 0; c < 3; c++) t[r * 4 + c] = a[r] * k->along[c] + b[r] * k->across[c] + u[r] * up[c];
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 3; j++) mean[j] += 0.25f * k->sp[i][j], body[j] += 0.25f * k->body[i][j];
+    for (int r = 0; r < 3; r++) t[r * 4 + 3] = mean[r] - (t[r * 4] * body[0] + t[r * 4 + 1] * body[1] + t[r * 4 + 2] * body[2]);
+}
+// a rotting object the walk met (or a dead ship, rotting or not yet), its record rec filled and its pose t not yet sunk:
+// its entry made or brought up to date, the record's turns its held ones, and a ship's pose its floats'
+internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, float *t, double d, int ship) {
     if (!g_kc_cs_ok || g_uc_now < 0.0 || !o->gfx) return;
     EnterCriticalSection(&g_kc_cs);
     uc_corpse *k = NULL;
@@ -527,7 +687,9 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, con
         for (int32_t i = 0; i < np; i++) ((uint32_t *)vector_first(draw_record_part_values_at(rec)))[i] = k->part[i];
         for (int32_t i = 0; i < na; i++) ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = k->la[i][0];
         for (int32_t i = 0; i < nb; i++) ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = k->lb[i][0];
-        k->died = g_uc_now - d;
+        if (ship && !k->ship) k->died = g_uc_now, us_start(k, o, t);   // a ship's age from its first sight dead (its rot is its last 2 s)
+        else if (!k->ship) k->died = g_uc_now - d;
+        if (k->ship) us_run(k), us_pose(k, t);
         k->gen = g_uc_walk_gen, k->gone = 0;
     }
     LeaveCriticalSection(&g_kc_cs);
@@ -541,14 +703,17 @@ internal void uc_corpses_clear(void) {
 }
 // a kept corpse into the record rec at its age d, as uc_fill_dopp fills a remembered building: whole or see-through by
 // its fade, not fogged, never picked, no silhouette, its parts as last seen; 0 when outside the view
-internal int uc_fill_corpse(const uc_corpse *k, uint8_t *rec, uint8_t *maps, double d) {
+internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d) {
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[k->anim];
     if (!m) return 0;
+    __attribute__((aligned(8))) float pose[16];   // where it lies: its last pose, a ship's by its floats on
+    memcpy(pose, k->t, sizeof pose);
+    if (k->ship) us_run(k), us_pose(k, pose);
     __attribute__((aligned(8))) uint8_t pm[0x60];
     physical_model_new(pm);
     physical_model_set_model(pm, m);
     physical_model_set_frame(pm, k->frame);
-    transform_assign(pm, k->t);
+    transform_assign(pm, pose);
     physical_model_set_scale(pm, k->scale);
     int in = units_view_call(4)(pm, opacity_viewport(), *game_camera_fixed_at()) != 0;
     physical_model_free(pm);
@@ -607,7 +772,7 @@ internal int uc_fill_corpse(const uc_corpse *k, uint8_t *rec, uint8_t *maps, dou
     draw_record_set_fraction(rec, 0.0f);
     draw_record_set_state(rec, 0);
     draw_record_set_anim(rec, k->anim);
-    transform_assign(rec, k->t);
+    transform_assign(rec, pose);
     float *t = draw_record_transform_at(rec);
     if (map_tile_lit(map, (int)floorf(t[3]), (int)floorf(t[7])) && t[11] >= oc.zero) draw_record_set_ground_z(rec, 0.0f);
     else {
@@ -615,7 +780,7 @@ internal int uc_fill_corpse(const uc_corpse *k, uint8_t *rec, uint8_t *maps, dou
         ground_point(map, pos, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
-    uc_sink_at(t, k->gfx, k->anim, k->frame, k->scale, d);
+    if (!k->ship) uc_sink_at(t, k->gfx, k->anim, k->frame, k->scale, d);
     void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
     sort_map_insert(maps + (op < 1.0f ? 0xC : 0), found, pair);
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(k->gfx);
@@ -1033,10 +1198,11 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         ground_point(map, p, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
-    if (cu && o->rotting && g_set.corpses_sink) {   // after the ground's height under it: that stays the ground's
+    int ship = cu && g_set.corpses_sink && g_set.ship_sinking && o->cu_hp <= 0 && uc_is_ship(o->ty);   // (uc_ship_*)
+    if (cu && (o->rotting || ship) && g_set.corpses_sink) {   // after the ground's height under it: that stays the ground's
         double d = uc_dead_ms(o);
-        if (o->rot_t > 0) uc_corpse_saw(c, o, rec, t, d);
-        uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);
+        if (o->rot_t > 0 || ship) uc_corpse_saw(c, o, rec, t, d, ship);
+        if (!ship) uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);
     }
     uc_pick_add(u, rec, draw_record_get_opacity(rec));
     void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };

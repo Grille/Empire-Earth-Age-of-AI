@@ -388,6 +388,10 @@ internal inline void graphics_acquire(ee_dmg_model *g) {
     if (build_is("aoc")) ((int (__thiscall *)(ee_dmg_model *))(*(void ***)g)[1])(g);
     else dmg_model_acquire(g);
 }
+// a model's box of a frame (its own vertices' in its own space), NULL past its frames
+internal inline ee_box *model_box(const ee_model *m, uint32_t frame) {
+    return model_get_boxes(m) && frame < model_get_frames(m) ? (ee_box *)((uint8_t *)model_get_boxes(m) + frame * size_ge_bounding_box) : NULL;
+}
 internal inline void graphics_release(ee_dmg_model *g) {
     if (build_is("aoc")) ((void (__thiscall *)(ee_dmg_model *))(*(void ***)g)[2])(g);
     else dmg_model_release(g);
