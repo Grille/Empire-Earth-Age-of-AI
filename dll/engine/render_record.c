@@ -8,9 +8,12 @@
 // them all. The depth lets the script place each pixel in the world and find it again in the frames before and after
 // while the camera moves (with pan dx dy: moved by that every frame, as the pipe's camera pan). The frames are copies
 // on the graphics card while they are taken (the picture and the depth: 30 MB a frame at 2560 x 1440, at most REC_MAX),
-// read back and written once the last is taken: the game keeps its pace meanwhile. Read back frame by frame they took
-// 250 ms each - nearly every frame came after a step of the game, and whatever happens between two (a frame drawn from
-// the last step's kept list, moved to the camera) never showed.
+// read back once the last is taken: the game keeps its pace meanwhile. Read back frame by frame they took 250 ms each -
+// nearly every frame came after a step of the game, and whatever happens between two (a frame drawn from the last
+// step's kept list, moved to the camera) never showed. Written all at once after the last, they held the render thread
+// and with it the game 19 - 24 s for 120 frames (the player's game, 2026-11-11: "game frezzes for several seconds"): now
+// each presented frame after the last maps one copy whose read back the frame before started (no wait for the card)
+// and hands its rows to a thread of its own that makes the file - REC_QUEUE at most waiting (15 MB each).
 #define REC_ROLES 11   // the shadow roles SH_NONE .. SH_TREE, and the game's shadows' decals (the farms' fields)
 #define REC_MAX 120
 internal struct {
@@ -26,7 +29,88 @@ internal struct {
     LONG passes;             // the shadow maps drawn before the frame
     LONG kept;               // the kept batches drawn again before the frame (render_frame.c g_kg_drawn)
     int draws[REC_ROLES], verts[REC_ROLES];   // the draws and their vertices by role since the last presented frame
+    volatile LONG writing;   // the frames taken being read back and written (rec_flush_frame); a new recording waits
+    int next;                // the next copy to read back: picture i at 2 i, its depth at 2 i + 1
+    ID3D11Texture2D *st;     // the copy being read back, into ...
+    char st_path[MAX_PATH + 16];
+    int st_depth;
 } g_rec;
+
+// THE WRITER: the rows read back into files, on a thread of its own
+#define REC_QUEUE 3
+typedef struct rec_item {
+    struct rec_item *next;
+    char path[MAX_PATH + 16];
+    int depth, done;          // the depth raw, else a picture (B8G8R8A8 rows) as a 24-bit BMP; done: <name>.done, no rows
+    UINT w, h;
+    uint8_t *rows;            // w x 4 bytes a row, top down
+} rec_item;
+internal struct {
+    CRITICAL_SECTION cs;
+    HANDLE wake;
+    rec_item *first, *last;
+    volatile LONG queued;
+    int on;
+} g_rw;
+internal void rec_write_item(const rec_item *it) {
+    FILE *f = fopen(it->path, it->done ? "w" : "wb");
+    if (!f) return;
+    if (it->done) fprintf(f, "%d of %d frames taken, %d written\n", g_rec.taken, g_rec.n, g_rec.written);
+    else if (it->depth) fwrite(it->rows, (size_t)it->w * 4, it->h, f);
+    else {
+        int w = (int)it->w, h = (int)it->h, stride = (w * 3 + 3) & ~3;
+        BITMAPINFOHEADER bi = { sizeof bi, w, h, 1, 24, BI_RGB, (DWORD)(stride * h), 0, 0, 0, 0 };
+        BITMAPFILEHEADER fh = { 0x4D42, (DWORD)(sizeof fh + sizeof bi + bi.biSizeImage), 0, 0, sizeof fh + sizeof bi };
+        fwrite(&fh, sizeof fh, 1, f);
+        fwrite(&bi, sizeof bi, 1, f);
+        uint8_t *row = calloc((size_t)stride, 1);
+        for (int y = h - 1; row && y >= 0; y--) {   // bottom up
+            const uint8_t *src = it->rows + (size_t)y * (size_t)w * 4;
+            for (int x = 0; x < w; x++) { row[x * 3] = src[x * 4]; row[x * 3 + 1] = src[x * 4 + 1]; row[x * 3 + 2] = src[x * 4 + 2]; }
+            fwrite(row, (size_t)stride, 1, f);
+        }
+        free(row);
+        g_rec.written++;
+    }
+    fclose(f);
+}
+internal DWORD WINAPI rec_writer(LPVOID unused) {
+    (void)unused;
+    for (;;) {
+        WaitForSingleObject(g_rw.wake, INFINITE);
+        for (;;) {
+            EnterCriticalSection(&g_rw.cs);
+            rec_item *it = g_rw.first;
+            if (it) { g_rw.first = it->next; if (!g_rw.first) g_rw.last = NULL; }
+            LeaveCriticalSection(&g_rw.cs);
+            if (!it) break;
+            rec_write_item(it);
+            if (it->done) InterlockedExchange(&g_rec.writing, 0);
+            free(it->rows);
+            free(it);
+            InterlockedDecrement(&g_rw.queued);
+        }
+    }
+}
+// an item to the writer (its rows its own from here); 0: no writer
+internal int rec_queue(rec_item *it) {
+    if (!g_rw.on) {
+        InitializeCriticalSection(&g_rw.cs);
+        g_rw.wake = CreateEventA(NULL, FALSE, FALSE, NULL);
+        HANDLE t = g_rw.wake ? CreateThread(NULL, 0, rec_writer, NULL, 0, NULL) : NULL;
+        if (!t) return 0;
+        CloseHandle(t);
+        g_rw.on = 1;
+    }
+    it->next = NULL;
+    InterlockedIncrement(&g_rw.queued);
+    EnterCriticalSection(&g_rw.cs);
+    if (g_rw.last) g_rw.last->next = it; else g_rw.first = it;
+    g_rw.last = it;
+    LeaveCriticalSection(&g_rw.cs);
+    SetEvent(g_rw.wake);
+    return 1;
+}
 
 // record steps: while frames are left, every second frame skips the render objects' update as a frame drawn during a
 // step does - a heavy game draws many such frames, a test's steps are too short for any: alternating with the frames
@@ -58,56 +142,59 @@ internal ID3D11Texture2D *rec_copy(ID3D11Texture2D *src, DXGI_FORMAT fmt) {
     return t;
 }
 
-// a copy read back into path: the picture (B8G8R8A8) as a 24-bit BMP, the depth (R32_FLOAT) raw, rows top down
-internal int rec_write(ID3D11Texture2D *t, const char *path, int depth) {
-    D3D11_TEXTURE2D_DESC td = { 0 };
-    ID3D11Texture2D_GetDesc(t, &td);
-    td.Usage = D3D11_USAGE_STAGING; td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    ID3D11Texture2D *st = NULL;
-    if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &st))) return 0;
-    ID3D11DeviceContext_CopyResource(g_d3d.ctx, (ID3D11Resource *)st, (ID3D11Resource *)t);
-    D3D11_MAPPED_SUBRESOURCE ms;
-    int mapped = SUCCEEDED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)st, 0, D3D11_MAP_READ, 0, &ms));
-    FILE *f = mapped ? fopen(path, "wb") : NULL;
-    if (f && depth)
-        for (UINT y = 0; y < td.Height; y++) fwrite((uint8_t *)ms.pData + (size_t)y * ms.RowPitch, 4, td.Width, f);
-    else if (f) {
-        int w = (int)td.Width, h = (int)td.Height, stride = (w * 3 + 3) & ~3;
-        BITMAPINFOHEADER bi = { sizeof bi, w, h, 1, 24, BI_RGB, (DWORD)(stride * h), 0, 0, 0, 0 };
-        BITMAPFILEHEADER fh = { 0x4D42, (DWORD)(sizeof fh + sizeof bi + bi.biSizeImage), 0, 0, sizeof fh + sizeof bi };
-        fwrite(&fh, sizeof fh, 1, f);
-        fwrite(&bi, sizeof bi, 1, f);
-        uint8_t *row = calloc((size_t)stride, 1);
-        for (int y = h - 1; row && y >= 0; y--) {   // bottom up
-            const uint8_t *src = (const uint8_t *)ms.pData + (size_t)y * ms.RowPitch;
-            for (int x = 0; x < w; x++) { row[x * 3] = src[x * 4]; row[x * 3 + 1] = src[x * 4 + 1]; row[x * 3 + 2] = src[x * 4 + 2]; }
-            fwrite(row, (size_t)stride, 1, f);
+// a presented frame while the frames taken are written: the copy whose read back the frame before started mapped (not
+// waited for: still on the card, the next frame tries again) and its rows to the writer, the next copy's read back started;
+// after the last <name>.done (the picture B8G8R8A8 as a 24-bit BMP, the depth R32_FLOAT raw, rows top down)
+#define REC_HANDED (2 * REC_MAX + 1)   // g_rec.next once all is with the writer
+internal void rec_flush_frame(void) {
+    if (!g_rec.writing || g_rec.next == REC_HANDED) return;
+    ID3D11DeviceContext *x = g_d3d.ctx;
+    if (g_rec.st) {
+        if (g_rw.queued >= REC_QUEUE) return;   // the writer behind: its memory bounded
+        D3D11_MAPPED_SUBRESOURCE ms;
+        HRESULT hr = ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_rec.st, 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &ms);
+        if (hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+        if (SUCCEEDED(hr)) {
+            D3D11_TEXTURE2D_DESC td = { 0 };
+            ID3D11Texture2D_GetDesc(g_rec.st, &td);
+            rec_item *it = calloc(1, sizeof *it);
+            uint8_t *rows = it ? malloc((size_t)td.Width * 4 * td.Height) : NULL;
+            if (rows) {
+                for (UINT y = 0; y < td.Height; y++) memcpy(rows + (size_t)y * td.Width * 4, (const uint8_t *)ms.pData + (size_t)y * ms.RowPitch, (size_t)td.Width * 4);
+                lstrcpynA(it->path, g_rec.st_path, sizeof it->path);
+                it->depth = g_rec.st_depth; it->w = td.Width; it->h = td.Height; it->rows = rows;
+                if (!rec_queue(it)) { free(rows); free(it); }
+            } else free(it);
+            ID3D11DeviceContext_Unmap(x, (ID3D11Resource *)g_rec.st, 0);
         }
-        free(row);
+        g_rec.st->lpVtbl->Release(g_rec.st);
+        g_rec.st = NULL;
     }
-    if (f) fclose(f);
-    if (mapped) ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)st, 0);
-    st->lpVtbl->Release(st);
-    return f != NULL;
-}
-
-// the frames taken into their files, the copies released
-internal void rec_flush(void) {
-    char path[MAX_PATH + 16];
-    for (int i = 0; i < g_rec.taken; i++) {
-        snprintf(path, sizeof path, "%s_%03d.bmp", g_rec.base, i);
-        if (g_rec.pic[i] && rec_write(g_rec.pic[i], path, 0)) g_rec.written++;
-        snprintf(path, sizeof path, "%s_%03d.depth", g_rec.base, i);
-        if (g_rec.dep[i]) rec_write(g_rec.dep[i], path, 1);
-        if (g_rec.pic[i]) g_rec.pic[i]->lpVtbl->Release(g_rec.pic[i]);
-        if (g_rec.dep[i]) g_rec.dep[i]->lpVtbl->Release(g_rec.dep[i]);
-        g_rec.pic[i] = g_rec.dep[i] = NULL;
+    while (!g_rec.st && g_rec.next < 2 * g_rec.taken) {
+        int i = g_rec.next / 2, depth = g_rec.next & 1;
+        ID3D11Texture2D **t = depth ? &g_rec.dep[i] : &g_rec.pic[i];
+        g_rec.next++;
+        if (!*t) continue;
+        D3D11_TEXTURE2D_DESC td = { 0 };
+        ID3D11Texture2D_GetDesc(*t, &td);
+        td.Usage = D3D11_USAGE_STAGING; td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        if (SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rec.st))) {
+            ID3D11DeviceContext_CopyResource(x, (ID3D11Resource *)g_rec.st, (ID3D11Resource *)*t);
+            snprintf(g_rec.st_path, sizeof g_rec.st_path, "%s_%03d.%s", g_rec.base, i, depth ? "depth" : "bmp");
+            g_rec.st_depth = depth;
+        } else g_rec.st = NULL;
+        (*t)->lpVtbl->Release(*t);
+        *t = NULL;
     }
-    snprintf(path, sizeof path, "%s.done", g_rec.base);   // the end, for whoever waits for the files
-    FILE *f = fopen(path, "w");
-    if (f) {
-        fprintf(f, "%d of %d frames taken, %d written\n", g_rec.taken, g_rec.n, g_rec.written);
-        fclose(f);
+    if (!g_rec.st && g_rec.next >= 2 * g_rec.taken) {   // all handed over: the end, for whoever waits for the files
+        rec_item *it = calloc(1, sizeof *it);
+        if (it) {
+            snprintf(it->path, sizeof it->path, "%s.done", g_rec.base);
+            it->done = 1;
+            if (rec_queue(it)) { g_rec.next = REC_HANDED; return; }   // the writer ends the writing
+            free(it);
+        }
+        InterlockedExchange(&g_rec.writing, 0);
     }
 }
 
@@ -146,9 +233,15 @@ internal void rec_frame(rd_surface *s) {
         fputc('\n', c);
         if (g_rec.pan[0] != 0 || g_rec.pan[1] != 0) camera_pan(g_rec.pan[0], g_rec.pan[1]);
         if (!pic) g_rec.left = 1;   // the card's memory full: the frames so far
-        if (g_rec.left == 1) { fclose(c); g_rec.csv = NULL; rec_flush(); }
+        if (g_rec.left == 1) {   // the last: the writing begins (rec_flush_frame, from the next frame on)
+            fclose(c);
+            g_rec.csv = NULL;
+            g_rec.next = 0;
+            g_rec.st = NULL;
+            InterlockedExchange(&g_rec.writing, 1);
+        }
         InterlockedDecrement(&g_rec.left);
-    }
+    } else rec_flush_frame();
     g_rec.passes = g_sh.passes;
     g_rec.kept = g_kg_drawn;
     memset(g_rec.draws, 0, sizeof g_rec.draws);
@@ -177,7 +270,7 @@ internal void cmd_record(char *out, const char *args) {
     }
     if (n < 3 || n > REC_MAX) { REPLY("error: usage: record <frames 3..120> [name] [pan <dx> <dy>] [steps | bare] [nodepth]\n"); return; }
     if (!g_rd_on) { REPLY("error: the recording needs the own renderer ([display] renderer = own)\n"); return; }
-    if (g_rec.left > 0) { REPLY("error: a recording is under way\n"); return; }
+    if (g_rec.left > 0 || g_rec.writing) { REPLY("error: a recording is under way (or its files are being written)\n"); return; }
     CreateDirectoryA(g_dump_dir, NULL);
     char dir[MAX_PATH], path[MAX_PATH + 16];
     DWORD dn = GetFullPathNameA(g_dump_dir, sizeof dir, dir, NULL);
@@ -213,6 +306,6 @@ internal void cmd_record(char *out, const char *args) {
     // not waited for: the pipe's commands run on the game's thread, and waiting there held the simulation for the
     // whole recording - the frames drawn on, the game standing still (the player, 2026-11-06: "does recording pause
     // the game?"; the flicker they saw is only there while it runs). <name>.done says when the files are written.
-    REPLY("ok: recording %d frames into %s_000.bmp ... and %s.csv; %s.done once they are written (the game stops for that)\n",
+    REPLY("ok: recording %d frames into %s_000.bmp ... and %s.csv; %s.done once they are written (a frame each, the game goes on)\n",
           n, g_rec.base, g_rec.base, g_rec.base);
 }
