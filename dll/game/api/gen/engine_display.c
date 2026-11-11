@@ -1023,6 +1023,18 @@ internal inline void vector_push(void *v, void **value) { fn_vector_push(v, valu
 typedef void (__thiscall *sort_map_insert_fn)(void *, void **, void **);
 internal sort_map_insert_fn fn_sort_map_insert;
 internal inline void sort_map_insert(void *map, void **found, void **pair) { fn_sort_map_insert(map, found, pair); }
+// a sort map emptied (thiscall on the map: erase(begin, end) - every node given to operator delete, the head
+// emptied), the objects' maps' type (sort_maps +0, +0xC, +0x18) and the trees' (+0x24, +0x30, +0x3C): the units'
+// update's six calls at its start and scene_release's six - collect_maps.c's hooks keep the nodes for the next
+// update's maps instead
+typedef void (__thiscall *sort_map_clear_fn)(void *);
+internal sort_map_clear_fn fn_sort_map_clear;
+internal inline void sort_map_clear(void *map) { fn_sort_map_clear(map); }
+internal inline int patch_units_maps_clear(sort_map_clear_fn h, int *of) { return patch_calls(calls_units_maps_clear, 6, (uintptr_t)fn_sort_map_clear, (void *)h, of); }
+typedef void (__thiscall *sort_map_clear_trees_fn)(void *);
+internal sort_map_clear_trees_fn fn_sort_map_clear_trees;
+internal inline void sort_map_clear_trees(void *map) { fn_sort_map_clear_trees(map); }
+internal inline int patch_units_trees_clear(sort_map_clear_trees_fn h, int *of) { return patch_calls(calls_units_trees_clear, 6, (uintptr_t)fn_sort_map_clear_trees, (void *)h, of); }
 // an effects' queue (std::map from a texture to a deque of EEEffect*, 12 bytes: engine_display.effect_queues): made,
 // emptied (the deques and nodes; the effects' references are the caller's)
 typedef void (__thiscall *effect_queue_new_fn)(void *);
@@ -1450,6 +1462,20 @@ internal int spec_engine_display_select(int build) {
         fn_vector_clear = (vector_clear_fn)0x00526AFF;
         fn_vector_push = (vector_push_fn)0x00504F0A;
         fn_sort_map_insert = (sort_map_insert_fn)0x0044F431;
+        fn_sort_map_clear = (sort_map_clear_fn)0x00504E82;
+        calls_units_maps_clear[0] = 0x00503CC7;
+        calls_units_maps_clear[1] = 0x00503CDB;
+        calls_units_maps_clear[2] = 0x00503CEF;
+        calls_units_maps_clear[3] = 0x005043D0;
+        calls_units_maps_clear[4] = 0x005043E4;
+        calls_units_maps_clear[5] = 0x005043F8;
+        fn_sort_map_clear_trees = (sort_map_clear_trees_fn)0x00504E96;
+        calls_units_trees_clear[0] = 0x00503CBD;
+        calls_units_trees_clear[1] = 0x00503CD1;
+        calls_units_trees_clear[2] = 0x00503CE5;
+        calls_units_trees_clear[3] = 0x005043C6;
+        calls_units_trees_clear[4] = 0x005043DA;
+        calls_units_trees_clear[5] = 0x005043EE;
         fn_effect_queue_new = (effect_queue_new_fn)0x00521704;
         fn_effect_queue_clear = (effect_queue_clear_fn)0x00504FC8;
         fn_object_release = (object_release_fn)0x004FCAD3;
@@ -1823,6 +1849,20 @@ internal int spec_engine_display_select(int build) {
         fn_vector_clear = (vector_clear_fn)0x005B5772;
         fn_vector_push = (vector_push_fn)0x0050FDA9;
         fn_sort_map_insert = (sort_map_insert_fn)0x0051005E;
+        fn_sort_map_clear = (sort_map_clear_fn)0x0050FD21;
+        calls_units_maps_clear[0] = 0x0050EC02;
+        calls_units_maps_clear[1] = 0x0050EC16;
+        calls_units_maps_clear[2] = 0x0050EC2A;
+        calls_units_maps_clear[3] = 0x0050F30B;
+        calls_units_maps_clear[4] = 0x0050F31F;
+        calls_units_maps_clear[5] = 0x0050F333;
+        fn_sort_map_clear_trees = (sort_map_clear_trees_fn)0x0050FD35;
+        calls_units_trees_clear[0] = 0x0050EBF8;
+        calls_units_trees_clear[1] = 0x0050EC0C;
+        calls_units_trees_clear[2] = 0x0050EC20;
+        calls_units_trees_clear[3] = 0x0050F301;
+        calls_units_trees_clear[4] = 0x0050F315;
+        calls_units_trees_clear[5] = 0x0050F329;
         fn_effect_queue_new = (effect_queue_new_fn)0x0056D077;
         fn_effect_queue_clear = (effect_queue_clear_fn)0x0050FE93;
         fn_object_release = (object_release_fn)0x00401DB4;
@@ -2021,6 +2061,20 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_vector_clear, "engine_display_functions.vector_clear");
     bad += spec_code((uintptr_t)fn_vector_push, "engine_display_functions.vector_push");
     bad += spec_code((uintptr_t)fn_sort_map_insert, "engine_display_functions.sort_map_insert");
+    bad += spec_code((uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear");
+    bad += spec_call(calls_units_maps_clear[0], (uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear [call_site units_maps_clear 0]");
+    bad += spec_call(calls_units_maps_clear[1], (uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear [call_site units_maps_clear 1]");
+    bad += spec_call(calls_units_maps_clear[2], (uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear [call_site units_maps_clear 2]");
+    bad += spec_call(calls_units_maps_clear[3], (uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear [call_site units_maps_clear 3]");
+    bad += spec_call(calls_units_maps_clear[4], (uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear [call_site units_maps_clear 4]");
+    bad += spec_call(calls_units_maps_clear[5], (uintptr_t)fn_sort_map_clear, "engine_display_functions.sort_map_clear [call_site units_maps_clear 5]");
+    bad += spec_code((uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees");
+    bad += spec_call(calls_units_trees_clear[0], (uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees [call_site units_trees_clear 0]");
+    bad += spec_call(calls_units_trees_clear[1], (uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees [call_site units_trees_clear 1]");
+    bad += spec_call(calls_units_trees_clear[2], (uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees [call_site units_trees_clear 2]");
+    bad += spec_call(calls_units_trees_clear[3], (uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees [call_site units_trees_clear 3]");
+    bad += spec_call(calls_units_trees_clear[4], (uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees [call_site units_trees_clear 4]");
+    bad += spec_call(calls_units_trees_clear[5], (uintptr_t)fn_sort_map_clear_trees, "engine_display_functions.sort_map_clear_trees [call_site units_trees_clear 5]");
     bad += spec_code((uintptr_t)fn_effect_queue_new, "engine_display_functions.effect_queue_new");
     bad += spec_code((uintptr_t)fn_effect_queue_clear, "engine_display_functions.effect_queue_clear");
     bad += spec_code((uintptr_t)fn_object_release, "engine_display_functions.object_release");

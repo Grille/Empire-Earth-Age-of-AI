@@ -1631,13 +1631,14 @@ internal void cmd_profile_render(int dur, char *out, int sim) {
     HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
     if (!h) { REPLY(sim ? "error: simulation thread unknown (own renderer only)\n" : "error: render thread unknown (windowed mode only)\n"); return; }
     enum { HB = 4096 };
-    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB], gdi_game[HB], own[2][HB];
+    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB], gdi_game[HB], own[2][HB], top[HB];
     struct { HMODULE m; int n; } tops[24];
     int nt = 0, samples = 0, gdi_samples = 0, own_samples = 0;
     memset(callers, 0, sizeof callers);
     memset(own, 0, sizeof own);
     memset(gdi_callers, 0, sizeof gdi_callers);
     memset(gdi_game, 0, sizeof gdi_game);
+    memset(top, 0, sizeof top);
     DWORD end = GetTickCount() + (DWORD)dur;
     timeBeginPeriod(1);
     while ((LONG)(end - GetTickCount()) > 0) {
@@ -1657,6 +1658,17 @@ internal void cmd_profile_render(int dur, char *out, int sim) {
                 while (j < nt && tops[j].m != m) j++;
                 if (j == nt && nt < 24) { tops[nt].m = m; tops[nt].n = 0; nt++; }
                 if (j < nt) tops[j].n++;
+                // the top frame's place: in Windows' own DLLs (the heap, the runtime) the first return address out of them
+                uintptr_t at = is_system_module(m) ? 0 : c.Eip & ~(uintptr_t)15;
+                for (size_t i = 0; !at && i < got / sizeof *stack; i++) {
+                    HMODULE sm = NULL;
+                    if (is_return_address(stack[i]) &&
+                        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)stack[i], &sm) &&
+                        !is_system_module(sm)) at = stack[i];
+                }
+                unsigned tq = (unsigned)(at >> 2) * 2654435761u % HB;
+                for (int p = 0; p < HB; p++, tq = (tq + 1) % HB)
+                    if (!top[tq].a || top[tq].a == at) { top[tq].a = at; top[tq].n++; break; }
                 uintptr_t caller = is_game_code(c.Eip) ? c.Eip : 0;
                 for (size_t i = 0; !caller && i < got / sizeof *stack; i++)
                     if (is_game_code(stack[i]) && is_return_address(stack[i])) caller = stack[i];
@@ -1710,6 +1722,16 @@ internal void cmd_profile_render(int dur, char *out, int sim) {
         if (tops[j].m) GetModuleFileNameA(tops[j].m, path, sizeof path);
         const char *b = strrchr(path, 0x5C);
         if (tops[j].n * 50 >= samples) REPLY("    %-28s %3d%%\n", b ? b + 1 : path, samples ? tops[j].n * 100 / samples : 0);
+    }
+    REPLY("  the top frame (16-byte buckets; in Windows' DLLs the first return address out of them):\n");
+    for (int r = 0; r < 160; r++) {
+        int best = -1;
+        for (int k = 0; k < HB; k++) if (top[k].n > 0 && (best < 0 || top[k].n > top[best].n)) best = k;
+        if (best < 0) break;
+        char at[160];
+        if (top[best].a) crash_addr(at, sizeof at, top[best].a); else lstrcpyA(at, "(only Windows code on the stack)");
+        REPLY("    %5.1f%%  %s\n", samples ? top[best].n * 100.0 / samples : 0.0, at);
+        top[best].n = -top[best].n;
     }
     REPLY("  game code it is in or called from (16-byte buckets):\n");
     for (int r = 0; r < 25; r++) {

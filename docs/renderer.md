@@ -858,6 +858,17 @@ about 42 %, the units' draw about 25-30 %): the game's sort maps built and freed
 (0x50EC37) - heap work (ntdll 14 % of the thread) - beside the mod's own fill (uc_fill, uc_fill_tree) and the effects'
 update. A draw from the mod's own collection, without the game's maps and records, takes that away too.
 
+The sort maps built at once (collect_maps.c, 2026-11-11; `picture maps game | own | check`, own with the mod's walk):
+the fills push their records into plain lists, and after the walk each list is sorted by its key (stably: the
+multimap keeps equal keys in their order) and linked into the game's map as a balanced red-black tree of the game's own
+node layout, so every reader (the draw's lists, the circles and bars 0x509E00 / 0x50AC6D, the ground shadows'
+EEROGroundShadows::vf2 - the exe's only references to the maps besides the update and EEReleaseScene) reads them as
+before. The maps' two clears (0x504E82 the objects' type, 0x504E96 the trees'; 12 calls, the update's and
+scene_release's) are hooked: the nodes - the game's operator new's - are kept for the next update instead of deleted.
+`picture maps check` keeps the game's inserts and compares each map's order with the sorted list: 2796 maps, none
+differ. The units' update 5.25 ms a frame with the game's inserts, 4.4 with the built maps (the test, paused, only the
+units drawn, the two alternating).
+
 ## The interface's text without reading the picture back
 
 2026-11-06 (the 8000-unit save ran at either about 3200 or about 1900 frames a minute, by game, whatever the build).

@@ -879,6 +879,8 @@ internal uint32_t value_engine_display_size_ghost_record;
 internal uint32_t value_engine_display_of_ghost_record_heights;
 internal uint32_t value_engine_display_of_ghost_record_cells;
 internal uint32_t value_engine_display_of_ghost_record_tile;
+internal uint32_t calls_units_maps_clear[6];
+internal uint32_t calls_units_trees_clear[6];
 internal uint32_t calls_scene_release[2];
 
 // engine_sound.cs

@@ -1527,6 +1527,28 @@ static unsafe class engine_display_functions
     [address((ee)0x0044F431, (aoc)0x0051005E), thiscall]
     static extern void sort_map_insert(void* map, void** found, void** pair);
 
+    /// a sort map emptied (thiscall on the map: erase(begin, end) - every node given to operator delete, the head
+    /// emptied), the objects' maps' type (sort_maps +0, +0xC, +0x18) and the trees' (+0x24, +0x30, +0x3C): the units'
+    /// update's six calls at its start and scene_release's six - collect_maps.c's hooks keep the nodes for the next
+    /// update's maps instead
+    [address((ee)0x00504E82, (aoc)0x0050FD21), thiscall]
+    [call_site("units_maps_clear", (ee)0x00503CC7, (aoc)0x0050EC02)]
+    [call_site("units_maps_clear", (ee)0x00503CDB, (aoc)0x0050EC16)]
+    [call_site("units_maps_clear", (ee)0x00503CEF, (aoc)0x0050EC2A)]
+    [call_site("units_maps_clear", (ee)0x005043D0, (aoc)0x0050F30B)]
+    [call_site("units_maps_clear", (ee)0x005043E4, (aoc)0x0050F31F)]
+    [call_site("units_maps_clear", (ee)0x005043F8, (aoc)0x0050F333)]
+    static extern void sort_map_clear(void* map);
+
+    [address((ee)0x00504E96, (aoc)0x0050FD35), thiscall]
+    [call_site("units_trees_clear", (ee)0x00503CBD, (aoc)0x0050EBF8)]
+    [call_site("units_trees_clear", (ee)0x00503CD1, (aoc)0x0050EC0C)]
+    [call_site("units_trees_clear", (ee)0x00503CE5, (aoc)0x0050EC20)]
+    [call_site("units_trees_clear", (ee)0x005043C6, (aoc)0x0050F301)]
+    [call_site("units_trees_clear", (ee)0x005043DA, (aoc)0x0050F315)]
+    [call_site("units_trees_clear", (ee)0x005043EE, (aoc)0x0050F329)]
+    static extern void sort_map_clear_trees(void* map);
+
     /// an effects' queue (std::map from a texture to a deque of EEEffect*, 12 bytes: engine_display.effect_queues): made,
     /// emptied (the deques and nodes; the effects' references are the caller's)
     [address((ee)0x00521704, (aoc)0x0056D077), thiscall]

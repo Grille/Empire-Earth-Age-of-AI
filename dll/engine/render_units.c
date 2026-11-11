@@ -241,7 +241,9 @@ internal int ud_record(ee_ro_units *ro, void *rec) {
     return 1;
 }
 // the pipe: picture draw [game | own | check]
+internal int um_pipe(char *out, const char *arg);   // collect_maps.c
 internal int ud_pipe(char *out, const char *mode, const char *arg) {
+    if (!strcmp(mode, "maps")) return um_pipe(out, arg);
     if (strcmp(mode, "draw")) return 0;
     if (!strcmp(arg, "game") || !strcmp(arg, "own") || !strcmp(arg, "check")) {
         g_ud.force = arg[0] == 'g' ? 0 : arg[0] == 'o' ? 1 : 2;

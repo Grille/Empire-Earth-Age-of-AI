@@ -409,6 +409,8 @@ internal inline void *vector_first(const void *v) { return *(void *const *)((con
 internal inline void *vector_end(const void *v) { return *(void *const *)((const uint8_t *)v + 8); }
 internal inline ee_model *graphics_anim_model(const ee_dmg_model *g, int anim) { return ((ee_model *const *)dmg_model_anim_model_at(g))[anim]; }
 internal inline ee_texture *graphics_anim_texture(const ee_dmg_model *g, int anim) { return ((ee_texture *const *)dmg_model_anim_keys_at(g))[anim]; }
+// the game's operator delete (collect_maps.c: the sort maps' nodes it doesn't keep)
+internal inline void game_delete(void *p) { ((void (__cdecl *)(void *))(uintptr_t)data_unit_fn_op_delete)(p); }
 internal inline int draw_record_tints_model(const void *rec) { return draw_record_get_type_id(rec) == (int)value_engine_display_tinted_type; }
 // a unit by its id as the world's lookup answers (the fill's: no check of its player first, unlike unit_by_id); whether
 // a group holds a unit (its vf3)
