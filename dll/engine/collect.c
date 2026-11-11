@@ -20,6 +20,7 @@ __attribute__((used)) volatile int g_uc_own;              // the walk ours (the 
 internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's constructor (collect_install)
 
 #include "collect_copy.c"   // step 3: the world's copy the walk reads
+#include "collect_maps.c"   // the sort maps built at once after the walk
 
 // STEP 4: THE MOVING BETWEEN STEPS (the pipe: picture collect smooth; collect_copy.c cp_pose_swap has the poses). A
 // moving object's record drawn at the game time g_uc_show - the pieces' clock (pt_clock: running on with the real time, a
@@ -867,11 +868,11 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
         draw_record_set_ground_z(rec, ground[2]);
     }
     if (!k->ship) uc_sink_at(t, k->gfx, k->anim, k->frame, k->scale, d);
-    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
-    sort_map_insert(maps + (op < 1.0f ? 0xC : 0), found, pair);
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
+    uc_map_insert(maps + (op < 1.0f ? 0xC : 0), pair);
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(k->gfx);
     pair[1] = rec;
-    sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+    uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
     return 1;
 }
 // the walk's end: those it didn't meet removed (kept) or out of the view (let go), the kept ones drawn on the tiles of the
@@ -1291,12 +1292,12 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         if (!ship) uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);
     }
     uc_pick_add(u, rec, draw_record_get_opacity(rec));
-    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
-    sort_map_insert(sort_map, found, pair);
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
+    uc_map_insert(sort_map, pair);
     if (second && !second_foundation) {
         pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
         pair[1] = rec;
-        sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+        uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
     }
 }
 
@@ -1351,12 +1352,12 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
         draw_small_record_set_sway(rec, (float)s);
     } else draw_small_record_set_sway(rec, 0.0f);
     if (dry) return;
-    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
-    sort_map_insert(sort_map, found, pair);
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
+    uc_map_insert(sort_map, pair);
     uc_pick_add(o->u, t, draw_small_record_get_opacity(rec));
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
     pair[1] = rec;
-    sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
+    uc_map_insert(engine_display_sort_maps_at() + 0x3C, pair);
 }
 
 // the walk's trees' fill: the game's, or the game's held against ours (fill check: the record as it was before the
@@ -1465,11 +1466,11 @@ internal int uc_fill_dopp(const uc_dopp *p, uint8_t *rec, uint32_t *count, void 
         draw_record_set_state(rec, 0);
         if (!dry) {
             uc_pick_add(p->u, rec, draw_record_get_opacity(rec));
-            void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), 0), rec };
-            sort_map_insert(sort_map, found, pair);
+            void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), 0), rec };
+            uc_map_insert(sort_map, pair);
             pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
             pair[1] = rec;
-            sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+            uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
             ++*count;
         }
     }
@@ -1522,12 +1523,12 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
         } else draw_small_record_set_sway(rec, 0.0f);
         if (!dry) {
             if (info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), p->u);
-            void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
-            sort_map_insert(sort_map, found, pair);
+            void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
+            uc_map_insert(sort_map, pair);
             uc_pick_add(p->u, t, draw_small_record_get_opacity(rec));
             pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
             pair[1] = rec;
-            sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
+            uc_map_insert(engine_display_sort_maps_at() + 0x3C, pair);
             ++*count;
         }
     }
@@ -1848,7 +1849,9 @@ internal void collect_during_end(void) {
 __attribute__((used)) int __cdecl collect_at(uint8_t *f) {
     if (!g_uc_grown) picker_grow();
     if (!g_uc_own) return 0;
+    um_walk_begin();
     collect_walk(f);
+    um_walk_end();
     return 1;
 }
 
@@ -1891,6 +1894,7 @@ internal void collect_install(void) {
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");
     if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
+    if (g_uc_installed) collect_maps_install();
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);
     if (g_uc_installed && g_set.units_smooth) {   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on, and during the steps
