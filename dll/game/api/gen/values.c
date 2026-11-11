@@ -1256,6 +1256,7 @@ internal uint32_t data_map_iat_set_water_color_set;
 internal uint32_t data_map_iat_set_z;
 internal uint32_t data_map_iat_compute_normal;
 internal uint32_t data_map_iat_compute_shorelines;
+internal uint32_t data_map_iat_texture_set_texture;
 internal uint32_t data_map_iat_register_color_set;
 internal uint32_t data_map_color_types;
 internal uint32_t value_map_of_mesh_color_sets;

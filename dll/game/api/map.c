@@ -149,6 +149,12 @@ internal inline int patch_mesh_compute_normal(mesh_at_fn h, mesh_at_fn *orig) {
 internal inline int patch_mesh_compute_shorelines(mesh_at_fn h, mesh_at_fn *orig) {
     return iat_hook(data_map_iat_compute_shorelines, "Low-Level Engine.dll", "?ComputeShorelines@GETerrainMesh@@QAEXKK@Z", (void *)h, (void **)orig);
 }
+// a texture of a terrain type's set replaced, through the exe's import: the type's textures made, or all let go when its
+// last tile is painted over (the old one freed then, unless something else holds it)
+typedef void (__thiscall *texture_set_texture_fn)(void *set, unsigned long x, unsigned long y, void *tex);
+internal inline int patch_texture_set_texture(texture_set_texture_fn h, texture_set_texture_fn *orig) {
+    return iat_hook(data_map_iat_texture_set_texture, "Low-Level Engine.dll", "?SetTexture@GETextureSet@@QAEXKKPAVGETexture@@@Z", (void *)h, (void **)orig);
+}
 internal inline void mesh_set_z(void *mesh, unsigned long x, unsigned long y, float z) { (*(mesh_set_z_fn *)data_map_iat_set_z)(mesh, x, y, z); }
 internal inline void mesh_compute_normal(void *mesh, unsigned long x, unsigned long y) { (*(mesh_at_fn *)data_map_iat_compute_normal)(mesh, x, y); }
 internal inline void mesh_compute_shorelines(void *mesh, unsigned long x, unsigned long y) { (*(mesh_at_fn *)data_map_iat_compute_shorelines)(mesh, x, y); }

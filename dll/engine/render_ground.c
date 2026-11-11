@@ -118,6 +118,8 @@ internal volatile int g_rg_any;
 internal volatile int g_rg_new_map;
 internal mesh_set_z_fn g_rg_set_z;
 internal mesh_at_fn g_rg_normal, g_rg_shores;
+internal texture_set_texture_fn g_rg_set_texture;
+internal volatile uint8_t g_rg_gone[RG_MATERIALS];   // a material whose texture its set let go: its chunks to make again
 
 #define RG_GET(field, name) (*(FARPROC *)&g_rg.field = GetProcAddress(lle, name), g_rg.field != NULL)
 internal int rg_api(void) {
@@ -153,6 +155,7 @@ internal void rg_free(void) {
     for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.hgt[m]);
     g_rg.built = g_rg.nmat = 0;
     memset(g_rg_dirty, 0, sizeof g_rg_dirty);
+    memset((void *)g_rg_gone, 0, sizeof g_rg_gone);
     g_rg_any = 0;
 }
 // a corner changed: the chunks of the tiles its height, colour or normal reach (a normal is its neighbours' heights: two tiles round)
@@ -178,8 +181,20 @@ internal void render_new_map(void) {
     g_rg_new_map = 1;
     g_sh.hmap = NULL;
 }
+// a terrain type's texture let go: the type's last tile painted over sets all its set's textures to 0, and they are freed
+// (the player, 2026-11-11: "game died", in the editor). The game's own draw asks the set each frame; the chunks keep the
+// texture they were made with, and bound it after it was gone. Its material is dropped here (bound as none meanwhile, the
+// picture kept: srv holds it) and the chunks drawn with it are made again at the next frame (rg_rebuild).
+internal void __thiscall rg_hook_set_texture(void *set, unsigned long x, unsigned long y, void *tex) {
+    void *old = g_rg.api > 0 ? g_rg.tex(set, x, y) : NULL;
+    g_rg_set_texture(set, x, y, tex);
+    if (!old || old == tex || !g_rg.built) return;
+    for (int m = 0; m < g_rg.nmat; m++)
+        if (g_rg.mat[m] == old) { g_rg.mat[m] = NULL; g_rg_gone[m] = 1; g_rg_any = 1; }
+}
 internal int rg_changes_install(void) {
-    return patch_mesh_set_z(rg_hook_set_z, &g_rg_set_z) + patch_mesh_compute_normal(rg_hook_normal, &g_rg_normal) + patch_mesh_compute_shorelines(rg_hook_shores, &g_rg_shores);
+    return patch_mesh_set_z(rg_hook_set_z, &g_rg_set_z) + patch_mesh_compute_normal(rg_hook_normal, &g_rg_normal) + patch_mesh_compute_shorelines(rg_hook_shores, &g_rg_shores)
+         + patch_texture_set_texture(rg_hook_set_texture, &g_rg_set_texture);
 }
 // a colour of the game's for a vertex (bytes B G R, alpha the corner's)
 internal uint32_t rg_bytes(const float *c, int a) {
@@ -587,6 +602,16 @@ internal void rg_editor(void) {
 // the marked chunks made again, and the black round the map with them (its inner points are the ground's)
 internal void rg_rebuild(void) {
     g_rg_any = 0;
+    int gone = 0, again = 0;
+    for (int m = 0; m < g_rg.nmat; m++) {
+        if (!g_rg_gone[m]) continue;
+        g_rg_gone[m] = 0;
+        gone++;
+        for (int k = 0; k < g_rg.across * g_rg.across; k++)
+            for (int r = 0; r < g_rg.c[k].p[0].nr; r++)
+                if (g_rg.c[k].p[0].r[r].m == m) { again += !g_rg_dirty[k / g_rg.across * RG_ACROSS + k % g_rg.across]; g_rg_dirty[k / g_rg.across * RG_ACROSS + k % g_rg.across] = 1; break; }
+    }
+    if (gone) log_locked("# ground: %d textures let go by their terrain's set, %d chunks drawn with them made again\n", gone, again);
     rg_tri *tris = malloc(sizeof *tris * (size_t)RG_CHUNK * RG_CHUNK * 2 * RG_LAYERS);
     if (!tris) return;
     int made = 0;

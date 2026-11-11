@@ -373,6 +373,11 @@ internal inline uint8_t *map_iat_set_z_at(void) { return (uint8_t *)(uintptr_t)d
 internal inline uint8_t *map_iat_compute_normal_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_compute_normal; }
 // GETerrainMesh::ComputeShorelines (x, y): a tile's water bits again (GetWaterInfo) after the heights changed
 internal inline uint8_t *map_iat_compute_shorelines_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_compute_shorelines; }
+// GETextureSet::SetTexture (thiscall on a terrain type's set: x, y, the texture or 0): the set's own reference
+// moves to the new one and the old one is dereferenced - freed when nothing else holds it. A terrain type's
+// textures are made when its first tile is laid (0x4D579A) and all set to 0 when its count of tiles falls to 0
+// (0x4D5ACB: map_set_texture with release 1, the editor's paint), again at a map's setup (0x4D5A54)
+internal inline uint8_t *map_iat_texture_set_texture_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_texture_set_texture; }
 // GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
 // the slots copied - the map's setup's for every colour type
 internal inline uint8_t *map_iat_register_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_register_color_set; }
@@ -501,6 +506,7 @@ internal int spec_map_select(int build) {
         data_map_iat_set_z = 0x0082393C;
         data_map_iat_compute_normal = 0x00823958;
         data_map_iat_compute_shorelines = 0x00823954;
+        data_map_iat_texture_set_texture = 0x00823730;
         data_map_iat_register_color_set = 0x0082391C;
         data_map_color_types = 0x008D1FF8;
         value_map_of_mesh_color_sets = 80;
@@ -607,6 +613,7 @@ internal int spec_map_select(int build) {
         data_map_iat_set_z = 0x00837920;
         data_map_iat_compute_normal = 0x0083793C;
         data_map_iat_compute_shorelines = 0x00837938;
+        data_map_iat_texture_set_texture = 0x008376DC;
         data_map_iat_register_color_set = 0x008378F8;
         data_map_color_types = 0x008E86F8;
         value_map_of_mesh_color_sets = 108;
@@ -667,6 +674,7 @@ internal int spec_map_check(void) {
     bad += spec_data(data_map_iat_set_z, "map.iat_set_z");
     bad += spec_data(data_map_iat_compute_normal, "map.iat_compute_normal");
     bad += spec_data(data_map_iat_compute_shorelines, "map.iat_compute_shorelines");
+    bad += spec_data(data_map_iat_texture_set_texture, "map.iat_texture_set_texture");
     bad += spec_data(data_map_iat_register_color_set, "map.iat_register_color_set");
     bad += spec_data(data_map_color_types, "map.color_types");
     bad += spec_data(data_map_terrain_current, "map.terrain_current");

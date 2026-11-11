@@ -425,6 +425,14 @@ static unsafe class map
     [address((ee)0x00823954, (aoc)0x00837938)]
     static block iat_compute_shorelines;
 
+    /// GETextureSet::SetTexture (thiscall on a terrain type's set: x, y, the texture or 0): the set's own reference
+    /// moves to the new one and the old one is dereferenced - freed when nothing else holds it. A terrain type's
+    /// textures are made when its first tile is laid (0x4D579A) and all set to 0 when its count of tiles falls to 0
+    /// (0x4D5ACB: map_set_texture with release 1, the editor's paint), again at a map's setup (0x4D5A54)
+    [import_slot("Low-Level Engine.dll", "?SetTexture@GETextureSet@@QAEXKKPAVGETexture@@@Z")]
+    [address((ee)0x00823730, (aoc)0x008376DC)]
+    static block iat_texture_set_texture;
+
     /// GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
     /// the slots copied - the map's setup's for every colour type
     [import_slot("Low-Level Engine.dll", "?RegisterColorSet@GETerrainMesh@@QAEJAAV?$vector@KV?$allocator@K@std@@@std@@AAK@Z")]
