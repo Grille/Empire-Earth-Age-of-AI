@@ -505,6 +505,7 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
 // the 1-tile gap where the whole cost says 77, the 70 about 10 where it says 36: SR_WIDE_COST. At half the cost the
 // 70 still went round for the 3-tile gap and stood 15 s later (94 / 109 s): SR_WIDE_MARGIN
 #define SR_WIDE_TRIES 6
+#define SR_WIDE_AREA 60.0f             // square tiles: a smaller formation keeps the shortest way (measured, below: no gain for 41)
 #define SR_WIDE_MARGIN 6.0f            // tiles: a wider way must be this much cheaper - a formation off the straight way wheels, and slows in its turns
 #define SR_WIDE_COST 0.5f              // of that way: the units press through a gap closer than they march (measured, below)
 internal unsigned g_sr_wide[3];         // formation leaders' routes weighed, with a narrow place on the shortest, given a wider way
@@ -523,7 +524,7 @@ internal int sr_wide(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
     float width = sqrtf(2 * area);
     int fit = (int)ceilf(width);   // the width the formation fits through
     if (fit > SR_WIDE_MAX) fit = SR_WIDE_MAX;
-    if (fit < 2 || n < 2) return n;
+    if (fit < 2 || n < 2 || area < SR_WIDE_AREA) return n;
     if (++g_sr.cgen == 0) { memset(g_sr.clr_at, 0, g_sr.n * 4); g_sr.cgen = 1; }
     g_sr_w_most = fit;
     g_sr_wide[0]++;
