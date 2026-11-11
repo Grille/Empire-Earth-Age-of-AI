@@ -1313,6 +1313,18 @@ internal int ff_fighting(struct ff_group *gr) {
     }
     return n;
 }
+// a unit of gr is fighting: alive, not dropped out, its current order an attack
+internal int ff_in_fight(const struct ff_group *gr) {
+    int gi = (int)(gr - g_ff);
+    for (int i = 0; i < FF_UNITS; i++) {
+        const struct ff_unit *e = &g_ff_u[i];
+        if (!e->id || e->g != gi || e->out) continue;
+        ee_unit *u = unit_by_id(e->id);
+        ee_goal *g = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
+        if (g && goal_is_attack(g)) return 1;
+    }
+    return 0;
+}
 internal ee_unit *ff_hand_over(struct ff_group *gr, const char *why) {
     int gi = (int)(gr - g_ff);
     struct ff_unit *best = NULL;
@@ -1369,7 +1381,12 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     }
     if (l && !gr->drain && gr->started && unit_get_goal(l) && goal_is_attack(unit_get_goal(l))) {   // the leader fights: the anchor would follow its chase - another leads on (the fighter back to its place after, as any)
         ee_unit *nl = ff_hand_over(gr, "fighting");
-        if (nl) l = nl;
+        // nobody left on the move to lead - every unit of it in the fight: the march waits as a queued one does (nobody
+        // steered) till the first is back on its move and leads on. It ended here before (the leader "given another
+        // order"), and the units went on one by one after their fights by their own goals, no look for enemies on the
+        // way: through the enemy's army (the player, 2026-11-11, zz_am_fail.ees: 50 riders into 189, march over at 22 s)
+        if (!nl) return NULL;
+        l = nl;
     }
     if (l && gr->goal && gr->started && !gr->drain && unit_get_hp(l) > 0 && ff_on_move(gr, l) < 0) {   // the leader sent on again to its spot (ff_linger_tick, its move dropped) before this step saw it idle: it leads on by its new goal (else "another order", and the march ended for good)
         struct ff_unit *le = ff_find(gr->leader, 0);
@@ -1381,6 +1398,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     if (on < 0 && !gr->drain && gr->started && (!l || unit_get_hp(l) <= 0 || !unit_orders(l))) {   // its move dropped, or dead: another leads on (ff_hand_over); nobody on the move: stopped
         ee_unit *nl = ff_hand_over(gr, "idle, its move dropped short of its spot");
         if (nl) { l = nl; on = 1; }
+        else if (gr->attack && ff_in_fight(gr)) return NULL;   // the leader fell and every other is in the fight: the march waits for the first back on its move (above)
         else gr->stopped = ff_most_far(gr);
     }
     if (on < 0) {   // the leader's move done (it idles - or died: the others still arrive), else it was given another order
@@ -1644,16 +1662,22 @@ internal void ff_scan_tick(struct ff_group *gr, uint32_t step) {
         g_ff_looks++;
     }
     // for the player's games, every 10 s of a march that steers anyone (the player, 2026-11-11: an attack-move of 303 "just walking through the enemy" - 66 of them within 6 tiles of knights, none with a target, no look given in 2.5 s; not reproduced from their orders: this line tells next time whether the game's search found nothing)
-    if (g_log && steered && step % 200 == 0) fprintf(g_log, "# formation: %d units at %.1f,%.1f: attack-move, %d steered, %d of them advancing, %d with an enemy in sight this look (%u looks given so far)%c", gr->n, gr->anchor.x, gr->anchor.y, steered, advancing, found, g_ff_looks, 10);
+    if (g_log && steered && step / FF_HOME_EVERY % 20 == 0) fprintf(g_log, "# formation: %d units at %.1f,%.1f: attack-move, %d steered, %d of them advancing, %d with an enemy in sight this look (%u looks given so far)%c", gr->n, gr->anchor.x, gr->anchor.y, steered, advancing, found, g_ff_looks, 10);
 }
 // a land march on its way (the units sent on again while it goes - ships keep their own routes)
 internal int ff_marching(const struct ff_group *gr) { return gr->on && gr->started && !gr->naval && gr->in_place != 1 && !gr->drain; }   // not in the drain: a unit sent on again there is on its own goal, and the leader re-sent ended the march (the given up on walk back once it drained)
 internal int ff_lingering(const struct ff_group *gr) {
     return !gr->on && gr->linger && ff_since(gr->linger) < FF_LINGER_MAX && (!gr->settled || ff_since(gr->settled) < FF_LINGER);
 }
+internal uint32_t g_ff_ticked = ~0u;   // the block of FF_HOME_EVERY steps ff_linger_tick last ran in
 internal void ff_linger_tick(void) {
     uint32_t step = ff_step();
-    if (!g_ff_on || step % FF_HOME_EVERY) return;
+    // once in every FF_HOME_EVERY steps, whichever of them this is called at: the game calls it once a turn, and a turn is
+    // several steps (15 in that test) from wherever the game began - a save taken at step 26294 was looked at at
+    // steps ending in 4 and 9 only, never one divisible by 10, and nothing here ran for the whole game (the player,
+    // 2026-11-11, zz_am_fail.ees: 50 riders attack-moved through the enemy, no look for enemies given)
+    if (!g_ff_on || step / FF_HOME_EVERY == g_ff_ticked) return;
+    g_ff_ticked = step / FF_HOME_EVERY;
     static int moving[FF_GROUPS];
     int any = 0;
     for (int k = 0; k < FF_GROUPS; k++) {
@@ -2172,6 +2196,7 @@ internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, flo
 
 internal void groupmove_new_game(void) {
     memset(g_ff, 0, sizeof g_ff);
+    g_ff_ticked = ~0u;
     memset(g_ff_u, 0, sizeof g_ff_u);
     memset(g_ff_p, 0, sizeof g_ff_p);
     g_ff_p_next = 0;
