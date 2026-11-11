@@ -224,7 +224,7 @@ unsafe struct EESEAQuickSaveLoad
 unsafe struct EESEAQuickSaveScenario
 {
     /// vf1: the editor's Quick Save - its EEAQuickSaveLoad queued to save (+0x28 0, +0x29 1), a saved game with the
-    /// units' goals (editor_orders.c: the units' orders dropped first)
+    /// units' goals
     [slot(1), address((ee)0x0059A613, (aoc)0x005AA723)]
     [vtable_site("se_quick_save")]
     extern void run();
@@ -252,7 +252,7 @@ unsafe struct EESEASaveScenario
     [address((ee)0x0059A6F2, (aoc)0x005AA802)]
     extern void* init();
 
-    /// vf1: the scenario written (the editor's Save; editor_orders.c: the units' orders dropped first)
+    /// vf1: the scenario written (the editor's Save) - the units' goals with them, as a saved game's
     [slot(1), address((ee)0x0059A706, (aoc)0x005AA816)]
     [vtable_site("se_save")]
     extern void run();
@@ -271,8 +271,8 @@ unsafe struct EESEATestScenario
     [address((ee)0x0059A99D, (aoc)0x005AAAAD)]
     extern void* init();
 
-    /// vf1: the scenario played as a test (the editor's Test: its form's 0x58F2B8 with 1; editor_orders.c: the units'
-    /// orders dropped first)
+    /// vf1: the scenario played as a test (the editor's Test: its form's 0x58F2B8 with 1 - ScenDefault.scn written, the
+    /// game started on the editor's world, EEUIFScenarioEditor.testing set)
     [slot(1), address((ee)0x0059A9B1, (aoc)0x005AAAC1)]
     [vtable_site("se_test")]
     extern void run();
@@ -1814,6 +1814,12 @@ unsafe struct EEUIFScenarioEditor
     [offset(0x21C), found(c)]
     vector selection;
 
+    /// a test of the scenario going on: the Test (0x58F2B8 with 1) sets it after it has written ScenDefault.scn and
+    /// started the game, the form's open clears it - when the test is over the open puts the world back as the file
+    /// has it (the units where they stood, the file's orders added to the ones they hold; both builds)
+    [offset(0x2B4), found(c)]
+    uint8 testing;
+
     /// every frame the editor is on screen (walls.c: the editor's walls watched while it is)
     [address((ee)0x0058F0D0, (aoc)0x0059F501), overrides(typeof(UIForm))]
     [vtable_site("editor_frame")]
@@ -1831,7 +1837,9 @@ unsafe struct EEUIFScenarioEditor
     [address((ee)0x0058E30D, (aoc)0x0059E72C), overrides(typeof(UIForm))]
     extern int32 copy_data();
 
+    /// the editor shown: from the main menu, and back from a test (editor_orders.c: the test's orders dropped first)
     [address((ee)0x0058F363, (aoc)0x0059F794), overrides(typeof(UIForm))]
+    [vtable_site("editor_open")]
     extern void open();
 }
 

@@ -62,6 +62,7 @@ internal void editor_undo_new_game(void);  // engine/editor_undo.c
 internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
+internal void editor_test_saved(const char *folder, const char *file);   // engine/editor_orders.c
 internal void econ_targets(ee_resource_mgr *rm);
 internal void econ_rebalance(ee_resource_mgr *rm);
 internal void town_idle(ee_resource_mgr *rm);   // sites.c
@@ -463,8 +464,8 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/walls.c"
 #include "engine/editor_place.c"
 #include "engine/editor_formation.c"
-#include "engine/editor_orders.c"
 #include "engine/editor_undo.c"
+#include "engine/editor_orders.c"
 #include "engine/editor_search.c"
 #include "engine/editor_camera.c"
 #include "engine/terrain_cliffs.c"

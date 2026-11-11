@@ -135,6 +135,7 @@ internal int __cdecl hook_save_game(void *file, int a, int b, struct ustring fol
     int r = save_game(file, a, b, folder);
     if (g_log) fprintf(g_log, "# persist: game saved as \"%s\" in \"%s\" (result %d)\n", fname, dname, r);
     if (!r && g_persist && fname[0]) persist_write(dname, fname);   // 0 = saved (else the error dialog 0x65C6A9)
+    if (!r && fname[0]) editor_test_saved(dname, fname);   // the editor's test: its scenario kept
     return r;
 }
 

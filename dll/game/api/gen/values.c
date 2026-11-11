@@ -556,6 +556,7 @@ internal uint32_t size_eeuif_scenario_editor;
 internal uint32_t call_editor_form;
 internal uint32_t of_editor_form_minimap;
 internal uint32_t of_editor_form_selection;
+internal uint32_t of_editor_form_testing;
 internal uint32_t data_editor_ground_listeners;
 internal uint32_t value_editor_group_units;
 internal uint32_t value_editor_group_elevation;

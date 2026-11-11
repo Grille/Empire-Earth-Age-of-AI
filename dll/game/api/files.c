@@ -62,3 +62,22 @@ internal int patch_fs_find(fs_find_fn hook) {
     g_fs_find = (fs_find_fn)orig;
     return 1;
 }
+
+// an FSFileSpec of a path (the room given: 0x100 bytes; an FSFileSpec is 0x48) - its UString constructor, the path
+// relative to the game folder or whole; 0: an export missing. fs_spec_free when done
+internal int fs_spec_init(void *spec, const char *path) {
+    typedef void *(__thiscall *ctor_fn)(void *, const void *);
+    ctor_fn ctor = (ctor_fn)fs_export("??0FSFileSpec@@QAE@ABVUString@@@Z");
+    if (!ctor) return 0;
+    __attribute__((aligned(8))) uint8_t s[32] = { 0 };
+    ustring_init(s);
+    ustring_set(s, path);
+    ctor(spec, s);
+    ustring_free(s);
+    return 1;
+}
+internal void fs_spec_free(void *spec) {
+    typedef void (__thiscall *dtor_fn)(void *);
+    dtor_fn dtor = (dtor_fn)fs_export("??1FSFileSpec@@UAE@XZ");
+    if (dtor) dtor(spec);
+}

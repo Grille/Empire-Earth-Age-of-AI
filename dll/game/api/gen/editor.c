@@ -191,7 +191,7 @@ internal inline void *eesea_quick_save_load_init(eesea_quick_save_load *eesea_qu
 // class EESEAQuickSaveScenario (ee_se_quick_save)
 // made in 0x59F61B
 // vf1: the editor's Quick Save - its EEAQuickSaveLoad queued to save (+0x28 0, +0x29 1), a saved game with the
-// units' goals (editor_orders.c: the units' orders dropped first)
+// units' goals
 typedef void (__thiscall *se_quick_save_run_fn)(ee_se_quick_save *);
 internal inline void se_quick_save_run(ee_se_quick_save *se_quick_save) { ((se_quick_save_run_fn)(*(void ***)se_quick_save)[slot_se_quick_save_run])(se_quick_save); }
 internal se_quick_save_run_fn fn_eesea_quick_save_scenario_run;
@@ -217,7 +217,7 @@ internal inline int patch_se_rotate(se_rotate_run_fn h) { return patch_vtable(vt
 typedef void *(__thiscall *se_save_init_fn)(ee_se_save *);
 internal se_save_init_fn fn_se_save_init;
 internal inline void *se_save_init(ee_se_save *se_save) { return fn_se_save_init(se_save); }
-// vf1: the scenario written (the editor's Save; editor_orders.c: the units' orders dropped first)
+// vf1: the scenario written (the editor's Save) - the units' goals with them, as a saved game's
 typedef void (__thiscall *se_save_run_fn)(ee_se_save *);
 internal inline void se_save_run(ee_se_save *se_save) { ((se_save_run_fn)(*(void ***)se_save)[slot_se_save_run])(se_save); }
 internal se_save_run_fn fn_eesea_save_scenario_run;
@@ -232,8 +232,8 @@ internal inline int patch_se_save(se_save_run_fn h) { return patch_vtable(vt_ees
 typedef void *(__thiscall *se_test_init_fn)(ee_se_test *);
 internal se_test_init_fn fn_se_test_init;
 internal inline void *se_test_init(ee_se_test *se_test) { return fn_se_test_init(se_test); }
-// vf1: the scenario played as a test (the editor's Test: its form's 0x58F2B8 with 1; editor_orders.c: the units'
-// orders dropped first)
+// vf1: the scenario played as a test (the editor's Test: its form's 0x58F2B8 with 1 - ScenDefault.scn written, the
+// game started on the editor's world, EEUIFScenarioEditor.testing set)
 typedef void (__thiscall *se_test_run_fn)(ee_se_test *);
 internal inline void se_test_run(ee_se_test *se_test) { ((se_test_run_fn)(*(void ***)se_test)[slot_se_test_run])(se_test); }
 internal se_test_run_fn fn_eesea_test_scenario_run;
@@ -2532,6 +2532,12 @@ internal inline eeui_mini_map **editor_form_minimap_at(const ee_editor_form *o) 
 // clear 0x58F623 takes them all off; EESEARotateUnits' vf1 walks them ([game.ui_manager] +0x130, the form shown;
 // both builds)
 internal inline uint8_t *editor_form_selection_at(const ee_editor_form *o) { return (uint8_t *)o + of_editor_form_selection; }
+// a test of the scenario going on: the Test (0x58F2B8 with 1) sets it after it has written ScenDefault.scn and
+// started the game, the form's open clears it - when the test is over the open puts the world back as the file
+// has it (the units where they stood, the file's orders added to the ones they hold; both builds)
+internal inline uint8_t editor_form_get_testing(const ee_editor_form *o) { return *(uint8_t *)((uint8_t *)o + of_editor_form_testing); }
+internal inline void editor_form_set_testing(ee_editor_form *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_editor_form_testing) = v; }
+internal inline uint8_t *editor_form_testing_at(const ee_editor_form *o) { return (uint8_t *)((uint8_t *)o + of_editor_form_testing); }
 // every frame the editor is on screen (walls.c: the editor's walls watched while it is)
 typedef int (__thiscall *editor_form_draw_background_fn)(ee_editor_form *, void *);
 internal editor_form_draw_background_fn fn_editor_form_draw_background;
@@ -2549,9 +2555,11 @@ internal inline void editor_form_close(ee_editor_form *editor_form) { fn_editor_
 typedef int (__thiscall *editor_form_copy_data_fn)(ee_editor_form *);
 internal editor_form_copy_data_fn fn_editor_form_copy_data;
 internal inline int editor_form_copy_data(ee_editor_form *editor_form) { return fn_editor_form_copy_data(editor_form); }
+// the editor shown: from the main menu, and back from a test (editor_orders.c: the test's orders dropped first)
 typedef void (__thiscall *editor_form_open_fn)(ee_editor_form *);
 internal editor_form_open_fn fn_editor_form_open;
 internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_form_open(editor_form); }
+internal inline int patch_editor_open(editor_form_open_fn h) { return patch_vtable(vt_eeuif_scenario_editor, (int)slot_ui_form_open, (uintptr_t)fn_editor_form_open, (void *)h); }
 
 // static class editor
 // the listeners told of a change of the ground (a list; what EESEAPaintElevation's end tells, editor_functions.ground_changed)
@@ -3182,6 +3190,7 @@ internal int spec_editor_select(int build) {
         call_editor_form = 0x0065BA13;
         of_editor_form_minimap = 0x238;
         of_editor_form_selection = 0x21C;
+        of_editor_form_testing = 0x2B4;
         fn_editor_form_draw_background = (editor_form_draw_background_fn)0x0058F0D0;
         fn_editor_form_update_keyboard = (editor_form_update_keyboard_fn)0x0058F997;
         fn_editor_form_update_mouse = (editor_form_update_mouse_fn)0x0058FC52;
@@ -3794,6 +3803,7 @@ internal int spec_editor_select(int build) {
         call_editor_form = 0x00673E9B;
         of_editor_form_minimap = 0x238;
         of_editor_form_selection = 0x21C;
+        of_editor_form_testing = 0x2B4;
         fn_editor_form_draw_background = (editor_form_draw_background_fn)0x0059F501;
         fn_editor_form_update_keyboard = (editor_form_update_keyboard_fn)0x0059FDC8;
         fn_editor_form_update_mouse = (editor_form_update_mouse_fn)0x005A0083;
