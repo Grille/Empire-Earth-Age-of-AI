@@ -780,6 +780,7 @@ internal struct {
     int on;                // this frame's depths aren't the step's
     int off;               // the pipe: picture depths off
     float n0, f0, n, f;    // the step's near and far, this frame's
+    float fog;             // where this frame's fog ends (rf_depth_vc)
     float moved;           // the eye's way from the step's
     float was[16], was_z;  // the step's camera, the depth of the ground under the screen's bottom edge from it
     long frames, nearer, further;   // frames with depths of their own, with a nearer near depth, a further far depth (the pipe)
@@ -821,6 +822,7 @@ internal void rf_depth_frame(void) {
     // that updated it, and the step may have moved the viewport's since (at a step load of 30 ms the kept ground cut at
     // a near depth of 85 while the step's was 62)
     g_dz.n0 = n0; g_dz.f0 = f0; g_dz.n = n; g_dz.f = f; g_dz.moved = moved;
+    g_dz.fog = fminf(f, *camera_far_at());
     g_dz.on = 1;
     if (n == n0 && f == f0) return;
     g_dz.frames++;
@@ -854,12 +856,19 @@ internal void rf_depth_vpm(float *m) {
     for (int j = 0; j < 3; j++) m[j * 4 + 2] = a * m[j * 4 + 3];
     m[14] = a * m[15] + b;
 }
-// a draw's constants: its view x projection, and the fog's range moved as far as its far depth
+// a draw's constants: its view x projection, and the fog's range moved to end where this frame's draws end it. The game
+// takes the fog's range from camera.c's far value as it is at the draw (far - 8 .. far) and the projection from the
+// step's copy of it, so a draw made after a zoom in's ride had ended and before the step had the old projection with
+// the new fog: moved by their difference its fog ended below 0, and a frame during the step that drew the units kept
+// from it showed every one in the fog's colour (the player, 2026-11-11: "when zooming in from far all units a drawn in
+// fog color for a frame sometimes"; a test game, wheel zooms at a 30 - 100 ms step load: 100 and more such draws a
+// run, fog 435 .. 443 with a far depth of 1018 in its projection and 443 the frame's). It ends at the far value now,
+// as the frame's own draws have it - not beyond the frame's far depth (going out the step's is a frame behind it).
 internal void rf_depth_vc(rd3_vcb *vc) {
     float n, f;
     if (!g_dz.on || !rf_depth_of(vc->vpm, &n, &f) || rf_depth_same(n, f)) return;
     rf_depth_vpm(vc->vpm);
-    if (vc->fog[0] == 3) { vc->fog[1] += g_dz.f - f; vc->fog[2] += g_dz.f - f; }
+    if (vc->fog[0] == 3) { vc->fog[1] += g_dz.fog - vc->fog[2]; vc->fog[2] = g_dz.fog; }
 }
 // a frame drawn with an update: the axes from its view where its eye is the transformation's - to 0.01 tile: the
 // view's eye made back from its rotation and place is a float's rounding off, more far out on the map (eyes 130 tiles
