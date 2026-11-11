@@ -8,6 +8,7 @@ internal const char *const k_words[] = {
     "sanity_check", "rows", "columns",                                     // editor_place.c
     "formation", "form_rotate", "form_short_line", "form_long_line", "form_loose_line", "form_staggered_line",
     "form_deep_wedge", "form_shallow_wedge", "form_inward_circle", "form_outward_circle",
+    "mode_placement", "mode_orders", "clear_orders",                       // editor_place.c, editor_orders.c
     "cliff_rock_1", "cliff_rock_2", "cliff_color", "water_color",          // terrain_cliffs.c
     "min_height", "max_height", "min_slope", "max_slope", "water_at",      // terrain_filter.c
     "cliffs", "cliffs_any", "cliffs_none", "cliffs_only",

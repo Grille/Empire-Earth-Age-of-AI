@@ -35,6 +35,19 @@ internal const char *const k_ep_form_word[EP_FORMS] = { "form_rotate", "form_sho
                                                         "form_deep_wedge", "form_shallow_wedge", "form_inward_circle", "form_outward_circle" };
 internal ee_ui_control *g_ep_form_label, *g_ep_form;
 internal int g_ep_form_kind = FORMATION_SHORT_LINE;   // the list as last read: -1 Rotate, else a formation_kind
+// THE MODE LIST (the player, 2026-11-11: "beside placment we should have an order mode ... 2 modes: placment and order.
+// placment is the current one. and order prefill the units with actions"): beside the formation list, what the right
+// button does on the map - Placement as the editor has it (a click deletes the unit under the cursor, a drag turns or
+// lays out the selected units), Orders the selected units' orders as the game's right-click gives them
+// (editor_orders.c). In Orders mode the "Clear orders" box beside it: ticked, the selected units' orders are dropped
+// (every unit's when none is selected) and it is unticked again - a button
+#define EP_MODE_GAP 12.0f
+#define EP_MODE_WIDTH 100.0f
+#define EP_CLEAR_WIDTH 130.0f
+internal ee_ui_control *g_ep_mode, *g_ep_clear;
+internal uint32_t g_ep_clear_shown;
+internal int g_ep_orders;              // the mode list as last read: 1 Orders (kept when the panel goes)
+internal void editor_orders_clear(void);   // editor_orders.c
 internal ee_se_unit *g_ep_panel;       // the editor's units panel, while it is
 internal ee_ui_control *g_ep_box;
 internal uint32_t g_ep_shown;          // the box's display mode as made
@@ -90,6 +103,14 @@ internal int ep_form_kind(void) {
         if (line < EP_FORMS) g_ep_form_kind = (int)line - 1;
     }
     return g_ep_form_kind;
+}
+// the mode list's choice: 1 Orders, 0 Placement
+internal int ep_orders(void) {
+    if (g_ep_mode) {
+        uint32_t line = ui_combo_box_get_current_selection((ui_combo_box *)g_ep_mode);
+        if (line < 2) g_ep_orders = (int)line;
+    }
+    return g_ep_orders;
 }
 // the block's spots in its own frame (x to the right, y ahead; their middle at 0) and each one's turn from the block's
 // facing (a circle's units face out or in): the n = rows x columns units each w wide, the grid's (Rotate) step apart
@@ -295,6 +316,34 @@ internal void ep_form_add(float left, float top, ee_ui_form *form, int *index) {
     combo_box_style(c);
     editor_units_add_control(form, g_ep_form);
     if (g_log) log_locked("# editor: formation list at %.0f,%.0f\n", left, top);
+    left += EP_LABEL_FORM + EP_FORM_WIDTH + EP_MODE_GAP;
+    float mode[4] = { top + EP_HEIGHT, left, left + EP_MODE_WIDTH, top };
+    g_ep_mode = combo_box_new(EP_ID + 3 + EP_FIELDS, ui_get_font_label(), mode, form, index);
+    if (g_ep_mode) {
+        c = (ui_combo_box *)g_ep_mode;
+        const char *const modes[2] = { "mode_placement", "mode_orders" };
+        for (int i = 0; i < 2; i++) {
+            wstring_init_text(w, word(modes[i]));
+            combo_box_append(c, w);
+            wstring_free(w);
+        }
+        combo_box_select(c, (unsigned)g_ep_orders);
+        ui_control_set_bg_opacity(ui_combo_box_get_text_box(c), 0.4f);
+        combo_box_style(c);
+        editor_units_add_control(form, g_ep_mode);
+    }
+    left += EP_MODE_WIDTH + EP_MODE_GAP;
+    float clear[4] = { top + EP_HEIGHT, left, left + EP_CLEAR_WIDTH, top };
+    wstring_init_text(w, word("clear_orders"));
+    g_ep_clear = check_box_new(EP_ID + 4 + EP_FIELDS, w, clear, form, index);
+    wstring_free(w);
+    if (g_ep_clear) {
+        ui_control_set_bg_opacity(g_ep_clear, 0.4f);
+        ui_check_box_label_yellow((ui_check_box *)g_ep_clear);
+        editor_units_add_control(form, g_ep_clear);
+        g_ep_clear_shown = ui_control_get_mode_now(g_ep_clear);
+        ui_control_set_display_mode(g_ep_clear, g_ep_orders ? g_ep_clear_shown : 0);
+    }
 }
 internal void ep_panel_init(ee_se_unit *p, ee_ui_control *list, ee_ui_form *form, int *index) {
     ep_form_add(ui_control_get_left(list) + 6.0f, ui_control_get_bottom(list) + EP_FORM_DOWN, form, index);
@@ -323,7 +372,15 @@ internal void ep_panel_init(ee_se_unit *p, ee_ui_control *list, ee_ui_form *form
 }
 internal void __thiscall hook_ep_update(ee_se_unit *p) {
     eese_unit_update(p);
-    if (p != g_ep_panel || !g_ep_box) return;
+    if (p != g_ep_panel) return;
+    if (g_ep_clear) {
+        ui_control_set_display_mode(g_ep_clear, ep_orders() ? g_ep_clear_shown : 0);
+        if (ui_check_box_get_checked_state((ui_check_box *)g_ep_clear)) {
+            ui_check_box_check((ui_check_box *)g_ep_clear, 0);
+            if (g_ep_orders) editor_orders_clear();
+        }
+    }
+    if (!g_ep_box) return;
     int on = se_unit_get_placing(p) != 0;
     ui_control_set_display_mode(g_ep_box, on ? g_ep_shown : 0);
     for (int i = 0; i < EP_FIELDS; i++) if (g_ep_field[i]) ui_control_set_display_mode(g_ep_field[i], on ? g_ep_field_shown[i] : 0);
@@ -332,8 +389,9 @@ internal void __thiscall hook_ep_update(ee_se_unit *p) {
 internal void ep_panel_delete(ee_se_unit *p) {
     if (p != g_ep_panel) return;
     ep_form_kind();
-    ee_ui_control **form[2] = { &g_ep_form_label, &g_ep_form };
-    for (int i = 0; i < 2; i++) {
+    ep_orders();
+    ee_ui_control **form[4] = { &g_ep_form_label, &g_ep_form, &g_ep_mode, &g_ep_clear };
+    for (int i = 0; i < 4; i++) {
         if (*form[i]) ((void (__thiscall *)(void *, int))(*(void ***)*form[i])[0])(*form[i], 1);
         *form[i] = NULL;
     }

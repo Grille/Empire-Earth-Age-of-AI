@@ -1310,7 +1310,11 @@ unsafe struct EESEUICCommandUnits
     [vtable_site("se_command_move")]
     extern int32 mouse_move(void* at);
 
+    /// a click (no drag): the unit under the cursor (engine_display.pick_list's pick_unit at the cursor) deleted
+    /// (EESEADeleteUnit queued); then the base's end of the press (its slots 26 and 22); editor_orders.c: in the units
+    /// panel's Orders mode the selected units' order instead
     [address((ee)0x005870E0, (aoc)0x00597316), overrides(typeof(UIControl))]
+    [vtable_site("se_command_up")]
     extern int32 mouse_r_button_up();
 }
 

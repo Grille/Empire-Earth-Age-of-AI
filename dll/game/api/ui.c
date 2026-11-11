@@ -238,6 +238,18 @@ internal inline int editor_selection_n(const ee_editor_form *f) {
     return v[0] && v[1] > v[0] ? (int)(v[1] - v[0]) : 0;
 }
 internal inline ee_unit *editor_selection_unit(const ee_editor_form *f, int i) { return (*(ee_unit **const *)(const void *)editor_form_selection_at(f))[i]; }
+// the unit under the cursor as the editor's right-click picks the one it deletes (EESEUICCommandUnits::mouse_r_button_up:
+// the units' pick list at the cursor's point): its id, UNIT_NONE none (the pick's reference given back; the world
+// player's first unit is id 0)
+#define UNIT_NONE 0xFFFFFFFFu
+internal inline unsigned editor_unit_under_mouse(void) {
+    ee_mouse *m = game_mouse();
+    ee_unit *u = m ? pick_list_pick_unit((ee_pick_list *)(uintptr_t)data_engine_display_pick_list, mouse_x_at(m), 0) : NULL;
+    if (!u) return UNIT_NONE;
+    unsigned id = (unsigned)unit_get_serial(u);
+    object_release(u);
+    return id;
+}
 // the action the Undo or Redo button queues, of the mod's own making (a hotkey's)
 internal inline void se_undo_queue(int redo) {
     uint32_t *a = game_new(value_ui_size_key_scroll);

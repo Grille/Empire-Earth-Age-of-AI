@@ -112,10 +112,13 @@ internal int editor_formation_turn(ee_se_rotate *a) {
     return 1;
 }
 
-// the control's mouse move while the right button is down: the press clears its drag, so a drag decides afresh
+// the control's mouse move while the right button is down: the press clears its drag, so a drag decides afresh. In
+// the units panel's Orders mode the drag only measures its facing (the base's, as in the game): the release gives the
+// order (editor_orders.c), nothing turns meanwhile
 internal int __thiscall hook_ef_move(eeseuic_command_units *c, void *at) {
     g_ef_ctl = c;
     if (!eeseuic_command_units_get_dragging(c)) g_ef_mode = 0;
+    if (ep_orders()) return eeuic_command_units_mouse_move((eeuic_command_units *)c, at);
     return eeseuic_command_units_mouse_move(c, at);
 }
 

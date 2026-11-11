@@ -474,6 +474,165 @@ typedef void (__thiscall *load_msg_execute_fn)(ee_load_msg *);
 internal load_msg_execute_fn fn_load_msg_execute;
 internal inline void load_msg_execute(ee_load_msg *load_msg) { fn_load_msg_execute(load_msg); }
 
+// class EEMAttackUnit (ee_attack_msg)
+// the attack message (EEMAttackUnit, kind 0x4C, 0x18 bytes): the right-click's on an enemy it may attack
+// (EEAMouseClick::vf3 0x403CF1); its Execute hands the sender's selected group the attack on the target
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t attack_msg_get_ref_count(const ee_attack_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void attack_msg_set_ref_count(ee_attack_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *attack_msg_ref_count_at(const ee_attack_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t attack_msg_get_kind(const ee_attack_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void attack_msg_set_kind(ee_attack_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *attack_msg_kind_at(const ee_attack_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t attack_msg_get_for_slot(const ee_attack_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void attack_msg_set_for_slot(ee_attack_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *attack_msg_for_slot_at(const ee_attack_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t attack_msg_get_from(const ee_attack_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void attack_msg_set_from(ee_attack_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *attack_msg_from_at(const ee_attack_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t attack_msg_get_header_flags(const ee_attack_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void attack_msg_set_header_flags(ee_attack_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *attack_msg_header_flags_at(const ee_attack_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t attack_msg_get_spare(const ee_attack_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void attack_msg_set_spare(ee_attack_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *attack_msg_spare_at(const ee_attack_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t attack_msg_get_sendable_when_out(const ee_attack_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void attack_msg_set_sendable_when_out(ee_attack_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *attack_msg_sendable_when_out_at(const ee_attack_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// the target's id (its Execute: EEWorld::unit_by_id, both builds)
+internal inline uint32_t attack_msg_get_target(const ee_attack_msg *o) { return *(uint32_t *)((uint8_t *)o + of_attack_msg_target); }
+internal inline void attack_msg_set_target(ee_attack_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_msg_target) = v; }
+internal inline uint32_t *attack_msg_target_at(const ee_attack_msg *o) { return (uint32_t *)((uint8_t *)o + of_attack_msg_target); }
+// shift held: the goal queued after the units' others (its Execute copies it to the group's +0xB5, both builds)
+internal inline uint8_t attack_msg_get_queued(const ee_attack_msg *o) { return *(uint8_t *)((uint8_t *)o + of_attack_msg_queued); }
+internal inline void attack_msg_set_queued(ee_attack_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_attack_msg_queued) = v; }
+internal inline uint8_t *attack_msg_queued_at(const ee_attack_msg *o) { return (uint8_t *)((uint8_t *)o + of_attack_msg_queued); }
+typedef void (__thiscall *attack_msg_execute_fn)(ee_attack_msg *);
+internal attack_msg_execute_fn fn_attack_msg_execute;
+internal inline void attack_msg_execute(ee_attack_msg *attack_msg) { fn_attack_msg_execute(attack_msg); }
+
+// class EEMGatherResource (ee_gather_msg)
+// the gather message (EEMGatherResource, kind 0x51, 0x18 bytes): the right-click's on a resource (a mine, a tree, a
+// forage or hunted animal with an amount left); its Execute hands the sender's selected group the gathering
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t gather_msg_get_ref_count(const ee_gather_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void gather_msg_set_ref_count(ee_gather_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *gather_msg_ref_count_at(const ee_gather_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t gather_msg_get_kind(const ee_gather_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void gather_msg_set_kind(ee_gather_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *gather_msg_kind_at(const ee_gather_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t gather_msg_get_for_slot(const ee_gather_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void gather_msg_set_for_slot(ee_gather_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *gather_msg_for_slot_at(const ee_gather_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t gather_msg_get_from(const ee_gather_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void gather_msg_set_from(ee_gather_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *gather_msg_from_at(const ee_gather_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t gather_msg_get_header_flags(const ee_gather_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void gather_msg_set_header_flags(ee_gather_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *gather_msg_header_flags_at(const ee_gather_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t gather_msg_get_spare(const ee_gather_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void gather_msg_set_spare(ee_gather_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *gather_msg_spare_at(const ee_gather_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t gather_msg_get_sendable_when_out(const ee_gather_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void gather_msg_set_sendable_when_out(ee_gather_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *gather_msg_sendable_when_out_at(const ee_gather_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// the resource's id (its Execute: EEWorld::unit_by_id, both builds; nothing done when its amount is 0)
+internal inline uint32_t gather_msg_get_target(const ee_gather_msg *o) { return *(uint32_t *)((uint8_t *)o + of_gather_msg_target); }
+internal inline void gather_msg_set_target(ee_gather_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_gather_msg_target) = v; }
+internal inline uint32_t *gather_msg_target_at(const ee_gather_msg *o) { return (uint32_t *)((uint8_t *)o + of_gather_msg_target); }
+// shift held: queued (the group's +0xB5, both builds)
+internal inline uint8_t gather_msg_get_queued(const ee_gather_msg *o) { return *(uint8_t *)((uint8_t *)o + of_gather_msg_queued); }
+internal inline void gather_msg_set_queued(ee_gather_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gather_msg_queued) = v; }
+internal inline uint8_t *gather_msg_queued_at(const ee_gather_msg *o) { return (uint8_t *)((uint8_t *)o + of_gather_msg_queued); }
+typedef void (__thiscall *gather_msg_execute_fn)(ee_gather_msg *);
+internal gather_msg_execute_fn fn_gather_msg_execute;
+internal inline void gather_msg_execute(ee_gather_msg *gather_msg) { fn_gather_msg_execute(gather_msg); }
+
+// class EEMRepairUnit (ee_repair_msg)
+// the repair message (EEMRepairUnit, kind 0x57, 0x18 bytes): the right-click's on a damaged unit of the player's own
+// with citizens selected (a building, a ship, a siege weapon)
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t repair_msg_get_ref_count(const ee_repair_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void repair_msg_set_ref_count(ee_repair_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *repair_msg_ref_count_at(const ee_repair_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t repair_msg_get_kind(const ee_repair_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void repair_msg_set_kind(ee_repair_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *repair_msg_kind_at(const ee_repair_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t repair_msg_get_for_slot(const ee_repair_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void repair_msg_set_for_slot(ee_repair_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *repair_msg_for_slot_at(const ee_repair_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t repair_msg_get_from(const ee_repair_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void repair_msg_set_from(ee_repair_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *repair_msg_from_at(const ee_repair_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t repair_msg_get_header_flags(const ee_repair_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void repair_msg_set_header_flags(ee_repair_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *repair_msg_header_flags_at(const ee_repair_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t repair_msg_get_spare(const ee_repair_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void repair_msg_set_spare(ee_repair_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *repair_msg_spare_at(const ee_repair_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t repair_msg_get_sendable_when_out(const ee_repair_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void repair_msg_set_sendable_when_out(ee_repair_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *repair_msg_sendable_when_out_at(const ee_repair_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// the unit to repair's id (its Execute: EEWorld::unit_by_id, both builds)
+internal inline uint32_t repair_msg_get_target(const ee_repair_msg *o) { return *(uint32_t *)((uint8_t *)o + of_repair_msg_target); }
+internal inline void repair_msg_set_target(ee_repair_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_repair_msg_target) = v; }
+internal inline uint32_t *repair_msg_target_at(const ee_repair_msg *o) { return (uint32_t *)((uint8_t *)o + of_repair_msg_target); }
+// shift held: queued (the right-click sets it as the others')
+internal inline uint8_t repair_msg_get_queued(const ee_repair_msg *o) { return *(uint8_t *)((uint8_t *)o + of_repair_msg_queued); }
+internal inline void repair_msg_set_queued(ee_repair_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_repair_msg_queued) = v; }
+internal inline uint8_t *repair_msg_queued_at(const ee_repair_msg *o) { return (uint8_t *)((uint8_t *)o + of_repair_msg_queued); }
+typedef void (__thiscall *repair_msg_execute_fn)(ee_repair_msg *);
+internal repair_msg_execute_fn fn_repair_msg_execute;
+internal inline void repair_msg_execute(ee_repair_msg *repair_msg) { fn_repair_msg_execute(repair_msg); }
+
 // class EEMPathTo (ee_path_msg)
 // the move message (EEMPathTo)
 // EEMessage's, the base's
@@ -956,6 +1115,18 @@ internal int spec_messages_select(int build) {
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004B9446;
+        vt_eem_attack_unit = 0x00824ED4;
+        of_attack_msg_target = 0x10;
+        of_attack_msg_queued = 0x14;
+        fn_attack_msg_execute = (attack_msg_execute_fn)0x004B3958;
+        vt_eem_gather_resource = 0x00824F70;
+        of_gather_msg_target = 0x10;
+        of_gather_msg_queued = 0x14;
+        fn_gather_msg_execute = (gather_msg_execute_fn)0x004B6CBE;
+        vt_eem_repair_unit = 0x00824F3C;
+        of_repair_msg_target = 0x10;
+        of_repair_msg_queued = 0x14;
+        fn_repair_msg_execute = (repair_msg_execute_fn)0x004BB27C;
         vt_eem_path_to = 0x00824D84;
         of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
@@ -1059,6 +1230,18 @@ internal int spec_messages_select(int build) {
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004C1B79;
+        vt_eem_attack_unit = 0x00838F18;
+        of_attack_msg_target = 0x10;
+        of_attack_msg_queued = 0x14;
+        fn_attack_msg_execute = (attack_msg_execute_fn)0x004BB869;
+        vt_eem_gather_resource = 0x00838FB4;
+        of_gather_msg_target = 0x10;
+        of_gather_msg_queued = 0x14;
+        fn_gather_msg_execute = (gather_msg_execute_fn)0x004BF0A3;
+        vt_eem_repair_unit = 0x00838F80;
+        of_repair_msg_target = 0x10;
+        of_repair_msg_queued = 0x14;
+        fn_repair_msg_execute = (repair_msg_execute_fn)0x004C3E31;
         vt_eem_path_to = 0x00838D5C;
         of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
@@ -1139,6 +1322,15 @@ internal int spec_messages_check(void) {
     bad += spec_vtable(vt_eem_add_units_to_selected_group, ".?AVEEMAddUnitsToSelectedGroup@@", "EEMAddUnitsToSelectedGroup [vtable]");
     bad += spec_vtable(vt_eem_add_and_remove_units_from_selected_group, ".?AVEEMAddAndRemoveUnitsFromSelectedGroup@@", "EEMAddAndRemoveUnitsFromSelectedGroup [vtable]");
     bad += spec_code((uintptr_t)fn_load_msg_execute, "EEMLoadTransport.execute");
+    bad += spec_vtable(vt_eem_attack_unit, ".?AVEEMAttackUnit@@", "EEMAttackUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_attack_msg_execute, "EEMAttackUnit.execute");
+    bad += spec_slot(vt_eem_attack_unit, slot_msg_execute, (uintptr_t)fn_attack_msg_execute, "EEMAttackUnit.execute [slot]");
+    bad += spec_vtable(vt_eem_gather_resource, ".?AVEEMGatherResource@@", "EEMGatherResource [vtable]");
+    bad += spec_code((uintptr_t)fn_gather_msg_execute, "EEMGatherResource.execute");
+    bad += spec_slot(vt_eem_gather_resource, slot_msg_execute, (uintptr_t)fn_gather_msg_execute, "EEMGatherResource.execute [slot]");
+    bad += spec_vtable(vt_eem_repair_unit, ".?AVEEMRepairUnit@@", "EEMRepairUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_repair_msg_execute, "EEMRepairUnit.execute");
+    bad += spec_slot(vt_eem_repair_unit, slot_msg_execute, (uintptr_t)fn_repair_msg_execute, "EEMRepairUnit.execute [slot]");
     bad += spec_vtable(vt_eem_path_to, ".?AVEEMPathTo@@", "EEMPathTo [vtable]");
     bad += spec_code((uintptr_t)fn_path_msg_execute, "EEMPathTo.execute");
     bad += spec_slot(vt_eem_path_to, slot_msg_execute, (uintptr_t)fn_path_msg_execute, "EEMPathTo.execute [slot]");

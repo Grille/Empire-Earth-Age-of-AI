@@ -202,6 +202,57 @@ unsafe struct EEMLoadTransport
     extern void execute();
 }
 
+/// the attack message (EEMAttackUnit, kind 0x4C, 0x18 bytes): the right-click's on an enemy it may attack
+/// (EEAMouseClick::vf3 0x403CF1); its Execute hands the sender's selected group the attack on the target
+[@base(typeof(EEMessage)), c_type("ee_attack_msg"), vtable((ee)0x00824ED4, (aoc)0x00838F18)]
+unsafe struct EEMAttackUnit
+{
+    /// the target's id (its Execute: EEWorld::unit_by_id, both builds)
+    [offset(0x10), found(c)]
+    uint32 target;
+
+    /// shift held: the goal queued after the units' others (its Execute copies it to the group's +0xB5, both builds)
+    [offset(0x14), found(c)]
+    uint8 queued;
+
+    [address((ee)0x004B3958, (aoc)0x004BB869), overrides(typeof(EEMessage))]
+    extern void execute();
+}
+
+/// the gather message (EEMGatherResource, kind 0x51, 0x18 bytes): the right-click's on a resource (a mine, a tree, a
+/// forage or hunted animal with an amount left); its Execute hands the sender's selected group the gathering
+[@base(typeof(EEMessage)), c_type("ee_gather_msg"), vtable((ee)0x00824F70, (aoc)0x00838FB4)]
+unsafe struct EEMGatherResource
+{
+    /// the resource's id (its Execute: EEWorld::unit_by_id, both builds; nothing done when its amount is 0)
+    [offset(0x10), found(c)]
+    uint32 target;
+
+    /// shift held: queued (the group's +0xB5, both builds)
+    [offset(0x14), found(c)]
+    uint8 queued;
+
+    [address((ee)0x004B6CBE, (aoc)0x004BF0A3), overrides(typeof(EEMessage))]
+    extern void execute();
+}
+
+/// the repair message (EEMRepairUnit, kind 0x57, 0x18 bytes): the right-click's on a damaged unit of the player's own
+/// with citizens selected (a building, a ship, a siege weapon)
+[@base(typeof(EEMessage)), c_type("ee_repair_msg"), vtable((ee)0x00824F3C, (aoc)0x00838F80)]
+unsafe struct EEMRepairUnit
+{
+    /// the unit to repair's id (its Execute: EEWorld::unit_by_id, both builds)
+    [offset(0x10), found(c)]
+    uint32 target;
+
+    /// shift held: queued (the right-click sets it as the others')
+    [offset(0x14), found(c)]
+    uint8 queued;
+
+    [address((ee)0x004BB27C, (aoc)0x004C3E31), overrides(typeof(EEMessage))]
+    extern void execute();
+}
+
 /// the move message (EEMPathTo)
 [@base(typeof(EEMessage)), c_type("ee_path_msg"), vtable((ee)0x00824D84, (aoc)0x00838D5C)]
 unsafe struct EEMPathTo

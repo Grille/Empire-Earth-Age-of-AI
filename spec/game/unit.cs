@@ -171,6 +171,13 @@ unsafe struct EEUnit
     [address((ee)0x005EAE25, (aoc)0x005F88FE)]
     extern void drop_goals(uint32 slot);
 
+    /// thiscall(unit, slot): every goal of its goal slot told it is dropped (its slot 19) and the slot emptied, all of it -
+    /// drop_goals stops at a goal that goes on after the one before (a hunt's gathering: dropped, it starts again and
+    /// puts the attack on the animal back before it). EEMStopActiveGroup::vf10 (0x4BF2D7, AoC 0x4C818D) calls it with 0
+    /// before drop_goals(0) and a unit's new goal; the group's order hand-out with slots 2 and 3
+    [address((ee)0x005E9664, (aoc)0x005F6FBC)]
+    extern void clear_goals(uint32 slot);
+
     /// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
     [address((ee)0x0054A504, (aoc)0x0055465B)]
     extern float32 turn_accel();

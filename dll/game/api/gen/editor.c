@@ -1599,9 +1599,13 @@ typedef int (__thiscall *eeseuic_command_units_mouse_move_fn)(eeseuic_command_un
 internal eeseuic_command_units_mouse_move_fn fn_eeseuic_command_units_mouse_move;
 internal inline int eeseuic_command_units_mouse_move(eeseuic_command_units *eeseuic_command_units, void *at) { return fn_eeseuic_command_units_mouse_move(eeseuic_command_units, at); }
 internal inline int patch_se_command_move(eeseuic_command_units_mouse_move_fn h) { return patch_vtable(vt_eeseuic_command_units, (int)slot_ui_control_mouse_move, (uintptr_t)fn_eeseuic_command_units_mouse_move, (void *)h); }
+// a click (no drag): the unit under the cursor (engine_display.pick_list's pick_unit at the cursor) deleted
+// (EESEADeleteUnit queued); then the base's end of the press (its slots 26 and 22); editor_orders.c: in the units
+// panel's Orders mode the selected units' order instead
 typedef int (__thiscall *eeseuic_command_units_mouse_r_button_up_fn)(eeseuic_command_units *);
 internal eeseuic_command_units_mouse_r_button_up_fn fn_eeseuic_command_units_mouse_r_button_up;
 internal inline int eeseuic_command_units_mouse_r_button_up(eeseuic_command_units *eeseuic_command_units) { return fn_eeseuic_command_units_mouse_r_button_up(eeseuic_command_units); }
+internal inline int patch_se_command_up(eeseuic_command_units_mouse_r_button_up_fn h) { return patch_vtable(vt_eeseuic_command_units, (int)slot_ui_control_mouse_r_button_up, (uintptr_t)fn_eeseuic_command_units_mouse_r_button_up, (void *)h); }
 
 // class EESEUICTriggerSelectUnits (eeseuic_trigger_select_units)
 // EEUICSelectUnits's, the base's

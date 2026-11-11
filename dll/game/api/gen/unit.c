@@ -150,6 +150,13 @@ internal inline void unit_set_state(ee_unit *unit, int state) { fn_unit_set_stat
 typedef void (__thiscall *unit_drop_goals_fn)(ee_unit *, uint32_t);
 internal unit_drop_goals_fn fn_unit_drop_goals;
 internal inline void unit_drop_goals(ee_unit *unit, uint32_t slot) { fn_unit_drop_goals(unit, slot); }
+// thiscall(unit, slot): every goal of its goal slot told it is dropped (its slot 19) and the slot emptied, all of it -
+// drop_goals stops at a goal that goes on after the one before (a hunt's gathering: dropped, it starts again and
+// puts the attack on the animal back before it). EEMStopActiveGroup::vf10 (0x4BF2D7, AoC 0x4C818D) calls it with 0
+// before drop_goals(0) and a unit's new goal; the group's order hand-out with slots 2 and 3
+typedef void (__thiscall *unit_clear_goals_fn)(ee_unit *, uint32_t);
+internal unit_clear_goals_fn fn_unit_clear_goals;
+internal inline void unit_clear_goals(ee_unit *unit, uint32_t slot) { fn_unit_clear_goals(unit, slot); }
 // thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
 typedef float (__thiscall *unit_turn_accel_fn)(ee_unit *);
 internal unit_turn_accel_fn fn_unit_turn_accel;
@@ -1153,6 +1160,7 @@ internal int spec_unit_select(int build) {
         fn_unit_max_turn = (unit_max_turn_fn)0x0054A4E7;
         fn_unit_set_state = (unit_set_state_fn)0x005EFCF0;
         fn_unit_drop_goals = (unit_drop_goals_fn)0x005EAE25;
+        fn_unit_clear_goals = (unit_clear_goals_fn)0x005E9664;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
         fn_unit_unlink = (unit_unlink_fn)0x00628E29;
         fn_unit_count_inside = (unit_count_inside_fn)0x0042E347;
@@ -1440,6 +1448,7 @@ internal int spec_unit_select(int build) {
         fn_unit_max_turn = (unit_max_turn_fn)0x0055463E;
         fn_unit_set_state = (unit_set_state_fn)0x005FDFA5;
         fn_unit_drop_goals = (unit_drop_goals_fn)0x005F88FE;
+        fn_unit_clear_goals = (unit_clear_goals_fn)0x005F6FBC;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
         fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
         fn_unit_count_inside = (unit_count_inside_fn)0x0040D5C5;
@@ -1709,6 +1718,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_max_turn, "EEUnit.max_turn");
     bad += spec_code((uintptr_t)fn_unit_set_state, "EEUnit.set_state");
     bad += spec_code((uintptr_t)fn_unit_drop_goals, "EEUnit.drop_goals");
+    bad += spec_code((uintptr_t)fn_unit_clear_goals, "EEUnit.clear_goals");
     bad += spec_code((uintptr_t)fn_unit_turn_accel, "EEUnit.turn_accel");
     bad += spec_code((uintptr_t)fn_unit_unlink, "EEUnit.unlink");
     bad += spec_code((uintptr_t)fn_unit_count_inside, "EEUnit.count_inside");

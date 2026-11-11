@@ -68,6 +68,19 @@ form_outward_circle = {
     en = "Circle facing out",
     de = "Kreis nach außen",
 }
+// the mode list beside it: what the right button does on the map - places (turns, lays out, deletes) or gives orders
+mode_placement = {
+    en = "Placement",
+    de = "Platzieren",
+}
+mode_orders = {
+    en = "Orders",
+    de = "Befehle",
+}
+clear_orders = {
+    en = "Clear orders",
+    de = "Befehle löschen",
+}
 
 // THE SCENARIO EDITOR: terrain
 cliff_rock_1 = {

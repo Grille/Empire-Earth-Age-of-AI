@@ -58,8 +58,11 @@ internal inline ee_goal *unit_order_at(ee_unit *u, int i) {
     if (blk >= blocks) blk -= blocks;
     return ((ee_goal ***)*(void **)(q + 4))[blk][pos & 0x3FF];
 }
-// its orders dropped and at rest, as the player's Halt leaves it (without the Halt's next behaviour: the type's vf29)
+// its orders dropped and at rest, as the player's Halt leaves it (without the Halt's next behaviour: the type's vf29) -
+// all of them: the slot emptied first, as EEMStopActiveGroup does (the Halt's drop_goals alone left a hunting citizen
+// its attack and its gathering)
 internal inline void unit_halt(ee_unit *u) {
+    unit_clear_goals(u, 0);
     unit_drop_goals(u, 0);
     unit_set_state(u, (int)value_unit_state_idle);
 }

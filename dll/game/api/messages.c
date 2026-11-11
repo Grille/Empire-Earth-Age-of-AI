@@ -42,6 +42,28 @@ internal inline void path_msg_make(ee_path_msg *msg, int from, float x, float y,
 }
 // the move forced (1, a plain move) or not (0: an attack-move - the goal's +0x30)
 internal inline void path_msg_set_forced(ee_path_msg *msg, int forced) { FIELD(msg, of_path_msg_goal_30, uint8_t) = (uint8_t)forced; }
+// the right-click's orders on a unit (0x18 bytes, made in zeroed memory as path_msg_make, carried out through their
+// vtables: msg_execute): an attack (EEMAttackUnit), a gathering (EEMGatherResource), a repair (EEMRepairUnit) - the
+// target's id, queued (shift); a load into a transport or a building (EEMLoadTransport: load_msg_make, unit -1)
+internal inline void attack_msg_make(ee_attack_msg *msg, int from, unsigned target, int queued) {
+    *(uintptr_t *)msg = vt_eem_attack_unit;
+    attack_msg_set_from(msg, (int8_t)from);
+    attack_msg_set_target(msg, target);
+    attack_msg_set_queued(msg, (uint8_t)queued);
+}
+internal inline void gather_msg_make(ee_gather_msg *msg, int from, unsigned target, int queued) {
+    *(uintptr_t *)msg = vt_eem_gather_resource;
+    gather_msg_set_from(msg, (int8_t)from);
+    gather_msg_set_target(msg, target);
+    gather_msg_set_queued(msg, (uint8_t)queued);
+}
+internal inline void repair_msg_make(ee_repair_msg *msg, int from, unsigned target, int queued) {
+    *(uintptr_t *)msg = vt_eem_repair_unit;
+    repair_msg_set_from(msg, (int8_t)from);
+    repair_msg_set_target(msg, target);
+    repair_msg_set_queued(msg, (uint8_t)queued);
+}
+internal inline void load_msg_set_vtable(ee_load_msg *msg) { *(uintptr_t *)msg = (uintptr_t)data_messages_vt_msg_load; }
 // A message the mod makes and carries out for player pl itself, never sent (an AI army's move): the game carries a
 // message out for EEWorld::player(its from), the first player whose msg_id is that one - and every computer player has
 // 0xFF, so the second computer player's orders moved the first one's selection and its own units stood (pathtest.scn,
