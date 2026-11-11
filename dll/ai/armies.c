@@ -1268,7 +1268,7 @@ internal int ar_site_asked(ee_player *pl, unsigned idx) {
     }
     return 0;
 }
-// RAID PARTIES ([ai_base] raid_parties, off until measured; [autotest] v_raid_parties; army view step 3 - the player
+// RAID PARTIES ([ai_base] raid_parties, on since 2026-11-11; [autotest] v_raid_parties; army view step 3 - the player
 // 2026-11-11: the AI splits and merges its armies as it needs, as many as it needs): a raid near home is answered by the
 // part of the force nearest it that beats it by AR_PART_PCT (the fight estimate, stage_foe: what the AI knows there), as
 // many as the raid's band at least, instead of the whole force, which stays home for the attack time and the next raid.
@@ -1276,7 +1276,11 @@ internal int ar_site_asked(ee_player *pl, unsigned idx) {
 // within AR_PART_LOOK of where it goes or of its middle, not beyond AR_RAID_REACH of home - and goes back into the force
 // once there is none for two looks running, or
 // once it no longer beats them by AR_BACK_PCT. A raider a party is at already isn't answered again. When even the whole
-// force doesn't beat the raid by AR_PART_PCT, the whole force goes, as before.
+// force doesn't beat the raid by AR_PART_PCT, the whole force goes, as before. Measured (10 games each, Continental large,
+// 90 min): against the non-cheating game AI off / on - won 10 / 10, buildings lost 2.3 / 1.5, losses 46 / 66 (2 se), razed
+// 29.6 / 30.5, pushes 1.5 / 2.2; the mod against itself (h2h, 4 AIs, mirrored, two batches of 10; B with parties): razed
+// +20.8 (se 8.5) and +13.1 (5.6), soldiers +24.2 (10.8) and +9.5 (10.8), kills +25.4 and +19.8 (about 1 se), losses -0.9
+// and +14.5 (noise), alive +0.10 and +0.05. On.
 #define AR_PART_PCT 200
 #define AR_PART_LOOK 20
 internal int g_ar_parts = 0, g_v_ar_parts = -1;
