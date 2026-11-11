@@ -953,6 +953,30 @@ runs the ground doesn't change, so each point's answer is kept (the engine's to 
 (game/world.c g_game_starts; the bent copies too) and not kept while none runs. Checked against the engine on every
 hit: 95 % of the asks hit, none differ. Playing, the maps and the heights together save 1 - 1.3 ms of the update a frame.
 
+The whole picture of a battle is another matter (measured 2026-11-11 with nothing skipped: the test's 3000 Minotaurs
+spawned to fight, 40 s played): about 22 000 effects lie on the map afterwards - 9000 flying pieces (EEE3DParticle: the
+wrecks a dying mech or machine throws), 9000 flames and smoke (EEE2DParticle), 3000 smoke plumes, all in the fifth
+queue - and the water's render object, which draws them (EEROWater::vf2 EE 0x50E1F4, AoC 0x518AE9: the water's surface
+by DrawWater, then the queue node by node, a node a texture with a batch of sprites flushed at its end), took 12-17 ms of
+a 31-36 ms frame: the units 7-8, the update's read holds 5-9 (the effects' update 0.7 ms playing, 3 paused; the pick
+under the mouse 0.25-0.8; acquire 0.5). The sprites are batched by the game (0.3 us each). A flying piece's draw (vf6 EE
+0x4EB951, AoC 0x4F556B) sets eight of the device's states, its model's outer transformation (SetOrientationYPR of its
+turn, its place), size (its kind's start to its end by its fade) and opacity, its first material's colour and texture,
+PrepareTransforms, Draw, and puts the colour, the opacity and the fog back - 1.4 us a piece, the renderer preparing its
+states anew each time. Sent through the instanced walk as it is, a piece cost the same.
+
+The flying pieces' draw ours (render_effects.c, 2026-11-11, the player: "yes do A"; `picture pieces game | own | check`,
+on with unit_instancing): EEROWater's draw is drawn by the mod the same way, and the pieces lie in long runs of one kind,
+graphics, glow and model (7600 in 73 runs): a run's states are set once as the piece's draw sets them (spec
+EEGraphicEffect, effects_lit, the rasterizer's set_ambient_color ... set_z_compare), each piece goes to the walk as an
+in_rec (mat_tex: its materials' own textures), and the run ends - the model left as the game's draw leaves it - before
+anything else of the queue draws and before a node's sprites are flushed. Left to the game's draw: a glowing piece (its
+ambient faded by the fog over its place, per piece), a model of more parts or none. `picture pieces check` notes each
+piece's parts by this draw (its run begun anew) and by the game's, through the walk, with the device's states and the
+material's colour as a hash (render_units.c ud_states): 750 000 pieces in the 2017 update and 683 000 in Art of
+Conquest, none differ, the places to the bit; a wreck field's pixels the same. The water's object 13-18 ms a frame by the
+game's draw, 8-9 by ours; 25-30 fps against 32-36 (the test, paused, the two alternating three times).
+
 ## The interface's text without reading the picture back
 
 2026-11-06 (the 8000-unit save ran at either about 3200 or about 1900 frames a minute, by game, whatever the build).

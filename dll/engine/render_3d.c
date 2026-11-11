@@ -894,6 +894,7 @@ internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, f
 
 #include "render_instance.c"  // the units drawn as instances ([display] unit_instancing)
 #include "render_units.c"     // the units' record draw, the mod's own (with unit_instancing)
+#include "render_effects.c"   // the flying pieces' draw, the mod's own (with unit_instancing)
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
 #include "render_record.c"    // the pipe's record: frames one after another, to find a flicker
 
@@ -1251,16 +1252,17 @@ internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro
 // player, 2026-11-10: "on heigh stepload its stuttering"; the frames during a step drew none of them). The kept water's
 // surface first, then the game's water draw with its surface left out (render_ground.c g_rw_fx_only).
 internal int collect_fx_sims(void);   // collect_copy.c
+internal void pd_water(ee_ro_water *o);   // render_effects.c: EEROWater's draw, the flying pieces by runs
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
     RO_DRAW(RO_WATER, if (g_kg_skip && (g_kw.nb || rg_ready())) {
         rg_again(1, g_rwl_nonstep > 0);
         if (g_kw_surface >= 0 && collect_fx_sims()) {
             rf_ground_again_part(&g_kw, 0, g_kw_surface);
             g_rw_fx_only = 1;
-            ro_water_draw(o);
+            pd_water(o);
             g_rw_fx_only = 0;
         } else rf_ground_again(&g_kw);
-    } else ro_water_draw(o));
+    } else pd_water(o));
 }
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) {
     RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o));

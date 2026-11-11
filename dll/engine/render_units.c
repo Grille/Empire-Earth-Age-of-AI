@@ -20,7 +20,7 @@ enum { UD_PARTS, UD_MODEL, UD_TEX, UD_POSE, UD_PLACE, UD_INDICES, UD_KINDS };
 internal const char *const k_ud_kind[UD_KINDS] = { "parts", "model or material", "texture", "pose", "place", "indices" };
 enum { UD_BUILT, UD_BENT, UD_CANT, UD_MODEL_NOT, UD_REASONS };
 internal const char *const k_ud_reason[UD_REASONS] = { "something on it (gfx_built)", "bent onto the ground", "the instancing can't now", "the model can't be" };
-typedef struct { ee_model *m; ee_material *mat; void *tex; in_pose p; D3DMATRIX w; const WORD *idx; DWORD ni; } ud_part;
+typedef struct { ee_model *m; ee_material *mat; void *tex; in_pose p; D3DMATRIX w; const WORD *idx; DWORD ni; uint32_t st; } ud_part;
 internal struct {
     int force;               // the pipe's: 0 the game's draw, 1 the mod's, 2 compared; -1: the mod's
     LONG own, game, reason[UD_REASONS];
@@ -33,11 +33,21 @@ internal struct {
     float worst;
 } g_ud = { .force = -1 };
 internal int ud_mode(void) { return g_ud.force >= 0 ? g_ud.force : 1; }
-internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
+// the device's states a part is drawn under (all but the world matrix and the material, which the walk sets from the
+// part) and its material's colour, as a hash (render_effects.c compares them; the units' comparison doesn't)
+internal uint32_t ud_states(const rd_device *d, const ee_material *mat) {
+    vec3 col = material_get_colour(mat);
+    const void *parts[] = { &d->view, &d->proj, &d->viewport, d->light, d->light_on, d->rs, d->tss, d->tex, &col };
+    const size_t sizes[] = { sizeof d->view, sizeof d->proj, sizeof d->viewport, sizeof d->light, sizeof d->light_on, sizeof d->rs, sizeof d->tss, sizeof d->tex, sizeof col };
+    uint32_t h = 2166136261u;
+    for (int k = 0; k < 9; k++) for (size_t i = 0; i < sizes[k]; i++) h = (h ^ ((const uint8_t *)parts[k])[i]) * 16777619u;
+    return h;
+}
+internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni, const rd_device *d) {
     int s = g_ud.side;
     if (g_ud.n[s] >= UD_NOTES) { g_ud.over = 1; return; }
     ud_part *e = &g_ud.e[s][g_ud.n[s]++];
-    e->m = m; e->mat = mat; e->tex = tex; e->p = *p; e->w = *world; e->idx = idx; e->ni = ni;
+    e->m = m; e->mat = mat; e->tex = tex; e->p = *p; e->w = *world; e->idx = idx; e->ni = ni; e->st = ud_states(d, mat);
 }
 internal int bl_noted(const void *gfx), bl_noted_decal(const ee_model *m), bl_bend_at(ee_model *m, uint32_t f, const float *t, float *out);   // walls.c
 internal int ud_fell(int why) { InterlockedIncrement(&g_ud.reason[why]); return 0; }
@@ -138,7 +148,7 @@ internal int ud_draw(void *rec) {
     in_rec r = { draw_record_transform_at(rec), draw_record_get_scale(rec),
                  { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
                    *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },
-                 graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0 };
+                 graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
     if (bent && (!game_time() || r.pose.frac != 0)) return ud_fell(UD_BENT);
     if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
     if (!m || !in_model_ok(m, &r.pose, 1)) return ud_fell(UD_MODEL_NOT);
@@ -242,8 +252,10 @@ internal int ud_record(ee_ro_units *ro, void *rec) {
 }
 // the pipe: picture draw [game | own | check]
 internal int um_pipe(char *out, const char *arg);   // collect_maps.c
+internal int pd_pipe(char *out, const char *arg);   // render_effects.c
 internal int ud_pipe(char *out, const char *mode, const char *arg) {
     if (!strcmp(mode, "maps")) return um_pipe(out, arg);
+    if (!strcmp(mode, "pieces")) return pd_pipe(out, arg);
     if (strcmp(mode, "draw")) return 0;
     if (!strcmp(arg, "game") || !strcmp(arg, "own") || !strcmp(arg, "check")) {
         g_ud.force = arg[0] == 'g' ? 0 : arg[0] == 'o' ? 1 : 2;

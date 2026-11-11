@@ -418,15 +418,16 @@ internal const WORD *in_capped(const WORD *idx, DWORD ni, const float *v, uint32
 typedef struct { uint32_t frame, next; float frac, alpha; const float *va; } in_pose;
 // a record the mod draws itself (render_units.c): what the game's draw would have set on its model - the root's
 // transformation over the frame's (outer) and its size, every part's pose - and the record's texture of frames
-// (EEGraphicObject anim_keys: each material's frame of it, by the build's rule)
-typedef struct { const float *outer; float scale; in_pose pose; ee_texture *tex; uint32_t root_mats; int decal; } in_rec;
+// (EEGraphicObject anim_keys: each material's frame of it, by the build's rule) - or, mat_tex, the materials' own
+// (render_effects.c: a flying piece's draw sets its first material's)
+typedef struct { const float *outer; float scale; in_pose pose; ee_texture *tex; uint32_t root_mats; int decal; int mat_tex; } in_rec;
 internal int g_in_capture;   // render_units.c's comparison: the parts noted (1 only noted, 2 noted and drawn)
 internal LONG g_in_walks;   // ... and the walks while it notes
-internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni);
+internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni, const rd_device *d);
 // a material of a model seen: what the DLL does for it, without the device's calls
 internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
     if (g_in_capture) {
-        ud_note(m, mat, tex, p, world, idx, ni);
+        ud_note(m, mat, tex, p, world, idx, ni, c->d);
         if (g_in_capture == 1) return;
     }
     uint32_t n = material_get_vertex_count(mat), first = material_get_vertex_first(mat);
@@ -531,7 +532,7 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
         for (uint32_t i = 0, nm = model_get_material_count(m); i < nm; i++) {
             ee_material *mat = mats[i];
             uint32_t tris = material_get_polygon_count(mat)[lod];
-            if (tris) in_part(c, m, mat, r ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
+            if (tris) in_part(c, m, mat, r && !r->mat_tex ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
                               indices + material_get_polygon_first(mat)[lod] * 3, tris * 3);
         }
     }
@@ -557,10 +558,12 @@ internal int in_model_ok(ee_model *m, const in_pose *p, int own) {
     return 1;
 }
 // the instanced draw can take a model now (but for the model's own test): a unit's record in the units' render
-// object, the animation on the graphics card, no transformation pushed by someone else
+// object or a flying piece in the water's (render_effects.c), the animation on the graphics card, no transformation
+// pushed by someone else
+internal int g_pd_in;   // render_effects.c: a flying piece is drawn (its own draw, or the game's while compared)
 internal int in_can(uint8_t ortho) {
     const uint32_t *st = g_in.stack;
-    return in_on() && g_sl.in && !ortho && g_ro_cur == RO_UNITS && !g_mo_off && g_mo.on && g_rp_state != 2 && g_mo_smooth && g_shr_visible &&
+    return in_on() && (g_sl.in || g_pd_in) && !ortho && (g_ro_cur == RO_UNITS || (g_pd_in && g_ro_cur == RO_WATER)) && !g_mo_off && g_mo.on && g_rp_state != 2 && g_mo_smooth && g_shr_visible &&
            g_in.orig && !(st[1] && (st[2] - st[1]) & ~7u);
 }
 internal const in_rec *g_in_rec;   // in_draw_rec's record, for the walk its Draw comes to

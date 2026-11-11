@@ -77,6 +77,23 @@ internal inline int rasterizer_end_scene(ee_rasterizer *rasterizer, uint32_t scr
 // SetAlphaTestingRefValue(M, K): RTSGraphics.draw_objects sets 0 before the render objects draw
 typedef void (__thiscall *rasterizer_set_alpha_ref_fn)(ee_rasterizer *, float, uint32_t);
 internal inline void rasterizer_set_alpha_ref(ee_rasterizer *rasterizer, float value, uint32_t screen) { ((rasterizer_set_alpha_ref_fn)(*(void ***)rasterizer)[slot_rasterizer_set_alpha_ref])(rasterizer, value, screen); }
+// SetAmbientColor(GEColor const &, K): the ambient light's colour (3 floats; the device's ambient state is it times
+// the ambient intensity)
+typedef void (__thiscall *rasterizer_set_ambient_color_fn)(ee_rasterizer *, float *, uint32_t);
+internal inline void rasterizer_set_ambient_color(ee_rasterizer *rasterizer, float *colour, uint32_t screen) { ((rasterizer_set_ambient_color_fn)(*(void ***)rasterizer)[slot_rasterizer_set_ambient_color])(rasterizer, colour, screen); }
+// SetBlending(K, K, K): the source's and the destination's factor (the effects': 4, 5 - by the source's alpha;
+// 1, 1 - added)
+typedef void (__thiscall *rasterizer_set_blending_fn)(ee_rasterizer *, uint32_t, uint32_t, uint32_t);
+internal inline void rasterizer_set_blending(ee_rasterizer *rasterizer, uint32_t source, uint32_t destination, uint32_t screen) { ((rasterizer_set_blending_fn)(*(void ***)rasterizer)[slot_rasterizer_set_blending])(rasterizer, source, destination, screen); }
+// SetCulling(K): which faces are left out (the effects' draw: 0)
+typedef void (__thiscall *rasterizer_set_culling_fn)(ee_rasterizer *, uint32_t);
+internal inline void rasterizer_set_culling(ee_rasterizer *rasterizer, uint32_t mode) { ((rasterizer_set_culling_fn)(*(void ***)rasterizer)[slot_rasterizer_set_culling])(rasterizer, mode); }
+// SetFog(K, K): the fog's use (GERasterizer::GetFog reads it back: the flying pieces' draw puts it back so)
+typedef void (__thiscall *rasterizer_set_fog_fn)(ee_rasterizer *, uint32_t, uint32_t);
+internal inline void rasterizer_set_fog(ee_rasterizer *rasterizer, uint32_t fog, uint32_t screen) { ((rasterizer_set_fog_fn)(*(void ***)rasterizer)[slot_rasterizer_set_fog])(rasterizer, fog, screen); }
+// SetShadingColorSource(K, K) (the effects' draw: 1; a flying piece's: 0)
+typedef void (__thiscall *rasterizer_set_shading_color_source_fn)(ee_rasterizer *, uint32_t, uint32_t);
+internal inline void rasterizer_set_shading_color_source(ee_rasterizer *rasterizer, uint32_t source, uint32_t screen) { ((rasterizer_set_shading_color_source_fn)(*(void ***)rasterizer)[slot_rasterizer_set_shading_color_source])(rasterizer, source, screen); }
 // SetViewport(GEViewport const &, K): the camera the next draws use
 typedef void (__thiscall *rasterizer_set_viewport_fn)(ee_rasterizer *, void *, uint32_t);
 internal inline void rasterizer_set_viewport(ee_rasterizer *rasterizer, void *viewport, uint32_t screen) { ((rasterizer_set_viewport_fn)(*(void ***)rasterizer)[slot_rasterizer_set_viewport])(rasterizer, viewport, screen); }
@@ -84,6 +101,9 @@ internal inline void rasterizer_set_viewport(ee_rasterizer *rasterizer, void *vi
 // (tested) for one seen through
 typedef void (__thiscall *rasterizer_set_z_buffer_fn)(ee_rasterizer *, uint32_t, uint32_t);
 internal inline void rasterizer_set_z_buffer(ee_rasterizer *rasterizer, uint32_t mode, uint32_t screen) { ((rasterizer_set_z_buffer_fn)(*(void ***)rasterizer)[slot_rasterizer_set_z_buffer])(rasterizer, mode, screen); }
+// SetZCompare(K, K): the depth test's comparison (the effects' draw: 2)
+typedef void (__thiscall *rasterizer_set_z_compare_fn)(ee_rasterizer *, uint32_t, uint32_t);
+internal inline void rasterizer_set_z_compare(ee_rasterizer *rasterizer, uint32_t mode, uint32_t screen) { ((rasterizer_set_z_compare_fn)(*(void ***)rasterizer)[slot_rasterizer_set_z_compare])(rasterizer, mode, screen); }
 // ShowScene(K): the back surface onto the screen (the mod's windowed present hooks its exported function)
 typedef int (__thiscall *rasterizer_show_scene_fn)(ee_rasterizer *, uint32_t);
 internal inline int rasterizer_show_scene(ee_rasterizer *rasterizer, uint32_t screen) { return ((rasterizer_show_scene_fn)(*(void ***)rasterizer)[slot_rasterizer_show_scene])(rasterizer, screen); }
@@ -314,6 +334,19 @@ internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return pat
 // a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
 // artillery piece's shards; the Minotaur's top is no such piece but its model's child, flown by GEModel
 // frame_transforms), an effect of the fifth queue, moved once a step
+// what it is (its kind's look: size, opacity, colour, blending)
+internal inline ee_graphic_effect *particle3d_get_graphic_effect(const ee_particle3d *o) { return *(ee_graphic_effect **)((uint8_t *)o + of_particle3d_graphic_effect); }
+internal inline void particle3d_set_graphic_effect(ee_particle3d *o, ee_graphic_effect *v) { *(ee_graphic_effect **)((uint8_t *)o + of_particle3d_graphic_effect) = v; }
+internal inline ee_graphic_effect **particle3d_graphic_effect_at(const ee_particle3d *o) { return (ee_graphic_effect **)((uint8_t *)o + of_particle3d_graphic_effect); }
+// whose model it is: vf6 draws its built_model with its first material's texture anim_keys' first (the texture
+// of its first animation)
+internal inline ee_dmg_model *particle3d_get_graphics(const ee_particle3d *o) { return *(ee_dmg_model **)((uint8_t *)o + of_particle3d_graphics); }
+internal inline void particle3d_set_graphics(ee_particle3d *o, ee_dmg_model *v) { *(ee_dmg_model **)((uint8_t *)o + of_particle3d_graphics) = v; }
+internal inline ee_dmg_model **particle3d_graphics_at(const ee_particle3d *o) { return (ee_dmg_model **)((uint8_t *)o + of_particle3d_graphics); }
+// the ambient light it is drawn in (vf6: SetAmbientColor of it three times; 0 for most of a Minotaur's pieces)
+internal inline float particle3d_get_glow(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_glow); }
+internal inline void particle3d_set_glow(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_glow) = v; }
+internal inline float *particle3d_glow_at(const ee_particle3d *o) { return (float *)((uint8_t *)o + of_particle3d_glow); }
 // where it is drawn: x, then y and z after it (vf6 reads the three into its transformation)
 internal inline float particle3d_get_place(const ee_particle3d *o) { return *(float *)((uint8_t *)o + of_particle3d_place); }
 internal inline void particle3d_set_place(ee_particle3d *o, float v) { *(float *)((uint8_t *)o + of_particle3d_place) = v; }
@@ -337,6 +370,32 @@ internal inline uint32_t particle3d_draw(ee_particle3d *particle3d) { return ((p
 internal particle3d_draw_fn fn_eee3_d_particle_draw;
 internal inline uint32_t eee3_d_particle_draw(ee_particle3d *particle3d) { return fn_eee3_d_particle_draw(particle3d); }
 internal inline int patch_particle3d_draw(particle3d_draw_fn h) { return patch_vtable(vt_eee3_d_particle, (int)slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, (void *)h); }
+
+// class EEGraphicEffect (ee_graphic_effect)
+// an effect's kind (an effect's +0xC: its look, shared by all of the kind) - the fields EEE3DParticle's draw (vf6) reads
+// whose alpha_ref the alpha test takes (none: 0)
+internal inline ee_dmg_model *graphic_effect_get_alpha_graphics(const ee_graphic_effect *o) { return *(ee_dmg_model **)((uint8_t *)o + of_graphic_effect_alpha_graphics); }
+internal inline void graphic_effect_set_alpha_graphics(ee_graphic_effect *o, ee_dmg_model *v) { *(ee_dmg_model **)((uint8_t *)o + of_graphic_effect_alpha_graphics) = v; }
+internal inline ee_dmg_model **graphic_effect_alpha_graphics_at(const ee_graphic_effect *o) { return (ee_dmg_model **)((uint8_t *)o + of_graphic_effect_alpha_graphics); }
+// the model's scale at the end of its life and at its start (vf6: start + (end - start) x fade)
+internal inline float graphic_effect_get_size_end(const ee_graphic_effect *o) { return *(float *)((uint8_t *)o + of_graphic_effect_size_end); }
+internal inline void graphic_effect_set_size_end(ee_graphic_effect *o, float v) { *(float *)((uint8_t *)o + of_graphic_effect_size_end) = v; }
+internal inline float *graphic_effect_size_end_at(const ee_graphic_effect *o) { return (float *)((uint8_t *)o + of_graphic_effect_size_end); }
+internal inline float graphic_effect_get_size_start(const ee_graphic_effect *o) { return *(float *)((uint8_t *)o + of_graphic_effect_size_start); }
+internal inline void graphic_effect_set_size_start(ee_graphic_effect *o, float v) { *(float *)((uint8_t *)o + of_graphic_effect_size_start) = v; }
+internal inline float *graphic_effect_size_start_at(const ee_graphic_effect *o) { return (float *)((uint8_t *)o + of_graphic_effect_size_start); }
+// its opacity (vf6: times 1 - fade, unless it glows)
+internal inline float graphic_effect_get_opacity(const ee_graphic_effect *o) { return *(float *)((uint8_t *)o + of_graphic_effect_opacity); }
+internal inline void graphic_effect_set_opacity(ee_graphic_effect *o, float v) { *(float *)((uint8_t *)o + of_graphic_effect_opacity) = v; }
+internal inline float *graphic_effect_opacity_at(const ee_graphic_effect *o) { return (float *)((uint8_t *)o + of_graphic_effect_opacity); }
+// its colour: the model's first material's while it is drawn (white again after)
+internal inline vec3 graphic_effect_get_colour(const ee_graphic_effect *o) { return *(vec3 *)((uint8_t *)o + of_graphic_effect_colour); }
+internal inline void graphic_effect_set_colour(ee_graphic_effect *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_graphic_effect_colour) = v; }
+internal inline vec3 *graphic_effect_colour_at(const ee_graphic_effect *o) { return (vec3 *)((uint8_t *)o + of_graphic_effect_colour); }
+// nonzero: it adds its light (blending 1, 1; its ambient light faded with it and by the fog over its place)
+internal inline uint8_t graphic_effect_get_glows(const ee_graphic_effect *o) { return *(uint8_t *)((uint8_t *)o + of_graphic_effect_glows); }
+internal inline void graphic_effect_set_glows(ee_graphic_effect *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_graphic_effect_glows) = v; }
+internal inline uint8_t *graphic_effect_glows_at(const ee_graphic_effect *o) { return (uint8_t *)((uint8_t *)o + of_graphic_effect_glows); }
 
 // class EEE2DParticle (ee_particle2d)
 // a flat particle: the flames and smoke of a burning or dying thing, sparks ... (a sprite turned to the camera), an
@@ -841,6 +900,8 @@ internal inline uint8_t *engine_display_effect_queues_at(void) { return (uint8_t
 // at +4 .. +8; +8 a region's size in tiles; +0x10 its width, +0x14 its height - a region at x * height + y)
 // an effect's virtual Queue and PrepareQueue, its player (+0x20: whose alone it is when) its local-only byte (+0x2D) is 1
 // an effect's virtual Draw (EEROTerrain's draw calls it on the third queue's: EE 0x508390, AoC 0x5131A4)
+// ... and the one EEROWater's draw calls on the fifth queue's (the flying pieces' EEE3DParticle.draw, the flat
+// particles' EEE2DParticle.draw ...)
 // the collection's lock over pick_list (a TSCriticalSection*; the AoC decompilation's gUnitPickerLock): the
 // update walks the tiles inside it
 internal inline uint8_t *engine_display_picker_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_picker_lock; }
@@ -1065,6 +1126,30 @@ internal inline void effect_queue_clear(void *queue) { fn_effect_queue_clear(que
 typedef void (__thiscall *object_release_fn)(void *);
 internal object_release_fn fn_object_release;
 internal inline void object_release(void *o) { fn_object_release(o); }
+// THE EFFECTS' DRAW (EEROWater's draw, after the water's surface; render_effects.c draws it the same): the light
+// off (the ambient intensity 0, the lights removed, no lighting), the fog of the frame (on with its colour and range,
+// off with the camera fixed), and a flying piece's light (lighting on, the scene's ambient colour and intensity, at
+// night its lights)
+typedef void (__cdecl *effects_unlit_fn)(void);
+internal effects_unlit_fn fn_effects_unlit;
+internal inline void effects_unlit(void) { fn_effects_unlit(); }
+typedef void (__cdecl *effects_fog_fn)(void);
+internal effects_fog_fn fn_effects_fog;
+internal inline void effects_fog(void) { fn_effects_fog(); }
+typedef void (__cdecl *effects_lit_fn)(void);
+internal effects_lit_fn fn_effects_lit;
+internal inline void effects_lit(void) { fn_effects_lit(); }
+// the sprites' batch of a queue's node (the flat particles add their four corners to it, 0x800 vertices at most):
+// begun with the node's texture (its references + 2), drawn, ended (the texture's references given back)
+typedef void (__cdecl *sprites_begin_fn)(ee_texture *);
+internal sprites_begin_fn fn_sprites_begin;
+internal inline void sprites_begin(ee_texture *texture) { fn_sprites_begin(texture); }
+typedef void (__cdecl *sprites_flush_fn)(void);
+internal sprites_flush_fn fn_sprites_flush;
+internal inline void sprites_flush(void) { fn_sprites_flush(); }
+typedef void (__cdecl *sprites_end_fn)(void);
+internal sprites_end_fn fn_sprites_end;
+internal inline void sprites_end(void) { fn_sprites_end(); }
 // EEReleaseScene: the frame's lists, the effects' queues and the picker emptied (a game's end, a load): the graphics
 // thread's two calls of it; collect_copy.c gives back what the simulation's effects' queues hold first
 typedef void (__cdecl *scene_release_fn)(void);
@@ -1148,8 +1233,14 @@ internal int spec_engine_display_select(int build) {
         slot_rasterizer_draw_water = 27;
         slot_rasterizer_end_scene = 28;
         slot_rasterizer_set_alpha_ref = 39;
+        slot_rasterizer_set_ambient_color = 40;
+        slot_rasterizer_set_blending = 43;
+        slot_rasterizer_set_culling = 45;
+        slot_rasterizer_set_fog = 51;
+        slot_rasterizer_set_shading_color_source = 59;
         slot_rasterizer_set_viewport = 62;
         slot_rasterizer_set_z_buffer = 64;
+        slot_rasterizer_set_z_compare = 65;
         slot_rasterizer_show_scene = 66;
         slot_rasterizer_draw_model_hierarchy = 75;
         vt_rts_graphics = 0x0082C4BC;
@@ -1218,12 +1309,21 @@ internal int spec_engine_display_select(int build) {
         fn_ro_effects_update = (ro_effects_update_fn)0x005067CF;
         vt_eee3_d_marching_line = 0x0082B9D4;
         vt_eee3_d_particle = 0x0082BAF8;
+        of_particle3d_graphic_effect = 0xC;
+        of_particle3d_graphics = 0x8C;
+        of_particle3d_glow = 0xA4;
         of_particle3d_place = 0x80;
         of_particle3d_fade = 0x90;
         of_particle3d_angles = 0x98;
         of_particle3d_moved_ms = 0xA8;
         slot_particle3d_draw = 6;
         fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004EB951;
+        of_graphic_effect_alpha_graphics = 0x8;
+        of_graphic_effect_size_end = 0x18;
+        of_graphic_effect_size_start = 0x1C;
+        of_graphic_effect_opacity = 0x24;
+        of_graphic_effect_colour = 0x34;
+        of_graphic_effect_glows = 0x84;
         vt_eee2_d_particle = 0x0082B0EC;
         of_particle2d_place = 0x60;
         of_particle2d_fade = 0x70;
@@ -1379,6 +1479,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_slot_effect_queue = 9;
         value_engine_display_slot_effect_prepare = 11;
         value_engine_display_slot_effect_draw = 4;
+        value_engine_display_slot_effect_draw_water = 6;
         value_engine_display_of_effect_player = 32;
         value_engine_display_of_effect_local_only = 45;
         data_engine_display_picker_lock = 0x00912874;
@@ -1499,6 +1600,12 @@ internal int spec_engine_display_select(int build) {
         fn_effect_queue_new = (effect_queue_new_fn)0x00521704;
         fn_effect_queue_clear = (effect_queue_clear_fn)0x00504FC8;
         fn_object_release = (object_release_fn)0x004FCAD3;
+        fn_effects_unlit = (effects_unlit_fn)0x00504881;
+        fn_effects_fog = (effects_fog_fn)0x005047B2;
+        fn_effects_lit = (effects_lit_fn)0x00504BA4;
+        fn_sprites_begin = (sprites_begin_fn)0x004F842F;
+        fn_sprites_flush = (sprites_flush_fn)0x004F9716;
+        fn_sprites_end = (sprites_end_fn)0x004F8C2B;
         fn_scene_release = (scene_release_fn)0x005042FE;
         calls_scene_release[0] = 0x004FED15;
         calls_scene_release[1] = 0x004FEE3B;
@@ -1538,8 +1645,14 @@ internal int spec_engine_display_select(int build) {
         slot_rasterizer_draw_water = 27;
         slot_rasterizer_end_scene = 28;
         slot_rasterizer_set_alpha_ref = 39;
+        slot_rasterizer_set_ambient_color = 40;
+        slot_rasterizer_set_blending = 43;
+        slot_rasterizer_set_culling = 45;
+        slot_rasterizer_set_fog = 51;
+        slot_rasterizer_set_shading_color_source = 59;
         slot_rasterizer_set_viewport = 62;
         slot_rasterizer_set_z_buffer = 64;
+        slot_rasterizer_set_z_compare = 65;
         slot_rasterizer_show_scene = 66;
         slot_rasterizer_draw_model_hierarchy = 75;
         vt_rts_graphics = 0x00841C50;
@@ -1608,12 +1721,21 @@ internal int spec_engine_display_select(int build) {
         fn_ro_effects_update = (ro_effects_update_fn)0x00511D76;
         vt_eee3_d_marching_line = 0x0084099C;
         vt_eee3_d_particle = 0x00840AC4;
+        of_particle3d_graphic_effect = 0xC;
+        of_particle3d_graphics = 0x8C;
+        of_particle3d_glow = 0xA4;
         of_particle3d_place = 0x80;
         of_particle3d_fade = 0x90;
         of_particle3d_angles = 0x98;
         of_particle3d_moved_ms = 0xA8;
         slot_particle3d_draw = 6;
         fn_eee3_d_particle_draw = (particle3d_draw_fn)0x004F556B;
+        of_graphic_effect_alpha_graphics = 0xC;
+        of_graphic_effect_size_end = 0x1C;
+        of_graphic_effect_size_start = 0x20;
+        of_graphic_effect_opacity = 0x28;
+        of_graphic_effect_colour = 0x38;
+        of_graphic_effect_glows = 0x88;
         vt_eee2_d_particle = 0x0083FEA4;
         of_particle2d_place = 0x60;
         of_particle2d_fade = 0x70;
@@ -1769,6 +1891,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_slot_effect_queue = 9;
         value_engine_display_slot_effect_prepare = 11;
         value_engine_display_slot_effect_draw = 4;
+        value_engine_display_slot_effect_draw_water = 6;
         value_engine_display_of_effect_player = 32;
         value_engine_display_of_effect_local_only = 45;
         data_engine_display_picker_lock = 0x00929014;
@@ -1889,6 +2012,12 @@ internal int spec_engine_display_select(int build) {
         fn_effect_queue_new = (effect_queue_new_fn)0x0056D077;
         fn_effect_queue_clear = (effect_queue_clear_fn)0x0050FE93;
         fn_object_release = (object_release_fn)0x00401DB4;
+        fn_effects_unlit = (effects_unlit_fn)0x0050F6DE;
+        fn_effects_fog = (effects_fog_fn)0x0050F60F;
+        fn_effects_lit = (effects_lit_fn)0x0050FA01;
+        fn_sprites_begin = (sprites_begin_fn)0x00502724;
+        fn_sprites_flush = (sprites_flush_fn)0x00503F64;
+        fn_sprites_end = (sprites_end_fn)0x00502F20;
         fn_scene_release = (scene_release_fn)0x0050F239;
         calls_scene_release[0] = 0x00509828;
         calls_scene_release[1] = 0x0050994E;
@@ -2101,6 +2230,12 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_effect_queue_new, "engine_display_functions.effect_queue_new");
     bad += spec_code((uintptr_t)fn_effect_queue_clear, "engine_display_functions.effect_queue_clear");
     bad += spec_code((uintptr_t)fn_object_release, "engine_display_functions.object_release");
+    bad += spec_code((uintptr_t)fn_effects_unlit, "engine_display_functions.effects_unlit");
+    bad += spec_code((uintptr_t)fn_effects_fog, "engine_display_functions.effects_fog");
+    bad += spec_code((uintptr_t)fn_effects_lit, "engine_display_functions.effects_lit");
+    bad += spec_code((uintptr_t)fn_sprites_begin, "engine_display_functions.sprites_begin");
+    bad += spec_code((uintptr_t)fn_sprites_flush, "engine_display_functions.sprites_flush");
+    bad += spec_code((uintptr_t)fn_sprites_end, "engine_display_functions.sprites_end");
     bad += spec_code((uintptr_t)fn_scene_release, "engine_display_functions.scene_release");
     bad += spec_call(calls_scene_release[0], (uintptr_t)fn_scene_release, "engine_display_functions.scene_release [call_site scene_release 0]");
     bad += spec_call(calls_scene_release[1], (uintptr_t)fn_scene_release, "engine_display_functions.scene_release [call_site scene_release 1]");

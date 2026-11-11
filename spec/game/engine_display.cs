@@ -101,6 +101,28 @@ unsafe struct DX7Rasterizer
     [slot(39)]
     extern void set_alpha_ref(float32 value, uint32 screen);
 
+    /// SetAmbientColor(GEColor const &, K): the ambient light's colour (3 floats; the device's ambient state is it times
+    /// the ambient intensity)
+    [slot(40)]
+    extern void set_ambient_color(float32* colour, uint32 screen);
+
+    /// SetBlending(K, K, K): the source's and the destination's factor (the effects': 4, 5 - by the source's alpha;
+    /// 1, 1 - added)
+    [slot(43)]
+    extern void set_blending(uint32 source, uint32 destination, uint32 screen);
+
+    /// SetCulling(K): which faces are left out (the effects' draw: 0)
+    [slot(45)]
+    extern void set_culling(uint32 mode);
+
+    /// SetFog(K, K): the fog's use (GERasterizer::GetFog reads it back: the flying pieces' draw puts it back so)
+    [slot(51)]
+    extern void set_fog(uint32 fog, uint32 screen);
+
+    /// SetShadingColorSource(K, K) (the effects' draw: 1; a flying piece's: 0)
+    [slot(59)]
+    extern void set_shading_color_source(uint32 source, uint32 screen);
+
     /// SetViewport(GEViewport const &, K): the camera the next draws use
     [slot(62)]
     extern void set_viewport(void* viewport, uint32 screen);
@@ -109,6 +131,10 @@ unsafe struct DX7Rasterizer
     /// (tested) for one seen through
     [slot(64)]
     extern void set_z_buffer(uint32 mode, uint32 screen);
+
+    /// SetZCompare(K, K): the depth test's comparison (the effects' draw: 2)
+    [slot(65)]
+    extern void set_z_compare(uint32 mode, uint32 screen);
 
     /// ShowScene(K): the back surface onto the screen (the mod's windowed present hooks its exported function)
     [slot(66)]
@@ -387,6 +413,19 @@ unsafe struct EEE3DMarchingLine
 [vtable((ee)0x0082BAF8, (aoc)0x00840AC4), c_type("ee_particle3d")]
 unsafe struct EEE3DParticle
 {
+    /// what it is (its kind's look: size, opacity, colour, blending)
+    [offset(0xC), found(c)]
+    EEGraphicEffect* graphic_effect;
+
+    /// whose model it is: vf6 draws its built_model with its first material's texture anim_keys' first (the texture
+    /// of its first animation)
+    [offset(0x8C), found(c)]
+    EEGraphicObject* graphics;
+
+    /// the ambient light it is drawn in (vf6: SetAmbientColor of it three times; 0 for most of a Minotaur's pieces)
+    [offset(0xA4), found(c)]
+    float32 glow;
+
     /// where it is drawn: x, then y and z after it (vf6 reads the three into its transformation)
     [offset(0x80), found(c)]
     float32 place;
@@ -408,6 +447,34 @@ unsafe struct EEE3DParticle
     [slot(6), address((ee)0x004EB951, (aoc)0x004F556B)]
     [vtable_site("particle3d_draw")]
     extern uint32 draw();
+}
+
+/// an effect's kind (an effect's +0xC: its look, shared by all of the kind) - the fields EEE3DParticle's draw (vf6) reads
+[c_type("ee_graphic_effect")]
+unsafe struct EEGraphicEffect
+{
+    /// whose alpha_ref the alpha test takes (none: 0)
+    [offset((ee)0x8, (aoc)0xC), found(c)]
+    EEGraphicObject* alpha_graphics;
+
+    /// the model's scale at the end of its life and at its start (vf6: start + (end - start) x fade)
+    [offset((ee)0x18, (aoc)0x1C), found(c)]
+    float32 size_end;
+
+    [offset((ee)0x1C, (aoc)0x20), found(c)]
+    float32 size_start;
+
+    /// its opacity (vf6: times 1 - fade, unless it glows)
+    [offset((ee)0x24, (aoc)0x28), found(c)]
+    float32 opacity;
+
+    /// its colour: the model's first material's while it is drawn (white again after)
+    [offset((ee)0x34, (aoc)0x38), found(c)]
+    vec3 colour;
+
+    /// nonzero: it adds its light (blending 1, 1; its ambient light faded with it and by the fog over its place)
+    [offset((ee)0x84, (aoc)0x88), found(c)]
+    uint8 glows;
 }
 
 /// a flat particle: the flames and smoke of a burning or dying thing, sparks ... (a sprite turned to the camera), an
@@ -1108,6 +1175,11 @@ static unsafe class engine_display
     [value((ee)4, (aoc)4)]
     static uint32 slot_effect_draw;
 
+    /// ... and the one EEROWater's draw calls on the fifth queue's (the flying pieces' EEE3DParticle.draw, the flat
+    /// particles' EEE2DParticle.draw ...)
+    [value((ee)6, (aoc)6)]
+    static uint32 slot_effect_draw_water;
+
     [value((ee)0x20, (aoc)0x20)]
     static uint32 of_effect_player;
 
@@ -1576,6 +1648,30 @@ static unsafe class engine_display_functions
     /// inside the world's lock only
     [address((ee)0x004FCAD3, (aoc)0x00401DB4), thiscall]
     static extern void object_release(void* o);
+
+    /// THE EFFECTS' DRAW (EEROWater's draw, after the water's surface; render_effects.c draws it the same): the light
+    /// off (the ambient intensity 0, the lights removed, no lighting), the fog of the frame (on with its colour and range,
+    /// off with the camera fixed), and a flying piece's light (lighting on, the scene's ambient colour and intensity, at
+    /// night its lights)
+    [address((ee)0x00504881, (aoc)0x0050F6DE), cdecl]
+    static extern void effects_unlit();
+
+    [address((ee)0x005047B2, (aoc)0x0050F60F), cdecl]
+    static extern void effects_fog();
+
+    [address((ee)0x00504BA4, (aoc)0x0050FA01), cdecl]
+    static extern void effects_lit();
+
+    /// the sprites' batch of a queue's node (the flat particles add their four corners to it, 0x800 vertices at most):
+    /// begun with the node's texture (its references + 2), drawn, ended (the texture's references given back)
+    [address((ee)0x004F842F, (aoc)0x00502724), cdecl]
+    static extern void sprites_begin(GETexture* texture);
+
+    [address((ee)0x004F9716, (aoc)0x00503F64), cdecl]
+    static extern void sprites_flush();
+
+    [address((ee)0x004F8C2B, (aoc)0x00502F20), cdecl]
+    static extern void sprites_end();
 
     /// EEReleaseScene: the frame's lists, the effects' queues and the picker emptied (a game's end, a load): the graphics
     /// thread's two calls of it; collect_copy.c gives back what the simulation's effects' queues hold first
