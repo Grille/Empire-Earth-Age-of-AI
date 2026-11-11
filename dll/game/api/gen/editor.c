@@ -188,8 +188,15 @@ typedef void *(__thiscall *eesea_quick_save_load_init_fn)(eesea_quick_save_load 
 internal eesea_quick_save_load_init_fn fn_eesea_quick_save_load_init;
 internal inline void *eesea_quick_save_load_init(eesea_quick_save_load *eesea_quick_save_load, uint32_t p1) { return fn_eesea_quick_save_load_init(eesea_quick_save_load, p1); }
 
-// class EESEAQuickSaveScenario (eesea_quick_save_scenario)
+// class EESEAQuickSaveScenario (ee_se_quick_save)
 // made in 0x59F61B
+// vf1: the editor's Quick Save - its EEAQuickSaveLoad queued to save (+0x28 0, +0x29 1), a saved game with the
+// units' goals (editor_orders.c: the units' orders dropped first)
+typedef void (__thiscall *se_quick_save_run_fn)(ee_se_quick_save *);
+internal inline void se_quick_save_run(ee_se_quick_save *se_quick_save) { ((se_quick_save_run_fn)(*(void ***)se_quick_save)[slot_se_quick_save_run])(se_quick_save); }
+internal se_quick_save_run_fn fn_eesea_quick_save_scenario_run;
+internal inline void eesea_quick_save_scenario_run(ee_se_quick_save *se_quick_save) { fn_eesea_quick_save_scenario_run(se_quick_save); }
+internal inline int patch_se_quick_save(se_quick_save_run_fn h) { return patch_vtable(vt_eesea_quick_save_scenario, (int)slot_se_quick_save_run, (uintptr_t)fn_eesea_quick_save_scenario_run, (void *)h); }
 
 // class EESEARotateUnits (ee_se_rotate)
 // made in 0x58702B
@@ -205,20 +212,33 @@ internal se_rotate_run_fn fn_eesea_rotate_units_run;
 internal inline void eesea_rotate_units_run(ee_se_rotate *se_rotate) { fn_eesea_rotate_units_run(se_rotate); }
 internal inline int patch_se_rotate(se_rotate_run_fn h) { return patch_vtable(vt_eesea_rotate_units, (int)slot_se_rotate_run, (uintptr_t)fn_eesea_rotate_units_run, (void *)h); }
 
-// class EESEASaveScenario (eesea_save_scenario)
+// class EESEASaveScenario (ee_se_save)
 // its constructor (0 arguments, not typed yet)
-typedef void *(__thiscall *eesea_save_scenario_init_fn)(eesea_save_scenario *);
-internal eesea_save_scenario_init_fn fn_eesea_save_scenario_init;
-internal inline void *eesea_save_scenario_init(eesea_save_scenario *eesea_save_scenario) { return fn_eesea_save_scenario_init(eesea_save_scenario); }
+typedef void *(__thiscall *se_save_init_fn)(ee_se_save *);
+internal se_save_init_fn fn_se_save_init;
+internal inline void *se_save_init(ee_se_save *se_save) { return fn_se_save_init(se_save); }
+// vf1: the scenario written (the editor's Save; editor_orders.c: the units' orders dropped first)
+typedef void (__thiscall *se_save_run_fn)(ee_se_save *);
+internal inline void se_save_run(ee_se_save *se_save) { ((se_save_run_fn)(*(void ***)se_save)[slot_se_save_run])(se_save); }
+internal se_save_run_fn fn_eesea_save_scenario_run;
+internal inline void eesea_save_scenario_run(ee_se_save *se_save) { fn_eesea_save_scenario_run(se_save); }
+internal inline int patch_se_save(se_save_run_fn h) { return patch_vtable(vt_eesea_save_scenario, (int)slot_se_save_run, (uintptr_t)fn_eesea_save_scenario_run, (void *)h); }
 
 // class EESEATechTree (eesea_tech_tree)
 // made in 0x563603
 
-// class EESEATestScenario (eesea_test_scenario)
+// class EESEATestScenario (ee_se_test)
 // its constructor (0 arguments, not typed yet)
-typedef void *(__thiscall *eesea_test_scenario_init_fn)(eesea_test_scenario *);
-internal eesea_test_scenario_init_fn fn_eesea_test_scenario_init;
-internal inline void *eesea_test_scenario_init(eesea_test_scenario *eesea_test_scenario) { return fn_eesea_test_scenario_init(eesea_test_scenario); }
+typedef void *(__thiscall *se_test_init_fn)(ee_se_test *);
+internal se_test_init_fn fn_se_test_init;
+internal inline void *se_test_init(ee_se_test *se_test) { return fn_se_test_init(se_test); }
+// vf1: the scenario played as a test (the editor's Test: its form's 0x58F2B8 with 1; editor_orders.c: the units'
+// orders dropped first)
+typedef void (__thiscall *se_test_run_fn)(ee_se_test *);
+internal inline void se_test_run(ee_se_test *se_test) { ((se_test_run_fn)(*(void ***)se_test)[slot_se_test_run])(se_test); }
+internal se_test_run_fn fn_eesea_test_scenario_run;
+internal inline void eesea_test_scenario_run(ee_se_test *se_test) { fn_eesea_test_scenario_run(se_test); }
+internal inline int patch_se_test(se_test_run_fn h) { return patch_vtable(vt_eesea_test_scenario, (int)slot_se_test_run, (uintptr_t)fn_eesea_test_scenario_run, (void *)h); }
 
 // class EESEBSelect (eeseb_select)
 // UIButton's, the base's
@@ -2645,6 +2665,8 @@ internal int spec_editor_select(int build) {
         fn_eesea_quick_save_load_init = (eesea_quick_save_load_init_fn)0x0058ECA2;
         vt_eesea_quick_save_scenario = 0x008306BC;
         size_eesea_quick_save_scenario = 0x10;
+        slot_se_quick_save_run = 1;
+        fn_eesea_quick_save_scenario_run = (se_quick_save_run_fn)0x0059A613;
         vt_eesea_rotate_units = 0x0082F080;
         size_eesea_rotate_units = 0x10;
         of_se_rotate_angle = 0xC;
@@ -2652,12 +2674,16 @@ internal int spec_editor_select(int build) {
         fn_eesea_rotate_units_run = (se_rotate_run_fn)0x0059A63F;
         vt_eesea_save_scenario = 0x008300B8;
         size_eesea_save_scenario = 0xC;
-        fn_eesea_save_scenario_init = (eesea_save_scenario_init_fn)0x0059A6F2;
+        fn_se_save_init = (se_save_init_fn)0x0059A6F2;
+        slot_se_save_run = 1;
+        fn_eesea_save_scenario_run = (se_save_run_fn)0x0059A706;
         vt_eesea_tech_tree = 0x0082D6DC;
         size_eesea_tech_tree = 0x1C;
         vt_eesea_test_scenario = 0x008300DC;
         size_eesea_test_scenario = 0xC;
-        fn_eesea_test_scenario_init = (eesea_test_scenario_init_fn)0x0059A99D;
+        fn_se_test_init = (se_test_init_fn)0x0059A99D;
+        slot_se_test_run = 1;
+        fn_eesea_test_scenario_run = (se_test_run_fn)0x0059A9B1;
         vt_eeseb_select = 0x0082D640;
         size_eeseb_select = 0x104;
         fn_eeseb_select_init = (eeseb_select_init_fn)0x0056346C;
@@ -3251,6 +3277,8 @@ internal int spec_editor_select(int build) {
         fn_eesea_quick_save_load_init = (eesea_quick_save_load_init_fn)0x0059F0B1;
         vt_eesea_quick_save_scenario = 0x00845FC0;
         size_eesea_quick_save_scenario = 0x10;
+        slot_se_quick_save_run = 1;
+        fn_eesea_quick_save_scenario_run = (se_quick_save_run_fn)0x005AA723;
         vt_eesea_rotate_units = 0x00844940;
         size_eesea_rotate_units = 0x10;
         of_se_rotate_angle = 0xC;
@@ -3258,12 +3286,16 @@ internal int spec_editor_select(int build) {
         fn_eesea_rotate_units_run = (se_rotate_run_fn)0x005AA74F;
         vt_eesea_save_scenario = 0x008459A4;
         size_eesea_save_scenario = 0xC;
-        fn_eesea_save_scenario_init = (eesea_save_scenario_init_fn)0x005AA802;
+        fn_se_save_init = (se_save_init_fn)0x005AA802;
+        slot_se_save_run = 1;
+        fn_eesea_save_scenario_run = (se_save_run_fn)0x005AA816;
         vt_eesea_tech_tree = 0x00842F8C;
         size_eesea_tech_tree = 0x1C;
         vt_eesea_test_scenario = 0x008459C8;
         size_eesea_test_scenario = 0xC;
-        fn_eesea_test_scenario_init = (eesea_test_scenario_init_fn)0x005AAAAD;
+        fn_se_test_init = (se_test_init_fn)0x005AAAAD;
+        slot_se_test_run = 1;
+        fn_eesea_test_scenario_run = (se_test_run_fn)0x005AAAC1;
         vt_eeseb_select = 0x00842EF0;
         size_eeseb_select = 0x104;
         fn_eeseb_select_init = (eeseb_select_init_fn)0x00572DA4;
@@ -3845,14 +3877,20 @@ internal int spec_editor_check(void) {
     bad += spec_vtable(vt_eesea_quick_save_load, ".?AVEESEAQuickSaveLoad@@", "EESEAQuickSaveLoad [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_quick_save_load_init, "EESEAQuickSaveLoad.init");
     bad += spec_vtable(vt_eesea_quick_save_scenario, ".?AVEESEAQuickSaveScenario@@", "EESEAQuickSaveScenario [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_quick_save_scenario_run, "EESEAQuickSaveScenario.run");
+    bad += spec_slot(vt_eesea_quick_save_scenario, slot_se_quick_save_run, (uintptr_t)fn_eesea_quick_save_scenario_run, "EESEAQuickSaveScenario.run [slot]");
     bad += spec_vtable(vt_eesea_rotate_units, ".?AVEESEARotateUnits@@", "EESEARotateUnits [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_rotate_units_run, "EESEARotateUnits.run");
     bad += spec_slot(vt_eesea_rotate_units, slot_se_rotate_run, (uintptr_t)fn_eesea_rotate_units_run, "EESEARotateUnits.run [slot]");
     bad += spec_vtable(vt_eesea_save_scenario, ".?AVEESEASaveScenario@@", "EESEASaveScenario [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_save_scenario_init, "EESEASaveScenario.init");
+    bad += spec_code((uintptr_t)fn_se_save_init, "EESEASaveScenario.init");
+    bad += spec_code((uintptr_t)fn_eesea_save_scenario_run, "EESEASaveScenario.run");
+    bad += spec_slot(vt_eesea_save_scenario, slot_se_save_run, (uintptr_t)fn_eesea_save_scenario_run, "EESEASaveScenario.run [slot]");
     bad += spec_vtable(vt_eesea_tech_tree, ".?AVEESEATechTree@@", "EESEATechTree [vtable]");
     bad += spec_vtable(vt_eesea_test_scenario, ".?AVEESEATestScenario@@", "EESEATestScenario [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_test_scenario_init, "EESEATestScenario.init");
+    bad += spec_code((uintptr_t)fn_se_test_init, "EESEATestScenario.init");
+    bad += spec_code((uintptr_t)fn_eesea_test_scenario_run, "EESEATestScenario.run");
+    bad += spec_slot(vt_eesea_test_scenario, slot_se_test_run, (uintptr_t)fn_eesea_test_scenario_run, "EESEATestScenario.run [slot]");
     bad += spec_vtable(vt_eeseb_select, ".?AVEESEBSelect@@", "EESEBSelect [vtable]");
     bad += spec_code((uintptr_t)fn_eeseb_select_init, "EESEBSelect.init");
     bad += spec_code((uintptr_t)fn_eeseb_select_button_down, "EESEBSelect.button_down");

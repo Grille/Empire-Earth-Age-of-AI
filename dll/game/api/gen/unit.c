@@ -140,10 +140,16 @@ internal inline float unit_accel(ee_unit *unit) { return fn_unit_accel(unit); }
 typedef float (__thiscall *unit_max_turn_fn)(ee_unit *);
 internal unit_max_turn_fn fn_unit_max_turn;
 internal inline float unit_max_turn(ee_unit *unit) { return fn_unit_max_turn(unit); }
-// thiscall(unit, 0x1F51) - as the assignment does after the order
+// thiscall(unit, 0x1F51) - as the assignment does after the order; unit.state_idle after the player's Halt
 typedef void (__thiscall *unit_set_state_fn)(ee_unit *, int);
 internal unit_set_state_fn fn_unit_set_state;
 internal inline void unit_set_state(ee_unit *unit, int state) { fn_unit_set_state(unit, state); }
+// thiscall(unit, slot): every goal of its goal slot dropped, each told so (its orders: slot 0) - the player's Halt
+// (EEMHaltSelectedGroup::vf10 0x4B73C9, AoC 0x4BF8C8) does it with 0 for each unit of the group, then
+// set_state(unit.state_idle) and its type's vf29 (its next behaviour)
+typedef void (__thiscall *unit_drop_goals_fn)(ee_unit *, uint32_t);
+internal unit_drop_goals_fn fn_unit_drop_goals;
+internal inline void unit_drop_goals(ee_unit *unit, uint32_t slot) { fn_unit_drop_goals(unit, slot); }
 // thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
 typedef float (__thiscall *unit_turn_accel_fn)(ee_unit *);
 internal unit_turn_accel_fn fn_unit_turn_accel;
@@ -919,6 +925,7 @@ internal inline int patch_se_ghost_preview(ghost_unit_preview_fn h, int *of) { r
 
 // static class unit
 // the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
+// a unit's state at rest (the Halt's set_state, a unit as the editor makes it)
 internal inline uint8_t *unit_call_node_del_1_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_1; }
 internal inline uint8_t *unit_call_node_del_2_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_2; }
 internal inline uint8_t *unit_fn_op_delete_at(void) { return (uint8_t *)(uintptr_t)data_unit_fn_op_delete; }
@@ -1145,6 +1152,7 @@ internal int spec_unit_select(int build) {
         fn_unit_accel = (unit_accel_fn)0x0054A4CA;
         fn_unit_max_turn = (unit_max_turn_fn)0x0054A4E7;
         fn_unit_set_state = (unit_set_state_fn)0x005EFCF0;
+        fn_unit_drop_goals = (unit_drop_goals_fn)0x005EAE25;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
         fn_unit_unlink = (unit_unlink_fn)0x00628E29;
         fn_unit_count_inside = (unit_count_inside_fn)0x0042E347;
@@ -1344,6 +1352,7 @@ internal int spec_unit_select(int build) {
         fn_ghost_unit_preview = (ghost_unit_preview_fn)0x005F4DDA;
         calls_se_ghost_preview[0] = 0x0058BA2F;
         calls_se_ghost_preview[1] = 0x0058E391;
+        value_unit_state_idle = 5000;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
         data_unit_fn_op_delete = 0x006836F0;
@@ -1430,6 +1439,7 @@ internal int spec_unit_select(int build) {
         fn_unit_accel = (unit_accel_fn)0x00554C95;
         fn_unit_max_turn = (unit_max_turn_fn)0x0055463E;
         fn_unit_set_state = (unit_set_state_fn)0x005FDFA5;
+        fn_unit_drop_goals = (unit_drop_goals_fn)0x005F88FE;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
         fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
         fn_unit_count_inside = (unit_count_inside_fn)0x0040D5C5;
@@ -1629,6 +1639,7 @@ internal int spec_unit_select(int build) {
         fn_ghost_unit_preview = (ghost_unit_preview_fn)0x00604ABA;
         calls_se_ghost_preview[0] = 0x0059BD85;
         calls_se_ghost_preview[1] = 0x0059E7A0;
+        value_unit_state_idle = 5000;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
         data_unit_fn_op_delete = 0x0069D150;
@@ -1697,6 +1708,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_accel, "EEUnit.accel");
     bad += spec_code((uintptr_t)fn_unit_max_turn, "EEUnit.max_turn");
     bad += spec_code((uintptr_t)fn_unit_set_state, "EEUnit.set_state");
+    bad += spec_code((uintptr_t)fn_unit_drop_goals, "EEUnit.drop_goals");
     bad += spec_code((uintptr_t)fn_unit_turn_accel, "EEUnit.turn_accel");
     bad += spec_code((uintptr_t)fn_unit_unlink, "EEUnit.unlink");
     bad += spec_code((uintptr_t)fn_unit_count_inside, "EEUnit.count_inside");

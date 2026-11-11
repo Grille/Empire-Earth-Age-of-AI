@@ -58,6 +58,11 @@ internal inline ee_goal *unit_order_at(ee_unit *u, int i) {
     if (blk >= blocks) blk -= blocks;
     return ((ee_goal ***)*(void **)(q + 4))[blk][pos & 0x3FF];
 }
+// its orders dropped and at rest, as the player's Halt leaves it (without the Halt's next behaviour: the type's vf29)
+internal inline void unit_halt(ee_unit *u) {
+    unit_drop_goals(u, 0);
+    unit_set_state(u, (int)value_unit_state_idle);
+}
 // drops its current waypoint, the next the current (as GetNextMoveWaypoint does on arrival): 0, else it had none
 // the citizens working site (all players)
 internal inline unsigned site_gatherers(ee_unit *site) { return fn_world_site_gatherers((void *)data_game_game_state, site); }

@@ -462,6 +462,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/walls.c"
 #include "engine/editor_place.c"
 #include "engine/editor_formation.c"
+#include "engine/editor_orders.c"
 #include "engine/editor_undo.c"
 #include "engine/editor_search.c"
 #include "engine/editor_camera.c"
@@ -707,6 +708,7 @@ internal void install(HMODULE self) {
     editor_camera_install();
     editor_undo_install();
     editor_formation_install();
+    editor_orders_install();
     terrain_palette_install();
     map_file_install();
     llm_install();

@@ -161,9 +161,15 @@ unsafe struct EEUnit
     [address((ee)0x0054A4E7, (aoc)0x0055463E)]
     extern float32 max_turn();
 
-    /// thiscall(unit, 0x1F51) - as the assignment does after the order
+    /// thiscall(unit, 0x1F51) - as the assignment does after the order; unit.state_idle after the player's Halt
     [address((ee)0x005EFCF0, (aoc)0x005FDFA5)]
     extern void set_state(int32 state);
+
+    /// thiscall(unit, slot): every goal of its goal slot dropped, each told so (its orders: slot 0) - the player's Halt
+    /// (EEMHaltSelectedGroup::vf10 0x4B73C9, AoC 0x4BF8C8) does it with 0 for each unit of the group, then
+    /// set_state(unit.state_idle) and its type's vf29 (its next behaviour)
+    [address((ee)0x005EAE25, (aoc)0x005F88FE)]
+    extern void drop_goals(uint32 slot);
 
     /// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
     [address((ee)0x0054A504, (aoc)0x0055465B)]
@@ -952,6 +958,10 @@ static unsafe class ghost_unit
 /// the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
 static unsafe class unit
 {
+    /// a unit's state at rest (the Halt's set_state, a unit as the editor makes it)
+    [value(5000)]
+    static uint32 state_idle;
+
     [address((ee)0x00628BE7, (aoc)0x0063D998)]
     static code call_node_del_1;
 

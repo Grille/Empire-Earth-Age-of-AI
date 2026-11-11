@@ -220,9 +220,14 @@ unsafe struct EESEAQuickSaveLoad
 }
 
 /// made in 0x59F61B
-[size((ee)0x10, (aoc)0x10), vtable((ee)0x008306BC, (aoc)0x00845FC0)]
+[size((ee)0x10, (aoc)0x10), vtable((ee)0x008306BC, (aoc)0x00845FC0), c_type("ee_se_quick_save")]
 unsafe struct EESEAQuickSaveScenario
 {
+    /// vf1: the editor's Quick Save - its EEAQuickSaveLoad queued to save (+0x28 0, +0x29 1), a saved game with the
+    /// units' goals (editor_orders.c: the units' orders dropped first)
+    [slot(1), address((ee)0x0059A613, (aoc)0x005AA723)]
+    [vtable_site("se_quick_save")]
+    extern void run();
 }
 
 /// made in 0x58702B
@@ -240,12 +245,17 @@ unsafe struct EESEARotateUnits
     extern void run();
 }
 
-[size((ee)0xC, (aoc)0xC), vtable((ee)0x008300B8, (aoc)0x008459A4)]
+[size((ee)0xC, (aoc)0xC), vtable((ee)0x008300B8, (aoc)0x008459A4), c_type("ee_se_save")]
 unsafe struct EESEASaveScenario
 {
     /// its constructor (0 arguments, not typed yet)
     [address((ee)0x0059A6F2, (aoc)0x005AA802)]
     extern void* init();
+
+    /// vf1: the scenario written (the editor's Save; editor_orders.c: the units' orders dropped first)
+    [slot(1), address((ee)0x0059A706, (aoc)0x005AA816)]
+    [vtable_site("se_save")]
+    extern void run();
 }
 
 /// made in 0x563603
@@ -254,12 +264,18 @@ unsafe struct EESEATechTree
 {
 }
 
-[size((ee)0xC, (aoc)0xC), vtable((ee)0x008300DC, (aoc)0x008459C8)]
+[size((ee)0xC, (aoc)0xC), vtable((ee)0x008300DC, (aoc)0x008459C8), c_type("ee_se_test")]
 unsafe struct EESEATestScenario
 {
     /// its constructor (0 arguments, not typed yet)
     [address((ee)0x0059A99D, (aoc)0x005AAAAD)]
     extern void* init();
+
+    /// vf1: the scenario played as a test (the editor's Test: its form's 0x58F2B8 with 1; editor_orders.c: the units'
+    /// orders dropped first)
+    [slot(1), address((ee)0x0059A9B1, (aoc)0x005AAAC1)]
+    [vtable_site("se_test")]
+    extern void run();
 }
 
 [@base(typeof(UIButton)), size((ee)0x104, (aoc)0x104), vtable((ee)0x0082D640, (aoc)0x00842EF0)]
