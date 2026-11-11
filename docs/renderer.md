@@ -795,6 +795,22 @@ planes, the water pushes the end it moves toward up and the other down - a pair,
 along its length (US_RISE 3 tiles/s^2 per tile/s, no more than US_RISE_TOP 2 tiles/s counted), the bow going ahead,
 the stern going astern, as far as each end is under. A ship killed under way rears a little and settles as it slows;
 a dive's glide is flattened a little.
+A point's drag goes from the water's to the air's by how wet it is (the player, the same day: "does the drag get
+stronger the further down the ship is?" - no, not with depth: water's the same down there; what changes is how much of
+the hull is in it): wholly the water's from the waterline down (the hull under it), wholly the air's half its range
+up; until then a point had the water's whole as soon as it was wet at all.
+The aircraft too (the player: "i want helicopters and airplanes to use the same system, with the difrence betwen
+water and air being just the drag. aiplanes mayb could also have boyancy that only drains once they hit water, so they
+raise up a bit before sinking"): the airplanes and the helicopters (their three classes) go on the floats from their
+first sight dead. The game glides a plane shot down to the ground over about 3.5 s (its dying state 6000, on
+forward), then it lies as a wreck for 30 s (the model a wreck's then); a helicopter it lets down at about a tile a
+second and removes at the ground (rot time 0; logged with a P-51, a B-17 and an Apache - a plane spawned without an
+airport crashes as it takes off). Here it falls from where it was hit with its way and the kick, through the air's
+light drag, onto the ground or into the water: an airplane floats there as a ship does, its leaks' clock from its first
+touch of the water (wet_at: it comes up before it goes down), a helicopter has no buoyancy. Its length is its model's y
+(the way it faces: a fighter is wider than long), a tilt is no sign of its going down (it banks in flight), and it
+digs into the ground by at most 0.1 of its span (US_DIG_AIR). On the ground it lies as it came down for the corpses'
+time, faded at its end (not sunk into the ground, as the ships aren't).
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

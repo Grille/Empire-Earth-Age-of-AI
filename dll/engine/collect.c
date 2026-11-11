@@ -510,7 +510,9 @@ typedef struct {
     float shift;             // how far its ballast has slid to the low side (0 .. 1), once it heeled past US_SHIFT
     int32_t shift_to;        // ... that side's float (2 port, 3 starboard; 0 not yet)
     float zw, range, keel;   // the water's level; a float's depth from dry to fully under; the keel's under the floats
-    float lift;              // the floats' buoyancy before the leaks (g's, fully under): US_FLOAT, a submarine's US_SUB_FLOAT
+    float lift;              // the floats' buoyancy before the leaks (g's, fully under): US_FLOAT, a submarine's US_SUB_FLOAT,
+                             // a helicopter's none
+    float wet_at;            // when it first touched the water (s after its death; < 0 not yet): the leaks' clock
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
@@ -580,11 +582,27 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
 #define US_DIG 0.6f     // the deepest a float goes into the seabed: a share of the beam
+#define US_DIG_AIR 0.1f // ... an aircraft's into the ground (a flat thing: 0.6 buried it whole)
 #define US_FAST 1.5f    // a move between its poses faster than this times its top speed (at least US_JUMP tiles/s)
 #define US_JUMP 4.0f    // was no sailing but a jump: a ship of 170 tiles/s stopped dead at a fixed 4 (the player)
 // the ships on the water and the submarines (the player, the same day: "next add subs to the system"): a submarine's
 // floats at its hull's middle height, neutral (US_SUB_FLOAT) - it hangs at its depth until the leaks take it down
-internal int uc_is_ship(const ee_unit_type *ty) { int k = unit_type_get_class_id(ty); return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL; }
+internal int uc_is_aircraft(int k) {
+    return k == CLS_AIRPLANE || k == CLS_HELICOPTER || k == CLS_HELICOPTER_TRANSPORT || k == CLS_HELICOPTER_PRIEST;
+}
+// ... and the aircraft (the player: "i want helicopters and airplanes to use the same system, with the difrence betwen
+// water and air being just the drag. aiplanes mayb could also have boyancy that only drains once they hit water, so
+// they raise up a bit before sinking"). The game glides a plane shot down to the ground over about 3.5 s (its dying
+// state 6000, on forward), then it lies as a wreck for 30 s; a helicopter it lets down at about a tile a second and
+// removes at the ground (rot time 0; logged 2026-11-11, P-51, B-17, Apache). Here it falls from where it was hit
+// with its way and the kick, through the air's light drag, onto the ground or into the water: an airplane floats there
+// as a ship does, its leaks' clock from its first touch of the water (it comes up before it goes down), a helicopter
+// has no buoyancy. Its length is its model's y (the way it faces; a fighter is wider than long), a tilt is no sign of
+// its going down (it banks in flight), and it digs into the ground by US_DIG_AIR of its span at most.
+internal int uc_is_ship(const ee_unit_type *ty) {
+    int k = unit_type_get_class_id(ty);
+    return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k);
+}
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
 internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
@@ -666,7 +684,8 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     // a ship's floats at its waterline (its model's 0), a submarine's at its hull's middle height: its model stands on
     // its keel (0 .. 0.5 of its scale, logged), the game holds it 0.4 tiles under the water, wholly under
-    int sub = unit_type_get_class_id(o->ty) == CLS_SUBMERGED_NAVAL, x_long = hi[0] - lo[0] >= hi[1] - lo[1];
+    int cls = unit_type_get_class_id(o->ty), sub = cls == CLS_SUBMERGED_NAVAL, air = uc_is_aircraft(cls);
+    int x_long = !air && hi[0] - lo[0] >= hi[1] - lo[1];
     float fz = sub ? 0.5f * (lo[2] + hi[2]) * s : 0.0f;
     float c[3] = { 0.5f * (lo[0] + hi[0]) * s, 0.5f * (lo[1] + hi[1]) * s, fz };
     float half_long = 0.4f * (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s, half_across = 0.4f * (x_long ? hi[1] - lo[1] : hi[0] - lo[0]) * s;
@@ -678,7 +697,8 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     k->keel = fminf(fmaxf(fz - lo[2] * s, 0.05f), 1.0f);
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
-    k->lift = sub ? US_SUB_FLOAT : US_FLOAT;
+    k->lift = sub ? US_SUB_FLOAT : air && cls != CLS_AIRPLANE ? 0.0f : US_FLOAT;
+    k->wet_at = air ? -1.0f : 0.0f;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
@@ -687,9 +707,9 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             const float *b = k->body[i];
             k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
         }
-    int late = o->rotting || t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f);   // (a submarine is under anyway)
+    int late = o->rotting || (!air && (t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f)));   // (a submarine is under anyway)
     us_leaks(k, o->serial, late);
-    for (int i = 0; i < US_PTS; i++) k->dig[i] *= US_DIG * 2.5f * half_across;   // the beam: half_across is 0.4 of it
+    for (int i = 0; i < US_PTS; i++) k->dig[i] *= (air ? US_DIG_AIR : US_DIG) * 2.5f * half_across;   // the beam: half_across is 0.4 of it
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
     // in the sand and came up with its nose out: a point below its stop at the start digs in as deep as it was
     const void *mesh = game_map() ? map_mesh_at(game_map()) : NULL;
@@ -729,17 +749,22 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
         if (i < 4) wet += 0.25f * under;
-        if (i < 4) {
-            float u = (t - k->leak[i][1]) / k->leak[i][2];
+        if (i < 4 && under > 0.0f && k->wet_at < 0.0f) k->wet_at = t;   // the leaks' clock starts
+        if (i < 4 && k->lift > 0.0f) {
+            float u = k->wet_at < 0.0f ? -1.0f : (t - k->wet_at - k->leak[i][1]) / k->leak[i][2];
             u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
             b = (k->lift + (k->leak[i][0] - k->lift) * u) * carry;
         }
         float v[3], a = 0.0f;
         for (int j = 0; j < 3; j++) v[j] = p[j] - q[j], a += v[j] * ln[j];
-        if (under > 0.0f)   // its way along the hull kept by the light drag, the rest across it by the heavy one
-            for (int j = 0; j < 3; j++) v[j] = a * ln[j] * f_along + (v[j] - a * ln[j]) * f_across;
-        else
-            for (int j = 0; j < 3; j++) v[j] *= f_air;
+        // in the water its way along the hull kept by the light drag, the rest across it by the heavy one; in the air the
+        // air's every way - between them by how wet the point is: wholly in the water from the waterline down (the hull
+        // under it), wholly in the air half its range up (one wholly in the water as soon as it was wet, until 2026-11-11)
+        float wd = fminf(2.0f * under, 1.0f);
+        for (int j = 0; j < 3; j++) {
+            float in_water = a * ln[j] * f_along + (v[j] - a * ln[j]) * f_across, in_air = v[j] * f_air;
+            v[j] = in_air + (in_water - in_air) * wd;
+        }
         v[2] += (-US_G + b * US_G * under) * dt * dt;
         if (i < 2) v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * under * dt * dt;   // the leading end up, the other down
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
