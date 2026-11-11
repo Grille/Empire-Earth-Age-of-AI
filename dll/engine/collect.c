@@ -569,6 +569,9 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_KICK_PLANE_ROLL 2.5f
 #define US_KICK_AIR_OTHER 0.2f   // its other two axes
 #define US_G 3.0f       // gravity (tiles/s^2)
+// an aircraft's (the player, the same day: "reduce grafithy to 1 tile/s"): it falls slower, its spin or roll and its
+// planing have longer to show before it hits; its float in the water scaled alike (buoyancy is lift x gravity)
+#define US_G_AIR 1.0f
 #define US_DT 0.01      // the step (s of game time)
 // The water's drag by the hull's own axes (the player, the same day: "what do you think of adding a lift plane? ... real
 // ships glide when they sink right?"): a hull slips along its length and is held across it - sideways, and through its
@@ -806,7 +809,8 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float in_water = a * ln[j] * f_along + (v[j] - a * ln[j]) * f_across, in_air = v[j] * f_air;
             v[j] = in_air + (in_water - in_air) * wd;
         }
-        v[2] += (-US_G + b * US_G * under) * dt * dt;
+        float g = k->air ? US_G_AIR : US_G;
+        v[2] += (-g + b * g * under) * dt * dt;
         if (i < 2)   // the leading end up, the other down: in the water, an aircraft's in the air as well
             v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * (k->air ? 1.0f : under) * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];

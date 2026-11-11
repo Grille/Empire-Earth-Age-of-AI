@@ -843,6 +843,9 @@ kick: a helicopter's about its up (US_KICK_HELI_YAW, up to 4 radians/s), an airp
 headless with an airport, P-51s and Apaches: a helicopter spins down, blows up where it hits the ground and lies there
 on its side, smoking; one over the water splashes in and goes down; the P-51s roll and dive in steeply, over land one
 stuck nose first in the runway with its tail out (the game's crash pitches a plane down to 72 degrees at most).
+An aircraft falls by a gravity of its own, 1 tile/s^2 for the ships' 3 (US_G_AIR; the player, the same day: "reduce
+grafithy to 1 tile/s"), its float in the water scaled alike: its spin or roll and its planing have longer to show.
+Checked the same way: P-51s hit over the water fell about 3 s before their splash, an Apache spun down over about 3 s.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
