@@ -231,8 +231,9 @@ internal void *rg_cell(long cx, long cy, unsigned long x, unsigned long y, unsig
 // in its bits 1-4, which lays one of the space textures (mesh_space_cliff 8-12) on it with that pattern's places in the
 // texture, and hangs a face (0-7, by the tile's x or y) from a line across it 8 down, its lower edge jagged by a table
 // of the tile's place - not along the map's left and right edges. A land corner whose cell has such a tile beside it
-// takes texture 12 in place of its set's, at the tile's own places (0 to 1 across it). No water (its test, any of the
-// bits 0x7F, is true beside space too) and no black round the map but behind it.
+// takes texture 12 in place of its set's, at the tile's own places (0 to 1 across it). No black round the map but behind
+// it. The game draws no water on a space map, but the map has it all the same - a tile with a corner under the level is
+// water to the simulation as anywhere (rg_water_bits).
 #define RG_SPACE 0x80
 #define RG_SPACE_EDGE 0x1E
 #define RG_CLIFF_DROP 8.0f
@@ -391,6 +392,29 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     }
     return n;
 }
+// A tile's water byte: bit 0 water, bits 1-4 the corners at a shore (GetWaterInfo). On a space map the mesh holds none of
+// it - SetIsWater does nothing there and ComputeShorelines keeps only the space bit, as bits 1-4 hold the edges' patterns
+// (AoC's engine 0x10012959, 0x1002795F) - and the game draws no water at all, on planets with lakes too (the player,
+// 2026-11-11: "these is no good reason why the planets cant have water on them"). So there it is made as the map makes
+// it elsewhere: a tile is water when the lowest of its corners lies under the level (AoC's EEMap 0x5225FA: SetIsWater(x,
+// y, that < 0)), not a space tile; its shores as ComputeShorelines puts them, each of its eight neighbours on the map that
+// isn't water setting the corners toward it (the engine's table at 0x10097B98)
+internal int rg_space_wet(unsigned long x, unsigned long y) {
+    if (g_rg.water_info(g_rg.mesh, x, y) & RG_SPACE) return 0;
+    float z = g_rg.z(g_rg.mesh, x, y), a = g_rg.z(g_rg.mesh, x + 1, y), b = g_rg.z(g_rg.mesh, x, y + 1), c = g_rg.z(g_rg.mesh, x + 1, y + 1);
+    return z < 0 || a < 0 || b < 0 || c < 0;
+}
+internal unsigned rg_water_bits(unsigned long x, unsigned long y) {
+    if (!g_rg.space) return g_rg.is_water(g_rg.mesh, x, y) ? g_rg.water_info(g_rg.mesh, x, y) : 0;
+    if (!rg_space_wet(x, y)) return 0;
+    static const int nb[8][3] = { { -1, 1, 4 }, { 1, 1, 8 }, { -1, -1, 2 }, { 1, -1, 16 }, { 0, 1, 12 }, { 1, 0, 24 }, { 0, -1, 18 }, { -1, 0, 6 } };
+    unsigned bits = 1;
+    for (int k = 0; k < 8; k++) {
+        long nx = (long)x + nb[k][0], ny = (long)y + nb[k][1];
+        if (nx >= 0 && ny >= 0 && g_rg.tile(g_rg.mesh, (unsigned long)nx, (unsigned long)ny) && !rg_space_wet((unsigned long)nx, (unsigned long)ny)) bits |= (unsigned)nb[k][2];
+    }
+    return bits;
+}
 internal void rg_water_vertex(rg_chunk *ch, rb_vertex *o, unsigned long x, unsigned long y, float u, float v, int a) {
     float *f = (float *)o->fvf;
     f[0] = (float)x; f[1] = (float)y; f[2] = g_rg.z(g_rg.mesh, x, y);   // the ground's height: the vertex shader's choice of the movement
@@ -403,10 +427,10 @@ internal void rg_water_vertex(rg_chunk *ch, rb_vertex *o, unsigned long x, unsig
 }
 // a water tile's triangles, as the ground's along the map's edges; the tile's frame of the animation in place of a texture
 internal int rg_water_quad(rg_chunk *ch, rg_tri *out, unsigned long x, unsigned long y, unsigned groups) {
-    if (!g_rg.is_water(g_rg.mesh, x, y)) return 0;
+    unsigned info = rg_water_bits(x, y);
+    if (!info) return 0;
     unsigned m = mesh_water_patch(g_rg.mesh, (unsigned)x, (unsigned)y);
     if (m >= groups || m >= RG_MATERIALS) return 0;
-    unsigned info = g_rg.water_info(g_rg.mesh, x, y);
     int aa = info & 2 ? 0 : 128, ab = info & 4 ? 0 : 128, ad = info & 8 ? 0 : 128, ac = info & 0x10 ? 0 : 128;
     int left = g_rg.left(g_rg.mesh, (long)x, (long)y), right = g_rg.right(g_rg.mesh, (long)x, (long)y);
     int topq = g_rg.top(g_rg.mesh, (long)x, (long)y), bottom = g_rg.bottom(g_rg.mesh, (long)x, (long)y);
@@ -471,7 +495,7 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
         for (int y = cy * RG_CHUNK; y < (cy + 1) * RG_CHUNK && y < g_rg.size; y++)
             for (int x = cx * RG_CHUNK; x < (cx + 1) * RG_CHUNK && x < g_rg.size; x++)
                 if (g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y))
-                    n += !w ? rg_quad(tris + n, (unsigned long)x, (unsigned long)y) : g_rg.space ? 0 : rg_water_quad(c, tris + n, (unsigned long)x, (unsigned long)y, groups);
+                    n += w ? rg_water_quad(c, tris + n, (unsigned long)x, (unsigned long)y, groups) : rg_quad(tris + n, (unsigned long)x, (unsigned long)y);
         rg_part_make(&c->p[w], tris, n, w);
     }
 }
