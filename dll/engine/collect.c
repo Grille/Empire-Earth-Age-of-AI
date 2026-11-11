@@ -522,10 +522,7 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_DRAG 1.6f    // the water's drag (1/s), the air's
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
-internal int uc_is_ship(const ee_unit_type *ty) {
-    int k = unit_type_get_class_id(ty);
-    return k == CLS_NAVAL || k == CLS_NAVAL_TRANSPORT || k == CLS_NAVAL_CITIZEN;
-}
+internal int uc_is_ship(const ee_unit_type *ty) { return class_is_ship(unit_type_get_class_id(ty)); }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
 internal void us_leaks(uc_corpse *k, int32_t serial, int late) {

@@ -21,6 +21,7 @@ internal sil_e g_sil_t[SIL_TABLE];
 internal uint32_t g_sil_gen;
 internal struct {
     int force, fail, tag, in;   // the pipe's (-1: the ini's); the record being drawn
+    int ship;                   // ... is a ship's (render_instance.c fills its hull's open bottom)
     float col;                  // its player's colour, 0xRRGGBB as a whole number
     float fs, fe;               // the pipe's fade: the tiles behind the face it starts and ends (-1: the ini's)
     ID3D11Buffer *cb;           // the fade's constants for the shader
@@ -58,12 +59,13 @@ internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
     g_sh_cloaked = kind == SIL_CLOAKED;
     g_sl.tag = sil_on() && kind != SIL_CLOAKED ? kind : 0;
     g_sl.in = 1;
+    g_sl.ship = class_is_ship(draw_record_get_class_id(rec));
     if (g_sl.tag == SIL_UNIT) {
         vec3 c = draw_record_get_color(rec);
         g_sl.col = (float)(sil_byte(c.x) << 16 | sil_byte(c.y) << 8 | sil_byte(c.z));
     }
     ro_units_draw_record(ro, rec);
-    g_sl.in = 0;
+    g_sl.in = g_sl.ship = 0;
     g_sh_cloaked = 0;
 }
 // a tree's record: it hides what stands behind it as a building does (and render_instance.c draws it)

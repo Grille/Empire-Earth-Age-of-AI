@@ -771,6 +771,17 @@ death), the hull's pose its floats' (along, across, up), kept with the corpses a
 theirs from its death. Checked headless, ten ships sunk at once on shallow water by the coast: dives by the bow and the
 stern (one stood near upright on its bow), rolls, level ones, all on the bottom in 4 to 10 s with their masts out of the
 water, the rolled one on its side.
+A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
+simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
+seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes
+(render_silhouette.c's draw hook tells it; not the submarines) has each of its index lists capped once (in_capped, a
+cache of IN_CAPS lists by their indices) - the vertices merged by place, the edges only one triangle has (the open
+rims), of their closed loops the lowest on average that reaches across the middle of the short side and over half the
+long one (the hull's bottom: not the lowest vertex, the oars hang lower and many bottoms slope), ear-clipped in plan
+view into triangles with the rim's own vertices (their texture, their normals), added to the list. Only where the
+mod's instancing draws (unit_instancing; the game's own draw keeps them open). Checked headless, paused, the same
+frame with and without (picture inst off): a frigate and a galley of the Middle Ages, a Renaissance battleship, a
+cruiser, the Bismarck - the rolled hulls closed, no other change in the picture but the game's blinking marks.
 A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 

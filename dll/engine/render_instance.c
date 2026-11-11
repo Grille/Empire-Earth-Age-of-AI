@@ -270,6 +270,147 @@ internal void in_card_queue(rd_device *d, const float *pa, const float *pb, floa
 }
 
 typedef struct { void *ras, *view; rd_device *d; unsigned long screen; float bias; } in_ctx;
+// A SHIP'S UNDERSIDE (the player, 2026-11-11: "that the ships have no underside is very noticable now, you think the mesh
+// undersides could be filled? a simple face betwen oposidte lowest edges or something like that"). The hulls are open
+// below - on the water nobody saw it; sinking by their floats (collect.c us_*) they dive and roll over, and the inside
+// showed. A sailing ship's open bottom is one flat loop at its hull material's lowest point (read from data.ssa: the
+// frigate's 14 edges at z -0.03, the galley's 10 at -0.05, the Victory's 14; the sails' own open loops lie higher). For a
+// ship's record (render_silhouette.c g_sl.ship) a material's list gets its flat lowest loops filled - once, by triangles
+// between the loop's own vertices (cut off one ear at a time in the plane), wound as the triangles beside them, so they
+// are the hull's texture, light and animation - and that list goes into the pool in its place: the shadows and the
+// mirror draw from the same lists. A list's edges are the vertices' places' (a texture's seam is no edge), an open one is
+// on one triangle; the loop runs against the way its triangles do. Lists without such a loop are kept as they are
+// (marked), and so are the units drawn by the display DLL (not instanced: [display] unit_instancing off).
+#define IN_CAPS 2048
+#define IN_CAP_LOOP 256
+typedef struct { const WORD *src; uint32_t n; WORD first[3], last[3]; WORD *out; uint32_t nout; } in_cap;
+internal in_cap g_in_cap[IN_CAPS];
+internal uint32_t g_in_caps, g_in_capped, g_in_cap_full;   // lists looked at, with a cap, the table full
+typedef struct { uint32_t lo, hi; WORD from, to; } in_edge;   // an edge by its places (lo < hi), as one triangle has it
+internal int in_edge_cmp(const void *a, const void *b) {
+    const in_edge *x = a, *y = b;
+    return x->lo != y->lo ? (x->lo < y->lo ? -1 : 1) : x->hi != y->hi ? (x->hi < y->hi ? -1 : 1) : 0;
+}
+// the caps of a list of ni indices into nv vertices (8 floats each: the place first) as triangles into out (room for
+// max); their count of indices
+internal uint32_t in_cap_make(const WORD *idx, uint32_t ni, const float *v, uint32_t nv, WORD *out, uint32_t max) {
+    uint32_t *place = malloc(nv * sizeof *place), ne = 0, made = 0;
+    in_edge *e = malloc(ni * sizeof *e);
+    int32_t *next = malloc(nv * sizeof *next);
+    WORD *real = malloc(nv * sizeof *real);
+    uint8_t *done = calloc(nv, 1);
+    if (!place || !e || !next || !real || !done) goto end;
+    for (uint32_t i = 0; i < nv; i++) {   // one place, one vertex number (the first there)
+        place[i] = i;
+        for (uint32_t j = 0; j < i; j++)
+            if (place[j] == j && fabsf(v[i * 8] - v[j * 8]) < 1e-4f && fabsf(v[i * 8 + 1] - v[j * 8 + 1]) < 1e-4f && fabsf(v[i * 8 + 2] - v[j * 8 + 2]) < 1e-4f) { place[i] = j; break; }
+        next[i] = -1;
+    }
+    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+    for (uint32_t k = 0; k + 2 < ni; k += 3)
+        for (int c = 0; c < 3; c++) {
+            WORD a = idx[k + c], b = idx[k + (c + 1) % 3];
+            if (a >= nv || b >= nv) goto end;
+            for (int j = 0; j < 3; j++) lo[j] = fminf(lo[j], v[a * 8 + j]), hi[j] = fmaxf(hi[j], v[a * 8 + j]);
+            uint32_t pa = place[a], pb = place[b];
+            if (pa == pb) continue;
+            e[ne].lo = pa < pb ? pa : pb, e[ne].hi = pa < pb ? pb : pa, e[ne].from = a, e[ne].to = b, ne++;
+        }
+    qsort(e, ne, sizeof *e, in_edge_cmp);
+    for (uint32_t i = 0; i < ne;) {   // an open edge: the loop runs against it (its "to" on to its "from")
+        uint32_t j = i + 1;
+        while (j < ne && !in_edge_cmp(&e[i], &e[j])) j++;
+        if (j == i + 1) {
+            uint32_t pt = place[e[i].to];
+            next[pt] = (int32_t)place[e[i].from];
+            real[pt] = e[i].to, real[place[e[i].from]] = e[i].from;
+        }
+        i = j;
+    }
+    // the bottom: of the closed loops the lowest (by their mean height) that runs at least half the hull's length and
+    // across its middle - not an oar bank on one side, a sail, a hatch (the hulls' own low loops slope a little: the
+    // carrack's from -0.06 to -0.03, and their oars hang lower than their floor; it is filled in the plane seen from below)
+    int along = hi[1] - lo[1] >= hi[0] - lo[0], across = !along;
+    float mid = 0.5f * (lo[across] + hi[across]), length = hi[along] - lo[along], best_z = 1e30f;
+    uint32_t loop[IN_CAP_LOOP], n = 0;
+    for (uint32_t s = 0; s < nv; s++) {
+        if (next[s] < 0 || done[s]) continue;
+        uint32_t l[IN_CAP_LOOP], ln = 0, p = s;
+        while (ln < IN_CAP_LOOP && next[p] >= 0 && !done[p]) { done[p] = 1; l[ln++] = p; p = (uint32_t)next[p]; }
+        if (p != s || ln < 4) continue;   // not closed
+        float llo[2] = { 1e30f, 1e30f }, lhi[2] = { -1e30f, -1e30f }, z = 0.0f;
+        for (uint32_t i = 0; i < ln; i++) {
+            const float *q = v + real[l[i]] * 8;
+            for (int j = 0; j < 2; j++) llo[j] = fminf(llo[j], q[j]), lhi[j] = fmaxf(lhi[j], q[j]);
+            z += q[2] / (float)ln;
+        }
+        if (llo[across] < mid && lhi[across] > mid && lhi[along] - llo[along] >= 0.5f * length && z < best_z)
+            best_z = z, n = ln, memcpy(loop, l, ln * sizeof *l);
+    }
+    if (n) {
+        float area = 0.0f;
+        for (uint32_t i = 0; i < n; i++) {
+            const float *a = v + real[loop[i]] * 8, *b = v + real[loop[(i + 1) % n]] * 8;
+            area += a[0] * b[1] - b[0] * a[1];
+        }
+        while (n >= 3 && made + 3 <= max) {   // the ears: a corner turning as the loop does, nothing of it inside
+            uint32_t at = n;
+            for (uint32_t i = 0; i < n && at == n; i++) {
+                const float *a = v + real[loop[(i + n - 1) % n]] * 8, *b = v + real[loop[i]] * 8, *c = v + real[loop[(i + 1) % n]] * 8;
+                float turn = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+                if (turn * area <= 0.0f && n > 3) continue;
+                int inside = 0;
+                for (uint32_t j = 0; j < n && !inside; j++) {
+                    if (j == i || j == (i + 1) % n || j == (i + n - 1) % n) continue;
+                    const float *q = v + real[loop[j]] * 8;
+                    float d1 = (b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0]);
+                    float d2 = (c[0] - b[0]) * (q[1] - b[1]) - (c[1] - b[1]) * (q[0] - b[0]);
+                    float d3 = (a[0] - c[0]) * (q[1] - c[1]) - (a[1] - c[1]) * (q[0] - c[0]);
+                    inside = (d1 > 0 && d2 > 0 && d3 > 0) || (d1 < 0 && d2 < 0 && d3 < 0);
+                }
+                if (!inside) at = i;
+            }
+            if (at == n) break;   // (no ear: a loop that crosses itself - what is filled stays)
+            out[made++] = real[loop[(at + n - 1) % n]], out[made++] = real[loop[at]], out[made++] = real[loop[(at + 1) % n]];
+            for (uint32_t i = at; i + 1 < n; i++) loop[i] = loop[i + 1];
+            n--;
+        }
+    }
+end:
+    free(place), free(e), free(next), free(real), free(done);
+    return made;
+}
+// the list to draw for a ship's material: its own with its caps (made once), or itself
+internal const WORD *in_capped(const WORD *idx, DWORD ni, const float *v, uint32_t nv, DWORD *nout) {
+    *nout = ni;
+    if (ni < 3) return idx;
+    uint32_t h = (uint32_t)(((uintptr_t)idx >> 1) * 2654435761u ^ ni * 40503u) & (IN_CAPS - 1);
+    for (int probe = 0; probe < 16; probe++, h = (h + 1) & (IN_CAPS - 1)) {
+        in_cap *c = &g_in_cap[h];
+        if (c->src == idx && c->n == ni && !memcmp(c->first, idx, 6) && !memcmp(c->last, idx + ni - 3, 6)) {
+            if (c->out) *nout = c->nout;
+            return c->out ? c->out : idx;
+        }
+        if (c->src && c->src == idx) free(c->out), c->src = NULL;   // its memory holds another list now
+        if (c->src) continue;
+        uint32_t room = ni / 2 + 3 * IN_CAP_LOOP;
+        WORD *out = malloc((ni + room) * sizeof *out);
+        uint32_t made = out ? in_cap_make(idx, ni, v, nv, out + ni, room) : 0;
+        g_in_caps++;
+        c->src = idx, c->n = ni, c->out = NULL, c->nout = ni;
+        memcpy(c->first, idx, 6), memcpy(c->last, idx + ni - 3, 6);
+        if (made && ni + made <= IN_LIST_MAX) {
+            memcpy(out, idx, ni * sizeof *out);
+            c->out = out, c->nout = ni + made, *nout = c->nout;
+            if (g_in_capped++ < 64) log_locked("# instancing: a ship's list of %lu indices: its open bottom filled by %u triangles\n", (unsigned long)ni, made / 3);
+            return out;
+        }
+        free(out);
+        return idx;
+    }
+    g_in_cap_full++;
+    return idx;
+}
 // a material of a model seen: what the DLL does for it, without the device's calls
 internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
     uint32_t n = material_get_vertex_count(mat), first = material_get_vertex_first(mat);
@@ -300,7 +441,11 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, const D3DM
         g_mo_box = box;
         rd3_shadow_classify(d, &none, 0, n);
         g_mo_box = NULL;
-        if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) in_append(d, a, b, frac, idx, ni);
+        if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) {
+            DWORD cn = ni;
+            const WORD *ci = g_sl.ship ? in_capped(idx, ni, pa, n, &cn) : idx;   // a ship's: its open bottom filled
+            in_append(d, a, b, frac, ci, cn);
+        }
         if (d->sh_card && n <= SH_CARD_MAX) in_card_queue(d, pa, pb, frac, n, idx, ni);
         InterlockedIncrement(&g_in_parts);
     }
