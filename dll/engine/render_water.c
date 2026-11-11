@@ -123,6 +123,7 @@ internal float rw_opaque(void) {
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && g_sh.water_on && (g_sh.valid || (g_sh.hill_ok && !g_sh.nohills));
     return on && m && units > 0 && g_wa.tn ? 1 / (units * map_get_height_step(m) * 0.5f) : 0;
 }
+internal void rw_caustics_pc(rd3_pcb *pc, int on);
 internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     // without a map the draws don't know their place in the world (rd3_shadow_vc)
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && water_seen && (g_sh.valid || (g_sh.hill_ok && !g_sh.nohills));
@@ -144,6 +145,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     pc->rfa[2] = g_wa.drawn && water_seen ? 1.0f : 0.0f;
     pc->rfa[3] = 1 / g_wa.full;
     memcpy(pc->rfb, g_wa.rfb, sizeof pc->rfb);
+    rw_caustics_pc(pc, on);
 }
 
 // THE REFLECTIONS ([display] water_reflections): before the list is drawn, what stands in the world - the units,
@@ -154,11 +156,20 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
 // 2026-11-08). The ground isn't: the land lies within hundredths of the level on most maps. A list without
 // casters leaves the last picture (a frame's list is drawn in parts).
 // The caustics ([display] water_caustics, the player 2026-11-10: "could our water throw casutics? (a cheap
-// version)"): the ground's pixel shader lights the seabed with what the waves focus onto it, nothing drawn on its own -
-// render_3d.c's shader, render_ground.c's constants (the ground's and the water's). The pipe's water caustics <0..2> over the setting.
+// version)"): the pixel shader lights the seabed and what stands under the level (a hull, a wading unit) with what the waves
+// focus there, nothing drawn on its own - render_3d.c's caus, by every draw's constants (rd3_pcb cau, cat). Their clock is
+// render_ground.c's (the ground's draw moves it on once a frame). The pipe's water caustics <0..2> over the setting.
 #define RW_CAUSTICS_SCALE 1.1f   // the waves' pattern units a tile: its cells about a tile across ([display] water_caustics_size 100%)
 #define RW_CAUSTICS_WIND 0.0f    // the way the waves run (radians from the map's x): along an axis, the lines run diagonally on the screen (along the screen's own axes they read as streaks)
 internal float g_rw_caustics = -1;   // the pipe's, -1 the setting's
+internal double g_rw_ctime;          // their time: the wobble's half pace times [display] water_caustics_speed
+internal void rw_caustics_pc(rd3_pcb *pc, int on) {
+    pc->cau[0] = on ? (g_rw_caustics >= 0 ? g_rw_caustics : g_set.water_caustics) : 0.0f;
+    pc->cau[1] = RW_CAUSTICS_SCALE / (g_set.water_caustics_size > 0.01f ? g_set.water_caustics_size : 1.0f);   // [display] water_caustics_size
+    pc->cau[2] = cosf(RW_CAUSTICS_WIND);
+    pc->cau[3] = sinf(RW_CAUSTICS_WIND);
+    pc->cat[0] = (float)g_rw_ctime;
+}
 internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 6, 1, &srv);

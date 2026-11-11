@@ -88,7 +88,6 @@ internal struct {
     uint32_t wcol;
     double phase;
     double wms;   // the water's time (ms) for the frames of its animation (rg_water_frame)
-    double ctime; // the caustics' time: the wobble's half pace times [display] water_caustics_speed
     LONGLONG at;
     long drawn, tris, frames, remade;
     rg_lights lights;
@@ -476,7 +475,7 @@ internal int rg_build(void) {
     if (!g_rg.fow_was || !g_rg.fow_now || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rg.fow))
         || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.fow, NULL, &g_rg.fow_srv))) { rg_free(); return 0; }
     if (!g_rg.cb) {
-        D3D11_BUFFER_DESC bd = { 84 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { 76 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb)) || FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cbw))) { rg_free(); return 0; }
     }
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 1;   // differs: the first frame sends it
@@ -715,22 +714,16 @@ internal void rg_draw_now(int water, int again) {
             double ms = rg_water_ms((double)(now - g_rg.at) * 1000.0 / (double)rd_qpc_ms(1000));
             g_rg.phase = fmod(g_rg.phase + (double)ws[0] * ms / 1000.0, 6.283185307179586 * 1024.0);
             g_rg.wms += ms;
-            g_rg.ctime = fmod(g_rg.ctime + (double)ws[0] * ms / 1000.0 * 0.5 * (double)g_set.water_caustics_speed, 6.283185307179586 * 1024.0);
+            g_rw_ctime = fmod(g_rw_ctime + (double)ws[0] * ms / 1000.0 * 0.5 * (double)g_set.water_caustics_speed, 6.283185307179586 * 1024.0);
         }
         g_rg.at = now;
     }
     if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;
     // the wobble's strength: the surface's, the seabed's - none with [display] seabed_wobble off (the player, 2026-11-10:
     // "add an option to disable the terrain wobble underwater that tries to fake refraction")
-    float cb[84] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? ws[1] : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
+    float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? ws[1] : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
-    if (g_sh.water_on) {   // the caustics (render_3d.c's shader: the seabed)
-        cb[76] = g_rw_caustics >= 0 ? g_rw_caustics : g_set.water_caustics;
-        cb[77] = RW_CAUSTICS_SCALE / (g_set.water_caustics_size > 0.01f ? g_set.water_caustics_size : 1.0f);   // [display] water_caustics_size
-        cb[78] = cosf(RW_CAUSTICS_WIND); cb[79] = sinf(RW_CAUSTICS_WIND);
-        cb[80] = (float)g_rg.ctime;
-    }
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;
     for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }

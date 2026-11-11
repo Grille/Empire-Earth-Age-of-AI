@@ -139,6 +139,7 @@ typedef struct {
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
     float wat[4], sea[4], wop[4], wfc[4];   // the water by its depth, the seabed's detail, the camera and 1 / the way through it that hides all, the colour under the water and the projection's depth term (render_water.c)
     float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
+    float cau[4], cat[4];   // the caustics: strength (0 none), the pattern's units a tile, the wind's way (cos, sin); their time (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
@@ -161,8 +162,8 @@ internal const char k_rd3_shader[] =
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
-    " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
-    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gca; float4 gcc; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
+    " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; float4 cau; float4 cat; };\n"
+    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
@@ -256,6 +257,13 @@ internal const char k_rd3_shader[] =
     " float3 h; float2 q = p; for (int j = 0; j < 3; j++) q = p + f * cwg(q, t, h); cwg(q, t, h);"
     " float3 F = f * float3(0.97, 1, 1.03), e = (1 - F * h.x) * (1 - F * h.y) - F * F * h.z * h.z, v = 1 / max(abs(e), 0.08) - 1;"
     " return v > 0 ? 1 - exp(-v * 0.9) : v * 0.5; }\n"
+    // The caustics' light at the world point w, d under the level ([display] water_caustics, cau, cat): the waves' pattern
+    // turned to the wind and scaled; the depth sets the focus - soft at the waterline, sharp lines from half a tile down, never
+    // past 0.35 (blots beyond) -, less the deeper (the light scattered on its way down), none at the waterline (f: the depth
+    // that fades them in), gone where a line would be thinner than a pixel (far out it would only shimmer). Over the mean on
+    // the lines, under it in the cells
+    "float3 caus(float3 w, float d, float f) { float2 cp = float2(dot(w.xy, cau.zw), dot(w.xy, float2(-cau.w, cau.z))) * cau.y, cw = fwidth(cp);"
+    " return cwl(cp, cat.x, 0.35 * (1 - exp(-d * 4))) * (cau.x * smoothstep(0.08, 0.45, f) * exp(-d * 0.8) * saturate(2 - (cw.x + cw.y) * 8)); }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
@@ -292,24 +300,25 @@ internal const char k_rd3_shader[] =
     "  float wd = max(0, i.w.z - (wh.x - wh.y));"
     "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w);"
     " }"
-    // the light the waves gather on the seabed ([display] water_caustics, gca: strength, scale, the wind's way): the ground
+    // the light the waves gather on the seabed ([display] water_caustics, caus): the ground
     // under the level, from the map, lit by the pattern of the waves (cwl) at its own place - what lies over it comes after
     // as for the seabed's own colour: the water's step fogs it by the way through the water, the shadows here darken it, the
     // surface covers part of it. Drawn by the surface before, of the place behind it (the player, 2026-11-10: "instead of
     // bothering the water shader, should this maybe be part of the terrain renderer? blur and fogging come than for free
     // later") - the surface shows itself at less than half, so what it drew showed about as much as the seabed's own light
-    // does under it. The depth sets the focus: soft at the waterline, sharp lines from half a tile down, never past 0.35
-    // (blots beyond); less the deeper (the light scattered on its way down), none at the waterline - the shallower of its own depth
-    // and the hills' map's, by which the surface thins out at the shore: by its own alone a line lay on sand the surface no
-    // longer covered, a white streak on the beach -, gone where a line would
-    // be thinner than a pixel (far out it would only shimmer). Added to each of the ground's layers alike: their blend
-    // keeps it. The pattern before (the player: "to uniform", "in realithy they move in one direction, not random cells"):
-    // a net of moving cells, bent and broken by noise
-    " if (gnd.x == 1 && wat.x > 0 && gca.x > 0 && sea.w == 0 && i.w.z < sea.z) { float cd = sea.z - i.w.z;"
-    "  float2 cp = float2(dot(i.w.xy, gca.zw), dot(i.w.xy, float2(-gca.w, gca.z))) * gca.y, cw2 = fwidth(cp); float cw = cw2.x + cw2.y;"
-    "  float3 ck = cwl(cp, gcc.x, 0.35 * (1 - exp(-cd * 4))); float cf = cd;"
+    // does under it. Faded in at the waterline by the shallower of its own depth and the hills' map's, by which the surface
+    // thins out at the shore: by its own alone a line lay on sand the surface no longer covered, a white streak on the beach.
+    // Added to each of the ground's layers alike: their blend keeps it. The pattern before (the player: "to uniform", "in
+    // realithy they move in one direction, not random cells"): a net of moving cells, bent and broken by noise
+    " if (gnd.x == 1 && wat.x > 0 && cau.x > 0 && sea.w == 0 && i.w.z < sea.z) { float cd = sea.z - i.w.z, cf = cd;"
     "  if (shh.w > 0) { float2 ch = hm.SampleLevel(hs, i.w.xy * shh.x, 0); cf = min(cf, max(0, sea.z - (ch.x - ch.y))); }"
-    "  c.rgb = max(0, c.rgb + i.gl * ck * (gca.x * smoothstep(0.08, 0.45, cf) * exp(-cd * 0.8) * saturate(2 - cw * 8))); }"
+    "  c.rgb = max(0, c.rgb + i.gl * caus(i.w, cd, cf)); }"
+    // and on what stands in the water under the level - a ship's hull, a unit wading (the casters: SH_CAST, SH_TINT, SH_TREE),
+    // its own lit colour brighter on the lines, faded in over its first 0.075 tiles under the level, not the seabed's 0.45 (a
+    // hull lies hardly deeper; the player, 2026-11-11: "next making casutics work on units again" - drawn by
+    // the surface they had lit what lay behind it; on the seabed alone they had left the units)
+    " if (gnd.x == 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9) && wat.x > 0 && cau.x > 0 && sea.w == 0 && i.w.z < sea.z) {"
+    "  float cd = sea.z - i.w.z; c.rgb = max(0, c.rgb * (1 + caus(i.w, cd, cd * 6))); }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
