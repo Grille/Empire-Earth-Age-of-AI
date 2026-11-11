@@ -160,7 +160,7 @@ internal int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, war
 // the commander has them.
 internal int ar_on(ee_player *pl, unsigned idx);                                       // armies.c
 internal int armies_home_soldiers(ee_player *pl, unsigned idx, ee_unit **out, int max);   // armies.c
-internal void armies_lend(ee_player *pl, ee_unit *u);                                  // armies.c
+internal void armies_lend(ee_player *pl, ee_unit *u, uint32_t now);                                // armies.c
 #define LD_ASK_MS 300000           // an attack time's request stands this long
 internal struct { ee_player *target; uint32_t t; } g_ld_ask[16];
 internal void landing_ask(ee_player *pl, ee_player *target, uint32_t now) {
@@ -1081,7 +1081,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         for (int k = 0; k < nf && l->nw < want && l->nw < LD_PASS; k++) {
             ee_unit *u = g_ld_force[k];
             if (!ld_alive(u) || ld_aboard(u) || !is_soldier(unit_get_type_data(u)) || expand_has(pl, u)) continue;
-            armies_lend(pl, u);
+            armies_lend(pl, u, now);
             l->wpass[l->nw++] = u;
         }
         for (unsigned k = 0; k < cnt && k < 64 && l->nw < want && !force; k++) {
@@ -1688,7 +1688,7 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
     for (int k = 0, nf = force ? armies_home_soldiers(pl, pi, g_ld_force, LD_PASS * 4) : 0; k < nf && l->npass < l->want_n && l->npass < LD_PASS; k++) {
         ee_unit *u = g_ld_force[k];   // the force's at home (THE FORCE'S LANDINGS): taken out of the force
         if (!ld_alive(u) || !is_soldier(unit_get_type_data(u)) || expand_has(pl, u)) continue;
-        armies_lend(pl, u);
+        armies_lend(pl, u, now);
         l->pass[l->npass++] = u;
     }
     if (l->npass < 6) { l->aborted++; l->next_try = now + 300000; ld_release(pi, "too few passengers", now); return 1; }

@@ -278,7 +278,7 @@ internal int ar_det_out(unsigned idx);   // MINE RAIDS: a detachment is out (it 
 internal int g_ar_sea = 0, g_v_ar_sea = -1;
 #define AR_SEA(idx) PV(idx, g_v_ar_sea, g_ar_sea)
 internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && MOD_ARMIES(idx) && (navy_land(idx) || (AR_SEA(idx) && navy_islands(idx))); }
-internal struct { struct { ee_unit *u; int id; } u[256]; int n; unsigned lent, back, asked; uint32_t look_t, ask_t; } g_ar_lent[16];   // OVER THE SEA: the force's soldiers the landing has (not saved: a load's first tick takes the held back in)
+internal struct { unsigned lent, back, asked; uint32_t look_t, ask_t; } g_ar_lent[16];   // OVER THE SEA: the landing's counts; the soldiers it has are an army of their own (army_view.c AV_LANDING)
 internal int ar_ptr_cmp(const void *x, const void *y) { ee_unit *a = *(ee_unit *const *)x, *b = *(ee_unit *const *)y; return a < b ? -1 : a > b; }
 internal int ou_members(ee_player *pl, ee_unit **out, int max);   // army.c: the units in pl's attack subgroups
 internal int ar_held(struct armies_st *a, ee_unit *u) {
@@ -1467,29 +1467,34 @@ internal int armies_home_soldiers(ee_player *pl, unsigned idx, ee_unit **out, in
     return n;
 }
 // ... one taken by the landing: out of the force (still held) until the landing lets it go (armies_tick)
-internal void armies_lend(ee_player *pl, ee_unit *u) {
+internal void armies_lend(ee_player *pl, ee_unit *u, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct armies_st *a = &g_armies[idx];
     for (int k = 0; k < a->n; k++) {
         if (a->held[k].u != u) continue;
         a->held[k] = a->held[--a->n];
-        if (g_ar_lent[idx].n < 256) { g_ar_lent[idx].u[g_ar_lent[idx].n].u = u; g_ar_lent[idx].u[g_ar_lent[idx].n++].id = unit_get_serial(u); }
+        struct av_army *l = av_of(idx, AV_LANDING);   // a split: the landing's army, made with its first soldier
+        if (!l) l = av_new(idx, AV_LANDING, now);
+        if (l) av_put(l, u);
         g_ar_lent[idx].lent++;
         return;
     }
 }
 // the lent the landing has let go: back into the force on its land; those left on other land stay held where they are
 internal void ar_lent_back(ee_player *pl, unsigned idx, struct armies_st *a) {
+    struct av_army *l = av_of(idx, AV_LANDING);   // a merge: the landing's army back into the force, ended once empty
+    if (!l) return;
     unsigned land = map_area(a->home, 2);
     int m = 0;
-    for (int k = 0; k < g_ar_lent[idx].n; k++) {
-        ee_unit *u = g_ar_lent[idx].u[k].u;
-        if (unit_get_serial(u) != g_ar_lent[idx].u[k].id || unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
-        if (landing_has_unit(pl, u) || unit_get_x(u) < 0 || map_area(unit_get_tile(u), 2) != land || a->n >= AR_HELD) { g_ar_lent[idx].u[m++] = g_ar_lent[idx].u[k]; continue; }
+    for (int k = 0; k < l->n; k++) {
+        ee_unit *u = l->m[k].u;
+        if (!av_live(&l->m[k], pl)) continue;
+        if (landing_has_unit(pl, u) || unit_get_x(u) < 0 || map_area(unit_get_tile(u), 2) != land || a->n >= AR_HELD) { l->m[m++] = l->m[k]; continue; }
         a->held[a->n].u = u; a->held[a->n].id = unit_get_serial(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->held[a->n].hp = -1; a->n++;
         g_ar_lent[idx].back++;
     }
-    g_ar_lent[idx].n = m;
+    l->n = m;
+    if (!m) av_end(idx, l);
 }
 internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     if (!ar_on(pl, idx)) return;
@@ -1973,7 +1978,7 @@ internal void ar_det_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint
 internal void armies_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct armies_st *a = &g_armies[idx];
-    if (now < a->t) { memset(a, 0, sizeof *a); memset(&g_ar_lent[idx], 0, sizeof g_ar_lent[idx]); }   // a new game
+    if (now < a->t) { memset(a, 0, sizeof *a); memset(&g_ar_lent[idx], 0, sizeof g_ar_lent[idx]); av_clear_player(idx); }   // a new game
     if (g_ar_load && !(g_ar_loaded & (1u << idx))) {   // the first tick after a load: the force found again, or the held taken in
         g_ar_loaded |= 1u << idx;
         if (g_ar_load == 2) ar_found_again(a);
@@ -2030,18 +2035,27 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
-            ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, g_ar_lent[idx].n);
+            ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, av_of(idx, AV_LANDING) ? av_of(idx, AV_LANDING)->n : 0);
         if (g_ar_aid > 0) ar_log(idx, now, "ally aid: raids on an ally answered %u", g_ar_aids[idx]);
         static struct av_sum sum;   // ARMY VIEW (army_view.c): the force as one, for the log only so far
         static char line[1600];
         av_clear(&sum);
         for (int k = 0; k < a->n; k++) if (cv_alive(a->held[k].u)) av_add(&sum, a->held[k].u);
         av_done(&sum);
-        av_line(&sum, av_enemy_kinds(pl), line, (int)sizeof line);
+        uint64_t kinds = av_enemy_kinds(pl);
+        av_line(&sum, kinds, line, (int)sizeof line);
         ar_log(idx, now, "the force as one: %s", line);
+        for (int j = 0; j < g_av[idx].n; j++) {   // the other armies
+            struct av_army *o = &g_av[idx].a[j];
+            av_clear(&sum);
+            for (int k = 0; k < o->n; k++) if (av_live(&o->m[k], pl)) av_add(&sum, o->m[k].u);
+            av_done(&sum);
+            av_line(&sum, kinds, line, (int)sizeof line);
+            ar_log(idx, now, "army %d, %s (%d members, since %.1f min): %s", o->id, k_av_kind[o->kind], o->n, o->made_t / 60000.0, line);
+        }
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); g_ar_load = from_save; g_ar_loaded = 0; }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); av_new_game(); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;

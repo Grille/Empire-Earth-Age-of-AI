@@ -1,0 +1,12 @@
+// The force lends soldiers to a landing early (armies.c armies_lend / ar_lent_back, the landing's army in army_view.c):
+// on an island map P2 gets 3000 of each and 20 pikemen and 10 long bows by its first building at minute 2 - the force
+// holds them, finds no enemy on its own land and asks a landing, whose soldiers it lends. Log: "# armies: P2 ... a
+// landing asked", "army N, the landing's (...)", "over the sea: ... soldiers lent N, back N". Meant for Small Islands
+// from epoch 5 (a same-game check of the lending before the islands' run-to-run drift, about minute 20).
+
+wait_until(2min)
+let tc = first(player(2).units(kind.building))
+let at = tc != null ? tc.pos : vec(0, 0)
+give(2, 3000, resource.all)
+spawn(2, unit.inf06_pikeman, int(at.x) + 4, int(at.y) + 4, 20)
+spawn(2, unit.arch06_long_bow, int(at.x) + 4, int(at.y) - 4, 10)
