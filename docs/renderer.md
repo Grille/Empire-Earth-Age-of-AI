@@ -779,6 +779,16 @@ in the step it died; none when met already sinking, or beyond 1.5 times its own 
 jump: a fixed 4 stopped the player's ship of 170 dead), the water's drag and the seabed stop it - along
 the water a drag of its own (US_GLIDE 0.5/s against 1.6 up and down: a frigate at 0.8 tiles/s glides 1.6 tiles, at
 the sinking's drag half a tile, hardly seen).
+A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
+with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
+(US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
+weight over theirs, so it floats half under at rest and the leaks sink it by the same shares as before. Its weight below
+the floats rights a heeling hull; the frame's distances are held by the points' weights, the seabed stops it above the
+keel (half the beam on its side), and it has a dig of its own. Heeled past 53 degrees it breaks loose and slides to the
+low side over 1.5 s (US_SHIFT, as a cargo shifts), and the hull stays over: held in the middle it righted every rolled
+ship as it filled - all ten of the test came to rest upright, their sails out of the water. Checked headless, the ten
+ships beside the build before (the same plans): the dives as before, the rolled ones lying on their sides or keel up,
+the level ones upright on the bottom.
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
 simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
 seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes

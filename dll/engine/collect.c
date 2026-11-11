@@ -500,11 +500,13 @@ typedef struct {
     uint8_t gone;            // removed by the game: drawn by the walk
     uint8_t held;            // its turns taken
     uint8_t ship;            // a ship going down by its floats (uc_ship_*)
-    float sp[4][3], sq[4][3];   // its floats - bow, stern, port, starboard: where they are and were a step before (world)
-    float body[4][3];        // ... in the hull's own space times its scale, at its waterline
+    float sp[5][3], sq[5][3];   // its floats - bow, stern, port, starboard - and its ballast: where they are and were a step before (world)
+    float body[5][3];        // ... in the hull's own space times its scale, the floats at its waterline
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
     float leak[4][3];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s)
-    float dig[4];            // how deep each float can go into the seabed (tiles)
+    float dig[5];            // how deep each point can go into the seabed (tiles)
+    float shift;             // how far its ballast has slid to the low side (0 .. 1), once it heeled past US_SHIFT
+    int32_t shift_to;        // ... that side's float (2 port, 3 starboard; 0 not yet)
     float zw, range, keel;   // the water's level; a float's depth from dry to fully under; the keel's under the waterline
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
@@ -532,6 +534,18 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // should have a random value how deep it can sink into the ground"): a wreck comes to rest unevenly buried, tilted.
 // It goes on at the speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats
 // start with its last step's move along the water (us_velocity), the drag slows it, the seabed stops it.
+// A fifth point, its ballast (the player: "a thried point in the middle that a bit lower than the others with a heigher
+// wieght, to simulate a real ships balance better"): under its middle at US_LOW of the keel, US_BALLAST times a float's
+// weight, no buoyancy of its own - the floats carry it (their lift times all the weight over theirs: half under at rest
+// as before, the leaks' shares of the weight as before). Its weight below the floats rights a heeling hull; the frame's
+// distances are held by the points' weights (the heavy one moves the least). Heeled past US_SHIFT the ballast breaks
+// loose and slides to the low side over US_SHIFT_S, as a cargo shifts, and the hull stays over: held in the middle it
+// rights every rolled ship as it fills (tried: all ten of a test came to rest upright, their sails out of the water).
+#define US_PTS 5        // the four floats and the ballast (the last)
+#define US_LOW 0.6f     // the ballast under the waterline: a share of the keel's depth
+#define US_BALLAST 3.0f // its weight, a float's 1
+#define US_SHIFT 0.8f   // the heel (its sine: 53 degrees) past which the ballast slides
+#define US_SHIFT_S 1.5f // ... over this long (s), 0.8 of the way to the low side
 #define US_G 3.0f       // gravity (tiles/s^2)
 #define US_DT 0.01      // the step (s of game time)
 #define US_DRAG 1.6f    // the water's drag (1/s) up and down, along it (a hull glides on: its way carries), the air's
@@ -561,7 +575,7 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
             k->leak[o][0] = 0.1f + 0.4f * us_rnd(&s), k->leak[o][1] = 0.5f + us_rnd(&s), k->leak[o][2] = 3.0f + 3.0f * us_rnd(&s);
         }
     }
-    for (int i = 0; i < 4; i++) k->dig[i] = us_rnd(&s);   // its share of US_DIG (drawn last: the leaks stay as they were)
+    for (int i = 0; i < US_PTS; i++) k->dig[i] = us_rnd(&s);   // its share of US_DIG (drawn last: the leaks stay as they were)
     if (late) for (int i = 0; i < 4; i++) k->leak[i][1] = -1000.0f, k->leak[i][2] = 0.01f;
 }
 // its velocity along the water at its death (tiles/s) into v: its newest move between the poses the collection kept of
@@ -600,31 +614,36 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         k->body[2][j] = c[j] + half_across * ac[j], k->body[3][j] = c[j] - half_across * ac[j];
     }
     k->keel = fminf(fmaxf(-lo[2] * s, 0.05f), 1.0f);
+    k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = -US_LOW * k->keel;
+    k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < US_PTS; i++)
         for (int j = 0; j < 3; j++) {
             const float *b = k->body[i];
             k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
         }
     int late = o->rotting || t[10] < 0.98f || t[11] < k->zw - 0.05f;
     us_leaks(k, o->serial, late);
-    for (int i = 0; i < 4; i++) k->dig[i] *= US_DIG * 2.5f * half_across;   // the beam: half_across is 0.4 of it
+    for (int i = 0; i < US_PTS; i++) k->dig[i] *= US_DIG * 2.5f * half_across;   // the beam: half_across is 0.4 of it
     float v[2] = { 0.0f, 0.0f };
     if (!late) us_velocity(o, v);
-    for (int i = 0; i < 4; i++) k->sq[i][0] -= v[0] * (float)US_DT, k->sq[i][1] -= v[1] * (float)US_DT;   // Verlet: a step's way behind
+    for (int i = 0; i < US_PTS; i++) k->sq[i][0] -= v[0] * (float)US_DT, k->sq[i][1] -= v[1] * (float)US_DT;   // Verlet: a step's way behind
     k->sim = k->died;
     k->ship = 1;
 }
 // one step at t s after its death: each float moved by its forces (Verlet: its velocity its way since the step before),
 // then the frame's distances and the seabed held, four times round
 internal void us_step(uc_corpse *k, float t, const void *mesh) {
-    const float dt = (float)US_DT;
-    for (int i = 0; i < 4; i++) {
-        float *p = k->sp[i], *q = k->sq[i], u = (t - k->leak[i][1]) / k->leak[i][2];
-        u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
-        float b = US_FLOAT + (k->leak[i][0] - US_FLOAT) * u, under = 0.5f + (k->zw - p[2]) / k->range;
+    const float dt = (float)US_DT, carry = (4.0f + US_BALLAST) / 4.0f;   // a float's lift: its share of all the weight
+    for (int i = 0; i < US_PTS; i++) {
+        float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
+        if (i < 4) {
+            float u = (t - k->leak[i][1]) / k->leak[i][2];
+            u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
+            b = (US_FLOAT + (k->leak[i][0] - US_FLOAT) * u) * carry;
+        }
         float f = expf(-(under > 0.0f ? US_DRAG : US_AIR) * dt), g = expf(-(under > 0.0f ? US_GLIDE : US_AIR) * dt), v[3];
         for (int j = 0; j < 3; j++) v[j] = (p[j] - q[j]) * (j < 2 ? g : f);
         v[2] += (-US_G + b * US_G * under) * dt * dt;
@@ -633,24 +652,36 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     // how far the hull reaches under each float as it lies now: the keel as far as it is upright, and under the bow and
     // the stern half its beam as far as it lies on its side (the side floats are at its sides) - a ship rolled over
     // comes to rest on its side; held at the keel alone, all four came to rest level and it stood up again on the bottom
-    float al[3], ac[3], lal = 0.0f, lac = 0.0f, uz, below[4];
+    float al[3], ac[3], lal = 0.0f, lac = 0.0f, uz, below[US_PTS];
     for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], lal += al[j] * al[j], lac += ac[j] * ac[j];
     lal = sqrtf(lal), lac = sqrtf(lac);
     uz = lal > 1e-6f && lac > 1e-6f ? (al[0] * ac[1] - al[1] * ac[0]) / (lal * lac) : 1.0f;   // the hull's up, its height
     float side = lac > 1e-6f ? fabsf(ac[2]) / lac : 0.0f, beam = 0.5f * lac;
     below[0] = below[1] = k->keel * fmaxf(uz, 0.0f) + beam * side;
     below[2] = below[3] = k->keel * fmaxf(uz, 0.0f);
+    if (!k->shift_to && side > US_SHIFT) k->shift_to = k->sp[2][2] < k->sp[3][2] ? 2 : 3;
+    if (k->shift_to && k->shift < 1.0f) {   // sliding: its place in the hull from the middle toward the low side's float
+        k->shift = fminf(k->shift + dt / US_SHIFT_S, 1.0f);
+        const float *a = k->body[2], *b = k->body[3], *to = k->body[k->shift_to];
+        for (int j = 0; j < 2; j++) {
+            float mid = 0.5f * (a[j] + b[j]);
+            k->body[4][j] = mid + 0.8f * k->shift * (to[j] - mid);
+        }
+    }
+    // the ballast: above the keel on the middle line, on its side half the beam up - less as it slid to the low side
+    below[4] = (1.0f - US_LOW) * k->keel * fmaxf(uz, 0.0f) + beam * side * (1.0f - 0.8f * k->shift);
     for (int round = 0; round < 4; round++) {
-        for (int i = 0; i < 4; i++)
-            for (int j = i + 1; j < 4; j++) {
+        for (int i = 0; i < US_PTS; i++)
+            for (int j = i + 1; j < US_PTS; j++) {
                 float d[3], e[3], len = 0.0f, rest = 0.0f;
                 for (int c = 0; c < 3; c++) d[c] = k->sp[j][c] - k->sp[i][c], e[c] = k->body[j][c] - k->body[i][c], len += d[c] * d[c], rest += e[c] * e[c];
                 len = sqrtf(len), rest = sqrtf(rest);
                 if (len < 1e-6f) continue;
-                float w = 0.5f * (len - rest) / len;
-                for (int c = 0; c < 3; c++) k->sp[i][c] += d[c] * w, k->sp[j][c] -= d[c] * w;
+                // by their weights: the lighter moves the more (a float 1, the ballast US_BALLAST)
+                float wi = i < 4 ? 1.0f : 1.0f / US_BALLAST, wj = j < 4 ? 1.0f : 1.0f / US_BALLAST, w = (len - rest) / (len * (wi + wj));
+                for (int c = 0; c < 3; c++) k->sp[i][c] += d[c] * w * wi, k->sp[j][c] -= d[c] * w * wj;
             }
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < US_PTS; i++) {
             float *p = k->sp[i], *q = k->sq[i];
             int x = (int)floorf(p[0]), y = (int)floorf(p[1]);
             if (!mesh_has_tile(mesh, x, y)) continue;
