@@ -557,8 +557,14 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_KICK_YAW 0.3f     // about its up: slewed round
 #define US_G 3.0f       // gravity (tiles/s^2)
 #define US_DT 0.01      // the step (s of game time)
-#define US_DRAG 1.6f    // the water's drag (1/s) up and down, along it (a hull glides on: its way carries), the air's
-#define US_GLIDE 0.5f
+// The water's drag by the hull's own axes (the player, the same day: "what do you think of adding a lift plane? ... real
+// ships glide when they sink right?"): a hull slips along its length and is held across it - sideways, and through its
+// deck and keel - so one going down by the bow or the stern glides on along its line instead of dropping (the Titanic's
+// bow came to rest about 600 m from its stern), one that sinks level goes straight down, and its way at its death
+// carries it on where its bow points (a slew of the kick doesn't drift it sideways). Until then by the world's axes:
+// 0.5 along the water, 1.6 up and down. The air's alike every way.
+#define US_DRAG 1.6f    // the water's across the hull (1/s), along its length, the air's
+#define US_ALONG 0.35f  // a frigate at 0.8 tiles/s at its death coasts about 2.3 tiles
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
@@ -693,6 +699,12 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
 // then the frame's distances and the seabed held, four times round
 internal void us_step(uc_corpse *k, float t, const void *mesh) {
     const float dt = (float)US_DT, carry = (4.0f + US_BALLAST) / 4.0f;   // a float's lift: its share of all the weight
+    // the hull's length as it lies (from the stern to the bow): the way along it the water's drag spares
+    float ln[3], ll = 0.0f;
+    for (int j = 0; j < 3; j++) ln[j] = k->sp[0][j] - k->sp[1][j], ll += ln[j] * ln[j];
+    ll = sqrtf(ll);
+    for (int j = 0; j < 3; j++) ln[j] = ll > 1e-6f ? ln[j] / ll : 0.0f;
+    const float f_across = expf(-US_DRAG * dt), f_along = expf(-US_ALONG * dt), f_air = expf(-US_AIR * dt);
     for (int i = 0; i < US_PTS; i++) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
@@ -701,8 +713,12 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
             b = (k->lift + (k->leak[i][0] - k->lift) * u) * carry;
         }
-        float f = expf(-(under > 0.0f ? US_DRAG : US_AIR) * dt), g = expf(-(under > 0.0f ? US_GLIDE : US_AIR) * dt), v[3];
-        for (int j = 0; j < 3; j++) v[j] = (p[j] - q[j]) * (j < 2 ? g : f);
+        float v[3], a = 0.0f;
+        for (int j = 0; j < 3; j++) v[j] = p[j] - q[j], a += v[j] * ln[j];
+        if (under > 0.0f)   // its way along the hull kept by the light drag, the rest across it by the heavy one
+            for (int j = 0; j < 3; j++) v[j] = a * ln[j] * f_along + (v[j] - a * ln[j]) * f_across;
+        else
+            for (int j = 0; j < 3; j++) v[j] *= f_air;
         v[2] += (-US_G + b * US_G * under) * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
     }

@@ -776,9 +776,16 @@ from the serial after the leaks): a wreck comes to rest unevenly buried - by the
 speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats start with its
 last step's move along the water (the collection's poses before its death; the one before when the game stopped it
 in the step it died; none when met already sinking, or beyond 1.5 times its own top speed, at least 4 tiles/s - a
-jump: a fixed 4 stopped the player's ship of 170 dead), the water's drag and the seabed stop it - along
-the water a drag of its own (US_GLIDE 0.5/s against 1.6 up and down: a frigate at 0.8 tiles/s glides 1.6 tiles, at
-the sinking's drag half a tile, hardly seen).
+jump: a fixed 4 stopped the player's ship of 170 dead), the water's drag and the seabed stop it (along its length
+the light drag below: a frigate at 0.8 tiles/s coasts about 2.3 tiles; at the sinking's drag it was half a tile,
+hardly seen).
+The water's drag is the hull's own (the player, the same day: "what do you think of adding a lift plane? basicly that
+vertical movment from the orientation of the model get converted to horizontal movment. real ships glide when they
+sink right?"): a hull slips along its length (US_ALONG 0.35/s) and is held across it, sideways and through its deck
+and keel (US_DRAG 1.6/s) - each point's way split by the hull's length as it lies. So one going down by the bow or the
+stern glides on along its line instead of dropping (as the Titanic's bow did, which came to rest about 600 m from its
+stern), one that sinks level goes straight down, and its way at its death carries it where its bow points. Before, the
+drag went by the world's axes (0.5/s along the water, 1.6 up and down).
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
