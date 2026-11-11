@@ -630,6 +630,10 @@ class ai_base
         /// same rules (the game's aid to allies finds no land soldiers: the force holds them). 0 = off (default until measured)
         [range(0, 1000), commented]
         int ally_aid = 0;
+        /// ... a raid is answered by a part of the force, the soldiers nearest it that beat it two to one, an army of its own
+        /// that comes back once the raid is over; the rest stays home for the next raid and the attack time. The whole force
+        /// goes only when no part is enough. 0 = the whole force (default until measured)
+        bool raid_parties = false;
         /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured

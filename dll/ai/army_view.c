@@ -98,10 +98,13 @@ internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) 
 // filled, emptied and ended by the parts that use it: the force's soldiers the landing has are one (armies.c
 // armies_lend: a split from the force, ar_lent_back: a merge back). No count limit: the list and the member lists
 // grow as they need. Not saved, as the lists they replace: a load's first tick takes the held back into the force.
-enum { AV_FORCE = 0, AV_LANDING = 1 };
-internal const char *const k_av_kind[] = { "the force", "the landing's" };
+enum { AV_FORCE = 0, AV_LANDING = 1, AV_RAID = 2 };
+internal const char *const k_av_kind[] = { "the force", "the landing's", "a raid party" };
 struct av_member { ee_unit *u; int id; };
-struct av_army { int id, kind; struct av_member *m; int n, cap; uint32_t made_t; };
+struct av_army {
+    int id, kind; struct av_member *m; int n, cap; uint32_t made_t;
+    ivec2 dest; int sent, clear; uint32_t look_t; float sent_hp;   // a mission's: where it goes, members and hit points it set out with, looks with nothing there, its last look
+};
 internal struct { struct av_army *a; int n, cap, next; } g_av[16];
 internal struct av_army *av_of(unsigned idx, int kind) {   // the player's army of that kind (the first), NULL: none
     for (int k = 0; k < g_av[idx & 15].n; k++) if (g_av[idx & 15].a[k].kind == kind) return &g_av[idx & 15].a[k];

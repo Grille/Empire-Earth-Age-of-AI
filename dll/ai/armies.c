@@ -1268,6 +1268,144 @@ internal int ar_site_asked(ee_player *pl, unsigned idx) {
     }
     return 0;
 }
+// RAID PARTIES ([ai_base] raid_parties, off until measured; [autotest] v_raid_parties; army view step 3 - the player
+// 2026-11-11: the AI splits and merges its armies as it needs, as many as it needs): a raid near home is answered by the
+// part of the force nearest it that beats it by AR_PART_PCT (the fight estimate, stage_foe: what the AI knows there), as
+// many as the raid's band at least, instead of the whole force, which stays home for the attack time and the next raid.
+// The part is an army of its own (army_view.c AV_RAID): it attack-moves at the raiders - the nearest land fighter it sees
+// within AR_PART_LOOK of where it goes or of its middle, not beyond AR_RAID_REACH of home - and goes back into the force
+// once there is none for two looks running, or
+// once it no longer beats them by AR_BACK_PCT. A raider a party is at already isn't answered again. When even the whole
+// force doesn't beat the raid by AR_PART_PCT, the whole force goes, as before.
+#define AR_PART_PCT 200
+#define AR_PART_LOOK 20
+internal int g_ar_parts = 0, g_v_ar_parts = -1;
+#define AR_PARTS(idx) PV(idx, g_v_ar_parts, g_ar_parts)
+internal struct { unsigned sent, cleared, losing, wiped; int men, lost; } g_ar_pt[16];   // the log's (not saved)
+internal int ar_part_at(unsigned idx, ivec2 p) {   // a raid party goes for p already
+    for (int j = 0; j < g_av[idx & 15].n; j++) {
+        struct av_army *o = &g_av[idx & 15].a[j];
+        if (o->kind == AV_RAID && ivec2_dist2(o->dest, p) <= AR_PART_LOOK * AR_PART_LOOK) return 1;
+    }
+    return 0;
+}
+internal void ar_part_side(ee_player *pl, struct av_army *o) {   // its members into g_ar_own
+    st_side_clear(&g_ar_own);
+    for (int k = 0; k < o->n; k++) if (av_live(&o->m[k], pl) && cv_alive(o->m[k].u)) st_side_add(&g_ar_own, o->m[k].u);
+}
+internal void ar_part_order(struct av_army *o, ee_player *pl, ivec2 d, int idle_only, uint32_t now) {
+    (void)now;
+    for (int k = 0; k < o->n; k++) {
+        ee_unit *u = o->m[k].u;
+        if (!av_live(&o->m[k], pl) || !cv_alive(u) || (idle_only && !ar_idle(u))) continue;
+        ee_goal *g = ar_goal_at(d, k, 1);
+        if (g) unit_goal(u, g, 0, 0x1F40);
+    }
+}
+// the members at home nearest d that beat what pl knows at d by AR_PART_PCT, out of the force into a party of their own;
+// 0: no part does (or only the whole force) - the caller sends the force
+struct ar_cand { int k; long d; };
+internal float ar_part_ratio(struct armies_st *a, const struct ar_cand *c, int m) {   // the m nearest against g_sgs_foe
+    st_side_clear(&g_ar_own);
+    for (int i = 0; i < m; i++) st_side_add(&g_ar_own, a->held[c[i].k].u);
+    return st_ratio(&g_ar_own, &g_sgs_foe);
+}
+internal int ar_part_send(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 d, int band, uint32_t now) {
+    static struct ar_cand c[AR_HELD];
+    int nc = 0;
+    for (int k = 0; k < a->n; k++) {
+        ee_unit *u = a->held[k].u;
+        if (a->held[k].out || a->held[k].back || !cv_alive(u)) continue;
+        c[nc].k = k; c[nc++].d = ivec2_dist2(unit_get_tile(u), d);
+    }
+    for (int i = 1; i < nc; i++) {   // nearest first (insertion: stable, the held order among equals)
+        int j = i; struct ar_cand x = c[i];
+        while (j > 0 && c[j - 1].d > x.d) { c[j] = c[j - 1]; j--; }
+        c[j] = x;
+    }
+    stage_foe(pl, d);
+    float want = (float)AR_PART_PCT / 100.0f;
+    int lo = 1, hi = nc;   // the fewest nearest that beat it by want: a binary search (more soldiers never judge worse)
+    int least = band > AR_MIN_RAID ? band : AR_MIN_RAID;   // never fewer than the raid's band: what the AI knows there can be gone (a party of 1 went at "nothing")
+    if (nc <= least || ar_part_ratio(a, c, nc) < want) return 0;
+    lo = least;
+    while (lo < hi) { int mid = (lo + hi) / 2; if (ar_part_ratio(a, c, mid) >= want) hi = mid; else lo = mid + 1; }
+    float r = ar_part_ratio(a, c, lo);
+    if (lo >= nc) return 0;
+    struct av_army *o = av_new(idx, AV_RAID, now);
+    if (!o) return 0;
+    static uint8_t sel[AR_HELD];
+    memset(sel, 0, (size_t)a->n);
+    for (int i = 0; i < lo; i++) sel[c[i].k] = 1;
+    int m = 0;
+    for (int k = 0; k < a->n; k++) {
+        if (sel[k] && av_put(o, a->held[k].u)) { o->sent_hp += (float)unit_get_hp(a->held[k].u); continue; }
+        a->held[m++] = a->held[k];
+    }
+    a->n = m;
+    o->dest = d; o->sent = o->n; o->look_t = now ? now : 1;
+    ar_part_order(o, pl, d, 0, now);
+    g_ar_pt[idx].sent++; g_ar_pt[idx].men += o->n;
+    ar_log(idx, now, "a raid of %d at %d,%d - a party of %d of the force's %d goes (%.2f: own %d, enemy %d), army %d", band, d.x, d.y, o->n, m + o->n, r, g_ar_own.n, g_sgs_foe.n, o->id);
+    return 1;
+}
+// each force tick: the parties out - the dead dropped, every AR_RAID_EVERY a look at the raiders, home and merged once done
+internal void ar_parts_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    for (int j = g_av[idx].n - 1; j >= 0; j--) {
+        struct av_army *o = &g_av[idx].a[j];
+        if (o->kind != AV_RAID) continue;
+        int m = 0;
+        for (int k = 0; k < o->n; k++) if (av_live(&o->m[k], pl)) o->m[m++] = o->m[k];
+        o->n = m;
+        if (!o->n) { g_ar_pt[idx].wiped++; g_ar_pt[idx].lost += o->sent; ar_log(idx, now, "the raid party of %d at %d,%d (army %d) is lost", o->sent, o->dest.x, o->dest.y, o->id); av_end(idx, o); continue; }
+        if (now >= o->look_t && now - o->look_t < AR_RAID_EVERY) continue;
+        o->look_t = now ? now : 1;
+        long sx = 0, sy = 0; int na = 0;
+        for (int k = 0; k < o->n; k++) if (cv_alive(o->m[k].u)) { ivec2 p = unit_get_tile(o->m[k].u); sx += p.x; sy += p.y; na++; }
+        ivec2 mid = na ? iv2((int)(sx / na), (int)(sy / na)) : o->dest;
+        ee_unit *best = NULL; long bd = 0;   // round where it goes and round itself (on its way the raiders are out of its sight: it turned back after 6 s)
+        for (int at = 0; at < 2; at++) {
+            ivec2 c = at ? mid : o->dest;
+            for (struct grid_it it = grid_it_box(c.x, c.y, AR_PART_LOOK, 1); grid_it_next(&it); ) {
+                ee_player *ow = unit_get_owner(it.u);
+                if (!ow || player_get_index(ow) <= 0 || !is_enemy(pl, ow) || !ms_land_soldier(it.u, it.td) || !seen_by(it.u, pl)) continue;
+                ivec2 p = unit_get_tile(it.u);
+                long dd = ivec2_dist2(p, mid);
+                if (ivec2_dist2(p, c) > (long)AR_PART_LOOK * AR_PART_LOOK || ivec2_dist2(p, a->home) > (long)AR_RAID_REACH * AR_RAID_REACH || (best && dd >= bd)) continue;
+                best = it.u; bd = dd;
+            }
+        }
+        int done = 0;
+        if (!best) done = ++o->clear >= 2 ? 1 : 0;
+        else {
+            o->clear = 0;
+            ivec2 t = unit_get_tile(best);
+            stage_foe(pl, t);
+            ar_part_side(pl, o);
+            float r = st_ratio(&g_ar_own, &g_sgs_foe);
+            if (r < (float)AR_BACK_PCT / 100.0f) done = 2;
+            else if (ivec2_dist2(t, o->dest) > 4 * 4) { o->dest = t; ar_part_order(o, pl, t, 0, now); }
+            else ar_part_order(o, pl, o->dest, 1, now);
+        }
+        if (!done) continue;
+        float hp = 0;
+        int back = 0;
+        for (int k = 0; k < o->n; k++) {   // home, and into the force: its gather takes them on from there
+            ee_unit *u = o->m[k].u;
+            hp += (float)unit_get_hp(u);
+            if (a->n >= AR_HELD) break;
+            ee_goal *g = ar_goal_at(a->home, a->n, 0);
+            if (g) unit_goal(u, g, 0, 0x1F40);
+            a->held[a->n].u = u; a->held[a->n].id = o->m[k].id; a->held[a->n].order_t = now ? now : 1; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->held[a->n].hp = -1; a->n++;
+            back++;
+        }
+        if (done == 1) g_ar_pt[idx].cleared++; else g_ar_pt[idx].losing++;
+        g_ar_pt[idx].lost += o->sent - o->n;
+        ar_log(idx, now, "the raid party at %d,%d (army %d) back into the force, %s: %d of %d (hp %.0f of %.0f) after %.1f min", o->dest.x, o->dest.y, o->id,
+               done == 1 ? "the raid over" : "losing", back, o->sent, hp, o->sent_hp, (now - o->made_t) / 60000.0);
+        av_end(idx, o);
+    }
+}
 // whose buildings a raid on is answered: its own within AR_RAID_REACH of home; ALLY AID ([ai_base] ally_aid, off until
 // measured): an ally's within ally_aid tiles of home - the game's aid to allies (0x474E85) finds no land soldiers in the
 // commander's pool of a player whose force holds them, so nothing helped an ally since mod_armies
@@ -1303,6 +1441,7 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
             ivec2 p = unit_get_tile(u);
             long d = ivec2_dist2(p, a->home);
             if (d > (long)reach * reach || (raider && d >= bd)) continue;
+            if (AR_PARTS(idx) && ar_part_at(idx, p)) continue;   // RAID PARTIES: one is at it already
             int far_out = d > (long)AR_RAID_REACH * AR_RAID_REACH;   // only an ally's buildings are answered out there
             // a raid, not a scout passing: the raider's band (enemy fighters seen within AR_RAID_R of it) is AR_RAID_BAND
             // strong, or one of them is attacking something of ours - the whole force went for every single scout before
@@ -1332,6 +1471,7 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
             if (r >= need) {
                 a->raids++;
                 if (raided && raided != pl) g_ar_aids[idx]++;
+                if (AR_PARTS(idx) && ar_part_send(pl, idx, a, d, band, now)) return;   // RAID PARTIES: a part goes, the rest stays
                 ar_log(idx, now, "a raid of %d at %d,%d%s - the force of %d goes (%.2f: own %d, enemy %d)", band, d.x, d.y, raided && raided != pl ? " on an ally's" : "", n, r, g_ar_own.n, g_sgs_foe.n);
                 ar_go(pl, idx, a, 2, d, NULL, 0, now);
                 return;
@@ -1978,7 +2118,7 @@ internal void ar_det_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint
 internal void armies_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct armies_st *a = &g_armies[idx];
-    if (now < a->t) { memset(a, 0, sizeof *a); memset(&g_ar_lent[idx], 0, sizeof g_ar_lent[idx]); av_clear_player(idx); }   // a new game
+    if (now < a->t) { memset(a, 0, sizeof *a); memset(&g_ar_lent[idx], 0, sizeof g_ar_lent[idx]); memset(&g_ar_pt[idx], 0, sizeof g_ar_pt[idx]); av_clear_player(idx); }   // a new game
     if (g_ar_load && !(g_ar_loaded & (1u << idx))) {   // the first tick after a load: the force found again, or the held taken in
         g_ar_loaded |= 1u << idx;
         if (g_ar_load == 2) ar_found_again(a);
@@ -2029,6 +2169,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     if (a->out) ar_out(pl, idx, a, now);
     ar_way_home(pl, idx, a, now);
     ar_at_home(pl, idx, a, now);
+    ar_parts_tick(pl, idx, a, now);
     if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
         a->log_t = now ? now : 1;
         ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), judgements in contact %u, homes by the trade %u, pushes routed %u (a way round %u), breaches %u (pushed %u, home %u, stand-offs back %u, looks %u), fire marks %u, next attack at %.1f min",
@@ -2037,6 +2178,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
             ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, av_of(idx, AV_LANDING) ? av_of(idx, AV_LANDING)->n : 0);
         if (g_ar_aid > 0) ar_log(idx, now, "ally aid: raids on an ally answered %u", g_ar_aids[idx]);
+        if (AR_PARTS(idx)) ar_log(idx, now, "raid parties: sent %u (%d soldiers), back with the raid over %u, losing %u, lost whole %u, soldiers lost %d", g_ar_pt[idx].sent, g_ar_pt[idx].men, g_ar_pt[idx].cleared, g_ar_pt[idx].losing, g_ar_pt[idx].wiped, g_ar_pt[idx].lost);
         static struct av_sum sum;   // ARMY VIEW (army_view.c): the force as one, for the log only so far
         static char line[1600];
         av_clear(&sum);
@@ -2055,7 +2197,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         }
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); av_new_game(); g_ar_load = from_save; g_ar_loaded = 0; }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); memset(g_ar_pt, 0, sizeof g_ar_pt); av_new_game(); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;
@@ -2073,9 +2215,11 @@ internal void armies_install(const char *autotest_ini) {
     g_ar_raid_answer = g_set_ai[1].raid_answer;
     g_ar_leash = g_set_ai[1].raid_leash;
     g_ar_aid = g_set_ai[1].ally_aid;
+    g_ar_parts = g_set_ai[1].raid_parties;
     if (autotest_ini) {
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
+        g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
         g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
