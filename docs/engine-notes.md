@@ -527,6 +527,14 @@ docs/testing.md "Multiplayer test games") does by hand, 2026-10-27:
 
 - **Launch:** 0x46F4FF, when 0x43121E says the attack time has come. It picks an enemy player via the
   intelligence files (EECPIntelligencePlayerFile: +0x44 player, +0x34..+0x40 known area).
+- **The intelligence files see everything.** Their update (0x47CBCC, every 30 s; AoC 0x480F9B) walks the other
+  player's whole unit list (player +0x450, every unit with hp > 0) - no fog, no explored test: unit types and counts
+  (file +0x18, {count, type, family} 12 bytes), strength by domain, bounds, its armies (clusters), gathered resources.
+  The unit selector's counter requirement (0x49352A; AoC's AllocateCounterUnits) weighs 3/2/1 the counter families
+  (unit type +0x4D0/+0x4D4/+0x4D8) of every type in the target's file: the soldiers the game's attack groups request -
+  and so the request lists the mod's army FILL trains from (army.c ap_type) - are counters to what the enemy really
+  has, seen or not. Found 2026-11-11 after train_by_need (the mod's pick against what the AI had seen) showed no gain
+  over FILL: honest knowledge against the game's full knowledge.
 - **Subgroup:** EECPASGLand (vtable 0x826CA8).
   - Slot 80 (0x446CA1) starts a march: the subgroup's position (slot 53) and goal (target struct asg+0x100:
     +4/+8 tile, +0xC unit id, +0x10 kind, 1 = unit, +0x14 player).
