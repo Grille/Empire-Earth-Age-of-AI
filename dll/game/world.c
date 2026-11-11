@@ -8,6 +8,9 @@ internal uint32_t game_time(void) {
     ee_physics *clock = game_physics();
     return clock ? physics_get_time(clock) : 0;
 }
+// games begun (eeaimod.c's new game counts them): what the render thread keeps of one game's map - the ground's heights
+// (engine/collect_ground.c), the bent objects (render_units.c) - made anew after it
+internal volatile LONG g_game_starts;
 
 internal ee_player *resource_mgr_player(ee_resource_mgr *rm) {
     ee_civ_mgr *owner = resource_mgr_get_owner(rm);

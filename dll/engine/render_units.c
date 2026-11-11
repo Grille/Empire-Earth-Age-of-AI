@@ -86,12 +86,12 @@ internal void ud_gate(ee_model *m, float open) {
 // (bl_bend: five heights of the ground a vertex, into the shared frame and back), and that frame went to the display
 // DLL one draw at a time - 37 % of the records zoomed out in the test. They stand still: here an object's bent frame is
 // made once by the same code (bl_bend_at into a copy) and kept by model, frame and place, and drawn instanced like the
-// rest. Kept while the map is the same (a load frees them, and the GPU's pool of runs forgets their memory); only while
+// rest. Kept while the map and the game are the same (a load frees them, and the GPU's pool of runs forgets their memory); only while
 // a game runs (the scenario editor changes the ground under them: the game's draw there), only a frame's own (not one
 // blended toward the next: bl_bend bends the frame alone).
 #define UB_SLOTS 8192
 typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; } ub_entry;   // v NULL: drawn as it is
-internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale; } g_ub;
+internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale, starts; } g_ub;
 internal void mo_forget(void);   // render_morph.c
 internal void ub_clear(void *map) {
     for (int i = 0; i < UB_SLOTS; i++) free(g_ub.e[i].v);
@@ -103,7 +103,7 @@ internal void ub_clear(void *map) {
 // an object's bent frame f under the root's transformation t (its 3 x 4): kept, made now if new; NULL when the table is full
 internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     void *map = game_map();
-    if (map != g_ub.map) ub_clear(map);
+    if (map != g_ub.map || g_ub.starts != g_game_starts) ub_clear(map), g_ub.starts = g_game_starts;
     uint32_t key[4];
     memcpy(key, t + 3, 4); memcpy(key + 1, t + 7, 4); memcpy(key + 2, t + 11, 4); memcpy(key + 3, t, 4);
     uint32_t h = (((uint32_t)(uintptr_t)m >> 4) * 2654435761u ^ f * 40503u ^ key[0] * 2246822519u ^ key[1] * 3266489917u ^ key[2] * 668265263u ^ key[3]) & (UB_SLOTS - 1);

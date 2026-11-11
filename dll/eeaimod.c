@@ -351,6 +351,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     groupmove_new_game();
     build_retry_new_game();
     walls_new_game();
+    InterlockedIncrement(&g_game_starts);
     editor_undo_new_game();
     editor_orders_hide();   // the editor's selected units' orders not drawn over a game (the editor's panel draws them again)
     units_first_new_game();

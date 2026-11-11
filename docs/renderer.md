@@ -880,6 +880,12 @@ scene_release's) are hooked: the nodes - the game's operator new's - are kept fo
 differ. The units' update 5.25 ms a frame with the game's inserts, 4.4 with the built maps (the test, paused, only the
 units drawn, the two alternating).
 
+The ground's height kept (collect_ground.c, 2026-11-11): the fills asked the engine for the ground under every tree,
+building and remembered object at every update (GETerrainMesh::GetMeshZ, about 5 % of the render thread); while a game
+runs the ground doesn't change, so each point's answer is kept (the engine's to the bit), made anew with a new game
+(game/world.c g_game_starts; the bent copies too) and not kept while none runs. Checked against the engine on every
+hit: 95 % of the asks hit, none differ. Playing, the maps and the heights together save 1 - 1.3 ms of the update a frame.
+
 ## The interface's text without reading the picture back
 
 2026-11-06 (the 8000-unit save ran at either about 3200 or about 1900 frames a minute, by game, whatever the build).

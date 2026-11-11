@@ -21,6 +21,7 @@ internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's
 
 #include "collect_copy.c"   // step 3: the world's copy the walk reads
 #include "collect_maps.c"   // the sort maps built at once after the walk
+#include "collect_ground.c"   // the ground's height under what the fills place, kept
 
 // STEP 4: THE MOVING BETWEEN STEPS (the pipe: picture collect smooth; collect_copy.c cp_pose_swap has the poses). A
 // moving object's record drawn at the game time g_uc_show - the pieces' clock (pt_clock: running on with the real time, a
@@ -1016,7 +1017,7 @@ internal int uc_opacity(uc_obj *o, float *out) {
         g_uc_transform_ctor(t);
         t[3] = (float)((long double)o->x + c.half);
         t[7] = (float)((long double)o->y + c.half);
-        t[11] = mesh_z(map_mesh_at(game_map()), t[3], t[7]);
+        t[11] = uc_mesh_z(map_mesh_at(game_map()), t[3], t[7]);
         scale = o->height;
         frame = 0;
         transform_apply(t, (const float *)model_center_at(m), center);
@@ -1043,7 +1044,7 @@ internal int uc_view_at(const uc_obj *o, int call, float x, float y) {
     __attribute__((aligned(8))) uint8_t pm[0x60];
     __attribute__((aligned(8))) float t[16];
     physical_model_new(pm);
-    float z = mesh_z(map_mesh_at(game_map()), x, y);
+    float z = uc_mesh_z(map_mesh_at(game_map()), x, y);
     transform_orient(t, camera_yaw(), 0.0f, 0.0f);
     t[3] = x, t[7] = y, t[11] = z;
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
@@ -1288,13 +1289,13 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         long double half = (long double)draw_record_get_size(rec) * oc.half;
         pos[0] = (float)(half + ux);
         pos[1] = (float)((long double)draw_record_get_size(rec) * oc.half + uy);
-        pos[2] = mesh_z(mesh, pos[0], pos[1]);
+        pos[2] = uc_mesh_z(mesh, pos[0], pos[1]);
         if (o->marker && o->tcu) {   // a path marker on its target (world_unit by its hit points)
             second = o->tcu;
             second_foundation = o->t_foundation;
             if (o->marker_ok) {
                 pos[0] = o->at[0], pos[1] = o->at[1], pos[2] = o->at[2];
-                if (mesh_has_tile(mesh, (int)floorf(pos[0]), (int)floorf(pos[1]))) pos[2] = mesh_z(mesh, pos[0], pos[1]);
+                if (mesh_has_tile(mesh, (int)floorf(pos[0]), (int)floorf(pos[1]))) pos[2] = uc_mesh_z(mesh, pos[0], pos[1]);
                 uint32_t id = o->target_id, k[3];
                 switch (id % 3) {
                 case 0: k[0] = id % 6, k[1] = id + 1, k[2] = id + 2; break;
@@ -1357,7 +1358,7 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
     float *pos = (float *)draw_small_record_pos_at(rec);
     pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + o->x);
     pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + o->y);
-    pos[2] = mesh_z(map_mesh_at(map), pos[0], pos[1]);
+    pos[2] = uc_mesh_z(map_mesh_at(map), pos[0], pos[1]);
     __attribute__((aligned(8))) float t[16];
     transform_orient(t, info->yaw, 0.0f, 0.0f);
     transform_set_position(t, pos[0], pos[1], pos[2]);
@@ -1453,7 +1454,7 @@ internal int uc_fill_dopp(const uc_dopp *p, uint8_t *rec, uint32_t *count, void 
         transform_identity(t);
         pos[0] = (float)((long double)unit_type_get_size(ty) * oc.half + x);
         pos[1] = (float)((long double)unit_type_get_size(ty) * oc.half + y);
-        pos[2] = mesh_z(map_mesh_at(map), pos[0], pos[1]);
+        pos[2] = uc_mesh_z(map_mesh_at(map), pos[0], pos[1]);
         transform_set_position(t, pos[0], pos[1], pos[2]);
     }
     // (the game turns it twice)
@@ -1530,7 +1531,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
     float *pos = (float *)draw_small_record_pos_at(rec);
     pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + x);
     pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + y);
-    pos[2] = mesh_z(map_mesh_at(map), pos[0], pos[1]);
+    pos[2] = uc_mesh_z(map_mesh_at(map), pos[0], pos[1]);
     transform_orient(t, info->yaw, 0.0f, 0.0f);
     t[3] = pos[0], t[7] = pos[1], t[11] = pos[2];
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
