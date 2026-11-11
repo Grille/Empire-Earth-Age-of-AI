@@ -520,12 +520,16 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death. Each float goes into
 // the seabed by a depth of its own, up to US_DIG of the beam by the same plan (the player, the same day: "each point
 // should have a random value how deep it can sink into the ground"): a wreck comes to rest unevenly buried, tilted.
+// It goes on at the speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats
+// start with its last step's move along the water (us_velocity), the drag slows it, the seabed stops it.
 #define US_G 3.0f       // gravity (tiles/s^2)
 #define US_DT 0.01      // the step (s of game time)
-#define US_DRAG 1.6f    // the water's drag (1/s), the air's
+#define US_DRAG 1.6f    // the water's drag (1/s) up and down, along it (a hull glides on: its way carries), the air's
+#define US_GLIDE 0.5f
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_DIG 0.6f     // the deepest a float goes into the seabed: a share of the beam
+#define US_FAST 4.0f    // tiles/s: a faster move between its poses was no sailing (a jump)
 internal int uc_is_ship(const ee_unit_type *ty) { return class_is_ship(unit_type_get_class_id(ty)); }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
@@ -548,6 +552,20 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
     }
     for (int i = 0; i < 4; i++) k->dig[i] = us_rnd(&s);   // its share of US_DIG (drawn last: the leaks stay as they were)
     if (late) for (int i = 0; i < 4; i++) k->leak[i][1] = -1000.0f, k->leak[i][2] = 0.01f;
+}
+// its velocity along the water at its death (tiles/s) into v: its newest move between the poses the collection kept of
+// it (the game may stop it in the step it dies: then the one before), none if it is met already sinking
+internal void us_velocity(const uc_obj *o, float *v) {
+    v[0] = v[1] = 0.0f;
+    const float *now = (const float *)o->pm;
+    for (int i = 0; i < 2; i++) {
+        const float *a = i ? o->was2 : o->was, *b = i ? o->was : now;
+        float dt = (o->ms[i] - o->ms[i + 1]) / 1000.0f;
+        if (!(i ? o->has_was2 : o->has_was) || dt <= 0.0f || dt > 1.0f) return;
+        float dx = (b[3] - a[3]) / dt, dy = (b[7] - a[7]) / dt, s = dx * dx + dy * dy;
+        if (s > US_FAST * US_FAST) return;
+        if (s > 1e-4f) { v[0] = dx, v[1] = dy; return; }
+    }
 }
 // its floats set up from the game's pose t (rows; the model's scale apart) and its model's frame
 internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
@@ -576,8 +594,12 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             const float *b = k->body[i];
             k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
         }
-    us_leaks(k, o->serial, o->rotting || t[10] < 0.98f || t[11] < k->zw - 0.05f);
+    int late = o->rotting || t[10] < 0.98f || t[11] < k->zw - 0.05f;
+    us_leaks(k, o->serial, late);
     for (int i = 0; i < 4; i++) k->dig[i] *= US_DIG * 2.5f * half_across;   // the beam: half_across is 0.4 of it
+    float v[2] = { 0.0f, 0.0f };
+    if (!late) us_velocity(o, v);
+    for (int i = 0; i < 4; i++) k->sq[i][0] -= v[0] * (float)US_DT, k->sq[i][1] -= v[1] * (float)US_DT;   // Verlet: a step's way behind
     k->sim = k->died;
     k->ship = 1;
 }
@@ -590,8 +612,8 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
         float b = US_FLOAT + (k->leak[i][0] - US_FLOAT) * u, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
-        float f = expf(-(under > 0.0f ? US_DRAG : US_AIR) * dt), v[3];
-        for (int j = 0; j < 3; j++) v[j] = (p[j] - q[j]) * f;
+        float f = expf(-(under > 0.0f ? US_DRAG : US_AIR) * dt), g = expf(-(under > 0.0f ? US_GLIDE : US_AIR) * dt), v[3];
+        for (int j = 0; j < 3; j++) v[j] = (p[j] - q[j]) * (j < 2 ? g : f);
         v[2] += (-US_G + b * US_G * under) * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
     }

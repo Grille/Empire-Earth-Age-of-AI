@@ -772,7 +772,12 @@ theirs from its death. Checked headless, ten ships sunk at once on shallow water
 stern (one stood near upright on its bow), rolls, level ones, all on the bottom in 4 to 10 s with their masts out of the
 water, the rolled one on its side. Each float goes into the seabed by a depth of its own (the player, the same day:
 "each point should have a random value how deep it can sink into the ground"; US_DIG, up to 0.6 of the beam, drawn
-from the serial after the leaks): a wreck comes to rest unevenly buried - by the bow, the stern, one side.
+from the serial after the leaks): a wreck comes to rest unevenly buried - by the bow, the stern, one side. It keeps the
+speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats start with its
+last step's move along the water (the collection's poses before its death; the one before when the game stopped it
+in the step it died, none above US_FAST or when met already sinking), the water's drag and the seabed stop it - along
+the water a drag of its own (US_GLIDE 0.5/s against 1.6 up and down: a frigate at 0.8 tiles/s glides 1.6 tiles, at
+the sinking's drag half a tile, hardly seen).
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
 simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
 seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes
