@@ -68,7 +68,8 @@ internal void __thiscall hook_eo_open(ee_editor_form *f) {
 // - a unit of a player the owner isn't allied with: an attack;
 // - the owner's own or an ally's: the citizens repair it while it is damaged; the owner's own transport or (built)
 //   fortress: all go in (EEMLoadTransport, as the game's click: the mod's load hook sees it); else a move to it.
-// Shift queues the order after the units' others. Only units that move (buildings set no rally point here).
+// Shift queues the order after the units' others. Only units that move (buildings set no rally point here), not the
+// world player's (an animal: its messages have no sender).
 
 // whether u gathers and repairs: a citizen, on land or a fishing boat
 internal int eo_citizen(ee_unit *u) {
@@ -128,7 +129,10 @@ internal int eo_order(vec2 at, float drag, unsigned target, int queued, int atta
     for (int i = 0; ids && us && i < n; i++) {   // the units that move, alive and on the map
         ee_unit *s = editor_selection_unit(f, i), *u = s ? unit_get_physics(s) : NULL;
         ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
-        if (!st || unit_stats_get_speed(st) <= 0 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !unit_get_owner(u)) continue;
+        ee_player *o = st ? unit_get_owner(u) : NULL;
+        // (the world player's - an animal - none: the game's messages find no sender for player 0, EEMPathTo's Execute
+        // read through it and crashed)
+        if (!st || unit_stats_get_speed(st) <= 0 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !o || !player_get_index(o)) continue;
         vec3 q = unit_get_pos(u);
         mid = vec2_add(mid, v2(q.x, q.y));
         us[m++] = u;
@@ -194,6 +198,129 @@ internal void editor_orders_clear(void) {
     }
     if (!n) k = eo_orders(1), left = eo_orders(0);
     if (g_log) log_locked("# editor: orders cleared, %d units' (%s), %d still hold some\n", k, n ? "the selected" : "none selected: every unit's", left);
+}
+
+// THE ORDERS SHOWN (the player, 2026-11-11: "use our own renderer, but use the games own graphics where it amkes sence, a
+// green circle for a walking target, orange for attack move, yello circle on resouce if a slected unit has a gather
+// command, chnage the mous epointer etc, lets stay in the games own symbol language"). While the units panel is open
+// the selected units' orders are drawn on the map by the own renderer's overlay (base/overlay.c, the layer "orders" kept
+// on; render_overlay.c: on the ground, hidden by hills and buildings, under the interface): from each unit a line through
+// its queued goals and at each goal a ring in the colour the game's command circle gives that order
+// (EEE3DCommandConfirmation::vf12 0x4E2855, the colours set at the start 0x4E2598 ..): green a move, orange an
+// attack-move (a move not forced), red an attack (round the target), yellow a gathering (round the resource; a hunt's
+// kill before it shown as the hunt) and a repair, the game's pink anything else (a load). A move's ring is the unit's own spot, sized by its selection circle as
+// the game sizes its circle for each unit; a target's ring goes round it, once. The game's circles themselves are effects
+// the editor neither updates nor draws (one made there wasn't seen), its shift-mode markers (0x4FCDF9) neither. Without
+// the own renderer nothing is shown.
+// In Orders mode the cursor on a unit is the game's for what a right-click there would order (RTSMouse.cursor, as the
+// game's hover 0x65029E sets it): the sword an attack, the shovel and basket a gathering, the hammer a repair, the
+// pointing hand going inside; elsewhere the arrow, a move (the editor form knows no control under the mouse over the
+// map: GetMouseOverControl is NULL there).
+#define EO_ARGB_MOVE 0xFF5EFF5Eu          // the game's (0.37, 1, 0.37)
+#define EO_ARGB_ATTACK_MOVE 0xFFF09C42u   // (0.94, 0.61, 0.26)
+#define EO_ARGB_ATTACK 0xFFFF2626u        // (1, 0.15, 0.15)
+#define EO_ARGB_GATHER 0xFFFFFF1Au        // (1, 1, 0.1)
+#define EO_ARGB_OTHER 0xFFFF80FFu         // (1, 0.5, 1)
+#define EO_LINE_ALPHA 0x90u
+#define EO_LINE_W 0.05f        // tiles
+#define EO_RING_W 0.07f
+#define EO_RING_UNIT 0.45f     // a move's ring: the unit's selection circle (its type's mark size) times this, a radius
+#define EO_RING_TARGET 0.6f    // a target's: its selection circle times this
+#define EO_TARGETS 512         // targets ringed in a frame (more: rung again)
+#define EO_GOALS 32            // a unit's goals drawn at most
+enum { EO_CURSOR_ARROW = 0, EO_CURSOR_ATTACK = 1, EO_CURSOR_GATHER = 4, EO_CURSOR_REPAIR = 5, EO_CURSOR_ENTER = 11 };
+internal int g_eo_layer = -1;
+internal int g_eo_cursor;      // the cursor set here, 0: the game's left alone
+
+internal float eo_mark(ee_unit *u) {
+    float s = unit_type_get_mark_size(unit_get_type_data(u));
+    return s > 0.1f && s < 8.0f ? s : 1.0f;
+}
+// where goal g sends unit u and the ring's colour there; *on the unit it is round (an attack's target, a resource, a
+// building), NULL a point
+internal uint32_t eo_goal_look(ee_goal *g, ee_unit *u, vec2 *at, ee_unit **on) {
+    *on = NULL;
+    uint32_t c = EO_ARGB_OTHER;
+    if (goal_is_location(g)) c = location_goal_get_forced((ee_location_goal *)g) ? EO_ARGB_MOVE : EO_ARGB_ATTACK_MOVE;
+    else if (goal_is_attack(g)) *on = goal_get_target(g), c = EO_ARGB_ATTACK;
+    else if (goal_is_gather(g)) *on = goal_get_site(g), c = EO_ARGB_GATHER;
+    else if (goal_is_build(g)) *on = goal_get_building(g), c = EO_ARGB_GATHER;
+    vec3 p = *on && unit_get_x(*on) >= 0 ? unit_get_pos(*on) : goal_target(g, u);
+    if (*on && unit_get_x(*on) < 0) *on = NULL;
+    *at = v2(p.x, p.y);
+    return c;
+}
+// the cursor for a right-click on the unit of id target: the order the selection's units would get there, the
+// gathering first (a hunt: the citizens gather, the others attack), then a repair, going inside, an attack
+internal int eo_cursor_for(unsigned target) {
+    ee_editor_form *f = g_ef_form;
+    ee_unit *t = target != UNIT_NONE ? unit_by_id(target) : NULL;
+    int n = f && t ? editor_selection_n(f) : 0, best = 0;
+    static const int rank[6] = { 0, 4, 1, 3, 2, 0 }, cursor[6] = { EO_CURSOR_ARROW, EO_CURSOR_GATHER, EO_CURSOR_ATTACK, EO_CURSOR_REPAIR, EO_CURSOR_ENTER, EO_CURSOR_ARROW };
+    for (int i = 0; i < n; i++) {
+        ee_unit *s = editor_selection_unit(f, i), *u = s ? unit_get_physics(s) : NULL;
+        ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
+        if (!st || unit_stats_get_speed(st) <= 0 || !unit_get_owner(u) || !player_get_index(unit_get_owner(u))) continue;
+        if (unit_get_serial(u) == unit_get_serial(t)) return EO_CURSOR_ARROW;   // one of its own: a move
+        int k = eo_kind(unit_get_owner(u), eo_citizen(u), t);
+        if (rank[k] > rank[best]) best = k;
+    }
+    return cursor[best];
+}
+internal void eo_cursor_set(int want) {
+    ee_mouse *m = game_mouse();
+    if (!m) return;
+    if (want) mouse_set_cursor(m, want);
+    else if (g_eo_cursor && mouse_get_cursor(m) == g_eo_cursor) mouse_set_cursor(m, EO_CURSOR_ARROW);
+    g_eo_cursor = want;
+}
+
+// the units panel's update (editor_place.c): the selected units' orders drawn anew, the cursor set
+internal void editor_orders_tick(void) {
+    if (g_eo_layer < 0) {
+        g_eo_layer = overlay_layer("orders");
+        overlay_keep(g_eo_layer, 1);
+    }
+    static ee_unit *ringed[EO_TARGETS];
+    static uint32_t ringed_c[EO_TARGETS];
+    int rung = 0;
+    ee_editor_form *f = g_ef_form;
+    int n = f ? editor_selection_n(f) : 0;
+    overlay_begin(g_eo_layer, 1, game_time(), 0);
+    for (int i = 0; i < n; i++) {
+        ee_unit *s = editor_selection_unit(f, i), *u = s ? unit_get_physics(s) : NULL;
+        int k = u && unit_get_x(u) >= 0 ? unit_orders(u) : 0;
+        vec3 q = k > 0 ? unit_get_pos(u) : v3(0, 0, 0);
+        vec2 from = v2(q.x, q.y);
+        for (int o = 0; o < k && o < EO_GOALS; o++) {
+            ee_goal *g = unit_order_at(u, o), *next = o + 1 < k ? unit_order_at(u, o + 1) : NULL;
+            if (g && next && goal_is_attack(g) && goal_is_gather(next) && goal_get_target(g) == goal_get_site(next)) continue;   // a hunt's kill: the hunt's yellow
+            ee_unit *on = NULL;
+            vec2 at;
+            uint32_t c = g ? eo_goal_look(g, u, &at, &on) : 0;
+            if (!c || (at.x <= 0 && at.y <= 0)) continue;   // (a goal with no place)
+            overlay_line(from, at, (c & 0xFFFFFFu) | EO_LINE_ALPHA << 24, EO_LINE_W);
+            int again = 0;
+            for (int j = 0; on && j < rung && !again; j++) again = ringed[j] == on && ringed_c[j] == c;
+            if (!on) overlay_circle(at, eo_mark(u) * EO_RING_UNIT, c, EO_RING_W);
+            else if (!again) {
+                overlay_circle(at, eo_mark(on) * EO_RING_TARGET, c, EO_RING_W);
+                if (rung < EO_TARGETS) ringed_c[rung] = c, ringed[rung++] = on;
+            }
+            from = at;
+        }
+    }
+    overlay_end();
+    // (a unit under the cursor: the pick finds only what the map's view drew - not behind a panel)
+    eo_cursor_set(ep_orders() && n ? eo_cursor_for(editor_unit_under_mouse()) : 0);
+}
+// the units panel gone: nothing drawn, the cursor the game's
+internal void editor_orders_hide(void) {
+    if (g_eo_layer >= 0) {
+        overlay_begin(g_eo_layer, 1, game_time(), 0);
+        overlay_end();
+    }
+    eo_cursor_set(0);
 }
 
 internal void editor_orders_install(void) {

@@ -59,13 +59,15 @@ internal inline ee_goal *goal_move_init(void *mem, float *xy) { return (ee_goal 
 // on enemies it spots on the way
 internal inline ee_goal *goal_attack_move_init(void *mem, float *xy) { return (ee_goal *)fn_location_goal_init(mem, xy, 1, 0, 0, 0.0f, 0, 0); }
 // a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation), build or repair
-// (EEUGBuildRepair, the building +0x3C), a load (EEUGLoadTransport, the holder +0x50), an unload (EEUGUnloadTransport)
+// (EEUGBuildRepair, the building +0x3C), a load (EEUGLoadTransport, the holder +0x50), an unload (EEUGUnloadTransport),
+// a garrison (EEUGLoadGarrison), a gathering (EEUGGather, the site +0x38)
 internal inline int goal_is_attack(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_attack; }
 internal inline int goal_is_location(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_location; }
 internal inline int goal_is_build(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_build; }
 internal inline int goal_is_load(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_load; }
 internal inline int goal_is_unload(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_unload; }
 internal inline int goal_is_garrison(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_load_garrison; }
+internal inline int goal_is_gather(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_gather; }
 // the memory of a goal the game may free (game_new of its size), then made with its _init
 internal inline void *goal_build_alloc(void) { return game_new(value_goal_size_goal_build); }
 internal inline void *goal_attack_alloc(void) { return game_new(value_goal_size_goal_attack); }

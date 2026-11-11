@@ -48,6 +48,8 @@ internal ee_ui_control *g_ep_mode, *g_ep_clear;
 internal uint32_t g_ep_clear_shown;
 internal int g_ep_orders;              // the mode list as last read: 1 Orders (kept when the panel goes)
 internal void editor_orders_clear(void);   // editor_orders.c
+internal void editor_orders_tick(void);
+internal void editor_orders_hide(void);
 internal ee_se_unit *g_ep_panel;       // the editor's units panel, while it is
 internal ee_ui_control *g_ep_box;
 internal uint32_t g_ep_shown;          // the box's display mode as made
@@ -373,6 +375,7 @@ internal void ep_panel_init(ee_se_unit *p, ee_ui_control *list, ee_ui_form *form
 internal void __thiscall hook_ep_update(ee_se_unit *p) {
     eese_unit_update(p);
     if (p != g_ep_panel) return;
+    editor_orders_tick();   // the selected units' orders drawn, the cursor
     if (g_ep_clear) {
         ui_control_set_display_mode(g_ep_clear, ep_orders() ? g_ep_clear_shown : 0);
         if (ui_check_box_get_checked_state((ui_check_box *)g_ep_clear)) {
@@ -390,6 +393,7 @@ internal void ep_panel_delete(ee_se_unit *p) {
     if (p != g_ep_panel) return;
     ep_form_kind();
     ep_orders();
+    editor_orders_hide();
     ee_ui_control **form[4] = { &g_ep_form_label, &g_ep_form, &g_ep_mode, &g_ep_clear };
     for (int i = 0; i < 4; i++) {
         if (*form[i]) ((void (__thiscall *)(void *, int))(*(void ***)*form[i])[0])(*form[i], 1);

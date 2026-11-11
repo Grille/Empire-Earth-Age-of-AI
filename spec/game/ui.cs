@@ -177,6 +177,15 @@ unsafe struct RTSMouse
     [offset(0x90), found(c)]
     int32 screen_w;
 
+    /// the cursor's picture by number, set by the code that knows what a click would do: the in-game hover 0x65029E
+    /// (AoC the same field) from what the selection can do and the unit under the cursor - seen in the editor, each set
+    /// and drawn: 0 the arrow, 1 a sword (attack), 2 / 14 / 19 a red cross (not possible), 3 a target, 4 a shovel and
+    /// basket (gather), 5 a hammer (build, repair), 8 a cross (heal), 10 / 18 praying hands, 11 a pointing hand (into a
+    /// transport or a building: 0x64F128), 13 a lightning bolt, 15 a banner, 16 / 17 shields, 22 a wand; 24 crashed the
+    /// game (0x510CA4: past its table)
+    [offset(0x98), found(c)]
+    int32 cursor;
+
     /// the wheel's value this frame (0 without a wheel)
     [offset(0x94), found(c)]
     int32 wheel;
@@ -426,6 +435,11 @@ unsafe struct UIForm
 
     [offset(0xE8), found(c)]
     float32 mouse_y;
+
+    /// the control under the mouse, UpdateMouseLocation's find (GetMouseOverControl), NULL none - the scenario editor's
+    /// map: its command control (EESEUICCommandUnits) or its selection's
+    [offset(0x118), found(c)]
+    UIControl* mouse_over;
 
     /// its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
     /// GetFormID, both builds' engines

@@ -2518,6 +2518,11 @@ internal inline float *editor_form_mouse_x_at(const ee_editor_form *o) { return 
 internal inline float editor_form_get_mouse_y(const ee_editor_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
 internal inline void editor_form_set_mouse_y(ee_editor_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
 internal inline float *editor_form_mouse_y_at(const ee_editor_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
+// the control under the mouse, UpdateMouseLocation's find (GetMouseOverControl), NULL none - the scenario editor's
+// map: its command control (EESEUICCommandUnits) or its selection's
+internal inline ee_ui_control *editor_form_get_mouse_over(const ee_editor_form *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_form_mouse_over); }
+internal inline void editor_form_set_mouse_over(ee_editor_form *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_form_mouse_over) = v; }
+internal inline ee_ui_control **editor_form_mouse_over_at(const ee_editor_form *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_form_mouse_over); }
 // its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
 // GetFormID, both builds' engines
 internal inline enum ui_form_id editor_form_get_id(const ee_editor_form *o) { return *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }

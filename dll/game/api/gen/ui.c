@@ -171,6 +171,15 @@ internal inline int *mouse_screen_h_at(const ee_mouse *o) { return (int *)((uint
 internal inline int mouse_get_screen_w(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_screen_w); }
 internal inline void mouse_set_screen_w(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_screen_w) = v; }
 internal inline int *mouse_screen_w_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_screen_w); }
+// the cursor's picture by number, set by the code that knows what a click would do: the in-game hover 0x65029E
+// (AoC the same field) from what the selection can do and the unit under the cursor - seen in the editor, each set
+// and drawn: 0 the arrow, 1 a sword (attack), 2 / 14 / 19 a red cross (not possible), 3 a target, 4 a shovel and
+// basket (gather), 5 a hammer (build, repair), 8 a cross (heal), 10 / 18 praying hands, 11 a pointing hand (into a
+// transport or a building: 0x64F128), 13 a lightning bolt, 15 a banner, 16 / 17 shields, 22 a wand; 24 crashed the
+// game (0x510CA4: past its table)
+internal inline int mouse_get_cursor(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_cursor); }
+internal inline void mouse_set_cursor(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_cursor) = v; }
+internal inline int *mouse_cursor_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_cursor); }
 // the wheel's value this frame (0 without a wheel)
 internal inline int mouse_get_wheel(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_wheel); }
 internal inline void mouse_set_wheel(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_wheel) = v; }
@@ -311,6 +320,11 @@ internal inline float *ui_form_mouse_x_at(const ee_ui_form *o) { return (float *
 internal inline float ui_form_get_mouse_y(const ee_ui_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
 internal inline void ui_form_set_mouse_y(ee_ui_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
 internal inline float *ui_form_mouse_y_at(const ee_ui_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
+// the control under the mouse, UpdateMouseLocation's find (GetMouseOverControl), NULL none - the scenario editor's
+// map: its command control (EESEUICCommandUnits) or its selection's
+internal inline ee_ui_control *ui_form_get_mouse_over(const ee_ui_form *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_form_mouse_over); }
+internal inline void ui_form_set_mouse_over(ee_ui_form *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_form_mouse_over) = v; }
+internal inline ee_ui_control **ui_form_mouse_over_at(const ee_ui_form *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_form_mouse_over); }
 // its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
 // GetFormID, both builds' engines
 internal inline enum ui_form_id ui_form_get_id(const ee_ui_form *o) { return *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
@@ -769,6 +783,7 @@ internal int spec_ui_select(int build) {
         of_mouse_speed = 0x88;
         of_mouse_screen_h = 0x8C;
         of_mouse_screen_w = 0x90;
+        of_mouse_cursor = 0x98;
         of_mouse_wheel = 0x94;
         of_mouse_mode = 0x98;
         of_mouse_frozen = 0xA4;
@@ -810,6 +825,7 @@ internal int spec_ui_select(int build) {
         of_ui_form_keyboard_captured = 0x108;
         of_ui_form_mouse_x = 0xE4;
         of_ui_form_mouse_y = 0xE8;
+        of_ui_form_mouse_over = 0x118;
         of_ui_form_id = 0x180;
         slot_ui_form_activate = 1;
         slot_ui_form_add_ime_result_string = 2;
@@ -1006,6 +1022,7 @@ internal int spec_ui_select(int build) {
         of_mouse_speed = 0x88;
         of_mouse_screen_h = 0x8C;
         of_mouse_screen_w = 0x90;
+        of_mouse_cursor = 0x98;
         of_mouse_wheel = 0x94;
         of_mouse_mode = 0x98;
         of_mouse_frozen = 0xA4;
@@ -1047,6 +1064,7 @@ internal int spec_ui_select(int build) {
         of_ui_form_keyboard_captured = 0x108;
         of_ui_form_mouse_x = 0xE4;
         of_ui_form_mouse_y = 0xE8;
+        of_ui_form_mouse_over = 0x118;
         of_ui_form_id = 0x180;
         slot_ui_form_activate = 1;
         slot_ui_form_add_ime_result_string = 2;

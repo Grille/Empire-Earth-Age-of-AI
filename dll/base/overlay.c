@@ -22,6 +22,7 @@ internal struct {
     char names[OV_LAYERS][16];
     int n_layers;
     uint32_t on;      // the layers shown (bit per layer)
+    uint32_t kept;    // the layers shown whatever was asked for (overlay_keep: a view of the mod's own, not a debug one)
     char want[256];   // the layers asked for by name (the setting, the pipe), before they all registered
     ov_shape s[OV_SHAPES];
     int n;
@@ -69,8 +70,18 @@ internal void overlay_show(const char *names) {
     ov_init();
     EnterCriticalSection(&g_ov.cs);
     lstrcpynA(g_ov.want, names ? names : "", sizeof g_ov.want);
-    g_ov.on = 0;
+    g_ov.on = g_ov.kept;
     for (int i = 0; i < g_ov.n_layers; i++) if (ov_wanted(g_ov.names[i])) g_ov.on |= 1u << i;
+    LeaveCriticalSection(&g_ov.cs);
+}
+// a layer shown (or not) whatever the setting asks for: the scenario editor's orders (engine/editor_orders.c)
+internal void overlay_keep(int layer, int on) {
+    if (layer < 0) return;
+    ov_init();
+    EnterCriticalSection(&g_ov.cs);
+    uint32_t bit = 1u << layer;
+    if (on) g_ov.kept |= bit, g_ov.on |= bit;
+    else { g_ov.kept &= ~bit; if (!ov_wanted(g_ov.names[layer])) g_ov.on &= ~bit; }
     LeaveCriticalSection(&g_ov.cs);
 }
 internal int overlay_on(int layer) { return layer >= 0 && (g_ov.on >> layer & 1); }
