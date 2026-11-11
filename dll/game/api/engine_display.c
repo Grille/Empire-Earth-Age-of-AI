@@ -388,8 +388,11 @@ internal inline void graphics_acquire(ee_dmg_model *g) {
     if (build_is("aoc")) ((int (__thiscall *)(ee_dmg_model *))(*(void ***)g)[1])(g);
     else dmg_model_acquire(g);
 }
-// a unit class of the ships on the water (not the submarines: under it anyway)
-internal inline int class_is_ship(int k) { return k == CLS_NAVAL || k == CLS_NAVAL_TRANSPORT || k == CLS_NAVAL_CITIZEN; }
+// a unit class of the ships on the water (not the submarines: under it anyway) - the carriers' too (naval building: in
+// the game's data the two carriers only, the Enterprise and the Nexus)
+internal inline int class_is_ship(int k) {
+    return k == CLS_NAVAL || k == CLS_NAVAL_TRANSPORT || k == CLS_NAVAL_CITIZEN || k == CLS_NAVAL_BUILDING;
+}
 // a model's box of a frame (its own vertices' in its own space), NULL past its frames
 internal inline ee_box *model_box(const ee_model *m, uint32_t frame) {
     return model_get_boxes(m) && frame < model_get_frames(m) ? (ee_box *)((uint8_t *)model_get_boxes(m) + frame * size_ge_bounding_box) : NULL;

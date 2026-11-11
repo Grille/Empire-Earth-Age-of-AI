@@ -798,6 +798,12 @@ No point is pushed up out of the bottom where the game had it (a ship's or a sub
 the start digs in as deep as it was - a Trident in the shallows came up with its nose out of the water. Checked
 headless, four U-boats and four Tridents sunk by the coast beside the game's own sinking: the U-boats dived and rolled
 to the bottom, the Tridents in the shallows stayed in the sand, one dug in nose down.
+The aircraft carriers too (the player asked whether they were, the same day): their class is naval building (21; in
+the game's data the Enterprise and the Nexus only), which class_is_ship (game/api/engine_display.c) left out - so they
+sank the game's way and kept their hulls open below. Now a ship's class: floats and ballast like any ship (they float
+at the waterline, keels of 0.21 and 0.15 tiles, logged), the hull's bottom capped. Checked headless, two of each sunk
+in the shallows by the coast: they dipped by an end and settled with their decks just under the water, their bottoms
+capped (lists of 591, 138, 93 and 102 indices).
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
 simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
 seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes
