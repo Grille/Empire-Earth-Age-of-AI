@@ -52,6 +52,33 @@ internal inline uint8_t *dmg_model_loading_at(const ee_dmg_model *o) { return (u
 typedef int (__thiscall *dmg_model_damage_points_fn)(ee_dmg_model *, int, uint32_t);
 internal dmg_model_damage_points_fn fn_dmg_model_damage_points;
 internal inline int dmg_model_damage_points(ee_dmg_model *dmg_model, int index, uint32_t state) { return fn_dmg_model_damage_points(dmg_model, index, state); }
+// nonzero: its models can be drawn - the record draw draws nothing, its gfx_built's nothing, while it is 0
+internal inline uint8_t dmg_model_get_drawable(const ee_dmg_model *o) { return *(uint8_t *)((uint8_t *)o + of_dmg_model_drawable); }
+internal inline void dmg_model_set_drawable(ee_dmg_model *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_dmg_model_drawable) = v; }
+internal inline uint8_t *dmg_model_drawable_at(const ee_dmg_model *o) { return (uint8_t *)((uint8_t *)o + of_dmg_model_drawable); }
+// the detail bias the record draw gives DrawModelHierarchy (engine_display.detail_mode 0; mode 1 half of it,
+// another mode 1) - and always the one of what a record's gfx_built draws
+internal inline float dmg_model_get_detail_bias(const ee_dmg_model *o) { return *(float *)((uint8_t *)o + of_dmg_model_detail_bias); }
+internal inline void dmg_model_set_detail_bias(ee_dmg_model *o, float v) { *(float *)((uint8_t *)o + of_dmg_model_detail_bias) = v; }
+internal inline float *dmg_model_detail_bias_at(const ee_dmg_model *o) { return (float *)((uint8_t *)o + of_dmg_model_detail_bias); }
+// the alpha test's reference value the record draw sets while the record's opacity is at least it, else
+// engine_display.alpha_ref_low
+internal inline float dmg_model_get_alpha_ref(const ee_dmg_model *o) { return *(float *)((uint8_t *)o + of_dmg_model_alpha_ref); }
+internal inline void dmg_model_set_alpha_ref(ee_dmg_model *o, float v) { *(float *)((uint8_t *)o + of_dmg_model_alpha_ref) = v; }
+internal inline float *dmg_model_alpha_ref_at(const ee_dmg_model *o) { return (float *)((uint8_t *)o + of_dmg_model_alpha_ref); }
+// a model a record of another graphics draws on itself when this is its gfx_built (its first material's texture
+// built_texture; at the record's place, its scale)
+internal inline ee_model *dmg_model_get_built_model(const ee_dmg_model *o) { return *(ee_model **)((uint8_t *)o + of_dmg_model_built_model); }
+internal inline void dmg_model_set_built_model(ee_dmg_model *o, ee_model *v) { *(ee_model **)((uint8_t *)o + of_dmg_model_built_model) = v; }
+internal inline ee_model **dmg_model_built_model_at(const ee_dmg_model *o) { return (ee_model **)((uint8_t *)o + of_dmg_model_built_model); }
+internal inline ee_texture *dmg_model_get_built_texture(const ee_dmg_model *o) { return *(ee_texture **)((uint8_t *)o + of_dmg_model_built_texture); }
+internal inline void dmg_model_set_built_texture(ee_dmg_model *o, ee_texture *v) { *(ee_texture **)((uint8_t *)o + of_dmg_model_built_texture) = v; }
+internal inline ee_texture **dmg_model_built_texture_at(const ee_dmg_model *o) { return (ee_texture **)((uint8_t *)o + of_dmg_model_built_texture); }
+// its model's materials of the player's colour, for an animation (a list per animation from +0x38, 0x10 each, of
+// a model and its materials' numbers) set to colour - the record draw's first step, with the record's colour
+typedef void (__thiscall *dmg_model_set_player_colour_fn)(ee_dmg_model *, vec3 *, int);
+internal dmg_model_set_player_colour_fn fn_dmg_model_set_player_colour;
+internal inline void dmg_model_set_player_colour(ee_dmg_model *dmg_model, vec3 *colour, int anim) { fn_dmg_model_set_player_colour(dmg_model, colour, anim); }
 
 // class ee_game_data (ee_game_data)
 // the game data, [game.game_data]
@@ -300,6 +327,12 @@ internal int spec_world_select(int build) {
         of_dmg_model_users = 0x4A8;
         of_dmg_model_loading = 0x4DE;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D291F;
+        of_dmg_model_drawable = 0x4BF;
+        of_dmg_model_detail_bias = 0x2FC;
+        of_dmg_model_alpha_ref = 0x300;
+        of_dmg_model_built_model = 0x26C;
+        of_dmg_model_built_texture = 0x270;
+        fn_dmg_model_set_player_colour = (dmg_model_set_player_colour_fn)0x004D33C5;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
@@ -368,6 +401,12 @@ internal int spec_world_select(int build) {
         of_dmg_model_users = 0x4B8;
         of_dmg_model_loading = 0x4EE;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D84EC;
+        of_dmg_model_drawable = 0x4CF;
+        of_dmg_model_detail_bias = 0x30C;
+        of_dmg_model_alpha_ref = 0x310;
+        of_dmg_model_built_model = 0x27C;
+        of_dmg_model_built_texture = 0x280;
+        fn_dmg_model_set_player_colour = (dmg_model_set_player_colour_fn)0x004D9008;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
@@ -434,6 +473,7 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_dmg_model_acquire, "EEGraphicObject.acquire");
     bad += spec_code((uintptr_t)fn_dmg_model_release, "EEGraphicObject.release");
     bad += spec_code((uintptr_t)fn_dmg_model_damage_points, "EEGraphicObject.damage_points");
+    bad += spec_code((uintptr_t)fn_dmg_model_set_player_colour, "EEGraphicObject.set_player_colour");
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     bad += spec_code((uintptr_t)fn_physics_step_end, "EEPhysics.step_end");
     bad += spec_call(call_step_end, (uintptr_t)fn_physics_step_end, "EEPhysics.step_end [call_site step_end]");

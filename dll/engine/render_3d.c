@@ -893,6 +893,7 @@ internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, f
 }
 
 #include "render_instance.c"  // the units drawn as instances ([display] unit_instancing)
+#include "render_units.c"     // the units' record draw, the mod's own (with unit_instancing)
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
 #include "render_record.c"    // the pipe's record: frames one after another, to find a flicker
 

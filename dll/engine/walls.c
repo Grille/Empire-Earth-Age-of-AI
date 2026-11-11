@@ -1240,6 +1240,15 @@ internal void bl_mark(ee_unit_stats *st, int decal) {
     }
 }
 
+// the graphics' models are bent (bl_mark noted it): render_units.c leaves its records to the game's draw, as the bend
+// reads the model's frame and place as that draw sets them
+internal int bl_noted(const void *gfx) {
+    unsigned h = (unsigned)((uintptr_t)gfx >> 4) & (BL_GFX - 1);
+    for (int k = 0; k < BL_GFX && g_bl_gfx[h]; k++, h = (h + 1) & (BL_GFX - 1))
+        if (g_bl_gfx[h] == gfx) return 1;
+    return 0;
+}
+
 // m's frame bent onto the ground at its transformation, when it is a noted model: its vertex array (to put back), else
 // NULL
 internal ee_vertices *bl_bend(ee_model *m, int *decal) {

@@ -62,6 +62,36 @@ unsafe struct EEGraphicObject
     /// EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
     [address((ee)0x004D291F, (aoc)0x004D84EC)]
     extern int32 damage_points(int32 index, uint32 state);
+
+    // WHAT THE UNITS' RECORD DRAW READS (engine_display EEROUnits.draw_record, EE 0x50B4AC, AoC 0x515CC7; render_units.c
+    // its port)
+
+    /// nonzero: its models can be drawn - the record draw draws nothing, its gfx_built's nothing, while it is 0
+    [offset((ee)0x4BF, (aoc)0x4CF), found(c)]
+    uint8 drawable;
+
+    /// the detail bias the record draw gives DrawModelHierarchy (engine_display.detail_mode 0; mode 1 half of it,
+    /// another mode 1) - and always the one of what a record's gfx_built draws
+    [offset((ee)0x2FC, (aoc)0x30C), found(c)]
+    float32 detail_bias;
+
+    /// the alpha test's reference value the record draw sets while the record's opacity is at least it, else
+    /// engine_display.alpha_ref_low
+    [offset((ee)0x300, (aoc)0x310), found(c)]
+    float32 alpha_ref;
+
+    /// a model a record of another graphics draws on itself when this is its gfx_built (its first material's texture
+    /// built_texture; at the record's place, its scale)
+    [offset((ee)0x26C, (aoc)0x27C), found(c)]
+    GEModel* built_model;
+
+    [offset((ee)0x270, (aoc)0x280), found(c)]
+    GETexture* built_texture;
+
+    /// its model's materials of the player's colour, for an animation (a list per animation from +0x38, 0x10 each, of
+    /// a model and its materials' numbers) set to colour - the record draw's first step, with the record's colour
+    [address((ee)0x004D33C5, (aoc)0x004D9008)]
+    extern void set_player_colour(vec3* colour, int32 anim);
 }
 
 /// the game data, [game.game_data]

@@ -404,6 +404,12 @@ internal inline ee_unit_stats *player_stats_of(const ee_player *p, int type_id) 
 internal inline uint32_t graphics_anim_key(const ee_dmg_model *g, int anim) { return ((const uint32_t *)dmg_model_anim_keys_at(g))[anim]; }
 // the fill's lists: a vector's first element (MSVC: +4), its count (EEGraphicObject's +4 vector: player.vector_size)
 internal inline void *vector_first(const void *v) { return *(void *const *)((const uint8_t *)v + 4); }
+// THE UNITS' RECORD DRAW's inputs (render_units.c, the mod's port of EEROUnits.draw_record): a vector's end (MSVC: +8),
+// the graphics' model and texture of an animation, whether a record's tint colours its model's first material
+internal inline void *vector_end(const void *v) { return *(void *const *)((const uint8_t *)v + 8); }
+internal inline ee_model *graphics_anim_model(const ee_dmg_model *g, int anim) { return ((ee_model *const *)dmg_model_anim_model_at(g))[anim]; }
+internal inline ee_texture *graphics_anim_texture(const ee_dmg_model *g, int anim) { return ((ee_texture *const *)dmg_model_anim_keys_at(g))[anim]; }
+internal inline int draw_record_tints_model(const void *rec) { return draw_record_get_type_id(rec) == (int)value_engine_display_tinted_type; }
 // a unit by its id as the world's lookup answers (the fill's: no check of its player first, unlike unit_by_id); whether
 // a group holds a unit (its vf3)
 internal inline ee_unit *world_unit(uint32_t id) { return world_unit_by_id((ee_world *)(uintptr_t)data_game_game_state, id); }

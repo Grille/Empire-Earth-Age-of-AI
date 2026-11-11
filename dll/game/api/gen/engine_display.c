@@ -80,6 +80,10 @@ internal inline void rasterizer_set_alpha_ref(ee_rasterizer *rasterizer, float v
 // SetViewport(GEViewport const &, K): the camera the next draws use
 typedef void (__thiscall *rasterizer_set_viewport_fn)(ee_rasterizer *, void *, uint32_t);
 internal inline void rasterizer_set_viewport(ee_rasterizer *rasterizer, void *viewport, uint32_t screen) { ((rasterizer_set_viewport_fn)(*(void ***)rasterizer)[slot_rasterizer_set_viewport])(rasterizer, viewport, screen); }
+// SetZBuffer(K, K): the depth's use - the units' record draw sets 3 (tested and written) for an opaque record, 2
+// (tested) for one seen through
+typedef void (__thiscall *rasterizer_set_z_buffer_fn)(ee_rasterizer *, uint32_t, uint32_t);
+internal inline void rasterizer_set_z_buffer(ee_rasterizer *rasterizer, uint32_t mode, uint32_t screen) { ((rasterizer_set_z_buffer_fn)(*(void ***)rasterizer)[slot_rasterizer_set_z_buffer])(rasterizer, mode, screen); }
 // ShowScene(K): the back surface onto the screen (the mod's windowed present hooks its exported function)
 typedef int (__thiscall *rasterizer_show_scene_fn)(ee_rasterizer *, uint32_t);
 internal inline int rasterizer_show_scene(ee_rasterizer *rasterizer, uint32_t screen) { return ((rasterizer_show_scene_fn)(*(void ***)rasterizer)[slot_rasterizer_show_scene])(rasterizer, screen); }
@@ -563,6 +567,27 @@ internal inline uint32_t *material_vertex_first_at(const ee_material *o) { retur
 internal inline uint32_t material_get_vertex_count(const ee_material *o) { return *(uint32_t *)((uint8_t *)o + of_material_vertex_count); }
 internal inline void material_set_vertex_count(ee_material *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_material_vertex_count) = v; }
 internal inline uint32_t *material_vertex_count_at(const ee_material *o) { return (uint32_t *)((uint8_t *)o + of_material_vertex_count); }
+// its frame of a texture of frames (SetTextureIndex): the units' record draw gives it that frame of the
+// record's texture (GETexture.frames)
+internal inline uint32_t material_get_texture_index(const ee_material *o) { return *(uint32_t *)((uint8_t *)o + of_material_texture_index); }
+internal inline void material_set_texture_index(ee_material *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_material_texture_index) = v; }
+internal inline uint32_t *material_texture_index_at(const ee_material *o) { return (uint32_t *)((uint8_t *)o + of_material_texture_index); }
+
+// class GETexture (ee_texture)
+// a texture of the engine (GETexture, Low-Level Engine.dll): a graphics' texture per animation (EEGraphicObject
+// anim_keys) is one of frames, its models' materials each drawn with the frame of their texture_index
+// its frames' textures (GetFrameTexture: frames[i], or frames[0] while one_frame is set)
+internal inline ee_texture **texture_get_frames(const ee_texture *o) { return *(ee_texture ***)((uint8_t *)o + of_texture_frames); }
+internal inline void texture_set_frames(ee_texture *o, ee_texture **v) { *(ee_texture ***)((uint8_t *)o + of_texture_frames) = v; }
+internal inline ee_texture ***texture_frames_at(const ee_texture *o) { return (ee_texture ***)((uint8_t *)o + of_texture_frames); }
+internal inline uint32_t texture_get_one_frame(const ee_texture *o) { return *(uint32_t *)((uint8_t *)o + of_texture_one_frame); }
+internal inline void texture_set_one_frame(ee_texture *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_texture_one_frame) = v; }
+internal inline uint32_t *texture_one_frame_at(const ee_texture *o) { return (uint32_t *)((uint8_t *)o + of_texture_one_frame); }
+// the frames' count: the record draw takes frames[0] for a material whose texture_index is past it (EE; AoC
+// leaves a child's material its texture then)
+internal inline uint32_t texture_get_frame_count(const ee_texture *o) { return *(uint32_t *)((uint8_t *)o + of_texture_frame_count); }
+internal inline void texture_set_frame_count(ee_texture *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_texture_frame_count) = v; }
+internal inline uint32_t *texture_frame_count_at(const ee_texture *o) { return (uint32_t *)((uint8_t *)o + of_texture_frame_count); }
 
 // class DX7PolygonArray (ee_polygons)
 // the display DLLs' triangles (GEPolygonArray; DX7PolygonArray, the same in both and both builds:
@@ -845,6 +870,18 @@ internal inline uint8_t *engine_display_cloaked_opacity_at(void) { return (uint8
 internal inline uint8_t *engine_display_float_zero_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_float_zero; }
 internal inline uint8_t *engine_display_front_fade_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_front_fade; }
 internal inline uint8_t *engine_display_float_half_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_float_half; }
+// int32: the units' detail mode - the record draw's bias for DrawModelHierarchy: 0 the graphics' detail_bias, 1
+// half of it, another 1 (EEROUnits.draw_record)
+internal inline uint8_t *engine_display_detail_mode_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_detail_mode; }
+// byte: the animation's frames blended - the record draw sets a model's fraction to the record's only while it is
+// set (else 0: the frame alone)
+internal inline uint8_t *engine_display_frame_blending_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_frame_blending; }
+// floats of the record draw: the alpha test's reference while the record's opacity is under its graphics'
+// alpha_ref; the opacity above which it writes the depth (SetZBuffer 3, else 2: tested, not written)
+internal inline uint8_t *engine_display_alpha_ref_low_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_alpha_ref_low; }
+internal inline uint8_t *engine_display_depth_write_opacity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_depth_write_opacity; }
+// the unit type whose record's tint becomes its model's first material's colour (the record draw, after the
+// player's colour)
 // float: 1 less cloaked_opacity (kCloakedOpacityRange, made at the start), the cloak's range
 internal inline uint8_t *engine_display_cloaked_range_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_cloaked_range; }
 // the GEViewport its land buildings fade by (the AoC decompilation's gViewport; not the map's, viewport_view's):
@@ -1083,6 +1120,7 @@ internal int spec_engine_display_select(int build) {
         slot_rasterizer_end_scene = 28;
         slot_rasterizer_set_alpha_ref = 39;
         slot_rasterizer_set_viewport = 62;
+        slot_rasterizer_set_z_buffer = 64;
         slot_rasterizer_show_scene = 66;
         slot_rasterizer_draw_model_hierarchy = 75;
         vt_rts_graphics = 0x0082C4BC;
@@ -1211,6 +1249,10 @@ internal int spec_engine_display_select(int build) {
         of_material_polygon_count = 0x30;
         of_material_vertex_first = 0x34;
         of_material_vertex_count = 0x38;
+        of_material_texture_index = 0x3C;
+        of_texture_frames = 0x40;
+        of_texture_one_frame = 0x50;
+        of_texture_frame_count = 0x58;
         of_polygons_indices = 0x4;
         of_polygons_index_count = 0x8;
         of_polygons_count = 0xC;
@@ -1331,6 +1373,11 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_float_zero = 0x00824E64;
         data_engine_display_front_fade = 0x0082C30C;
         data_engine_display_float_half = 0x00824AD0;
+        data_engine_display_detail_mode = 0x00919418;
+        data_engine_display_frame_blending = 0x0091944F;
+        data_engine_display_alpha_ref_low = 0x0082C414;
+        data_engine_display_depth_write_opacity = 0x0082C418;
+        value_engine_display_tinted_type = 260;
         data_engine_display_cloaked_range = 0x009128C0;
         data_engine_display_opacity_viewport = 0x00919470;
         value_engine_display_of_viewport_inverse = 240;
@@ -1446,6 +1493,7 @@ internal int spec_engine_display_select(int build) {
         slot_rasterizer_end_scene = 28;
         slot_rasterizer_set_alpha_ref = 39;
         slot_rasterizer_set_viewport = 62;
+        slot_rasterizer_set_z_buffer = 64;
         slot_rasterizer_show_scene = 66;
         slot_rasterizer_draw_model_hierarchy = 75;
         vt_rts_graphics = 0x00841C50;
@@ -1574,6 +1622,10 @@ internal int spec_engine_display_select(int build) {
         of_material_polygon_count = 0x30;
         of_material_vertex_first = 0x34;
         of_material_vertex_count = 0x38;
+        of_material_texture_index = 0x3C;
+        of_texture_frames = 0x40;
+        of_texture_one_frame = 0x50;
+        of_texture_frame_count = 0x58;
         of_polygons_indices = 0x4;
         of_polygons_index_count = 0x8;
         of_polygons_count = 0xC;
@@ -1694,6 +1746,11 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_float_zero = 0x00838EDC;
         data_engine_display_front_fade = 0x0084136C;
         data_engine_display_float_half = 0x00838AAC;
+        data_engine_display_detail_mode = 0x00930898;
+        data_engine_display_frame_blending = 0x009308CF;
+        data_engine_display_alpha_ref_low = 0x00841BA4;
+        data_engine_display_depth_write_opacity = 0x00841BA8;
+        value_engine_display_tinted_type = 260;
         data_engine_display_cloaked_range = 0x00964498;
         data_engine_display_opacity_viewport = 0x009308F0;
         value_engine_display_of_viewport_inverse = 240;
@@ -1908,6 +1965,10 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_float_zero, "engine_display.float_zero");
     bad += spec_data(data_engine_display_front_fade, "engine_display.front_fade");
     bad += spec_data(data_engine_display_float_half, "engine_display.float_half");
+    bad += spec_data(data_engine_display_detail_mode, "engine_display.detail_mode");
+    bad += spec_data(data_engine_display_frame_blending, "engine_display.frame_blending");
+    bad += spec_data(data_engine_display_alpha_ref_low, "engine_display.alpha_ref_low");
+    bad += spec_data(data_engine_display_depth_write_opacity, "engine_display.depth_write_opacity");
     bad += spec_data(data_engine_display_cloaked_range, "engine_display.cloaked_range");
     bad += spec_data(data_engine_display_opacity_viewport, "engine_display.opacity_viewport");
     bad += spec_data(data_engine_display_iat_transform_apply, "engine_display.iat_transform_apply");

@@ -54,6 +54,7 @@ internal int sil_of(const void *rec) {
     return 0;
 }
 internal uint32_t sil_byte(float v) { return v <= 0.0f ? 0 : v >= 1.0f ? 255 : (uint32_t)(v * 255.0f); }
+internal int ud_record(ee_ro_units *ro, void *rec);   // render_units.c: the mod's own record draw
 internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
     int kind = sil_of(rec);
     g_sh_cloaked = kind == SIL_CLOAKED;
@@ -64,7 +65,7 @@ internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
         vec3 c = draw_record_get_color(rec);
         g_sl.col = (float)(sil_byte(c.x) << 16 | sil_byte(c.y) << 8 | sil_byte(c.z));
     }
-    ro_units_draw_record(ro, rec);
+    if (!ud_record(ro, rec)) ro_units_draw_record(ro, rec);
     g_sl.in = g_sl.ship = 0;
     g_sh_cloaked = 0;
 }

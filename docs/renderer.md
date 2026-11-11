@@ -792,6 +792,47 @@ cruiser, the Bismarck - the rolled hulls closed, no other change in the picture 
 A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 
+## The units' draw, the mod's own (2026-11-11 on)
+
+Why (the player, 2026-11-11: "lets make the drawing code ours too, its the bigest gain even ifits work"): fully zoomed
+out on their 440-tile map with three AIs near 1000 units each the frame took 66 ms (15 fps). The GPU's side is cheap -
+the batches go up in about 1.4 ms, unit_instancing draws a list's units in one call - but the CPU does the game's work
+for every record and every part of its model. The test: Continental huge, 3 AIs, 3000 units spawned, the player's ini,
+zoom 28.7, paused, only the units drawn (`rprobe skip water shadows effects terrain`): about 3700 records and 2600 trees
+a frame.
+
+What the game does per frame (EEROUnits::vf2 0x50D90E): the selection's circles and bars before (0x50B348, 0x50AC6D,
+0x509E00), the trees' lists 0x8D2CDC and 0x8D2CE8 (0x50B235: per record the alpha state, draw_tree 0x50AE59), the
+objects' lists 0x8D2CB8 and 0x8D2CC4 (0x50B9A4: per record a fog override for one under the water (+0x146), the alpha
+state, draw_record), the 0x420-byte records (0x50A4A1), the circles after (0x509D0B, 0x50BC0B), the third effects
+queue. draw_record (EE 0x50B4AC, AoC 0x515CC7; spec engine_display EEROUnits.draw_record) for the record's animation
+(+0x124) takes its graphics' model and texture of frames (EEGraphicObject anim_model, anim_keys); sets the alpha test's
+reference and the depth's use, the player's colour into the model's materials (0x4D33C5), on the shared GEModel - down
+its hierarchy, through the engine - the opacity, the texture (each root material after the first its frame by
+texture_index; AoC the root's children's materials too), the parts turned by the record's three lists
+(SetOrientationYPR into their own transformations), a gate's leaf, the frames, the size, the place, the fraction while
+frame_blending, then PrepareTransforms, one type's tint, and DrawModelHierarchy through the rasterizer's Draw (its lock,
+its 3D mode) with the detail bias by detail_mode; then the same for what its gfx_built adds on.
+
+1. Done: the record draw ours (render_units.c; `picture draw game | own | check`, on with unit_instancing). The
+   record's values go to the walk (render_instance.c in_node with an in_rec) instead of onto the shared model: the
+   transformations made there (in_local: PrepareTransforms' formula, the frames' blend of collect.c), the textures
+   picked there (in_tex), the part turns by the game's cosine table without the engine's calls. Left to the game's draw:
+   a record with something on it (gfx_built: a few), the objects walls.c bends onto the ground (bl_noted - 37 % of the
+   records in the test: resources and ambient objects, drawn by the display DLL as before). `picture draw check`
+   compares every record's parts with the game's draw's (model, material, texture, pose, indices, place): 1.25 million
+   records, none differ, the places to the bit. The records' draw 5.1 ms a frame by the game's, 4.9 by ours.
+2. Next: the bent objects - bent once and kept (they don't move), then instanced like the rest; the view test and the
+   detail (GetPixelSize, 2-3 % of the render thread) by our own code; the trees.
+3. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
+   for long instanced draws; the 0x420 records, the circles and bars, the shadows' render object.
+
+The larger part of the zoomed-out frame is the units' update, not their draw (the same test's render thread: the update
+about 42 %, the units' draw about 25-30 %): the game's sort maps built and freed every frame (std::map nodes, 0x41DBDD,
+0x4FCAA1), each record's seven vectors and label freed and made again (0x5064F0, 0x500DB2), the pick under the mouse
+(0x50EC37) - heap work (ntdll 14 % of the thread) - beside the mod's own fill (uc_fill, uc_fill_tree) and the effects'
+update. A draw from the mod's own collection, without the game's maps and records, takes that away too.
+
 ## The interface's text without reading the picture back
 
 2026-11-06 (the 8000-unit save ran at either about 3200 or about 1900 frames a minute, by game, whatever the build).

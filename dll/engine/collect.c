@@ -374,10 +374,9 @@ internal uint32_t mt_pose_first(ee_model *m, uint32_t f) {
     while (v && f > 0 && v[f] && v[f - 1] == v[f]) f--;
     return f;
 }
-internal void mt_prepare(ee_model *m) {   // PrepareTransforms (engine 0x317F1) with the frames' transformations blended
-    const float *ft = model_get_frame_transforms(m), *src = ft + model_get_frame(m) * 16;
-    uint32_t f = model_get_frame(m), nx = model_get_next_frame(m);
-    float fr = model_get_fraction(m), x[16], y[16];
+// the frame's transformation blended toward the next one's at fraction fr: ft's own or x
+internal const float *mt_frame(ee_model *m, uint32_t f, uint32_t nx, float fr, float *x) {
+    const float *ft = model_get_frame_transforms(m), *src = ft + f * 16;
     if (fr > 0.0f && nx != f) {
         uint32_t a = f, b = nx;
         float k = fr;
@@ -394,6 +393,17 @@ internal void mt_prepare(ee_model *m) {   // PrepareTransforms (engine 0x317F1) 
         if (memcmp(ft + a * 16, ft + b * 16, 16 * sizeof(float))) mt_blend(ft + a * 16, ft + b * 16, k, x), src = x;
         else src = ft + a * 16;
     }
+    return src;
+}
+// the frame's transformation PrepareTransforms takes (through mt_hook_prepare) for frame, next frame and fraction:
+// blended while that is on, else the frame's own (render_units.c: a record's, without the model set to them)
+internal const float *mt_frame_used(ee_model *m, uint32_t f, uint32_t nx, float fr, float *x) {
+    if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_mt_apply) return model_get_frame_transforms(m) + f * 16;
+    return mt_frame(m, f, nx, fr, x);
+}
+internal void mt_prepare(ee_model *m) {   // PrepareTransforms (engine 0x317F1) with the frames' transformations blended
+    float x[16], y[16];
+    const float *src = mt_frame(m, model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), x);
     g_mt_apply(src, model_own_at(m), y);
     float s = model_get_scale(m);
     for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) y[r * 4 + c] *= s;

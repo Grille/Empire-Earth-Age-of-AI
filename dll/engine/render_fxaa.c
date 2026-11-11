@@ -231,6 +231,7 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID
 
 #include "render_ao.c"        // the darkening where things stand close ([display] ambient_occlusion)
 
+internal int ud_pipe(char *out, const char *mode, const char *arg);   // render_units.c
 internal int g_rwl_free, g_rwl_handoff_after; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
 internal int collect_anim_mode(int on), collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how), collect_ghost(int type, float x, float y), collect_copy_mode(int how), collect_smooth_mode(int how), collect_during_mode(int on, int ms), collect_effects_mode(int how);
 internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
@@ -242,6 +243,7 @@ internal void cmd_picture(char *out, const char *args) {
     sscanf(args, "%15s %15s", mode, arg);
     if (rao_pipe(out, mode, arg)) return;   // render_ao.c
     if (rgb_pipe(out, mode, arg)) return;   // render_ground.c
+    if (ud_pipe(out, mode, arg)) return;    // render_units.c
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }

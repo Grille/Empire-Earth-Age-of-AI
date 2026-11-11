@@ -411,20 +411,35 @@ internal const WORD *in_capped(const WORD *idx, DWORD ni, const float *v, uint32
     g_in_cap_full++;
     return idx;
 }
+// what a model's parts are drawn with: its frames, the fraction between them, its opacity - the shared model's, as the
+// game's record draw set them before DrawModelHierarchy, or a record's own (render_units.c: the mod's record draw,
+// which leaves the model alone)
+typedef struct { uint32_t frame, next; float frac, alpha; } in_pose;
+// a record the mod draws itself (render_units.c): what the game's draw would have set on its model - the root's
+// transformation over the frame's (outer) and its size, every part's pose - and the record's texture of frames
+// (EEGraphicObject anim_keys: each material's frame of it, by the build's rule)
+typedef struct { const float *outer; float scale; in_pose pose; ee_texture *tex; uint32_t root_mats; } in_rec;
+internal int g_in_capture;   // render_units.c's comparison: the parts noted (1 only noted, 2 noted and drawn)
+internal LONG g_in_walks;   // ... and the walks while it notes
+internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni);
 // a material of a model seen: what the DLL does for it, without the device's calls
-internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
+internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
+    if (g_in_capture) {
+        ud_note(m, mat, tex, p, world, idx, ni);
+        if (g_in_capture == 1) return;
+    }
     uint32_t n = material_get_vertex_count(mat), first = material_get_vertex_first(mat);
     ee_vertices **fr = model_get_vertices(m);
-    float frac = model_get_fraction(m);
-    const float *pa = (const float *)vertices_get_data(fr[model_get_frame(m)]) + first * 8;
-    const float *pb = frac != 0 ? (const float *)vertices_get_data(fr[model_get_next_frame(m)]) + first * 8 : pa;
+    float frac = p->frac;
+    const float *pa = (const float *)vertices_get_data(fr[p->frame]) + first * 8;
+    const float *pb = frac != 0 ? (const float *)vertices_get_data(fr[p->next]) + first * 8 : pa;
     rd_device *d = c->d;
-    g_in.settex(c->ras, material_get_textures(mat)[c->screen], c->screen);
+    g_in.settex(c->ras, tex, c->screen);
     vec3 col = material_get_colour(mat);
     D3DMATERIAL7 mt;
     memset(&mt, 0, sizeof mt);
     mt.diffuse.r = mt.ambient.r = col.x; mt.diffuse.g = mt.ambient.g = col.y; mt.diffuse.b = mt.ambient.b = col.z;
-    mt.diffuse.a = model_get_alpha(m) * material_get_alpha(mat);
+    mt.diffuse.a = p->alpha * material_get_alpha(mat);
     mt.ambient.a = 1;
     InterlockedIncrement(&g_rd_draws);
     LONGLONG t0 = rd_qpc();
@@ -452,10 +467,47 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, const D3DM
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
 }
-// a model and what hangs on it (parent: its parent's transformation, pscale its size)
-internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float pscale) {
-    float t[16], s = model_get_scale(m);
-    if (parent) { s *= pscale; g_in.apply(parent, model_transform_at(m), t); }
+// a x b (GETransformation::Apply: 4 x 4 by row, the place in the fourth column, the last row b's)
+internal void in_mul(const float *a, const float *b, float *out) {
+    for (int r = 0; r < 3; r++) {
+        const float *ar = a + r * 4;
+        for (int c = 0; c < 4; c++) out[r * 4 + c] = b[c] * ar[0] + b[4 + c] * ar[1] + b[8 + c] * ar[2] + (c == 3 ? ar[3] : 0.0f);
+    }
+    memcpy(out + 12, b + 12, 4 * sizeof(float));
+}
+internal const float *mt_frame_used(ee_model *m, uint32_t f, uint32_t nx, float fr, float *x);   // collect.c
+// a model's transformation as PrepareTransforms makes it for a pose (outer x (the frame's x own, its 3 x 3 times
+// scale)), without the model set to it
+internal void in_local(ee_model *m, const float *outer, float scale, const in_pose *p, float *out) {
+    float x[16], y[16];
+    in_mul(mt_frame_used(m, p->frame, p->next, p->frac, x), model_own_at(m), y);
+    for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) y[r * 4 + c] *= scale;
+    y[12] = y[13] = y[14] = 0.0f, y[15] = 1.0f;
+    in_mul(outer, y, out);
+}
+// a material's texture for a record: the game's record draw gives the root's first material and every other part's
+// the record's texture, the root's others its frame by their texture_index (frames[0] past the count or for a texture of
+// one frame) - and AoC's the root's children's materials too, when the root has more than one, by the index alone
+internal void *in_tex(const in_rec *r, ee_material *mat, uint32_t i, int depth) {
+    ee_texture *t = r->tex;
+    if (!t || (depth == 0 && i == 0) || depth > 1 || (depth == 1 && (!build_is("aoc") || r->root_mats < 2))) return t;
+    uint32_t k = material_get_texture_index(mat), n = texture_get_frame_count(t);
+    ee_texture **fr = texture_get_frames(t);
+    if (depth == 0) return k < n && !texture_get_one_frame(t) ? fr[k] : fr[0];
+    return k < n ? (texture_get_one_frame(t) ? fr[0] : fr[k]) : t;
+}
+// a model and what hangs on it (parent: its parent's transformation, pscale its size; r: a record the mod draws, NULL
+// for the game's draw, which set the model)
+internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float pscale, const in_rec *r, int depth) {
+    float t[16], s = r && !parent ? r->scale : model_get_scale(m);
+    in_pose own = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), model_get_alpha(m) };
+    const in_pose *p = r ? &r->pose : &own;
+    if (r) {
+        float l[16];
+        in_local(m, parent ? model_outer_at(m) : r->outer, s, p, l);
+        if (parent) { s *= pscale; in_mul(parent, l, t); }
+        else memcpy(t, l, sizeof t);
+    } else if (parent) { s *= pscale; g_in.apply(parent, model_transform_at(m), t); }
     else memcpy(t, model_transform_at(m), sizeof t);
     uint8_t seen = 0, clip = 0;
     shr_hook_visible(c->ras, m, s, c->view, t, &seen, &clip);
@@ -477,36 +529,65 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
         for (uint32_t i = 0, nm = model_get_material_count(m); i < nm; i++) {
             ee_material *mat = mats[i];
             uint32_t tris = material_get_polygon_count(mat)[lod];
-            if (tris) in_part(c, m, mat, &world, indices + material_get_polygon_first(mat)[lod] * 3, tris * 3);
+            if (tris) in_part(c, m, mat, r ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
+                              indices + material_get_polygon_first(mat)[lod] * 3, tris * 3);
         }
     }
     ee_model **ch = model_get_children(m);
-    for (uint32_t i = 0, nc = model_get_child_count(m); i < nc; i++) in_node(c, ch[i], t, s);
+    for (uint32_t i = 0, nc = model_get_child_count(m); i < nc; i++) in_node(c, ch[i], t, s, r, depth + 1);
 }
-// the whole hierarchy can be drawn this way
-internal int in_model_ok(ee_model *m) {
+// the whole hierarchy can be drawn this way, in this pose (own: by the mod's record draw - every part's frame
+// transformations needed)
+internal int in_model_ok(ee_model *m, const in_pose *p, int own) {
+    in_pose mp = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), 0 };
+    if (!p) p = &mp;
     ee_vertices **fr = model_get_vertices(m);
-    if (!fr || !fr[model_get_frame(m)] || vertices_get_type(fr[0])) return 0;
-    if (model_get_fraction(m) != 0 && !fr[model_get_next_frame(m)]) return 0;
+    if (!fr || !fr[p->frame] || vertices_get_type(fr[0])) return 0;
+    if (p->frac != 0 && !fr[p->next]) return 0;
+    if (own && !model_get_frame_transforms(m)) return 0;
     ee_material **mats = model_get_materials(m);
     for (uint32_t i = 0, nm = model_get_material_count(m); i < nm; i++) {
         uint32_t n = material_get_vertex_count(mats[i]);
         if (!n || n > MO_MAX_VERTS || material_get_polygon_count(mats[i])[0] * 3 > IN_LIST_MAX) return 0;
     }
     ee_model **ch = model_get_children(m);
-    for (uint32_t i = 0, nc = model_get_child_count(m); i < nc; i++) if (!in_model_ok(ch[i])) return 0;
+    for (uint32_t i = 0, nc = model_get_child_count(m); i < nc; i++) if (!in_model_ok(ch[i], own ? p : NULL, own)) return 0;
     return 1;
 }
-internal long __thiscall in_hook(void *ras, ee_model *m, unsigned long screen, float bias, uint8_t ortho) {
+// the instanced draw can take a model now (but for the model's own test): a unit's record in the units' render
+// object, the animation on the graphics card, no transformation pushed by someone else
+internal int in_can(uint8_t ortho) {
     const uint32_t *st = g_in.stack;
-    rd_device *d = NULL;
-    if (in_on() && g_sl.in && !ortho && g_ro_cur == RO_UNITS && !g_mo_off && g_mo.on && g_rp_state != 2 && g_mo_smooth && g_shr_visible &&
-        !(st[1] && (st[2] - st[1]) & ~7u) && in_model_ok(m) && in_init())
-        d = draw_state_get_device(rasterizer_get_dstates(ras)[screen]);
-    if (!d || !d->rs[D3DRENDERSTATE_ZENABLE]) { InterlockedIncrement(&g_in_fell); return g_in.orig(ras, m, screen, bias, ortho); }
+    return in_on() && g_sl.in && !ortho && g_ro_cur == RO_UNITS && !g_mo_off && g_mo.on && g_rp_state != 2 && g_mo_smooth && g_shr_visible &&
+           g_in.orig && !(st[1] && (st[2] - st[1]) & ~7u);
+}
+internal const in_rec *g_in_rec;   // in_draw_rec's record, for the walk its Draw comes to
+internal int g_in_rec_fell;        // ... which couldn't draw it
+internal rd_device *in_device(void *ras, unsigned long screen) {
+    rd_device *d = draw_state_get_device(rasterizer_get_dstates(ras)[screen]);
+    return d && d->rs[D3DRENDERSTATE_ZENABLE] ? d : NULL;
+}
+internal long __thiscall in_hook(void *ras, ee_model *m, unsigned long screen, float bias, uint8_t ortho) {
+    const in_rec *r = g_in_rec;   // (in_draw_rec tested all of this)
+    g_in_rec = NULL;
+    if (g_in_capture) g_in_walks++;
+    rd_device *d = r || (in_can(ortho) && in_model_ok(m, NULL, 0) && in_init()) ? in_device(ras, screen) : NULL;
+    if (r && (!d || !in_can(ortho))) { g_in_rec_fell = 1; return 0; }   // (bent for this draw: walls.c) - the game's draw is to draw it
+    if (!d) { InterlockedIncrement(&g_in_fell); return g_in.orig(ras, m, screen, bias, ortho); }
     in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
-    in_node(&c, m, NULL, 0);
+    in_node(&c, m, NULL, 0, r, 0);
     return 0;
+}
+// a record's model drawn by the mod's own record draw (render_units.c), the game's states for it set: through the
+// display DLL's Draw as the game's draw does (its lock, its 3D mode), whose walk takes the record's values instead of
+// the model's (the caller tested in_can, in_model_ok and in_init). 0: not drawn - the draw's hooks bent the model for it
+// (walls.c bl_bend: a copy of its vertices, the DLL's to draw), the game's draw is to draw it
+internal int in_draw_rec(ee_model *m, const in_rec *r, float bias) {
+    g_in_rec = r;
+    g_in_rec_fell = 0;
+    rasterizer_draw_model(rasterizer(), m, (uint32_t)screen_index(), bias, (int8_t)*game_camera_fixed_at());
+    g_in_rec = NULL;
+    return !g_in_rec_fell;
 }
 // the display DLL loaded (render.c render_display_loaded): the model draw hooked, 1; the T&L DLL's only (render_morph.c)
 internal int in_display_loaded(HMODULE m, const char *name) {

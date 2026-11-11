@@ -105,6 +105,11 @@ unsafe struct DX7Rasterizer
     [slot(62)]
     extern void set_viewport(void* viewport, uint32 screen);
 
+    /// SetZBuffer(K, K): the depth's use - the units' record draw sets 3 (tested and written) for an opaque record, 2
+    /// (tested) for one seen through
+    [slot(64)]
+    extern void set_z_buffer(uint32 mode, uint32 screen);
+
     /// ShowScene(K): the back surface onto the screen (the mod's windowed present hooks its exported function)
     [slot(66)]
     extern int32 show_scene(uint32 screen);
@@ -647,6 +652,29 @@ unsafe struct GEMaterial
 
     [offset(0x38), found(c)]
     uint32 vertex_count;
+
+    /// its frame of a texture of frames (SetTextureIndex): the units' record draw gives it that frame of the
+    /// record's texture (GETexture.frames)
+    [offset(0x3C), found(c)]
+    uint32 texture_index;
+}
+
+/// a texture of the engine (GETexture, Low-Level Engine.dll): a graphics' texture per animation (EEGraphicObject
+/// anim_keys) is one of frames, its models' materials each drawn with the frame of their texture_index
+[c_type("ee_texture")]
+unsafe struct GETexture
+{
+    /// its frames' textures (GetFrameTexture: frames[i], or frames[0] while one_frame is set)
+    [offset(0x40), found(c)]
+    GETexture** frames;
+
+    [offset(0x50), found(c)]
+    uint32 one_frame;
+
+    /// the frames' count: the record draw takes frames[0] for a material whose texture_index is past it (EE; AoC
+    /// leaves a child's material its texture then)
+    [offset(0x58), found(c)]
+    uint32 frame_count;
 }
 
 /// the display DLLs' triangles (GEPolygonArray; DX7PolygonArray, the same in both and both builds:
@@ -1170,6 +1198,29 @@ static unsafe class engine_display
 
     [address((ee)0x00824AD0, (aoc)0x00838AAC)]
     static block float_half;
+
+    /// int32: the units' detail mode - the record draw's bias for DrawModelHierarchy: 0 the graphics' detail_bias, 1
+    /// half of it, another 1 (EEROUnits.draw_record)
+    [address((ee)0x00919418, (aoc)0x00930898)]
+    static block detail_mode;
+
+    /// byte: the animation's frames blended - the record draw sets a model's fraction to the record's only while it is
+    /// set (else 0: the frame alone)
+    [address((ee)0x0091944F, (aoc)0x009308CF)]
+    static block frame_blending;
+
+    /// floats of the record draw: the alpha test's reference while the record's opacity is under its graphics'
+    /// alpha_ref; the opacity above which it writes the depth (SetZBuffer 3, else 2: tested, not written)
+    [address((ee)0x0082C414, (aoc)0x00841BA4)]
+    static block alpha_ref_low;
+
+    [address((ee)0x0082C418, (aoc)0x00841BA8)]
+    static block depth_write_opacity;
+
+    /// the unit type whose record's tint becomes its model's first material's colour (the record draw, after the
+    /// player's colour)
+    [value((ee)0x104, (aoc)0x104)]
+    static uint32 tinted_type;
 
     /// float: 1 less cloaked_opacity (kCloakedOpacityRange, made at the start), the cloak's range
     [address((ee)0x009128C0, (aoc)0x00964498)]
