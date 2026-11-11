@@ -1,0 +1,9 @@
+// Sails in the water's reflection (the player, 2026-11-11: "the shadows on the sails in the reflection flicker"): Small
+// Islands (map seed 1, start_epoch 9 - ship_angles' open north sea), a Royal Galleon (the player's ship) lying still at
+// 57,21 and the camera on it as in the player's game (zoom 0.25); with the player's ini (water_reflections, dynamic
+// shadows, ambient occlusion) and game speed 1.5, then `record` or `rprobe` through RUN=<name> eectl.
+wait_until(0.1min)
+spawn(1, unit.s09_royal_galleon, 57, 21, 1)
+wait_until(0.2min)
+cmd("camera 57 21")
+cmd("camera zoom 0.25")

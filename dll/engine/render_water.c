@@ -68,6 +68,9 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     ID3D11ShaderResourceView *srv;
     ID3D11RasterizerState *raster;
+    void *rsrc[8];                   // the list's raster states (render_3d.c rd3_mk_raster: one a cull mode) ...
+    ID3D11RasterizerState *rmir[8];  // ... and the mirrored picture's for them (rw_raster)
+    int nr;
 } g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .owned = -1, .late = 1, .away = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
 // the game's colours for the depths, once a map: the mesh's water colour set, a list of slots of its colour table, first the
@@ -340,6 +343,20 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShaderResources(x, 8, 2, srv);
 }
 // a batch about to be drawn; 1: only its step was wanted
+// A batch's raster state in the mirrored picture: its own culling with the faces' turn reversed, as the mirror reverses
+// it. With none culled (as at first) both sheets of a sail were drawn - the lit front and the back turned from the
+// sun, one on the other - and they fought over the depth: stripes and specks on the mirrored sails, others each frame
+// (the player, 2026-11-11). A state that can't be made: none culled, as before.
+internal ID3D11RasterizerState *rw_raster(void *r) {
+    for (int k = 0; k < g_wa.nr; k++) if (g_wa.rsrc[k] == r) return g_wa.rmir[k];
+    D3D11_RASTERIZER_DESC rs = { D3D11_FILL_SOLID, D3D11_CULL_NONE, FALSE, 0, 0, 0, TRUE, FALSE, FALSE, FALSE };
+    if (r) ID3D11RasterizerState_GetDesc((ID3D11RasterizerState *)r, &rs);
+    rs.FrontCounterClockwise = !rs.FrontCounterClockwise;
+    ID3D11RasterizerState *o = NULL;
+    if (FAILED(ID3D11Device_CreateRasterizerState(g_d3d.dev, &rs, &o)) || !o) o = g_wa.raster;
+    if (g_wa.nr < 8) { g_wa.rsrc[g_wa.nr] = r; g_wa.rmir[g_wa.nr++] = o; }
+    return o;
+}
 internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c) {
     if (c->role != SH_WATER) return 0;
     if (g_wa.stage != 2) rw_step(x, c);
@@ -379,12 +396,22 @@ internal void rd3_water_reflect(void) {
     ID3D11DeviceContext_OMSetBlendState(x, NULL, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     float mirror[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 2 * g_sh.level, 1 };
-    int lvc = -1, lpc = -1, lro = -1;
+    // A batch the soft edges split (render_frame.c rf_edges: blended, alpha tested) by its solid part alone: the rest is
+    // half see-through and the main picture blends it in faintly after the solid, but this picture is drawn unblended and
+    // its alpha is the fog's - a ship's rigging, its ropes and the shrouds' nets thinner than a pixel, came out as dark
+    // specks all over the mirrored sails, others at each frame as the ship rocks (the player, 2026-11-11: "the shadows
+    // on the sails in the reflection flicker"). Whatever the setting: unblended, the soft part is never right here.
+    rf_water_part(x, 0);   // all of a draw's pixels: the slot still holds the last frame's last part
+    int edges = !g_fe.fail, lvc = -1, lpc = -1, lro = -1;
+    ID3D11RasterizerState *lr = g_wa.raster;
     void *ld = NULL, *ls = NULL;
     ID3D11ShaderResourceView *lt = (ID3D11ShaderResourceView *)1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (!rw_mirrored(c)) continue;
+        if (edges) rf_edges_part(x, c->soft ? 1 : 0);
+        ID3D11RasterizerState *rr = rw_raster(c->raster);
+        if (rr != lr) { lr = rr; ID3D11DeviceContext_RSSetState(x, rr); }
         if (c->depth != ld) { ld = c->depth; ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0); }
         if (c->srv != lt) { lt = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &lt); }
         if (c->samp != ls) { ls = c->samp; ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp); }

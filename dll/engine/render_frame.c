@@ -1102,6 +1102,10 @@ internal void rf_replay(void) {
     int edges = rf_edges(x), laste = -1, lastu = -1;
     if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft) laste = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
+    // the maps leave their constants in the edges' slot (b2): bound again at the next part asked for - until then the
+    // mirrored picture and the list's batches before the first soft one read the light's matrix as their edp
+    g_fe.part = -1;
+    if (g_fe.fail) { ID3D11Buffer *none = NULL; ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &none); }
     rd3_water_reflect();  // the mirrored picture for the water's surface
     rf_bind(x);
     // what is bound, set again where a batch's differs
