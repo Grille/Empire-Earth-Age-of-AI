@@ -11,10 +11,15 @@
 // the test is done (persist.c's save hook). Without one, the units' orders are dropped (as the player's Halt does).
 internal char g_eo_copy[MAX_PATH];
 internal int g_eo_have;
+internal void editor_orders_hide(void);
 
-// the save of a game done (persist.c): the test's file copied
+// the save of a game done (persist.c): the test's file copied, and the selected units' orders no longer drawn - the
+// test plays without the units panel's update (which draws them) and without deleting it, and doesn't start a game
+// through the mod's game start either (the player, 2026-11-11: "the lines stay visible in play if the units wasnt
+// deselected in editor")
 internal void editor_test_saved(const char *folder, const char *file) {
     if (lstrcmpiA(file, "ScenDefault.scn")) return;
+    editor_orders_hide();
     char from[MAX_PATH * 2], dir[MAX_PATH];
     lstrcpynA(dir, g_game_dir, MAX_PATH);
     slot_dir(dir);

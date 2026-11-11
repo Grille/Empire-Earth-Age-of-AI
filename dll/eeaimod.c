@@ -59,6 +59,7 @@ internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void build_retry_new_game(void);  // engine/buildretry.c
 internal void walls_new_game(void);        // engine/walls.c
 internal void editor_undo_new_game(void);  // engine/editor_undo.c
+internal void editor_orders_hide(void);    // engine/editor_orders.c
 internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
@@ -351,6 +352,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     build_retry_new_game();
     walls_new_game();
     editor_undo_new_game();
+    editor_orders_hide();   // the editor's selected units' orders not drawn over a game (the editor's panel draws them again)
     units_first_new_game();
     danger_new_game();
     landing_new_game();
