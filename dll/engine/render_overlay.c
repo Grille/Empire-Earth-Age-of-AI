@@ -126,8 +126,20 @@ internal void rd3_overlay(rd_device *d) {
     if (FAILED(ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_ro.vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return;
     memcpy(ms.pData, g_ro.v, (size_t)g_ro.n * sizeof *g_ro.v);
     ID3D11DeviceContext_Unmap(x, (ID3D11Resource *)g_ro.vb, 0);
+    // the camera now, as the map's own draws have it (render_frame.c rf_shift: this frame's depths, then V_now V^-1 before
+    // view x projection) - with the map's view alone, the last camera step's, the lines lagged up to a step's scrolling
+    // behind the ground under them and jumped back at each step (the player, 2026-11-11: "the line jitter when i move the
+    // camera")
     struct { float vp[16], px[4]; } c;
     memcpy(c.vp, g_rd3.scene_vp, sizeof c.vp);
+    if (g_cam_now_ok) {
+        float inv[16], to_now[16], vp[16];
+        rf_depth_vpm(c.vp);
+        rd3_rigid_inverse(inv, g_rd3.scene_view);
+        rd3_mul(to_now, g_cam_view_now, inv);
+        rd3_mul(vp, to_now, c.vp);
+        memcpy(c.vp, vp, sizeof vp);
+    }
     D3D11_VIEWPORT port = rs_port(&g_rd3.scene_port, d->target->rtv);
     c.px[0] = port.Width > 0 ? 1.0f / port.Width : 0;   // Direct3D 7's pixel centres, as the map's
     c.px[1] = port.Height > 0 ? -1.0f / port.Height : 0;
