@@ -152,6 +152,7 @@ internal struct { int id[48], n; } g_apu[16];   // line upgrades scheduled (UPGR
 internal void ap_new_game(void) { memset(g_ap, 0, sizeof g_ap); memset(g_apo_t, 0, sizeof g_apo_t); memset(g_apu, 0, sizeof g_apu); }
 internal void ap_upgrades(ee_player *pl, unsigned idx);
 internal int navy_land(unsigned idx);   // navy.c
+internal int ar_fill_type(ee_player *pl, unsigned idx, const int *vis, int own, uint32_t now);   // armies.c TRAINING BY NEED
 
 // the land soldier type to train with what vis pays: the first the game asks for (its request lists) that it can train
 // now and vis pays, else the strongest trainable that vis pays (substitute_soldier)
@@ -349,6 +350,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int miss = goal - workforce(pl);
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
         int ft = free > 0 ? ap_type(pl, idx, um, vis) : 0;
+        if (free > 0) ft = ar_fill_type(pl, idx, vis, ft, now);   // armies.c TRAINING BY NEED
         if (ft) {
             int req[4] = { ft, free < 5 ? free : 5, 0, 0 };
             unsigned n = 0;

@@ -635,6 +635,11 @@ class ai_base
         /// goes only when no part is enough. 0 = the whole force. On since 2026-11-11: against itself (20 games) it razed 17
         /// more buildings a game, nothing worse beyond the noise (armies.c RAID PARTIES)
         bool raid_parties = true;
+        /// What the army trains to fill the room (army_plan FILL): the land unit that adds most to the force against the enemy it
+        /// will meet - the defenders and towers at its next target and the soldiers it sees on its land, by the fight estimate -
+        /// for what it costs, siege and rams included; nothing known of the enemy: as before. 0 = the game's wish, else the
+        /// strongest (default: measured without a gain - it knows too little of the enemy yet)
+        bool train_by_need = false;
         /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured

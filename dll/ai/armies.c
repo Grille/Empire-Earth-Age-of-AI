@@ -2217,7 +2217,83 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         }
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); memset(g_ar_pt, 0, sizeof g_ar_pt); av_new_game(); g_ar_load = from_save; g_ar_loaded = 0; }
+// TRAINING BY NEED ([ai_base] train_by_need, off: measured, no gain (below); [autotest] v_train_by_need; army view step 4b - the
+// player 2026-11-11: the AI sees its armies as one, how strong, what they are good against, has it siege): FILL (army.c)
+// trains the land type that adds most to the force against the enemy it will meet, for what it costs - every land type
+// with an attack the game lets it train now (siege and rams too, no citizens, priests) that the money FILL may spend
+// pays, 1000 resources' worth of it (one at least) added to the force at home, the fight estimate (st_ratio) against the
+// defenders and towers at its next target (stage_foe at ar_target_on: what the AI knows there) and the enemy fighters it
+// sees on its own land besides: the most gain over the force as it is, per 1000. Nothing known of the enemy: FILL's own
+// pick (the game's request lists, else the strongest). The dry run (4 games, Continental large from epoch 5, the log
+// only): it differed from FILL's pick in 21-33 of 40-60 looks a game - pikemen, crossbows, pilums, longswords, heavy
+// rams against FILL's cataphracts -, with 1.5 to 3 times the gain a 1000 where both had one; no enemy known in half.
+// Measured (Continental large from epoch 5, 60 min, 10 games each): the mod against itself (h2h mirrored; B by need) kills
+// +13.8 (se 10.1), losses -1.3 (19.1), soldiers -0.7 (15.2), razed -0.8 (1.8); against the non-cheating game AI off / on
+// razed 14.3 / 8.4, buildings lost 2.2 / 4.3, kills 151 / 143, losses 52 / 60, won 5 / 4 - no gain, if anything worse. Why:
+// what it judges against is what the AI knows at the target and sees on its land, often 1-9 units (ratios like 98 -> 126
+// against one), and in most looks nothing (a pick in 4 of 58); the enemy's army as the AI has seen it, remembered, is
+// what the need has to be measured against. Off.
+// "# armies: ... by need:" once a game minute in tests.
+internal int g_ar_need_on = 0, g_v_ar_need = -1;
+#define AR_NEED(idx) PV(idx, g_v_ar_need, g_ar_need_on)
+internal struct { unsigned looks, same, other, none; } g_ar_need[16];
+// the pick (0: none - nothing known of the enemy, nothing payable); vis: what may be spent (NULL: anything)
+internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int filled, uint32_t now, int log) {
+    idx &= 15;
+    struct armies_st *a = &g_armies[idx];
+    if (!ar_on(pl, idx)) return 0;
+    unsigned land = map_area(a->home, 2);
+    ee_unit *tg = land ? ar_target_on(pl, a->home, land) : NULL;
+    ivec2 at = tg ? unit_get_tile(tg) : a->home;
+    stage_foe(pl, at);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // the fighters seen on its land, beyond the target's
+        ee_player *o = unit_get_owner(it.u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !ms_land_soldier(it.u, it.td) || !seen_by(it.u, pl)) continue;
+        ivec2 p = unit_get_tile(it.u);
+        if (map_area(p, 2) != land || ivec2_dist2(p, at) <= SG_FOE * SG_FOE) continue;
+        st_side_add(&g_sgs_foe, it.u);
+    }
+    if (log) g_ar_need[idx].looks++;
+    if (!g_sgs_foe.n) { if (log) g_ar_need[idx].none++; return 0; }
+    ar_side(a, 0, NULL);
+    float r0 = st_ratio(&g_ar_own, &g_sgs_foe);
+    int best = 0, nbest = 0; float bg = 0, gfill = 0, rbest = r0;
+    for (int ty = 0; ty < G_TYPES_N; ty++) {
+        ee_unit_type *td = type_data(ty);
+        if (!td || unit_type_get_id(td) != ty || unit_type_get_class_id(td) != CLS_LAND || unit_type_get_attack(td) <= 0) continue;
+        if (ut_role(ty, UTR_CITIZEN) || ty == UT(PRIEST) || ty == UT(PROPHET) || !can_build(pl, ty)) continue;
+        int cost = 0, pays = 1;
+        for (int r = 2; r < 7; r++) { int c = unit_cost(pl, ty, r); cost += c; if (vis && vis[r] < c) pays = 0; }
+        if (cost <= 0 || (!pays && ty != filled)) continue;
+        int n = 1000 / cost > 1 ? 1000 / cost : 1;
+        if (n > 40) n = 40;
+        ar_side(a, 0, NULL);
+        ee_unit_stats *st = st_rec(pl, ty);
+        int hp = st_maxhp(td, st);
+        for (int k = 0; k < n; k++) st_side_put(&g_ar_own, NULL, td, st, (int)idx, hp, a->home.x, a->home.y);
+        float r = st_ratio(&g_ar_own, &g_sgs_foe), g = (r - r0) * 1000.0f / (float)(n * cost);
+        if (ty == filled) gfill = g;
+        if (pays && (!best || g > bg)) { best = ty; bg = g; nbest = n; rbest = r; }
+    }
+    if (!best || !log) return best;
+    if (best == filled) g_ar_need[idx].same++; else g_ar_need[idx].other++;
+    ar_log(idx, now, "by need: FILL's own pick %s (%d, %+.3f a 1000), the need %s (%d, %+.3f a 1000: %d of them %.2f -> %.2f) against %d known%s at %d,%d; looks %u, the same %u, other %u, no enemy known %u%s",
+           filled ? unit_ident(filled) : "none", filled, gfill, unit_ident(best), best, bg, nbest, r0, rbest, g_sgs_foe.n, tg ? " (the next target's and its land's)" : " (its land's)", at.x, at.y,
+           g_ar_need[idx].looks, g_ar_need[idx].same, g_ar_need[idx].other, g_ar_need[idx].none, AR_NEED(idx) ? " - trained" : "");
+    return best;
+}
+// FILL's type (army.c): the need's when train_by_need is on and it has one, else FILL's own; once a game minute in tests the
+// comparison logged
+internal int ar_fill_type(ee_player *pl, unsigned idx, const int *vis, int own, uint32_t now) {
+    static uint32_t t[16];
+    idx &= 15;
+    int log = g_log && g_autotest && (!t[idx] || now < t[idx] || now - t[idx] >= 60000);
+    if (log) t[idx] = now ? now : 1;
+    if (!AR_NEED(idx) && !log) return own;
+    int need = ar_need_pick(pl, idx, vis, own, now, log);
+    return AR_NEED(idx) && need ? need : own;
+}
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); memset(g_ar_pt, 0, sizeof g_ar_pt); memset(g_ar_need, 0, sizeof g_ar_need); av_new_game(); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;
@@ -2236,10 +2312,12 @@ internal void armies_install(const char *autotest_ini) {
     g_ar_leash = g_set_ai[1].raid_leash;
     g_ar_aid = g_set_ai[1].ally_aid;
     g_ar_parts = g_set_ai[1].raid_parties;
+    g_ar_need_on = g_set_ai[1].train_by_need;
     if (autotest_ini) {
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);
+        g_v_ar_need = ini_int("autotest", "v_train_by_need", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
         g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
