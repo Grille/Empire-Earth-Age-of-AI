@@ -588,6 +588,23 @@ internal inline uint32_t *texture_one_frame_at(const ee_texture *o) { return (ui
 internal inline uint32_t texture_get_frame_count(const ee_texture *o) { return *(uint32_t *)((uint8_t *)o + of_texture_frame_count); }
 internal inline void texture_set_frame_count(ee_texture *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_texture_frame_count) = v; }
 internal inline uint32_t *texture_frame_count_at(const ee_texture *o) { return (uint32_t *)((uint8_t *)o + of_texture_frame_count); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the texture SetTexture takes the surface through (DX7Rasterizer::SetTexture, both display DLLs: this +0xC, its
+// +0x3C, that one's +0x38 the surface) - itself, and its card_texture itself, in the command circle's texture
+// (ui.circle_texture, a texture of one frame: seen); [guess]: named from that use
+internal inline ee_texture *texture_get_draw_texture(const ee_texture *o) { return *(ee_texture **)((uint8_t *)o + of_texture_draw_texture); }
+internal inline void texture_set_draw_texture(ee_texture *o, ee_texture *v) { *(ee_texture **)((uint8_t *)o + of_texture_draw_texture) = v; }
+internal inline ee_texture **texture_draw_texture_at(const ee_texture *o) { return (ee_texture **)((uint8_t *)o + of_texture_draw_texture); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the next step of SetTexture's way to the surface (above) [guess]: named from that use
+internal inline ee_texture *texture_get_card_texture(const ee_texture *o) { return *(ee_texture **)((uint8_t *)o + of_texture_card_texture); }
+internal inline void texture_set_card_texture(ee_texture *o, ee_texture *v) { *(ee_texture **)((uint8_t *)o + of_texture_card_texture) = v; }
+internal inline ee_texture **texture_card_texture_at(const ee_texture *o) { return (ee_texture **)((uint8_t *)o + of_texture_card_texture); }
+// its surface on the card (the display DLL's; its dds the DirectDraw surface SetTexture binds - with the own
+// renderer one of its own surfaces)
+internal inline ee_surface *texture_get_surface(const ee_texture *o) { return *(ee_surface **)((uint8_t *)o + of_texture_surface); }
+internal inline void texture_set_surface(ee_texture *o, ee_surface *v) { *(ee_surface **)((uint8_t *)o + of_texture_surface) = v; }
+internal inline ee_surface **texture_surface_at(const ee_texture *o) { return (ee_surface **)((uint8_t *)o + of_texture_surface); }
 
 // class DX7PolygonArray (ee_polygons)
 // the display DLLs' triangles (GEPolygonArray; DX7PolygonArray, the same in both and both builds:
@@ -1265,6 +1282,9 @@ internal int spec_engine_display_select(int build) {
         of_texture_frames = 0x40;
         of_texture_one_frame = 0x50;
         of_texture_frame_count = 0x58;
+        of_texture_draw_texture = 0xC;
+        of_texture_card_texture = 0x3C;
+        of_texture_surface = 0x38;
         of_polygons_indices = 0x4;
         of_polygons_index_count = 0x8;
         of_polygons_count = 0xC;
@@ -1652,6 +1672,9 @@ internal int spec_engine_display_select(int build) {
         of_texture_frames = 0x40;
         of_texture_one_frame = 0x50;
         of_texture_frame_count = 0x58;
+        of_texture_draw_texture = 0xC;
+        of_texture_card_texture = 0x3C;
+        of_texture_surface = 0x38;
         of_polygons_indices = 0x4;
         of_polygons_index_count = 0x8;
         of_polygons_count = 0xC;

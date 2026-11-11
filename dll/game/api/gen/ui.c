@@ -694,6 +694,13 @@ internal inline int patch_effects_step(effect_mgr_step_fn h) { return patch_call
 internal inline ee_effect_mgr *ui_get_gfx_effects(void) { return *(ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects; }
 internal inline void ui_set_gfx_effects(ee_effect_mgr *v) { *(ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects = v; }
 internal inline ee_effect_mgr **ui_gfx_effects_at(void) { return (ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects; }
+// the command circle's texture (64 x 64, ARGB 4444: a bevelled white ring, the circle's colour tints it):
+// EEE3DCommandConfirmation::vf4 (EE 0x4E2B9C, AoC 0x4EA201) gives its model's material this one for most circles
+// (the one before it, the same picture, for others; the one after it, a crosshair of 3 frames, for its kind 3) and
+// turns the model by the camera's angle less 45 degrees - loaded with the game, there in the scenario editor too
+internal inline ee_texture *ui_get_circle_texture(void) { return *(ee_texture **)(uint8_t *)(uintptr_t)data_ui_circle_texture; }
+internal inline void ui_set_circle_texture(ee_texture *v) { *(ee_texture **)(uint8_t *)(uintptr_t)data_ui_circle_texture = v; }
+internal inline ee_texture **ui_circle_texture_at(void) { return (ee_texture **)(uint8_t *)(uintptr_t)data_ui_circle_texture; }
 // UIEditBox::GetText
 internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_get_text; }
 // UIEditBox::UIEditBox(id, GEFont *, K, bool, const GERectangle &, UIForm *, the form's control index, K, bool,
@@ -961,6 +968,7 @@ internal int spec_ui_select(int build) {
         fn_effect_mgr_step = (effect_mgr_step_fn)0x004FC94E;
         call_effects_step = 0x00546D76;
         data_ui_gfx_effects = 0x00918E1C;
+        data_ui_circle_texture = 0x00912D34;
         data_ui_iat_edit_get_text = 0x00823328;
         data_ui_iat_edit_ctor = 0x00823D48;
         data_ui_iat_edit_keyboard = 0x00823C50;
@@ -1208,6 +1216,7 @@ internal int spec_ui_select(int build) {
         fn_effect_mgr_step = (effect_mgr_step_fn)0x00507450;
         call_effects_step = 0x0055322A;
         data_ui_gfx_effects = 0x0093185C;
+        data_ui_circle_texture = 0x009294E4;
         data_ui_iat_edit_get_text = 0x00837EE0;
         data_ui_iat_edit_ctor = 0x00837D4C;
         data_ui_iat_edit_keyboard = 0x00837C4C;
@@ -1332,6 +1341,7 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_effect_mgr_step, "EEEffectManager.step");
     bad += spec_call(call_effects_step, (uintptr_t)fn_effect_mgr_step, "EEEffectManager.step [call_site effects_step]");
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
+    bad += spec_data(data_ui_circle_texture, "ui.circle_texture");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
     bad += spec_data(data_ui_iat_edit_ctor, "ui.iat_edit_ctor");
     bad += spec_data(data_ui_iat_edit_keyboard, "ui.iat_edit_keyboard");

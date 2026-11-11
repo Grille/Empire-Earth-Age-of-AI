@@ -224,7 +224,8 @@ internal void editor_orders_clear(void) {
 // its queued goals and at each goal a ring in the colour the game's command circle gives that order
 // (EEE3DCommandConfirmation::vf12 0x4E2855, the colours set at the start 0x4E2598 ..): green a move, orange an
 // attack-move (a move not forced), red an attack (round the target), yellow a gathering (round the resource; a hunt's
-// kill before it shown as the hunt) and a repair, the game's pink anything else (a load). A move's ring is the unit's own spot, sized by its selection circle as
+// kill before it shown as the hunt) and a repair, the game's pink anything else (a load). The rings are the game's own
+// circle, its texture tinted (overlay_ring: render_overlay.c). A move's ring is the unit's own spot, sized by its selection circle as
 // the game sizes its circle for each unit; a target's ring goes round it, once. The game's circles themselves are effects
 // the editor neither updates nor draws (one made there wasn't seen), its shift-mode markers (0x4FCDF9) neither. Without
 // the own renderer nothing is shown.
@@ -239,8 +240,7 @@ internal void editor_orders_clear(void) {
 #define EO_ARGB_OTHER 0xFFFF80FFu         // (1, 0.5, 1)
 #define EO_LINE_ALPHA 0x90u
 #define EO_LINE_W 0.05f        // tiles
-#define EO_RING_W 0.07f
-#define EO_RING_UNIT 0.45f     // a move's ring: the unit's selection circle (its type's mark size) times this, a radius
+#define EO_RING_UNIT 0.45f     // a move's ring: the unit's selection circle (its type's mark size) times this, its outer radius
 #define EO_RING_TARGET 0.6f    // a target's: its reach (eo_reach) times this
 #define EO_TARGETS 512         // targets ringed in a frame (more: rung again)
 #define EO_GOALS 32            // a unit's goals drawn at most
@@ -323,9 +323,9 @@ internal void editor_orders_tick(void) {
             overlay_line(from, at, (c & 0xFFFFFFu) | EO_LINE_ALPHA << 24, EO_LINE_W);
             int again = 0;
             for (int j = 0; on && j < rung && !again; j++) again = ringed[j] == on && ringed_c[j] == c;
-            if (!on) overlay_circle(at, eo_mark(u) * EO_RING_UNIT, c, EO_RING_W);
+            if (!on) overlay_ring(at, eo_mark(u) * EO_RING_UNIT, c);
             else if (!again) {
-                overlay_circle(at, eo_reach(on) * EO_RING_TARGET, c, EO_RING_W);
+                overlay_ring(at, eo_reach(on) * EO_RING_TARGET, c);
                 if (rung < EO_TARGETS) ringed_c[rung] = c, ringed[rung++] = on;
             }
             from = at;

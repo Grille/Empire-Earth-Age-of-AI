@@ -675,6 +675,21 @@ unsafe struct GETexture
     /// leaves a child's material its texture then)
     [offset(0x58), found(c)]
     uint32 frame_count;
+
+    /// the texture SetTexture takes the surface through (DX7Rasterizer::SetTexture, both display DLLs: this +0xC, its
+    /// +0x3C, that one's +0x38 the surface) - itself, and its card_texture itself, in the command circle's texture
+    /// (ui.circle_texture, a texture of one frame: seen); [guess]: named from that use
+    [offset(0xC), found(c), guess]
+    GETexture* draw_texture;
+
+    /// the next step of SetTexture's way to the surface (above) [guess]: named from that use
+    [offset(0x3C), found(c), guess]
+    GETexture* card_texture;
+
+    /// its surface on the card (the display DLL's; its dds the DirectDraw surface SetTexture binds - with the own
+    /// renderer one of its own surfaces)
+    [offset(0x38), found(c)]
+    DX7Surface* surface;
 }
 
 /// the display DLLs' triangles (GEPolygonArray; DX7PolygonArray, the same in both and both builds:

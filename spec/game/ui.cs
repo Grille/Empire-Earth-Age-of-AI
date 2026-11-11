@@ -890,6 +890,13 @@ static unsafe class ui
     [address((ee)0x00918E1C, (aoc)0x0093185C)]
     static EEEffectManager* gfx_effects;
 
+    /// the command circle's texture (64 x 64, ARGB 4444: a bevelled white ring, the circle's colour tints it):
+    /// EEE3DCommandConfirmation::vf4 (EE 0x4E2B9C, AoC 0x4EA201) gives its model's material this one for most circles
+    /// (the one before it, the same picture, for others; the one after it, a crosshair of 3 frames, for its kind 3) and
+    /// turns the model by the camera's angle less 45 degrees - loaded with the game, there in the scenario editor too
+    [address((ee)0x00912D34, (aoc)0x009294E4)]
+    static GETexture* circle_texture;
+
     /// UIEditBox::GetText
     [import_slot("Low-Level Engine.dll", "?GetText@UIEditBox@@QBEPBDK@Z")]
     [address((ee)0x00823328, (aoc)0x00837EE0)]

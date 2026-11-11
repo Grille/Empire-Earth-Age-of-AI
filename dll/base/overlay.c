@@ -7,7 +7,7 @@
 
 #define OV_LAYERS 16
 #define OV_SHAPES 16384
-enum { OV_LINE, OV_CIRCLE, OV_TILE };
+enum { OV_LINE, OV_CIRCLE, OV_TILE, OV_RING };
 typedef struct {
     uint8_t kind, layer;
     uint32_t argb;
@@ -117,6 +117,12 @@ internal void overlay_line(vec2 a, vec2 b, uint32_t argb, float width) {
 }
 internal void overlay_circle(vec2 c, float r, uint32_t argb, float width) {
     ov_shape *s = ov_add(OV_CIRCLE, argb, width);
+    if (s) { s->a[0] = c.x; s->a[1] = c.y; s->a[2] = r; }
+}
+// the game's command circle (its texture, tinted by argb - the renderer's plain circle where it has none), r its outer
+// radius
+internal void overlay_ring(vec2 c, float r, uint32_t argb) {
+    ov_shape *s = ov_add(OV_RING, argb, 0);
     if (s) { s->a[0] = c.x; s->a[1] = c.y; s->a[2] = r; }
 }
 internal void overlay_tiles(ivec2 t, int n, uint32_t argb) {   // n tiles along the row from t

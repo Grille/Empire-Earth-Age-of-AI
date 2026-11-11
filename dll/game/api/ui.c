@@ -364,6 +364,16 @@ internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int 
     FIELD(e, of_gfx_0x2e, uint8_t) = 0;
 }
 
+// the command circle's texture's DirectDraw surface, as DX7Rasterizer::SetTexture finds it (with the own renderer one
+// of its surfaces: render_overlay.c rings the orders with it), NULL while there is none
+internal inline void *circle_texture_dds(void) {
+    ee_texture *t = ui_get_circle_texture();
+    t = t ? texture_get_draw_texture(t) : NULL;
+    t = t ? texture_get_card_texture(t) : NULL;
+    ee_surface *s = t ? texture_get_surface(t) : NULL;
+    return s ? surface_get_dds(s) : NULL;
+}
+
 // HOOKS
 // the camera's scroll action (camera.c), and its timer's period: push 25 (AoC 10) ms -> value
 typedef void (__thiscall *scroll_hook)(ee_scroll *self);
