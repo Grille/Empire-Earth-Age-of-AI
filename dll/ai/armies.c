@@ -2250,7 +2250,11 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
 // Since step 5 (army_view.c THE ENEMY'S ARMIES) the enemy beyond the target is its land armies as the AI knows them - every
 // enemy land unit seen within 10 minutes on its land, where it was seen, and those whose whereabouts it lost (counted at
 // the target) - instead of the fighters it sees now; and FILL's own pick is an honest one since honest_intel (5beceafb:
-// the game's counter vote had counted the enemy's whole army).
+// the game's counter vote had counted the enemy's whole army). Measured so (the same setup): h2h B by need - A soldiers
+// +27.3 (se 14.8), kills +4.0 (14.4), losses -20.3 (21.7), razed +3.4 (3.0), workers +12.1 (12.7); against the game AI
+// off / on won 7 / 5, razed 18.6 / 17.2, own losses 60 / 57, buildings lost 4.4 / 3.6 - a lean towards it among its own
+// kind, nothing beyond the noise; still judged against 1-9 known units in most looks (the AI sees little of the enemy's
+// army: 7-13 units remembered at minute 29 of a game). Still off.
 // "# armies: ... by need:" once a game minute in tests.
 internal int g_ar_need_on = 0, g_v_ar_need = -1;
 #define AR_NEED(idx) PV(idx, g_v_ar_need, g_ar_need_on)
