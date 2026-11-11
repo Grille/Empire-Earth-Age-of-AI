@@ -1523,6 +1523,17 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     // stands on its reach (its body turned whole)
     float hw = gr->in_place == 2 ? gr->reach : (gr->cols ? gr->col_w : gr->fw) * 0.5f;
     float r = gr->naval ? (gr->turn_r > FF_INNER ? gr->turn_r : FF_INNER) : gr->pivot ? FF_INNER : hw + FF_INNER;
+    // near the end on land (within its turning circle's width and the end's radius): no wider than the arc that still meets the end from here (the circle through
+    // it that leaves along the heading: d^2 / 2 x its distance across). An anchor that came in beside its end - the lead
+    // handed on in a fight, the new leader's route runs to its own spot, tiles beside the formation's - had the end
+    // inside its turning circle and went round it for minutes, every unit after its point (the player, 2026-11-11: "the
+    // formation doesn't reform properly after all threats are dealt with"; 108 on an attack-move, after two fights 5 of
+    // 103 on their spots 130 s after the anchor first came by)
+    if (!gr->naval && !gr->through && !gr->passed) {
+        vec2 te = vec2_sub(gr->end, gr->anchor);
+        float d2 = vec2_dot(te, te), across = fabsf(te.x * gr->way.y - te.y * gr->way.x);
+        if (d2 < (2 * r + FF_END) * (2 * r + FF_END) && across > 0.01f && d2 / (2 * across) < r) r = d2 / (2 * across) > 0.25f ? d2 / (2 * across) : 0.25f;
+    }
     float k = gr->pivot || gr->naval ? 1 : g_set.formation_catchup * 0.85f * r / (r + hw);
     if (k > 1) k = 1;
     // where it heads: the route's point ahead, moved across to the side with room (ff_side)
