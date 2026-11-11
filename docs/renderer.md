@@ -388,12 +388,17 @@ drawn. AoC: the interface's lock at the same place (0x50989F), a short game norm
   map's perspective: a far depth beyond the furthest the camera gives keeps its own (given the frame's, the sky was cut
   off, and above the horizon stood what the frames before left there - the game clears only the depth; the player:
   "sky is gone, just uncleared buffer"). The checks of the cuts above count the sky's colour: from 471d71e7 until the
-  sky came back they saw no cut either way. The fog's range: the game takes it from camera.c's far value as it is at the
-  draw (far - 8 .. far), the projection from the step's copy - so after a zoom in's ride had ended and before the step a
-  draw had the old projection and the new fog. Moved by the two far depths' difference its fog ended below 0, and a
-  frame during the step drew the kept units all in the fog's colour (the player: "when zooming in from far all units a
-  drawn in fog color for a frame sometimes"; 100 such draws a run of wheel zooms at a 30 - 100 ms step load). A moved
-  draw's fog now ends where the frame's own draws end it: the far value now, not beyond the frame's far depth.
+  sky came back they saw no cut either way. The fog's range (far - 8 .. far): the game sets it at each draw from the
+  viewport as it is then, the projection at the frame's start, and the step changes the viewport meanwhile; the kept
+  draws of a frame during a step have the update's; the ground gets the frame's depths in render_ground.c and the fog
+  of the game's states for it. Moved by the two far depths' difference (471d71e7) the fog of a draw with an older
+  projection ended below 0 - the kept units all in the fog's colour zooming in (the player: "when zooming in from far
+  all units a drawn in fog color for a frame sometimes"; 100 such draws a run of wheel zooms at a 30 - 100 ms step
+  load) - and a draw whose depths were the frame's kept an older, nearer fog - the top of the screen fogged zooming out
+  ("when zooming out quickly the top sometimes is drawn in fog for a frame": a far depth of 296, the fog ending at
+  139). Every draw of the map's perspective now has its fog end at the frame's far depth (rf_depth_vc), fog and depth
+  of one value; at rest none is changed. camera.c's far value is not the fog's end: at rest after a zoom in it was 115
+  with the step's far depth and the fog at 296 (the step copies it only when the camera moves).
 - The water during a step (AoC, after a long move: dark and sandy squares on the water, pieces of water over the
   map's edge; the same at margin 0): a batch takes the render object current when it is flushed, which is at the next
   draw with other states - the ground's last batch went in with the units' first, the water's last with the
