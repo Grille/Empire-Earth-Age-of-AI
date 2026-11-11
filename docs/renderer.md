@@ -873,6 +873,15 @@ up at about 1 tile/s, logged: a sink of 0.24 tiles/s with both wings whole, 0.38
 about 50 degrees, along their way, as they came down in 2.5 s (the kick's roll held to about 6 degrees by whole wings;
 28 with one at 0.12); over land they stuck in nose first along their dive, over the water they went in and pulled up
 under it (the water's planing), two of them past level to standing on their tails before they went down.
+Its wings meet the air at 8 degrees, their front up (US_WING_TILT; the player, the same day: "no plane started rotating,
+are you sure the brocken wings work?"): a surface that only cancels the way across it pushes nothing once the tail has
+turned the nose into the way, so a weak wing made no difference after the first second; tilted, each wing lifts by the
+speed along it, the whole one more than the broken one for as long as it flies, and it rolls on. Its ballast is at its
+wings' height (under them it hung from their lift as a pendulum). Checked the same way, the probe logging the bank
+(about the plane's length, not the span's tilt to the horizon - a plane nose down rolls without tilting its span much):
+the three P-51s of eight with a wing at 0.12 - 0.15 rolled on toward it, 17 - 21 degrees after a second, 53 - 69 after
+two, 67 - 89 as they hit; the five with whole wings stayed within 9 degrees, came down in 3 - 3.5 s and hit at about
+40 degrees nose down.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

@@ -272,7 +272,7 @@ internal pt_e *pt_entry(void *o, LONGLONG now) {
 internal int pt_blend(void *o, float ms, float *vals, int n, const float *cur) {
     if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok) return 0;
     pt_clock();
-    LONGLONG t = g_pt_show_at;   // (the frame's: a counter read a piece was 55 ns, 14 000 pieces a frame after a battle)
+    LONGLONG t = rd_qpc();
     pt_e *e = pt_entry(o, t);
     // one before it in this memory: unseen for a while, its time gone back (a load) or its fade (its age: it only grows)
     // smaller - the game makes a new flame in the memory of one just gone, and blended from that one's last moves it was
@@ -609,6 +609,11 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_WING 16.0f   // a wing point's (1/s, wholly in the air), times its strength
 #define US_TAILPLANE 12.0f
 #define US_FIN 12.0f
+// a wing meets the air at a small angle, its front up (the player, the same day: "no plane started rotating, are you sure
+// the brocken wings work?"): a surface that only cancels the way across it pushes nothing once the tail has turned the
+// nose into the way - a weak wing then made no difference, its bank of the first second levelled out again; tilted,
+// each wing lifts by the speed along it, the whole one more than the broken one as long as it flies: it rolls on
+#define US_WING_TILT 0.14f   // its sine: 8 degrees
 #define US_TAIL_SPAN 0.35f   // the tailplane's half span: a share of the wings' (a P-51's: 4 m to 11 m)
 #define US_FIN_W 0.5f   // the tail's points' weights, a float's 1
 #define US_NOSE 2.0f    // the nose weight's
@@ -756,6 +761,9 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             k->body[7][j] = c[j] - half_long * al[j], k->body[8][j] = c[j] + 0.9f * half_long * al[j];
         }
         k->body[7][2] += fin;
+        // its ballast at its wings' height: under them it hung from their lift as a pendulum and rolled a plane with a
+        // broken wing level again (logged: banked to 40 degrees in a second, back to 25 by its crash)
+        k->body[4][2] = fz;
         us_wings(k, o->serial);
     }
     k->lift = sub ? US_SUB_FLOAT : air && cls != CLS_AIRPLANE ? 0.0f : US_FLOAT;
@@ -845,6 +853,8 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     for (int j = 0; j < 3; j++) lu += un[j] * un[j];
     lu = sqrtf(lu);
     for (int j = 0; j < 3; j++) un[j] = lu > 1e-6f ? un[j] / lu : 0.0f;
+    float wn[3], ct = sqrtf(1.0f - US_WING_TILT * US_WING_TILT);   // the wings' up: tilted back by their angle
+    for (int j = 0; j < 3; j++) wn[j] = ct * un[j] - US_WING_TILT * ln[j];
     for (int i = 0; i < k->n; i++) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
@@ -867,7 +877,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
         float surf = k->n != US_PTS_AIR ? 0.0f : i == 2 || i == 3 ? US_WING * k->wing[i - 2] : i == 5 || i == 6 ? US_TAILPLANE : i == 7 ? US_FIN : 0.0f;
         if (surf > 0.0f) {   // its way through its surface cancelled, as far as it is dry
-            const float *nv = i == 7 ? sn : un;
+            const float *nv = i == 7 ? sn : i < 4 ? wn : un;
             float c = 0.0f, f = expf(-surf * (1.0f - wd) * dt);
             for (int j = 0; j < 3; j++) c += v[j] * nv[j];
             for (int j = 0; j < 3; j++) v[j] -= (1.0f - f) * c * nv[j];
