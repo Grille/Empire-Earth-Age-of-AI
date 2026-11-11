@@ -770,7 +770,9 @@ on longest), level a quarter. The water's level is the renderer's measured one (
 death), the hull's pose its floats' (along, across, up), kept with the corpses after the game removes it and its time
 theirs from its death. Checked headless, ten ships sunk at once on shallow water by the coast: dives by the bow and the
 stern (one stood near upright on its bow), rolls, level ones, all on the bottom in 4 to 10 s with their masts out of the
-water, the rolled one on its side.
+water, the rolled one on its side. Each float goes into the seabed by a depth of its own (the player, the same day:
+"each point should have a random value how deep it can sink into the ground"; US_DIG, up to 0.6 of the beam, drawn
+from the serial after the leaks): a wreck comes to rest unevenly buried - by the bow, the stern, one side.
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
 simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
 seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes

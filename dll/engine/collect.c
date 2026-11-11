@@ -494,6 +494,7 @@ typedef struct {
     float body[4][3];        // ... in the hull's own space times its scale, at its waterline
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
     float leak[4][3];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s)
+    float dig[4];            // how deep each float can go into the seabed (tiles)
     float zw, range, keel;   // the water's level; a float's depth from dry to fully under; the keel's under the waterline
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
@@ -516,12 +517,15 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // less than their weight (it goes down in the end), and by the plan of its serial (the same on every PC, the picture only)
 // one or two fast to below nothing - a dive by the bow or the stern half the time (now and then with a list), a roll onto
 // one side a quarter (the other side holding on longest), level a quarter. Stepped by the game time (stands while paused),
-// US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death.
+// US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death. Each float goes into
+// the seabed by a depth of its own, up to US_DIG of the beam by the same plan (the player, the same day: "each point
+// should have a random value how deep it can sink into the ground"): a wreck comes to rest unevenly buried, tilted.
 #define US_G 3.0f       // gravity (tiles/s^2)
 #define US_DT 0.01      // the step (s of game time)
 #define US_DRAG 1.6f    // the water's drag (1/s), the air's
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
+#define US_DIG 0.6f     // the deepest a float goes into the seabed: a share of the beam
 internal int uc_is_ship(const ee_unit_type *ty) { return class_is_ship(unit_type_get_class_id(ty)); }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
@@ -542,6 +546,7 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
             k->leak[o][0] = 0.1f + 0.4f * us_rnd(&s), k->leak[o][1] = 0.5f + us_rnd(&s), k->leak[o][2] = 3.0f + 3.0f * us_rnd(&s);
         }
     }
+    for (int i = 0; i < 4; i++) k->dig[i] = us_rnd(&s);   // its share of US_DIG (drawn last: the leaks stay as they were)
     if (late) for (int i = 0; i < 4; i++) k->leak[i][1] = -1000.0f, k->leak[i][2] = 0.01f;
 }
 // its floats set up from the game's pose t (rows; the model's scale apart) and its model's frame
@@ -572,6 +577,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
         }
     us_leaks(k, o->serial, o->rotting || t[10] < 0.98f || t[11] < k->zw - 0.05f);
+    for (int i = 0; i < 4; i++) k->dig[i] *= US_DIG * 2.5f * half_across;   // the beam: half_across is 0.4 of it
     k->sim = k->died;
     k->ship = 1;
 }
@@ -613,7 +619,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float *p = k->sp[i], *q = k->sq[i];
             int x = (int)floorf(p[0]), y = (int)floorf(p[1]);
             if (!mesh_has_tile(mesh, x, y)) continue;
-            float bottom = mesh_z(mesh, p[0], p[1]) + below[i];
+            float bottom = mesh_z(mesh, p[0], p[1]) + below[i] - k->dig[i];
             if (p[2] < bottom) {   // on the bottom: held up, and dragged along it
                 p[2] = bottom;
                 if (q[2] < p[2]) q[2] = p[2];
