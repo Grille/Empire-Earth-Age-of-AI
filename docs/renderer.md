@@ -858,6 +858,21 @@ its own pace and is taken off where it lands, so it blew up a second time there 
 now have 2 explosions on impact, on where they landed, and one on the ground over hwere they originaly died"). Let
 out for a unit whose wreck is the mod's (us_hook_remove_effect, by its id). Checked the same way: an Apache killed over
 land blew up once, where its wreck hit.
+An airplane falls as a dart instead (the player, the same day: "keep the middle point as a coliider only, no lift. add 4
+new points, two for each horizontal wing and one for the yaw wing. they are towards the back of the plane. the 4 point is
+a pure weight placed in the front", and "2 extra point for the main wings? along the center of weight? the ideas is that
+the wing points can be disabled or weakend randomly, to simulate failing wings"). Nine points (US_PTS_AIR): the floats
+and the ballast as before, the tailplane's two at the stern float, 0.35 of the wings' half span out (US_TAIL_SPAN), the
+fin's over them, the nose weight (US_NOSE, twice a float) at the bow. Each surface point cancels its own way through its
+surface as far as it is dry - the wings (its side floats, at the middle of its length: US_WING 16/s times their
+strength) and the tailplane (US_TAILPLANE 12) through its up, the fin (US_FIN 12) sideways; each on its own, so the tail
+turns its nose into its way. The wings' strengths by its serial: whole half the time, one weakened to 0 .. 0.6 a
+quarter, one gone an eighth, both weakened an eighth. The middle is its collider only, no lift on the whole any more;
+no planing in the air (in the water as before). Checked headless with the player's ini, eight P-51s from about 2 tiles
+up at about 1 tile/s, logged: a sink of 0.24 tiles/s with both wings whole, 0.38 with one at 0.12, their noses over to
+about 50 degrees, along their way, as they came down in 2.5 s (the kick's roll held to about 6 degrees by whole wings;
+28 with one at 0.12); over land they stuck in nose first along their dive, over the water they went in and pulled up
+under it (the water's planing), two of them past level to standing on their tails before they went down.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
