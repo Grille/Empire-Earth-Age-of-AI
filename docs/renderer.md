@@ -786,6 +786,10 @@ and keel (US_DRAG 1.6/s) - each point's way split by the hull's length as it lie
 stern glides on along its line instead of dropping (as the Titanic's bow did, which came to rest about 600 m from its
 stern), one that sinks level goes straight down, and its way at its death carries it where its bow points. Before, the
 drag went by the world's axes (0.5/s along the water, 1.6 up and down).
+Its turning is held harder still (the player: "the plane should heavely discurage quick rotation underwater right?"):
+a turning hull sweeps its whole flanks through the water, its ends the most. The points' way about their middle (by
+their weights; the way of the whole kept) is slowed by US_TURN (8/s) times how much of it is under (its floats' mean).
+With the drag alone a leaking bow pivoted a frigate on end in about a second.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

@@ -565,6 +565,11 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // 0.5 along the water, 1.6 up and down. The air's alike every way.
 #define US_DRAG 1.6f    // the water's across the hull (1/s), along its length, the air's
 #define US_ALONG 0.35f  // a frigate at 0.8 tiles/s at its death coasts about 2.3 tiles
+// Its turning held harder still (the player: "the plane should heavely discurage quick rotation underwater right?"):
+// a turning hull sweeps its whole flanks through the water, its ends the most - its points' way about their middle
+// (by their weights; the way of the whole kept) slowed by US_TURN times how much of it is under. With the drag
+// alone a leaking bow pivoted a frigate on end in about a second, and a diver at a slant now stays slanted longer.
+#define US_TURN 8.0f    // 1/s, wholly under (4 hardly slowed the pivots)
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
@@ -705,9 +710,11 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     ll = sqrtf(ll);
     for (int j = 0; j < 3; j++) ln[j] = ll > 1e-6f ? ln[j] / ll : 0.0f;
     const float f_across = expf(-US_DRAG * dt), f_along = expf(-US_ALONG * dt), f_air = expf(-US_AIR * dt);
+    float wet = 0.0f;   // how much of it is under: its floats' mean
     for (int i = 0; i < US_PTS; i++) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
+        if (i < 4) wet += 0.25f * under;
         if (i < 4) {
             float u = (t - k->leak[i][1]) / k->leak[i][2];
             u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
@@ -722,6 +729,18 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         v[2] += (-US_G + b * US_G * under) * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
     }
+    // its turning held: each point's way about the points' middle (by their weights) slowed, the whole's way kept
+    float vm[3] = { 0, 0, 0 }, wsum = 0.0f, f_turn = expf(-US_TURN * wet * dt);
+    for (int i = 0; i < US_PTS; i++) {
+        float w = i < 4 ? 1.0f : US_BALLAST;
+        for (int j = 0; j < 3; j++) vm[j] += w * (k->sp[i][j] - k->sq[i][j]);
+        wsum += w;
+    }
+    for (int i = 0; i < US_PTS; i++)
+        for (int j = 0; j < 3; j++) {
+            float m = vm[j] / wsum;
+            k->sp[i][j] = k->sq[i][j] + m + (k->sp[i][j] - k->sq[i][j] - m) * f_turn;
+        }
     // how far the hull reaches under each float as it lies now: the keel as far as it is upright, and under the bow and
     // the stern half its beam as far as it lies on its side (the side floats are at its sides) - a ship rolled over
     // comes to rest on its side; held at the keel alone, all four came to rest level and it stood up again on the bottom
