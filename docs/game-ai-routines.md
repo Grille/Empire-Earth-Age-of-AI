@@ -88,8 +88,8 @@ it and Art of Conquest's routines were not compared. "The mod's players" are tho
 | 27 | Subgroup retreat: state 3000 → 0xBBC → 0x1777 in 0x4491DD, 0x44ED11, 0x442DBA | each subgroup update | when a subgroup breaks off and goes home | ALONE | none (cover.c acts per unit; give_up is off; mass.c's retreat removed). ar_on land soldiers: row 16 | retreat conditions unknown (below). Armies have ar_out's judge; others none |
 | 28 | EECPAttackFormation (vt functions 0x451DB0..) | not traced | group formation data | UNKNOWN | none found | not established |
 | 29 | 0x476428 EECPDefenseCommander update, 0x47793A aid records (0x480C7F states) | up to every 8-30 s, only while activity 6 and player +0xF00 | runs defence; expires or advances aid and guard records | ALONE | none | no town guards, ally aid or reinforcements. armies.c raid answer covers land raids near home on ar_on; defence.c muster, militia, counter_siege are the mod's own |
-| 30 | 0x4751F1, 0x4746AD, 0x4777EA, 0x4753A9 town guards | each defence pass | guard groups per own town, strength 0x47A686 | ALONE | none (pool without land soldiers on ar_on) | no town guards. No replacement: bunker.c town_guards is off, towns.c fort is off (not in default towns) |
-| 31 | 0x474E85 aid to allies | each defence pass | whether another player's or ally's town gets a package (threat > +0xC48) | ALONE | none | allies get no help. diplo.c has no military help. No replacement |
+| 30 | 0x4751F1, 0x4746AD, 0x4777EA, 0x4753A9 town guards | each defence pass | guard groups per own town, strength 0x47A686 | ALONE | none (pool without land soldiers on ar_on) | no town guards. No replacement: bunker.c town_guards is off, towns.c fort is off (not in default towns); none needed so far (Measured) |
+| 31 | 0x474E85 aid to allies | each defence pass | whether another player's or ally's town gets a package (threat > +0xC48) | ALONE | none on the routine (pool without land soldiers on ar_on); armies.c ALLY AID ([ai_base] ally_aid, off): the force answers a raid on an ally's buildings within that reach of home as one on its own | allies get no help. diplo.c has no military help. Replacement: ally_aid, off (Measured) |
 | 32 | 0x474CC8 reinforcement | +0x3C timer (defence_update_ms) | random vs town_guard_pct +0xBD8: attack group 0x47462A, or reinforce a town | ALONE | none | no extra defence group or defenders' attack. No replacement |
 | 33 | 0x475120, 0x47562C Bonzai attack | 80 s (300 s after one) | buildings left under +0xD3C: last all-out attack and every citizen sent directly | REPLACED | `last_stand_buildings` = 0 (default since 2026-11-10): settings_apply writes +0xD3C, the count is never under 0 | off. diplo.c surrender is the mod's alternative (lost all citizens; resign) |
 | 34 | 0x4779FA naval maintenance | +0x40 (naval_check_min) | ships to maintain: opens a Defend group, may delete units for room | FILTERED | fleet.c hook_nv_maint_delete skips the deletion while fleet_on | no Defend group of ships. fleet.c on water maps; none on land maps |
@@ -192,3 +192,12 @@ the attack times / asked all along (mod - game AI per game, standard error): lan
 +33 (35), losses +23 (47) / -13 (54) / -23 (50), the mod's buildings lost 10.2 / 16.8 / 8.2, razed -3.1 / -6.3 / -3.1, soldiers
 +12 (23) / +26 (30) / +29 (20), workers +4 (12) / +6 (22) / +15 (13), ships lost 61 / 32 / 44. Asked all along: level or a little
 better everywhere, nothing beyond the noise. On since 2026-11-11, the player's call ("one of the last big map specific cases"); mixed maps still unplayed.
+
+Town guards and aid to allies (rows 29-31), 2026-11-11. Town guards: in the 10 land games of the attention runs (Continental huge
+1v1, 90 min) the mod's towns away from home were never lost - 22 founded, 0 lost - so nothing to replace. Aid (`ally_aid`, the
+force's raid answer also for an ally's buildings within that many tiles of home), Continental large, 4 AIs in pairs, 90 min, 10
+games a cell against the non-cheating game AI, off / 100 / 200: the mod's pair against the game AI's - the mod's team won 10 / 9 / 8,
+the ally never in need (buildings lost 0.7 a player in every cell), 3-10 raids on the ally answered a game; the mod and a game-AI
+ally against two game AIs - the ally's buildings lost 2.0 / 2.6 / 4.0, its units lost 98 / 87 / 93, the team won 6 / 8 / 5 and
+never lost, 0-24 raids on the ally answered a game. Nothing beyond the noise: the game AI never presses the ally hard enough to
+show it. Off; a switch for games with an ally under real pressure (a human's).

@@ -626,6 +626,10 @@ class ai_base
         /// off (the player calls back the soldiers that followed on their own). 0 = off (default until measured)
         [range(0, 60), commented]
         int raid_leash = 0;
+        /// ... a raid on an ally's buildings within this many tiles of the force's home is answered as one on its own, by the
+        /// same rules (the game's aid to allies finds no land soldiers: the force holds them). 0 = off (default until measured)
+        [range(0, 1000), commented]
+        int ally_aid = 0;
         /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured

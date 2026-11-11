@@ -226,6 +226,8 @@
 internal int g_v_ar_judge = -1, g_v_ar_far_pct = -1;
 internal float g_ar_raid_answer = 1.0f;   // [ai_base] raid_answer: a raid answered when the force beats it by this
 internal int g_ar_leash = 0;               // [ai_base] raid_leash: tiles past a raid's spot a member is called home (0 off)
+internal int g_ar_aid = 0;                 // [ai_base] ally_aid: ALLY AID's reach from home (0 off)
+internal unsigned g_ar_aids[16];           // ALLY AID: raids on an ally answered (the log's; not saved)
 internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1, g_v_ar_back_pct = -1, g_v_ar_back_fight = -1, g_v_ar_way = -1, g_v_ar_form = -1;   // [autotest] v_ar_way: AR_WAY, v_ar_form: AR_FORM; v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume, v_ar_back_pct, v_ar_back_fight: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME, AR_BACK_PCT, AR_BACK_FIGHT
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
@@ -1265,6 +1267,14 @@ internal int ar_site_asked(ee_player *pl, unsigned idx) {
     }
     return 0;
 }
+// whose buildings a raid on is answered: its own within AR_RAID_REACH of home; ALLY AID ([ai_base] ally_aid, off until
+// measured): an ally's within ally_aid tiles of home - the game's aid to allies (0x474E85) finds no land soldiers in the
+// commander's pool of a player whose force holds them, so nothing helped an ally since mod_armies
+internal int ar_answers_for(ee_player *pl, ee_player *o, int far_out) {
+    if (!o) return 0;
+    if (o == pl) return !far_out;
+    return g_ar_aid > 0 && player_get_index(o) > 0 && !is_enemy(pl, o) && !is_out(o);
+}
 // the force at home: its members gather there; a raid near answered; the attack time's push
 internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     int convoy = a->back_t && (PV(idx, g_v_ar_way, AR_WAY) & 5), gather = PV(idx, g_v_ar_form, AR_FORM) & 2, picked = 0;   // the convoy's or the group move's members are theirs
@@ -1282,31 +1292,35 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
     if (n >= AR_MIN_RAID && (!a->raid_t || now - a->raid_t >= AR_RAID_EVERY)) {   // the raid nearest home
         a->raid_t = now ? now : 1;
         ee_unit *raider = NULL;
+        ee_player *raided = NULL;
         long bd = 0;
-        int band = 0;
-        for (struct grid_it it = grid_it_box(a->home.x, a->home.y, AR_RAID_REACH, 1); grid_it_next(&it); ) {
+        int band = 0, reach = g_ar_aid > AR_RAID_REACH ? g_ar_aid : AR_RAID_REACH;
+        for (struct grid_it it = grid_it_box(a->home.x, a->home.y, reach, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
             ee_player *o = unit_get_owner(u);
             if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !ms_land_soldier(u, it.td) || !seen_by(u, pl)) continue;
             ivec2 p = unit_get_tile(u);
             long d = ivec2_dist2(p, a->home);
-            if (d > (long)AR_RAID_REACH * AR_RAID_REACH || (raider && d >= bd)) continue;
+            if (d > (long)reach * reach || (raider && d >= bd)) continue;
+            int far_out = d > (long)AR_RAID_REACH * AR_RAID_REACH;   // only an ally's buildings are answered out there
             // a raid, not a scout passing: the raider's band (enemy fighters seen within AR_RAID_R of it) is AR_RAID_BAND
             // strong, or one of them is attacking something of ours - the whole force went for every single scout before
             // (12-23 raids a game, 3000 orders, the force away when the real attack came)
-            int close = 0, nb = 0, hitting = 0;
+            ee_player *close = NULL;
+            int nb = 0, hitting = 0;
             for (struct grid_it jt = grid_it_box(p.x, p.y, AR_RAID_R, 1); grid_it_next(&jt) && !close; )
-                close = unit_get_owner(jt.u) == pl && cv_alive(jt.u) && fr_building(jt.td) && ivec2_dist2(unit_get_tile(jt.u), p) <= AR_RAID_R * AR_RAID_R;
+                if (cv_alive(jt.u) && fr_building(jt.td) && ivec2_dist2(unit_get_tile(jt.u), p) <= AR_RAID_R * AR_RAID_R && ar_answers_for(pl, unit_get_owner(jt.u), far_out))
+                    close = unit_get_owner(jt.u);
             if (!close) continue;
             for (struct grid_it jt = grid_it_box(p.x, p.y, AR_RAID_R, 1); grid_it_next(&jt) && !hitting; ) {
                 ee_player *jo = unit_get_owner(jt.u);
                 if (!jo || !is_enemy(pl, jo) || !ms_land_soldier(jt.u, jt.td) || !seen_by(jt.u, pl) || ivec2_dist2(unit_get_tile(jt.u), p) > AR_RAID_R * AR_RAID_R) continue;
                 nb++;
                 ee_unit *t = fl_target_of(jt.u);
-                hitting = t && unit_get_owner(t) == pl;
+                hitting = t && ar_answers_for(pl, unit_get_owner(t), far_out);
             }
             if (nb < PV(idx, g_v_ar_raid_band, AR_RAID_BAND) && !hitting) continue;
-            raider = u; bd = d; band = nb;
+            raider = u; bd = d; band = nb; raided = close;
         }
         ivec2 d = raider ? unit_get_tile(raider) : iv2(-1000, -1000);
         int again = raider && a->raid_c_t && now - a->raid_c_t <= 2 * AR_RAID_EVERY && ivec2_dist2(d, a->raid_c) <= AR_RAID_SAME * AR_RAID_SAME;   // seen there twice running
@@ -1316,7 +1330,8 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
             if (g_ar_raid_answer > need) need = g_ar_raid_answer;   // raid_answer: only with soldiers to spare
             if (r >= need) {
                 a->raids++;
-                ar_log(idx, now, "a raid of %d at %d,%d - the force of %d goes (%.2f: own %d, enemy %d)", band, d.x, d.y, n, r, g_ar_own.n, g_sgs_foe.n);
+                if (raided && raided != pl) g_ar_aids[idx]++;
+                ar_log(idx, now, "a raid of %d at %d,%d%s - the force of %d goes (%.2f: own %d, enemy %d)", band, d.x, d.y, raided && raided != pl ? " on an ally's" : "", n, r, g_ar_own.n, g_sgs_foe.n);
                 ar_go(pl, idx, a, 2, d, NULL, 0, now);
                 return;
             }
@@ -2015,9 +2030,10 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
             ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, g_ar_lent[idx].n);
+        if (g_ar_aid > 0) ar_log(idx, now, "ally aid: raids on an ally answered %u", g_ar_aids[idx]);
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); g_ar_load = from_save; g_ar_loaded = 0; }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); memset(g_ar_lent, 0, sizeof g_ar_lent); memset(g_ar_aids, 0, sizeof g_ar_aids); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;
@@ -2034,6 +2050,7 @@ internal void armies_install(const char *autotest_ini) {
     g_ar_sea = g_set_ai[1].mod_armies_sea;
     g_ar_raid_answer = g_set_ai[1].raid_answer;
     g_ar_leash = g_set_ai[1].raid_leash;
+    g_ar_aid = g_set_ai[1].ally_aid;
     if (autotest_ini) {
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
