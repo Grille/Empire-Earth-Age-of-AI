@@ -155,6 +155,26 @@ internal void rf_ground_clear(rf_ground *g) {
     }
     g->nv = g->ni = g->nw = g->nb = 0;
 }
+// A target or depth buffer freed (render.c rd_surface_free): what is kept to be drawn again holds its views without a
+// reference - the kept batches here, the ground's states (render_ground.c) - and a frame during a step bound them freed.
+// The game makes its targets anew at another resolution: the editor's Test, into a game of another size, died at the
+// first such frame (the player, 2026-11-11: "game died", in d3d11 under rd3_bars with the kept ground's target). A
+// store that drew on it is dropped (the next frame with an update records it anew); the current target forgotten too.
+internal int rg_target_gone(ID3D11RenderTargetView *rtv, ID3D11DepthStencilView *dsv);   // render_ground.c
+internal void rf_target_gone(ID3D11RenderTargetView *rtv, ID3D11DepthStencilView *dsv) {
+    if (!rtv && !dsv) return;
+    rf_ground *const kept[4] = { &g_kg, &g_kw, &g_ks, &g_ku };
+    int dropped = 0;
+    for (int j = 0; j < 4; j++)
+        for (int k = 0; k < kept[j]->nb; k++)
+            if ((rtv && kept[j]->b[k].c.rtv == rtv) || (dsv && kept[j]->b[k].c.dsv == dsv)) { rf_ground_clear(kept[j]); dropped++; break; }
+    int states = rg_target_gone(rtv, dsv);
+    if (dropped || states)
+        log_locked("# render: a %s freed that frames during a step would draw on again: %d kept stores dropped, the ground's states of %d forgotten\n",
+                   rtv ? "target" : "depth buffer", dropped, states);
+    if (rtv && g_rd3.rtv == rtv) g_rd3.rtv = NULL;
+    if (dsv && g_rd3.dsv == dsv) g_rd3.dsv = NULL;
+}
 // a view that is the identity: a draw in pixels (the 2D mode's)
 internal int rf_pixels(const float *view) {
     static const float ident[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };

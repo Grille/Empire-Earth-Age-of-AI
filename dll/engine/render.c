@@ -211,8 +211,10 @@ internal void rd3_flush(void);
 internal void rd3_submit(void);   // render_frame.c: the 3D draws recorded so far, drawn before anything else uses the context
 internal LONG g_rd_epoch;         // the frame's lists drawn: a surface whose rf_used is this one is in the list
 internal void (*g_cur_forget)(rd_surface *s);   // the mouse cursor's notes of a surface going (below)
+internal void rf_target_gone(ID3D11RenderTargetView *rtv, ID3D11DepthStencilView *dsv);   // render_frame.c
 internal void rd_surface_free(rd_surface *s) {
     rd3_submit();   // the list may draw with it
+    rf_target_gone(s->rtv, s->dsv);   // and what is kept to be drawn again in a frame during a step
     if (s->rtv && g_uis.rtv == s->rtv) g_uis.rtv = NULL;
     if (g_cur_forget) g_cur_forget(s);
     D3D_RELEASE(s->srv); D3D_RELEASE(s->rtv); D3D_RELEASE(s->dsv); D3D_RELEASE(s->tex);

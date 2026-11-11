@@ -818,6 +818,14 @@ internal unsigned rg_water_frame(void) {
     return (ours + n - mesh_water_frame(g_rg.mesh) % n) % n;
 }
 internal int rg_ready(void) { return g_rg.on && g_rg.lit && g_rg.api >= 0 && g_rd3.scene_view[15] == 1 && g_rd3.prep_dev && g_cam_now_ok && game_map(); }   // the units have drawn once: the projection, from the frame before
+// a target or depth buffer freed (render_frame.c rf_target_gone): the states kept with it are none until a frame draws
+// anew; how many of the two (the ground's, the water's) drew on it
+internal int rg_target_gone(ID3D11RenderTargetView *rtv, ID3D11DepthStencilView *dsv) {
+    int n = 0;
+    for (int w = 0; w < 2; w++)
+        if (g_rg.st[w].ok && ((rtv && g_rg.st[w].rtv == rtv) || (dsv && g_rg.st[w].dsv == dsv))) g_rg.st[w].ok = 0, n++;
+    return n;
+}
 // the ground (water 0) or the water of this frame into the list, on the game's states for it. again: 1 a frame during a step,
 // 2 one while another writer has the world - nothing of the game's is read then, a load is freeing it
 internal void rg_draw_now(int water, int again) {
