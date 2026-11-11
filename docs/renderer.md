@@ -742,7 +742,12 @@ release. One not met by a walk was removed when its rot_ms was under 2 s at its 
 The depth from pictures of a Clubman (radius x scale 0.70 tiles; its corpse shows hardly 0.06 over the ground): by
 twice the radius over a share of the 40 s it was gone in 2 s. With the uniform times (checked 2026-11-11, pictures from
 5 s to 152 s after the kill): still to 32 s, no change across the game's removal at 40 s, mostly under at 90 s, a sliver
-of the head to 145 s, gone at 152 s; the game quit with kept corpses cleanly.
+of the head to 145 s, gone at 152 s; the game quit with kept corpses cleanly. A kind whose rot time is 0 leaves no
+corpse - it blows up and the game removes it at once: the Apache and the Sea King (logged: Clubman, horseman, knight,
+artillery, howitzer 40 s, Minotaur 10, tanks 7); kept, an Apache stood whole on the ground for the whole time (the
+player's picture, "the rotors are still rotating here"), so those are neither kept nor drawn. And a corpse's parts stay
+as they were when it was first met (the record draw 0x50B4AC turns the parts' models by their values and the two lists'
+by theirs, which the simulation goes on turning on a dead unit).
 A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 

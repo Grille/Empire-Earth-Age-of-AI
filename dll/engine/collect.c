@@ -464,6 +464,14 @@ internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t fram
 // meets a rotting object; one not met by a walk was removed when its rot_ms was nearly done at its last sight
 // (UC_GONE_ROT: more than a step's ms), else it went out of the view (let go: made anew when met again). Met again (the
 // game's still), it is the game's again. Emptied at the scene's release (a game's end, a load: fx_hook_scene_release).
+// Its parts' turns are held from its first sight on, the game's as well as the kept: the record draw (0x50B4AC) turns a
+// part's model by its part value (a yaw) and the two lists' models by theirs (a yaw, a pitch), and the simulation goes on
+// turning a dead unit's - a dead helicopter's rotors spun on the ground (the player, 2026-11-11: "is it possible to kill all
+// animations for corpses? the rotors are still rotating here"). Its frames go on: the death's animation plays out.
+// UC_NO_CORPSE: a kind whose rot time is 0 leaves none - it blows up and the game removes it at once (an Apache's, a Sea
+// King's; logged 2026-11-11: Clubman, horseman, knight, artillery, howitzer 40 s, Minotaur 10, tanks 7), and kept it
+// stood whole on the ground for the whole time, the helicopter of the player's picture: neither kept nor drawn, as the
+// game has it.
 #define UC_CORPSES 4096
 #define UC_KC_PARTS 8
 #define UC_GONE_ROT 2000
@@ -473,17 +481,23 @@ typedef struct {
     ee_unit_type *ty;
     ee_player *owner;
     float t[16];             // its record's pose, not sunk
-    float scale, part[UC_KC_PARTS];
+    float scale;
+    uint32_t part[UC_KC_PARTS];                          // its parts' turns (floats), held
+    uint32_t la[UC_KC_PARTS][2], lb[UC_KC_PARTS][2];     // its lists' turns and models, held
     double died;             // the game time of its death
-    int32_t anim, frame, rot, n_parts;
+    int32_t anim, frame, rot, n_parts, n_la, n_lb;
     uint32_t gen;            // the walk that met it last
     uint8_t gone;            // removed by the game: drawn by the walk
+    uint8_t held;            // its turns taken
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
 internal uint32_t g_kc_n, g_kc_full, g_kc_drawn;
 internal CRITICAL_SECTION g_kc_cs;
 internal int g_kc_cs_ok;
-internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, const float *t, double d) {
+internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC_KC_PARTS); }
+// a rotting object the walk met, its record rec filled and its pose t not yet sunk: its entry made or brought up to date,
+// and the record's turns its held ones
+internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, const float *t, double d) {
     if (!g_kc_cs_ok || g_uc_now < 0.0 || !o->gfx) return;
     EnterCriticalSection(&g_kc_cs);
     uc_corpse *k = NULL;
@@ -502,8 +516,17 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, const float *t, d
         k->ty = o->ty, k->owner = o->owner;
         memcpy(k->t, t, sizeof k->t);
         k->scale = o->cu_height, k->anim = o->anim, k->frame = o->anim_frame, k->rot = o->rot_ms;
-        k->n_parts = o->foundation ? 0 : (int32_t)(o->n_parts < UC_KC_PARTS ? o->n_parts : UC_KC_PARTS);
-        for (int32_t i = 0; i < k->n_parts; i++) memcpy(&k->part[i], c->pool + o->parts_at + i, 4);
+        int32_t np = o->foundation ? 0 : uc_kc_n(o->n_parts), na = o->foundation ? 0 : uc_kc_n(o->n_a),
+                nb = o->foundation ? 0 : uc_kc_n(o->n_b);
+        if (!k->held || k->n_parts != np || k->n_la != na || k->n_lb != nb) {
+            k->n_parts = np, k->n_la = na, k->n_lb = nb, k->held = 1;
+            for (int32_t i = 0; i < np; i++) k->part[i] = c->pool[o->parts_at + i];
+            for (int32_t i = 0; i < na; i++) k->la[i][0] = c->pool[o->a_at + 2 * i], k->la[i][1] = c->pool[o->a_at + 2 * i + 1];
+            for (int32_t i = 0; i < nb; i++) k->lb[i][0] = c->pool[o->b_at + 2 * i], k->lb[i][1] = c->pool[o->b_at + 2 * i + 1];
+        }
+        for (int32_t i = 0; i < np; i++) ((uint32_t *)vector_first(draw_record_part_values_at(rec)))[i] = k->part[i];
+        for (int32_t i = 0; i < na; i++) ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = k->la[i][0];
+        for (int32_t i = 0; i < nb; i++) ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = k->lb[i][0];
         k->died = g_uc_now - d;
         k->gen = g_uc_walk_gen, k->gone = 0;
     }
@@ -567,10 +590,18 @@ internal int uc_fill_corpse(const uc_corpse *k, uint8_t *rec, uint8_t *maps, dou
         uint8_t *part = *type_stats_game((uint8_t *)k->gfx + 4, (int)i);
         ((uint32_t *)vector_first(draw_record_part_models_at(rec)))[i] = *(uint32_t *)(part + 0x4C);
     }
-    vector_resize(draw_record_list_a_c_at(rec), 0, 0);
-    vector_resize(draw_record_list_a_4_at(rec), 0, 0);
-    vector_resize(draw_record_list_b_c_at(rec), 0, 0);
-    vector_resize(draw_record_list_b_4_at(rec), 0, 0);
+    vector_resize(draw_record_list_a_c_at(rec), (uint32_t)k->n_la, 0);
+    vector_resize(draw_record_list_a_4_at(rec), (uint32_t)k->n_la, 0);
+    for (int32_t i = 0; i < k->n_la; i++) {
+        ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = k->la[i][0];
+        ((uint32_t *)vector_first(draw_record_list_a_4_at(rec)))[i] = k->la[i][1];
+    }
+    vector_resize(draw_record_list_b_c_at(rec), (uint32_t)k->n_lb, 0);
+    vector_resize(draw_record_list_b_4_at(rec), (uint32_t)k->n_lb, 0);
+    for (int32_t i = 0; i < k->n_lb; i++) {
+        ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = k->lb[i][0];
+        ((uint32_t *)vector_first(draw_record_list_b_4_at(rec)))[i] = k->lb[i][1];
+    }
     draw_record_set_frame(rec, k->frame);
     draw_record_set_next_frame(rec, k->frame);
     draw_record_set_fraction(rec, 0.0f);
@@ -628,8 +659,8 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
 // there), in the same order - the game's precision whatever the FPU is set to on the render thread. Of the object's
 // copy (collect_copy.c: what the game reads of the unit and its complex unit), the camera the frame's.
 internal int uc_cloak(const uc_obj *o, int see, float *out, const opacity_consts *c) {
-    if (o->rotting && g_set.corpses_sink) {   // whole while it sinks, then faded out
-        *out = uc_dead_opacity(uc_dead_ms(o));
+    if (o->rotting && g_set.corpses_sink) {   // whole while it sinks, then faded out; a kind without a rot time none (UC_NO_CORPSE)
+        *out = o->rot_t > 0 ? uc_dead_opacity(uc_dead_ms(o)) : 0.0f;
         return see;
     }
     if (o->rotting) {
@@ -1004,7 +1035,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
     }
     if (cu && o->rotting && g_set.corpses_sink) {   // after the ground's height under it: that stays the ground's
         double d = uc_dead_ms(o);
-        uc_corpse_saw(c, o, t, d);
+        if (o->rot_t > 0) uc_corpse_saw(c, o, rec, t, d);
         uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);
     }
     uc_pick_add(u, rec, draw_record_get_opacity(rec));
