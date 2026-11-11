@@ -846,6 +846,12 @@ stuck nose first in the runway with its tail out (the game's crash pitches a pla
 An aircraft falls by a gravity of its own, 1 tile/s^2 for the ships' 3 (US_G_AIR; the player, the same day: "reduce
 grafithy to 1 tile/s"), its float in the water scaled alike: its spin or roll and its planing have longer to show.
 Checked the same way: P-51s hit over the water fell about 3 s before their splash, an Apache spun down over about 3 s.
+An airplane's wings hold it up in the air instead of the planing (the player, the same day: "lets disable the plaing
+for planes in the air, underwater it could make for a nice dive, but in the air i wnat lift, that the wings basicly
+cancel movement that goes aginst them"): its way through its wings' plane (along its up, its length x its span) is
+slowed by US_WING 8/s as far as it is dry - the whole's way only, its turning kept, so its roll goes on: level it sinks
+at about g / 8, rolled it slips off sideways and down. In the water it planes as a ship does; a helicopter as before.
+Checked the same way: the P-51s hit over the water rolled and glided on for 5 s and more before their splash.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

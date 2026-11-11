@@ -592,6 +592,11 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // killed under way rears a little and settles as it slows; a dive's glide is flattened a little.
 #define US_RISE 3.0f    // the push (tiles/s^2) per tile/s: about 5 degrees at a frigate's 0.8 tiles/s
 #define US_RISE_TOP 2.0f   // tiles/s: no more than this counted (a ship of 170 rears, it doesn't flip)
+// An airplane's wings in the air (the player, the same day: "lets disable the plaing for planes in the air, underwater it
+// could make for a nice dive, but in the air i wnat lift, that the wings basicly cancel movement that goes aginst them"):
+// no planing there, its way through its wings' plane (along its up: its length x its span) slowed - the whole's only, its
+// turning kept, so the roll goes on; level it sinks at about g / US_WING, rolled it slips off sideways and down
+#define US_WING 8.0f    // 1/s, wholly in the air
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
@@ -766,8 +771,8 @@ internal void us_fx(uc_corpse *k, uint8_t f, float x, float y, float z) {
 }
 // AN AIRCRAFT'S CRASH (the player, the same day: "the settling on the floor like sunken ships after an crash is silly ...
 // airplanes and helicopters have only ground collison on a single point in the middle, once that point hits ground its
-// stuck. no air drag, only planing"): in the air nothing slows it, only the planing turns it (US_RISE: the end it moves
-// toward up); the ground holds only its middle (its floats' mean), and once that touches the ground or the seabed it stays
+// stuck. no air drag, only planing"): in the air nothing slows it, only the planing turns a helicopter (US_RISE: the end it
+// moves toward up) and an airplane's wings hold it up (US_WING); the ground holds only its middle (its floats' mean), and once that touches the ground or the seabed it stays
 // as it hit - nose in, a wing down - no more steps. In the water it floats and is slowed as a ship is.
 // one step at t s after its death: each float moved by its forces (Verlet: its velocity its way since the step before),
 // then the frame's distances and the seabed held, four times round
@@ -811,8 +816,8 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
         float g = k->air ? US_G_AIR : US_G;
         v[2] += (-g + b * g * under) * dt * dt;
-        if (i < 2)   // the leading end up, the other down: in the water, an aircraft's in the air as well
-            v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * (k->air ? 1.0f : under) * dt * dt;
+        if (i < 2)   // the leading end up, the other down: in the water, a helicopter's in the air as well (an airplane's wings)
+            v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * (k->air && k->lift <= 0.0f ? 1.0f : under) * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
         if (k->air && i < 4 && !(k->fx_done & US_FX_SPLASH) && q[2] > k->zw && p[2] <= k->zw &&   // into the water
             mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1])) && mesh_z(mesh, p[0], p[1]) < k->zw)
@@ -825,11 +830,23 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         for (int j = 0; j < 3; j++) vm[j] += w * (k->sp[i][j] - k->sq[i][j]);
         wsum += w;
     }
-    for (int i = 0; i < US_PTS; i++)
-        for (int j = 0; j < 3; j++) {
-            float m = vm[j] / wsum;
-            k->sp[i][j] = k->sq[i][j] + m + (k->sp[i][j] - k->sq[i][j] - m) * f_turn;
+    float mw[3], wn[3], lw = 0.0f, wa = 0.0f;
+    for (int j = 0; j < 3; j++) mw[j] = vm[j] / wsum;
+    if (k->air && k->lift > 0.0f) {   // an airplane's wings: the whole's way through their plane slowed, as far as it is dry
+        float span[3];
+        for (int j = 0; j < 3; j++) span[j] = k->sp[2][j] - k->sp[3][j];
+        wn[0] = ln[1] * span[2] - ln[2] * span[1], wn[1] = ln[2] * span[0] - ln[0] * span[2], wn[2] = ln[0] * span[1] - ln[1] * span[0];
+        for (int j = 0; j < 3; j++) lw += wn[j] * wn[j];
+        lw = sqrtf(lw);
+        if (lw > 1e-6f) {
+            for (int j = 0; j < 3; j++) wn[j] /= lw, wa += mw[j] * wn[j];
+            float f_wing = expf(-US_WING * (1.0f - fminf(2.0f * wet, 1.0f)) * dt);
+            for (int j = 0; j < 3; j++) mw[j] -= (1.0f - f_wing) * wa * wn[j];
         }
+    }
+    for (int i = 0; i < US_PTS; i++)
+        for (int j = 0; j < 3; j++)
+            k->sp[i][j] = k->sq[i][j] + mw[j] + (k->sp[i][j] - k->sq[i][j] - vm[j] / wsum) * f_turn;
     // how far the hull reaches under each float as it lies now: the keel as far as it is upright, and under the bow and
     // the stern half its beam as far as it lies on its side (the side floats are at its sides) - a ship rolled over
     // comes to rest on its side; held at the keel alone, all four came to rest level and it stood up again on the bottom
