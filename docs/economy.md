@@ -724,6 +724,13 @@ Head-to-head (late.eeai, 75 min, 24 mirrored games, Continental map_size 1, 4 AI
 losses +17.0 (15.0). Noise both; on as the player's rule, with the gain in his kind of game. A `unit_limit` above the
 game data's maximum (13208 here, `# random map: ... max`) leaves every player a cap of about 15.
 
+Re-measured 2026-11-11 after 85378bbe (the second computer player's group moves went to the first's selection until
+then: the head-to-heads above carry it), mirrored head-to-head, Continental huge 1v1 from epoch 5, 120 min, without -
+with: 20 games soldiers -1.8 (6.6), workers +17.6 (7.3), razed -4.9 (5.4), gold+iron a minute +34 (20); 60 more games
+soldiers +11.0 (4.5), workers +6.3 (3.8), razed +5.4 (4.2), kills -4 (14), losses +7.6 (16), gold+iron +22 (9.9), gold
++16 (6.3). At 300 a player the cap that binds is the half of the population cap (152; 40 mines x 9 = 360): in an
+ordinary game the 50% costs the AI citizens and income, the mines' limit doesn't reach. Still on as the player's rule.
+
 ## Gold and iron (2026-10-21, dll/ai/metal.c)
 
 The playtester: convert the economy into attack and defence; early food is for citizens, units that need no food are a

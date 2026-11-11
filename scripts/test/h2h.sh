@@ -23,5 +23,5 @@ for r in $(seq $((SEED0 + 1)) $((SEED0 + REPEAT))); do
     done
 done
 jobs_wait
-local/venv/Scripts/python.exe scripts/results/h2h.py local/work/autotest_*_h2h${STAMP}_*.csv*
+local/venv/Scripts/python.exe scripts/results/h2h.py local/work/autotest_*_h2h${STAMP}_${NAME}_*.csv*   # by name too: runs started in the same minute share the stamp
 echo H2H DONE $STAMP

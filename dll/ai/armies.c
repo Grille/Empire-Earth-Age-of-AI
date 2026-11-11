@@ -96,6 +96,21 @@
 // +0.25, buildings lost 6.4 / 6.7); the gather and a raid's approach (bits 2 + 4) - kills +4.7 (8.5), losses -4.8,
 // razed -1.0 (1.2), buildings lost 6.2 / 5.2; all three - razed -1.6 (1.7), buildings lost 7.5 / 5.9, workers -7.
 // On: the gather (the force stands at its station in formation, at no cost); off: the approach marches.
+// RE-MEASURED 2026-11-11 after 85378bbe (until then every group move of the second computer player went to the
+// first's selection: in a 1v1 head-to-head P3's gathers walked P2's last group to P3's station, and every result above
+// from the gather's day on carries it). Mirrored head-to-head, Continental huge 1v1 from epoch 5, 120 min, 20 games a
+// cell, B - A: the gather off - kills -19 (se 29), losses +29 (33), razed +4.7 (4.6): on; a push's approach march -
+// kills +20 (24), losses -24 (30), then 60 more games: soldiers +4.6 (4.8), kills +2.9 (12), losses 0.0 (17), razed
+// +0.4 (3.5) - level, not the loss it was, off; a raid's approach - kills +13 (23), losses -10 (27), razed -1.5: off;
+// the group move home (AR_WAY 7) - kills -8 (20), losses -19 (35), razed -5.5 (6.3): off. The force against the
+// commander (v_mod_armies=0 B): soldiers -18 (7.4), kills -41 (24), losses +21 (20), razed +12 (6.1), gold +27 a
+// minute (14) for the commander - the force keeps it. AR_JUDGE off: kills -7 (25), losses -19 (28); AR_ROUTE off:
+// soldiers -7.7 (8.2), razed -3.3 (7.4); AR_FIRE on: kills -18 (26), losses +15 (25); AR_BREACH on: soldiers -8.4
+// (5.5), losses +27 (27); AR_PRICE on: soldiers +13 (6.7), kills +13 (22), losses -27 (34), then 60 more: soldiers +0.3
+// (4.6), losses +7.5 (14), gold+iron -0.9 (11) - level. Every default stays. The towns' parts (towns.c), same setup:
+// fort - razed -6.9 (6.5), losses +22 (34); take_mines - soldiers -9.8 (5.6); mine_raids - kills -142 (22), losses +127
+// (33): all three off. ally_aid 100 against 0 (Continental large, 4 AIs in pairs, 90 min, 20 games each against the
+// game's AI): the mod's team won 6 against 10 of 20, soldiers +73 against +98 over the game's AI: off.
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
