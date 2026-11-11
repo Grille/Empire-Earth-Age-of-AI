@@ -101,6 +101,65 @@ internal void uc_smooth(ee_unit *u, float *t, const uc_obj *o) {
     if (!g_cs_u && moved) g_cs_u = u, g_cs_have = 0, g_cs_still = 0;
     if (u == g_cs_u) g_cs_seen = 1, g_cs_now_x = t[3], g_cs_now_y = t[7], g_cs_moving = moved;
 }
+// FACING THE WAY ([display] units_face_travel, with units_smooth; the player, 2026-11-11: tanks marching down a walled
+// lane "all point to the middle where they want to be ... more a visual issue than one that affects the game"): a unit
+// steers at its place, and one pushed off it by the others moves with them while it points at it. Drawn, its model is
+// turned about the upright by the angle from its heading to the way its poses moved (the newest against the oldest
+// kept, up to two steps back: the push and the walk together), eased over UF_EASE_S of real time and faded in between
+// UF_SPEED_MIN and UF_SPEED_FULL tiles a second - a unit pressed at rest or turning on the spot keeps its heading -, none
+// past UF_OFF_MAX (backing off a push, a turn the move hasn't caught up with). The record only: the simulation's heading
+// (its shots, its steering) is untouched, so every PC still plays the same game. The ease is per unit in a small table
+// the walk keeps (only the walk reads or writes it).
+#define UF_UNITS 4096
+#define UF_EASE_S 0.35f
+#define UF_SPEED_MIN 0.15f   // tiles a second
+#define UF_SPEED_FULL 0.4f
+#define UF_OFF_MAX 1.31f     // radians: 75 degrees
+typedef struct { ee_unit *u; int32_t serial; float off; } uf_e;
+internal uf_e g_uf[UF_UNITS];
+internal uint32_t g_uf_gen;     // the walk the ease's time was taken for
+internal float g_uf_k;          // this walk's share of the way to the target (from the real time since the last)
+internal LARGE_INTEGER g_uf_at;
+internal void uc_face_travel(const float *now, float *t, const uc_obj *o) {
+    if (!g_set.units_face_travel || !o->has_was || o->rotting || o->dead || o->foundation) return;
+    if (g_uf_gen != g_uc_walk_gen) {   // the walk's first: its share of the ease
+        LARGE_INTEGER q, f;
+        QueryPerformanceCounter(&q);
+        QueryPerformanceFrequency(&f);
+        float dt = g_uf_at.QuadPart ? (float)((double)(q.QuadPart - g_uf_at.QuadPart) / (double)f.QuadPart) : 0.0f;
+        if (dt > 0.25f) dt = 0.25f;
+        g_uf_k = 1.0f - expf(-dt / UF_EASE_S);
+        g_uf_at = q;
+        g_uf_gen = g_uc_walk_gen;
+    }
+    const float *old = o->has_was2 ? o->was2 : o->was;
+    double ms = o->ms[0] - o->ms[o->has_was2 ? 2 : 1];
+    float dx = now[3] - old[3], dy = now[7] - old[7], fx = t[1], fy = t[5], d2 = dx * dx + dy * dy, target = 0.0f;
+    if (ms > 0.0 && d2 <= UC_SMOOTH_FAR && (fx != 0.0f || fy != 0.0f)) {
+        float speed = sqrtf(d2) * 1000.0f / (float)ms, w = (speed - UF_SPEED_MIN) / (UF_SPEED_FULL - UF_SPEED_MIN);
+        float off = atan2f(fx * dy - fy * dx, fx * dx + fy * dy);   // from the heading to the way, anticlockwise
+        if (w > 0.0f && fabsf(off) <= UF_OFF_MAX) target = off * (w > 1.0f ? 1.0f : w);
+    }
+    uint32_t h = ((uint32_t)(uintptr_t)o->u * 2654435761u) % UF_UNITS, i = h;
+    uf_e *e = NULL;
+    for (int k = 0; k < 8 && !e; k++, i = (h + (uint32_t)k) % UF_UNITS)
+        if (g_uf[i].u == o->u && g_uf[i].serial == o->serial) e = &g_uf[i];
+    if (!e) {
+        if (target == 0.0f) return;   // straight on, and not turned before
+        for (int k = 0; k < 8 && !e; k++) if (!g_uf[(h + (uint32_t)k) % UF_UNITS].u) e = &g_uf[(h + (uint32_t)k) % UF_UNITS];
+        if (!e) e = &g_uf[h];   // full there: the slot taken over (its unit eases from 0 again)
+        e->u = o->u, e->serial = o->serial, e->off = 0.0f;
+    }
+    e->off += (target - e->off) * g_uf_k;
+    if (target == 0.0f && fabsf(e->off) < 0.002f) { e->u = NULL; return; }
+    float c = cosf(e->off), s = sinf(e->off);
+    for (int j = 0; j < 3; j++) {   // turned about the world's upright: the rotation's rows x and y
+        float x = t[j], y = t[4 + j];
+        t[j] = c * x - s * y;
+        t[4 + j] = s * x + c * y;
+    }
+}
+
 // THE ANIMATION BETWEEN STEPS (the pipe: picture collect anim on | off; with units_smooth): the simulation moves a model's
 // animation on once a step, a walking soldier about 3 frames of its 15 - four poses a pace, held for a dozen frames of the
 // picture each while the soldier itself glided on (the player, 2026-11-09: "the animations are very stuttery now"). The
@@ -872,6 +931,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         }
         transform_assign(rec, o->pm);
         uc_smooth(u, draw_record_transform_at(rec), o);
+        if (!unit_type_get_faces_camera(cty)) uc_face_travel((const float *)o->pm, draw_record_transform_at(rec), o);
         if (unit_type_get_faces_camera(cty)) {
             transform_apply_vector(rec, up, tilt);
             float pitch = (float)(arc_cos(-tilt[2]) - fc.tilt_offset);

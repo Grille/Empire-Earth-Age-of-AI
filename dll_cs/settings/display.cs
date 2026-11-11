@@ -232,6 +232,10 @@ class display
         /// With corpses_sink: and how long they then take to sink into the ground, at an even pace (seconds):
         [range(1, 600)]
         int corpses_sink_seconds = 120;
+        /// With units_smooth: a moving unit is drawn turned the way it is actually going - units pushed along by the others
+        /// in a crowd or a formation point at the spot they are heading for, across the way they all move. Only the picture
+        /// turns, eased over a third of a second; the game's own heading (where it shoots, how it steers) stays:
+        bool units_face_travel = true;
         /// With unit_silhouettes: a silhouette is at full strength up to this many tiles behind the building or tree it
         /// appears on (the control pipe: picture silfade <start> <end>):
         [range(0, 1000)]
