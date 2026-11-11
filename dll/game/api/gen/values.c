@@ -80,6 +80,12 @@ internal uint32_t calls_train_units[5];
 internal uint32_t call_citizens_wanted;
 internal uint32_t vt_eecp_wall_manager;
 internal uint32_t call_wall_update;
+internal uint32_t of_intel_file_area_bottom;
+internal uint32_t of_intel_file_area_left;
+internal uint32_t of_intel_file_area_right;
+internal uint32_t of_intel_file_area_top;
+internal uint32_t of_intel_file_player;
+internal uint32_t data_ai_managers_intel_file_hp_jle;
 internal uint32_t data_ai_managers_call_farms;
 internal uint32_t data_ai_managers_call_unbuilt_farms;
 

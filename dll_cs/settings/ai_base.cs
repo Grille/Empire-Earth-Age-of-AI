@@ -159,8 +159,14 @@ class ai_base
         /// about the human). 1 = honest: an AI knows only what its units (and its allies') see now, remembers what it saw -
         /// buildings until it looks again and they are gone, soldiers for 10 minutes where it saw them - and assumes a quarter
         /// of the army it knows of at a place it hasn't looked at for 3 minutes; a landing's warships look at the beach first.
-        /// The memories are saved with the game. (The game's own AI code still sees everything either way.)
+        /// The memories are saved with the game. (The game's own AI code still sees everything either way - but
+        /// honest_intel.)
         bool honest_vision = true;
+        /// With honest_vision: the game's own AI code keeps a file on each player - what units it has, how strong it is on
+        /// land, at sea and in the air, where it stands - filled from all of that player's units, unseen ones too: its unit
+        /// choice trains counters to an army it never saw, its attacks pick their target by it. 1 = the file holds only the
+        /// enemy units the AI sees or remembers (the units of allies and the AI's own as before). 0 = the game's file
+        bool honest_intel = true;
         /// With honest_vision: an enemy unit that is hitting one of the AI's units counts as seen while it does - as a player
         /// sees the shooter for a moment when his units are hit -, so the AI remembers artillery and mortars that shell it
         /// from beyond its sight where they stood. 0 = off

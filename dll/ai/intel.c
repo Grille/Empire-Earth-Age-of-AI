@@ -48,8 +48,12 @@ internal struct {
 internal int g_reveal = 1, g_v_reveal = -1;
 #define REVEAL(idx) PV(idx, g_v_reveal, g_reveal)
 internal int g_intel_seed;   // a saved game without the AIs' memories: they start remembering the buildings of their enemies
+// honest_intel (below): the enemy soldiers, ships and aircraft each AI remembers, by unit (open addressing) - rebuilt with
+// the memory at each look, not saved (a save's records come without their units)
+#define HIF_MEM 2048
+internal ee_unit *g_hif_mem[16][HIF_MEM];
 
-internal void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); memset(g_rev, 0, sizeof g_rev); g_intel_seed = from_save; }
+internal void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); memset(g_rev, 0, sizeof g_rev); memset(g_hif_mem, 0, sizeof g_hif_mem); g_intel_seed = from_save; }
 internal void intel_loaded(void) {   // the memories came with the save: their unit pointers are of the old session
     for (int p = 0; p < 16; p++) {
         struct intel *in = &g_intel[p];
@@ -57,6 +61,7 @@ internal void intel_loaded(void) {   // the memories came with the save: their u
         for (int k = 0; k < in->n; k++) in->r[k].u = NULL;
         memset(in->known, 0, sizeof in->known);
     }
+    memset(g_hif_mem, 0, sizeof g_hif_mem);
 }
 
 internal unsigned intel_hash(ee_unit *u) { return (unsigned)(((uintptr_t)u >> 4) * 2654435761u) & 4095; }
@@ -116,6 +121,90 @@ internal void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n
             *hp += (float)in->r[k].hp; *att += in->r[k].att; (*n)++;
             if (pw) *pw += (float)in->r[k].hp * in->r[k].att;
         }
+}
+
+// HONEST INTELLIGENCE FILES ([ai_base] honest_intel, default 1; [autotest] v_honest_intel for the variant players; the
+// player 2026-11-11, on training by need measured without a gain: the AI "just magicly knows what counters to train").
+// The game's AI keeps a file on each player (EECPIntelligencePlayerFile) and fills it every 30 s from that player's whole
+// unit list, no fog (docs/engine-notes.md "The intelligence files see everything"): the unit types its unit selector
+// trains counters to (army.c FILL trains from those requests), the strength by domain and the known area its attacks
+// pick their target by, its clusters of the player's units. For a mod AI with honest_vision the walk's hit-point test
+// (ai_managers.c patch_intel_file_hp) also leaves out an enemy unit the AI neither sees now (seen_by: its sight above
+// the floor, a building it has seen, a unit hitting its own) nor remembers (a soldier, ship or aircraft of its memory:
+// 10 minutes); an ally's file and its own stay whole. The known area the game seeds with the walk's first unit, known
+// or not, is set back to the empty area and seeded by the first unit counted. Left: a remembered unit counts where it
+// is now, not where it was seen (the file reads the unit) - in the known area and the clusters only.
+// Measured (Continental large from epoch 5, 60 min): the mod against itself (h2h mirrored, 10 games, B with the whole
+// files) B - A soldiers +14.5 (se 4.8), kills +8.3 (10.9), losses -8.8 (14.3), razed +1.0 (4.1), alive +0.05 (0.05); against
+// the non-cheating game AI (10 each) whole / honest: won 5 / 4, razed 14.7 / 12.9, own losses 64 / 42, soldiers 112 / 123.
+// On by the rule (the AI at its strongest without cheating): what it costs is a few soldiers in the field.
+internal int g_honest_intel = 1, g_v_honest_intel = -1;
+#define HONEST_INTEL(idx) PV(idx, g_v_honest_intel, g_honest_intel)
+internal uintptr_t g_hif_skip;   // the walk's next unit (the jle's target)
+internal struct { ee_intel_file *f; int seeded; } g_hif_walk;
+internal struct { unsigned known, all, walks; } g_hif_n[16][16];   // [AI][player]: the last walk's units counted, alive; walks
+internal int hif_remembers(int ai, ee_unit *u) {
+    ee_unit **m = g_hif_mem[ai & 15];
+    for (unsigned h = intel_hash(u) & (HIF_MEM - 1), k = 0; k < HIF_MEM && m[h]; h = (h + 1) & (HIF_MEM - 1), k++)
+        if (m[h] == u) return 1;
+    return 0;
+}
+// the walk's test of unit u (alive: the game's hit-point test) in the file f of computer player cp: 1 counts it
+__attribute__((used)) int __cdecl hif_counts(ee_player *cp, ee_intel_file *f, ee_unit *u, int alive) {
+    ee_player *o = f ? intel_file_get_player(f) : NULL;
+    int ai = cp ? player_get_index(cp) : -1, op = o ? player_get_index(o) : -1;
+    if (ai <= 0 || ai >= 16 || op < 0 || op >= 16 || g_players[ai] != cp || is_vanilla(cp) || !g_honest_vision || !HONEST_INTEL(ai)
+        || !u || !is_enemy(cp, o)) return alive;
+    if (player_get_units(o) == u) {   // the walk's start: the known area as the file's reset leaves it, for the first unit counted
+        g_hif_walk.f = f; g_hif_walk.seeded = 0;
+        intel_file_set_area_left(f, 0); intel_file_set_area_right(f, 0); intel_file_set_area_top(f, 0); intel_file_set_area_bottom(f, 0);
+        g_hif_n[ai][op].known = g_hif_n[ai][op].all = 0; g_hif_n[ai][op].walks++;
+    }
+    if (!alive) return 0;
+    g_hif_n[ai][op].all++;
+    if (!seen_by(u, cp) && !hif_remembers(ai, u)) return 0;
+    g_hif_n[ai][op].known++;
+    if (g_hif_walk.f == f && !g_hif_walk.seeded) {
+        g_hif_walk.seeded = 1;
+        intel_file_set_area_left(f, unit_get_x(u)); intel_file_set_area_right(f, unit_get_x(u));
+        intel_file_set_area_top(f, unit_get_y(u)); intel_file_set_area_bottom(f, unit_get_y(u));
+    }
+    return 1;
+}
+// in place of the jle (a call): the flags the hit points' cmp's, the file in esi, the unit in edi, the computer player at
+// [ebp+8] (the update's frame); returns to the unit, or leaves it out at the loop's end
+__attribute__((naked, used)) void hif_thunk(void) {
+    __asm__("pushl %eax\n\t"
+            "pushl %ecx\n\t"
+            "pushl %edx\n\t"
+            "setg %al\n\t"
+            "movzbl %al, %eax\n\t"
+            "pushl %eax\n\t"
+            "pushl %edi\n\t"
+            "pushl %esi\n\t"
+            "pushl 8(%ebp)\n\t"
+            "call _hif_counts\n\t"
+            "addl $16, %esp\n\t"
+            "testl %eax, %eax\n\t"
+            "popl %edx\n\t"
+            "popl %ecx\n\t"
+            "popl %eax\n\t"
+            "jz 1f\n\t"
+            "ret\n"
+            "1:\n\t"
+            "addl $4, %esp\n\t"
+            "jmp *_g_hif_skip");
+}
+internal void hif_log(unsigned pi, uint32_t now) {   // once a game minute in tests: what each file on an enemy holds
+    static uint32_t t[16];
+    if (!g_log || !g_autotest || !g_hif_skip || (t[pi] && now >= t[pi] && now - t[pi] < 60000)) return;
+    t[pi] = now ? now : 1;
+    char line[512]; int n = 0;
+    line[0] = 0;
+    for (int o = 0; o < 16 && n < (int)sizeof line - 64; o++)
+        if (g_hif_n[pi][o].walks) n += snprintf(line + n, sizeof line - (size_t)n, " P%d %u of %u (%u walks)", o, g_hif_n[pi][o].known, g_hif_n[pi][o].all, g_hif_n[pi][o].walks);
+    if (n) fprintf(g_log, "# intel: P%u at %.1f min, the game's files on its enemies - units counted of the living:%s%s\n", pi, now / 60000.0, line,
+                   HONEST_INTEL(pi) ? "" : " (honest_intel off: all counted)");
 }
 
 struct intel_scan {
@@ -280,6 +369,15 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         while (in->known[h]) h = (h + 1) & 4095;
         in->known[h] = in->r[k].u;
     }
+    ee_unit **m = g_hif_mem[pi];   // honest_intel: the soldiers, ships and aircraft it remembers
+    memset(m, 0, sizeof g_hif_mem[pi]);
+    for (int k = 0; k < in->n; k++) {
+        if (in->r[k].kind == 0 || !in->r[k].u) continue;
+        unsigned h = intel_hash(in->r[k].u) & (HIF_MEM - 1);
+        while (m[h] && m[h] != in->r[k].u) h = (h + 1) & (HIF_MEM - 1);
+        m[h] = in->r[k].u;
+    }
+    hif_log(pi, now);
 }
 
 // intel P (test): what AI P knows - mode, floors, what it sees now and remembers per owner and kind, looked cells,
@@ -454,6 +552,11 @@ internal void intel_install(const char *autotest_ini) {
     g_reveal = g_set_ai[1].reveal_attackers;
     if (autotest_ini) g_v_reveal = ini_int("autotest", "v_reveal_attackers", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# intel: reveal_attackers %d (variant %d)\n", g_reveal, g_v_reveal);
+    g_honest_intel = g_set_ai[1].honest_intel;
+    if (autotest_ini) g_v_honest_intel = ini_int("autotest", "v_honest_intel", -1, autotest_ini);
+    int hif = g_honest_vision && (g_honest_intel || g_v_honest_intel > 0) ? patch_intel_file_hp(hif_thunk, &g_hif_skip) : -1;
+    if (g_log) fprintf(g_log, "# intel: honest_intel %d (variant %d): the game's files on its enemies %s\n", g_honest_intel, g_v_honest_intel,
+                       hif > 0 ? "hold what it sees and remembers" : hif < 0 ? "whole (off)" : "whole - NOT PATCHED (another exe?)");
     if (g_log) fprintf(g_log, "# intel: honest_vision %d (%s)\n", g_honest_vision,
                        g_honest_vision ? "what it sees, remembers and assumes" : "the game's view - every unit of the human");
 }

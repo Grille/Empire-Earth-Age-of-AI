@@ -384,8 +384,44 @@ internal wall_mgr_update_fn fn_wall_mgr_update;
 internal inline void wall_mgr_update(ee_wall_mgr *wall_mgr, uint32_t now) { fn_wall_mgr_update(wall_mgr, now); }
 internal inline int patch_wall_update(wall_mgr_update_fn h) { return patch_call(call_wall_update, (uintptr_t)fn_wall_mgr_update, (void *)h); }
 
+// class EECPIntelligencePlayerFile (ee_intel_file)
+// an AI's file on another player (EECPIntelligencePlayerFile, Protryon's AoC source): what it knows of that player's
+// units - the game fills it from the player's whole unit list, no fog (docs/engine-notes.md "The intelligence files
+// see everything")
+// the known area's bottom (tile y): its update seeds all four with the first unit's tile, then extends them over
+// each unit counted (0x47CBCC)
+internal inline int intel_file_get_area_bottom(const ee_intel_file *o) { return *(int *)((uint8_t *)o + of_intel_file_area_bottom); }
+internal inline void intel_file_set_area_bottom(ee_intel_file *o, int v) { *(int *)((uint8_t *)o + of_intel_file_area_bottom) = v; }
+internal inline int *intel_file_area_bottom_at(const ee_intel_file *o) { return (int *)((uint8_t *)o + of_intel_file_area_bottom); }
+// the known area's left (tile x)
+internal inline int intel_file_get_area_left(const ee_intel_file *o) { return *(int *)((uint8_t *)o + of_intel_file_area_left); }
+internal inline void intel_file_set_area_left(ee_intel_file *o, int v) { *(int *)((uint8_t *)o + of_intel_file_area_left) = v; }
+internal inline int *intel_file_area_left_at(const ee_intel_file *o) { return (int *)((uint8_t *)o + of_intel_file_area_left); }
+// the known area's right (tile x)
+internal inline int intel_file_get_area_right(const ee_intel_file *o) { return *(int *)((uint8_t *)o + of_intel_file_area_right); }
+internal inline void intel_file_set_area_right(ee_intel_file *o, int v) { *(int *)((uint8_t *)o + of_intel_file_area_right) = v; }
+internal inline int *intel_file_area_right_at(const ee_intel_file *o) { return (int *)((uint8_t *)o + of_intel_file_area_right); }
+// the known area's top (tile y)
+internal inline int intel_file_get_area_top(const ee_intel_file *o) { return *(int *)((uint8_t *)o + of_intel_file_area_top); }
+internal inline void intel_file_set_area_top(ee_intel_file *o, int v) { *(int *)((uint8_t *)o + of_intel_file_area_top) = v; }
+internal inline int *intel_file_area_top_at(const ee_intel_file *o) { return (int *)((uint8_t *)o + of_intel_file_area_top); }
+// the player the file is on (its unit list +0x450 is what the update walks)
+internal inline ee_player *intel_file_get_player(const ee_intel_file *o) { return *(ee_player **)((uint8_t *)o + of_intel_file_player); }
+internal inline void intel_file_set_player(ee_intel_file *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_intel_file_player) = v; }
+internal inline ee_player **intel_file_player_at(const ee_intel_file *o) { return (ee_player **)((uint8_t *)o + of_intel_file_player); }
+// thiscall(file, computer player, force, armies): every 30 s (or forced) recounts the player's living units - types
+// and counts (+0x18, {count, type, family}: the unit selector's counter vote 0x49352A weighs them), families,
+// strength by domain, the known area, its armies when asked
+typedef void (__thiscall *intel_file_update_fn)(ee_intel_file *, ee_player *, char, char);
+internal intel_file_update_fn fn_intel_file_update;
+internal inline void intel_file_update(ee_intel_file *intel_file, ee_player *computer, char force, char armies) { fn_intel_file_update(intel_file, computer, force, armies); }
+
 // static class ai_managers
 // ai_managers's data of the game, places in its code and numbers
+// in the intelligence file's update, the unit walk's test of a unit's hit points: cmp [edi+0x3C], ebx (ebx 0); mov
+// eax, [edi+0xC]; mov [ebp-0x30], eax (the next unit); then this jle (0F 8E rel32) over the unit to the loop's end.
+// The file in esi, the unit in edi, the computer player at [ebp+8]. honest_intel (intel.c) makes it a call
+internal inline uint8_t *ai_managers_intel_file_hp_jle_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_intel_file_hp_jle; }
 // the call of farms_game
 internal inline uint8_t *ai_managers_call_farms_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_farms; }
 internal inline uint8_t *ai_managers_call_unbuilt_farms_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_unbuilt_farms; }
@@ -541,6 +577,13 @@ internal int spec_ai_managers_select(int build) {
         fn_wall_mgr_build_wall = (wall_mgr_build_wall_fn)0x00497C3F;
         fn_wall_mgr_update = (wall_mgr_update_fn)0x00499E20;
         call_wall_update = 0x0046E3E1;
+        of_intel_file_area_bottom = 0x34;
+        of_intel_file_area_left = 0x38;
+        of_intel_file_area_right = 0x3C;
+        of_intel_file_area_top = 0x40;
+        of_intel_file_player = 0x44;
+        fn_intel_file_update = (intel_file_update_fn)0x0047CBCC;
+        data_ai_managers_intel_file_hp_jle = 0x0047CC46;
         data_ai_managers_call_farms = 0x0048AC54;
         data_ai_managers_call_unbuilt_farms = 0x0048B0FD;
         fn_bq_add = (bq_add_fn)0x00468C37;
@@ -679,6 +722,13 @@ internal int spec_ai_managers_select(int build) {
         fn_wall_mgr_build_wall = (wall_mgr_build_wall_fn)0x0049D05F;
         fn_wall_mgr_update = (wall_mgr_update_fn)0x0049F244;
         call_wall_update = 0x0047106C;
+        of_intel_file_area_bottom = 0x34;
+        of_intel_file_area_left = 0x38;
+        of_intel_file_area_right = 0x3C;
+        of_intel_file_area_top = 0x40;
+        of_intel_file_player = 0x44;
+        fn_intel_file_update = (intel_file_update_fn)0x00480F9B;
+        data_ai_managers_intel_file_hp_jle = 0x00481015;
         data_ai_managers_call_farms = 0x0048F643;
         data_ai_managers_call_unbuilt_farms = 0x0048FAD4;
         fn_bq_add = (bq_add_fn)0x0046B798;
@@ -762,6 +812,8 @@ internal int spec_ai_managers_check(void) {
     bad += spec_code((uintptr_t)fn_wall_mgr_build_wall, "EECPWallManager.build_wall");
     bad += spec_code((uintptr_t)fn_wall_mgr_update, "EECPWallManager.update");
     bad += spec_call(call_wall_update, (uintptr_t)fn_wall_mgr_update, "EECPWallManager.update [call_site wall_update]");
+    bad += spec_code((uintptr_t)fn_intel_file_update, "EECPIntelligencePlayerFile.update");
+    bad += spec_code(data_ai_managers_intel_file_hp_jle, "ai_managers.intel_file_hp_jle");
     bad += spec_code(data_ai_managers_call_farms, "ai_managers.call_farms");
     bad += spec_code(data_ai_managers_call_unbuilt_farms, "ai_managers.call_unbuilt_farms");
     bad += spec_code((uintptr_t)fn_bq_add, "ai_managers_functions.bq_add");

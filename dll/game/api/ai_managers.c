@@ -71,3 +71,14 @@ internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {   /
     return patch_call(data_ai_managers_call_farms, (uintptr_t)fn_resource_mgr_farms, (void *)h) + (unbuilt ? patch_call(data_ai_managers_call_unbuilt_farms, (uintptr_t)fn_resource_mgr_unbuilt_farms, (void *)unbuilt) : 0);
 }
 // a citizen sent to work at a site (the calls of the assignment: calls_gather), the citizens trained (trace.c)
+
+// THE INTELLIGENCE FILES (intel.c honest_intel): the update's jle over a unit with no hit points (0F 8E rel32) -> call
+// thunk; nop. *skip gets the jle's target (the walk's next unit): the thunk returns to go on with the unit, or jumps
+// there to leave it out. The flags are the hit points' cmp's when the thunk is called; the file in esi, the unit in edi.
+internal inline int patch_intel_file_hp(thunk_fn thunk, uintptr_t *skip) {
+    static const uint8_t want[6] = { 0x0F, 0x8E, 0x63, 0x01, 0x00, 0x00 };   // both builds: the loop's end 0x163 on
+    uintptr_t at = data_ai_managers_intel_file_hp_jle;
+    if (!at) return 0;
+    *skip = at + 6 + 0x163;   // before the patch: the thunk may run as soon as it is in
+    return patch_insn6_call(at, want, (void *)thunk);
+}

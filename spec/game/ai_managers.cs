@@ -442,9 +442,49 @@ unsafe struct EECPWallManager
     extern void update(uint32 now);
 }
 
+/// an AI's file on another player (EECPIntelligencePlayerFile, Protryon's AoC source): what it knows of that player's
+/// units - the game fills it from the player's whole unit list, no fog (docs/engine-notes.md "The intelligence files
+/// see everything")
+[c_type("ee_intel_file")]
+unsafe struct EECPIntelligencePlayerFile
+{
+    /// the known area's bottom (tile y): its update seeds all four with the first unit's tile, then extends them over
+    /// each unit counted (0x47CBCC)
+    [offset(0x34), found(c)]
+    int32 area_bottom;
+
+    /// the known area's left (tile x)
+    [offset(0x38), found(c)]
+    int32 area_left;
+
+    /// the known area's right (tile x)
+    [offset(0x3C), found(c)]
+    int32 area_right;
+
+    /// the known area's top (tile y)
+    [offset(0x40), found(c)]
+    int32 area_top;
+
+    /// the player the file is on (its unit list +0x450 is what the update walks)
+    [offset(0x44), found(c)]
+    EEPlayer* player;
+
+    /// thiscall(file, computer player, force, armies): every 30 s (or forced) recounts the player's living units - types
+    /// and counts (+0x18, {count, type, family}: the unit selector's counter vote 0x49352A weighs them), families,
+    /// strength by domain, the known area, its armies when asked
+    [address((ee)0x0047CBCC, (aoc)0x00480F9B)]
+    extern void update(EEPlayer* computer, char8 force, char8 armies);
+}
+
 /// ai_managers's data of the game, places in its code and numbers
 static unsafe class ai_managers
 {
+    /// in the intelligence file's update, the unit walk's test of a unit's hit points: cmp [edi+0x3C], ebx (ebx 0); mov
+    /// eax, [edi+0xC]; mov [ebp-0x30], eax (the next unit); then this jle (0F 8E rel32) over the unit to the loop's end.
+    /// The file in esi, the unit in edi, the computer player at [ebp+8]. honest_intel (intel.c) makes it a call
+    [address((ee)0x0047CC46, (aoc)0x00481015)]
+    static code intel_file_hp_jle;
+
     /// the call of farms_game
     [address((ee)0x0048AC54, (aoc)0x0048F643)]
     static code call_farms;
