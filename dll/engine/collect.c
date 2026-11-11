@@ -363,6 +363,36 @@ internal void uc_smooth_probe(void) {
     g_cs_x = g_cs_now_x, g_cs_y = g_cs_now_y, g_cs_have = 1;
 }
 
+// THE DEAD SINKING ([display] corpses_sink; the player, 2026-11-11: "dead units next, how about letting them slowly sink
+// into the ground instead of the fafing out?"): a rotting object lies as it fell for the first UC_SINK_FROM of its rot time
+// (the death's animation plays then), goes down by UC_SINK_DEPTH of its model's radius until UC_SINK_DOWN, smoothly at
+// both ends, and fades only after that - what a slope leaves out of the ground, as before at its end (the opacity's check
+// then tells the rotting apart from the game's). The radius is the standing unit's (a Clubman's 0.70 tiles, rotting 40 s),
+// and one lying dead shows hardly 0.06 over the ground: down by twice the radius it was gone in the sink's first 2 s, by
+// 0.4 of it in 3, by 0.15 (0.1 tiles) it goes down over about 6 - a bigger wreck sunk as far fades out at the end as
+// before. Its share left at the walk's game time g_uc_show: the game counts rot_ms down by the
+// step's ms (the rotting state's updates), and the copy's is of its newest pose's time ms[0] - so the time between them
+// added, it goes down smoothly, not a step at a time
+#define UC_SINK_FROM 0.3
+#define UC_SINK_DOWN 0.85
+#define UC_SINK_DEPTH 0.15
+internal double uc_rot_left(const uc_obj *o) {
+    if (o->rot_t <= 0) return 0.0;
+    double r = o->rot_ms;
+    if (g_cp_smooth == 1 && o->has_was && g_uc_show >= 0.0 && g_uc_show < o->ms[0]) r += o->ms[0] - g_uc_show;
+    r /= o->rot_t;
+    return r < 0.0 ? 0.0 : r > 1.0 ? 1.0 : r;
+}
+// the record's place t lowered by how far its rot has gone
+internal void uc_sink(const uc_obj *o, float *t) {
+    double q = (1.0 - uc_rot_left(o) - UC_SINK_FROM) / (UC_SINK_DOWN - UC_SINK_FROM);
+    if (q <= 0.0 || !o->gfx) return;
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
+    if (!m) return;
+    if (q > 1.0) q = 1.0;
+    t[11] = (float)(t[11] - UC_SINK_DEPTH * model_get_radii(m)[o->anim_frame] * o->cu_height * q * q * (3.0 - 2.0 * q));
+}
+
 // STEP 2, THE FILLS OURS: THE OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity: EE 0x5044D7, AoC
 // 0x50F412 with its cloak part in a function of its own, 0x63CEE2). An object's opacity into *out, and whether it is
 // drawn see-through (its record into the see-through sort map): "show hidden units" (1: an obstacle or a moved unit
@@ -372,6 +402,11 @@ internal void uc_smooth_probe(void) {
 // there), in the same order - the game's precision whatever the FPU is set to on the render thread. Of the object's
 // copy (collect_copy.c: what the game reads of the unit and its complex unit), the camera the frame's.
 internal int uc_cloak(const uc_obj *o, int see, float *out, const opacity_consts *c) {
+    if (o->rotting && g_set.corpses_sink) {   // whole while it sinks, then faded out
+        double p = 1.0 - uc_rot_left(o);
+        *out = p <= UC_SINK_DOWN ? 1.0f : (float)((1.0 - p) / (1.0 - UC_SINK_DOWN));
+        return see;
+    }
     if (o->rotting) {
         *out = o->rot_t ? (float)((long double)o->rot_ms / o->rot_t) : 0.0f;
         return see;
@@ -740,6 +775,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         ground_point(map, p, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
+    if (cu && o->rotting && g_set.corpses_sink) uc_sink(o, t);   // after the ground's height under it: that stays the ground's
     uc_pick_add(u, rec, draw_record_get_opacity(rec));
     void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
     sort_map_insert(sort_map, found, pair);

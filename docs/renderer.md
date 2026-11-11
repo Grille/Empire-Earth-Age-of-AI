@@ -722,6 +722,15 @@ same step differs from the other no more than two shots of one build (the units 
 are few now, the game's own work per draw (the T&L DLL's model draw, its visibility test of each model - a ninth of
 the drawing thread) is what is left.
 
+The dead sink into the ground (2026-11-11, the player: "how about letting them slowly sink into the ground instead of
+the fafing out?"; [display] corpses_sink, on, with units_smooth - the fill is the mod's). collect.c uc_sink lowers a
+rotting object's record: still for the first 30 % of its rot time, down by 0.15 of its model's radius by 85 %, smoothly
+at both ends, then faded as the game fades it (uc_cloak: whole until then). The rot left is its rot_ms plus the time
+between its copy's step and the walk's game time (the game takes the step's ms off rot_ms each step), so it goes down
+between steps too. The depth from pictures of a Clubman (40 s rot, radius x scale 0.70 tiles; its corpse shows hardly
+0.06 tiles over the ground): by twice the radius it was gone 2 s into the sink, by 0.4 of it in 3, by 0.15 it goes
+down over about 6 s, from 15 s to 22 s after its death; a bigger wreck that isn't under by then fades at the end.
+
 ## The interface's text without reading the picture back
 
 2026-11-06 (the 8000-unit save ran at either about 3200 or about 1900 frames a minute, by game, whatever the build).
