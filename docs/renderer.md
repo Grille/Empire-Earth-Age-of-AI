@@ -804,6 +804,11 @@ sank the game's way and kept their hulls open below. Now a ship's class: floats 
 at the waterline, keels of 0.21 and 0.15 tiles, logged), the hull's bottom capped. Checked headless, two of each sunk
 in the shallows by the coast: they dipped by an end and settled with their decks just under the water, their bottoms
 capped (lists of 591, 138, 93 and 102 indices).
+Each gets a kick at its death (the player, the same day: "on death an units should get a bit of random rotation for a
+start. even if it levels out again, the kick is suposed to make clearer something happend"): us_kick starts it turning
+about its own axes - its length (US_KICK_ROLL 0.8 radians/s), its beam (0.35) and its up (0.3), half to all of each, either
+way, by a stream of its serial of its own (the leaks' plans as before) - about its points' middle by their weights; the
+buoyancy, the ballast and the drag level it out again. Not when met already sinking.
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
 simple face betwen oposidte lowest edges"): its models end at the waterline, nothing under it was ever meant to be
 seen, so a wreck on its side or keel up showed its inside. render_instance.c closes it: a record of the naval classes

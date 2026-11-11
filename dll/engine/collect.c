@@ -548,6 +548,12 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_BALLAST 3.0f // its weight, a float's 1
 #define US_SHIFT 0.8f   // the heel (its sine: 53 degrees) past which the ballast slides
 #define US_SHIFT_S 1.5f // ... over this long (s), 0.8 of the way to the low side
+// The blow that kills it (the player, the same day: "on death an units should get a bit of random rotation for a start.
+// even if it levels out again, the kick is suposed to make clearer something happend"): it starts turning about its
+// own axes, half to all of these (radians/s) by its serial, either way - the buoyancy and the drag level it out again
+#define US_KICK_ROLL 0.8f    // about its length: a heel of up to about 25 degrees
+#define US_KICK_PITCH 0.35f  // about its beam
+#define US_KICK_YAW 0.3f     // about its up: slewed round
 #define US_G 3.0f       // gravity (tiles/s^2)
 #define US_DT 0.01      // the step (s of game time)
 #define US_DRAG 1.6f    // the water's drag (1/s) up and down, along it (a hull glides on: its way carries), the air's
@@ -599,6 +605,37 @@ internal void us_velocity(const uc_obj *o, float *v) {
         if (s > 1e-4f) { v[0] = dx, v[1] = dy; return; }
     }
 }
+// the kick at its death: each point's way a step behind by the turn about its own axes (the frame's as it starts,
+// about its points' middle by their weights), random by its serial - a stream of its own, the leaks' plans as before
+internal void us_kick(uc_corpse *k, int32_t serial) {
+    uint32_t s = (uint32_t)serial * 2246822519u + 0x27D4EB2Fu;
+    us_rnd(&s);
+    float w[3], m[3] = { 0, 0, 0 }, al[3], ac[3], up[3], la = 0.0f, lc = 0.0f, lu = 0.0f, sum = 0.0f;
+    const float rate[3] = { US_KICK_ROLL, US_KICK_PITCH, US_KICK_YAW };
+    for (int a = 0; a < 3; a++) w[a] = rate[a] * (0.5f + 0.5f * us_rnd(&s)) * (us_rnd(&s) < 0.5f ? -1.0f : 1.0f);
+    for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], la += al[j] * al[j], lc += ac[j] * ac[j];
+    la = sqrtf(la), lc = sqrtf(lc);
+    if (la < 1e-6f || lc < 1e-6f) return;
+    for (int j = 0; j < 3; j++) al[j] /= la, ac[j] /= lc;
+    up[0] = al[1] * ac[2] - al[2] * ac[1], up[1] = al[2] * ac[0] - al[0] * ac[2], up[2] = al[0] * ac[1] - al[1] * ac[0];
+    for (int j = 0; j < 3; j++) lu += up[j] * up[j];
+    lu = sqrtf(lu);
+    if (lu < 1e-6f) return;
+    float om[3];   // the turn in the world: about its length, its beam, its up
+    for (int j = 0; j < 3; j++) om[j] = w[0] * al[j] + w[1] * ac[j] + w[2] * up[j] / lu;
+    for (int i = 0; i < US_PTS; i++) {
+        float wt = i < 4 ? 1.0f : US_BALLAST;
+        for (int j = 0; j < 3; j++) m[j] += wt * k->sp[i][j];
+        sum += wt;
+    }
+    for (int i = 0; i < US_PTS; i++) {
+        float r[3], dt = (float)US_DT;
+        for (int j = 0; j < 3; j++) r[j] = k->sp[i][j] - m[j] / sum;
+        k->sq[i][0] -= (om[1] * r[2] - om[2] * r[1]) * dt;
+        k->sq[i][1] -= (om[2] * r[0] - om[0] * r[2]) * dt;
+        k->sq[i][2] -= (om[0] * r[1] - om[1] * r[0]) * dt;
+    }
+}
 // its floats set up from the game's pose t (rows; the model's scale apart) and its model's frame
 internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
@@ -647,6 +684,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     float v[2] = { 0.0f, 0.0f };
     if (!late) us_velocity(o, v);
     for (int i = 0; i < US_PTS; i++) k->sq[i][0] -= v[0] * (float)US_DT, k->sq[i][1] -= v[1] * (float)US_DT;   // Verlet: a step's way behind
+    if (!late) us_kick(k, o->serial);
     k->sim = k->died;
     k->ship = 1;
 }
