@@ -457,8 +457,8 @@ internal ee_vertices *bl_bend(ee_model *m, int *decal);
 internal void bl_unbend(ee_vertices *a);
 internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
     if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
-    int decal = 0;
-    ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
+    int decal = g_in_rec ? g_in_rec->decal : 0;   // (render_units.c's record: its bent copy kept, bent here no more)
+    ee_vertices *b = g_bl_n && !g_in_rec ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
     int r = g_ws_draw[0](ras, m, screen, p3, p4);
     g_sh_decal = 0;
@@ -467,8 +467,8 @@ internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t scre
 }
 internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
     if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
-    int decal = 0;
-    ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
+    int decal = g_in_rec ? g_in_rec->decal : 0;   // (render_units.c's record: its bent copy kept, bent here no more)
+    ee_vertices *b = g_bl_n && !g_in_rec ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
     g_mo_off = b != NULL;   // its frame's vertices bent for this draw: copied, not the GPU's (render_morph.c)
     int r = g_ws_draw[1](ras, m, screen, p3, p4);
@@ -1249,26 +1249,32 @@ internal int bl_noted(const void *gfx) {
     return 0;
 }
 
-// m's frame bent onto the ground at its transformation, when it is a noted model: its vertex array (to put back), else
-// NULL
-internal ee_vertices *bl_bend(ee_model *m, int *decal) {
+// the model's place among the noted, -1 for none
+internal int bl_index(const ee_model *m) {
     int n = g_bl_n, i = 0;
     while (i < n && g_bl_models[i].m != m) i++;
-    if (i == n) return NULL;
-    *decal = g_bl_models[i].decal;
+    return i < n ? i : -1;
+}
+// a noted model's decal flag (1: casts no shadow), -1 for a model not noted
+internal int bl_noted_decal(const ee_model *m) {
+    int i = bl_index(m);
+    return i < 0 ? -1 : g_bl_models[i].decal != 0;
+}
+// frame f of a model bent onto the ground under its transformation t: its vertices in place (their heights kept in
+// g_bl_z, to be put back), or into out (a copy, D3DVERTEX each: render_units.c keeps a standing object's); 0 when it
+// isn't bent (no such frame, too many vertices, not standing on the ground)
+internal int bl_bend_at(ee_model *m, uint32_t f, const float *t, float *out) {
     ee_vertices **va = model_get_vertices(m);
     ee_map *map = game_map();
-    uint32_t f = model_get_frame(m);
-    if (!va || !map || f >= model_get_frames(m) || !va[f]) return NULL;
+    if (!va || !map || f >= model_get_frames(m) || !va[f]) return 0;
     ee_vertices *a = va[f];
     uint32_t cnt = vertices_get_count(a);
     ee_vertex *data = vertices_get_data(a);
-    const float *t = model_transform_at(m);
-    if (!data || cnt > BL_BEND_MAX || fabsf(t[10]) < 1e-3f) return NULL;
+    if (!data || cnt > BL_BEND_MAX || fabsf(t[10]) < 1e-3f) return 0;
     // level at the ground's height at its middle, as the collection made it (one not standing there - a lily pad on the
     // water - left as it is)
     float g0 = ground_at(map, t[3], t[7]);
-    if (g0 != g0 || fabsf(t[11] - g0) > BL_ON_GROUND) return NULL;
+    if (g0 != g0 || fabsf(t[11] - g0) > BL_ON_GROUND) return 0;
     float span = BL_SPAN * sqrtf(t[0] * t[0] + t[4] * t[4]);
     for (uint32_t k = 0; k < cnt; k++) {
         float *v = (float *)vertex_at(data, k);
@@ -1278,10 +1284,25 @@ internal ee_vertices *bl_bend(ee_model *m, int *decal) {
         float g = ground_at(map, px, py), around = 0;
         for (int q = 0; q < 4; q++) around += 0.25f * ground_at(map, px + (q & 1 ? span : -span), py + (q & 2 ? span : -span));
         float d = g + fmaxf(0, g - around) - g0;
+        if (out) {
+            memcpy(out + k * 8, v, 8 * sizeof(float));
+            if (d == d) out[k * 8 + 2] += d / t[10];
+            continue;
+        }
         g_bl_z[k] = v[2];
         if (d == d) v[2] += d / t[10];
     }
-    return a;
+    return 1;
+}
+// m's frame bent onto the ground at its transformation, when it is a noted model: its vertex array (to put back), else
+// NULL
+internal ee_vertices *bl_bend(ee_model *m, int *decal) {
+    int i = bl_index(m);
+    if (i < 0) return NULL;
+    *decal = g_bl_models[i].decal;
+    uint32_t f = model_get_frame(m);
+    if (!bl_bend_at(m, f, model_transform_at(m), NULL)) return NULL;
+    return model_get_vertices(m)[f];
 }
 internal void bl_unbend(ee_vertices *a) {
     uint32_t cnt = vertices_get_count(a);

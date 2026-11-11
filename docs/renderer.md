@@ -819,13 +819,18 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    record's values go to the walk (render_instance.c in_node with an in_rec) instead of onto the shared model: the
    transformations made there (in_local: PrepareTransforms' formula, the frames' blend of collect.c), the textures
    picked there (in_tex), the part turns by the game's cosine table without the engine's calls. Left to the game's draw:
-   a record with something on it (gfx_built: a few), the objects walls.c bends onto the ground (bl_noted - 37 % of the
-   records in the test: resources and ambient objects, drawn by the display DLL as before). `picture draw check`
+   a record with something on it (gfx_built: a few), at first the objects walls.c bends onto the ground (bl_noted - 37 %
+   of the records in the test: resources and ambient objects, drawn by the display DLL). `picture draw check`
    compares every record's parts with the game's draw's (model, material, texture, pose, indices, place): 1.25 million
    records, none differ, the places to the bit. The records' draw 5.1 ms a frame by the game's, 4.9 by ours.
-2. Next: the bent objects - bent once and kept (they don't move), then instanced like the rest; the view test and the
-   detail (GetPixelSize, 2-3 % of the render thread) by our own code; the trees.
-3. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
+2. Done: the bent objects kept (render_units.c ub_get): an object's frame bent once by walls.c's own code (bl_bend_at
+   into a copy), kept by model, frame and place while the map is the same, and drawn instanced like the rest (the walk's
+   in_pose va); walls.c's draw hooks bend nothing for such a record. Only while a game runs and for a frame's own (the
+   editor's ground changes; bl_bend bends no blend). Compared: 286 000 bent records' kept copies against one bent anew,
+   none stale; 742 copies in the test. The records' draw 5.6 ms a frame by the game's, 4.1 by ours, the units' 8.1 and
+   6.6 (the same run, the two alternating; the machine shared with other games).
+3. Next: the view test and the detail (GetPixelSize, 2-3 % of the render thread) by our own code; the trees.
+4. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
    for long instanced draws; the 0x420 records, the circles and bars, the shadows' render object.
 
 The larger part of the zoomed-out frame is the units' update, not their draw (the same test's render thread: the update

@@ -413,12 +413,13 @@ internal const WORD *in_capped(const WORD *idx, DWORD ni, const float *v, uint32
 }
 // what a model's parts are drawn with: its frames, the fraction between them, its opacity - the shared model's, as the
 // game's record draw set them before DrawModelHierarchy, or a record's own (render_units.c: the mod's record draw,
-// which leaves the model alone)
-typedef struct { uint32_t frame, next; float frac, alpha; } in_pose;
+// which leaves the model alone) - and va, the frame's vertices when they aren't the model's (a bent object's copy kept
+// by render_units.c: the root's alone)
+typedef struct { uint32_t frame, next; float frac, alpha; const float *va; } in_pose;
 // a record the mod draws itself (render_units.c): what the game's draw would have set on its model - the root's
 // transformation over the frame's (outer) and its size, every part's pose - and the record's texture of frames
 // (EEGraphicObject anim_keys: each material's frame of it, by the build's rule)
-typedef struct { const float *outer; float scale; in_pose pose; ee_texture *tex; uint32_t root_mats; } in_rec;
+typedef struct { const float *outer; float scale; in_pose pose; ee_texture *tex; uint32_t root_mats; int decal; } in_rec;
 internal int g_in_capture;   // render_units.c's comparison: the parts noted (1 only noted, 2 noted and drawn)
 internal LONG g_in_walks;   // ... and the walks while it notes
 internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni);
@@ -431,7 +432,7 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
     uint32_t n = material_get_vertex_count(mat), first = material_get_vertex_first(mat);
     ee_vertices **fr = model_get_vertices(m);
     float frac = p->frac;
-    const float *pa = (const float *)vertices_get_data(fr[p->frame]) + first * 8;
+    const float *pa = (p->va ? p->va : (const float *)vertices_get_data(fr[p->frame])) + first * 8;
     const float *pb = frac != 0 ? (const float *)vertices_get_data(fr[p->next]) + first * 8 : pa;
     rd_device *d = c->d;
     g_in.settex(c->ras, tex, c->screen);
@@ -500,8 +501,9 @@ internal void *in_tex(const in_rec *r, ee_material *mat, uint32_t i, int depth) 
 // for the game's draw, which set the model)
 internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float pscale, const in_rec *r, int depth) {
     float t[16], s = r && !parent ? r->scale : model_get_scale(m);
-    in_pose own = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), model_get_alpha(m) };
+    in_pose own = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), model_get_alpha(m), NULL };
     const in_pose *p = r ? &r->pose : &own;
+    if (r && parent && p->va) own = r->pose, own.va = NULL, p = &own;   // (a part hanging on a bent copy: its own vertices)
     if (r) {
         float l[16];
         in_local(m, parent ? model_outer_at(m) : r->outer, s, p, l);
@@ -539,7 +541,7 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
 // the whole hierarchy can be drawn this way, in this pose (own: by the mod's record draw - every part's frame
 // transformations needed)
 internal int in_model_ok(ee_model *m, const in_pose *p, int own) {
-    in_pose mp = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), 0 };
+    in_pose mp = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), 0, NULL };
     if (!p) p = &mp;
     ee_vertices **fr = model_get_vertices(m);
     if (!fr || !fr[p->frame] || vertices_get_type(fr[0])) return 0;

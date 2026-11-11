@@ -94,6 +94,16 @@ internal mo_run *mo_run_of(const float *src, uint32_t n) {
     g_mo.uploads++;
     return r;
 }
+// the pool forgotten: every run put in again when next drawn (render_units.c freed the bent copies it held)
+internal void mo_forget(void) {
+    RD_LOCK();
+    rd3_submit();
+    memset(g_mo.run, 0, sizeof g_mo.run);
+    g_mo.used = 0;
+    g_mo.n = 0;
+    g_mo.resets++;
+    RD_UNLOCK();
+}
 // the noted copy done after all
 internal void mo_copy_now(void) {
     if (!g_mo_note.dst) return;

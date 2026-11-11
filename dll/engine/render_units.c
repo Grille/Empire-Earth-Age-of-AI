@@ -28,6 +28,8 @@ internal struct {
     int side, n[2], over;
     ud_part e[2][UD_NOTES];
     LONG recs, differ, kind[UD_KINDS], logged, walks, fell;   // (walks, fell: the game's side's, by in_hook)
+    int bent;                // the record is a bent object's (its parts not compared: the game's side goes to the DLL)
+    LONG bents;
     float worst;
 } g_ud = { .force = -1 };
 internal int ud_mode(void) { return g_ud.force >= 0 ? g_ud.force : 1; }
@@ -37,7 +39,7 @@ internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p
     ud_part *e = &g_ud.e[s][g_ud.n[s]++];
     e->m = m; e->mat = mat; e->tex = tex; e->p = *p; e->w = *world; e->idx = idx; e->ni = ni;
 }
-internal int bl_noted(const void *gfx);   // walls.c
+internal int bl_noted(const void *gfx), bl_noted_decal(const ee_model *m), bl_bend_at(ee_model *m, uint32_t f, const float *t, float *out);   // walls.c
 internal int ud_fell(int why) { InterlockedIncrement(&g_ud.reason[why]); return 0; }
 // GETransformation::SetOrientationYPR's turn (its 3 x 3; engine 0x472D3) about z by y or about x by p (the other angles
 // 0): its formula with its cosines - the game's (UMCos, a table), those of 0 kept - without the four calls of them that
@@ -80,6 +82,47 @@ internal void ud_gate(ee_model *m, float open) {
     float *o = model_outer_at(leaf);
     o[3] = f0[3] * open * k; o[7] = f0[7] * open * k; o[11] = f0[11] * open * k;
 }
+// BENT OBJECTS KEPT: walls.c bends a resource's or an ambient object's model onto the ground under it at every draw
+// (bl_bend: five heights of the ground a vertex, into the shared frame and back), and that frame went to the display
+// DLL one draw at a time - 37 % of the records zoomed out in the test. They stand still: here an object's bent frame is
+// made once by the same code (bl_bend_at into a copy) and kept by model, frame and place, and drawn instanced like the
+// rest. Kept while the map is the same (a load frees them, and the GPU's pool of runs forgets their memory); only while
+// a game runs (the scenario editor changes the ground under them: the game's draw there), only a frame's own (not one
+// blended toward the next: bl_bend bends the frame alone).
+#define UB_SLOTS 8192
+typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; } ub_entry;   // v NULL: drawn as it is
+internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale; } g_ub;
+internal void mo_forget(void);   // render_morph.c
+internal void ub_clear(void *map) {
+    for (int i = 0; i < UB_SLOTS; i++) free(g_ub.e[i].v);
+    if (g_ub.n) mo_forget();
+    memset(g_ub.e, 0, sizeof g_ub.e);
+    g_ub.n = 0;
+    g_ub.map = map;
+}
+// an object's bent frame f under the root's transformation t (its 3 x 4): kept, made now if new; NULL when the table is full
+internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
+    void *map = game_map();
+    if (map != g_ub.map) ub_clear(map);
+    uint32_t key[4];
+    memcpy(key, t + 3, 4); memcpy(key + 1, t + 7, 4); memcpy(key + 2, t + 11, 4); memcpy(key + 3, t, 4);
+    uint32_t h = (((uint32_t)(uintptr_t)m >> 4) * 2654435761u ^ f * 40503u ^ key[0] * 2246822519u ^ key[1] * 3266489917u ^ key[2] * 668265263u ^ key[3]) & (UB_SLOTS - 1);
+    for (;; h = (h + 1) & (UB_SLOTS - 1)) {
+        ub_entry *e = &g_ub.e[h];
+        if (!e->m) break;
+        if (e->m == m && e->f == f && !memcmp(e->t, t, sizeof e->t)) return e;
+    }
+    if (g_ub.n >= UB_SLOTS * 3 / 4) { InterlockedIncrement(&g_ub.full); return NULL; }
+    ub_entry *e = &g_ub.e[h];
+    int decal = bl_noted_decal(m);
+    uint32_t nv = vertices_get_count(model_get_vertices(m)[f]);
+    float *v = decal >= 0 && nv ? malloc((size_t)nv * 8 * sizeof(float)) : NULL;
+    if (v && !bl_bend_at(m, f, t, v)) { free(v); v = NULL; }   // (not standing on the ground: drawn as it is)
+    e->m = m; e->f = f; memcpy(e->t, t, sizeof e->t); e->v = v; e->decal = decal > 0;
+    g_ub.n++;
+    InterlockedIncrement(&g_ub.made);
+    return e;
+}
 // a record of the units' lists drawn by the mod: 1 drawn (or nothing to draw, as the game's draw would), 0 the game's
 // draw is to draw it
 internal int ud_draw(void *rec) {
@@ -88,16 +131,32 @@ internal int ud_draw(void *rec) {
     if (!*dmg_model_drawable_at(g) || !(draw_record_get_scale(rec) > *(const float *)engine_display_float_zero_at())) return 1;
     ee_dmg_model *gb = draw_record_get_gfx_built(rec);
     if (gb && *dmg_model_drawable_at(gb) && dmg_model_get_built_model(gb)) return ud_fell(UD_BUILT);
-    if (bl_noted(g)) return ud_fell(UD_BENT);
+    int bent = bl_noted(g);
     int anim = draw_record_get_anim(rec);
     ee_model *m = graphics_anim_model(g, anim);
     float op = draw_record_get_opacity(rec);
     in_rec r = { draw_record_transform_at(rec), draw_record_get_scale(rec),
                  { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
-                   *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op },
-                 graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0 };
+                   *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },
+                 graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0 };
+    if (bent && (!game_time() || r.pose.frac != 0)) return ud_fell(UD_BENT);
     if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
     if (!m || !in_model_ok(m, &r.pose, 1)) return ud_fell(UD_MODEL_NOT);
+    if (bent) {   // its bent frame kept (the root's transformation as the walk makes it)
+        float t[16];
+        in_local(m, r.outer, r.scale, &r.pose, t);
+        const ub_entry *e = ub_get(m, r.pose.frame, t);
+        if (!e) return ud_fell(UD_BENT);
+        r.pose.va = e->v;
+        r.decal = e->decal;
+        g_ud.bent = 1;
+        if (g_in_capture && e->v) {   // compared: the kept copy against one bent now
+            uint32_t nv = vertices_get_count(model_get_vertices(m)[r.pose.frame]);
+            float *now = malloc((size_t)nv * 8 * sizeof(float));
+            if (now && bl_bend_at(m, r.pose.frame, t, now) && memcmp(now, e->v, (size_t)nv * 8 * sizeof(float))) InterlockedIncrement(&g_ub.stale);
+            free(now);
+        }
+    }
     ee_rasterizer *ras = rasterizer();
     uint32_t screen = (uint32_t)screen_index();
     float ref = dmg_model_get_alpha_ref(g);
@@ -167,7 +226,7 @@ internal int ud_record(ee_ro_units *ro, void *rec) {
         return 1;
     }
     // compared: this draw's parts noted, the game's noted and drawn
-    g_ud.side = 0; g_ud.n[0] = g_ud.n[1] = 0; g_ud.over = 0;
+    g_ud.side = 0; g_ud.n[0] = g_ud.n[1] = 0; g_ud.over = 0; g_ud.bent = 0;
     g_in_capture = 1;
     int mine = ud_draw(rec);
     g_ud.side = 1;
@@ -177,7 +236,8 @@ internal int ud_record(ee_ro_units *ro, void *rec) {
     ro_units_draw_record(ro, rec);
     g_ud.fell = g_in_fell - fell, g_ud.walks = g_in_walks - walks;
     g_in_capture = 0;
-    if (mine && !g_ud.over) ud_compare(rec);
+    if (mine && g_ud.bent) InterlockedIncrement(&g_ud.bents);
+    else if (mine && !g_ud.over) ud_compare(rec);
     return 1;
 }
 // the pipe: picture draw [game | own | check]
@@ -186,7 +246,7 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
     if (!strcmp(arg, "game") || !strcmp(arg, "own") || !strcmp(arg, "check")) {
         g_ud.force = arg[0] == 'g' ? 0 : arg[0] == 'o' ? 1 : 2;
         if (g_ud.force == 2) {
-            g_ud.recs = g_ud.differ = g_ud.logged = 0;
+            g_ud.recs = g_ud.differ = g_ud.logged = g_ud.bents = g_ub.stale = 0;
             g_ud.worst = 0.0f;
             memset(g_ud.kind, 0, sizeof g_ud.kind);
         }
@@ -199,6 +259,7 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
     for (int k = 0; k < UD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_reason[k], (long)g_ud.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_ud.recs, (long)g_ud.differ);
     for (int k = 0; k < UD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_kind[k], (long)g_ud.kind[k]);
-    REPLY("), the places' largest difference %.2g\n", (double)g_ud.worst);
+    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld\n",
+          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale);
     return 1;
 }
