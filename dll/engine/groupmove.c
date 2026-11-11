@@ -326,7 +326,7 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // (eased over the leader steps: FF_TURN_EASE), started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, area, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt, side; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw, col_w, col_rear; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place, kind; uint32_t settled; vec2 trail[FF_TRAIL]; int trail_n, trail_at; uint32_t drain, rel_at; int stopped, attack, fight; float narrow_to, line_t[FF_ROOM_TILES + 1], line_room[FF_ROOM_TILES + 1]; int line_n; vec2 line_at; float conv, line_l[FF_ROOM_TILES + 1], line_r[FF_ROOM_TILES + 1]; vec2 foe[FF_FOES]; int foe_n; };   // foe: where the enemies its fighters attack stand (ff_fighting)   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed (ff_fill_column: col_w the width its column is packed to, col_rear its last rank's offset; 0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships   // side: how far right of the leader's route the formation's line runs (ff_side: off an edge the route hugs)   // stopped: the march ended with no unit on its move - the player's stop (the linger puts back only the pushed-off); attack: an attack-move (its units take on what they meet, the formation holds while they fight; fight: how many fought at the last step)   // drain: the step the anchor reached its end with the column still in a narrow (0: not draining), rel_at the step a unit was last let go, narrow_to how far along the line (ff_progress's measure) the narrow ends (ff_narrow); line_t, line_room: the line's points as last measured (how far along, the room across: -1 none), line_n of them
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; int need; float speed, reach, area, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt, side; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw, col_w, col_rear; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place, kind; uint32_t settled; vec2 trail[FF_TRAIL]; int trail_n, trail_at; uint32_t drain, rel_at; int stopped, attack, fight; float narrow_to, line_t[FF_ROOM_TILES + 1], line_room[FF_ROOM_TILES + 1]; int line_n; vec2 line_at; float conv, line_l[FF_ROOM_TILES + 1], line_r[FF_ROOM_TILES + 1]; vec2 foe[FF_FOES]; int foe_n; };   // foe: where the enemies its fighters attack stand (ff_fighting)   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed (ff_fill_column: col_w the width its column is packed to, col_rear its last rank's offset; 0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships   // side: how far right of the leader's route the formation's line runs (ff_side: off an edge the route hugs)   // stopped: the march ended with no unit on its move - the player's stop (the linger puts back only the pushed-off); attack: an attack-move (its units take on what they meet, the formation holds while they fight; fight: how many fought at the last step)   // drain: the step the anchor reached its end with the column still in a narrow (0: not draining), rel_at the step a unit was last let go, narrow_to how far along the line (ff_progress's measure) the narrow ends (ff_narrow); line_t, line_room: the line's points as last measured (how far along, the room across: -1 none), line_n of them
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -463,6 +463,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     static int ord[FO_MAX], rank_of[FO_MAX];
     float xl = 0, xr = 0;
     gr->sp = gr->area = 0;
+    gr->need = 0;
     gr->front = -1e9f;
     gr->rear = 0;
     for (int j = 0; j < k; j++) {
@@ -1625,6 +1626,15 @@ internal float ff_lead_area(ee_unit *u) {
     struct ff_unit *e = ff_find(id, 0);
     struct ff_group *gr = e && e->g >= 0 ? &g_ff[e->g] : NULL;
     return gr && gr->on && !gr->naval && gr->in_place == 0 && gr->leader == id ? gr->area : 0;
+}
+// the width the march u leads keeps its route to (sr_wide's choice: 0 the shortest way, -1 not weighed yet); set >= 0
+// stores it
+internal int ff_lead_need(ee_unit *u, int set) {
+    struct ff_unit *e = g_ff_on && u ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
+    struct ff_group *gr = e && e->g >= 0 ? &g_ff[e->g] : NULL;
+    if (!gr) return -1;
+    if (set >= 0) gr->need = set + 1;
+    return gr->need - 1;
 }
 // u's spot at its formation move's goal (test/fleetmove.c), 1 - else 0
 internal int ff_spot(ee_unit *u, vec2 *spot) {

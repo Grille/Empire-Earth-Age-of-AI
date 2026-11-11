@@ -112,6 +112,7 @@ internal uint32_t g_sr_piece_holder[SR_PIECE_SLOTS];   // units holding a piece,
 internal unsigned g_sr_joined, g_sr_join_missed;   // requests answered from a kept route, kept routes too far
 
 internal float ff_lead_area(ee_unit *u);   // groupmove.c
+internal int ff_lead_need(ee_unit *u, int set);
 internal int sr_is_ship(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);
     return td && unit_type_terrain_ok(td, 1) && !unit_type_terrain_ok(td, 0);
@@ -179,7 +180,12 @@ internal int sr_pass_tile(ee_map *map, ee_unit *u, ee_unit_type *td, int size, i
 // how wide the way is at the tile, in tiles: across each of the four lines through it (along x, along y, the two
 // diagonals) the tiles free to both sides, the tile itself counted, each side looked at up to `most` tiles - the least
 // of the four. Blocked on one side only it is `most` or more: a route round a corner hugs it, the formation moves
-// across to the side with room (ff_side) - only what blocks on both sides is a gap
+// across to the side with room (ff_side) - only what blocks on both sides is a gap. And only what runs on blocks: a
+// side ends at a blocked tile with SR_WALL_RUN blocked tiles in a row behind it along the line (a wall across it is a
+// tile thick: one of the two beside it along the wall then) - a tree, a rock, a house's corner is walked round, and
+// the way between two of them counted as a gap a tile wide (Continental seed 101: every route "1 wide" at two trees
+// by the goal, and a formation of 70 took the wider way for it, 14-33 s later on its spots)
+#define SR_WALL_RUN 3
 #define SR_WIDE_MAX 16                  // tiles: the width looked for, at most
 internal int g_sr_w_most;               // the cache's `most`
 internal int sr_width(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x, int y) {
@@ -189,8 +195,18 @@ internal int sr_width(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x
     int least = 2 * g_sr_w_most;
     for (int a = 0; a < 4; a++) {
         int w = 1;
-        for (int side = -1; side <= 1; side += 2)
-            for (int k = 1; k <= g_sr_w_most && sr_pass_tile(map, u, td, size, x + side * k * ax[a], y + side * k * ay[a]); k++) w++;
+        for (int side = -1; side <= 1; side += 2) {
+            int k = 1;
+            while (k <= g_sr_w_most && sr_pass_tile(map, u, td, size, x + side * k * ax[a], y + side * k * ay[a])) k++;
+            if (k <= g_sr_w_most) {   // blocked there: does it run on - behind it along the line, or to either side across it
+                int bx = x + side * k * ax[a], by = y + side * k * ay[a], run = 1, along = 1;
+                for (int j = 1; j < SR_WALL_RUN && !sr_pass_tile(map, u, td, size, bx + side * j * ax[a], by + side * j * ay[a]); j++) run++;
+                for (int j = 1; j < SR_WALL_RUN && !sr_pass_tile(map, u, td, size, bx - j * ay[a], by + j * ax[a]); j++) along++;
+                for (int j = 1; j < SR_WALL_RUN && !sr_pass_tile(map, u, td, size, bx + j * ay[a], by - j * ax[a]); j++) along++;
+                if (run < SR_WALL_RUN && along < SR_WALL_RUN) k = g_sr_w_most + 1;
+            }
+            w += k - 1;
+        }
         if (w < least) least = w;
     }
     g_sr.clr_at[i] = g_sr.cgen;
@@ -692,7 +708,23 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
         g_sr_corr = 0;
         if (!n) { g_sr_budget_used += (unsigned)expanded; return 0; }
         float area = whole && !g_sr_ship && !g_sr_danger ? ff_lead_area(u) : 0;   // a formation's leader: its way weighed against wider ones
-        if (area > 0) n = sr_wide(map, u, td, size, sx, sy, tx, ty, path, n, &expanded, area);
+        int kept_need = area > 0 ? ff_lead_need(u, -1) : -1;   // weighed once a march: a leader asking again on its way (at a gap's mouth: "a wider one taken", round the wall it stood at) keeps to what was chosen
+        if (area > 0 && kept_need < 0) {
+            n = sr_wide(map, u, td, size, sx, sy, tx, ty, path, n, &expanded, area);
+            ff_lead_need(u, g_sr_need);
+        } else if (kept_need > 0) {
+            static uint32_t again[65536];
+            int whole2 = 1;
+            if (++g_sr.cgen == 0) { memset(g_sr.clr_at, 0, g_sr.n * 4); g_sr.cgen = 1; }
+            g_sr_w_most = kept_need + 1 < SR_WIDE_MAX ? kept_need + 1 : SR_WIDE_MAX;
+            g_sr_need_at[0] = sx; g_sr_need_at[1] = sy; g_sr_need_at[2] = tx; g_sr_need_at[3] = ty;
+            g_sr_need_r = (kept_need + 1) / 2;
+            sr_stamp_search();
+            g_sr_need = kept_need;
+            int m = sr_find(map, u, td, size, sx, sy, tx, ty, again, 65536, &expanded, 0, &whole2);
+            if (m >= 2) { n = m; memcpy(path, again, (size_t)m * 4); }
+            else g_sr_need = 0;   // no such way from here: the shortest
+        }
         if (!whole) { g_sr_pieces++; g_sr_piece_holder[slot] = serial; }
         else if (g_sr_share && !g_sr_need) sr_keep(map, u, td, goal, path, n);   // a wider way is the formation's, not the next unit's
     }
