@@ -85,8 +85,13 @@ internal int g_ro_cur = -1;
 enum { RD_CH_VC = 1, RD_CH_RS = 2, RD_CH_TEX = 4, RD_CH_TARGET = 8 };   // transforms, viewport, lights, material: the vertex constants
 internal volatile LONG g_rd_draws, g_rd_frames;
 internal DWORD g_rd_minute_tick;
-internal LONGLONG g_rd_draw_qpc, g_rd_draw_qpc_told;   // time inside the draw calls (the game's thread), for the minute's line
 internal LONGLONG rd_qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+// time inside the draw calls (the game's thread) for the minute's line, by the processor's cycle counter: a
+// QueryPerformanceCounter costs about 55 ns, and two a draw were 1.2 ms of the frame zoomed out (11 000 parts a frame);
+// the line converts the cycles by the two counters' rate over its minute
+internal inline LONGLONG rd_cyc(void) { return (LONGLONG)__rdtsc(); }
+internal uint32_t g_rd_vgen;   // changes of a device's view or projection, and new devices (render_shadows.c keeps their product by it)
+internal LONGLONG g_rd_draw_cyc, g_rd_draw_cyc_told;
 // the draws of more vertices than the display DLL's own buffer holds (display_vb_vertices: a real Direct3D 7 one
 // overrun; LockVB unpatched left its place past it for good - render.c render_display_loaded), by render object
 // (RO_N: none), the most in one; and those past our room (dropped) - the minute's line
@@ -1382,10 +1387,14 @@ internal void rd_frame_tick(void) {
     QueryPerformanceFrequency(&f);
     LONG fr = g_rd_frames - frames0, dr = g_rd_draws - draws0, ba = g_rb.batches - batches0;
     double k = fr > 0 ? 1000.0 / (double)f.QuadPart / fr : 0, secs = tick0 ? (double)(now - tick0) / 1000.0 : 0;
+    static LONGLONG cyc0, qpc0;
+    LONGLONG cyc1 = rd_cyc(), qpc1 = rd_qpc();
+    double per_cyc = qpc0 && cyc1 > cyc0 ? (double)(qpc1 - qpc0) / (double)(cyc1 - cyc0) : 0;   // QPC ticks a cycle
+    cyc0 = cyc1, qpc0 = qpc1;
     log_locked("# render: frames %ld, draws %ld (the last minute a frame: %ld draws in %ld batches, %.2f ms in them, %.2f ms in Present,"
                " %.2f ms waiting for the simulation's lock; it held it %.0f ms a second; %ld frames)\n", (long)g_rd_frames,
                (long)g_rd_draws, fr > 0 ? (long)(dr / fr) : 0L, fr > 0 ? (long)(ba / fr) : 0L,
-               (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k,
+               (double)(g_rd_draw_cyc - g_rd_draw_cyc_told) * per_cyc * k, (double)(g_d3d_present_qpc - present0) * k,
                (double)(g_rwl_wait_qpc - wait0) * k,
                secs > 0 ? (double)(g_rwl_held_qpc - held0) * 1000.0 / (double)f.QuadPart / secs : 0, (long)fr);
     static LONG mo_draws0, mo_up0, mo_copied0, why0[4];
@@ -1462,7 +1471,7 @@ internal void rd_frame_tick(void) {
     g_rwl_wait_max = 0;
     g_rd_minute_tick = tick0 = now;
     frames0 = g_rd_frames; draws0 = g_rd_draws; batches0 = g_rb.batches;
-    g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc; wait0 = g_rwl_wait_qpc; held0 = g_rwl_held_qpc;
+    g_rd_draw_cyc_told = g_rd_draw_cyc; present0 = g_d3d_present_qpc; wait0 = g_rwl_wait_qpc; held0 = g_rwl_held_qpc;
 }
 internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return D3D_OK; }
 internal HRESULT __stdcall rd_dev_end(rd_device *d) {
@@ -1527,7 +1536,7 @@ internal D3DMATRIX *rd_transform(rd_device *d, D3DTRANSFORMSTATETYPE t) {
 internal HRESULT __stdcall rd_dev_set_transform(rd_device *d, D3DTRANSFORMSTATETYPE t, D3DMATRIX *m) {
     D3DMATRIX *x = rd_transform(d, t);
     if (!x) return D3D_OK;
-    if (x != &d->world && memcmp(x, m, sizeof *m)) d->changed |= RD_CH_VC;   // the world is the vertices' own (the batch)
+    if (x != &d->world && memcmp(x, m, sizeof *m)) d->changed |= RD_CH_VC, g_rd_vgen++;   // the world is the vertices' own (the batch)
     *x = *m;
     return D3D_OK;
 }
@@ -1607,7 +1616,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
     if (!n || !rd_vb_fits(vb, start, n) || !rd3_drawable(vb, type)) return D3D_OK;
-    LONGLONG t0 = rd_qpc();
+    LONGLONG t0 = rd_cyc();
     RD_LOCK();
     rd3_overlay_before(d);
     rd3_probe(d, type, vb, start, n, NULL, 0);
@@ -1617,7 +1626,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
         else rd3_append(d, type, vb, start, n, NULL, 0);
     }
     if (d->sh_card) rd3_shadow_card(d, type, vb, start, n, NULL, 0);
-    g_rd_draw_qpc += rd_qpc() - t0;
+    g_rd_draw_cyc += rd_cyc() - t0;
     RD_UNLOCK();
     return D3D_OK;
 }
@@ -1627,7 +1636,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
     if (!nv || !ni || !idx || !rd_vb_fits(vb, start, nv) || !rd3_drawable(vb, type)) { mo_copy_now(); return D3D_OK; }
-    LONGLONG t0 = rd_qpc();
+    LONGLONG t0 = rd_cyc();
     RD_LOCK();
     rd3_overlay_before(d);
     mo_run *ma = NULL, *mb = NULL;
@@ -1643,7 +1652,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     if (morph) { if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) rd3_append_morph(d, ma, mb, f, idx, ni); }
     else if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
     if (d->sh_card) rd3_shadow_card(d, type, vb, start, nv, idx, ni);
-    g_rd_draw_qpc += rd_qpc() - t0;
+    g_rd_draw_cyc += rd_cyc() - t0;
     RD_UNLOCK();
     return D3D_OK;
 }
@@ -1653,6 +1662,7 @@ internal HRESULT __stdcall rd_dev_get_direct3d(rd_device *d, void **out);
 internal void rd_device_defaults(rd_device *d) {
     static const D3DMATRIX id = { ._11 = 1, ._22 = 1, ._33 = 1, ._44 = 1 };
     d->world = d->view = d->proj = id;
+    g_rd_vgen++;
     d->changed = RD_CH_VC | RD_CH_RS | RD_CH_TEX | RD_CH_TARGET;
     d->rs[D3DRENDERSTATE_ZENABLE] = 1; d->rs[D3DRENDERSTATE_ZWRITEENABLE] = 1; d->rs[D3DRENDERSTATE_ZFUNC] = D3DCMP_LESSEQUAL;
     d->rs[D3DRENDERSTATE_SRCBLEND] = D3DBLEND_ONE; d->rs[D3DRENDERSTATE_DESTBLEND] = D3DBLEND_ZERO;

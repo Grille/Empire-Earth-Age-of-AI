@@ -261,8 +261,11 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     // shadow came and went with that (the player: "they should always see the real building")
     if (!d->rs[D3DRENDERSTATE_LIGHTING]) return SH_NONE;
     const D3DMATRIX *w = &d->world;
-    float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f }, vp[16];
-    rd3_mul(vp, &d->view._11, &d->proj._11);
+    float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f };
+    static float vp[16];   // the view x the projection, kept while they are the same (made for every part: 11 000 a frame zoomed out)
+    static const rd_device *vp_d;
+    static uint32_t vp_gen;
+    if (d != vp_d || g_rd_vgen != vp_gen) { rd3_mul(vp, &d->view._11, &d->proj._11); vp_d = d, vp_gen = g_rd_vgen; }
     int out = 0x3F;   // the screen's sides every corner lies beyond (none: on the screen)
     for (int c = 0; c < 8; c++) {
         float x = c & 1 ? hi[0] : lo[0], y = c & 2 ? hi[1] : lo[1], z = c & 4 ? hi[2] : lo[2];

@@ -70,10 +70,11 @@ internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
     g_sh_cloaked = 0;
 }
 // a tree's record: it hides what stands behind it as a building does (and render_instance.c draws it)
+internal int ut_record(ee_ro_units *ro, float *at, void *rec);   // render_units.c: the mod's own tree draw
 internal void __thiscall sil_hook_tree(ee_ro_units *ro, void *at, void *rec) {
     g_sl.tag = sil_on() ? SIL_BUILDING : 0;
     g_sl.in = 1;
-    ro_units_draw_tree(ro, at, rec);
+    if (!ut_record(ro, at, rec)) ro_units_draw_tree(ro, at, rec);
     g_sl.in = 0;
 }
 internal int sil_install(void) {

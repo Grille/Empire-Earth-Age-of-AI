@@ -444,7 +444,7 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
     mt.diffuse.a = p->alpha * material_get_alpha(mat);
     mt.ambient.a = 1;
     InterlockedIncrement(&g_rd_draws);
-    LONGLONG t0 = rd_qpc();
+    LONGLONG t0 = rd_cyc();
     RD_LOCK();
     d->material = mt;
     d->world = *world;
@@ -466,7 +466,7 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
         if (d->sh_card && n <= SH_CARD_MAX) in_card_queue(d, pa, pb, frac, n, idx, ni);
         InterlockedIncrement(&g_in_parts);
     }
-    g_rd_draw_qpc += rd_qpc() - t0;
+    g_rd_draw_cyc += rd_cyc() - t0;
     RD_UNLOCK();
 }
 // a x b (GETransformation::Apply: 4 x 4 by row, the place in the fourth column, the last row b's)

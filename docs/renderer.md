@@ -953,7 +953,17 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    editor's ground changes; bl_bend bends no blend). Compared: 286 000 bent records' kept copies against one bent anew,
    none stale; 742 copies in the test. The records' draw 5.6 ms a frame by the game's, 4.1 by ours, the units' 8.1 and
    6.6 (the same run, the two alternating; the machine shared with other games).
-3. Next: the view test and the detail (GetPixelSize, 2-3 % of the render thread) by our own code; the trees.
+3. Done (2026-11-11, the player: "keep b in mind as a task after"): the trees' record draw ours (render_units.c ut_draw,
+   with the records': draw_tree EE 0x50AE59 / AoC 0x515674 set the opacity, the texture, the frames, the sway as the
+   fraction, the size and the place into its caller's turn on the shared model, then PrepareTransforms and Draw - here an
+   in_rec), and the comparison takes the device's states and the material's colour too (ud_states, a hash of all but
+   the world, the material and the texture bound - the part's own texture is compared): 1 019 861 records and trees, none
+   differ. The parts were cheaper besides: the minute line's time in the draws by the cycle counter (rd_cyc; two
+   QueryPerformanceCounter a part, about 55 ns each, of 11 000 parts a frame), the shadows' classification keeps the
+   view x projection while they stay (g_rd_vgen), the flying pieces' blend reads the frame's time. Units only, zoomed
+   out, paused: the units' draw 6.0-6.4 ms a frame before, 4.5-5.0 now (the records 3.6-3.8 to 2.6-2.9, the trees 1.45
+   to 1.05-1.15); 6.0-6.9 with the game's record and tree draw in the same build. Next: the view test and the detail
+   (GetPixelSize) by our own code.
 4. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
    for long instanced draws; the 0x420 records, the circles and bars, the shadows' render object.
 

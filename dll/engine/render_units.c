@@ -16,14 +16,14 @@
 // game's draw then hands over and draws: the same model, material, texture, pose, indices, the place within float
 // rounding (the turns' order of operations differs).
 #define UD_NOTES 256
-enum { UD_PARTS, UD_MODEL, UD_TEX, UD_POSE, UD_PLACE, UD_INDICES, UD_KINDS };
-internal const char *const k_ud_kind[UD_KINDS] = { "parts", "model or material", "texture", "pose", "place", "indices" };
+enum { UD_PARTS, UD_MODEL, UD_TEX, UD_POSE, UD_PLACE, UD_INDICES, UD_STATES, UD_KINDS };
+internal const char *const k_ud_kind[UD_KINDS] = { "parts", "model or material", "texture", "pose", "place", "indices", "states" };
 enum { UD_BUILT, UD_BENT, UD_CANT, UD_MODEL_NOT, UD_REASONS };
 internal const char *const k_ud_reason[UD_REASONS] = { "something on it (gfx_built)", "bent onto the ground", "the instancing can't now", "the model can't be" };
 typedef struct { ee_model *m; ee_material *mat; void *tex; in_pose p; D3DMATRIX w; const WORD *idx; DWORD ni; uint32_t st; } ud_part;
 internal struct {
     int force;               // the pipe's: 0 the game's draw, 1 the mod's, 2 compared; -1: the mod's
-    LONG own, game, reason[UD_REASONS];
+    LONG own, game, reason[UD_REASONS], trees_own, trees_game;
     // the comparison: the parts each side noted
     int side, n[2], over;
     ud_part e[2][UD_NOTES];
@@ -34,13 +34,14 @@ internal struct {
 } g_ud = { .force = -1 };
 internal int ud_mode(void) { return g_ud.force >= 0 ? g_ud.force : 1; }
 // the device's states a part is drawn under (all but the world matrix and the material, which the walk sets from the
-// part) and its material's colour, as a hash (render_effects.c compares them; the units' comparison doesn't)
+// part, and the texture bound, which it binds - the part's own is compared) and its material's colour, as a hash (compared
+// as the parts are)
 internal uint32_t ud_states(const rd_device *d, const ee_material *mat) {
     vec3 col = material_get_colour(mat);
-    const void *parts[] = { &d->view, &d->proj, &d->viewport, d->light, d->light_on, d->rs, d->tss, d->tex, &col };
-    const size_t sizes[] = { sizeof d->view, sizeof d->proj, sizeof d->viewport, sizeof d->light, sizeof d->light_on, sizeof d->rs, sizeof d->tss, sizeof d->tex, sizeof col };
+    const void *parts[] = { &d->view, &d->proj, &d->viewport, d->light, d->light_on, d->rs, d->tss, &col };
+    const size_t sizes[] = { sizeof d->view, sizeof d->proj, sizeof d->viewport, sizeof d->light, sizeof d->light_on, sizeof d->rs, sizeof d->tss, sizeof col };
     uint32_t h = 2166136261u;
-    for (int k = 0; k < 9; k++) for (size_t i = 0; i < sizes[k]; i++) h = (h ^ ((const uint8_t *)parts[k])[i]) * 16777619u;
+    for (int k = 0; k < 8; k++) for (size_t i = 0; i < sizes[k]; i++) h = (h ^ ((const uint8_t *)parts[k])[i]) * 16777619u;
     return h;
 }
 internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni, const rd_device *d) {
@@ -188,23 +189,24 @@ internal float ud_off(const float *a, const float *b, int n) {   // the largest 
     for (int i = 0; i < n; i++) w = fmaxf(w, fabsf(a[i] - b[i]) / fmaxf(1.0f, fabsf(b[i])));
     return w;
 }
-// the comparison of a record's two sides (0 the mod's, 1 the game's)
-internal void ud_compare(void *rec) {
+// the comparison of a record's two sides (0 the mod's, 1 the game's); tree: a tree's record
+internal void ud_compare(void *rec, int tree) {
     InterlockedIncrement(&g_ud.recs);
     int bad[UD_KINDS] = { 0 }, n = g_ud.n[0] < g_ud.n[1] ? g_ud.n[0] : g_ud.n[1], first = -1;
     float worst = 0.0f;
     bad[UD_PARTS] = g_ud.n[0] != g_ud.n[1];
     for (int i = 0; i < n; i++) {
         const ud_part *a = &g_ud.e[0][i], *b = &g_ud.e[1][i];
-        int k0 = bad[UD_MODEL] + bad[UD_TEX] + bad[UD_POSE] + bad[UD_PLACE] + bad[UD_INDICES];
+        int k0 = bad[UD_MODEL] + bad[UD_TEX] + bad[UD_POSE] + bad[UD_PLACE] + bad[UD_INDICES] + bad[UD_STATES];
         bad[UD_MODEL] |= a->m != b->m || a->mat != b->mat;
         bad[UD_TEX] |= a->tex != b->tex;
         bad[UD_POSE] |= a->p.frame != b->p.frame || a->p.next != b->p.next || ud_off(&a->p.frac, &b->p.frac, 2) > 1e-6f;
         bad[UD_INDICES] |= a->idx != b->idx || a->ni != b->ni;
+        bad[UD_STATES] |= a->st != b->st;
         float w = ud_off(&a->w._11, &b->w._11, 16);
         worst = fmaxf(worst, w);
         bad[UD_PLACE] |= w > 1e-4f;
-        if (first < 0 && bad[UD_MODEL] + bad[UD_TEX] + bad[UD_POSE] + bad[UD_PLACE] + bad[UD_INDICES] > k0) first = i;
+        if (first < 0 && bad[UD_MODEL] + bad[UD_TEX] + bad[UD_POSE] + bad[UD_PLACE] + bad[UD_INDICES] + bad[UD_STATES] > k0) first = i;
     }
     if (worst > g_ud.worst) g_ud.worst = worst;
     int any = 0;
@@ -212,7 +214,8 @@ internal void ud_compare(void *rec) {
     if (!any) return;
     InterlockedIncrement(&g_ud.differ);
     if (g_ud.logged++ >= 12 || !g_log) return;
-    log_locked("# units' draw: record %p (type %d, class %d, anim %d) differs: parts %d / %d (mod / game)", rec, draw_record_get_type_id(rec),
+    if (tree) log_locked("# units' draw: tree %p (anim %d) differs: parts %d / %d (mod / game)", rec, draw_small_record_get_anim(rec), g_ud.n[0], g_ud.n[1]);
+    else log_locked("# units' draw: record %p (type %d, class %d, anim %d) differs: parts %d / %d (mod / game)", rec, draw_record_get_type_id(rec),
                draw_record_get_class_id(rec), draw_record_get_anim(rec), g_ud.n[0], g_ud.n[1]);
     log_locked(" (the game's walks %ld, to the DLL %ld)", (long)g_ud.walks, (long)g_ud.fell);
     for (int k = 1; k < UD_KINDS; k++) if (bad[k]) log_locked(", %s", k_ud_kind[k]);
@@ -247,7 +250,60 @@ internal int ud_record(ee_ro_units *ro, void *rec) {
     g_ud.fell = g_in_fell - fell, g_ud.walks = g_in_walks - walks;
     g_in_capture = 0;
     if (mine && g_ud.bent) InterlockedIncrement(&g_ud.bents);
-    else if (mine && !g_ud.over) ud_compare(rec);
+    else if (mine && !g_ud.over) ud_compare(rec, 0);
+    return 1;
+}
+// A TREE'S RECORD DRAW, THE MOD'S OWN (with the records': picture draw game | own | check). The game's (draw_tree, EE
+// 0x50AE59, AoC 0x515674) sets on its graphics' model the opacity, the texture of its animation (GEModel::SetTexture),
+// its frame and next frame (1 and 0 for a model that sways, else 0 and 0), its sway as the fraction between them and its
+// size, writes its place into the turn its caller made once for all the trees (at) and makes that the model's outer
+// transformation, then PrepareTransforms and Draw with the graphics' detail bias - 2600 trees a frame in the test. Here
+// they go to the walk as a record's do; the alpha test's reference and the depth's use are set as it sets them, its place
+// written into the turn as the game writes it.
+internal int ut_draw(float *at, void *rec) {
+    ee_dmg_model *g = draw_small_record_get_gfx(rec);
+    if (!g) return 0;
+    float scale = draw_small_record_get_scale(rec);
+    if (!(scale > *(const float *)engine_display_float_zero_at())) return 1;
+    if (bl_noted(g)) return ud_fell(UD_BENT);   // (walls.c bends it in the game's draw)
+    int anim = draw_small_record_get_anim(rec);
+    ee_model *m = graphics_anim_model(g, anim);
+    float op = draw_small_record_get_opacity(rec);
+    vec3 pos = draw_small_record_get_pos(rec);
+    in_rec r = { at, scale, { (uint32_t)draw_small_record_get_frame(rec), (uint32_t)draw_small_record_get_next_frame(rec),
+                              draw_small_record_get_sway(rec), op, NULL },
+                 graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
+    if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
+    if (!m || !in_model_ok(m, &r.pose, 1)) return ud_fell(UD_MODEL_NOT);
+    ee_rasterizer *ras = rasterizer();
+    uint32_t screen = (uint32_t)screen_index();
+    float ref = dmg_model_get_alpha_ref(g);
+    rasterizer_set_alpha_ref(ras, ref > op ? *(const float *)engine_display_alpha_ref_low_at() : ref, screen);
+    rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
+    if (!in_device(ras, screen)) return ud_fell(UD_CANT);
+    at[3] = pos.x, at[7] = pos.y, at[11] = pos.z;
+    return in_draw_rec(m, &r, dmg_model_get_detail_bias(g)) ? 1 : ud_fell(UD_BENT);
+}
+// render_silhouette.c's hook of the game's tree draw: 1 when it is drawn here
+internal int ut_record(ee_ro_units *ro, float *at, void *rec) {
+    int mode = ud_mode();
+    if (!mode) return 0;
+    if (mode == 1) {
+        if (!ut_draw(at, rec)) { InterlockedIncrement(&g_ud.trees_game); return 0; }
+        InterlockedIncrement(&g_ud.trees_own);
+        return 1;
+    }
+    g_ud.side = 0; g_ud.n[0] = g_ud.n[1] = 0; g_ud.over = 0; g_ud.bent = 0;
+    g_in_capture = 1;
+    int mine = ut_draw(at, rec);
+    g_ud.side = 1;
+    g_in_capture = 2;
+    LONG fell = g_in_fell;
+    LONG walks = g_in_walks;
+    ro_units_draw_tree(ro, at, rec);
+    g_ud.fell = g_in_fell - fell, g_ud.walks = g_in_walks - walks;
+    g_in_capture = 0;
+    if (mine && !g_ud.over) ud_compare(rec, 1);
     return 1;
 }
 // the pipe: picture draw [game | own | check]
@@ -268,8 +324,8 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
         return 1;
     }
     if (arg[0]) { REPLY("error: usage: picture draw [game | own | check]\n"); return 1; }
-    REPLY("the units' records: %s; by the mod %ld, left to the game %ld (", ud_mode() == 0 ? "the game's draw" : ud_mode() == 1 ? "the mod's draw" : "compared",
-          (long)g_ud.own, (long)g_ud.game);
+    REPLY("the units' records: %s; by the mod %ld, left to the game %ld; trees by the mod %ld, left to the game %ld (", ud_mode() == 0 ? "the game's draw" : ud_mode() == 1 ? "the mod's draw" : "compared",
+          (long)g_ud.own, (long)g_ud.game, (long)g_ud.trees_own, (long)g_ud.trees_game);
     for (int k = 0; k < UD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_reason[k], (long)g_ud.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_ud.recs, (long)g_ud.differ);
     for (int k = 0; k < UD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_kind[k], (long)g_ud.kind[k]);
