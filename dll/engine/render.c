@@ -1089,6 +1089,7 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
     if (!rd_is_surface(s) || !s->srv) return 0;
     RD_LOCK();
     rd3_submit();
+    g_ku_text = 0;   // the interface's text ends here: the mouse cursor isn't kept (render_frame.c)
     int cursor = rd_cursor_draw(s);
     if (cursor) rd3_submit();
     if (g_shot_req && (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight)) {   // a larger target: the picture as it is drawn

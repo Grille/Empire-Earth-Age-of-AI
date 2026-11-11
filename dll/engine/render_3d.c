@@ -1261,7 +1261,10 @@ internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
         } else rf_ground_again(&g_kw);
     } else ro_water_draw(o));
 }
-internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o)); }
+internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) {
+    RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o));
+    g_ku_text = !g_rwl_bare_now;   // the text after it is kept with it (render_frame.c)
+}
 internal int rd_render_objects_install(void) {
     return patch_ro_terrain_draw(rd_hook_ro_terrain) + patch_ro_shadows_draw(rd_hook_ro_shadows) +
            patch_ro_units_draw(rd_hook_ro_units) + patch_ro_water_draw(rd_hook_ro_water) + patch_ro_ui_draw(rd_hook_ro_ui);

@@ -132,6 +132,14 @@ internal rf_ground g_ks;   // the game's shadows' decals, the farms' fields: the
 // minimap were missing from every such frame (the player at stepload 1000: they flickered after a click; the pipe's
 // record bare: 26000 pixels a frame, the buttons). Recorded in every frame whose interface was updated, steps' too.
 internal rf_ground g_ku;
+// And the text: the game draws it after the render objects, from what the interface's draw left for it (the chat, the
+// messages, the line at the top: 2 to 44 batches a frame outside any render object, onto the interface's target) - a
+// frame without the update replays the interface's batches instead of its draw, and the text was left out: every such
+// frame showed the text dim, what the interface's own batches hold of it (the player, 2026-11-11: "text flickers too
+// (messages and ui)"; record bare: 45000 - 56000 pixels of the messages a frame). From the end of the interface's draw in
+// a frame with its update to the present (the mouse cursor is the present's), what is drawn outside the render objects
+// is kept with it.
+internal int g_ku_text;
 internal int g_rwl_bare_now;   // this frame goes without the game's update (render_3d.c rd_hook_graphics_update)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
@@ -159,9 +167,10 @@ internal int rf_pixels(const float *view) {
 // had put them
 internal void rf_keep_ground(void) {
     if (g_ro_cur == RO_TERRAIN && rf_pixels(g_rd3.vc.view)) return;
-    if (g_ro_cur == RO_UI ? g_rwl_bare_now : g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER && g_ro_cur != RO_SHADOWS))
+    int text = g_ro_cur < 0 && g_ku_text && !g_rwl_bare_now;   // the interface's text (g_ku_text)
+    if (!text && (g_ro_cur == RO_UI ? g_rwl_bare_now : g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER && g_ro_cur != RO_SHADOWS)))
         return;
-    rf_ground *g = g_ro_cur == RO_UI ? &g_ku : g_ro_cur == RO_WATER ? &g_kw : g_ro_cur == RO_SHADOWS ? &g_ks : &g_kg;
+    rf_ground *g = text || g_ro_cur == RO_UI ? &g_ku : g_ro_cur == RO_WATER ? &g_kw : g_ro_cur == RO_SHADOWS ? &g_ks : &g_kg;
     if (!rf_grow((void **)&g->b, &g->cap_b, g->nb + 1, sizeof *g->b) || !rf_grow((void **)&g->v, &g->cap_v, g->nv + g_rb.nv, sizeof *g->v)
         || !rf_grow((void **)&g->i, &g->cap_i, g->ni + g_rb.ni, sizeof *g->i) || !rf_grow((void **)&g->w, &g->cap_w, g->nw + g_rb.nw, sizeof *g->w))
         return;
@@ -560,6 +569,7 @@ internal int rf_ground_display_loaded(HMODULE m, const char *name) {
 internal void rd3_shadow_new_frame(void);   // render_shadows.c: the water's fading for the new frame
 internal void shadow_light_read(void);     // render_shadows.c: the game's light for this frame
 internal void rf_ground_frame(int skip) {
+    g_ku_text = 0;
     g_kg_skip = skip;
     shadow_light_read();
     rf_camera_frame();
