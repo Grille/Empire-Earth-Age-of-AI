@@ -211,6 +211,10 @@ class general
         /// lower = it squeezes through those as it is, the flanks drawn in
         [range(0.1, 1)]
         factor formation_narrow = 0.4;
+        /// Formation wide routes (with formation follow and land routes): a formation's route is chosen for the whole
+        /// formation, not for one unit - a gap it must file through counts as the extra way its last unit walks for it,
+        /// so a wider gap a little further off is taken instead, a far one is not
+        bool formation_wide_routes = false;
         /// Friendly collision (with land collide / ship collide): two units of one player or of allies push each other off
         /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as
         /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units

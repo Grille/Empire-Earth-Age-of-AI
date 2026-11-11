@@ -70,8 +70,11 @@ internal struct {
     uint32_t gen;                       // this search's stamp: an entry of another is unset
     uint32_t *seen, *closed;            // stamps
     int32_t *g, *parent;
-    uint8_t *pass;                      // 1 passable, 2 not (valid with seen_pass == gen)
+    uint32_t pgen;                      // the passable cache's stamp: gen's at the last sr_stamp (a formation's searches for wider ways share it)
+    uint8_t *pass;                      // 1 passable, 2 not (valid with seen_pass == pgen)
     uint32_t *seen_pass;
+    uint8_t *clr;                       // sr_width of the tile (valid with clr_at == cgen)
+    uint32_t *clr_at, cgen;
     uint32_t *heap;                     // tile indexes, by f
     float *f;
     int heap_n;
@@ -108,6 +111,7 @@ internal unsigned g_sr_budget_used, g_sr_pieces;   // its tiles so far; first pi
 internal uint32_t g_sr_piece_holder[SR_PIECE_SLOTS];   // units holding a piece, by serial (a slot each; a clash only loses priority)
 internal unsigned g_sr_joined, g_sr_join_missed;   // requests answered from a kept route, kept routes too far
 
+internal float ff_lead_area(ee_unit *u);   // groupmove.c
 internal int sr_is_ship(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);
     return td && unit_type_terrain_ok(td, 1) && !unit_type_terrain_ok(td, 0);
@@ -124,33 +128,40 @@ internal int sr_wants(ee_unit *u) { return u && ((g_sr_on && sr_is_ship(u)) || (
 internal int sr_alloc(uint32_t n) {
     if (n <= g_sr.n) return 1;
     free(g_sr.seen); free(g_sr.closed); free(g_sr.g); free(g_sr.parent); free(g_sr.pass); free(g_sr.seen_pass); free(g_sr.heap); free(g_sr.f);
-    free(g_sr.on_path); free(g_sr.path_mark);
+    free(g_sr.on_path); free(g_sr.path_mark); free(g_sr.clr); free(g_sr.clr_at);
     g_sr.seen = calloc(n, 4); g_sr.closed = calloc(n, 4); g_sr.g = calloc(n, 4); g_sr.parent = calloc(n, 4);
     g_sr.pass = calloc(n, 1); g_sr.seen_pass = calloc(n, 4); g_sr.heap = calloc(n, 4); g_sr.f = calloc(n, 4);
-    g_sr.on_path = calloc(n, 4); g_sr.path_mark = calloc(n, 4);
+    g_sr.on_path = calloc(n, 4); g_sr.path_mark = calloc(n, 4); g_sr.clr = calloc(n, 1); g_sr.clr_at = calloc(n, 4);
     g_sr.n = g_sr.seen && g_sr.closed && g_sr.g && g_sr.parent && g_sr.pass && g_sr.seen_pass && g_sr.heap && g_sr.f &&
-             g_sr.on_path && g_sr.path_mark ? n : 0;
-    g_sr.gen = 0;
+             g_sr.on_path && g_sr.path_mark && g_sr.clr && g_sr.clr_at ? n : 0;
+    g_sr.gen = g_sr.pgen = g_sr.cgen = 0;
     g_sr.mark = 0;
     for (int k = 0; k < SR_SHARED; k++) g_sr_kept[k].n = 0;   // their marks are gone with the arrays
     return g_sr.n != 0;
 }
 
 // a new stamp: every cached entry unset (a search, or a test of things that move)
-internal void sr_stamp(void) {
+internal int g_sr_need;                 // this search passes only where the way is this many tiles wide (sr_wide; 0: any passable tile)
+internal int g_sr_need_at[4], g_sr_need_r;   // but within g_sr_need_r tiles of its start and its goal (x, y, x, y)
+internal void sr_stamp_search(void) {   // the search's stamps alone: what is passable stays known
     if (++g_sr.gen == 0) {   // the stamps wrapped: clear them
         memset(g_sr.seen, 0, g_sr.n * 4); memset(g_sr.closed, 0, g_sr.n * 4); memset(g_sr.seen_pass, 0, g_sr.n * 4);
-        g_sr.gen = 1;
+        g_sr.gen = g_sr.pgen = 1;
     }
+}
+internal void sr_stamp(void) {
+    sr_stamp_search();
+    g_sr.pgen = g_sr.gen;
+    g_sr_need = 0;
 }
 
 // the game's tile test for u (0x41D36A) with the naval movement's test of the water (EEPMNaval::vf21), but for the
 // units that move, cached for this search
-internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x, int y) {
+internal int sr_pass_tile(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x, int y) {
     if (x < 0 || y < 0 || x >= size || y >= size) return 0;
     uint32_t i = (uint32_t)(y * size + x);
-    if (g_sr.seen_pass[i] == g_sr.gen) return g_sr.pass[i] == 1;
-    g_sr.seen_pass[i] = g_sr.gen;
+    if (g_sr.seen_pass[i] == g_sr.pgen) return g_sr.pass[i] == 1;
+    g_sr.seen_pass[i] = g_sr.pgen;
     g_sr.pass[i] = 2;
     if (x + y == map_get_edge_sum(map) || x + y == map_get_edge_sum_2(map) || y - x == map_get_edge_diff(map) || x - y == map_get_edge_diff(map)) return 0;
     ee_tile *tile = map_get_tiles(map)[i];
@@ -164,6 +175,34 @@ internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x,
     }
     g_sr.pass[i] = 1;
     return 1;
+}
+// how wide the way is at the tile, in tiles: across each of the four lines through it (along x, along y, the two
+// diagonals) the tiles free to both sides, the tile itself counted, each side looked at up to `most` tiles - the least
+// of the four. Blocked on one side only it is `most` or more: a route round a corner hugs it, the formation moves
+// across to the side with room (ff_side) - only what blocks on both sides is a gap
+#define SR_WIDE_MAX 16                  // tiles: the width looked for, at most
+internal int g_sr_w_most;               // the cache's `most`
+internal int sr_width(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x, int y) {
+    static const int ax[4] = { 1, 0, 1, 1 }, ay[4] = { 0, 1, 1, -1 };
+    uint32_t i = (uint32_t)(y * size + x);
+    if (g_sr.clr_at[i] == g_sr.cgen) return g_sr.clr[i];
+    int least = 2 * g_sr_w_most;
+    for (int a = 0; a < 4; a++) {
+        int w = 1;
+        for (int side = -1; side <= 1; side += 2)
+            for (int k = 1; k <= g_sr_w_most && sr_pass_tile(map, u, td, size, x + side * k * ax[a], y + side * k * ay[a]); k++) w++;
+        if (w < least) least = w;
+    }
+    g_sr.clr_at[i] = g_sr.cgen;
+    g_sr.clr[i] = (uint8_t)least;
+    return least;
+}
+internal int sr_need_free(int x, int y) {   // near the search's start or goal: the unit stands where it stands, its spot is where it is
+    return (abs(x - g_sr_need_at[0]) <= g_sr_need_r && abs(y - g_sr_need_at[1]) <= g_sr_need_r) || (abs(x - g_sr_need_at[2]) <= g_sr_need_r && abs(y - g_sr_need_at[3]) <= g_sr_need_r);
+}
+internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x, int y) {
+    if (!sr_pass_tile(map, u, td, size, x, y)) return 0;
+    return !g_sr_need || sr_need_free(x, y) || sr_width(map, u, td, size, x, y) >= g_sr_need;
 }
 
 // is the straight line between two points clear, margin to each side
@@ -449,6 +488,75 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
     return n;
 }
 
+// WIDE ROUTES (`formation_wide_routes`, with formation follow; the player, 2026-11-11, on "pick the route by width":
+// "they sound interesting"): the route above is one unit's - the shortest, through a gap a tile wide when that saves a
+// few tiles - and a formation's leader took it, the whole formation filing through behind it. For a formation's
+// leader the shortest route is weighed against wider ones: its narrowest place (the least sr_width of its tiles, those
+// within the formation's half-width of its start and goal left out - it stands and ends where it does) costs what
+// the formation's last unit walks more for it, the formation of `area` square tiles drawn out to that width instead
+// of its own (taken as twice as wide as deep: W = sqrt(2 area); area / w - area / W tiles) - then searched again
+// through tiles a tile wider than that narrowest place only, and again from what that finds (SR_WIDE_TRIES at most),
+// while a way is found and its length alone doesn't cost more than the best so far. The cheapest of them is the
+// route: a gap a little further off that the formation fits through beats the near one it must file through, a far
+// one doesn't. path[] in and out (n tiles, goal first), g_sr_need left at the chosen route's so its pulled legs keep
+// to tiles as wide. Measured (Continental seed 101, a wall across a 40-tile march, a gap on the straight way and a
+// 12-tile one 10 tiles south; 90% of the units on their spots, off / on at the whole cost): 70 units, a 1-tile gap
+// 109 / 102 s, a 3-tile gap 94 / 96 s; 164 units 186 / 111 s and 131 / 101 s - the 164 lost about 40 tiles' time to
+// the 1-tile gap where the whole cost says 77, the 70 about 10 where it says 36: SR_WIDE_COST. At half the cost the
+// 70 still went round for the 3-tile gap and stood 15 s later (94 / 109 s): SR_WIDE_MARGIN
+#define SR_WIDE_TRIES 6
+#define SR_WIDE_MARGIN 6.0f            // tiles: a wider way must be this much cheaper - a formation off the straight way wheels, and slows in its turns
+#define SR_WIDE_COST 0.5f              // of that way: the units press through a gap closer than they march (measured, below)
+internal unsigned g_sr_wide[3];         // formation leaders' routes weighed, with a narrow place on the shortest, given a wider way
+internal int sr_narrowest(ee_map *map, ee_unit *u, ee_unit_type *td, int size, const uint32_t *path, int n, int skip) {
+    int least = 2 * g_sr_w_most, sx = (int)(path[n - 1] % (uint32_t)size), sy = (int)(path[n - 1] / (uint32_t)size), tx = (int)(path[0] % (uint32_t)size), ty = (int)(path[0] / (uint32_t)size);
+    for (int k = 0; k < n; k++) {
+        int x = (int)(path[k] % (uint32_t)size), y = (int)(path[k] / (uint32_t)size);
+        if ((abs(x - sx) <= skip && abs(y - sy) <= skip) || (abs(x - tx) <= skip && abs(y - ty) <= skip)) continue;
+        int w = sr_width(map, u, td, size, x, y);
+        if (w < least) least = w;
+    }
+    return least;
+}
+internal float sr_wide_cost(float area, float width, int w) { return (float)w >= width ? 0 : SR_WIDE_COST * (area / (float)w - area / width); }
+internal int sr_wide(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx, int sy, int tx, int ty, uint32_t *path, int n, int *expanded, float area) {
+    float width = sqrtf(2 * area);
+    int fit = (int)ceilf(width);   // the width the formation fits through
+    if (fit > SR_WIDE_MAX) fit = SR_WIDE_MAX;
+    if (fit < 2 || n < 2) return n;
+    if (++g_sr.cgen == 0) { memset(g_sr.clr_at, 0, g_sr.n * 4); g_sr.cgen = 1; }
+    g_sr_w_most = fit;
+    g_sr_wide[0]++;
+    uint32_t goal = (uint32_t)(ty * size + tx);
+    int skip = (fit + 1) / 2, w = sr_narrowest(map, u, td, size, path, n, skip), w0 = w, need = 0;
+    if (w >= fit) return n;
+    g_sr_wide[1]++;
+    float len0 = (float)g_sr.g[goal] / SR_COST_STRAIGHT, best = len0 + sr_wide_cost(area, width, w) - SR_WIDE_MARGIN, best_len = len0;
+    static uint32_t alt[65536];
+    g_sr_need_at[0] = sx; g_sr_need_at[1] = sy; g_sr_need_at[2] = tx; g_sr_need_at[3] = ty;
+    g_sr_need_r = skip;
+    for (int t = 0; t < SR_WIDE_TRIES && w < fit; t++) {
+        int whole = 1;
+        sr_stamp_search();
+        g_sr_need = w + 1;
+        int m = sr_find(map, u, td, size, sx, sy, tx, ty, alt, 65536, expanded, 0, &whole);
+        if (m < 2) break;
+        float len = (float)g_sr.g[goal] / SR_COST_STRAIGHT;
+        if (len >= best) break;   // its length alone costs more: so does every wider one
+        int at = g_sr_need;
+        w = sr_narrowest(map, u, td, size, alt, m, skip);
+        if (w < at) w = at;
+        float cost = len + sr_wide_cost(area, width, w);
+        if (cost < best) { best = cost; best_len = len; need = at; n = m; memcpy(path, alt, (size_t)m * 4); }
+    }
+    g_sr_need = need;
+    if (need) g_sr_wide[2]++;
+    if (g_log) fprintf(g_log, "# wide route: %06x %d,%d -> %d,%d for a formation of %.0f square tiles (%.1f wide): the shortest way %.0f tiles, %d wide at its narrowest - %s%c", unit_get_serial(u) & 0xFFFFFF, sx, sy, tx,
+                       ty, area, width, len0, w0, need ? "a wider one taken" : "kept", need ? ':' : 10);
+    if (g_log && need) fprintf(g_log, " %.0f tiles, %d wide or more%c", best_len, need, 10);
+    return n;
+}
+
 // the way u's route from `from` to `to` sets out, as this planner finds it (the formation's leader will ask it for the
 // same, from the same place: from the group's middle it was 20 degrees off the leader's own, and the formation swung
 // onto the route over its first 10 s): *leg the direction of its first leg (as the route's corners are pulled: to the
@@ -457,7 +565,7 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
 // way (the player's "siphon", 2026-11-03: 71 units in a walled bowl, the way out east and the point south) turned on the
 // spot before it moved ("they reform to face the destination, not their first checkpoint, which makes them very slow
 // to start moving")
-internal int sr_first_leg(ee_unit *u, vec2 from, vec2 to, float ahead, vec2 *leg) {
+internal int sr_first_leg(ee_unit *u, vec2 from, vec2 to, float ahead, float area, vec2 *leg) {
     ee_map *map = game_map();
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     int size = map ? (int)map_get_size(map) : 0;
@@ -486,6 +594,7 @@ internal int sr_first_leg(ee_unit *u, vec2 from, vec2 to, float ahead, vec2 *leg
     int expanded = 0, whole = 1;
     int n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded, 0, &whole);
     if (n < 2) return 0;
+    if (area > 0 && !g_sr_ship) n = sr_wide(map, u, td, size, sx, sy, tx, ty, path, n, &expanded, area);   // as the leader's search will
     // the route's first leg as sr_search pulls it: from the start on to the furthest tile still in a clear line - the
     // leader's first waypoint, where its anchor heads. A leg shorter than `ahead` (a corner close by): the direction
     // to the route's point that far along it instead, so the formation isn't laid out for a leg it leaves at once
@@ -557,7 +666,7 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
     int holds = g_sr_piece_holder[slot] == serial;
     unsigned allowed = holds ? SR_PIECE_PRIORITY * SR_STEP_TILES : SR_STEP_TILES;
     int piece = g_sr_budget && g_sr_budget_used >= allowed && (dxt > dyt ? dxt : dyt) >= SR_PIECE_TRIP ? SR_PIECE_TILES : 0;
-    sr_shared *kept = g_sr_share ? sr_kept_for(map, u, td, start, goal) : NULL;
+    sr_shared *kept = g_sr_share && !(ff_lead_area(u) > 0) ? sr_kept_for(map, u, td, start, goal) : NULL;   // a formation's leader searches for itself (sr_wide)
     if (kept) {
         n = sr_join(map, u, td, size, kept, start, path, 65536, &expanded);
         if (n) { joined = 1; g_sr_joined++; }
@@ -581,8 +690,10 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
         }
         g_sr_corr = 0;
         if (!n) { g_sr_budget_used += (unsigned)expanded; return 0; }
+        float area = whole && !g_sr_ship && !g_sr_danger ? ff_lead_area(u) : 0;   // a formation's leader: its way weighed against wider ones
+        if (area > 0) n = sr_wide(map, u, td, size, sx, sy, tx, ty, path, n, &expanded, area);
         if (!whole) { g_sr_pieces++; g_sr_piece_holder[slot] = serial; }
-        else if (g_sr_share) sr_keep(map, u, td, goal, path, n);
+        else if (g_sr_share && !g_sr_need) sr_keep(map, u, td, goal, path, n);   // a wider way is the formation's, not the next unit's
     }
     if (whole && holds) g_sr_piece_holder[slot] = 0;
     g_sr_budget_used += (unsigned)expanded;
