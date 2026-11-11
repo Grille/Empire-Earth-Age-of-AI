@@ -272,7 +272,7 @@ internal pt_e *pt_entry(void *o, LONGLONG now) {
 internal int pt_blend(void *o, float ms, float *vals, int n, const float *cur) {
     if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok) return 0;
     pt_clock();
-    LONGLONG t = rd_qpc();
+    LONGLONG t = g_pt_show_at;   // (the frame's: a counter read a piece was 55 ns, 14 000 pieces a frame after a battle)
     pt_e *e = pt_entry(o, t);
     // one before it in this memory: unseen for a while, its time gone back (a load) or its fade (its age: it only grows)
     // smaller - the game makes a new flame in the memory of one just gone, and blended from that one's last moves it was
