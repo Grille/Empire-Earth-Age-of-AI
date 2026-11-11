@@ -60,6 +60,7 @@ internal struct {
     float wobble;    // how far the water's ripples move it (of the picture)
     float full;      // the depth (tiles) from which it has its whole strength; toward the shore it fades to none
     int failed, in_pass, drawn;   // its target could not be made; being drawn; one drawn
+    LONG frame;      // the frame it was started for (rd3_water_reflect: a frame's later parts draw into it)
     int w, h;        // the target's size
     float rfb[4];    // the picture's place on the screen: its x, y; 1 / its width, height
     ID3D11Texture2D *tex, *dtex;
@@ -362,8 +363,15 @@ internal void rd3_water_reflect(void) {
     g_wa.in_pass = 1;
     ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);
     rf_bind(x);
-    ID3D11DeviceContext_ClearRenderTargetView(x, g_wa.rtv, clear);
-    ID3D11DeviceContext_ClearDepthStencilView(x, g_wa.dsv, D3D11_CLEAR_DEPTH, 1, 0);
+    // started anew only at the frame's first part: a list drawn in parts (a texture changed under it, a pool full) had
+    // the ground alone in its first and the water in the next, and the mirrored picture made again from that part had no
+    // ground - the hills gone from the water for one frame, twice a second in the player's game (2026-11-11: "the water
+    // reflection flickers"; a test game: 10 frames of 1400 drawn in parts so). A later part draws its own into it.
+    if (g_wa.frame != g_rd_frames) {
+        g_wa.frame = g_rd_frames;
+        ID3D11DeviceContext_ClearRenderTargetView(x, g_wa.rtv, clear);
+        ID3D11DeviceContext_ClearDepthStencilView(x, g_wa.dsv, D3D11_CLEAR_DEPTH, 1, 0);
+    }
     ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_wa.rtv, g_wa.dsv);
     D3D11_VIEWPORT vp = { 0, 0, (FLOAT)w, (FLOAT)h, 0, 1 };
     ID3D11DeviceContext_RSSetViewports(x, 1, &vp);
