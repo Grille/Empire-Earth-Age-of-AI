@@ -190,9 +190,10 @@ internal void cmd_fmove(char *out, const char *args) {
         uint32_t *sel[3] = { NULL, qids, qids + n };
         player_select(qpl, sel);
         memset(qmem, 0, sizeof qmem);
-        path_msg_make((ee_path_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
+        path_msg_make((ee_path_msg *)qmem, msg_as_begin(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
         path_msg_set_facing((ee_path_msg *)qmem, atan2f(-((float)x + 0.5f - cx / (float)n), (float)y + 0.5f - cy / (float)n));
         msg_execute((ee_msg *)qmem);
+        msg_as_end(qpl);
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
     }
@@ -226,10 +227,11 @@ internal void cmd_fmove(char *out, const char *args) {
     memset(mem, 0, sizeof mem);
     g_fm_tx = (float)tx + 0.5f;
     g_fm_ty = (float)ty + 0.5f;
-    path_msg_make((ee_path_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
+    path_msg_make((ee_path_msg *)mem, msg_as_begin(pl), g_fm_tx, g_fm_ty, together, 0);
     path_msg_set_facing((ee_path_msg *)mem, facing * 0.01745329f);
     if (attack) path_msg_set_forced((ee_path_msg *)mem, 0);   // attack 1: an attack-move (the goal not forced: the units take on enemies they spot)
     msg_execute((ee_msg *)mem);
+    msg_as_end(pl);
     if (!also) g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
     REPLY("fmove: %d units of P%d sent to %d,%d%s%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", attack ? " as an attack-move" : "", grp ? group_count(grp) : 0);

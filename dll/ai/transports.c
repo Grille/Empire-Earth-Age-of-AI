@@ -646,10 +646,11 @@ internal void cmd_transports(char *out, const char *args) {
         if (!strcmp(what, "load")) {   // as the click makes it: the clicked one, or the selection's first transport and the clicked one as its unit
             int same = !sel1 || sel1 == click || unit_get_type_data(sel1) == unit_get_type_data(click);
             ee_load_msg *msg = (ee_load_msg *)mem;
-            load_msg_make(msg, player_get_msg_id(pl), (unsigned)unit_get_serial(same ? click : sel1), same ? -1 : unit_get_serial(click));
+            load_msg_make(msg, msg_as_begin(pl), (unsigned)unit_get_serial(same ? click : sel1), same ? -1 : unit_get_serial(click));
             hook_msg_load(msg);
+            msg_as_end(pl);
         }
-        else { ee_unload_msg *msg = (ee_unload_msg *)mem; unload_msg_make(msg, player_get_msg_id(pl), x, y); hook_msg_unload(msg); }
+        else { ee_unload_msg *msg = (ee_unload_msg *)mem; unload_msg_make(msg, msg_as_begin(pl), x, y); hook_msg_unload(msg); msg_as_end(pl); }
         REPLY("%s by P%d (this PC's P%u): %u selected, %u in the group;", what, p, local_player_index(), n, grp ? group_count(grp) : 0);
         for (int k = 0; k < nt; k++) {
             const char *gn = tw_goal_name(unit_get_goal(tr[k]));

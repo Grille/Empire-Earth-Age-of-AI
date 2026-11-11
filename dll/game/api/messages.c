@@ -13,7 +13,7 @@ internal inline const char *chat_msg_get_text(const ee_chat_msg *msg) { return F
 internal inline uint32_t *select_msg_get_ids_end(const ee_select_msg *msg) { return FIELD(msg, of_select_msg_ids_begin + 0x4, uint32_t *); }
 // a load into a transport (EEMLoadTransport): the transport's id +0x10, a unit's +0x14 (-1: the player's selection)
 // an unload (EEMUnloadTransport): the tile clicked +0x14, +0x18 (the selected transports' unload point)
-// the two made by hand in zeroed memory, the fields their Executes read (transports.c's test: executed, never sent; from: the sender's player_get_msg_id)
+// the two made by hand in zeroed memory, the fields their Executes read (transports.c's test: executed, never sent; from: msg_as_begin's)
 internal inline void load_msg_make(ee_load_msg *msg, int from, unsigned transport, int unit) {
     load_msg_set_from(msg, (int8_t)from);
     FIELD(msg, of_load_msg_transport, unsigned) = transport;
@@ -42,6 +42,18 @@ internal inline void path_msg_make(ee_path_msg *msg, int from, float x, float y,
 }
 // the move forced (1, a plain move) or not (0: an attack-move - the goal's +0x30)
 internal inline void path_msg_set_forced(ee_path_msg *msg, int forced) { FIELD(msg, of_path_msg_goal_30, uint8_t) = (uint8_t)forced; }
+// A message the mod makes and carries out for player pl itself, never sent (an AI army's move): the game carries a
+// message out for EEWorld::player(its from), the first player whose msg_id is that one - and every computer player has
+// 0xFF, so the second computer player's orders moved the first one's selection and its own units stood (pathtest.scn,
+// 2026-11-11: P3's move went to a unit of P2's). Between msg_as_begin and msg_as_end pl has an id nobody else has, 0xE0 +
+// its index (none is sent with it), which begin returns for the message's from; end gives its own back.
+internal int8_t g_msg_as_was;
+internal inline int msg_as_begin(ee_player *pl) {
+    g_msg_as_was = player_get_msg_id(pl);
+    player_set_msg_id(pl, (int8_t)(0xE0 + player_get_index(pl)));
+    return player_get_msg_id(pl);
+}
+internal inline void msg_as_end(ee_player *pl) { player_set_msg_id(pl, g_msg_as_was); }
 // the game start (EEMStartLoading): +0x14 the game's seed
 
 // FUNCTIONS
