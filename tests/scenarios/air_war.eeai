@@ -1,0 +1,25 @@
+// air_war.eeai: an air force that keeps growing, sent at P3's town (the player, 2026-11-11: "building up air forces is an
+// easy way to outplay the ai, it needs aa units and more static aa"). Small Islands seed 101, 2 AIs, start epoch 9 (World
+// War I; base ini random_map=Small Islands,seed=101,start_epoch=9, and landing=0,navy=0,surrender=0): P2 home ~77,28, P3
+// home ~12,52, each on its island - no land army reaches the other (on Continental P2's army razed P3's town beside the
+// aircraft and P3 resigned at 17-40 min: what killed it was not the air war). P2 gets two airports at 12 min; from 13 min
+// to 43 min every 3 minutes a wave more - 4 fighter-bombers (71) and a bomber (79: 135 a hit, area 1.5), the survivors
+// stay (11 waves: 44 + 11) -, and every 20 s all of them attack whatever of P3's is nearest within 15 tiles of its home;
+// they fly back to the airports to refuel on their own. Measure P3's citizens killed from the air, workers, buildings
+// lost, and the aircraft it shot down (its kills): defence.c anti_air, aa_strong.
+
+defence(2, 0)
+wait_until(12min)
+spawn(2, unit.b_airport, 80, 24, 1)
+spawn(2, unit.b_airport, 72, 32, 1)
+// one every: a script's every runs to its end before the next line (two in a row, the attacks began after the last wave)
+let wave = 0
+every(0.33min, 13min, 59.9min, (run) => {
+    if run >= wave * 9 + 1 and wave < 11 {
+        spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 78, 28, 4)
+        spawn(2, unit.a_bomber_11_b_17, 76, 28, 1)
+        wave += 1
+    }
+    stats("engage", 2, 77, 28, 40, unit.a_strafe_fighter10_fokker_dr_1, 12, 52)
+    stats("engage", 2, 77, 28, 40, unit.a_bomber_11_b_17, 12, 52)
+})

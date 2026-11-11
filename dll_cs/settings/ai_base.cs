@@ -921,6 +921,12 @@ class ai_base
         /// of those that enemy will train against what it saw of the AI's units count as aircraft seen (default off: not
         /// measured where aircraft fly yet)
         bool aa_expected = false;
+        /// Strong anti-air, in place of the counts above: the threat weighed (a bomber counts as 2-3 fighters, an atomic
+        /// bomber as 6) from the aircraft seen, the air force it expects of its enemies and, before any are seen, an enemy
+        /// in World War I or with an airport; blocks of AA buildings - 2, or 4 in a 2x2 when the threat is real - at its
+        /// Town Centers first, then its drop sites, one more place per 6 of the threat; AA units 2 + the threat, up to a
+        /// quarter of its unit limit (default off until measured)
+        bool aa_strong = false;
         /// Hold the town (experimental): when a stronger enemy army camps near an AI town, its soldiers pull back behind the
         /// town and guard there instead of chasing it one by one (Guard behaviour), and strike together once they are 1.3x
         /// its strength. Tests against a camp that pushes and pulls back like a player: worse (the town is left to the

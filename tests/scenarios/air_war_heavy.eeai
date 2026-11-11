@@ -1,0 +1,27 @@
+// air_war_heavy.eeai: air_war.eeai with bombers - the player, 2026-11-11: "the game has nuclear bombers, and even normal
+// ones can ruin an economy" (air_war.eeai's World War I fighter-bombers, 18 a hit, killed ~8 citizens in 47 minutes: no
+// test of AA). Small Islands seed 101, 2 AIs, start epoch 10 (World War II; base ini random_map=Small Islands,seed=101,
+// start_epoch=10, and landing=0,navy=0,surrender=0): P2 home ~77,28, P3 home ~12,52. P2 gets two airports at 12 min;
+// from 13 min to 43 min every 3 minutes a wave more - 2 bombers (79 B-17: 135 a hit, area 1.5) and a fighter-bomber (86
+// ME262, 26) - and every third wave an atomic bomber (70 B-29: 2200), the survivors stay (11 waves: 22 + 11 + 4); every
+// 20 s all of them attack whatever of P3's is nearest within 15 tiles of its home. Measure as air_war.eeai.
+
+defence(2, 0)
+wait_until(12min)
+spawn(2, unit.b_airport, 80, 24, 1)
+spawn(2, unit.b_airport, 72, 32, 1)
+// one every: a script's every runs to its end before the next line
+let wave = 0
+every(0.33min, 13min, 59.9min, (run) => {
+    if run >= wave * 9 + 1 and wave < 11 {
+        spawn(2, unit.a_bomber_11_b_17, 76, 28, 2)
+        spawn(2, unit.a_strafe_fighter11_me262, 78, 28, 1)
+        if wave == 0 or wave == 3 or wave == 6 or wave == 9 {
+            spawn(2, unit.a_bombernuc11_b_29, 77, 30, 1)
+        }
+        wave += 1
+    }
+    stats("engage", 2, 77, 28, 40, unit.a_bomber_11_b_17, 12, 52)
+    stats("engage", 2, 77, 28, 40, unit.a_strafe_fighter11_me262, 12, 52)
+    stats("engage", 2, 77, 28, 40, unit.a_bombernuc11_b_29, 12, 52)
+})

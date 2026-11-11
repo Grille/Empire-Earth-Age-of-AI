@@ -17,6 +17,22 @@
 #define S_BUILD      64u    // a building
 #define S_BUILD_ECON 128u   // ... that is the economy's own: a town, food, a house, a dock
 #define S_WANTED     256u   // ... that is the wanted entry itself
+#define S_AIR        512u   // anti-air while its air threat is real: an AA building or unit, the building that makes its AA units
+
+// THE ROW "air" (defence.c STRONG ANTI-AIR, aa_strong; the player 2026-11-11: AA far too weak - in the test the AA
+// buildings waited for the farms while the town was bombed, "27 buildings held back ... type 145 for the farms"): while
+// its air threat is real (aircraft seen over its towns, or an enemy airport it knows) the AA it still wants is the first
+// row - its cost held from every other spender -, and its AA (S_AIR) waits for no row.
+internal int g_aa_urgent[16];      // the threat is real now
+internal int g_aa_hold[16][7];     // what its AA still wants (a block's buildings, a round of units)
+internal int g_aa_maker[16];       // the building it asks for to make its AA units (0 none)
+internal int prio_air_type(unsigned idx, int type) {
+    idx &= 15;
+    if (!g_aa_urgent[idx] || type <= 0) return 0;
+    ee_unit_type *td = type_data(type);
+    int f = td ? unit_type_get_family(td) : -1;
+    return f == KIND_LAND_AA || f == KIND_AA_BUILDING || type == g_aa_maker[idx];
+}
 
 internal int g_spend_tiers = 0;     // [ai_base] spend_tiers: buildings wait for an outpost too (expand_hold)
 internal int g_farm_hold[16];       // the wood the next silo and its fields still need (econ.c farm_plan)
@@ -41,6 +57,7 @@ internal void wood_reserve(ee_player *pl, int reserve[7]);      // mines.c
 internal void navy_hold(ee_player *pl, unsigned idx, int reserve[7]);   // navy.c
 
 #define PRIO_IDX ((unsigned)player_get_index(pl) & 15)
+internal void prio_air(ee_player *pl, unsigned s, int r[7]) { (void)s; if (g_aa_urgent[PRIO_IDX]) for (int k = 2; k < 7; k++) r[k] += g_aa_hold[PRIO_IDX][k]; }
 internal void prio_epoch(ee_player *pl, unsigned s, int r[7]) { (void)s; spend_reserve(pl, PRIO_IDX, r, NULL); }
 // units: the next fields' wood, or the silo's whole sum while it has its turn; a building only yields to the silo
 internal void prio_farms(ee_player *pl, unsigned s, int r[7]) { r[3] += s & S_BUILD ? g_farm_hold[PRIO_IDX] : field_wood(PRIO_IDX); }
@@ -66,6 +83,7 @@ internal const struct prio_row {
     unsigned skip, only;   // skip: these spenders may use it; only: if set, no others have to leave it alone
     int apart;             // a warship with a target sees the stock but this (train_budget)
 } g_prio[] = {
+    { "air",       prio_air,      S_AIR,                                         0,              0 },
     { "epoch",     prio_epoch,    S_BUILD,                                       0,              0 },
     { "farms",     prio_farms,    S_TR_ECON | S_BUILD_ECON,                      0,              0 },
     { "wants",     prio_wants,    S_TR_ECON | S_BUILD_ECON | S_WANTED,           0,              0 },
@@ -81,6 +99,7 @@ internal const struct prio_row {
 
 internal int prio_applies(unsigned idx, int row, unsigned s) {
     const struct prio_row *w = &g_prio[row];
+    if (s & S_AIR) return 0;   // anti-air under a real threat waits for nothing
     return !(g_prio_off[idx] >> row & 1) && !(w->skip & s) && (!w->only || (w->only & s));
 }
 // what the rows ask this spender to leave alone, added up in reserve (the rows marked apart in apart instead, if given)
@@ -96,8 +115,9 @@ internal int prio_refuses(ee_player *pl, int type) {
     static unsigned refused[16];
     static uint32_t log_t[16];
     unsigned idx = PRIO_IDX, s = S_BUILD;
-    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx]) return 0;
+    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx]) return 0;
     if (type == g_prio_cur[idx] - 1) s |= S_WANTED;
+    if (prio_air_type(idx, type)) s |= S_AIR;
     if (UT_IN(type, UT_TOWNS, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM, UT_B_HOUSE, UT_B_DOCK)) s |= S_BUILD_ECON;
     int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1, row = 0;
     for (; row < PRIO_N && held < 0; row++) {

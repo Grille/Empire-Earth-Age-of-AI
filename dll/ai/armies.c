@@ -2416,6 +2416,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_scout = ini_int("autotest", "v_scouting", -1, autotest_ini);
         g_v_fln = ini_int("autotest", "v_fleet_by_need", -1, autotest_ini);
         g_v_aa_exp = ini_int("autotest", "v_aa_expected", -1, autotest_ini);   // defence.c anti_air
+        g_v_aa_strong = ini_int("autotest", "v_aa_strong", -1, autotest_ini);
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);

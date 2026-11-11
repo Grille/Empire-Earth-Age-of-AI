@@ -2092,7 +2092,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |
-                  (tr_econ ? S_TR_ECON : 0), reserve, sp);   // what's above this order (priority.c)
+                  (tr_econ ? S_TR_ECON : 0) | (prio_air_type(idx, req[0]) ? S_AIR : 0), reserve, sp);   // what's above this order (priority.c)
     for (int r = 2; r < 7; r++) reserve[r] += sp[r];
     int t3[7] = { 0 };   // spend_tiers: the top tier's, held from the warships that see the whole stock too
     if (g_spend_tiers && !g_landing_order) expand_hold(pl, t3);

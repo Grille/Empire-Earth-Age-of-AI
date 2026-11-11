@@ -25,6 +25,7 @@
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
 internal int g_aa_exp = 0, g_v_aa_exp = -1;                 // [ai_base] aa_expected, [autotest] v_aa_expected (ANTI-AIR, BY THE AIR FORCE IT EXPECTS)
+internal int g_aa_strong = 0, g_v_aa_strong = -1;           // [ai_base] aa_strong, [autotest] v_aa_strong (ANTI-AIR, STRONG)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
@@ -1888,6 +1889,7 @@ internal void defence_install(void) {
     g_aa = g_set_ai[1].anti_air;
     g_aa_ahead = g_set_ai[1].aa_ahead;
     g_aa_exp = g_set_ai[1].aa_expected;
+    g_aa_strong = g_set_ai[1].aa_strong;
     g_aa_ahead_b = g_set_ai[1].aa_ahead_buildings;
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
@@ -1912,7 +1914,19 @@ internal void defence_install(void) {
 internal const struct { enum ut_name type; int epoch; } k_aa_units[] = {
     { UT_AA13_TANK_SKYWATCHER, 13 }, { UT_AA10_STINGER_SOLDIER, 12 }, { UT_AA10_TANK, 10 } };
 internal const struct { enum ut_name type; int epoch; } k_aa_bldgs[] = { { UT_B_AA13_MISSILE_TOWER, 13 }, { UT_B_AA10_GUN_88MM, 10 } };
-struct aa_scan { ee_player *pl; int nair, have_u, have_b, nall, nbx, bxy[16][2]; float axs, ays; };
+// an aircraft's weight in the threat (STRONG below): in fighters' worth, 1 + attack / 100 (fighters 1.2, the bombers 2-2.8,
+// the late fighter-bombers 2.9-3.9), at most 6; an atomic bomber 6; none without an attack (transports, balloons)
+internal float aa_weight(ee_unit_type *td) {
+    if (!td) return 0;
+    if (unit_type_get_family(td) == KIND_ATOMIC_BOMBER) return 6.0f;
+    int at = unit_type_get_attack(td);
+    if (at <= 0) return 0;
+    float w = 1.0f + (float)at / 100.0f;
+    return w > 6.0f ? 6.0f : w;
+}
+internal int aa_named_unit(int t) { for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) if (t == g_ut[k_aa_units[k].type]) return 1; return 0; }
+internal int aa_named_bldg(int t) { for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++) if (t == g_ut[k_aa_bldgs[k].type]) return 1; return 0; }
+struct aa_scan { ee_player *pl; int nair, have_u, have_b, nall, nbx, bxy[256][2]; float axs, ays, wair, wall; };
 internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy aircraft
     struct aa_scan *a = ctx;
     ee_unit_type *td = unit_get_type_data(u);
@@ -1921,19 +1935,276 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
     ee_player *o = unit_get_owner(u), *pl = a->pl;
     if (o == pl) {
         for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == g_ut[k_aa_units[k].type];
+        if (g_aa_strong || g_v_aa_strong > 0) {   // STRONG: every type of the families, a data mod's too
+            int f = unit_type_get_family(td);
+            if (f == KIND_LAND_AA && !aa_named_unit(t)) a->have_u++;
+            if (f == KIND_AA_BUILDING && !aa_named_bldg(t)) {
+                a->have_b++;
+                if (a->nbx < 256) { a->bxy[a->nbx][0] = unit_get_x(u); a->bxy[a->nbx++][1] = unit_get_y(u); }
+            }
+        }
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++)
             if (t == g_ut[k_aa_bldgs[k].type]) {
                 a->have_b++;
-                if (a->nbx < 16) { a->bxy[a->nbx][0] = unit_get_x(u); a->bxy[a->nbx++][1] = unit_get_y(u); }
+                if (a->nbx < 256) { a->bxy[a->nbx][0] = unit_get_x(u); a->bxy[a->nbx++][1] = unit_get_y(u); }
             }
         return;
     }
     if ((fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
-    a->nall++;
+    a->nall++; a->wall += aa_weight(td);
     int x = unit_get_x(u), y = unit_get_y(u);
     ivec2 d;
     if (!nearest_drop(pl, iv2(x, y), 0, &d) || ivec2_dist2(d, iv2(x, y)) > 625) return;
-    a->nair++; a->axs += (float)x; a->ays += (float)y;
+    a->nair++; a->wair += aa_weight(td); a->axs += (float)x; a->ays += (float)y;
+}
+
+// STRONG ANTI-AIR ([ai_base] aa_strong, off until measured; [autotest] v_aa_strong; the player, 2026-11-11: "anti aa in
+// general is still far too weak ... the game has nuclear bombers, and even normal ones can ruin an economy. right now
+// building up air forces is an easy way to outplay the ai, it needs aa units and more static aa, i often place 2x2 aa
+// units in a block or line, while the ai occasionally places a single one"). In place of the counts above, every 5 s:
+// - THE THREAT, in fighters' worth (aa_weight): the most of the aircraft it saw near its towns and anywhere (kept
+//   AAS_KEEP), the air force it expects of its enemies (army_view.c aa_threat_expected: what each fields, and the
+//   aircraft among its counters to what it saw of the AI's), and before any is seen AAS_FLOOR - an enemy in World War I
+//   or later - or AAS_FLOOR_PORT - an enemy airport it knows: aircraft can come any minute.
+// - STATIC AA IN BLOCKS: its places - its Town Centers, Capitols and Settlements first, then its other drop sites, the
+//   nearest its base first - each want a block of AA buildings within AAS_R: 2 while the threat is below AAS_BIG, else
+//   4 - a 2x2 of the building's footprint where it fits, else a line -, laid out at once as foundations (paid, as the
+//   build manager's placing does) with AAS_BUILDERS of its nearest gathering citizens each (bunker.c bk_builders), a
+//   block every AAS_EVERY - through the build manager's queue they came too late: in the test 54 queued by minute 27, 1
+//   standing, 158 queued to 14 by the end. Its foundations it keeps builders on, each counted for its place, until done
+//   or AAS_FOUND_MS. One place per AAS_PER_SITE of the threat (one at least), as many as it has. Places within AAS_R of
+//   one already chosen are that one's; each AA building counts for the place nearest it. Without a real threat (the row
+//   "air", priority.c) a foundation waits for the rows as a building does (prio_refuses).
+// - AA UNITS: 2 + the threat, no more than a quarter of its unit limit; the newest land AA type the game offers it now
+//   (the game's data: family land_aa), up to AAS_TRAIN every 10 s; without a building that makes it (the type's makers
+//   in the game's data) one is asked of the build manager first (the test's P3 in World War I wanted 19-22 and had
+//   none: no factory for the Flak halftrack).
+// The AA building type: the newest of family aa_building the game offers it. "# anti-air: P<n> strong ..." a minute.
+// Measured (tests/scenarios/air_war.eeai, air_war_heavy.eeai: Small Islands, P2's growing air force at P3's town, 8 games
+// each, off / on): World War I fighter-bombers - citizens killed from the air 7.8 / 8.2, buildings lost 3.9 / 2.6,
+// aircraft shot down 30 / 35, workers 138 / 127, 28 AA buildings and 12.5 AA units standing; World War II B-17s, ME262s
+// and B-29s - citizens killed from the air 15.8 / 10.2 (se 4.9 / 3.8), units lost 52 / 37, buildings lost 6.5 / 5.0,
+// workers 111 / 102. The scripted air forces barely hurt even the AI without it (its citizens grew from 13 to 84 under
+// the bombs): no measure yet of what the player's air force does - it picks the economy's targets, pulls planes back,
+// masses them. Off until it is measured where aircraft hurt (the player's own games).
+#define AAS_KEEP 600000u
+#define AAS_FLOOR 3.0f
+#define AAS_FLOOR_PORT 6.0f
+#define AAS_BIG 8.0f
+#define AAS_PER_SITE 6.0f
+#define AAS_R 8
+#define AAS_EVERY 20000u
+#define AAS_TRAIN 5
+#define AAS_BUILDERS 2
+#define AAS_FOUND_MS 300000u
+#define AAS_FOUNDS 32
+#define AA_STRONG(idx) PV(idx, g_v_aa_strong, g_aa_strong)
+internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port);   // army_view.c
+internal struct { float w_near, w_all; uint32_t near_t, all_t, block_t, train_t, log_t, prod_t; unsigned prods; struct { ee_unit *u; int id; uint32_t t, b_t; } fnd[AAS_FOUNDS]; int nf; unsigned blocks, queued, trained, done, gave_up; } g_aas[16];
+// the newest type of family fam the game offers pl now (the strongest of those: hit points x attack); 0 none
+internal int aa_type_of(ee_player *pl, int fam, int land_unit) {
+    int best = 0, bep = -1; float bs = 0;
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    for (int t = 0; tt && t < G_TYPES_N; t++) {
+        ee_unit_type *td = type_data(t);
+        if (!td || unit_type_get_id(td) != t || unit_type_get_family(td) != fam || unit_type_get_attack(td) <= 0) continue;
+        if (land_unit && unit_type_get_class_id(td) != CLS_LAND) continue;
+        if (!prio_buildable(pl, t)) continue;
+        ee_tech *x = tech_tree_lookup(tt, unit_type_get_tech(td));
+        int ep = x ? tech_get_epoch(x) : 0;
+        float sc = (float)unit_type_get_hp(td) * (float)unit_type_get_attack(td);
+        if (ep > bep || (ep == bep && sc > bs)) { best = t; bep = ep; bs = sc; }
+    }
+    return best;
+}
+// a block of n (2 or 4) of type bt at site p: a 2x2 (or 2 side by side) of its footprint, else a line, the nearest spot
+// out from p (3 .. AAS_R tiles); the spots in out, how many (0: none fits)
+internal int aa_block_at(ee_player *pl, int bt, ivec2 p, int n, ivec2 *out) {
+    ee_unit_type *td = type_data(bt);
+    int sz = td ? unit_type_get_size(td) : 1;
+    if (sz < 1) sz = 1;
+    static const int sq[4][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } };
+    for (int shape = 0; shape < 3; shape++)   // 0: the square, 1: a line along x, 2: along y
+        for (int r = 3; r <= AAS_R; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    if (abs(ax) != r && abs(ay) != r) continue;
+                    ivec2 o = iv2(p.x + ax, p.y + ay);
+                    if (raiders_near(pl, o, 8)) continue;
+                    int ok = 1;
+                    for (int k = 0; k < n && ok; k++) {
+                        ivec2 q = shape == 0 ? iv2(o.x + sq[k][0] * sz, o.y + sq[k][1] * sz) : shape == 1 ? iv2(o.x + k * sz, o.y) : iv2(o.x, o.y + k * sz);
+                        ok = can_place(pl, bt, q);
+                        out[k] = q;
+                    }
+                    if (ok) return n;
+                }
+    return 0;
+}
+internal void am_bld(void *um, int type, int *have, int *busy);   // army.c
+internal int bk_builders(ee_player *pl, ee_unit *b, int n);            // bunker.c: n builders for b, the nearest gathering citizens
+// the building that makes type t (the first building among its tech's makers in the game's data); 0 none
+internal int aa_producer(ee_player *pl, int t) {
+    ee_unit_type *td = type_data(t);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    ee_tech *x = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
+    ee_tech_data *d = x ? tech_get_data(x) : NULL;
+    int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
+    for (int *q = b; b && e > b && e - b < 16 && q < e; q++) {
+        ee_unit_type *m = type_data(*q);
+        int c = m ? unit_type_get_class_id(m) : -1;
+        if (c == CLS_BUILDING || c == CLS_FORTRESS) return *q;
+    }
+    return 0;
+}
+internal int aa_is_town(ee_unit *u) {
+    int t = u ? unit_type_get_id(unit_get_type_data(u)) : -1;
+    return t >= 0 && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT));
+}
+internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct aa_scan *a, int epoch) {
+    idx &= 15;
+    __typeof__(g_aas[0]) *z = &g_aas[idx];
+    if (now < z->log_t || now < z->block_t || now < z->train_t) memset(z, 0, sizeof *z);   // a new game
+    if (a->wair >= z->w_near || now - z->near_t > AAS_KEEP) { z->w_near = a->wair; z->near_t = now ? now : 1; }
+    if (a->wall >= z->w_all || now - z->all_t > AAS_KEEP) { z->w_all = a->wall; z->all_t = now ? now : 1; }
+    int port = 0, ahead = 0;
+    float ex = aa_threat_expected(pl, idx, now, &port);
+    for (int q = 1; q < 16 && !ahead; q++) {
+        void *o = st_player(q);
+        ahead = o && o != pl && is_enemy(pl, o) && current_epoch(o) + 1 >= 10;
+    }
+    float threat = z->w_near > z->w_all ? z->w_near : z->w_all;
+    if (ex > threat) threat = ex;
+    float least = port ? AAS_FLOOR_PORT : ahead ? AAS_FLOOR : 0.0f;
+    if (least > threat) threat = least;
+    g_aa_urgent[idx] = 0; memset(g_aa_hold[idx], 0, sizeof g_aa_hold[idx]); g_aa_maker[idx] = 0;
+    if (threat <= 0) return;
+    // priority.c the row "air": aircraft over its towns, an enemy airport, or its first 2 AA buildings once enemy aircraft
+    // are seen anywhere or expected (the test's town had none standing when the first wave came: the farms first; from
+    // minute 0 on, before any of that, it cost the economy the army then broke)
+    g_aa_urgent[idx] = z->w_near > 0 || least >= AAS_FLOOR_PORT || (a->have_b < 2 && (z->w_all > 0 || ex > 0));
+    int block = threat < AAS_BIG ? 2 : 4;
+    int sites = 1 + (int)(threat / AAS_PER_SITE);
+    // the places, towns first then the nearest its base; covered: block AA buildings within AAS_R, or a block queued there
+    // within the last 2 minutes
+    unsigned pi = idx;
+    void *cm0 = player_get_civ_mgr(pl);
+    ee_build_mgr *bm = cm0 ? civ_mgr_get_build_mgr(cm0) : NULL;
+    ivec2 base = bm ? build_mgr_get_base(bm) : iv2(0, 0);
+    drops_cached(pl);
+    int used[64] = { 0 }, covered = 0, want_site = -1, chosen[64], nch = 0, cnt[64] = { 0 };
+    while (nch < sites && nch < 64) {
+        int bi = -1, bd = 0x7FFFFFFF, btown = 0;
+        for (int i = 0; i < g_drops[pi].n && i < 64; i++) {
+            const struct drop *d = &g_drops[pi].d[i];
+            if (used[i] || d->food) continue;
+            int town = aa_is_town(d->u), dd = ivec2_dist2(d->p, base);
+            if (bi < 0 || town > btown || (town == btown && dd < bd)) { bi = i; bd = dd; btown = town; }
+        }
+        if (bi < 0) break;
+        used[bi] = 1;
+        int near_one = 0;
+        for (int c = 0; c < nch && !near_one; c++) near_one = ivec2_dist2(g_drops[pi].d[chosen[c]].p, g_drops[pi].d[bi].p) <= AAS_R * AAS_R;
+        if (!near_one) chosen[nch++] = bi;
+    }
+    for (int k = 0; k < a->nbx; k++) {   // each AA building for the place nearest it
+        int bc = -1, bd = (AAS_R + 3) * (AAS_R + 3) + 1;
+        for (int c = 0; c < nch; c++) {
+            int dd = ivec2_dist2(g_drops[pi].d[chosen[c]].p, iv2(a->bxy[k][0], a->bxy[k][1]));
+            if (dd < bd) { bd = dd; bc = c; }
+        }
+        if (bc >= 0) cnt[bc]++;
+    }
+    // its foundations going up: builders kept on them, each counted for the place nearest it
+    int nf = 0, going = 0;
+    for (int k = 0; k < z->nf; k++) {
+        ee_unit *f = z->fnd[k].u;
+        int live = f && unit_get_serial(f) == z->fnd[k].id && unit_get_owner(f) == pl;
+        ee_unit *bs = live ? unit_get_physics(f) : NULL;
+        if (live && bs && unit_get_finished(bs)) { z->done++; continue; }   // standing: the scan counts it
+        if (!live || now - z->fnd[k].t > AAS_FOUND_MS) { z->gave_up += live; continue; }
+        if (!z->fnd[k].b_t || now - z->fnd[k].b_t >= 15000) { z->fnd[k].b_t = now ? now : 1; bk_builders(pl, f, AAS_BUILDERS); }
+        int bc = -1, bd = (AAS_R + 3) * (AAS_R + 3) + 1;
+        for (int c = 0; c < nch; c++) {
+            int dd = ivec2_dist2(g_drops[pi].d[chosen[c]].p, unit_get_tile(f));
+            if (dd < bd) { bd = dd; bc = c; }
+        }
+        if (bc >= 0) cnt[bc]++;
+        going++;
+        z->fnd[nf++] = z->fnd[k];
+    }
+    z->nf = nf;
+    for (int c = 0; c < nch; c++) {
+        int have = cnt[c];
+        if (have >= block) covered++;
+        else if (want_site < 0) want_site = chosen[c];
+    }
+    sites = nch;
+    // AA units
+    int lim = (int)game_unit_limit(pl) / 4, want_u = 2 + (int)(threat + 0.5f);
+    if (lim < 4) lim = 4;
+    if (want_u > lim) want_u = lim;
+    void *um = cm0 ? civ_mgr_get_unit_mgr(cm0) : NULL;
+    int ut = aa_type_of(pl, KIND_LAND_AA, 1), prod = ut ? aa_producer(pl, ut) : 0, prod_have = 0, prod_busy = 0;
+    if (um && prod) am_bld(um, prod, &prod_have, &prod_busy);
+    if (prod && !prod_have) g_aa_maker[idx] = prod;
+    if (g_aa_urgent[idx]) {   // the row "air" holds a round of units and the block still missing
+        int nu = want_u - a->have_u > AAS_TRAIN ? AAS_TRAIN : want_u - a->have_u, bt0 = aa_type_of(pl, KIND_AA_BUILDING, 0);
+        int nb = want_site >= 0 ? block : 0;
+        for (int r = 2; r < 7; r++)
+            g_aa_hold[idx][r] = (ut && nu > 0 && prod_have ? nu * unit_cost(pl, ut, r) : 0) + (bt0 ? nb * unit_cost(pl, bt0, r) : 0) +
+                                (prod && !prod_have ? unit_cost(pl, prod, r) : 0);
+    }
+    if (um && bm && prod && !prod_have && a->have_u < want_u && !build_mgr_queued(bm, prod) && prio_buildable(pl, prod) &&
+        (!z->prod_t || now - z->prod_t >= 60000)) {   // nothing makes it: the building first
+        z->prod_t = now ? now : 1;
+        build_mgr_request_one(bm, prod);
+        z->prods++;
+        if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min strong: asks for a type %d to make its AA units (type %d)\n", idx, now / 60000.0, prod, ut);
+    }
+    if (um && ut && a->have_u < want_u && (!z->train_t || now - z->train_t >= 10000)) {
+        z->train_t = now ? now : 1;
+        int n = want_u - a->have_u > AAS_TRAIN ? AAS_TRAIN : want_u - a->have_u;
+        special_want(idx, SP_AA, ut, want_u - a->have_u);   // econ.c SPECIAL ORDERS: saved up for
+        int req[4] = { ut, n, 0, 0 };
+        unsigned got = 0;
+        g_priority_mil = 1;
+        hook_train_units(um, req, (uintptr_t)&got);
+        g_priority_mil = 0;
+        z->trained += got;
+    }
+    // a block at the first place not covered
+    int bt = aa_type_of(pl, KIND_AA_BUILDING, 0), e = current_epoch(pl);
+    if (bm && bt && want_site >= 0 && e >= 0 && e < 14 && (!z->block_t || now - z->block_t >= AAS_EVERY)) {
+        z->block_t = now ? now : 1;
+        ivec2 p = g_drops[pi].d[want_site].p, spot[4];
+        int n = aa_block_at(pl, bt, p, block, spot), laid = 0;
+        if (!n && block == 4) n = aa_block_at(pl, bt, p, block = 2, spot);
+        const int *stock = player_stock_at(pl);
+        for (int k = 0; k < n && z->nf < AAS_FOUNDS; k++) {
+            int pay = 1;
+            for (int r = 2; r < 7; r++) pay &= unit_cost(pl, bt, r) <= stock[r];
+            if (!pay || prio_refuses(pl, bt)) break;   // the row "air" lets it through under a real threat
+            ee_unit *f = place_foundation(pl, bt, spot[k].x, spot[k].y);
+            if (!f) continue;
+            z->fnd[z->nf].u = f; z->fnd[z->nf].id = unit_get_serial(f); z->fnd[z->nf].t = now ? now : 1; z->fnd[z->nf].b_t = now ? now : 1;
+            z->nf++; laid++;
+            bk_builders(pl, f, AAS_BUILDERS);
+        }
+        n = laid;
+        if (n) {
+            z->blocks++; z->queued += (unsigned)n;
+            if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min strong: a block of %d type %d laid out at %d,%d for the place at %d,%d (threat %.1f)\n",
+                               idx, now / 60000.0, n, bt, spot[0].x, spot[0].y, p.x, p.y, threat);
+        }
+    }
+    if (g_log && g_autotest && (!z->log_t || now - z->log_t >= 60000)) {
+        z->log_t = now ? now : 1;
+        fprintf(g_log, "# anti-air: P%u at %.1f min strong: threat %.1f (seen near its towns %.1f, anywhere %.1f, expected %.1f, floor %.0f%s), places covered %d of %d (blocks of %d), AA buildings %d, AA units %d of %d (type %d, made in %d: %d of them); blocks %u (%u foundations: done %u, going up %d, given up %u), units trained %u, makers asked for %u\n",
+                idx, now / 60000.0, threat, z->w_near, z->w_all, ex, least, port ? ", an enemy airport known" : "", covered, sites, block, a->have_b, a->have_u, want_u, ut, prod, prod_have,
+                z->blocks, z->queued, z->done, going, z->gave_up, z->trained, z->prods);
+    }
+    (void)epoch;
 }
 internal struct { uint32_t last, seen_t, train_t, build_t, all_t, exp_log_t; int air, ax, ay, all; unsigned trained, queued; } g_aa_st[16];
 // BY THE AIR FORCE IT EXPECTS ([ai_base] aa_expected, off until measured; [autotest] v_aa_expected; army view step 7):
@@ -1954,6 +2225,7 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     struct aa_scan a = { 0 };   // each unit once (grid_each): counted by hand per grid cell, an AA building in 2-4 cells
     a.pl = pl;                   // counted 2-4 times - fewer AA units trained, the AA buildings stopped early
     grid_each(aa_scan_unit, &a);
+    if (AA_STRONG(idx)) { aa_strong(pl, idx, now, &a, epoch); return; }
     int nair = a.nair, have_u = a.have_u, have_b = a.have_b, nall = a.nall, nbx = a.nbx;
     int (*bxy)[2] = a.bxy;
     float axs = a.axs, ays = a.ays;

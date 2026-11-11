@@ -454,6 +454,32 @@ internal float avx_air_expected(ee_player *pl, unsigned idx, uint32_t now) {
     }
     return all;
 }
+
+// the air threat it expects, in fighters' worth (defence.c STRONG ANTI-AIR, aa_weight): the aircraft each enemy fields as
+// it expects them and the aircraft among that enemy's counters to what it saw of the AI's; *port: an enemy airport in its
+// memory
+internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port) {
+    static float n[G_TYPES_N];
+    idx &= 15;
+    av_enemy_build(pl, now);
+    float all = 0;
+    for (int o = 1; o < 16; o++) {
+        ee_player *op = player_at(o);
+        if (!op || !is_enemy(pl, op)) continue;
+        memset(n, 0, sizeof n);
+        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); if (td && av_field_of(td) == AVF_AIR) n[t] = g_avx[idx][o][t]; }
+        avx_counters(idx, o, AVF_LAND | AVF_SEA | AVF_AIR, AVF_AIR, n);
+        for (int t = 0; t < G_TYPES_N; t++) if (n[t] > 0) all += n[t] * aa_weight(type_data(t));
+    }
+    struct intel *in = &g_intel[idx];
+    *port = 0;
+    for (int k = 0; k < in->n && !*port; k++) {
+        const struct intel_rec *r = &in->r[k];
+        ee_player *o = r->kind == 0 && r->type == UT(B_AIRPORT) ? player_at(r->owner) : NULL;
+        *port = o && is_enemy(pl, o);
+    }
+    return all;
+}
 // the summary as a line: what it is, then its damage a second at each family of the enemy's it sees, the most first
 internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) {
     int w = snprintf(o, (size_t)cap, "%d alive (%d aboard), hp %.0f of %.0f, at %d,%d spread %.1f, reach %.1f, slowest %.2f (mean %.2f), siege %d, rams %d, ranged %d; damage a second at the enemy's:",
