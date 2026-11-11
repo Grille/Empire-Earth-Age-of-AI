@@ -66,14 +66,60 @@ internal void av_done(struct av_sum *s) {
         }
     }
 }
-// the families of what pl sees of its enemies now - their fighters and buildings (a bit each; UNIT_KINDS fits in 64)
-internal uint64_t av_enemy_kinds(ee_player *pl) {
-    uint64_t m = 0;
+// FIELDS OF OPERATION (the player 2026-11-11: "ships/fleets under the same system, just another field of operation ...
+// space on top as a layer"): land, sea, air and space, a unit's from its class in the game's data (class_id: a data mod's
+// new ship is a ship), an army's from its kind. What an army is good against is listed at the enemy it can get to: a land
+// army what stands on its land (its middle's continent) and what flies; a sea army what sails on its sea (its middle's
+// ocean), what flies, and what stands within its reach of that sea; air and space everything.
+enum { AVF_LAND = 1, AVF_SEA = 2, AVF_AIR = 4, AVF_SPACE = 8 };
+internal int av_field_of(ee_unit_type *td) {
+    switch (unit_type_get_class_id(td)) {
+    case CLS_NAVAL: case CLS_SUBMERGED_NAVAL: case CLS_NAVAL_TRANSPORT: case CLS_NAVAL_BUILDING: case CLS_NAVAL_CITIZEN: case CLS_SEA_ANIMAL: return AVF_SEA;
+    case CLS_AIRPLANE: case CLS_HELICOPTER: case CLS_HELICOPTER_TRANSPORT: case CLS_HELICOPTER_PRIEST: case CLS_AIR_ANIMAL: return AVF_AIR;
+    case CLS_SPACESHIP: case CLS_SPACE_BUILDING: case CLS_SPACE_TRANSPORT: case CLS_PLANET_SPACESHIP: return AVF_SPACE;
+    default: return AVF_LAND;
+    }
+}
+// what pl sees of its enemies now - their fighters and buildings: family, field, land and sea (map_area 2 and 1) - once
+// for all of its armies' lines (a list that grows as it needs)
+struct av_foe { int kind, field; unsigned land, sea; ivec2 p; };
+internal struct { struct av_foe *f; int n, cap; } g_avf;
+internal void av_foes_scan(ee_player *pl) {
+    g_avf.n = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(it.u) || !(cv_mil(it.td) || fr_building(it.td)) || !seen_by(it.u, pl)) continue;
-        int f = unit_type_get_family(it.td);
-        if (f >= 0 && f < UNIT_KINDS && f < 64) m |= 1ull << f;
+        int k = unit_type_get_family(it.td);
+        if (k < 0 || k >= UNIT_KINDS || k >= 64) continue;
+        if (g_avf.n == g_avf.cap) {
+            int cap = g_avf.cap ? 2 * g_avf.cap : 256;
+            struct av_foe *nf = realloc(g_avf.f, (size_t)cap * sizeof *nf);
+            if (!nf) return;
+            g_avf.f = nf; g_avf.cap = cap;
+        }
+        ivec2 p = unit_get_tile(it.u);
+        struct av_foe *e = &g_avf.f[g_avf.n++];
+        e->kind = k; e->field = av_field_of(it.td); e->p = p; e->land = map_area(p, 2); e->sea = map_area(p, 1);
+    }
+}
+internal int av_near_sea(ivec2 p, unsigned sea, int r) {   // a tile of that sea within r of p (8 ways, at 1, r/2 and r)
+    static const int dx[8] = { 1, 1, 0, -1, -1, -1, 0, 1 }, dy[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
+    int ds[3] = { 1, r / 2 > 1 ? r / 2 : 1, r > 1 ? r : 1 };
+    for (int j = 0; j < 3; j++)
+        for (int w = 0; w < 8; w++) if (map_area(iv2(p.x + dx[w] * ds[j], p.y + dy[w] * ds[j]), 1) == sea) return 1;
+    return 0;
+}
+// the families of the enemy (av_foes_scan) an army of that field, summed in s, can get to (a bit each)
+internal uint64_t av_kinds_for(const struct av_sum *s, int field) {
+    int ashore = s->n - s->aboard;
+    unsigned land = ashore ? map_area(s->mid, 2) : 0, sea = ashore ? map_area(s->mid, 1) : 0;   // all aboard, or nowhere known: every land, every sea
+    uint64_t m = 0;
+    for (int i = 0; i < g_avf.n; i++) {
+        const struct av_foe *e = &g_avf.f[i];
+        int ok = (field & (AVF_AIR | AVF_SPACE)) || e->field == AVF_AIR;
+        if (!ok && (field & AVF_LAND)) ok = e->field == AVF_LAND && (!land || e->land == land);
+        if (!ok && (field & AVF_SEA)) ok = e->field == AVF_SEA ? !sea || e->sea == sea : e->field == AVF_LAND && (!sea || av_near_sea(e->p, sea, (int)s->reach + 1));
+        if (ok) m |= 1ull << e->kind;
     }
     return m;
 }
@@ -98,11 +144,13 @@ internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) 
 // filled, emptied and ended by the parts that use it: the force's soldiers the landing has are one (armies.c
 // armies_lend: a split from the force, ar_lent_back: a merge back). No count limit: the list and the member lists
 // grow as they need. Not saved, as the lists they replace: a load's first tick takes the held back into the force.
-enum { AV_FORCE = 0, AV_LANDING = 1, AV_RAID = 2 };
-internal const char *const k_av_kind[] = { "the force", "the landing's", "a raid party" };
+enum { AV_FORCE = 0, AV_LANDING = 1, AV_RAID = 2, AV_FLEET = 3 };
+internal const char *const k_av_kind[] = { "the force", "the landing's", "a raid party", "a fleet's force" };
+internal const int k_av_field[] = { AVF_LAND, AVF_LAND, AVF_LAND, AVF_SEA };
 struct av_member { ee_unit *u; int id; };
 struct av_army {
-    int id, kind; struct av_member *m; int n, cap; uint32_t made_t;
+    int id, kind, field, sub; struct av_member *m; int n, cap; uint32_t made_t;   // field: AVF_*; sub: which of its kind (a fleet's force: fleet.c TF_*)
+    const char *what, *task;   // its name and its task now, as its part calls them (the log's; NULL: none)
     ivec2 dest; int sent, clear; uint32_t look_t; float sent_hp;   // a mission's: where it goes, members and hit points it set out with, looks with nothing there, its last look
 };
 internal struct { struct av_army *a; int n, cap, next; } g_av[16];
@@ -120,7 +168,7 @@ internal struct av_army *av_new(unsigned idx, int kind, uint32_t now) {   // NUL
     }
     struct av_army *a = &g_av[idx].a[g_av[idx].n++];
     memset(a, 0, sizeof *a);
-    a->id = ++g_av[idx].next; a->kind = kind; a->made_t = now ? now : 1;
+    a->id = ++g_av[idx].next; a->kind = kind; a->field = k_av_field[kind]; a->made_t = now ? now : 1;
     return a;
 }
 internal int av_put(struct av_army *a, ee_unit *u) {   // a member at the end; 0 only without memory
@@ -150,3 +198,15 @@ internal void av_clear_player(unsigned idx) {
     memset(&g_av[idx], 0, sizeof g_av[idx]);
 }
 internal void av_new_game(void) { for (unsigned i = 0; i < 16; i++) av_clear_player(i); }
+// THE FLEET (fleet.c, step 4 of the army view): its forces - TF_HOME .. TF_ESCORT with task forces, else the one fleet as
+// sub 0 - are sea armies of this list, their members as the fleet has them at its tick (fleet.c still decides; here the
+// deciding parts see them as armies). n 0 ends the force's army.
+internal void av_fleet_sync(unsigned idx, int sub, ee_unit *const *u, int n, const char *what, const char *task, uint32_t now) {
+    idx &= 15;
+    struct av_army *a = NULL;
+    for (int k = 0; k < g_av[idx].n && !a; k++) if (g_av[idx].a[k].kind == AV_FLEET && g_av[idx].a[k].sub == sub) a = &g_av[idx].a[k];
+    if (!n) { if (a) av_end(idx, a); return; }
+    if (!a && !(a = av_new(idx, AV_FLEET, now))) return;
+    a->sub = sub; a->what = what; a->task = task; a->n = 0;
+    for (int k = 0; k < n; k++) av_put(a, u[k]);
+}

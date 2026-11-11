@@ -1242,11 +1242,19 @@ internal void tf_tick(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now
     fl_build(pl, idx, m, now);
 }
 
+// the fleet's forces as sea armies of the army list (army_view.c THE FLEET): the task forces, or the one fleet as force 0
+internal void av_fleet_sync(unsigned idx, int sub, ee_unit *const *u, int n, const char *what, const char *task, uint32_t now);   // army_view.c
+internal void fl_armies(unsigned idx, struct fleet *f, int forces, uint32_t now) {
+    for (int t = 0; t < TF_N; t++) {
+        struct fleet *x = forces ? &g_tf[idx][t] : t ? NULL : f;
+        av_fleet_sync(idx, t, x ? x->u : NULL, x ? x->n : 0, forces ? k_tf[t] : NULL, x && x->n ? k_ft[x->task] : NULL, now);
+    }
+}
 internal void fleet_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct fleet *f = &g_fl[idx];
     if (now < f->last) { memset(f, 0, sizeof *f); memset(g_tf[idx], 0, sizeof g_tf[idx]); g_ntfm[idx] = 0; }   // a new game (also fleet_new_game)
-    if (!fleet_on(idx)) { f->n = 0; return; }
+    if (!fleet_on(idx)) { if (f->n) fl_armies(idx, f, 0, now); f->n = 0; return; }
     if (f->last && now - f->last < 2000) return;
     f->last = now ? now : 1;
     fl_scan(pl, idx);
@@ -1299,11 +1307,13 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
         fl_strength(f, c);
         f->task = FT_GUARD; f->why = "task forces"; f->go = c;
         if (now - f->log_t >= 60000) { f->log_t = now; fl_log(pl, idx, f, now, c); }
+        fl_armies(idx, f, 1, now);
         return;
     }
     int changed = fl_decide(idx, f, now, 0);
     fl_targets(f);
     if (changed || now - f->log_t >= 60000) { f->log_t = now; fl_log(pl, idx, f, now, c); }
+    fl_armies(idx, f, 0, now);
 }
 
 internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); }

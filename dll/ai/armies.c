@@ -2203,16 +2203,17 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         av_clear(&sum);
         for (int k = 0; k < a->n; k++) if (cv_alive(a->held[k].u)) av_add(&sum, a->held[k].u);
         av_done(&sum);
-        uint64_t kinds = av_enemy_kinds(pl);
-        av_line(&sum, kinds, line, (int)sizeof line);
+        av_foes_scan(pl);
+        av_line(&sum, av_kinds_for(&sum, AVF_LAND), line, (int)sizeof line);
         ar_log(idx, now, "the force as one: %s", line);
         for (int j = 0; j < g_av[idx].n; j++) {   // the other armies
             struct av_army *o = &g_av[idx].a[j];
             av_clear(&sum);
             for (int k = 0; k < o->n; k++) if (av_live(&o->m[k], pl)) av_add(&sum, o->m[k].u);
             av_done(&sum);
-            av_line(&sum, kinds, line, (int)sizeof line);
-            ar_log(idx, now, "army %d, %s (%d members, since %.1f min): %s", o->id, k_av_kind[o->kind], o->n, o->made_t / 60000.0, line);
+            av_line(&sum, av_kinds_for(&sum, o->field), line, (int)sizeof line);
+            ar_log(idx, now, "army %d, %s%s%s%s%s (%d members, since %.1f min): %s", o->id, k_av_kind[o->kind], o->what ? " " : "", o->what ? o->what : "",
+                   o->task ? ", " : "", o->task ? o->task : "", o->n, o->made_t / 60000.0, line);
         }
     }
 }
