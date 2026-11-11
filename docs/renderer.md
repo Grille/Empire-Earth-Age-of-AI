@@ -790,6 +790,11 @@ Its turning is held harder still (the player: "the plane should heavely discurag
 a turning hull sweeps its whole flanks through the water, its ends the most. The points' way about their middle (by
 their weights; the way of the whole kept) is slowed by US_TURN (8/s) times how much of it is under (its floats' mean).
 With the drag alone a leaking bow pivoted a frigate on end in about a second.
+A hull under way lifts its leading end (the player: "how about an slight upwards rotation scaled by speed?"): as a boat
+planes, the water pushes the end it moves toward up and the other down - a pair, nothing lifted as a whole - by its way
+along its length (US_RISE 3 tiles/s^2 per tile/s, no more than US_RISE_TOP 2 tiles/s counted), the bow going ahead,
+the stern going astern, as far as each end is under. A ship killed under way rears a little and settles as it slows;
+a dive's glide is flattened a little.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

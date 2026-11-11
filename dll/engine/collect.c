@@ -570,6 +570,12 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // (by their weights; the way of the whole kept) slowed by US_TURN times how much of it is under. With the drag
 // alone a leaking bow pivoted a frigate on end in about a second, and a diver at a slant now stays slanted longer.
 #define US_TURN 8.0f    // 1/s, wholly under (4 hardly slowed the pivots)
+// A hull under way lifts its leading end (the player: "how about an slight upwards rotation scaled by speed?"): as a
+// boat planes, the water pushes the end it moves toward up and the other down - a pair, nothing lifted as a whole -
+// by its way along its length, the bow going ahead, the stern going astern, as far as each end is under. A ship
+// killed under way rears a little and settles as it slows; a dive's glide is flattened a little.
+#define US_RISE 3.0f    // the push (tiles/s^2) per tile/s: about 5 degrees at a frigate's 0.8 tiles/s
+#define US_RISE_TOP 2.0f   // tiles/s: no more than this counted (a ship of 170 rears, it doesn't flip)
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
@@ -711,6 +717,14 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     for (int j = 0; j < 3; j++) ln[j] = ll > 1e-6f ? ln[j] / ll : 0.0f;
     const float f_across = expf(-US_DRAG * dt), f_along = expf(-US_ALONG * dt), f_air = expf(-US_AIR * dt);
     float wet = 0.0f;   // how much of it is under: its floats' mean
+    // its way along its length (the points' by their weights; + bow-ward), as far as it is counted
+    float way = 0.0f, ws = 0.0f;
+    for (int i = 0; i < US_PTS; i++) {
+        float w = i < 4 ? 1.0f : US_BALLAST;
+        for (int j = 0; j < 3; j++) way += w * (k->sp[i][j] - k->sq[i][j]) * ln[j];
+        ws += w;
+    }
+    way = fminf(fmaxf(way / (ws * dt), -US_RISE_TOP), US_RISE_TOP);
     for (int i = 0; i < US_PTS; i++) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
         under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
@@ -727,6 +741,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         else
             for (int j = 0; j < 3; j++) v[j] *= f_air;
         v[2] += (-US_G + b * US_G * under) * dt * dt;
+        if (i < 2) v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * under * dt * dt;   // the leading end up, the other down
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
     }
     // its turning held: each point's way about the points' middle (by their weights) slowed, the whole's way kept
