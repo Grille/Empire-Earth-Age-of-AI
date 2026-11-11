@@ -517,6 +517,7 @@ typedef struct {
     uint8_t air;             // an aircraft: it splashes into the water and blows up on the ground (US_FX_*)
     uint8_t fx_done;         // ... the effects it had: US_FX_SPLASH, US_FX_CRASH
     uint8_t fx_due;          // ... the ones still to be made on the simulation's thread, at fx_at
+    uint8_t stuck;           // an aircraft whose middle hit the ground (or the seabed): it stays as it hit
     float fx_at[2][3];       // where: the splash's (on the water), the crash's
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
@@ -562,6 +563,11 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_KICK_ROLL 0.8f    // about its length: a heel of up to about 25 degrees
 #define US_KICK_PITCH 0.35f  // about its beam
 #define US_KICK_YAW 0.3f     // about its up: slewed round
+// an aircraft's (the player: "helicopters get a strong yaw kick, and airplanes an roll kick"): nothing in the air holds it
+// back, the turn goes on until it hits - a helicopter spins down, an airplane rolls over
+#define US_KICK_HELI_YAW 4.0f    // up to two thirds of a turn a second
+#define US_KICK_PLANE_ROLL 2.5f
+#define US_KICK_AIR_OTHER 0.2f   // its other two axes
 #define US_G 3.0f       // gravity (tiles/s^2)
 #define US_DT 0.01      // the step (s of game time)
 // The water's drag by the hull's own axes (the player, the same day: "what do you think of adding a lift plane? ... real
@@ -652,7 +658,10 @@ internal void us_kick(uc_corpse *k, int32_t serial) {
     uint32_t s = (uint32_t)serial * 2246822519u + 0x27D4EB2Fu;
     us_rnd(&s);
     float w[3], m[3] = { 0, 0, 0 }, al[3], ac[3], up[3], la = 0.0f, lc = 0.0f, lu = 0.0f, sum = 0.0f;
-    const float rate[3] = { US_KICK_ROLL, US_KICK_PITCH, US_KICK_YAW };
+    static const float ship[3] = { US_KICK_ROLL, US_KICK_PITCH, US_KICK_YAW },
+                       plane[3] = { US_KICK_PLANE_ROLL, US_KICK_AIR_OTHER, US_KICK_AIR_OTHER },
+                       heli[3] = { US_KICK_AIR_OTHER, US_KICK_AIR_OTHER, US_KICK_HELI_YAW };
+    const float *rate = !k->air ? ship : k->lift > 0.0f ? plane : heli;   // (an airplane floats, a helicopter doesn't)
     for (int a = 0; a < 3; a++) w[a] = rate[a] * (0.5f + 0.5f * us_rnd(&s)) * (us_rnd(&s) < 0.5f ? -1.0f : 1.0f);
     for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], la += al[j] * al[j], lc += ac[j] * ac[j];
     la = sqrtf(la), lc = sqrtf(lc);
@@ -704,7 +713,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
     k->lift = sub ? US_SUB_FLOAT : air && cls != CLS_AIRPLANE ? 0.0f : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
-    k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = 0;
+    k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
@@ -752,16 +761,22 @@ internal void us_fx(uc_corpse *k, uint8_t f, float x, float y, float z) {
     at[0] = x, at[1] = y, at[2] = z;
     k->fx_done |= f, k->fx_due |= f;
 }
+// AN AIRCRAFT'S CRASH (the player, the same day: "the settling on the floor like sunken ships after an crash is silly ...
+// airplanes and helicopters have only ground collison on a single point in the middle, once that point hits ground its
+// stuck. no air drag, only planing"): in the air nothing slows it, only the planing turns it (US_RISE: the end it moves
+// toward up); the ground holds only its middle (its floats' mean), and once that touches the ground or the seabed it stays
+// as it hit - nose in, a wing down - no more steps. In the water it floats and is slowed as a ship is.
 // one step at t s after its death: each float moved by its forces (Verlet: its velocity its way since the step before),
 // then the frame's distances and the seabed held, four times round
 internal void us_step(uc_corpse *k, float t, const void *mesh) {
+    if (k->stuck) return;
     const float dt = (float)US_DT, carry = (4.0f + US_BALLAST) / 4.0f;   // a float's lift: its share of all the weight
     // the hull's length as it lies (from the stern to the bow): the way along it the water's drag spares
     float ln[3], ll = 0.0f;
     for (int j = 0; j < 3; j++) ln[j] = k->sp[0][j] - k->sp[1][j], ll += ln[j] * ln[j];
     ll = sqrtf(ll);
     for (int j = 0; j < 3; j++) ln[j] = ll > 1e-6f ? ln[j] / ll : 0.0f;
-    const float f_across = expf(-US_DRAG * dt), f_along = expf(-US_ALONG * dt), f_air = expf(-US_AIR * dt);
+    const float f_across = expf(-US_DRAG * dt), f_along = expf(-US_ALONG * dt), f_air = k->air ? 1.0f : expf(-US_AIR * dt);
     float wet = 0.0f;   // how much of it is under: its floats' mean
     // its way along its length (the points' by their weights; + bow-ward), as far as it is counted
     float way = 0.0f, ws = 0.0f;
@@ -792,7 +807,8 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             v[j] = in_air + (in_water - in_air) * wd;
         }
         v[2] += (-US_G + b * US_G * under) * dt * dt;
-        if (i < 2) v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * under * dt * dt;   // the leading end up, the other down
+        if (i < 2)   // the leading end up, the other down: in the water, an aircraft's in the air as well
+            v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * (k->air ? 1.0f : under) * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
         if (k->air && i < 4 && !(k->fx_done & US_FX_SPLASH) && q[2] > k->zw && p[2] <= k->zw &&   // into the water
             mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1])) && mesh_z(mesh, p[0], p[1]) < k->zw)
@@ -842,17 +858,29 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
                 float wi = i < 4 ? 1.0f : 1.0f / US_BALLAST, wj = j < 4 ? 1.0f : 1.0f / US_BALLAST, w = (len - rest) / (len * (wi + wj));
                 for (int c = 0; c < 3; c++) k->sp[i][c] += d[c] * w * wi, k->sp[j][c] -= d[c] * w * wj;
             }
-        for (int i = 0; i < US_PTS; i++) {
+        for (int i = 0; i < US_PTS && !k->air; i++) {   // (an aircraft's ground: its middle, below)
             float *p = k->sp[i], *q = k->sq[i];
             int x = (int)floorf(p[0]), y = (int)floorf(p[1]);
             if (!mesh_has_tile(mesh, x, y)) continue;
-            float ground = mesh_z(mesh, p[0], p[1]), bottom = ground + below[i] - k->dig[i];
-            if (k->air && i < 4 && !(k->fx_done & US_FX_CRASH) && p[2] < bottom && ground >= k->zw && q[2] - p[2] > US_CRASH_V * dt)
-                us_fx(k, US_FX_CRASH, p[0], p[1], ground);   // onto the ground: the crash
+            float bottom = mesh_z(mesh, p[0], p[1]) + below[i] - k->dig[i];
             if (p[2] < bottom) {   // on the bottom: held up, and dragged along it
                 p[2] = bottom;
                 if (q[2] < p[2]) q[2] = p[2];
                 q[0] = p[0] - (p[0] - q[0]) * 0.8f, q[1] = p[1] - (p[1] - q[1]) * 0.8f;
+            }
+        }
+    }
+    if (k->air) {   // its middle on the ground or the seabed: it stays as it hit (a crash on land going down fast)
+        float m[3] = { 0, 0, 0 }, mq = 0.0f;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 3; j++) m[j] += 0.25f * k->sp[i][j];
+            mq += 0.25f * k->sq[i][2];
+        }
+        if (mesh_has_tile(mesh, (int)floorf(m[0]), (int)floorf(m[1]))) {
+            float ground = mesh_z(mesh, m[0], m[1]);
+            if (m[2] <= ground) {
+                if (ground >= k->zw && !(k->fx_done & US_FX_CRASH) && mq - m[2] > US_CRASH_V * dt) us_fx(k, US_FX_CRASH, m[0], m[1], ground);
+                k->stuck = 1;
             }
         }
     }

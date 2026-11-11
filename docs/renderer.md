@@ -832,6 +832,17 @@ and the effect fields found with the AoC decompilation as the guide, confirmed i
 an airport, P-51s and Apaches: the splashes rose where the wrecks went into the water, an explosion where a P-51 hit
 the runway, damaged Apaches' smoke rose from their wrecks, on land and in the water. A helicopter's wreck still goes
 when the game's own copy reaches the ground (rot time 0, its model the blown-up one from then).
+An aircraft crashes by rules of its own (the player, the same day: "the settling on the floor like sunken ships after
+an crash is silly ... airplanes and helicopters have only ground collison on a single point in the middle, once that
+point hits ground its stuck. no air drag, only planing. helicopters get a strong yaw kick, and airplanes an roll kick";
+a starting point closer to the game's): in the air nothing slows it, only the planing turns it (US_RISE, the end it
+moves toward up - in the air too); the ground holds only its middle (its floats' mean), and once that touches the
+ground or the seabed it stays as it hit, no more steps (stuck); in the water it floats and is slowed as a ship is. Its
+kick: a helicopter's about its up (US_KICK_HELI_YAW, up to 4 radians/s), an airplane's about its length
+(US_KICK_PLANE_ROLL 2.5), 0.2 about its other axes - unslowed in the air, the turn goes on until it hits. Checked
+headless with an airport, P-51s and Apaches: a helicopter spins down, blows up where it hits the ground and lies there
+on its side, smoking; one over the water splashes in and goes down; the P-51s roll and dive in steeply, over land one
+stuck nose first in the runway with its tail out (the game's crash pitches a plane down to 72 degrees at most).
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
