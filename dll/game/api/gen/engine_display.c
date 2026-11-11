@@ -725,6 +725,10 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // GETerrainMesh: 33 x 33 numbers, which of the water's groups a tile takes: the one at (x % 33) * 33 + y % 33
 // (SetGlobalWaterState fills them at random, UpdateVisibleTerrain reads them) - tiles side by side at different
 // frames of the animation
+// GETerrainMesh, Art of Conquest's: the textures of its space maps' edges (SetSpaceCliffTextures, a vector of
+// GETexture pointers: the first element here, the end at +4; NumSpaceCliffTextures). UpdateVisibleTerrain
+// (0x1002C299) draws 0-7 as the faces hanging under a space tile's edge (AddCliffPolys), 8-12 laid on a space tile
+// at the edge by its pattern and 12 on a land corner beside one; the display DLLs' Draw draws 0-7 first
 // GETerrainMesh: float, that scale (SetWaterColorSet's flds)
 // UpdateVisibleTerrain (exported by name): its lea eax, [mesh + of_mesh_ground_polygons] (6 bytes: 8D, a modrm
 // [reg + disp32] into eax, the offset) that starts the ground's pool - the 2017 update's with edi, AoC's with esi
@@ -1263,6 +1267,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_mesh_water_frame = 1558204;
         value_engine_display_of_mesh_water_frame_ms = 1558216;
         value_engine_display_of_mesh_water_patches = 1553832;
+        value_engine_display_of_mesh_space_cliffs = NA;
         value_engine_display_of_mesh_water_scale = 1553792;
         value_engine_display_size_mesh_polygon = 48;
         value_engine_display_of_visible_ground_pool = 929;
@@ -1416,7 +1421,7 @@ internal int spec_engine_display_select(int build) {
         fn_vector_push_small = (vector_push_small_fn)0x00504F36;
         fn_ghost_record_push = (ghost_record_push_fn)0x00504EAA;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
-        return 4;
+        return 5;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
         of_font_hfont = 0x18;
@@ -1625,6 +1630,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_mesh_water_frame = 1639880;
         value_engine_display_of_mesh_water_frame_ms = 1639892;
         value_engine_display_of_mesh_water_patches = 1635508;
+        value_engine_display_of_mesh_space_cliffs = 1660324;
         value_engine_display_of_mesh_water_scale = 1635464;
         value_engine_display_size_mesh_polygon = 48;
         value_engine_display_of_visible_ground_pool = 932;
@@ -1783,7 +1789,7 @@ internal int spec_engine_display_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_engine_display_missing[ADDR_BUILDS] = { "engine_display.sink_302 engine_display.sink_31f engine_display_functions.ground_circle engine_display_functions.line_of_sight", "" };
+internal const char *const k_spec_engine_display_missing[ADDR_BUILDS] = { "engine_display.of_mesh_space_cliffs engine_display.sink_302 engine_display.sink_31f engine_display_functions.ground_circle engine_display_functions.line_of_sight", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_engine_display_check(void) {
     int bad = 0;

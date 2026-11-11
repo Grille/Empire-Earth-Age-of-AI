@@ -273,6 +273,13 @@ internal inline unsigned mesh_water_patch(const void *mesh, unsigned x, unsigned
 // the water's animation: the frame its first group shows (group j: that + j, round the groups), the ms a frame (UpdateWaterAnimation)
 internal inline unsigned mesh_water_frame(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_frame, unsigned); }
 internal inline unsigned mesh_water_frame_ms(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_frame_ms, unsigned); }
+// Art of Conquest's space maps: the edges' textures, i of them (NULL beyond the vector or in a build without it)
+internal inline void *mesh_space_cliff(const void *mesh, unsigned i) {
+    if (value_engine_display_of_mesh_space_cliffs == NA) return NULL;
+    void *const *v = *(void *const *const *)((const uint8_t *)mesh + value_engine_display_of_mesh_space_cliffs);
+    void *const *end = *(void *const *const *)((const uint8_t *)mesh + value_engine_display_of_mesh_space_cliffs + 4);
+    return v && i < (unsigned)(end - v) ? v[i] : NULL;
+}
 internal inline void *mesh_water_texture(const void *mesh, unsigned group) {
     return *(void **)(*(uint8_t *const *)((const uint8_t *)mesh + value_engine_display_of_mesh_water_groups + 4) + group * value_engine_display_size_mesh_group);
 }

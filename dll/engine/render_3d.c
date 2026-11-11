@@ -195,11 +195,12 @@ internal const char k_rd3_shader[] =
     // the ground from the map: its seabed moved as TransformToCamera does, its brightness the fog of war (GETerrainMesh::UpdateFogOfWar),
     // the game's lights on the table's colour, clamped before it as DX7Rasterizer::Light does (a warm stone washes out otherwise);
     // the water (gnd.x 2): the height it holds is the ground's under it, the surface moves about the level, over land half as much and below it
-    // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light
+    // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light;
+    // a space map's edge and faces (w 2: rg_space_quad) none, gt.a -1 - its texture's own alpha is the edge's shape
     "void ground(inout I i, out float4 gt, out float3 gl) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
-    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); gt = float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
+    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); gt = i.w > 1 ? float4(0, 0, 0, -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
     "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
@@ -274,6 +275,9 @@ internal const char k_rd3_shader[] =
     " float gk = gnd.x == 1 && gbl.x > 0 ? saturate((i.gw.z + 0.005) * 200) : 0;"
     " if (gk > 0 && i.gt.a > 0.001) c.rgb = d.rgb = lerp(d.rgb, i.gt.rgb / i.gt.a * i.gl, gk);"
     " if (misc.z > 0.5 && x.a == 0) discard;"
+    // a space map's edge (render_ground.c rg_space_quad): its clear texels write no depth - the faces and the stars drawn
+    // after it, from the chunks behind, showed black through it where the game draws all faces first
+    " if (i.gt.a < -0.5 && x.a < 0.25) discard;"
     // the seabed loses its texture's detail with the depth, keeping its colour: toward the texture's last mip level
     " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"
     "  sea.x * (1 - exp(-(sea.z - i.w.z) * sea.y)));"
@@ -281,7 +285,7 @@ internal const char k_rd3_shader[] =
     "  if (aop.x != 1) c.a = top(aop.x, arg(aop.y, x, d), arg(aop.z, x, d)).a; }"
     // a layer of the ground, in its fade between two corners: its high texels first. 0 stays 0 and 1 stays 1 whatever the
     // height, so that neighbouring tiles still meet
-    " [branch] if (gk > 0 && c.a > 0 && c.a < 1) { float gn = saturate((gbn(i.gw.xy * gbl.w) * 0.65 + gbn(i.gw.xy * gbl.w * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5);"
+    " [branch] if (gk > 0 && c.a > 0 && c.a < 1 && i.gt.a >= 0) { float gn = saturate((gbn(i.gw.xy * gbl.w) * 0.65 + gbn(i.gw.xy * gbl.w * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5);"
     "  float gh = lerp(ght.SampleGrad(s, i.t, gdx, gdy), gn, gbl.z); c.a = lerp(c.a, saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y), gk); }"
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"

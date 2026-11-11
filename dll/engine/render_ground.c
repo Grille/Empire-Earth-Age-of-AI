@@ -25,6 +25,7 @@
 // chunks that touches are marked, and made again at the next frame that draws the ground - the game's writer is done by
 // then, the frame holds the world's read lock. The scenario editor paints through paths of its own: what it looks at is made
 // again a few times a second and the rest of the map a chunk at a time.
+// Art of Conquest's maps with space tiles draw their edges and cliffs as its engine does (ART OF CONQUEST'S SPACE MAPS below).
 #define RG_CHUNK 32
 #define RG_MATERIALS 1024
 #define RG_LAYERS 4     // a quad's textures at most
@@ -70,6 +71,7 @@ typedef struct {
 } rg_states;
 internal struct {
     int on, api, built, dll, flag;
+    int space;   // the map was made as Art of Conquest's space map (rg_space_quad)
     rg_states st[2];
     int size, across;
     ee_map *map;
@@ -188,16 +190,22 @@ internal uint32_t rg_bytes(const float *c, int a) {
     }
     return out;
 }
-internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const float *uv, int a) {
+// a point at x, y, z with the normal and colour of the map's point gx, gy
+internal void rg_vertex_at(rb_vertex *o, float x, float y, float z, unsigned long gx, unsigned long gy, const float *uv, int a) {
     float *f = (float *)o->fvf;
-    f[0] = (float)x; f[1] = (float)y; f[2] = g_rg.z(g_rg.mesh, x, y);
-    memcpy(f + 3, g_rg.normal(g_rg.mesh, x, y), 12);
-    *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, x, y), a & 255);
+    f[0] = x; f[1] = y; f[2] = z;
+    memcpy(f + 3, g_rg.normal(g_rg.mesh, gx, gy), 12);
+    *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, gx, gy), a & 255);
     f[7] = uv[0]; f[8] = uv[1];
-    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour)
+    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour); 2: a space piece, as it is
 }
+internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const float *uv, int a) {
+    rg_vertex_at(o, (float)x, (float)y, g_rg.z(g_rg.mesh, x, y), x, y, uv, a);
+}
+// layer 2, a space tile's edge (rg_space_quad), after everything else of its chunk: the faces under it show through it
 internal int rg_tri_order(const void *pa, const void *pb) {
     const rg_tri *a = pa, *b = pb;
+    if ((a->layer == 2) != (b->layer == 2)) return a->layer == 2 ? 1 : -1;
     if (a->tex != b->tex) return (uintptr_t)a->tex < (uintptr_t)b->tex ? -1 : 1;
     return a->layer - b->layer;
 }
@@ -217,7 +225,124 @@ internal void *rg_cell(long cx, long cy, unsigned long x, unsigned long y, unsig
     *set = g_rg.reg(g_rg.mesh, id);
     return g_rg.tex(*set, x, y);
 }
+// ART OF CONQUEST'S SPACE MAPS (GETerrainMesh::GetIsSpaceMap: any tile set space, SetIsSpace; AoC's engine's
+// UpdateVisibleTerrain 0x1002C299 and AddCliffPolys 0x1002B8E8, the space tile's bit 0x80 of the byte GetWaterInfo reads).
+// A space tile itself is nothing (the game's quad of no texture, alpha -1); one at the land's edge has the edge's pattern
+// in its bits 1-4, which lays one of the space textures (mesh_space_cliff 8-12) on it with that pattern's places in the
+// texture, and hangs a face (0-7, by the tile's x or y) from a line across it 8 down, its lower edge jagged by a table
+// of the tile's place - not along the map's left and right edges. A land corner whose cell has such a tile beside it
+// takes texture 12 in place of its set's, at the tile's own places (0 to 1 across it). No water (its test, any of the
+// bits 0x7F, is true beside space too) and no black round the map but behind it.
+#define RG_SPACE 0x80
+#define RG_SPACE_EDGE 0x1E
+#define RG_CLIFF_DROP 8.0f
+// by the pattern (the bits >> 1): the texture (8 +), its places at (x + 1, y + 1), (x, y + 1), (x, y), (x + 1, y), the
+// face's texture by (1 x, 2 y, 3 2x, 4 2x + 1, 5 2y, 6 2y + 1; 0 none, of 8), the line under which it hangs (x, y, x, y
+// onto the tile's) - AoC's engine's table at 0x10097BF8
+typedef struct { int tex; float uv[4][2]; int face; float line[4]; } rg_space_edge;
+internal const rg_space_edge k_rg_space[16] = {
+    { 0, { { 1, 0 }, { 0, 0 }, { 0, 1 }, { 1, 1 } }, 0, { 0, 0, 0, 0 } },
+    { 0, { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } }, 5, { .4f, 0, 0, .4f } },
+    { 0, { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } }, 3, { 0, .6f, .4f, 1 } },
+    { 1, { { 1, 0 }, { 1, 1 }, { 0, 1 }, { 0, 0 } }, 2, { .4f, 0, .4f, 1 } },
+    { 0, { { 1, 1 }, { 0, 1 }, { 0, 0 }, { 1, 0 } }, 4, { .6f, 1, 1, .6f } },
+    { 3, { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } }, 2, { 0, .4f, .4f, 0 } },
+    { 1, { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } }, 1, { 0, .5f, 1, .6f } },
+    { 2, { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } }, 4, { .4f, 0, 1, .6f } },
+    { 0, { { 1, 0 }, { 0, 0 }, { 0, 1 }, { 1, 1 } }, 0, { 0, 0, 0, 0 } },
+    { 1, { { 1, 0 }, { 0, 0 }, { 0, 1 }, { 1, 1 } }, 0, { 0, 0, 0, 0 } },
+    { 3, { { 1, 1 }, { 0, 1 }, { 0, 0 }, { 1, 0 } }, 1, { 0, .6f, .4f, 1 } },
+    { 2, { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } }, 6, { 1, .4f, .4f, 1 } },
+    { 1, { { 1, 1 }, { 1, 0 }, { 0, 0 }, { 0, 1 } }, 0, { 0, 0, 0, 0 } },
+    { 2, { { 1, 0 }, { 0, 0 }, { 0, 1 }, { 1, 1 } }, 0, { 0, 0, 0, 0 } },
+    { 2, { { 1, 1 }, { 0, 1 }, { 0, 0 }, { 1, 0 } }, 3, { 0, .6f, .6f, 0 } },
+    { 4, { { 1, 0 }, { 0, 0 }, { 0, 1 }, { 1, 1 } }, 0, { 0, 0, 0, 0 } },
+};
+// the faces' lower edge, by the point's x % 16 x 16 + y % 16, times a half (0x100D9760)
+internal const float k_rg_jag[256] = {
+    -.997f, .127f, -.613f, .617f, .17f, -.04f, -.299f, .792f, .646f, .493f, -.652f, .718f, .421f, .027f, -.392f, -.97f,
+    -.817f, -.271f, -.705f, -.668f, .977f, -.109f, -.762f, -.991f, -.982f, -.244f, .063f, .142f, .204f, .214f, -.668f, .326f,
+    -.098f, -.296f, -.886f, .215f, .567f, .605f, .04f, -.396f, .752f, .453f, .912f, .851f, .079f, -.715f, -.076f, -.529f,
+    .724f, -.581f, .559f, .687f, .994f, .999f, .223f, -.215f, -.468f, -.405f, .68f, -.953f, -.248f, -.815f, .354f, -.888f,
+    -.982f, .838f, -.448f, -.454f, .176f, .382f, .675f, .453f, -.03f, -.589f, .487f, -.063f, -.084f, .898f, .489f, -.783f,
+    .198f, -.23f, .47f, .218f, .145f, -.277f, -.697f, -.55f, -.15f, .606f, .034f, .98f, .503f, -.309f, -.662f, .315f,
+    -.016f, -.873f, .4f, .01f, -.705f, .899f, -.717f, .81f, .386f, -.394f, -.147f, -.859f, .933f, .366f, -.694f, .755f,
+    .643f, .164f, -.617f, -.644f, .634f, -.049f, -.689f, .008f, .464f, -.189f, -.441f, .137f, .364f, .512f, .444f, -.049f,
+    -.754f, -.264f, .669f, -.93f, .034f, .326f, -.148f, -.791f, .899f, .843f, .099f, -.308f, -.057f, -.25f, .694f, -.366f,
+    -.088f, -.456f, .966f, -.404f, .478f, .135f, -.608f, .523f, .679f, -.205f, .002f, .78f, -.945f, .989f, .145f, -.899f,
+    .063f, -.612f, .686f, .254f, .315f, -.604f, .684f, -.753f, -.78f, .486f, -.372f, .882f, -.428f, -.327f, -.719f, .466f,
+    .669f, .416f, .2f, .494f, -.495f, -.711f, -.997f, -.878f, .612f, .705f, -.579f, -.769f, .106f, -.971f, -.772f, -.091f,
+    .504f, .372f, .087f, -.852f, -.127f, -.596f, .392f, -.419f, -.127f, -.535f, .156f, .065f, .257f, -.68f, .008f, .926f,
+    .392f, .85f, -.62f, -.328f, -.643f, .99f, -.085f, .996f, -.805f, .25f, -.811f, -.125f, .863f, -.903f, .789f, -.42f,
+    -.545f, .538f, -.179f, -.596f, .256f, .208f, -.097f, -.067f, .196f, .269f, .71f, .658f, .25f, .442f, .132f, -.25f,
+    -.631f, .476f, .11f, .81f, -.514f, -.622f, .209f, .397f, .169f, -.297f, -.011f, -.839f, .481f, .224f, .241f, .382f,
+};
+// a tile's triangles of one texture, as the ground's (the map's edges), the places and alphas at (x, y), (x, y + 1), (x + 1, y), (x + 1, y + 1)
+internal int rg_tile_tris(rg_tri *out, unsigned long x, unsigned long y, void *tex, int layer, const float uv[4][2], const int al[4]) {
+    int left = g_rg.left(g_rg.mesh, (long)x, (long)y), right = g_rg.right(g_rg.mesh, (long)x, (long)y);
+    int topq = g_rg.top(g_rg.mesh, (long)x, (long)y), bottom = g_rg.bottom(g_rg.mesh, (long)x, (long)y);
+    static const int dx[4] = { 0, 0, 1, 1 }, dy[4] = { 0, 1, 0, 1 };
+    int tri[2][3], nt = 0;
+    #define RG_T(a, b, c) (tri[nt][0] = a, tri[nt][1] = b, tri[nt][2] = c, nt++)
+    if (right) RG_T(0, 1, 2);
+    else if (left) RG_T(1, 3, 2);
+    else {
+        if (!topq) RG_T(0, 1, 3);
+        if (!bottom) RG_T(0, 3, 2);
+    }
+    #undef RG_T
+    for (int i = 0; i < nt; i++) {
+        out[i].tex = tex; out[i].layer = layer;
+        for (int k = 0; k < 3; k++) { int c = tri[i][k]; rg_vertex(&out[i].v[k], x + dx[c], y + dy[c], uv[c], al[c]); }
+    }
+    return nt;
+}
+internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
+    const rg_space_edge *s = &k_rg_space[g_rg.water_info(g_rg.mesh, x, y) >> 1 & 15];
+    if (s == k_rg_space) return 0;
+    void *tex = mesh_space_cliff(g_rg.mesh, 8 + (unsigned)s->tex);
+    int n = 0, al[4] = { 255 | 2 << 8, 255 | 2 << 8, 255 | 2 << 8, 255 | 2 << 8 };
+    if (tex) {
+        const float uv[4][2] = { { s->uv[2][0], s->uv[2][1] }, { s->uv[1][0], s->uv[1][1] }, { s->uv[3][0], s->uv[3][1] }, { s->uv[0][0], s->uv[0][1] } };
+        n = rg_tile_tris(out, x, y, tex, 2, uv, al);
+    }
+    if (!s->face || g_rg.left(g_rg.mesh, (long)x, (long)y) || g_rg.right(g_rg.mesh, (long)x, (long)y)) return n;
+    unsigned long k = s->face == 1 ? x : s->face == 2 ? y : s->face == 3 ? 2 * x : s->face == 4 ? 2 * x + 1 : s->face == 5 ? 2 * y : 2 * y + 1;
+    void *face = mesh_space_cliff(g_rg.mesh, (unsigned)(k % 8));
+    if (!face) return n;
+    float px = (float)x + s->line[0], py = (float)y + s->line[1], qx = (float)x + s->line[2], qy = (float)y + s->line[3];
+    unsigned long pi = (unsigned long)px, pj = (unsigned long)py, qi = (unsigned long)qx, qj = (unsigned long)qy;   // cut off, as the engine's _ftol
+    float pz = g_rg.z(g_rg.mesh, pi, pj) - 0.02f, qz = g_rg.tile(g_rg.mesh, qi, qj) ? g_rg.z(g_rg.mesh, qi, qj) - 0.05f : pz;
+    float pb = pz - RG_CLIFF_DROP + k_rg_jag[pi % 16 * 16 + pj % 16] * 0.5f, qb = qz - RG_CLIFF_DROP + k_rg_jag[qi % 16 * 16 + qj % 16] * 0.5f;
+    static const float u00[2] = { 0, 0 }, u10[2] = { 1, 0 }, u01[2] = { 0, 1 }, u11[2] = { 1, 1 };
+    int a = 255 | 2 << 8;
+    out[n].tex = face; out[n].layer = 0;
+    rg_vertex_at(&out[n].v[0], px, py, pz, pi, pj, u00, a); rg_vertex_at(&out[n].v[1], qx, qy, qz, qi, qj, u10, a); rg_vertex_at(&out[n].v[2], px, py, pb, pi, pj, u01, a);
+    n++;
+    out[n].tex = face; out[n].layer = 0;
+    rg_vertex_at(&out[n].v[0], px, py, pb, pi, pj, u01, a); rg_vertex_at(&out[n].v[1], qx, qy, qz, qi, qj, u10, a); rg_vertex_at(&out[n].v[2], qx, qy, qb, qi, qj, u11, a);
+    return n + 1;
+}
+// a land corner (D B A C) whose cell has a space tile at the edge beside it (the engine's table at 0x10097F98): texture 12, no set
+internal void rg_space_corners(void **t, void **sets, unsigned long x, unsigned long y) {
+    static const int cell[4][2] = { { 0, 0 }, { -1, 0 }, { -1, -1 }, { 0, -1 } };
+    static const int nb[4][3][2] = { { { 0, 1 }, { 1, 1 }, { 1, 0 } }, { { 0, 1 }, { -1, 1 }, { -1, 0 } },
+                                     { { 0, -1 }, { -1, -1 }, { -1, 0 } }, { { 0, -1 }, { 1, -1 }, { 1, 0 } } };
+    void *edge = mesh_space_cliff(g_rg.mesh, 12);
+    if (!edge) return;
+    for (int k = 0; k < 4; k++) {
+        long cx = (long)x + cell[k][0], cy = (long)y + cell[k][1];
+        if (cx < 0 || cy < 0 || !g_rg.tile(g_rg.mesh, (unsigned long)cx, (unsigned long)cy)) continue;
+        for (int j = 0; j < 3; j++) {
+            long nx = (long)x + nb[k][j][0], ny = (long)y + nb[k][j][1];
+            if (nx < 0 || ny < 0 || !g_rg.tile(g_rg.mesh, (unsigned long)nx, (unsigned long)ny)) continue;
+            if (g_rg.water_info(g_rg.mesh, (unsigned long)nx, (unsigned long)ny) & RG_SPACE_EDGE) { t[k] = edge; sets[k] = NULL; break; }
+        }
+    }
+}
+internal int rg_space_map(const void *mesh) { return g_rg.is_space && g_rg.is_space(mesh); }
 internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
+    if (g_rg.space && g_rg.water_info(g_rg.mesh, x, y) & RG_SPACE) return rg_space_quad(out, x, y);
     unsigned long own = g_rg.set(g_rg.mesh, x, y);
     void *own_set = g_rg.reg(g_rg.mesh, own), *own_tex = g_rg.tex(own_set, x, y);
     void *sets[4] = { own_set, own_set, own_set, own_set };   // D B A C
@@ -226,6 +351,7 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     t[1] = rg_cell((long)x - 1, (long)y, x, y, own, own_tex, &sets[1]);
     t[2] = rg_cell((long)x - 1, (long)y - 1, x, y, own, own_tex, &sets[2]);
     t[3] = rg_cell((long)x, (long)y - 1, x, y, own, own_tex, &sets[3]);
+    if (g_rg.space) rg_space_corners(t, sets, x, y);
     int base = 0;
     for (int i = 1; i < 4; i++) if ((uintptr_t)t[i] < (uintptr_t)t[base]) base = i;
     int left = g_rg.left(g_rg.mesh, (long)x, (long)y), right = g_rg.right(g_rg.mesh, (long)x, (long)y);
@@ -236,13 +362,17 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
         void *tex = k < 0 ? t[base] : t[k], *set = k < 0 ? sets[base] : sets[k];
         float a[2], b[2], c[2], e[2];   // the texture's place at A, B, C, D
         float xy[2], x1y1[2];
-        g_rg.uv(set, x, y, xy);
-        g_rg.uv(set, x + 1, y + 1, x1y1);
-        float u1 = x1y1[0] == 0 ? 1.0f : x1y1[0], v1 = x1y1[1] == 0 ? 1.0f : x1y1[1];
-        a[0] = xy[0]; a[1] = xy[1];
-        b[0] = xy[0]; b[1] = v1;
-        c[0] = u1; c[1] = xy[1];
-        e[0] = u1; e[1] = v1;
+        if (set) {
+            g_rg.uv(set, x, y, xy);
+            g_rg.uv(set, x + 1, y + 1, x1y1);
+            float u1 = x1y1[0] == 0 ? 1.0f : x1y1[0], v1 = x1y1[1] == 0 ? 1.0f : x1y1[1];
+            a[0] = xy[0]; a[1] = xy[1];
+            b[0] = xy[0]; b[1] = v1;
+            c[0] = u1; c[1] = xy[1];
+            e[0] = u1; e[1] = v1;
+        } else {   // a space map's edge texture on a land corner: the tile's own places, as AoC's engine gives every tile
+            a[0] = 0; a[1] = 1; b[0] = 0; b[1] = 0; c[0] = 1; c[1] = 1; e[0] = 1; e[1] = 0;
+        }
         // a corner's alpha: the whole base; a layer where the corner's cell has its texture. Bit 8: the cell has it (a point has one cell, so one texture and one colour)
         int aa = (k < 0 || t[2] == tex ? 255 : 0) | (t[2] == tex) << 8, ab = (k < 0 || t[1] == tex ? 255 : 0) | (t[1] == tex) << 8;
         int ac = (k < 0 || t[3] == tex ? 255 : 0) | (t[3] == tex) << 8, ad = (k < 0 || t[0] == tex ? 255 : 0) | (t[0] == tex) << 8;
@@ -341,7 +471,7 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
         for (int y = cy * RG_CHUNK; y < (cy + 1) * RG_CHUNK && y < g_rg.size; y++)
             for (int x = cx * RG_CHUNK; x < (cx + 1) * RG_CHUNK && x < g_rg.size; x++)
                 if (g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y))
-                    n += w ? rg_water_quad(c, tris + n, (unsigned long)x, (unsigned long)y, groups) : rg_quad(tris + n, (unsigned long)x, (unsigned long)y);
+                    n += !w ? rg_quad(tris + n, (unsigned long)x, (unsigned long)y) : g_rg.space ? 0 : rg_water_quad(c, tris + n, (unsigned long)x, (unsigned long)y, groups);
         rg_part_make(&c->p[w], tris, n, w);
     }
 }
@@ -384,7 +514,8 @@ internal void rg_skirt_build(void) {
     for (int y = 0; y < g_rg.size; y++) for (int x = 0; x < g_rg.size; x++) {
         if (!g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y)) continue;
         RG_POINT(a, x, y); RG_POINT(b, x, y + 1); RG_POINT(c, x + 1, y); RG_POINT(d, x + 1, y + 1);
-        if (g_rg.right(g_rg.mesh, x, y)) RG_SIDE(b, c, 1);
+        if (g_rg.space) { if (g_rg.bottom(g_rg.mesh, x, y)) RG_SIDE(a, d, 0); }   // a space map: behind it alone, as the game's
+        else if (g_rg.right(g_rg.mesh, x, y)) RG_SIDE(b, c, 1);
         else if (g_rg.left(g_rg.mesh, x, y)) RG_SIDE(b, c, 3);
         else {
             if (g_rg.top(g_rg.mesh, x, y)) RG_SIDE(a, d, 2);
@@ -395,6 +526,7 @@ internal void rg_skirt_build(void) {
     #undef RG_SIDE
     #undef RG_POINT
     if (have) for (int c = 0; c < 4; c++) {   // +x lies between back and right, +y right and front, -x front and left, -y left and back
+        if (g_rg.space && c != 0 && c != 3) continue;
         const float *from = dirs[c], *to = dirs[(c + 1) % 4];
         float a1[3], b1[3], a2[3], b2[3];
         rg_out(a1, corner[c], from[0], from[1], RG_SKIRT_NEAR); rg_out(b1, corner[c], to[0], to[1], RG_SKIRT_NEAR);
@@ -458,6 +590,7 @@ internal int rg_build(void) {
     g_rg_new_map = 0;
     rg_free();
     g_rg.map = map;
+    g_rg.space = rg_space_map(g_rg.mesh);
     g_rg.size = (int)map_get_size(map);
     g_rg.across = (g_rg.size + RG_CHUNK - 1) / RG_CHUNK;
     g_rg.tris = 0;
@@ -773,9 +906,9 @@ internal int g_rw_fx_only;   // a frame during a step: the water's draw for its 
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {
     if (water && g_rw_fx_only) return 0;
     int r = 0;
-    // Art of Conquest's maps with space tiles (GETerrainMesh::SetIsSpace) are the game's still: the mesh draws those its own way, not yet done here
-    if (!rg_ready() || !rg_api() || (g_rg.is_space && g_rg.is_space(mesh))) r = (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
+    if (!rg_ready() || !rg_api()) r = (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
     else {
+        if (g_rg.built && rg_space_map(mesh) != g_rg.space) g_rg_new_map = 1;   // the editor's first space tile, or its last gone: all of it anew
         g_rg.ras = ras; g_rg.mesh = mesh; g_rg.screen = screen; g_rg.dll = i; g_rg.flag = flag & 0xFF;
         RD_LOCK(); rg_draw_now(water, 0); RD_UNLOCK();
     }

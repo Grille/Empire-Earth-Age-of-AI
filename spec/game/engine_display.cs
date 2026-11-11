@@ -892,6 +892,13 @@ static unsafe class engine_display
     [value((ee)0x17B5A8, (aoc)0x18F4B4)]
     static uint32 of_mesh_water_patches;
 
+    /// GETerrainMesh, Art of Conquest's: the textures of its space maps' edges (SetSpaceCliffTextures, a vector of
+    /// GETexture pointers: the first element here, the end at +4; NumSpaceCliffTextures). UpdateVisibleTerrain
+    /// (0x1002C299) draws 0-7 as the faces hanging under a space tile's edge (AddCliffPolys), 8-12 laid on a space tile
+    /// at the edge by its pattern and 12 on a land corner beside one; the display DLLs' Draw draws 0-7 first
+    [value((ee)none, (aoc)0x1955A4)]
+    static uint32 of_mesh_space_cliffs;
+
     /// GETerrainMesh: float, that scale (SetWaterColorSet's flds)
     [value((ee)0x17B580, (aoc)0x18F488)]
     static uint32 of_mesh_water_scale;
