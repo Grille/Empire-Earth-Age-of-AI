@@ -1629,10 +1629,9 @@ internal unsigned g_ff_walks, g_ff_walks_lost, g_ff_resent;   // walks back give
 #define FF_STATE_LOOK 2015
 internal unsigned g_ff_looks;   // such looks given
 internal void ff_scan_tick(struct ff_group *gr, uint32_t step) {
-    int gi = (int)(gr - g_ff), members = 0, steered = 0, advancing = 0, found = 0;
+    int gi = (int)(gr - g_ff), steered = 0, advancing = 0, found = 0;
     for (int i = 0; i < FF_UNITS; i++) {
         const struct ff_unit *e = &g_ff_u[i];
-        if (e->id && e->g == gi) members++;
         if (!e->id || e->g != gi || e->out || e->rel || e->step == ~0u || step - e->step > 2) continue;   // steered this step or the last
         steered++;
         ee_unit *u = unit_by_id(e->id);
