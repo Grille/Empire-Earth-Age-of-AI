@@ -2206,6 +2206,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         av_foes_scan(pl);
         av_line(&sum, av_kinds_for(&sum, AVF_LAND), line, (int)sizeof line);
         ar_log(idx, now, "the force as one: %s", line);
+        uint64_t ours = av_kinds_in(&sum);
         for (int j = 0; j < g_av[idx].n; j++) {   // the other armies
             struct av_army *o = &g_av[idx].a[j];
             av_clear(&sum);
@@ -2214,7 +2215,20 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
             av_line(&sum, av_kinds_for(&sum, o->field), line, (int)sizeof line);
             ar_log(idx, now, "army %d, %s%s%s%s%s (%d members, since %.1f min): %s", o->id, k_av_kind[o->kind], o->what ? " " : "", o->what ? o->what : "",
                    o->task ? ", " : "", o->task ? o->task : "", o->n, o->made_t / 60000.0, line);
+            ours |= av_kinds_in(&sum);
         }
+        av_enemy_build(pl, now);   // THE ENEMY'S ARMIES (army_view.c): what it knows of them, each against its own armies' families
+        int small = 0, small_n = 0, all_n = 0;
+        for (int j = 0; j < g_ave[idx].n; j++) {
+            const struct av_enemy *e = &g_ave[idx].a[j];
+            all_n += e->n;
+            if (e->n < 3 && e->mid.x >= 0) { small++; small_n += e->n; continue; }
+            av_enemy_sum(idx, e, &sum);
+            av_line(&sum, ours, line, (int)sizeof line);
+            ar_log(idx, now, "the enemy's %s army of P%d %s(%d, seen %.1f min ago): %s", k_av_field_name[e->field & 15], e->owner,
+                   e->mid.x >= 0 ? "" : "whereabouts unknown ", e->n, now >= e->seen_t ? (now - e->seen_t) / 60000.0 : 0.0, line);
+        }
+        ar_log(idx, now, "the enemy's armies known: %d (%d units), of them %d of 1-2 units (%d) not listed", g_ave[idx].n, all_n, small, small_n);
     }
 }
 // TRAINING BY NEED ([ai_base] train_by_need, off: measured, no gain (below); [autotest] v_train_by_need; army view step 4b - the
@@ -2233,6 +2247,10 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
 // what it judges against is what the AI knows at the target and sees on its land, often 1-9 units (ratios like 98 -> 126
 // against one), and in most looks nothing (a pick in 4 of 58); the enemy's army as the AI has seen it, remembered, is
 // what the need has to be measured against. Off.
+// Since step 5 (army_view.c THE ENEMY'S ARMIES) the enemy beyond the target is its land armies as the AI knows them - every
+// enemy land unit seen within 10 minutes on its land, where it was seen, and those whose whereabouts it lost (counted at
+// the target) - instead of the fighters it sees now; and FILL's own pick is an honest one since honest_intel (5beceafb:
+// the game's counter vote had counted the enemy's whole army).
 // "# armies: ... by need:" once a game minute in tests.
 internal int g_ar_need_on = 0, g_v_ar_need = -1;
 #define AR_NEED(idx) PV(idx, g_v_ar_need, g_ar_need_on)
@@ -2246,12 +2264,15 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     ee_unit *tg = land ? ar_target_on(pl, a->home, land) : NULL;
     ivec2 at = tg ? unit_get_tile(tg) : a->home;
     stage_foe(pl, at);
-    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // the fighters seen on its land, beyond the target's
-        ee_player *o = unit_get_owner(it.u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !ms_land_soldier(it.u, it.td) || !seen_by(it.u, pl)) continue;
-        ivec2 p = unit_get_tile(it.u);
-        if (map_area(p, 2) != land || ivec2_dist2(p, at) <= SG_FOE * SG_FOE) continue;
-        st_side_add(&g_sgs_foe, it.u);
+    av_enemy_build(pl, now);   // the enemy's land armies it knows of on its land, and those it lost track of (army_view.c)
+    for (int j = 0; j < g_ave[idx].n; j++) {
+        const struct av_enemy *e = &g_ave[idx].a[j];
+        if (e->field != AVF_LAND || (e->mid.x >= 0 && e->area != land)) continue;
+        for (int k = e->first; k < e->first + e->n; k++) {
+            const struct av_erec *r = &g_ave[idx].r[k];
+            if (r->x >= 0 && ivec2_dist2(iv2(r->x, r->y), at) <= SG_FOE * SG_FOE) continue;   // stage_foe's already
+            st_side_add_rec(&g_sgs_foe, r->type, r->owner, r->hp, r->x >= 0 ? r->x : at.x, r->x >= 0 ? r->y : at.y);
+        }
     }
     if (log) g_ar_need[idx].looks++;
     if (!g_sgs_foe.n) { if (log) g_ar_need[idx].none++; return 0; }
@@ -2278,7 +2299,7 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     if (!best || !log) return best;
     if (best == filled) g_ar_need[idx].same++; else g_ar_need[idx].other++;
     ar_log(idx, now, "by need: FILL's own pick %s (%d, %+.3f a 1000), the need %s (%d, %+.3f a 1000: %d of them %.2f -> %.2f) against %d known%s at %d,%d; looks %u, the same %u, other %u, no enemy known %u%s",
-           filled ? unit_ident(filled) : "none", filled, gfill, unit_ident(best), best, bg, nbest, r0, rbest, g_sgs_foe.n, tg ? " (the next target's and its land's)" : " (its land's)", at.x, at.y,
+           filled ? unit_ident(filled) : "none", filled, gfill, unit_ident(best), best, bg, nbest, r0, rbest, g_sgs_foe.n, tg ? " (the next target's and its land's armies)" : " (its land's armies)", at.x, at.y,
            g_ar_need[idx].looks, g_ar_need[idx].same, g_ar_need[idx].other, g_ar_need[idx].none, AR_NEED(idx) ? " - trained" : "");
     return best;
 }
