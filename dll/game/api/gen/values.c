@@ -2095,6 +2095,7 @@ internal uint32_t vt_ee_effect_manager;
 internal uint32_t call_click_mark;
 internal uint32_t call_air_crash_effect;
 internal uint32_t call_heli_crash_effect;
+internal uint32_t call_unit_remove_effect;
 internal uint32_t call_air_crash_splash;
 internal uint32_t call_heli_crash_splash;
 internal uint32_t call_effects_step;

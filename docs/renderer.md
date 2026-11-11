@@ -852,6 +852,12 @@ cancel movement that goes aginst them"): its way through its wings' plane (along
 slowed by US_WING 8/s as far as it is dry - the whole's way only, its turning kept, so its roll goes on: level it sinks
 at about g / 8, rolled it slips off sideways and down. In the water it planes as a ship does; a helicopter as before.
 Checked the same way: the P-51s hit over the water rolled and glided on for 5 s and more before their splash.
+The game makes the same death effect once more as it takes a unit off the map (EEUnit::vf24, EE 0x616C31, AoC 0x62975A,
+with its death sound, when not taken off quietly; spec ui.unit_remove_effect): a helicopter's copy falls straight down at
+its own pace and is taken off where it lands, so it blew up a second time there (the player, the same day: "helicopters
+now have 2 explosions on impact, on where they landed, and one on the ground over hwere they originaly died"). Let
+out for a unit whose wreck is the mod's (us_hook_remove_effect, by its id). Checked the same way: an Apache killed over
+land blew up once, where its wreck hit.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

@@ -1105,6 +1105,19 @@ internal int __thiscall us_hook_crash_effect(ee_effect_mgr *m, ee_unit *unit, vo
 internal int __thiscall us_hook_crash_splash(ee_effect_mgr *m, float *pos, void *effect, int *handle) {
     return us_effects_on() ? 0 : effect_mgr_add_at(m, pos, effect, handle);
 }
+// the same death effect as the game takes a unit off the map (the player, the same day: "helicopters now have 2
+// explosions on impact, on where they landed, and one on the ground over hwere they originaly died"): a helicopter's
+// copy falls straight down at its own pace and is taken off where it lands - let out for a unit whose wreck is the mod's
+internal int __thiscall us_hook_remove_effect(ee_effect_mgr *m, ee_unit *unit, void *effect, int *handle, int keeps, int tag, int goal) {
+    int ours = 0;
+    if (g_kc_cs_ok && us_effects_on()) {
+        int32_t s = unit_get_serial(unit);
+        EnterCriticalSection(&g_kc_cs);
+        for (uint32_t i = 0; i < g_kc_n && !ours; i++) ours = g_kc[i].ship && g_kc[i].serial == s;
+        LeaveCriticalSection(&g_kc_cs);
+    }
+    return ours ? 0 : effect_mgr_add_on_unit(m, unit, effect, handle, keeps, tag, goal);
+}
 internal float g_us_kept[UC_CORPSES][12];   // the game's matrices of the wrecks' units during the effects' step
 internal float *g_us_put[UC_CORPSES];
 internal uint32_t g_us_fx_made;
@@ -2137,7 +2150,7 @@ internal void collect_install(void) {
     if (g_uc_installed) collect_maps_install();
     if (g_uc_installed && !(patch_effects_step(us_hook_effects_step) && patch_air_crash_effect(us_hook_crash_effect) &&
                             patch_heli_crash_effect(us_hook_crash_effect) && patch_air_crash_splash(us_hook_crash_splash) &&
-                            patch_heli_crash_splash(us_hook_crash_splash)) && g_log)
+                            patch_heli_crash_splash(us_hook_crash_splash) && patch_unit_remove_effect(us_hook_remove_effect)) && g_log)
         fprintf(g_log, "# collect: the wrecks' effects NOT hooked (the game's splash and crash where it has them)\n");
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);

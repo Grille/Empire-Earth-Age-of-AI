@@ -864,6 +864,9 @@ unsafe struct EEEffectManager
     // ground's height
     [call_site("air_crash_effect", (ee)0x0054B9FA, (aoc)0x00558165)]
     [call_site("heli_crash_effect", (ee)0x0054D11A, (aoc)0x00559992)]
+    // the same death effect as a unit is taken off the map (EEUnit::vf24, EE 0x616C31, AoC 0x62975A: with its death
+    // sound, when not taken off quietly) - a crashed helicopter's where the game's copy reaches the ground (rot time 0)
+    [call_site("unit_remove_effect", (ee)0x00616CC7, (aoc)0x006297ED)]
     extern int32 add_on_unit(EEUnit* unit, void* effect, int32* handle, int32 keeps_unit, int32 tag_point, int32 goal);
 
     /// thiscall([ui.gfx_effects], float pos[3], effect, int *handle or 0): an effect at a place (the same detail gate)
