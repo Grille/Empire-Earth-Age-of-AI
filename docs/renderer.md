@@ -730,6 +730,8 @@ between its copy's step and the walk's game time (the game takes the step's ms o
 between steps too. The depth from pictures of a Clubman (40 s rot, radius x scale 0.70 tiles; its corpse shows hardly
 0.06 tiles over the ground): by twice the radius it was gone 2 s into the sink, by 0.4 of it in 3, by 0.15 it goes
 down over about 6 s, from 15 s to 22 s after its death; a bigger wreck that isn't under by then fades at the end.
+A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
+rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 
 ## The interface's text without reading the picture back
 
