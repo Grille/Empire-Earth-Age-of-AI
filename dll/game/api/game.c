@@ -119,6 +119,14 @@ internal inline ee_unit *unit_by_id(unsigned id) {
     ee_unit *h = fn_world_unit_by_id((void *)data_game_game_state, id);
     return h ? FIELD(h, of_unit_physics, ee_unit *) : NULL;
 }
+// the object of an id as the game's messages find it (EEMGatherResource's target): a unit's moving part (unit_by_id),
+// else the object itself - a tree, a mine, which have none (+0x30 NULL) and only the object's own fields: owner, tile,
+// type, hit points, amount (up to +0x44; unit_spot for its place)
+internal inline ee_unit *object_by_id(unsigned id) {
+    if (id >> 24 >= game_player_count() || !game_players()[id >> 24]) return NULL;
+    ee_unit *h = fn_world_unit_by_id((void *)data_game_game_state, id);
+    return !h ? NULL : FIELD(h, of_unit_physics, ee_unit *) ? FIELD(h, of_unit_physics, ee_unit *) : h;
+}
 // the stance of player index from towards to (the game's own change, with its message)
 internal inline void game_set_stance(int from, int to, int stance) { fn_world_set_stance((void *)data_game_game_state, from, to, stance); }
 // the time of day, the hour 0..24 (the daylight-hour effect's way: the game's 0 is 6 o'clock)

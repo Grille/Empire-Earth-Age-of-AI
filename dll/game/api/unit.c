@@ -16,6 +16,12 @@ internal inline int *unit_get_queue_end(const ee_unit *u) { return FIELD(u, of_u
 // gathered into one value
 internal inline vec3 unit_get_facing(const ee_unit *u) { return v3(unit_get_matrix(u, 1), unit_get_matrix(u, 5), unit_get_matrix(u, 9)); }
 internal inline vec3 unit_get_pos(const ee_unit *u) { return v3(unit_get_matrix(u, 3), unit_get_matrix(u, 7), unit_get_matrix(u, 11)); }
+// where a unit or an object without a moving part stands (object_by_id: a tree, a mine - no matrix): the unit's
+// position, the object's tile's middle on the ground (z 0), as the game's right-click takes it (EEAMouseClick::vf3)
+internal inline vec3 unit_spot(const ee_unit *u) {
+    if (unit_get_physics(u)) return unit_get_pos(u);
+    return v3((float)unit_get_x(u) + 0.5f, (float)unit_get_y(u) + 0.5f, 0);
+}
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
 // the state's id (the .tai state names' numbers: Idle 5000, WaitForPassengers 12010 ... - engine-notes.md), 0 without one
 internal inline unsigned unit_ai_state_id(const ee_unit *u) { ee_ai_state *s = unit_get_ai_state(u); return s ? FIELD(s, of_ai_state_id, unsigned) : 0; }

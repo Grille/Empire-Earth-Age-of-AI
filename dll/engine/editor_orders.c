@@ -91,7 +91,7 @@ internal int eo_kind(ee_player *pl, int citizen, ee_unit *t) {
     ee_unit_stats *st = player_stats_of(to, unit_type_get_id(td));
     if (citizen && st && unit_get_hp(t) < unit_stats_get_hp(st)) return 3;
     int holds = cls == CLS_LAND_TRANSPORT || cls == CLS_HELICOPTER_TRANSPORT || cls == CLS_NAVAL_TRANSPORT || cls == CLS_FORTRESS;   // (the load's own test, 0x404B37)
-    if (to == pl && holds && unit_get_finished(t)) return 4;   // (the right-click's: a fortress built)
+    if (to == pl && holds && unit_get_physics(t) && unit_get_finished(t)) return 4;   // (the right-click's: a fortress built)
     return 5;
 }
 // the units ids[n] (pl's) given order kind on target t (its id) or to the point at (facing face); queued, attack-move
@@ -107,7 +107,7 @@ internal void eo_send(ee_player *pl, uint32_t *ids, int n, int kind, ee_unit *t,
     else if (kind == 3) repair_msg_make((ee_repair_msg *)mem, from, id, queued);
     else if (kind == 4) { load_msg_make((ee_load_msg *)mem, from, id, -1); load_msg_set_vtable((ee_load_msg *)mem); }
     else {
-        if (kind == 5) { vec3 q = unit_get_pos(t); at = v2(q.x, q.y); }
+        if (kind == 5) { vec3 q = unit_spot(t); at = v2(q.x, q.y); }
         path_msg_make((ee_path_msg *)mem, from, at.x, at.y, 0, queued);
         path_msg_set_facing((ee_path_msg *)mem, face);
         if (attack) path_msg_set_forced((ee_path_msg *)mem, 0);
@@ -125,7 +125,7 @@ internal int eo_order(vec2 at, float drag, unsigned target, int queued, int atta
     ee_unit **us = (ee_unit **)malloc((size_t)n * sizeof *us);
     int m = 0;
     vec2 mid = v2(0, 0);
-    ee_unit *t = target != UNIT_NONE ? unit_by_id(target) : NULL;
+    ee_unit *t = target != UNIT_NONE ? object_by_id(target) : NULL;   // (a tree, a mine: no moving part)
     for (int i = 0; ids && us && i < n; i++) {   // the units that move, alive and on the map
         ee_unit *s = editor_selection_unit(f, i), *u = s ? unit_get_physics(s) : NULL;
         ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
@@ -144,7 +144,7 @@ internal int eo_order(vec2 at, float drag, unsigned target, int queued, int atta
         float face = isnan(drag) ? atan2f(-(at.x - mid.x), at.y - mid.y) : drag;
         static const char *const what[6] = { "move to", "gather at", "attack at", "repair at", "go inside at", "move to the unit at" };
         vec2 to = at;
-        if (t) { vec3 q = unit_get_pos(t); to = v2(q.x, q.y); }
+        if (t) { vec3 q = unit_spot(t); to = v2(q.x, q.y); }
         for (int f0 = 0; f0 < m; f0++) {   // each owner's units (from its first): one order, or one for its citizens and one for the rest
             ee_player *pl = unit_get_owner(us[f0]);
             int seen = 0, p = player_get_index(pl);
@@ -169,12 +169,23 @@ internal int eo_order(vec2 at, float drag, unsigned target, int queued, int atta
 }
 
 // the right button's release on the map: in Orders mode the order, and not the editor's delete of the unit under the
-// cursor (its drag flag set for the release: the editor deletes at a click only)
+// cursor (its drag flag set for the release: the editor deletes at a click only). The editor lets every press become a
+// drag (its control's +0xB8; the game's only for some kinds of units), a hand's twitch too: a drag that began on the
+// unit under the cursor is a click on it (the player, 2026-11-11: "if i click on a resource or units its just a move
+// command")
+#define EO_CLICK_SLACK 1.0f   // tiles beyond the unit's selection circle or its footprint
+internal float eo_reach(ee_unit *u);
 internal int __thiscall hook_eo_up(eeseuic_command_units *c) {
     if (!ep_orders() || !g_ef_form) return eeseuic_command_units_mouse_r_button_up(c);
     int drag = eeseuic_command_units_get_dragging(c) != 0;
     vec3 at = eeseuic_command_units_get_press_at(c);
-    unsigned target = drag ? UNIT_NONE : editor_unit_under_mouse();
+    unsigned target = editor_unit_under_mouse();
+    ee_unit *t = target != UNIT_NONE ? object_by_id(target) : NULL;
+    if (drag && t) {
+        vec3 q = unit_spot(t);
+        if (vec2_len(vec2_sub(v2(q.x, q.y), v2(at.x, at.y))) <= eo_reach(t) + EO_CLICK_SLACK) drag = 0;
+        else target = UNIT_NONE;
+    }
     eo_order(v2(at.x, at.y), drag ? eeseuic_command_units_get_drag_angle(c) : NAN, target, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
              (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
     eeseuic_command_units_set_dragging(c, 1);
@@ -225,7 +236,7 @@ internal void editor_orders_clear(void) {
 #define EO_LINE_W 0.05f        // tiles
 #define EO_RING_W 0.07f
 #define EO_RING_UNIT 0.45f     // a move's ring: the unit's selection circle (its type's mark size) times this, a radius
-#define EO_RING_TARGET 0.6f    // a target's: its selection circle times this
+#define EO_RING_TARGET 0.6f    // a target's: its reach (eo_reach) times this
 #define EO_TARGETS 512         // targets ringed in a frame (more: rung again)
 #define EO_GOALS 32            // a unit's goals drawn at most
 enum { EO_CURSOR_ARROW = 0, EO_CURSOR_ATTACK = 1, EO_CURSOR_GATHER = 4, EO_CURSOR_REPAIR = 5, EO_CURSOR_ENTER = 11 };
@@ -236,6 +247,11 @@ internal float eo_mark(ee_unit *u) {
     float s = unit_type_get_mark_size(unit_get_type_data(u));
     return s > 0.1f && s < 8.0f ? s : 1.0f;
 }
+// how far from its middle a unit reaches: its selection circle or half its footprint (a mine: 3 tiles, its circle small)
+internal float eo_reach(ee_unit *u) {
+    float r = eo_mark(u), half = (float)unit_type_get_size(unit_get_type_data(u)) * 0.5f + 0.5f;
+    return half > r ? half : r;
+}
 // where goal g sends unit u and the ring's colour there; *on the unit it is round (an attack's target, a resource, a
 // building), NULL a point
 internal uint32_t eo_goal_look(ee_goal *g, ee_unit *u, vec2 *at, ee_unit **on) {
@@ -245,7 +261,7 @@ internal uint32_t eo_goal_look(ee_goal *g, ee_unit *u, vec2 *at, ee_unit **on) {
     else if (goal_is_attack(g)) *on = goal_get_target(g), c = EO_ARGB_ATTACK;
     else if (goal_is_gather(g)) *on = goal_get_site(g), c = EO_ARGB_GATHER;
     else if (goal_is_build(g)) *on = goal_get_building(g), c = EO_ARGB_GATHER;
-    vec3 p = *on && unit_get_x(*on) >= 0 ? unit_get_pos(*on) : goal_target(g, u);
+    vec3 p = *on && unit_get_x(*on) >= 0 ? unit_spot(*on) : goal_target(g, u);
     if (*on && unit_get_x(*on) < 0) *on = NULL;
     *at = v2(p.x, p.y);
     return c;
@@ -254,7 +270,7 @@ internal uint32_t eo_goal_look(ee_goal *g, ee_unit *u, vec2 *at, ee_unit **on) {
 // gathering first (a hunt: the citizens gather, the others attack), then a repair, going inside, an attack
 internal int eo_cursor_for(unsigned target) {
     ee_editor_form *f = g_ef_form;
-    ee_unit *t = target != UNIT_NONE ? unit_by_id(target) : NULL;
+    ee_unit *t = target != UNIT_NONE ? object_by_id(target) : NULL;   // (a tree, a mine: no moving part)
     int n = f && t ? editor_selection_n(f) : 0, best = 0;
     static const int rank[6] = { 0, 4, 1, 3, 2, 0 }, cursor[6] = { EO_CURSOR_ARROW, EO_CURSOR_GATHER, EO_CURSOR_ATTACK, EO_CURSOR_REPAIR, EO_CURSOR_ENTER, EO_CURSOR_ARROW };
     for (int i = 0; i < n; i++) {
@@ -304,7 +320,7 @@ internal void editor_orders_tick(void) {
             for (int j = 0; on && j < rung && !again; j++) again = ringed[j] == on && ringed_c[j] == c;
             if (!on) overlay_circle(at, eo_mark(u) * EO_RING_UNIT, c, EO_RING_W);
             else if (!again) {
-                overlay_circle(at, eo_mark(on) * EO_RING_TARGET, c, EO_RING_W);
+                overlay_circle(at, eo_reach(on) * EO_RING_TARGET, c, EO_RING_W);
                 if (rung < EO_TARGETS) ringed_c[rung] = c, ringed[rung++] = on;
             }
             from = at;
