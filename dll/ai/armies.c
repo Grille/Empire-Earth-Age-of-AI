@@ -2341,7 +2341,7 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
         ee_player *op = owners >> o & 1 ? player_at(o) : NULL;
         if (!op) continue;
         for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); want[t] = td && av_field_of(td) == AVF_LAND ? g_avx[idx][o][t] : 0.0f; }
-        avx_counters(idx, o, want);
+        avx_counters(idx, o, AVF_LAND, AVF_LAND, want);
         for (int g = 0; g < g_sgs_foe.ng; g++) if (g_sgs_foe.g[g].owner == o && (unsigned)g_sgs_foe.g[g].type < G_TYPES_N) want[g_sgs_foe.g[g].type] -= (float)g_sgs_foe.g[g].count;
         for (int t = 0; t < G_TYPES_N; t++) {
             int n = (int)(want[t] + 0.5f);
@@ -2411,8 +2411,11 @@ internal void armies_install(const char *autotest_ini) {
     g_ar_parts = g_set_ai[1].raid_parties;
     g_ar_need_on = g_set_ai[1].train_by_need;
     g_ar_scout_on = g_set_ai[1].scouting;
+    g_fln_on = g_set_ai[1].fleet_by_need;   // army_view.c THE FLEET BY NEED
     if (autotest_ini) {
         g_v_ar_scout = ini_int("autotest", "v_scouting", -1, autotest_ini);
+        g_v_fln = ini_int("autotest", "v_fleet_by_need", -1, autotest_ini);
+        g_v_aa_exp = ini_int("autotest", "v_aa_expected", -1, autotest_ini);   // defence.c anti_air
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);

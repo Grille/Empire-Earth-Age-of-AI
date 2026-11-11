@@ -683,8 +683,8 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
     if (best[NR_SUB]) w[NR_ANTI] = 0;   // e10+: submarines take the galleys' place
     for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
 }
-// the type to train for the game's warship order asked (0: the game's own)
-internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
+// the mix's type for the game's warship order asked (0: the game's own)
+internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
     if (!fleet_builds(idx) || !navy_pays(idx, asked)) return 0;   // stage 4 only
     int k = navy_type_kind(asked);
     if (k != NV_WAR && k != NV_SUB) return 0;
@@ -719,6 +719,28 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
         if (pay && total <= pool) { if (r0 != br) pk->cheaper++; return best[r0]; }
     }
     return br ? best[br] : 0;
+}
+// the type to train for the game's warship order asked (0: the game's own): the fleet's need when fleet_by_need is on and it
+// has one it can pay now (army_view.c THE FLEET BY NEED), else the mix's
+internal int fleet_need_pick(ee_player *pl, unsigned idx, const int *cand, int nc, int mix, uint32_t now);   // army_view.c
+internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
+    int mix = nv_mix_pick(pl, idx, asked);
+    if (!mix) return 0;
+    uint32_t now = game_time();
+    struct nv_pick *pk = &g_nv_pk[idx & 15];
+    static int cand[24];
+    int nc = 0;
+    for (int k = 0; k < pk->nc; k++) {   // the mix's candidates but those it waits out (refused, not trained)
+        int t = pk->ctype[k], skip = t == pk->skip_type && now < pk->skip_until;
+        for (int b = 0; b < 4; b++) skip |= t == pk->bad_type[b] && now < pk->bad_until[b];
+        if (!skip) cand[nc++] = t;
+    }
+    int need = fleet_need_pick(pl, idx, cand, nc, mix, now);
+    if (!need || need == mix) return mix;
+    const int *st = player_stock_at(pl);
+    int pay = 1, total = 0;
+    for (int q = 2; q < 7; q++) { int c = unit_cost(pl, need, q); total += c; pay &= c <= st[q]; }
+    return pay && total <= navy_account(idx, 3) ? need : mix;
 }
 // stage 4 (fleet.c fl_build): the type of the mod's own warship order - the mix's choice, asked as its first ship type
 internal int navy_fleet_type(ee_player *pl, unsigned idx) {

@@ -651,6 +651,11 @@ class ai_base
         /// seen an enemy army for that long: what it sees, it remembers - for training by need, among others (default on since
         /// 2026-11-11, measured with train_by_need)
         bool scouting = true;
+        /// The warship the navy trains: the one that adds most to its fleet against the enemy's fleet as it expects it - the
+        /// ships it has seen each enemy field and the counters that enemy will train against what it saw of the AI's ships -
+        /// for what it costs, when it can pay it now; nothing expected at sea: the navy's mix as before (default off: measured
+        /// without a gain over the mix)
+        bool fleet_by_need = false;
         /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured
@@ -912,6 +917,10 @@ class ai_base
         /// 1 = on; aa_ahead_buildings = how many drop sites get one
         bool aa_ahead = true;
         int aa_ahead_buildings = 3;
+        /// ... and by the air force it expects: half the aircraft it has seen each enemy field (the most at once, fading) and
+        /// of those that enemy will train against what it saw of the AI's units count as aircraft seen (default off: not
+        /// measured where aircraft fly yet)
+        bool aa_expected = false;
         /// Hold the town (experimental): when a stronger enemy army camps near an AI town, its soldiers pull back behind the
         /// town and guard there instead of chasing it one by one (Guard behaviour), and strike together once they are 1.3x
         /// its strength. Tests against a camp that pushes and pulls back like a player: worse (the town is left to the

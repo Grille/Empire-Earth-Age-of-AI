@@ -235,6 +235,10 @@ internal uint64_t av_kinds_in(const struct av_sum *s) {
 // - counters: what the enemy will train against what it saw - its own way, the game's counter vote (unit type
 //   counter_1..3: 3, 2 and 1 for each own type it saw, by how many), each class as the type of it the enemy can field now
 //   (the game offers it to that player: its civilization and epoch, both public), AVX_ANTICIPATE of the army it fields.
+// By field (step 7, the player: "include sea and air next"): what it fields and what it saw are kept for every type, its
+// land army, fleet and air force alike; the counters are asked for what it saw of one field of the AI's (its land army,
+// its fleet, its aircraft) and may be of any field - an answer to battleships can be bombers -, AVX_ANTICIPATE of what
+// it fields in that field.
 // Not saved: after a load it builds again from the memory (saved). Nothing decides on it but training by need (armies.c).
 #define AVX_HALF 1200000.0f
 #define AVX_SEEN 10
@@ -276,14 +280,15 @@ internal void avx_update(ee_player *pl, unsigned idx, uint32_t now) {
         for (int t = 0; t < G_TYPES_N; t++) { float v = g_avs[idx][o][t] * f; g_avs[idx][o][t] = v > (float)cur[o][t] ? v : (float)cur[o][t]; }
 }
 // the type of RPS class rps that enemy o can field now, the latest of the game's offer (the strongest of those: hit points x
-// attack); 0: none - land only (fl: AVF_LAND), the counters the land army meets
-internal int avx_class_type(ee_player *o, int rps) {
+// attack); 0: none - units only (no buildings), of the fields in mask fl
+internal int avx_class_type(ee_player *o, int rps, int fl) {
     int best = 0, bep = -1; float bs = 0;
     ee_tech_tree *tt = o ? player_get_tech_tree(o) : NULL;
     for (int t = 0; tt && t < G_TYPES_N; t++) {
         ee_unit_type *td = type_data(t);
-        if (!td || unit_type_get_id(td) != t || unit_type_get_rps_class(td) != rps || av_field_of(td) != AVF_LAND || unit_type_get_attack(td) <= 0) continue;
-        if (ut_role(t, UTR_CITIZEN) || !prio_buildable(o, t)) continue;
+        if (!td || unit_type_get_id(td) != t || unit_type_get_rps_class(td) != rps || !(av_field_of(td) & fl) || unit_type_get_attack(td) <= 0) continue;
+        int cls = unit_type_get_class_id(td);
+        if (cls == CLS_BUILDING || cls == CLS_FORTRESS || cls == CLS_NAVAL_BUILDING || cls == CLS_SPACE_BUILDING || ut_role(t, UTR_CITIZEN) || !prio_buildable(o, t)) continue;
         ee_tech *x = tech_tree_lookup(tt, unit_type_get_tech(td));
         int ep = x ? tech_get_epoch(x) : 0;
         float sc = (float)unit_type_get_hp(td) * (float)unit_type_get_attack(td);
@@ -291,15 +296,16 @@ internal int avx_class_type(ee_player *o, int rps) {
     }
     return best;
 }
-// what enemy o will train against what it saw of the AI's land army: n[type], the land army it fields times
-// AVX_ANTICIPATE, by the counter vote over what it saw; returns how many in all
-internal float avx_counters(unsigned idx, int o, float *n) {
+// what enemy o will train against what it saw of the AI's units of the fields in mask seen: n[type] (added), of the fields
+// in mask out, AVX_ANTICIPATE of what it fields in the fields seen, by the counter vote over what it saw; returns how
+// many in all
+internal float avx_counters(unsigned idx, int o, int seen, int out, float *n) {
     static float w[256];
     memset(w, 0, sizeof w);
     float fields = 0, sw = 0;
     for (int t = 0; t < G_TYPES_N; t++) {
         ee_unit_type *td = type_data(t);
-        if (!td || av_field_of(td) != AVF_LAND) continue;
+        if (!td || !(av_field_of(td) & seen)) continue;
         fields += g_avx[idx][o][t];
         float s = g_avs[idx][o][t];
         if (s <= 0) continue;
@@ -310,7 +316,7 @@ internal float avx_counters(unsigned idx, int o, float *n) {
     ee_player *op = player_at(o);
     for (int k = 1; k < 256 && sw > 0 && all > 0; k++) {
         if (w[k] <= 0) continue;
-        int t = avx_class_type(op, k);
+        int t = avx_class_type(op, k, out);
         if (t) { n[t] += all * w[k] / sw; got += all * w[k] / sw; }
     }
     return got;
@@ -333,15 +339,120 @@ internal void avx_list(const float *v, char *o, int cap) {
 internal void avx_log(unsigned idx, uint32_t now, void (*log)(unsigned, uint32_t, const char *, ...)) {
     static char a[400], b[400], c[400];
     static float n[G_TYPES_N];
+    static float fx[G_TYPES_N], fs[G_TYPES_N];
+    static const int fl[3] = { AVF_LAND, AVF_SEA, AVF_AIR };
+    for (int o = 1; o < 16; o++)
+        for (int j = 0; j < 3; j++) {
+            float fields = 0, seen = 0;
+            for (int t = 0; t < G_TYPES_N; t++) {
+                ee_unit_type *td = type_data(t);
+                int in = td && av_field_of(td) == fl[j];
+                fx[t] = in ? g_avx[idx][o][t] : 0.0f; fs[t] = in ? g_avs[idx][o][t] : 0.0f;
+                fields += fx[t]; seen += fs[t];
+            }
+            if (fields < 0.5f && seen < 0.5f) continue;
+            memset(n, 0, sizeof n);
+            float got = avx_counters(idx, o, fl[j], AVF_LAND | AVF_SEA | AVF_AIR, n);
+            avx_list(fx, a, (int)sizeof a); avx_list(fs, b, (int)sizeof b); avx_list(n, c, (int)sizeof c);
+            log(idx, now, "what P%d fields as it expects, %s: %.0f (%s); has seen of its own: %s; its counters to expect, %.0f: %s", o,
+                k_av_field_name[fl[j]], fields, a, b, got, c);
+        }
+}
+
+// THE FLEET BY NEED ([ai_base] fleet_by_need, off until measured; [autotest] v_fleet_by_need; army view step 7 - the
+// player, 2026-11-11: "include sea and air next"): the warship the navy trains (navy.c navy_pick, the game's warship
+// orders and the fleet's own) is the type of its candidates that adds most to its fleet against the enemy's fleet as it
+// expects it - every enemy's ships (WHAT THE ENEMY FIELDS, sea) and that enemy's counters to what it saw of the AI's
+// ships (any field: bombers too) - by the fight estimate (st_ratio), 1000 resources' worth of it (1 to 20) added at the
+// fleet, per 1000. Nothing of the enemy expected at sea: the navy's mix (roles by what it saw). navy.c trains it only
+// when it can pay it now, else the mix's. Once a game minute in tests: "# navy: P<n> fleet by need: ...".
+// Measured (Small Islands large from epoch 5, 60 min, 10 games each): it chose otherwise than the mix in 26-45 of ~59
+// looks, against 16-30 ships expected; h2h mirrored B on - A kills -8.7 (se 9.6), soldiers -4.1 (4.6), losses +2.5 (5.6),
+// razed 0 (2.1); against the non-cheating game AI off / on ships sunk 27.6 / 30.6, lost 21.7 / 21.5, buildings lost 1.9 /
+// 6.3 (se 0.8 / 4.3) - no gain: the mix's roles (galleys against battleships, the coast's guns, submarines) did as well,
+// the estimate puts both fleets at one point (no range, no coast). Off.
+internal int g_fln_on = 0, g_v_fln = -1;
+#define FL_NEED(idx) PV(idx, g_v_fln, g_fln_on)
+internal struct { unsigned looks, same, other, none; uint32_t log_t; } g_fln[16];
+internal struct st_side g_fln_own, g_fln_foe;
+internal void fln_own(unsigned idx, ivec2 at) {   // its fleet now (fleet.c), at its ships' places
+    st_side_clear(&g_fln_own);
+    for (int k = 0; k < g_fl[idx].n; k++) if (cv_alive(g_fl[idx].u[k])) st_side_add(&g_fln_own, g_fl[idx].u[k]);
+    (void)at;
+}
+// the type to train of the candidates cand[nc] (0: none - nothing expected, or off and not logging); mix: the mix's pick
+internal int fleet_need_pick(ee_player *pl, unsigned idx, const int *cand, int nc, int mix, uint32_t now) {
+    idx &= 15;
+    int log = g_log && g_autotest && (!g_fln[idx].log_t || now < g_fln[idx].log_t || now - g_fln[idx].log_t >= 60000);
+    if (!FL_NEED(idx) && !log) return 0;
+    if (log) g_fln[idx].log_t = now ? now : 1;
+    av_enemy_build(pl, now);
+    ivec2 at = g_fl[idx].n && cv_alive(g_fl[idx].u[0]) ? unit_get_tile(g_fl[idx].u[0]) : g_fl[idx].g;
+    if (at.x < 0) at = g_fl[idx].g;
+    st_side_clear(&g_fln_foe);
+    static float want[G_TYPES_N];
     for (int o = 1; o < 16; o++) {
-        float fields = 0;
-        for (int t = 0; t < G_TYPES_N; t++) fields += g_avx[idx][o][t];
-        if (fields < 0.5f) continue;
-        memset(n, 0, sizeof n);
-        float got = avx_counters(idx, o, n);
-        avx_list(g_avx[idx][o], a, (int)sizeof a); avx_list(g_avs[idx][o], b, (int)sizeof b); avx_list(n, c, (int)sizeof c);
-        log(idx, now, "what P%d fields as it expects: %.0f (%s); has seen of its own: %s; its counters to expect, %.0f: %s", o, fields, a, b, got, c);
+        ee_player *op = player_at(o);
+        if (!op || !is_enemy(pl, op)) continue;
+        float sea = 0;
+        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); want[t] = td && av_field_of(td) == AVF_SEA ? g_avx[idx][o][t] : 0.0f; sea += want[t]; }
+        if (sea < 0.5f) continue;
+        avx_counters(idx, o, AVF_SEA, AVF_SEA | AVF_AIR, want);
+        for (int t = 0; t < G_TYPES_N; t++) {
+            int n = (int)(want[t] + 0.5f);
+            ee_unit_type *td = n > 0 ? type_data(t) : NULL;
+            int hp = td ? st_maxhp(td, st_rec(op, t)) : 0;
+            for (int k = 0; k < n && hp > 0; k++) if (!st_side_add_rec(&g_fln_foe, t, o, hp, at.x, at.y)) break;
+        }
     }
+    if (log) g_fln[idx].looks++;
+    if (!g_fln_foe.n) { if (log) { g_fln[idx].none++; } return 0; }
+    fln_own(idx, at);
+    float r0 = st_ratio(&g_fln_own, &g_fln_foe), bg = 0, gmix = 0, rbest = r0;
+    int best = 0, nbest = 0;
+    for (int c = 0; c < nc; c++) {
+        int t = cand[c];
+        ee_unit_type *td = type_data(t);
+        if (!td || unit_type_get_attack(td) <= 0) continue;
+        int cost = 0;
+        for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
+        if (cost <= 0) continue;
+        int n = 1000 / cost > 1 ? 1000 / cost : 1;
+        if (n > 20) n = 20;
+        fln_own(idx, at);
+        ee_unit_stats *st = st_rec(pl, t);
+        int hp = st_maxhp(td, st);
+        for (int k = 0; k < n; k++) st_side_put(&g_fln_own, NULL, td, st, (int)idx, hp, at.x, at.y);
+        float r = st_ratio(&g_fln_own, &g_fln_foe), g = (r - r0) * 1000.0f / (float)(n * cost);
+        if (t == mix) gmix = g;
+        if (!best || g > bg) { best = t; bg = g; nbest = n; rbest = r; }
+    }
+    if (!best) return 0;
+    if (log) {
+        if (best == mix) g_fln[idx].same++; else g_fln[idx].other++;
+        fprintf(g_log, "# navy: P%u at %.1f min: fleet by need: the mix's pick %s (%d, %+.3f a 1000), the need %s (%d, %+.3f a 1000: %d of them %.2f -> %.2f) against %d expected at sea; looks %u, the same %u, other %u, nothing expected %u%s\n",
+                idx, now / 60000.0, mix ? unit_ident(mix) : "none", mix, gmix, unit_ident(best), best, bg, nbest, r0, rbest, g_fln_foe.n,
+                g_fln[idx].looks, g_fln[idx].same, g_fln[idx].other, g_fln[idx].none, FL_NEED(idx) ? " - trained" : "");
+    }
+    return FL_NEED(idx) ? best : 0;
+}
+
+// the enemy aircraft it expects (defence.c anti_air, aa_expected): the aircraft each enemy fields as it expects them and
+// the aircraft among that enemy's counters to what it saw of the AI's units
+internal float avx_air_expected(ee_player *pl, unsigned idx, uint32_t now) {
+    static float n[G_TYPES_N];
+    idx &= 15;
+    av_enemy_build(pl, now);
+    float all = 0;
+    for (int o = 1; o < 16; o++) {
+        ee_player *op = player_at(o);
+        if (!op || !is_enemy(pl, op)) continue;
+        memset(n, 0, sizeof n);
+        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); if (td && av_field_of(td) == AVF_AIR) all += g_avx[idx][o][t]; }
+        avx_counters(idx, o, AVF_LAND | AVF_SEA | AVF_AIR, AVF_AIR, n);
+        for (int t = 0; t < G_TYPES_N; t++) all += n[t];
+    }
+    return all;
 }
 // the summary as a line: what it is, then its damage a second at each family of the enemy's it sees, the most first
 internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) {

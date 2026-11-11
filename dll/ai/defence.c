@@ -24,6 +24,7 @@
 // a gap, before the wall, by the wall manager's drag, or onto the finished wall: it stayed at 1 hit point).
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
+internal int g_aa_exp = 0, g_v_aa_exp = -1;                 // [ai_base] aa_expected, [autotest] v_aa_expected (ANTI-AIR, BY THE AIR FORCE IT EXPECTS)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
@@ -1886,6 +1887,7 @@ internal void defence_install(void) {
     g_fight_est = g_set_ai[1].fight_estimate;
     g_aa = g_set_ai[1].anti_air;
     g_aa_ahead = g_set_ai[1].aa_ahead;
+    g_aa_exp = g_set_ai[1].aa_expected;
     g_aa_ahead_b = g_set_ai[1].aa_ahead_buildings;
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
@@ -1933,7 +1935,15 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
     if (!nearest_drop(pl, iv2(x, y), 0, &d) || ivec2_dist2(d, iv2(x, y)) > 625) return;
     a->nair++; a->axs += (float)x; a->ays += (float)y;
 }
-internal struct { uint32_t last, seen_t, train_t, build_t, all_t; int air, ax, ay, all; unsigned trained, queued; } g_aa_st[16];
+internal struct { uint32_t last, seen_t, train_t, build_t, all_t, exp_log_t; int air, ax, ay, all; unsigned trained, queued; } g_aa_st[16];
+// BY THE AIR FORCE IT EXPECTS ([ai_base] aa_expected, off until measured; [autotest] v_aa_expected; army view step 7):
+// half the aircraft it expects of its enemies (army_view.c avx_air_expected: what each fields, and of its counters to what
+// it saw of the AI's) count as aircraft seen - as aa_ahead's aircraft seen anywhere, half of them. Measured (Continental
+// from WWI, 75 min, 10 games each) without a result: the AIs flew next to nothing (expected 0.1-1.3 aircraft at the end,
+// the AA orders as without it); h2h B on - A razed +2.5 (se 9.3), against the game AI off / on razed 33.5 / 23.8 (7.2,
+// 7.8) - noise. Off; to be measured where aircraft fly (tests/scenarios/bombing_late.eeai).
+#define AA_EXP(idx) PV(idx, g_v_aa_exp, g_aa_exp)
+internal float avx_air_expected(ee_player *pl, unsigned idx, uint32_t now);   // army_view.c
 internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     if (!g_aa || !pl) return;
     if (now < g_aa_st[idx].last) memset(&g_aa_st[idx], 0, sizeof g_aa_st[idx]);   // a new game
@@ -1953,6 +1963,15 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         g_aa_st[idx].ax = (int)(axs / (float)nair); g_aa_st[idx].ay = (int)(ays / (float)nair);
     } else if (g_aa_st[idx].seen_t && now - g_aa_st[idx].seen_t > (g_aa_ahead ? 600000u : 300000u)) g_aa_st[idx].air = 0;
     int ahead = 0, air = g_aa_st[idx].air;
+    if (AA_EXP(idx) || (g_log && g_autotest && (!g_aa_st[idx].exp_log_t || now - g_aa_st[idx].exp_log_t >= 60000))) {
+        float ex = avx_air_expected(pl, idx, now);
+        if (g_log && g_autotest && (!g_aa_st[idx].exp_log_t || now - g_aa_st[idx].exp_log_t >= 60000)) {
+            g_aa_st[idx].exp_log_t = now ? now : 1;
+            fprintf(g_log, "# anti-air: P%u at %.1f min: enemy aircraft near its towns %d, anywhere %d, expected %.1f%s\n", idx, now / 60000.0, air, g_aa_st[idx].all, ex,
+                    AA_EXP(idx) ? " - counted" : "");
+        }
+        if (AA_EXP(idx) && (int)(ex / 2.0f + 0.5f) > air) air = (int)(ex / 2.0f + 0.5f);
+    }
     if (g_aa_ahead) {
         if (nall >= g_aa_st[idx].all || now - g_aa_st[idx].all_t > 600000) { g_aa_st[idx].all = nall; g_aa_st[idx].all_t = now ? now : 1; }
         if (g_aa_st[idx].all / 2 > air) air = g_aa_st[idx].all / 2;
