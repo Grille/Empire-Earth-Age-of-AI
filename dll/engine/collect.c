@@ -521,6 +521,8 @@ typedef struct {
     uint8_t fx_done;         // ... the effects it had: US_FX_SPLASH, US_FX_CRASH
     uint8_t fx_due;          // ... the ones still to be made on the simulation's thread, at fx_at
     uint8_t stuck;           // an aircraft whose middle hit the ground (or the seabed): it stays as it hit
+    uint8_t in_game;         // the game still has its unit (the effects' step, by its id): not met by a walk, it is out of
+                             // the view by the game's copy, not removed (us_alive_known)
     float fx_at[2][3];       // where: the splash's (on the water), the crash's
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
@@ -768,7 +770,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     k->lift = sub ? US_SUB_FLOAT : air && cls != CLS_AIRPLANE ? 0.0f : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
-    k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0;
+    k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0, k->in_game = 1;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
@@ -1125,23 +1127,38 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
     uc_map_insert(engine_display_sort_maps_at() + 0x18, pair);
     return 1;
 }
-// the walk's end: those it didn't meet removed (kept) or out of the view (let go), the kept ones drawn on the tiles of the
-// copy the player sees, those whose time is up let go
+// A WRECK OUT OF THE VIEW BY THE GAME'S COPY (the player, the same day: "the crashing planes sometime vanish, when zooming
+// the camera further out they apear again, i asume the draw bounds check is still the games?"): the walk meets a dying
+// unit on the game's tile and lets it through by the game's pose, and the game moves its copy itself - a plane glides
+// down its own way, a helicopter straight down. Out of the view by that, the wreck in it wasn't drawn, and not met it was
+// taken for out of the view and let go, made anew from the game's pose when met again. So whether the game still has
+// it is asked by its id on the simulation's thread (the effects' step: k->in_game), and one it has that the walk didn't
+// meet is drawn as a kept one, by its own place and pose
+internal int us_effects_on(void);
+internal volatile int g_us_alive_known;   // the effects' step has looked the wrecks' units up (its hook in, its loop run)
+internal int us_alive_known(void) { return g_us_alive_known && us_effects_on(); }
+// the walk's end: those it didn't meet removed (kept) or out of the view (let go; a wreck the game still has: drawn), the
+// kept ones drawn on the tiles of the copy the player sees - a wreck's by its floats' middle -, those whose time is up let go
 internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint32_t room, uint8_t *maps, int free_cam) {
     if (!g_kc_cs_ok || g_uc_now < 0.0) return;
     EnterCriticalSection(&g_kc_cs);
     double end = uc_end_ms();
+    int known = us_alive_known();
     uint32_t j = 0;
     for (uint32_t i = 0; i < g_kc_n; i++) {
         uc_corpse *k = &g_kc[i];
-        if (k->gen != g_uc_walk_gen && !k->gone) k->gone = k->rot <= UC_GONE_ROT ? 1 : 2;
+        int unmet = k->gen != g_uc_walk_gen;
+        if (unmet && !k->gone) k->gone = k->ship && known ? (k->in_game ? 0 : 1) : k->rot <= UC_GONE_ROT ? 1 : 2;
         double d = g_uc_now - k->died;
         if (k->gone == 2 || (k->gone && d >= end)) {
             graphics_release(k->gfx);
             continue;
         }
-        if (k->gone && g_set.corpses_sink && *n < room) {
-            int x = (int)floorf(k->t[3]) - c->x0, y = (int)floorf(k->t[7]) - c->y0;
+        if ((k->gone || unmet) && g_set.corpses_sink && *n < room) {
+            float at[2] = { k->t[3], k->t[7] };
+            if (k->ship) at[0] = 0.25f * (k->sp[0][0] + k->sp[1][0] + k->sp[2][0] + k->sp[3][0]),
+                         at[1] = 0.25f * (k->sp[0][1] + k->sp[1][1] + k->sp[2][1] + k->sp[3][1]);
+            int x = (int)floorf(at[0]) - c->x0, y = (int)floorf(at[1]) - c->y0;
             const uc_ctile *ct = x >= 0 && y >= 0 && x < c->w && y < c->h ? &c->tiles[y * c->w + x] : NULL;
             if (ct && ct->t && (ct->seen || free_cam) && uc_fill_corpse(k, recs + (size_t)*n * DRAW_REC, maps, d)) ++*n, g_kc_drawn++;
         }
@@ -1188,6 +1205,7 @@ internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
             uc_corpse *k = &g_kc[i];
             if (!k->ship) continue;
             ee_unit *cu = k->gone ? NULL : unit_by_id((unsigned)k->serial);
+            k->in_game = cu != NULL;
             if (cu) {
                 float *mt = unit_matrix_at(cu), pose[16];
                 memcpy(g_us_kept[n], mt, sizeof g_us_kept[n]);
@@ -1205,6 +1223,7 @@ internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
             }
             k->fx_due = 0;
         }
+        g_us_alive_known = 1;
         LeaveCriticalSection(&g_kc_cs);
     }
     effect_mgr_step(m);

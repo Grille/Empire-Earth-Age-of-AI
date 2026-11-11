@@ -882,6 +882,18 @@ wings' height (under them it hung from their lift as a pendulum). Checked the sa
 the three P-51s of eight with a wing at 0.12 - 0.15 rolled on toward it, 17 - 21 degrees after a second, 53 - 69 after
 two, 67 - 89 as they hit; the five with whole wings stayed within 9 degrees, came down in 3 - 3.5 s and hit at about
 40 degrees nose down.
+A wreck stays its own when the game's copy of its unit leaves the view (the player, the same day: "the crashing planes
+sometime vanish, when zooming the camera further out they apear again", "the original games crashed plane position
+replaces ours when i move the camera away and come back", "helicopters still have secondary explosions at the base
+games crash spot"). The walk meets a dying unit on the game's tile and lets it through by the game's pose, and the game
+moves its copy itself (a plane glides down its own way, a helicopter straight down): with that copy out of the view the
+wreck wasn't drawn, and not met it was taken for out of the view and let go (its rot time over UC_GONE_ROT) - met
+again it was made anew from the game's pose, a helicopter's in the air over the game's crash spot, where it fell and
+blew up a second time. Now the effects' step, on the simulation's thread, notes by its id whether the game still has
+the unit (k->in_game); one it has that the walk didn't meet is kept and drawn as a kept one, by its floats' middle and
+its own pose (uc_corpses_walk), one it no longer has is removed (kept, its time on). Checked headless with the player's
+ini and a probe of the corpses' walk: P-51s and Apaches killed over the water, the camera away and back - three wrecks
+unmet while the game had them, kept (none made anew), two of them drawn by their own place.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
