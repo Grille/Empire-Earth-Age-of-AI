@@ -539,7 +539,8 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_AIR 0.3f
 #define US_FLOAT 2.0f   // a float's buoyancy, fully under (g's): half under at rest
 #define US_DIG 0.6f     // the deepest a float goes into the seabed: a share of the beam
-#define US_FAST 4.0f    // tiles/s: a faster move between its poses was no sailing (a jump)
+#define US_FAST 1.5f    // a move between its poses faster than this times its top speed (at least US_JUMP tiles/s)
+#define US_JUMP 4.0f    // was no sailing but a jump: a ship of 170 tiles/s stopped dead at a fixed 4 (the player)
 internal int uc_is_ship(const ee_unit_type *ty) { return class_is_ship(unit_type_get_class_id(ty)); }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
@@ -568,12 +569,14 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
 internal void us_velocity(const uc_obj *o, float *v) {
     v[0] = v[1] = 0.0f;
     const float *now = (const float *)o->pm;
+    float top = fmaxf(o->st ? unit_stats_get_speed(o->st) : 0.0f, o->cst ? unit_stats_get_speed(o->cst) : 0.0f);
+    float fast = fmaxf(US_FAST * top, US_JUMP);
     for (int i = 0; i < 2; i++) {
         const float *a = i ? o->was2 : o->was, *b = i ? o->was : now;
         float dt = (o->ms[i] - o->ms[i + 1]) / 1000.0f;
         if (!(i ? o->has_was2 : o->has_was) || dt <= 0.0f || dt > 1.0f) return;
         float dx = (b[3] - a[3]) / dt, dy = (b[7] - a[7]) / dt, s = dx * dx + dy * dy;
-        if (s > US_FAST * US_FAST) return;
+        if (s > fast * fast) return;
         if (s > 1e-4f) { v[0] = dx, v[1] = dy; return; }
     }
 }

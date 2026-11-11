@@ -775,7 +775,8 @@ water, the rolled one on its side. Each float goes into the seabed by a depth of
 from the serial after the leaks): a wreck comes to rest unevenly buried - by the bow, the stern, one side. It keeps the
 speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats start with its
 last step's move along the water (the collection's poses before its death; the one before when the game stopped it
-in the step it died, none above US_FAST or when met already sinking), the water's drag and the seabed stop it - along
+in the step it died; none when met already sinking, or beyond 1.5 times its own top speed, at least 4 tiles/s - a
+jump: a fixed 4 stopped the player's ship of 170 dead), the water's drag and the seabed stop it - along
 the water a drag of its own (US_GLIDE 0.5/s against 1.6 up and down: a frigate at 0.8 tiles/s glides 1.6 tiles, at
 the sinking's drag half a tile, hardly seen).
 A ship's hull is open below (the player, the same day: "that the ships have no underside is very noticable now ... a
