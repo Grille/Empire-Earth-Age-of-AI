@@ -666,6 +666,27 @@ internal inline ee_gfx *effect_mgr_get(ee_effect_mgr *effect_mgr, int handle) { 
 typedef int (__thiscall *effect_mgr_remove_fn)(ee_effect_mgr *, int);
 internal effect_mgr_remove_fn fn_effect_mgr_remove;
 internal inline int effect_mgr_remove(ee_effect_mgr *effect_mgr, int handle) { return fn_effect_mgr_remove(effect_mgr, handle); }
+// thiscall([ui.gfx_effects], unit, effect, int *handle or 0, keeps the unit (a bool, pushed as a dword), tag point,
+// goal index): an effect on a unit - each step it reads the unit's matrix itself (its complex unit's +0x130); none
+// (0) when the effect's detail (+0x80) is above the setting's ([0x91941C])
+typedef int (__thiscall *effect_mgr_add_on_unit_fn)(ee_effect_mgr *, ee_unit *, void *, int *, int, int, int);
+internal effect_mgr_add_on_unit_fn fn_effect_mgr_add_on_unit;
+internal inline int effect_mgr_add_on_unit(ee_effect_mgr *effect_mgr, ee_unit *unit, void *effect, int *handle, int keeps_unit, int tag_point, int goal) { return fn_effect_mgr_add_on_unit(effect_mgr, unit, effect, handle, keeps_unit, tag_point, goal); }
+internal inline int patch_air_crash_effect(effect_mgr_add_on_unit_fn h) { return patch_call(call_air_crash_effect, (uintptr_t)fn_effect_mgr_add_on_unit, (void *)h); }
+internal inline int patch_heli_crash_effect(effect_mgr_add_on_unit_fn h) { return patch_call(call_heli_crash_effect, (uintptr_t)fn_effect_mgr_add_on_unit, (void *)h); }
+// thiscall([ui.gfx_effects], float pos[3], effect, int *handle or 0): an effect at a place (the same detail gate)
+typedef int (__thiscall *effect_mgr_add_at_fn)(ee_effect_mgr *, float *, void *, int *);
+internal effect_mgr_add_at_fn fn_effect_mgr_add_at;
+internal inline int effect_mgr_add_at(ee_effect_mgr *effect_mgr, float *pos, void *effect, int *handle) { return fn_effect_mgr_add_at(effect_mgr, pos, effect, handle); }
+internal inline int patch_air_crash_splash(effect_mgr_add_at_fn h) { return patch_call(call_air_crash_splash, (uintptr_t)fn_effect_mgr_add_at, (void *)h); }
+internal inline int patch_heli_crash_splash(effect_mgr_add_at_fn h) { return patch_call(call_heli_crash_splash, (uintptr_t)fn_effect_mgr_add_at, (void *)h); }
+// thiscall([ui.gfx_effects]): every effect's step (its vf +0x4C; 7 ends it), the goal markers first, the ended ones
+// destroyed - what an effect on a unit reads of it, it reads here (the unit's matrix: the damage smoke's puffs,
+// the fire, the trails)
+typedef void (__thiscall *effect_mgr_step_fn)(ee_effect_mgr *);
+internal effect_mgr_step_fn fn_effect_mgr_step;
+internal inline void effect_mgr_step(ee_effect_mgr *effect_mgr) { fn_effect_mgr_step(effect_mgr); }
+internal inline int patch_effects_step(effect_mgr_step_fn h) { return patch_call(call_effects_step, (uintptr_t)fn_effect_mgr_step, (void *)h); }
 
 // static class ui
 // ui's data of the game, places in its code and numbers
@@ -931,6 +952,14 @@ internal int spec_ui_select(int build) {
         call_click_mark = 0x00404A26;
         fn_effect_mgr_get = (effect_mgr_get_fn)0x004FBE3E;
         fn_effect_mgr_remove = (effect_mgr_remove_fn)0x004FBEB2;
+        fn_effect_mgr_add_on_unit = (effect_mgr_add_on_unit_fn)0x004FAE07;
+        call_air_crash_effect = 0x0054B9FA;
+        call_heli_crash_effect = 0x0054D11A;
+        fn_effect_mgr_add_at = (effect_mgr_add_at_fn)0x004FB842;
+        call_air_crash_splash = 0x0054B954;
+        call_heli_crash_splash = 0x0054D07A;
+        fn_effect_mgr_step = (effect_mgr_step_fn)0x004FC94E;
+        call_effects_step = 0x00546D76;
         data_ui_gfx_effects = 0x00918E1C;
         data_ui_iat_edit_get_text = 0x00823328;
         data_ui_iat_edit_ctor = 0x00823D48;
@@ -1170,6 +1199,14 @@ internal int spec_ui_select(int build) {
         call_click_mark = 0x0040416B;
         fn_effect_mgr_get = (effect_mgr_get_fn)0x00506852;
         fn_effect_mgr_remove = (effect_mgr_remove_fn)0x005068C6;
+        fn_effect_mgr_add_on_unit = (effect_mgr_add_on_unit_fn)0x0050562C;
+        call_air_crash_effect = 0x00558165;
+        call_heli_crash_effect = 0x00559992;
+        fn_effect_mgr_add_at = (effect_mgr_add_at_fn)0x005061E9;
+        call_air_crash_splash = 0x0055811C;
+        call_heli_crash_splash = 0x005598F5;
+        fn_effect_mgr_step = (effect_mgr_step_fn)0x00507450;
+        call_effects_step = 0x0055322A;
         data_ui_gfx_effects = 0x0093185C;
         data_ui_iat_edit_get_text = 0x00837EE0;
         data_ui_iat_edit_ctor = 0x00837D4C;
@@ -1286,6 +1323,14 @@ internal int spec_ui_check(void) {
     bad += spec_call(call_click_mark, (uintptr_t)fn_effect_mgr_add, "EEEffectManager.add [call_site click_mark]");
     bad += spec_code((uintptr_t)fn_effect_mgr_get, "EEEffectManager.get");
     bad += spec_code((uintptr_t)fn_effect_mgr_remove, "EEEffectManager.remove");
+    bad += spec_code((uintptr_t)fn_effect_mgr_add_on_unit, "EEEffectManager.add_on_unit");
+    bad += spec_call(call_air_crash_effect, (uintptr_t)fn_effect_mgr_add_on_unit, "EEEffectManager.add_on_unit [call_site air_crash_effect]");
+    bad += spec_call(call_heli_crash_effect, (uintptr_t)fn_effect_mgr_add_on_unit, "EEEffectManager.add_on_unit [call_site heli_crash_effect]");
+    bad += spec_code((uintptr_t)fn_effect_mgr_add_at, "EEEffectManager.add_at");
+    bad += spec_call(call_air_crash_splash, (uintptr_t)fn_effect_mgr_add_at, "EEEffectManager.add_at [call_site air_crash_splash]");
+    bad += spec_call(call_heli_crash_splash, (uintptr_t)fn_effect_mgr_add_at, "EEEffectManager.add_at [call_site heli_crash_splash]");
+    bad += spec_code((uintptr_t)fn_effect_mgr_step, "EEEffectManager.step");
+    bad += spec_call(call_effects_step, (uintptr_t)fn_effect_mgr_step, "EEEffectManager.step [call_site effects_step]");
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
     bad += spec_data(data_ui_iat_edit_ctor, "ui.iat_edit_ctor");

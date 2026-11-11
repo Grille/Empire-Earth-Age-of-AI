@@ -17,7 +17,10 @@ internal inline char **unit_type_name_at(const ee_unit_type *o) { return (char *
 internal inline int unit_type_get_refuel_at(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_refuel_at); }
 internal inline void unit_type_set_refuel_at(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_refuel_at) = v; }
 internal inline int *unit_type_refuel_at_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_refuel_at); }
-// the graphic effect a missile or projectile plays on itself when it arrives
+// the graphic effect a missile or projectile plays on itself when it arrives; a unit's death effect (the AoC
+// decompilation: mDeathEffect) - a crashing aircraft's on reaching the ground (EEEffectManager.add_on_unit's
+// air_crash_effect), a ship's and a submarine's as they start to die (EEUCNaval::vf29 0x606427, EEUCSubmergedNaval
+// 0x608901)
 internal inline void *unit_type_get_impact_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_impact_gfx); }
 internal inline void unit_type_set_impact_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_impact_gfx) = v; }
 internal inline void **unit_type_impact_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_impact_gfx); }
@@ -25,10 +28,11 @@ internal inline void **unit_type_impact_gfx_at(const ee_unit_type *o) { return (
 internal inline void *unit_type_get_fire_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_fire_gfx); }
 internal inline void unit_type_set_fire_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_fire_gfx) = v; }
 internal inline void **unit_type_fire_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_fire_gfx); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
 // below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
-// (the AoC decompilation: mSplashEffect, the splash on the water)
+// (the AoC decompilation: mSplashEffect, the splash on the water) - the water's: a crashing aircraft's splash where
+// it comes down through z 0 over a tile under the water (EEPMAirplane's and EEPMHelicopter's crash steps, the
+// call air_crash_splash: z 0 and the tile's height below 0 its test)
 internal inline void *unit_type_get_ground_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_ground_gfx); }
 internal inline void unit_type_set_ground_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_ground_gfx) = v; }
 internal inline void **unit_type_ground_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_ground_gfx); }

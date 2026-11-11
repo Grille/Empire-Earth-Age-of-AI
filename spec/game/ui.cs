@@ -854,6 +854,33 @@ unsafe struct EEEffectManager
     /// thiscall([ui.gfx_effects], handle)
     [address((ee)0x004FBEB2, (aoc)0x005068C6)]
     extern int32 remove(int32 handle);
+
+    /// thiscall([ui.gfx_effects], unit, effect, int *handle or 0, keeps the unit (a bool, pushed as a dword), tag point,
+    /// goal index): an effect on a unit - each step it reads the unit's matrix itself (its complex unit's +0x130); none
+    /// (0) when the effect's detail (+0x80) is above the setting's ([0x91941C])
+    [address((ee)0x004FAE07, (aoc)0x0050562C)]
+    // a crashing airplane's and helicopter's death effect (the unit type's impact_gfx) on reaching the ground, in their
+    // physics models' crash steps (EEPMAirplane 0x54B540, EEPMHelicopter 0x54CC8C: vf12), each step it is under the
+    // ground's height
+    [call_site("air_crash_effect", (ee)0x0054B9FA, (aoc)0x00558165)]
+    [call_site("heli_crash_effect", (ee)0x0054D11A, (aoc)0x00559992)]
+    extern int32 add_on_unit(EEUnit* unit, void* effect, int32* handle, int32 keeps_unit, int32 tag_point, int32 goal);
+
+    /// thiscall([ui.gfx_effects], float pos[3], effect, int *handle or 0): an effect at a place (the same detail gate)
+    [address((ee)0x004FB842, (aoc)0x005061E9)]
+    // the same steps' splash (the unit type's ground_gfx) where the crashing aircraft comes down through z 0 over a tile
+    // under the water (pos: x, y, 0)
+    [call_site("air_crash_splash", (ee)0x0054B954, (aoc)0x0055811C)]
+    [call_site("heli_crash_splash", (ee)0x0054D07A, (aoc)0x005598F5)]
+    extern int32 add_at(float32* pos, void* effect, int32* handle);
+
+    /// thiscall([ui.gfx_effects]): every effect's step (its vf +0x4C; 7 ends it), the goal markers first, the ended ones
+    /// destroyed - what an effect on a unit reads of it, it reads here (the unit's matrix: the damage smoke's puffs,
+    /// the fire, the trails)
+    [address((ee)0x004FC94E, (aoc)0x00507450)]
+    // EEPhysics::step's (0x546C63): the simulation's step of the effects
+    [call_site("effects_step", (ee)0x00546D76, (aoc)0x0055322A)]
+    extern void step();
 }
 
 /// ui's data of the game, places in its code and numbers

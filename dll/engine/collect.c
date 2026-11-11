@@ -513,6 +513,11 @@ typedef struct {
     float lift;              // the floats' buoyancy before the leaks (g's, fully under): US_FLOAT, a submarine's US_SUB_FLOAT,
                              // a helicopter's none
     float wet_at;            // when it first touched the water (s after its death; < 0 not yet): the leaks' clock
+    int32_t serial;          // its id: the simulation's thread finds it by it (us_hook_effects_step)
+    uint8_t air;             // an aircraft: it splashes into the water and blows up on the ground (US_FX_*)
+    uint8_t fx_done;         // ... the effects it had: US_FX_SPLASH, US_FX_CRASH
+    uint8_t fx_due;          // ... the ones still to be made on the simulation's thread, at fx_at
+    float fx_at[2][3];       // where: the splash's (on the water), the crash's
     double sim;              // the game time it is simulated to (ms)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
@@ -699,6 +704,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
     k->lift = sub ? US_SUB_FLOAT : air && cls != CLS_AIRPLANE ? 0.0f : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
+    k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = 0;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
@@ -725,6 +731,26 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     if (!late) us_kick(k, o->serial);
     k->sim = k->died;
     k->ship = 1;
+}
+// THE EFFECTS OF ITS FALL (the player, the same day: "the explosion and water splash still get triggerd by the old system,
+// smoke also dosnt follow the demaged unit"). The game crashes an aircraft by moving it itself (EEPMAirplane's and
+// EEPMHelicopter's crash steps): it makes the splash where it comes down through the water and the death effect where it
+// reaches the ground - at its own place and moment, while the wreck drawn here fell elsewhere and sooner; and every
+// effect on a unit (the damage smoke's puffs, the fire, the trails, a ship's death effect) reads the unit's matrix at
+// each of its steps. So the game's two calls in the crash steps are let out (us_hook_crash_*) while the wrecks are the
+// mod's, the fall here makes them where it splashes (a float going down through the water over a tile under it) and
+// where it hits the ground going down faster than US_CRASH_V (an aircraft killed standing on its airfield none), and
+// around the effects' step (us_hook_effects_step) each wreck's unit has the wreck's pose for its matrix - the game's put
+// back right after, so the simulation never sees it. The effects are the picture only (made or left out by each PC's
+// detail setting, their own random numbers). Both made on the simulation's thread: the fall runs on the frame's, so it
+// only notes them (fx_due).
+#define US_FX_SPLASH 1
+#define US_FX_CRASH 2
+#define US_CRASH_V 0.5f   // tiles/s down
+internal void us_fx(uc_corpse *k, uint8_t f, float x, float y, float z) {
+    float *at = k->fx_at[f == US_FX_SPLASH ? 0 : 1];
+    at[0] = x, at[1] = y, at[2] = z;
+    k->fx_done |= f, k->fx_due |= f;
 }
 // one step at t s after its death: each float moved by its forces (Verlet: its velocity its way since the step before),
 // then the frame's distances and the seabed held, four times round
@@ -768,6 +794,9 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         v[2] += (-US_G + b * US_G * under) * dt * dt;
         if (i < 2) v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * under * dt * dt;   // the leading end up, the other down
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
+        if (k->air && i < 4 && !(k->fx_done & US_FX_SPLASH) && q[2] > k->zw && p[2] <= k->zw &&   // into the water
+            mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1])) && mesh_z(mesh, p[0], p[1]) < k->zw)
+            us_fx(k, US_FX_SPLASH, p[0], p[1], k->zw);
     }
     // its turning held: each point's way about the points' middle (by their weights) slowed, the whole's way kept
     float vm[3] = { 0, 0, 0 }, wsum = 0.0f, f_turn = expf(-US_TURN * wet * dt);
@@ -817,7 +846,9 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float *p = k->sp[i], *q = k->sq[i];
             int x = (int)floorf(p[0]), y = (int)floorf(p[1]);
             if (!mesh_has_tile(mesh, x, y)) continue;
-            float bottom = mesh_z(mesh, p[0], p[1]) + below[i] - k->dig[i];
+            float ground = mesh_z(mesh, p[0], p[1]), bottom = ground + below[i] - k->dig[i];
+            if (k->air && i < 4 && !(k->fx_done & US_FX_CRASH) && p[2] < bottom && ground >= k->zw && q[2] - p[2] > US_CRASH_V * dt)
+                us_fx(k, US_FX_CRASH, p[0], p[1], ground);   // onto the ground: the crash
             if (p[2] < bottom) {   // on the bottom: held up, and dragged along it
                 p[2] = bottom;
                 if (q[2] < p[2]) q[2] = p[2];
@@ -1014,6 +1045,52 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
     }
     g_kc_n = j;
     LeaveCriticalSection(&g_kc_cs);
+}
+// THE EFFECTS OF ITS FALL, on the simulation's thread (above us_fx): the wrecks are the mod's while its fills are on and
+// the corpses go down by their floats
+internal int us_effects_on(void) { return g_uc_own && g_uc_fill == 2 && g_set.corpses_sink && g_set.ship_sinking; }
+// the crash steps' death effect and splash: let out while the wrecks are the mod's (it makes its own)
+internal int __thiscall us_hook_crash_effect(ee_effect_mgr *m, ee_unit *unit, void *effect, int *handle, int keeps, int tag, int goal) {
+    return us_effects_on() ? 0 : effect_mgr_add_on_unit(m, unit, effect, handle, keeps, tag, goal);
+}
+internal int __thiscall us_hook_crash_splash(ee_effect_mgr *m, float *pos, void *effect, int *handle) {
+    return us_effects_on() ? 0 : effect_mgr_add_at(m, pos, effect, handle);
+}
+internal float g_us_kept[UC_CORPSES][12];   // the game's matrices of the wrecks' units during the effects' step
+internal float *g_us_put[UC_CORPSES];
+internal uint32_t g_us_fx_made;
+// the effects' step: each wreck's unit has the wreck's pose for its matrix meanwhile (the game's put back after), the
+// splashes and crashes the fall noted made first (on the unit when the game still has it, else at the place: a kind
+// with no placed version, the game's explosion, is then left out)
+internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
+    uint32_t n = 0;
+    if (g_kc_cs_ok && us_effects_on()) {
+        EnterCriticalSection(&g_kc_cs);
+        for (uint32_t i = 0; i < g_kc_n && n < UC_CORPSES; i++) {
+            uc_corpse *k = &g_kc[i];
+            if (!k->ship) continue;
+            ee_unit *cu = k->gone ? NULL : unit_by_id((unsigned)k->serial);
+            if (cu) {
+                float *mt = unit_matrix_at(cu), pose[16];
+                memcpy(g_us_kept[n], mt, sizeof g_us_kept[n]);
+                memcpy(pose, mt, sizeof g_us_kept[n]);
+                us_pose(k, pose);
+                memcpy(mt, pose, sizeof g_us_kept[n]);
+                g_us_put[n++] = mt;
+            }
+            if (k->fx_due & US_FX_SPLASH) effect_mgr_add_at(m, k->fx_at[0], unit_type_get_ground_gfx(k->ty), NULL), g_us_fx_made++;
+            if (k->fx_due & US_FX_CRASH) {
+                void *fx = unit_type_get_impact_gfx(k->ty);
+                if (cu) effect_mgr_add_on_unit(m, cu, fx, NULL, 0, 0, 0);
+                else effect_mgr_add_at(m, k->fx_at[1], fx, NULL);
+                g_us_fx_made++;
+            }
+            k->fx_due = 0;
+        }
+        LeaveCriticalSection(&g_kc_cs);
+    }
+    effect_mgr_step(m);
+    for (uint32_t i = 0; i < n; i++) memcpy(g_us_put[i], g_us_kept[i], sizeof g_us_kept[i]);
 }
 
 // STEP 2, THE FILLS OURS: THE OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity: EE 0x5044D7, AoC
@@ -2009,6 +2086,10 @@ internal void collect_install(void) {
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");
     if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
     if (g_uc_installed) collect_maps_install();
+    if (g_uc_installed && !(patch_effects_step(us_hook_effects_step) && patch_air_crash_effect(us_hook_crash_effect) &&
+                            patch_heli_crash_effect(us_hook_crash_effect) && patch_air_crash_splash(us_hook_crash_splash) &&
+                            patch_heli_crash_splash(us_hook_crash_splash)) && g_log)
+        fprintf(g_log, "# collect: the wrecks' effects NOT hooked (the game's splash and crash where it has them)\n");
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);
     if (g_uc_installed && g_set.units_smooth) {   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on, and during the steps

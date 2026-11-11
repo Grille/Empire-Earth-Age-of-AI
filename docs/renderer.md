@@ -811,6 +811,27 @@ touch of the water (wet_at: it comes up before it goes down), a helicopter has n
 (the way it faces: a fighter is wider than long), a tilt is no sign of its going down (it banks in flight), and it
 digs into the ground by at most 0.1 of its span (US_DIG_AIR). On the ground it lies as it came down for the corpses'
 time, faded at its end (not sunk into the ground, as the ships aren't).
+The effects of the fall are the wreck's (the player, the same day: "the explosion and water splash still get triggerd by
+the old system, smoke also dosnt follow the demaged unit"). The game crashes an aircraft by moving it itself, in its
+physics model's crash step (EEPMAirplane 0x54B540, EEPMHelicopter 0x54CC8C: vf12): the splash (the type's ground_gfx,
+placed: EEEffectManager.add_at) where it comes down through z 0 over a tile under the water, the death effect
+(impact_gfx, on the unit: add_on_unit) each step it is under the ground's height - at its own place and moment, while
+the wreck drawn fell elsewhere and sooner. And every effect on a unit reads the unit's matrix (its complex unit's
++0x130) itself at each of its steps (the damage smoke's puffs, the fire, the trails; a ship's death effect, made as it
+starts to die: EEUCNaval::vf29) - there is no getter between, only the effect manager's step (0x4FC94E, called in
+EEPhysics::step at 0x546D76). So while the wrecks are the mod's (its fills, corpses_sink, ship_sinking):
+- the four calls in the crash steps are let out (collect.c us_hook_crash_effect, us_hook_crash_splash);
+- the fall makes them itself (us_fx): the splash where a float goes down through the water over a tile under it, the
+  death effect where one hits the ground going down faster than 0.5 tiles/s (an aircraft killed standing on its airfield
+  none) - on the unit when the game still has it, else placed;
+- around the effects' step (us_hook_effects_step) each wreck's unit, found by its id, has the wreck's pose for its
+  matrix, the game's put back right after - so the effects follow the wreck and the simulation never sees it.
+The fall runs on the frame's thread, the effects on the simulation's: it notes them (fx_due), the step makes them.
+Effects are the picture only (made or left out by each PC's detail setting, their own random numbers; the addresses
+and the effect fields found with the AoC decompilation as the guide, confirmed in EE's code). Checked headless with
+an airport, P-51s and Apaches: the splashes rose where the wrecks went into the water, an explosion where a P-51 hit
+the runway, damaged Apaches' smoke rose from their wrecks, on land and in the water. A helicopter's wreck still goes
+when the game's own copy reaches the ground (rot time 0, its model the blown-up one from then).
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

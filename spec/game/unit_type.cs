@@ -15,7 +15,10 @@ unsafe struct EEUnitClass
     [offset(0x28), found(c), guess]
     int32 refuel_at;
 
-    /// the graphic effect a missile or projectile plays on itself when it arrives
+    /// the graphic effect a missile or projectile plays on itself when it arrives; a unit's death effect (the AoC
+    /// decompilation: mDeathEffect) - a crashing aircraft's on reaching the ground (EEEffectManager.add_on_unit's
+    /// air_crash_effect), a ship's and a submarine's as they start to die (EEUCNaval::vf29 0x606427, EEUCSubmergedNaval
+    /// 0x608901)
     [offset((ee)0x378, (aoc)0x68), found(c)]
     void* impact_gfx;
 
@@ -25,8 +28,10 @@ unsafe struct EEUnitClass
 
     /// the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
     /// below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
-    /// (the AoC decompilation: mSplashEffect, the splash on the water)
-    [offset((ee)0x394, (aoc)0x84), found(c), guess]
+    /// (the AoC decompilation: mSplashEffect, the splash on the water) - the water's: a crashing aircraft's splash where
+    /// it comes down through z 0 over a tile under the water (EEPMAirplane's and EEPMHelicopter's crash steps, the
+    /// call air_crash_splash: z 0 and the tile's height below 0 its test)
+    [offset((ee)0x394, (aoc)0x84), found(c)]
     void* ground_gfx;
 
     /// the shot's effect: a beam from the attacker to the target, or at the aim point without one
