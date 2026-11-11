@@ -13,6 +13,7 @@ internal void cmd_attacks(char *out, const char *args);
 internal void cmd_asgtrace(char *out, const char *args);
 internal void cmd_train(char *out, const char *args);
 internal void cmd_give(char *out, const char *args);
+internal void cmd_playas(char *out, const char *args);   // testcmd.c
 internal void cmd_continent(char *out, const char *args);
 internal void cmd_aigroup(char *out, const char *args);
 internal void cmd_rprobe(char *out, const char *args);   // engine/render_3d.c
@@ -401,6 +402,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "asgtrace")) cmd_asgtrace(out, args);
     else if (!strcmp(verb, "train")) cmd_train(out, args);
     else if (!strcmp(verb, "give")) cmd_give(out, args);
+    else if (!strcmp(verb, "playas")) cmd_playas(out, args);
     else if (!strcmp(verb, "continent")) cmd_continent(out, args);
     else if (!strcmp(verb, "aigroup")) cmd_aigroup(out, args);
     else if (!strcmp(verb, "landing")) cmd_landing(out, args);
