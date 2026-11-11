@@ -155,6 +155,19 @@ unsafe struct EEUnitClass
     [offset((ee)0x4CC, (aoc)0x1D0), found(c)]
     int32 rps_class;
 
+    /// the RPS classes that counter it, the first the best (0: none; Protryon's mCounterKind1-3): the unit selector's
+    /// counter vote (0x49352A -> 0x495B40) gives 3, 2 and 1 to these classes for each type of its target it knows of
+    [offset((ee)0x4D0, (aoc)0x1D4), found(c)]
+    int32 counter_1;
+
+    /// the second class that counters it (counter_1)
+    [offset((ee)0x4D4, (aoc)0x1D8), found(c)]
+    int32 counter_2;
+
+    /// the third class that counters it (counter_1)
+    [offset((ee)0x4D8, (aoc)0x1DC), found(c)]
+    int32 counter_3;
+
     /// the tech that makes it (its price)
     /// the type data's constructors
     [offset((ee)0x4E0, (aoc)0x1E4), found(c)]

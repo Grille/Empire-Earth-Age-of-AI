@@ -1921,7 +1921,7 @@ internal void ar_group_tick(ee_player *pl, unsigned idx, struct armies_st *a, st
 #define AR_LOOK_LEG 120000         // a leg it doesn't finish: the next place
 internal struct ar_look { ee_unit *u[AR_LOOK_N]; int id[AR_LOOK_N]; ivec2 to[AR_LOOK_N]; uint32_t t[AR_LOOK_N], leg[AR_LOOK_N], last; int known; unsigned sent, died, home; } g_ar_look[16];
 internal int ar_look_has(unsigned idx, ee_unit *u) { struct ar_look *l = &g_ar_look[idx & 15]; for (int k = 0; k < AR_LOOK_N; k++) if (l->u[k] == u) return 1; return 0; }
-internal int ar_look_cell(ee_player *pl, unsigned idx, struct ar_look *l, int self, ivec2 home, ivec2 *o) {
+internal int ar_look_cell(ee_player *pl, unsigned idx, struct ar_look *l, int self, ivec2 home, ivec2 *o, uint32_t stale) {   // stale: not looked at for that long
     static ivec2 foe[32];
     ee_map *map = game_map();
     int nf = 0, size = map ? (int)map_get_size(map) : 0, best = 0x7FFFFFFF;
@@ -1934,7 +1934,7 @@ internal int ar_look_cell(ee_player *pl, unsigned idx, struct ar_look *l, int se
     for (int y = AR_LOOK_CELL / 2; y < size; y += AR_LOOK_CELL)
         for (int x = AR_LOOK_CELL / 2; x < size; x += AR_LOOK_CELL) {
             ivec2 p = iv2(x, y);
-            if (intel_looked_ago(pl, x, y) <= AR_LOOK_STALE || (unsigned)area_id(p, 2) != land || threat_at(idx, p) > 0) continue;
+            if (intel_looked_ago(pl, x, y) <= stale ||(unsigned)area_id(p, 2) != land || threat_at(idx, p) > 0) continue;
             int skip = 0;
             for (int k = 0; k < AR_LOOK_N && !skip; k++) skip = k != self && l->u[k] && ivec2_dist2(p, l->to[k]) < 16 * 16;
             if (skip) continue;
@@ -1961,7 +1961,7 @@ internal void ar_look_tick(ee_player *pl, unsigned idx, struct armies_st *a, uin
         busy++;
         if (ivec2_dist2(unit_get_tile(u), l->to[k]) > 16 && now - l->leg[k] < AR_LOOK_LEG) continue;
         ivec2 nx;
-        if (now - l->t[k] < AR_LOOK_LIFE && ar_look_cell(pl, idx, l, k, a->home, &nx)) { l->to[k] = nx; l->leg[k] = now ? now : 1; ar_look_order(u, nx); continue; }
+        if (now - l->t[k] < AR_LOOK_LIFE && ar_look_cell(pl, idx, l, k, a->home, &nx, AR_LOOK_STALE)) { l->to[k] = nx; l->leg[k] = now ? now : 1; ar_look_order(u, nx); continue; }
         ar_look_order(u, a->home);   // its time is up: home, the force's again
         unit_set_ai_held(u, 0);
         if (cm) combat_mgr_register_unit(cm, u);
@@ -1986,10 +1986,62 @@ internal void ar_look_tick(ee_player *pl, unsigned idx, struct armies_st *a, uin
     int free_slot = 0;
     while (free_slot < AR_LOOK_N && l->u[free_slot]) free_slot++;
     ivec2 to;
-    if (!sc || free_slot == AR_LOOK_N || !ar_look_cell(pl, idx, l, free_slot, a->home, &to) || !ar_take(pl, sc)) return;
+    if (!sc || free_slot == AR_LOOK_N || !ar_look_cell(pl, idx, l, free_slot, a->home, &to, AR_LOOK_STALE) || !ar_take(pl, sc)) return;
     l->u[free_slot] = sc; l->id[free_slot] = unit_get_serial(sc); l->to[free_slot] = to; l->t[free_slot] = l->leg[free_slot] = now ? now : 1; l->sent++;
     ar_look_order(sc, to);
     ar_log(idx, now, "a rider looks at %d,%d (%d mines to raid known; %u sent, %u killed, %u home so far)", to.x, to.y, l->known, l->sent, l->died, l->home);
+}
+// SCOUTING ([ai_base] scouting, on since 2026-11-11 - measured with training by need, which it feeds (TRAINING BY NEED); [autotest] v_scouting; army view step 6 - the AI knew 1-9 of the
+// enemy's units at most looks: the game's explorers are off for it (docs/game-ai-routines.md row 43) and it saw the enemy
+// only where its army went). When it hasn't seen an enemy land army for AR_SCOUT_STALE (or never), every AR_SCOUT_EVERY at
+// most and not while its base is threatened or the force is out: the fastest soldier of the force at home looks at the
+// land nearest the enemy buildings it knows that it hasn't looked at for AR_SCOUT_STALE (the riders' look, ar_look_cell:
+// not into a known threat), leg after leg until AR_SCOUT_LIFE, then home to the force. What it sees goes into the memory
+// - the enemy's armies, what it fields, what it saw of the scout (army_view.c).
+#define AR_SCOUT_EVERY 180000
+#define AR_SCOUT_STALE 180000u
+#define AR_SCOUT_LIFE 240000
+internal int g_ar_scout_on = 1, g_v_ar_scout = -1;
+#define AR_SCOUT(idx) PV(idx, g_v_ar_scout, g_ar_scout_on)
+internal struct ar_look g_ar_scout[16];
+internal void ar_scout_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    if (!AR_SCOUT(idx)) return;
+    struct ar_look *l = &g_ar_scout[idx & 15];
+    if (now < l->last) memset(l, 0, sizeof *l);
+    ee_unit *u = l->u[0];
+    if (u) {
+        if (unit_get_serial(u) != l->id[0] || unit_get_owner(u) != pl || !cv_alive(u)) { l->u[0] = NULL; l->died++; return; }
+        if (ivec2_dist2(unit_get_tile(u), l->to[0]) > 16 && now - l->leg[0] < AR_LOOK_LEG) return;
+        ivec2 nx;
+        if (now - l->t[0] < AR_SCOUT_LIFE && ar_look_cell(pl, idx, l, 0, a->home, &nx, AR_SCOUT_STALE)) { l->to[0] = nx; l->leg[0] = now ? now : 1; ar_look_order(u, nx); return; }
+        ar_look_order(u, a->home);   // its time is up: home, the force's again (as the riders' look)
+        unit_set_ai_held(u, 0);
+        ee_combat_mgr *cm = player_get_combat_mgr(pl);
+        if (cm) combat_mgr_register_unit(cm, u);
+        l->u[0] = NULL; l->home++;
+        return;
+    }
+    if ((l->last && now - l->last < AR_SCOUT_EVERY) || base_threatened(idx) || a->out) return;
+    av_enemy_build(pl, now);
+    uint32_t seen = 0;
+    for (int j = 0; j < g_ave[idx].n; j++) if (g_ave[idx].a[j].field == AVF_LAND && g_ave[idx].a[j].seen_t > seen) seen = g_ave[idx].a[j].seen_t;
+    if (seen && now >= seen && now - seen < AR_SCOUT_STALE) return;
+    l->last = now ? now : 1;
+    ee_unit *sc = NULL;
+    float fast = 0.0f;
+    for (int k = 0; k < a->n; k++) {   // the fastest at home - a rider when it has one, else whoever is quickest (no siege)
+        ee_unit *v = a->held[k].u;
+        ee_unit_type *td = cv_alive(v) ? unit_get_type_data(v) : NULL;
+        if (a->held[k].out || a->held[k].back || !td || is_siege(unit_type_get_id(td))) continue;
+        if (st_speed(v) > fast) { fast = st_speed(v); sc = v; }
+    }
+    ivec2 to;
+    if (!sc || !ar_look_cell(pl, idx, l, 0, a->home, &to, AR_SCOUT_STALE) || !ar_take(pl, sc)) return;
+    l->u[0] = sc; l->id[0] = unit_get_serial(sc); l->to[0] = to; l->t[0] = l->leg[0] = now ? now : 1; l->sent++;
+    ar_look_order(sc, to);
+    if (seen) ar_log(idx, now, "a scout looks at %d,%d (an enemy land army last seen %.1f min ago; %u sent, %u killed, %u home so far)", to.x, to.y,
+                     (now - seen) / 60000.0, l->sent, l->died, l->home);
+    else ar_log(idx, now, "a scout looks at %d,%d (no enemy land army in its memory; %u sent, %u killed, %u home so far)", to.x, to.y, l->sent, l->died, l->home);
 }
 internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, struct ar_det *d, uint32_t now) {
     static ee_unit *home[AR_HELD];
@@ -2185,6 +2237,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     ar_window(pl, a, now);
     if (!ar_home(pl, idx, a, now)) return;
     ar_det_tick(pl, idx, a, now);
+    ar_scout_tick(pl, idx, a, now);
     if (a->out) ar_out(pl, idx, a, now);
     ar_way_home(pl, idx, a, now);
     ar_at_home(pl, idx, a, now);
@@ -2229,9 +2282,10 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
                    e->mid.x >= 0 ? "" : "whereabouts unknown ", e->n, now >= e->seen_t ? (now - e->seen_t) / 60000.0 : 0.0, line);
         }
         ar_log(idx, now, "the enemy's armies known: %d (%d units), of them %d of 1-2 units (%d) not listed", g_ave[idx].n, all_n, small, small_n);
+        avx_log(idx, now, ar_log);   // what each enemy fields as it expects, what it saw of its own, its counters to expect
     }
 }
-// TRAINING BY NEED ([ai_base] train_by_need, off: measured, no gain (below); [autotest] v_train_by_need; army view step 4b - the
+// TRAINING BY NEED ([ai_base] train_by_need, on since step 6 (below); [autotest] v_train_by_need; army view step 4b - the
 // player 2026-11-11: the AI sees its armies as one, how strong, what they are good against, has it siege): FILL (army.c)
 // trains the land type that adds most to the force against the enemy it will meet, for what it costs - every land type
 // with an attack the game lets it train now (siege and rams too, no citizens, priests) that the money FILL may spend
@@ -2255,8 +2309,13 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
 // off / on won 7 / 5, razed 18.6 / 17.2, own losses 60 / 57, buildings lost 4.4 / 3.6 - a lean towards it among its own
 // kind, nothing beyond the noise; still judged against 1-9 known units in most looks (the AI sees little of the enemy's
 // army: 7-13 units remembered at minute 29 of a game). Still off.
+// Since step 6 (army_view.c WHAT THE ENEMY FIELDS) it judges against the army each enemy it will meet fields as the AI
+// expects it and that enemy's counters to what it saw of the AI's. Measured with scouting (Continental large from epoch 5,
+// 60 min, 10 games each): the mod against itself (h2h mirrored, B both on) soldiers +20.1 (se 7.1), kills +21.3 (9.3),
+// razed +2.6 (1.1), losses -13.3 (15.2); against the non-cheating game AI off / on won 3 / 4, razed 17.7 / 21.4, kills
+// 160 / 165, buildings lost 2.8 / 1.7 - judged against 22-54 units a look instead of 1-9. On since 2026-11-11.
 // "# armies: ... by need:" once a game minute in tests.
-internal int g_ar_need_on = 0, g_v_ar_need = -1;
+internal int g_ar_need_on = 1, g_v_ar_need = -1;
 #define AR_NEED(idx) PV(idx, g_v_ar_need, g_ar_need_on)
 internal struct { unsigned looks, same, other, none; } g_ar_need[16];
 // the pick (0: none - nothing known of the enemy, nothing payable); vis: what may be spent (NULL: anything)
@@ -2268,14 +2327,27 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     ee_unit *tg = land ? ar_target_on(pl, a->home, land) : NULL;
     ivec2 at = tg ? unit_get_tile(tg) : a->home;
     stage_foe(pl, at);
-    av_enemy_build(pl, now);   // the enemy's land armies it knows of on its land, and those it lost track of (army_view.c)
+    // the enemies it will meet - the target's owner, those with a land army it knows of on its land or lost track of - as it
+    // expects them (army_view.c WHAT THE ENEMY FIELDS): the land army each fields and its counters to what it saw of the
+    // AI's, at the target beside what stage_foe has there already (the defenders it remembers, the towers)
+    av_enemy_build(pl, now);
+    unsigned owners = tg && unit_get_owner(tg) ? 1u << (player_get_index(unit_get_owner(tg)) & 15) : 0;
     for (int j = 0; j < g_ave[idx].n; j++) {
         const struct av_enemy *e = &g_ave[idx].a[j];
-        if (e->field != AVF_LAND || (e->mid.x >= 0 && e->area != land)) continue;
-        for (int k = e->first; k < e->first + e->n; k++) {
-            const struct av_erec *r = &g_ave[idx].r[k];
-            if (r->x >= 0 && ivec2_dist2(iv2(r->x, r->y), at) <= SG_FOE * SG_FOE) continue;   // stage_foe's already
-            st_side_add_rec(&g_sgs_foe, r->type, r->owner, r->hp, r->x >= 0 ? r->x : at.x, r->x >= 0 ? r->y : at.y);
+        if (e->field == AVF_LAND && (e->mid.x < 0 || e->area == land) && e->owner > 0 && e->owner < 16) owners |= 1u << e->owner;
+    }
+    static float want[G_TYPES_N];
+    for (int o = 1; o < 16; o++) {
+        ee_player *op = owners >> o & 1 ? player_at(o) : NULL;
+        if (!op) continue;
+        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); want[t] = td && av_field_of(td) == AVF_LAND ? g_avx[idx][o][t] : 0.0f; }
+        avx_counters(idx, o, want);
+        for (int g = 0; g < g_sgs_foe.ng; g++) if (g_sgs_foe.g[g].owner == o && (unsigned)g_sgs_foe.g[g].type < G_TYPES_N) want[g_sgs_foe.g[g].type] -= (float)g_sgs_foe.g[g].count;
+        for (int t = 0; t < G_TYPES_N; t++) {
+            int n = (int)(want[t] + 0.5f);
+            ee_unit_type *td = n > 0 ? type_data(t) : NULL;
+            int hp = td ? st_maxhp(td, st_rec(op, t)) : 0;
+            for (int k = 0; k < n && hp > 0; k++) if (!st_side_add_rec(&g_sgs_foe, t, o, hp, at.x, at.y)) break;
         }
     }
     if (log) g_ar_need[idx].looks++;
@@ -2338,7 +2410,9 @@ internal void armies_install(const char *autotest_ini) {
     g_ar_aid = g_set_ai[1].ally_aid;
     g_ar_parts = g_set_ai[1].raid_parties;
     g_ar_need_on = g_set_ai[1].train_by_need;
+    g_ar_scout_on = g_set_ai[1].scouting;
     if (autotest_ini) {
+        g_v_ar_scout = ini_int("autotest", "v_scouting", -1, autotest_ini);
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);

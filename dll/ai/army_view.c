@@ -142,6 +142,7 @@ internal const char *const k_av_field_name[] = { "", "land", "sea", "", "air", "
 struct av_erec { int owner, type, field, x, y, hp, army; unsigned area; uint32_t t; };
 struct av_enemy { int owner, field, first, n; unsigned area; uint32_t seen_t; ivec2 mid; float hp; };
 internal struct { struct av_erec *r; int nr, rcap; struct av_enemy *a; int n, cap; int *up; uint32_t built_t; } g_ave[16];
+internal void avx_update(ee_player *pl, unsigned idx, uint32_t now);   // below: WHAT THE ENEMY FIELDS
 internal int ave_root(int *up, int i) { while (up[i] != i) { up[i] = up[up[i]]; i = up[i]; } return i; }
 internal int ave_cmp(const void *x, const void *y) {
     const struct av_erec *a = x, *b = y;
@@ -181,6 +182,7 @@ internal void av_enemy_build(ee_player *pl, uint32_t now) {
             int ra = ave_root(e->up, i), rb = ave_root(e->up, j);
             if (ra != rb) e->up[ra > rb ? ra : rb] = ra < rb ? ra : rb;
         }
+    avx_update(pl, idx, now);   // what it expects each enemy to field, what each has seen of its own (below)
     for (int i = 0; i < e->nr; i++) e->r[i].army = ave_root(e->up, i) * 4096 + i;   // the army's lowest record, then the memory's order
     qsort(e->r, (size_t)e->nr, sizeof *e->r, ave_cmp);
     for (int i = 0; i < e->nr; ) {
@@ -221,6 +223,125 @@ internal uint64_t av_kinds_in(const struct av_sum *s) {
         if (k >= 0 && k < 64) m |= 1ull << k;
     }
     return m;
+}
+
+// WHAT THE ENEMY FIELDS, WHAT IT HAS SEEN, ITS COUNTERS (army view step 6; the player 2026-11-11: training by need judged
+// against the few enemies in sight - "remember what the enemy fields"; and "the ai should also consider what it knows the
+// enemy saw of its units, and build counters to the counters the enemy might build"). Per AI and enemy, by type:
+// - fields: the most units of the type it knew of at once (its memory: seen within 10 minutes, its armies above),
+//   fading with a half-life of AVX_HALF - what it expects the enemy to field, long after it lost sight of them;
+// - seen: the most of its own military units of a type that stood within AVX_SEEN of an enemy unit it saw (the enemy
+//   saw them: what a player knows of what his opponent got a look at), fading alike;
+// - counters: what the enemy will train against what it saw - its own way, the game's counter vote (unit type
+//   counter_1..3: 3, 2 and 1 for each own type it saw, by how many), each class as the type of it the enemy can field now
+//   (the game offers it to that player: its civilization and epoch, both public), AVX_ANTICIPATE of the army it fields.
+// Not saved: after a load it builds again from the memory (saved). Nothing decides on it but training by need (armies.c).
+#define AVX_HALF 1200000.0f
+#define AVX_SEEN 10
+#define AVX_ANTICIPATE 0.5f
+internal float g_avx[16][16][G_TYPES_N];   // [AI][enemy][type]: fields
+internal float g_avs[16][16][G_TYPES_N];   // [AI][enemy][its own type]: seen
+internal uint32_t g_avx_t[16];
+internal int prio_buildable(ee_player *pl, int t);   // priority.c: the game offers it to that player now
+internal void avx_update(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint16_t cur[16][G_TYPES_N];
+    static struct { ivec2 p; int o; } eye[1024];
+    struct intel *in = &g_intel[idx & 15];
+    __typeof__(g_ave[0]) *e = &g_ave[idx & 15];
+    if (now < g_avx_t[idx]) { memset(g_avx[idx], 0, sizeof g_avx[idx]); memset(g_avs[idx], 0, sizeof g_avs[idx]); g_avx_t[idx] = 0; }   // a new game
+    float f = g_avx_t[idx] ? 1.0f / (1.0f + (float)(now - g_avx_t[idx]) * (0.6931f / AVX_HALF)) : 1.0f;   // the fading (arithmetic only: every PC the same)
+    g_avx_t[idx] = now ? now : 1;
+    memset(cur, 0, sizeof cur);
+    for (int i = 0; i < e->nr; i++)
+        if (e->r[i].owner > 0 && e->r[i].owner < 16 && (unsigned)e->r[i].type < G_TYPES_N && cur[e->r[i].owner][e->r[i].type] < 0xFFFF) cur[e->r[i].owner][e->r[i].type]++;
+    for (int o = 1; o < 16; o++)
+        for (int t = 0; t < G_TYPES_N; t++) { float v = g_avx[idx][o][t] * f; g_avx[idx][o][t] = v > (float)cur[o][t] ? v : (float)cur[o][t]; }
+    int ne = 0;   // what it sees of the enemy now, buildings too (towers see): the eyes on its own
+    for (int k = 0; k < in->n && ne < 1024; k++) {
+        const struct intel_rec *r = &in->r[k];
+        ee_player *o = r->t == in->last && r->x >= 0 ? player_at(r->owner) : NULL;
+        if (o && is_enemy(pl, o)) { eye[ne].p = iv2(r->x, r->y); eye[ne++].o = r->owner; }
+    }
+    memset(cur, 0, sizeof cur);
+    for (struct grid_it it = grid_it_all(1); ne && grid_it_next(&it); ) {
+        if (unit_get_owner(it.u) != pl || !cv_alive(it.u) || !cv_mil(it.td)) continue;
+        int t = unit_type_get_id(it.td);
+        if ((unsigned)t >= G_TYPES_N) continue;
+        ivec2 p = unit_get_tile(it.u);
+        unsigned done = 0;   // once per enemy
+        for (int k = 0; k < ne; k++)
+            if (!(done >> eye[k].o & 1) && ivec2_dist2(p, eye[k].p) <= AVX_SEEN * AVX_SEEN) { done |= 1u << eye[k].o; if (cur[eye[k].o][t] < 0xFFFF) cur[eye[k].o][t]++; }
+    }
+    for (int o = 1; o < 16; o++)
+        for (int t = 0; t < G_TYPES_N; t++) { float v = g_avs[idx][o][t] * f; g_avs[idx][o][t] = v > (float)cur[o][t] ? v : (float)cur[o][t]; }
+}
+// the type of RPS class rps that enemy o can field now, the latest of the game's offer (the strongest of those: hit points x
+// attack); 0: none - land only (fl: AVF_LAND), the counters the land army meets
+internal int avx_class_type(ee_player *o, int rps) {
+    int best = 0, bep = -1; float bs = 0;
+    ee_tech_tree *tt = o ? player_get_tech_tree(o) : NULL;
+    for (int t = 0; tt && t < G_TYPES_N; t++) {
+        ee_unit_type *td = type_data(t);
+        if (!td || unit_type_get_id(td) != t || unit_type_get_rps_class(td) != rps || av_field_of(td) != AVF_LAND || unit_type_get_attack(td) <= 0) continue;
+        if (ut_role(t, UTR_CITIZEN) || !prio_buildable(o, t)) continue;
+        ee_tech *x = tech_tree_lookup(tt, unit_type_get_tech(td));
+        int ep = x ? tech_get_epoch(x) : 0;
+        float sc = (float)unit_type_get_hp(td) * (float)unit_type_get_attack(td);
+        if (ep > bep || (ep == bep && sc > bs)) { best = t; bep = ep; bs = sc; }
+    }
+    return best;
+}
+// what enemy o will train against what it saw of the AI's land army: n[type], the land army it fields times
+// AVX_ANTICIPATE, by the counter vote over what it saw; returns how many in all
+internal float avx_counters(unsigned idx, int o, float *n) {
+    static float w[256];
+    memset(w, 0, sizeof w);
+    float fields = 0, sw = 0;
+    for (int t = 0; t < G_TYPES_N; t++) {
+        ee_unit_type *td = type_data(t);
+        if (!td || av_field_of(td) != AVF_LAND) continue;
+        fields += g_avx[idx][o][t];
+        float s = g_avs[idx][o][t];
+        if (s <= 0) continue;
+        int c[3] = { unit_type_get_counter_1(td), unit_type_get_counter_2(td), unit_type_get_counter_3(td) };
+        for (int j = 0; j < 3; j++) if (c[j] > 0 && c[j] < 256) { w[c[j]] += s * (float)(3 - j); sw += s * (float)(3 - j); }
+    }
+    float all = fields * AVX_ANTICIPATE, got = 0;
+    ee_player *op = player_at(o);
+    for (int k = 1; k < 256 && sw > 0 && all > 0; k++) {
+        if (w[k] <= 0) continue;
+        int t = avx_class_type(op, k);
+        if (t) { n[t] += all * w[k] / sw; got += all * w[k] / sw; }
+    }
+    return got;
+}
+// the most of a [type] list as "N name, ..." (at most 6)
+internal void avx_list(const float *v, char *o, int cap) {
+    int w = 0; o[0] = 0;
+    static unsigned char used[G_TYPES_N];
+    memset(used, 0, sizeof used);
+    for (int j = 0; j < 6 && w < cap - 48; j++) {
+        int b = -1;
+        for (int t = 0; t < G_TYPES_N; t++) if (!used[t] && v[t] >= 0.5f && (b < 0 || v[t] > v[b])) b = t;
+        if (b < 0) break;
+        used[b] = 1;
+        w += snprintf(o + w, (size_t)(cap - w), "%s%.0f %s", j ? ", " : "", v[b], unit_ident(b));
+    }
+    if (!w) snprintf(o, (size_t)cap, "nothing");
+}
+// the minute line per enemy (armies.c, tests)
+internal void avx_log(unsigned idx, uint32_t now, void (*log)(unsigned, uint32_t, const char *, ...)) {
+    static char a[400], b[400], c[400];
+    static float n[G_TYPES_N];
+    for (int o = 1; o < 16; o++) {
+        float fields = 0;
+        for (int t = 0; t < G_TYPES_N; t++) fields += g_avx[idx][o][t];
+        if (fields < 0.5f) continue;
+        memset(n, 0, sizeof n);
+        float got = avx_counters(idx, o, n);
+        avx_list(g_avx[idx][o], a, (int)sizeof a); avx_list(g_avs[idx][o], b, (int)sizeof b); avx_list(n, c, (int)sizeof c);
+        log(idx, now, "what P%d fields as it expects: %.0f (%s); has seen of its own: %s; its counters to expect, %.0f: %s", o, fields, a, b, got, c);
+    }
 }
 // the summary as a line: what it is, then its damage a second at each family of the enemy's it sees, the most first
 internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) {

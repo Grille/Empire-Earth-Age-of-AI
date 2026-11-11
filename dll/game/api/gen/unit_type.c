@@ -164,6 +164,19 @@ internal inline int *unit_type_weapon_at(const ee_unit_type *o) { return (int *)
 internal inline int unit_type_get_rps_class(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_rps_class); }
 internal inline void unit_type_set_rps_class(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_rps_class) = v; }
 internal inline int *unit_type_rps_class_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_rps_class); }
+// the RPS classes that counter it, the first the best (0: none; Protryon's mCounterKind1-3): the unit selector's
+// counter vote (0x49352A -> 0x495B40) gives 3, 2 and 1 to these classes for each type of its target it knows of
+internal inline int unit_type_get_counter_1(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_counter_1); }
+internal inline void unit_type_set_counter_1(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_counter_1) = v; }
+internal inline int *unit_type_counter_1_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_counter_1); }
+// the second class that counters it (counter_1)
+internal inline int unit_type_get_counter_2(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_counter_2); }
+internal inline void unit_type_set_counter_2(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_counter_2) = v; }
+internal inline int *unit_type_counter_2_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_counter_2); }
+// the third class that counters it (counter_1)
+internal inline int unit_type_get_counter_3(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_counter_3); }
+internal inline void unit_type_set_counter_3(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_counter_3) = v; }
+internal inline int *unit_type_counter_3_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_counter_3); }
 // the tech that makes it (its price)
 // the type data's constructors
 internal inline int unit_type_get_tech(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_tech); }
@@ -513,6 +526,9 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_family = 0x4C4;
         of_unit_type_weapon = 0x4C8;
         of_unit_type_rps_class = 0x4CC;
+        of_unit_type_counter_1 = 0x4D0;
+        of_unit_type_counter_2 = 0x4D4;
+        of_unit_type_counter_3 = 0x4D8;
         of_unit_type_tech = 0x4E0;
         of_unit_type_reload = 0x50C;
         of_unit_type_attack = 0x510;
@@ -620,6 +636,9 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_family = 0x1C8;
         of_unit_type_weapon = 0x1CC;
         of_unit_type_rps_class = 0x1D0;
+        of_unit_type_counter_1 = 0x1D4;
+        of_unit_type_counter_2 = 0x1D8;
+        of_unit_type_counter_3 = 0x1DC;
         of_unit_type_tech = 0x1E4;
         of_unit_type_reload = 0x210;
         of_unit_type_attack = 0x214;
