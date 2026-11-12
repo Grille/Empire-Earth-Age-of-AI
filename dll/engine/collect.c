@@ -1314,7 +1314,11 @@ internal int us_effects_on(void);
 internal volatile int g_us_alive_known;   // the effects' step has looked the wrecks' units up (its hook in, its loop run)
 internal int us_alive_known(void) { return g_us_alive_known && us_effects_on(); }
 // the walk's end: those it didn't meet removed (kept) or out of the view (let go; a wreck the game still has: drawn), the
-// kept ones drawn on the tiles of the copy the player sees - a wreck's by its floats' middle -, those whose time is up let go
+// kept ones drawn on the tiles of the copy the player sees - a wreck's by its floats' middle -, those whose time is up let go.
+// A wreck of the walk's player's own is drawn on a fogged tile too (the player, 2026-11-12: "i just had a few ship wreck
+// disaper"): a dead ship sees nothing, so one lost where nothing else of the player's looks went into the fog as it died;
+// the game draws its own copy there while it has it (a few seconds), the mod's wreck floats on far longer and vanished
+// the moment the game let its unit go. Another player's wreck still goes with the player's sight, as the game's does
 internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint32_t room, uint8_t *maps, int free_cam) {
     if (!g_kc_cs_ok || g_uc_now < 0.0) return;
     EnterCriticalSection(&g_kc_cs);
@@ -1336,7 +1340,7 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
                          at[1] = 0.25f * (k->sp[0][1] + k->sp[1][1] + k->sp[2][1] + k->sp[3][1]);
             int x = (int)floorf(at[0]) - c->x0, y = (int)floorf(at[1]) - c->y0;
             const uc_ctile *ct = x >= 0 && y >= 0 && x < c->w && y < c->h ? &c->tiles[y * c->w + x] : NULL;
-            if (ct && ct->t && (ct->seen || free_cam) && uc_fill_corpse(k, recs + (size_t)*n * DRAW_REC, maps, d)) ++*n, g_kc_drawn++;
+            if (ct && ct->t && (ct->seen || free_cam || (k->ship && k->owner == c->pl)) && uc_fill_corpse(k, recs + (size_t)*n * DRAW_REC, maps, d)) ++*n, g_kc_drawn++;
         }
         if (j != i) g_kc[j] = *k;
         j++;
