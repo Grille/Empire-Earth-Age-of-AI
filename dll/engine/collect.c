@@ -510,6 +510,9 @@ typedef struct {
     float hit;               // an aircraft's ground collider over its floats' middle, along its up (tiles: US_HIT_HIGH)
     float rotor[3];          // ... its rotor's hold (0 .. 1) and its disc's tilt (sines, along and across) - us_rotor
     float spin_t;            // ... how long its rotors have turned since its death (s, in the air; held when it hits)
+    float turn_rate[3][UC_KC_PARTS];   // ... its turns' rates (radians/s: its parts', its lists' a and b first values),
+    double turn_ms;          //     measured while the game turns them, at its last sight (game ms; 0 none yet)
+    float turn_at;           //     and its spin_t then: on from there by their rates (us_turn)
     float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
                              // tailplane's (nose up), its fin's (a yaw) - us_wings
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
@@ -637,8 +640,11 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // a little every way (held at its top it falls upright, a shuttlecock); the disc tilted up to US_DISC_TILT any way
 // drifts it off sideways as it sinks.
 // Its main rotor's torque, no tail rotor to hold it, turns it about its up the more the longer it falls (US_HELI_TWIST,
-// the same way for all: their rotors turn alike), and its rotors' parts turn on (US_ROTOR_SPIN) until it hits or is
-// wet - all of it in the air only
+// the same way for all: their rotors turn alike), and its rotors turn on until it hits or is wet - all of it in the air
+// only. Its rotors are its graphics' turned
+// models, an Apache's the first values of its list a (logged: the main rotor's +7 radians/s, the tail rotor's -3.5,
+// no parts): falling dry, they are the game's own while it is met, each one's rate measured, and on by those rates
+// while it isn't (out of the view, or taken off where the game's copy lands); held from its hit or its first wet on
 #define US_PTS_HELI 6       // the floats, the ballast (high), the rotor's hub
 #define US_HELI_FLOAT 1.6f  // buoyancy, fully under (g's)
 #define US_HELI_LEAK 0.3f   // its leaks' start and length: a share of a ship's (afloat a few seconds)
@@ -648,7 +654,6 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_ROTOR_W 2.0f     // the hub's weight, a float's 1
 #define US_DISC_TILT 12.0f  // degrees, the most
 #define US_HELI_TWIST 1.5f  // radians/s^2: about 4.5 radians/s after 3 s
-#define US_ROTOR_SPIN 12.0f // radians/s
 #define US_TAIL_SPAN 0.35f   // the tailplane's half span: a share of the wings' (a P-51's: 4 m to 11 m)
 #define US_FIN_W 0.5f   // the tail's points' weights, a float's 1
 #define US_NOSE 2.0f    // the nose weight's
@@ -695,15 +700,26 @@ internal void us_rotor(uc_corpse *k, int32_t serial) {
     float dir = 6.2831853f * us_rnd(&s), a = sinf(US_DISC_TILT * us_rnd(&s) * 3.14159265f / 180.0f);
     k->rotor[1] = a * cosf(dir), k->rotor[2] = a * sinf(dir);
 }
-// its part i's turn for the record: a falling helicopter's rotors turned on by its spin's time
-internal uint32_t us_part(const uc_corpse *k, int32_t i) {
-    if (!k->ship || !k->heli) return k->part[i];
+// a held turn for the record (kind: 0 a part's, 1 list a's, 2 list b's first value): a falling helicopter's on by its rate
+internal uint32_t us_turn(const uc_corpse *k, int kind, int32_t i, uint32_t held) {
+    if (!k->ship || !k->heli || k->turn_ms <= 0.0) return held;
     float f;
     uint32_t r;
-    memcpy(&f, &k->part[i], 4);
-    f = fmodf(f + US_ROTOR_SPIN * k->spin_t, 6.2831853f);
+    memcpy(&f, &held, 4);
+    f = fmodf(f + k->turn_rate[kind][i] * (k->spin_t - k->turn_at), 6.2831853f);
     memcpy(&r, &f, 4);
     return r;
+}
+// ... the game's turn now into held, its rate from the one held dms ms before (the shorter way round)
+internal void us_turn_seen(float *rate, uint32_t *held, uint32_t now, double dms) {
+    float a, b;
+    memcpy(&a, held, 4), memcpy(&b, &now, 4);
+    if (dms > 0.0 && dms < 500.0) {
+        float d = b - a;
+        d -= 6.2831853f * floorf(d / 6.2831853f + 0.5f);
+        *rate = d / (float)(dms / 1000.0);
+    }
+    *held = now;
 }
 // an airplane's surfaces' angles by its serial (a stream of their own, its seed hashed), even over their ranges
 internal void us_wings(uc_corpse *k, int32_t serial) {
@@ -1129,9 +1145,17 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
             for (int32_t i = 0; i < na; i++) k->la[i][0] = c->pool[o->a_at + 2 * i], k->la[i][1] = c->pool[o->a_at + 2 * i + 1];
             for (int32_t i = 0; i < nb; i++) k->lb[i][0] = c->pool[o->b_at + 2 * i], k->lb[i][1] = c->pool[o->b_at + 2 * i + 1];
         }
-        for (int32_t i = 0; i < np; i++) ((uint32_t *)vector_first(draw_record_part_values_at(rec)))[i] = us_part(k, i);
-        for (int32_t i = 0; i < na; i++) ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = k->la[i][0];
-        for (int32_t i = 0; i < nb; i++) ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = k->lb[i][0];
+        if (k->ship && k->heli && !k->stuck && k->wet_at < 0.0f) {   // falling dry: its turns the game's, their rates measured
+            // (by the copy's game time: frames between two steps see the same turns, the same time)
+            double dms = k->turn_ms > 0.0 ? g_uc_clock - k->turn_ms : -1.0;
+            for (int32_t i = 0; i < np; i++) us_turn_seen(&k->turn_rate[0][i], &k->part[i], c->pool[o->parts_at + i], dms);
+            for (int32_t i = 0; i < na; i++) us_turn_seen(&k->turn_rate[1][i], &k->la[i][0], c->pool[o->a_at + 2 * i], dms);
+            for (int32_t i = 0; i < nb; i++) us_turn_seen(&k->turn_rate[2][i], &k->lb[i][0], c->pool[o->b_at + 2 * i], dms);
+            if (dms != 0.0) k->turn_ms = g_uc_clock, k->turn_at = k->spin_t;
+        }
+        for (int32_t i = 0; i < np; i++) ((uint32_t *)vector_first(draw_record_part_values_at(rec)))[i] = us_turn(k, 0, i, k->part[i]);
+        for (int32_t i = 0; i < na; i++) ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = us_turn(k, 1, i, k->la[i][0]);
+        for (int32_t i = 0; i < nb; i++) ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = us_turn(k, 2, i, k->lb[i][0]);
         if (ship && !k->ship) k->died = g_uc_now, us_start(k, o, t);   // a ship's age from its first sight dead (its rot is its last 2 s)
         else if (!k->ship) k->died = g_uc_now - d;
         if (k->ship) us_run(k), us_pose(k, t);
@@ -1196,7 +1220,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
     vector_resize(draw_record_part_values_at(rec), (uint32_t)k->n_parts, 0);
     vector_resize(draw_record_part_models_at(rec), (uint32_t)k->n_parts, 0);
     for (int32_t i = 0; i < k->n_parts; i++) {
-        uint32_t pv = us_part(k, i);
+        uint32_t pv = us_turn(k, 0, i, k->part[i]);
         memcpy((float *)vector_first(draw_record_part_values_at(rec)) + i, &pv, 4);
         uint8_t *part = *type_stats_game((uint8_t *)k->gfx + 4, (int)i);
         ((uint32_t *)vector_first(draw_record_part_models_at(rec)))[i] = *(uint32_t *)(part + 0x4C);
@@ -1204,13 +1228,13 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
     vector_resize(draw_record_list_a_c_at(rec), (uint32_t)k->n_la, 0);
     vector_resize(draw_record_list_a_4_at(rec), (uint32_t)k->n_la, 0);
     for (int32_t i = 0; i < k->n_la; i++) {
-        ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = k->la[i][0];
+        ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = us_turn(k, 1, i, k->la[i][0]);
         ((uint32_t *)vector_first(draw_record_list_a_4_at(rec)))[i] = k->la[i][1];
     }
     vector_resize(draw_record_list_b_c_at(rec), (uint32_t)k->n_lb, 0);
     vector_resize(draw_record_list_b_4_at(rec), (uint32_t)k->n_lb, 0);
     for (int32_t i = 0; i < k->n_lb; i++) {
-        ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = k->lb[i][0];
+        ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = us_turn(k, 2, i, k->lb[i][0]);
         ((uint32_t *)vector_first(draw_record_list_b_4_at(rec)))[i] = k->lb[i][1];
     }
     draw_record_set_frame(rec, k->frame);

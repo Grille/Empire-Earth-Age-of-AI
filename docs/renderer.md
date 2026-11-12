@@ -925,6 +925,14 @@ and upside ones dont completly vanish"): at its floats an upright one stopped on
 back went in to its floats, its body buried. Checked headless with the player's ini and a probe at each hit: upright
 Apaches stopped with their floats 0.03 - 0.08 tiles in the ground, one on its back on the seabed with its body 0.15
 under it and 0.16 over it.
+A falling helicopter's rotors turn (the player, the same day: "btw the rotor animation dosnt play while it falls"): its
+rotors are its graphics' turned models, an Apache's the first values of its list a (logged: the main rotor +7 radians/s,
+the tail rotor -3.5, no part values) - the fall turned its part values, which it hasn't, and a corpse's lists are held
+from its death on. Falling dry, its parts' and lists' turns are the game's while it is met, each one's rate measured by
+the copy's game time (us_turn_seen), and on by those rates while it isn't (us_turn: out of the view, or taken off where
+the game's copy lands); held from its hit or its first wet on. Checked headless with the player's ini and a probe of the
+turns drawn: rates of 6.98 and -3.49 radians/s measured, the drawn turn the game's while met, on at 7 radians/s after the
+game took the unit off, held from the hit and in the water.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
