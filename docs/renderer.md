@@ -743,7 +743,18 @@ game time, so it goes down between steps too. The game removes a corpse at the e
 collect.c keeps it then (uc_corpse: its last pose, graphics, animation and parts; a user of the graphics of ours -
 EEGraphicObject.release in the spec, EE 0x4D343B, AoC vf2 - as the last user's release frees the models) and the walk
 draws it where the player sees, as the remembered buildings are drawn, until its time is up; let go at the scene's
-release. One not met by a walk was removed when its rot_ms was under 2 s at its last sight, else it went out of view.
+release. One not met by a walk was removed when its rot_ms was under 2 s at its last sight, else it went out of view
+(let go, made anew when met again). Since 2026-11-12 the remains seen once stay (the player: "maybe we should make all
+remains visible in fog of war? (as long as they where seen once ofcourse)", "also keep them during the sink time"): a
+corpse the walk met once - on the screen, in the player's sight - is kept when not met, whether removed, out of the view
+or in the fog, and drawn on any explored tile until its lie and sink time are over, fogged out of sight as a
+remembered building; met again it is the game's again. Entries match by object and id (one kept long after the game
+freed its object is not taken for a new one at that address). The cause the player saw first: a dead ship sees
+nothing, so one lost where nothing else of theirs looked went into the fog as it died, and the wreck vanished when the
+game let its unit go (a few seconds) though it floats on far longer. Checked headless (Continental seed 5, the
+watching player's fog): the player's own three ships, three tanks and five Clubmen killed alone - before, the wrecks
+gone by 20 s, the tanks and Clubmen by 28 s; now all drawn fogged at 28 s (the camera away and back) and 100 s, gone
+at 175 s; without fog six ships sunk, the camera away and back four times, all six kept.
 The depth from pictures of a Clubman (radius x scale 0.70 tiles; its corpse shows hardly 0.06 over the ground): by
 twice the radius over a share of the 40 s it was gone in 2 s. With the uniform times (checked 2026-11-11, pictures from
 5 s to 152 s after the kill): still to 32 s, no change across the game's removal at 40 s, mostly under at 90 s, a sliver

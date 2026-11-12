@@ -470,12 +470,12 @@ internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t fram
     t[11] = (float)(t[11] - UC_SINK_DEPTH * model_get_radii(m)[frame] * scale * q);
 }
 // THE CORPSES KEPT: one the game removes before its time is up (most: a Clubman's after 40 s) is kept here - its last
-// record's pose, graphics, animation and parts - and drawn by the walk where the player sees, the way the remembered
+// record's pose, graphics, animation and parts - and drawn by the walk on the explored tiles, the way the remembered
 // buildings are (uc_corpses_walk), until it has sunk; the game's graphics kept by a user of ours meanwhile (the last
 // user's release frees the models: every Clubman gone, the Clubman's models with them). An entry is made when the walk
-// meets a rotting object; one not met by a walk was removed when its rot_ms was nearly done at its last sight
-// (UC_GONE_ROT: more than a step's ms), else it went out of the view (let go: made anew when met again). Met again (the
-// game's still), it is the game's again. Emptied at the scene's release (a game's end, a load: fx_hook_scene_release).
+// meets a rotting object (on the screen, in the player's sight); one not met by a walk - removed, out of the view or
+// in the fog - is kept the same way (THE REMAINS SEEN ONCE STAY). Met again (the game's still), it is the game's again.
+// Emptied at the scene's release (a game's end, a load: fx_hook_scene_release).
 // Its parts' turns are held from its first sight on, the game's as well as the kept: the record draw (0x50B4AC) turns a
 // part's model by its part value (a yaw) and the two lists' models by theirs (a yaw, a pitch), and the simulation goes on
 // turning a dead unit's - a dead helicopter's rotors spun on the ground (the player, 2026-11-11: "is it possible to kill all
@@ -486,7 +486,6 @@ internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t fram
 // game has it.
 #define UC_CORPSES 4096
 #define UC_KC_PARTS 8
-#define UC_GONE_ROT 2000
 typedef struct {
     ee_unit *u;              // the object as it was (only compared)
     ee_dmg_model *gfx;       // its graphics: a user of ours
@@ -1130,11 +1129,12 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
     if (!g_kc_cs_ok || g_uc_now < 0.0 || !o->gfx) return;
     EnterCriticalSection(&g_kc_cs);
     uc_corpse *k = NULL;
-    for (uint32_t i = 0; i < g_kc_n && !k; i++) if (g_kc[i].u == o->u) k = &g_kc[i];
+    // by its object and id: one kept long after the game freed it must not be taken for a new one at the same address
+    for (uint32_t i = 0; i < g_kc_n && !k; i++) if (g_kc[i].u == o->u && g_kc[i].serial == o->serial) k = &g_kc[i];
     if (!k && g_kc_n < UC_CORPSES) {
         k = &g_kc[g_kc_n++];
         memset(k, 0, sizeof *k);
-        k->u = o->u;
+        k->u = o->u, k->serial = o->serial;
     } else if (!k) g_kc_full++;
     if (k) {
         if (k->gfx != o->gfx) {
@@ -1216,8 +1216,8 @@ internal void uc_corpses_clear(void) {
     LeaveCriticalSection(&g_kc_cs);
 }
 // a kept corpse into the record rec at its age d, as uc_fill_dopp fills a remembered building: whole or see-through by
-// its fade, not fogged, never picked, no silhouette, its parts as last seen; 0 when outside the view
-internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d) {
+// its fade, fogged out of the player's sight, never picked, no silhouette, its parts as last seen; 0 when outside the view
+internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d, int fogged) {
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[k->anim];
     if (!m) return 0;
     __attribute__((aligned(8))) float pose[16];   // where it lies: its last pose, a ship's by its floats on
@@ -1257,7 +1257,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
     *(uint32_t *)(label + 0xC) = 0;
     *(uint32_t *)(label + 8) = 0;
     draw_record_set_goal_value(rec, 0);
-    draw_record_set_fogged(rec, 0);
+    draw_record_set_fogged(rec, fogged);
     draw_record_set_opacity(rec, op);
     draw_record_set_scale(rec, k->scale);
     draw_record_set_gfx(rec, k->gfx);
@@ -1313,12 +1313,16 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
 internal int us_effects_on(void);
 internal volatile int g_us_alive_known;   // the effects' step has looked the wrecks' units up (its hook in, its loop run)
 internal int us_alive_known(void) { return g_us_alive_known && us_effects_on(); }
-// the walk's end: those it didn't meet removed (kept) or out of the view (let go; a wreck the game still has: drawn), the
-// kept ones drawn on the tiles of the copy the player sees - a wreck's by its floats' middle -, those whose time is up let go.
-// A wreck of the walk's player's own is drawn on a fogged tile too (the player, 2026-11-12: "i just had a few ship wreck
-// disaper"): a dead ship sees nothing, so one lost where nothing else of the player's looks went into the fog as it died;
-// the game draws its own copy there while it has it (a few seconds), the mod's wreck floats on far longer and vanished
-// the moment the game let its unit go. Another player's wreck still goes with the player's sight, as the game's does
+// THE REMAINS SEEN ONCE STAY (the player, 2026-11-12: "maybe we should make all remains visible in fog of war? (as long as
+// they where seen once ofcourse)"; first "i just had a few ship wreck disaper" - a dead ship sees nothing, so one lost
+// where nothing else of the player's looked went into the fog as it died, and the mod's wreck floats on long after the
+// game lets its unit go). The game draws a dead unit only on a tile in the player's sight, so one the fog took, or the
+// camera left, wasn't met by the walk: it was let go when its rot time was not nearly over (out of the view, made anew
+// from the game's when met again). Now every corpse the walk met once - on the screen in the player's sight - is kept
+// when not met until its time is up, and drawn on any explored tile of the copy as a remembered building is: fogged
+// out of the player's sight; met again it is the game's again. A wreck the game still has that the walk didn't meet
+// (out of the view by the game's copy) is drawn the same way; the game's own corpses stay as they were.
+// The walk's end: those not met kept, those whose time is up let go, the kept ones drawn - a wreck's by its floats' middle
 internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint32_t room, uint8_t *maps, int free_cam) {
     if (!g_kc_cs_ok || g_uc_now < 0.0) return;
     EnterCriticalSection(&g_kc_cs);
@@ -1328,9 +1332,9 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
     for (uint32_t i = 0; i < g_kc_n; i++) {
         uc_corpse *k = &g_kc[i];
         int unmet = k->gen != g_uc_walk_gen;
-        if (unmet && !k->gone) k->gone = k->ship && known ? (k->in_game ? 0 : 1) : k->rot <= UC_GONE_ROT ? 1 : 2;
+        if (unmet && !k->gone) k->gone = k->ship && known && k->in_game ? 0 : 1;
         double d = g_uc_now - k->died;
-        if (k->gone == 2 || (k->gone && d >= end)) {
+        if (k->gone && d >= end) {
             graphics_release(k->gfx);
             continue;
         }
@@ -1340,7 +1344,8 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
                          at[1] = 0.25f * (k->sp[0][1] + k->sp[1][1] + k->sp[2][1] + k->sp[3][1]);
             int x = (int)floorf(at[0]) - c->x0, y = (int)floorf(at[1]) - c->y0;
             const uc_ctile *ct = x >= 0 && y >= 0 && x < c->w && y < c->h ? &c->tiles[y * c->w + x] : NULL;
-            if (ct && ct->t && (ct->seen || free_cam || (k->ship && k->owner == c->pl)) && uc_fill_corpse(k, recs + (size_t)*n * DRAW_REC, maps, d)) ++*n, g_kc_drawn++;
+            if (ct && ct->t && (ct->explored || free_cam) && uc_fill_corpse(k, recs + (size_t)*n * DRAW_REC, maps, d, !free_cam && !ct->seen))
+                ++*n, g_kc_drawn++;
         }
         if (j != i) g_kc[j] = *k;
         j++;
