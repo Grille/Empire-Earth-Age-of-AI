@@ -154,8 +154,13 @@ internal void in_flush(void) {
 // card is about the camera and the sun, and each tree's size is only a factor (the matrix holds it: 1.65 to 1.88 among one
 // kind) - so it is kept at size 1, made anew when those have moved. A card is linear in its vertices, so
 // the blend of two frames' is the card of their blend: the two go into the animation's pool like any two frames, and are
-// drawn at the tree's place as instances. Queued, so that a run of trees is one batch of trees and one of cards.
+// drawn at the tree's place as instances. Queued, so that a run of trees is one batch of trees and one of cards - with the
+// texture and the alpha test of the trees it came of: the queue is drawn at the next part of other ones, or at the units'
+// render object's end, whose states (a unit's: no alpha test) took the fronds out of a run's cards, solid blobs, once the
+// trees' own list made a kind's trees one run (the player, 2026-11-12: "the trees dont use the alphacutout anymore for
+// shadows").
 #define IN_CARDS 4096
+internal const int k_ic_rs[3] = { D3DRENDERSTATE_ALPHATESTENABLE, D3DRENDERSTATE_ALPHAFUNC, D3DRENDERSTATE_ALPHAREF };
 typedef struct { const float *src; const WORD *idx; uint32_t n, ni; float r[9], axes[4]; float *v; float lo[2], hi[2]; } in_card;
 typedef struct { in_card *a, *b; float frac, size, at[3]; const WORD *idx; DWORD ni; } in_card_q;
 internal struct {
@@ -163,6 +168,7 @@ internal struct {
     float gen;              // a card remade is another run for the pool: its first vertex differs by this
     rd_device *d;
     rd_surface *tex;        // the queue's texture
+    DWORD rs[3];            // ... and alpha test (k_ic_rs)
     in_card card[IN_CARDS];
     in_card_q q[RB_WORLDS];
 } g_ic;
@@ -230,7 +236,9 @@ internal void in_cards_flush(rd_device *d) {
     rd_surface *tex = d->tex[0];
     int role = d->sh_role, in = g_sl.in;
     D3DMATRIX keep = d->world;
-    d->tex[0] = g_ic.tex; d->sh_role = SH_CARD; d->changed |= RD_CH_VC | RD_CH_TEX;
+    DWORD rs[3];
+    for (int k = 0; k < 3; k++) rs[k] = d->rs[k_ic_rs[k]], d->rs[k_ic_rs[k]] = g_ic.rs[k];
+    d->tex[0] = g_ic.tex; d->sh_role = SH_CARD; d->changed |= RD_CH_VC | RD_CH_RS | RD_CH_TEX;
     g_sl.in = 0;
     if (rd3_prepare(d, 0))
         for (int i = 0; i < g_ic.nq; i++) {
@@ -245,7 +253,8 @@ internal void in_cards_flush(rd_device *d) {
             in_append(d, a, b, e->frac, e->idx, e->ni);
         }
     g_sl.in = in;
-    d->tex[0] = tex; d->sh_role = role; d->world = keep; d->changed |= RD_CH_VC | RD_CH_TEX;
+    for (int k = 0; k < 3; k++) d->rs[k_ic_rs[k]] = rs[k];
+    d->tex[0] = tex; d->sh_role = role; d->world = keep; d->changed |= RD_CH_VC | RD_CH_RS | RD_CH_TEX;
     g_ic.nq = 0;
     g_ic.flushing = 0;
 }
@@ -265,6 +274,7 @@ internal void in_card_queue(rd_device *d, const float *pa, const float *pb, floa
     e->a = a; e->b = b; e->frac = frac; e->size = size; e->idx = idx; e->ni = ni;
     e->at[0] = d->world._41; e->at[1] = d->world._42; e->at[2] = d->world._43;
     g_ic.tex = d->tex[0];
+    for (int k = 0; k < 3; k++) g_ic.rs[k] = d->rs[k_ic_rs[k]];
     g_ic.d = d;
     for (int k = 0; k < 2; k++) {
         float lo = fminf(a->lo[k], b->lo[k]) * size + e->at[k], hi = fmaxf(a->hi[k], b->hi[k]) * size + e->at[k];
@@ -461,7 +471,8 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
         float box[6];
         for (int k = 0; k < 3; k++) { box[k] = fminf(a->lo[k], b->lo[k]); box[3 + k] = fmaxf(a->hi[k], b->hi[k]); }
         rd_vb none = { NULL, 0, 0, 0x152, n, 36, n, NULL };   // (the box stands for its vertices)
-        if (g_ic.nq && d->tex[0] != g_ic.tex) in_cards_flush(d);
+        if (g_ic.nq && (d->tex[0] != g_ic.tex || d->rs[k_ic_rs[0]] != g_ic.rs[0] || d->rs[k_ic_rs[1]] != g_ic.rs[1] || d->rs[k_ic_rs[2]] != g_ic.rs[2]))
+            in_cards_flush(d);
         g_mo_box = box;
         rd3_shadow_classify(d, &none, 0, n);
         g_mo_box = NULL;

@@ -1230,6 +1230,13 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   away - only the crown's dense middle passed 229, a smooth blob. Checked on "choke wolf" with trees spawned (firs,
   cedars, spruces, dead pines, maples, palms, the multi-palm 356), cards on and off in the same paused frame: palms cast
   their crowns, dead pines their sparse width instead of a line, the multi-palm's crowns beside their trunks.
+  The instanced walk queues a run of trees' cards (render_instance.c in_card_queue) and draws them at the next part of
+  another texture or at the units' render object's end - with the alpha test of that moment, a unit's (none), so a
+  run's cards cast solid (the player, 2026-11-12: "the trees dont use the alphacutout anymore for shadows"; the trees'
+  own list made a kind's trees one run, but the last run of the game's tree loop had it before as well). The queue
+  keeps its trees' alpha test and is drawn with it, and a part whose alpha test differs ends it like another texture.
+  Checked on the player's 7-player save paused, list on and off, the build before and after: the fronds back in the
+  palms' shadows in both.
 - Shadows on everything (the player, 2026-11-05: "how hard would it be to make the shadows affect everything"): the
   casters and the trees receive too, per pixel - the same 3x3 comparisons as the ground's, with a bias of 0.15 tiles
   against their own shape in the map. The vertex shader works out each vertex's colour without the lights' diffuse
@@ -1340,6 +1347,15 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   this frame's, from the batches where they lie in the upload buffers (no copies). The terrain, the decals and the
   fields then receive in the main pixel shader (3x3 comparisons; a layer of the terrain blends SRCALPHA/INVSRCALPHA, so
   each layer times the shadow is the ground times it).
+  The map is fitted across the sun's rays to no more than the view (2026-11-12, sh_view_bounds): a caster and the
+  ground it darkens lie on one ray, one texel of the map, so only what the screen shows needs to be in it - the
+  screen's corners, widened by a quarter (frames during a step have the eye moved), down to the planes of the ground's
+  lowest under the game's rows and the casters' highest. The casters' box alone was all of the game's rows, which reach
+  well past the screen and where every object casts: about 100 tiles square in the middle of the player's map at their
+  zoom, 30 by 35 at its top edge, where the rows end with the map - the middle's shadows three times as coarse (the
+  player: "the shadows are heigher qualithy at the top of the map than in the middle/bottom"). On their save after: 48
+  by 36 tiles in the middle, 36 by 24 at the edge; the helicopters' shadows show their rotors, the shadows of those
+  above the screen's top edge still there. The pipe's `shadows` tells the map's size.
 - The ground's vertices are the game's own transform into the camera's space (its view only swaps y and z - measured:
   ground vertex (-0.7, 31.2, -6.8) with the camera at tile 73,86), so their place in the world needs the camera the
   units are drawn with - later in the frame, known when the list is drawn: the terrain's constants get the map's

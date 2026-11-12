@@ -91,6 +91,9 @@ internal struct {
     float sun_turn;          // the pipe's shadows turn: the sun's direction turned about the vertical (degrees)
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
     float view[16];          // the units' camera, the last seen
+    float vp[16];            // ... times its projection (sh_view_bounds); vp_ok: one seen
+    int vp_ok;
+    float screen_low;        // the ground's lowest under the game's rows (shr_hook_rows: its blocks'; 1e30 not known)
     // the map: world -> u, v, depth; camera space (the ground's) -> the same, and -> the world (gw: its height); the
     // colour a shadow leaves; the water (rd3_vcb shl); on while a map of the frame's casters is drawn
     float shm[16], gm[16], gw[16], shk[4], shl[4], inv_depth;
@@ -99,7 +102,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .water = 0.5f, .moon = 0.75f, .glow = -50, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f, .hsoft = 0.75f };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .water = 0.5f, .moon = 0.75f, .glow = -50, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f, .hsoft = 0.75f, .screen_low = 1e30f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
@@ -265,7 +268,10 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     static float vp[16];   // the view x the projection, kept while they are the same (made for every part: 11 000 a frame zoomed out)
     static const rd_device *vp_d;
     static uint32_t vp_gen;
-    if (d != vp_d || g_rd_vgen != vp_gen) { rd3_mul(vp, &d->view._11, &d->proj._11); vp_d = d, vp_gen = g_rd_vgen; }
+    if (d != vp_d || g_rd_vgen != vp_gen) {
+        rd3_mul(vp, &d->view._11, &d->proj._11); vp_d = d, vp_gen = g_rd_vgen;
+        memcpy(g_sh.vp, vp, sizeof vp); g_sh.vp_ok = 1;
+    }
     int out = 0x3F;   // the screen's sides every corner lies beyond (none: on the screen)
     for (int c = 0; c < 8; c++) {
         float x = c & 1 ? hi[0] : lo[0], y = c & 2 ? hi[1] : lo[1], z = c & 4 ? hi[2] : lo[2];
@@ -590,6 +596,61 @@ internal float sh_span(float *held, float w) {
     if (w > *held || w < *held - 2 * SH_SPAN_STEP) *held = ceilf(w / SH_SPAN_STEP) * SH_SPAN_STEP;
     return *held;
 }
+// THE MAP FITTED TO THE VIEW: a shadow lies on its ray from the caster away from the sun, and the map is taken along
+// those rays - a caster and the ground it darkens are one texel of it. So the map needs to cover only what the screen
+// shows, across the rays: the casters' box alone was the whole of the game's rows (they reach well past the screen's
+// edges, and every object on them casts), about 100 tiles square in the middle of the player's map at their zoom and 30
+// at its edge, where the rows end with the map - its texels three times as coarse in the middle (the player, 2026-11-12:
+// "the shadows are heigher qualithy at the top of the map than in the middle/bottom"). The view: the screen's corners
+// (widened by SH_VIEW_WIDE: frames drawn during a step have the eye moved since, render_frame.c) down to the planes of
+// the ground's lowest under the rows and the casters' highest, along the rays (r, u) - lo and hi. 0: no camera known.
+#define SH_VIEW_WIDE 1.25
+internal int sh_inverse4(double *o, const float *m) {
+    double a[4][8];
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 8; j++) a[i][j] = j < 4 ? m[i * 4 + j] : j - 4 == i;
+    for (int c = 0; c < 4; c++) {
+        int p = c;
+        for (int i = c + 1; i < 4; i++) if (fabs(a[i][c]) > fabs(a[p][c])) p = i;
+        if (fabs(a[p][c]) < 1e-12) return 0;
+        for (int j = 0; j < 8; j++) { double t = a[c][j]; a[c][j] = a[p][j]; a[p][j] = t; }
+        double k = 1 / a[c][c];
+        for (int j = 0; j < 8; j++) a[c][j] *= k;
+        for (int i = 0; i < 4; i++) {
+            if (i == c || a[i][c] == 0) continue;
+            double f = a[i][c];
+            for (int j = 0; j < 8; j++) a[i][j] -= f * a[c][j];
+        }
+    }
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++) o[i * 4 + j] = a[i][4 + j];
+    return 1;
+}
+internal int sh_view_bounds(const float *r, const float *u, float zlo, float zhi, float *lo, float *hi) {
+    double iv[16];
+    if (!g_sh.vp_ok || !sh_inverse4(iv, g_sh.vp)) return 0;
+    lo[0] = lo[1] = 1e30f; hi[0] = hi[1] = -1e30f;
+    for (int c = 0; c < 4; c++) {
+        double n[2] = { c & 1 ? SH_VIEW_WIDE : -SH_VIEW_WIDE, c & 2 ? SH_VIEW_WIDE : -SH_VIEW_WIDE }, p[2][3];
+        for (int k = 0; k < 2; k++) {   // the corner on the near and the far plane (clip [x y z 1] times the inverse)
+            double q[4];
+            for (int j = 0; j < 4; j++) q[j] = n[0] * iv[j] + n[1] * iv[4 + j] + k * iv[8 + j] + iv[12 + j];
+            if (fabs(q[3]) < 1e-12) return 0;
+            for (int j = 0; j < 3; j++) p[k][j] = q[j] / q[3];
+        }
+        for (int s = 0; s < 2; s++) {
+            double z = s ? zhi : zlo, dz = p[1][2] - p[0][2], t = fabs(dz) > 1e-9 ? (z - p[0][2]) / dz : 1;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            double x = p[0][0] + (p[1][0] - p[0][0]) * t, y = p[0][1] + (p[1][1] - p[0][1]) * t, zz = p[0][2] + dz * t;
+            float a = (float)(x * r[0] + y * r[1] + zz * r[2]), b = (float)(x * u[0] + y * u[1] + zz * u[2]);
+            if (a < lo[0]) lo[0] = a;
+            if (a > hi[0]) hi[0] = a;
+            if (b < lo[1]) lo[1] = b;
+            if (b > hi[1]) hi[1] = b;
+        }
+    }
+    return isfinite(lo[0]) && isfinite(lo[1]) && isfinite(hi[0]) && isfinite(hi[1]) && lo[0] <= hi[0] && lo[1] <= hi[1];
+}
 // Before the frame's list is drawn (rf_replay): its casters from the sun into the map, each batch drawn from where it
 // lies in the upload buffers. A list without casters leaves the map as it is (one drawn
 // for the interface alone), with ground but no casters it has no shadows.
@@ -660,6 +721,12 @@ internal void rd3_shadow_frame(void) {
                        p[0] * f[0] + p[1] * f[1] + p[2] * f[2] };
         for (int a = 0; a < 3; a++) { if (q[a] < mn[a]) mn[a] = q[a]; if (q[a] > mx[a]) mx[a] = q[a]; }
     }
+    float vl[2], vh[2];   // across the rays no more than the view (sh_view_bounds)
+    if (sh_view_bounds(r, u, fminf(g_sh.lo[2], g_sh.screen_low), g_sh.hi[2], vl, vh))
+        for (int a = 0; a < 2; a++) {
+            mn[a] = fmaxf(mn[a], vl[a]); mx[a] = fminf(mx[a], vh[a]);
+            if (mn[a] > mx[a]) mx[a] = mn[a];   // (no caster before the view: nothing to cast)
+        }
     for (int a = 0; a < 3; a++) { mn[a] -= 1; mx[a] += 1; }   // a tile around, the comparisons' reach
     mn[2] = floorf(mn[2] / SH_SPAN_STEP) * SH_SPAN_STEP;
     float wx = sh_span(&g_sh.span[0], mx[0] - mn[0] + 0.5f), wy = sh_span(&g_sh.span[1], mx[1] - mn[1] + 0.5f), wz = sh_span(&g_sh.span[2], mx[2] - mn[2]);
@@ -836,6 +903,7 @@ internal void shr_add(ee_tile **tiles, unsigned w, int y, int a, int b) {
 internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     unsigned long n = vr_rows(mesh);
     g_shr.n = g_shr.own = 0;
+    g_sh.screen_low = 1e30f;
     ee_map *map = game_map();
     const float *f = g_sh.sun;
     float h = sqrtf(f[0] * f[0] + f[1] * f[1]);
@@ -868,6 +936,7 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
             for (int bx = (int)g_shr.x0[i] / SH_BLOCK; bx <= (int)g_shr.x1[i] / SH_BLOCK && bx < bw; bx++)
                 if (bx >= 0) low = fminf(low, bmin[by * bw + bx]);
         }
+        g_sh.screen_low = low;
         reach = 0;
         for (float k = 0.5f; k <= SHR_REACH && low < 1e29f; k += 0.5f) {
             float high = -1e30f;
@@ -1026,14 +1095,14 @@ internal void cmd_shadows(char *out, const char *args) {
     else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | water <0..1> | moon <0..1> | sun <degrees> | height <degrees> | turn <degrees> | hour <0..24> | reach on | off | cards on | off | all on | off | hills on | off | hillsoft <tiles> | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
-          " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f, the light's %.2f %.2f %.2f, the hour %.2f;"
+          " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the map %.0f x %.0f tiles across the rays, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f, the light's %.2f %.2f %.2f, the hour %.2f;"
           " the water at %.2f%s, a shadow gone %.2f under it, %.2f of it on the surface; units in a shadow darkened: %s, receiving: %s; by the light's height %.2f of a shadow (by moonlight at most %.2f); the sun at least %.0f degrees"
           " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f, the ground's rise %.1f), %d rows and %d more; %d casting draws off the screen;"
           " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s (full %.2f tiles under the ceiling), %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
-          (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.sun[0],
+          (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.span[0], (double)g_sh.span[1], (double)g_sh.sun[0],
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2], (double)g_sh.diff[0], (double)g_sh.diff[1], (double)g_sh.diff[2], (double)game_hour(),
           (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, (double)g_sh.water, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground", (double)g_sh.dusk, (double)g_sh.moon,
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
