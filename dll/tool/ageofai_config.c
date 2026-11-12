@@ -922,6 +922,7 @@ enum { ED_NONE, ED_LIST, ED_FIELD };
 internal HWND g_combo, g_edit;
 internal int g_ed_kind, g_btn_item = -1, g_placing, g_row_h;   // g_btn_item: the line whose Default button was drawn
 internal char g_edit_was[TEXT_CAP];   // the field's text when it took the keyboard (Esc puts it back)
+internal char g_prefill[TEXT_CAP];    // the field's text for a key the file hasn't: what it plays (editor_fill), not written while unchanged
 struct note { int entry, level; char text[MAX_PATH + 96]; };
 internal struct note g_note[3];   // the selected line's, an AI setting's easy's and hard's
 internal int g_nnote;
@@ -1088,15 +1089,20 @@ internal void editor_fill(void) {
         }
         SendMessageA(g_combo, CB_SETCURSEL, sel < 0 ? 0 : sel, 0);
     } else if (g_ed_kind == ED_FIELD) {
+        // a key the file hasn't: the field holds what it plays as its text (the player, 2026-11-12: an empty field or a
+        // colour's none "is a bit useless" - prefilled with the default as if it were set), to change rather than type
+        // anew; the key stays out of the file until the text is another (editor_changed: g_prefill)
         struct entry empty = *e;
         char shown[TEXT_CAP];
-        wchar_t cue[TEXT_CAP];
         int grey;
         empty.text[0] = 0;
         shown_value(&empty, shown, sizeof shown, &grey);
-        MultiByteToWideChar(CP_ACP, 0, shown, -1, cue, TEXT_CAP);
+        int value = e->text[0] || strcmp(shown, "(the game's own)");   // a default the game leaves: no value to write
+        lstrcpynA(g_prefill, e->text[0] || !value ? "" : shown, sizeof g_prefill);
+        wchar_t cue[TEXT_CAP];
+        MultiByteToWideChar(CP_ACP, 0, value ? "" : shown, -1, cue, TEXT_CAP);
         SendMessageW(g_edit, EM_SETCUEBANNER, TRUE, (LPARAM)cue);
-        SetWindowTextA(g_edit, e->text);
+        SetWindowTextA(g_edit, e->text[0] ? e->text : g_prefill);
     }
     g_filling = 0;
     editor_style();
@@ -1137,6 +1143,7 @@ internal void editor_changed(int part) {
         int i = (int)SendMessageA(g_combo, CB_GETCURSEL, 0, 0) - inherits(e);
         if (i >= 0) setting_choice_name(row_of(e)->choices, i, text, sizeof text);
     } else GetWindowTextA(g_edit, text, sizeof text);
+    if (part == ED_EDIT && g_prefill[0] && !strcmp(text, g_prefill)) text[0] = 0;   // what it plays without the key (Esc too): not written
     entry_set(e, text);
 }
 
