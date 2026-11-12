@@ -133,6 +133,11 @@ above 1 down by one, else vf13). Around the attack call-off (0x43033E, at the mo
 subgroup's PathPoints still linked with mIsValid 0 and releases units already back in the pool (from 0x482028 and the
 world's deferred deletions 0x53066A) - the memory handed out twice, the list loops (endless 0x5310B3/0x62FE01) or
 breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_free, hook_unit_release).
+Another way in (2026-11-12, massed bombing of the strong anti-air's guns going up): a dying citizen's cleanup
+(EEComplexUnit vf1 0x5E91C3, its held units at +0x58, count +0x68) gave the building back while builders' orders still
+held it, and each order's end (EEUGBuildRepair's destructor 0x60BC04) released it again - with the count at 1, which
+the last release leaves (0x4FCAD3 calls vf13 without counting down). The guard skips a release of memory back in the
+pool (+0x2A set, no node) at any count since; 32 raid games after it, none broke (3 such releases caught).
 The pool is a stack (the memory given back last is handed out next); +0x2A is set by vf12 and cleared on reuse, so it
 marks a unit back in the pool. Where the stale units came from (2026-10-22): an attack subgroup's waiting units (queue
 at subgroup +0x188, each entry holding a reference) are taken in by vf85 (0x45BD56; air 0x4426CC): front into EDI, pop
