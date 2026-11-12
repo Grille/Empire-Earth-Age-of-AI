@@ -733,10 +733,10 @@ are few now, the game's own work per draw (the T&L DLL's model draw, its visibil
 the drawing thread) is what is left.
 
 The dead sink into the ground (2026-11-11, the player: "how about letting them slowly sink into the ground instead of
-the fafing out?"; [display] corpses_sink, on, with units_smooth - the fill is the mod's). First by a share of the type's
+the fafing out?"; [display] remains_sink, on, with units_smooth - the fill is the mod's). First by a share of the type's
 rot time; then (the player, the same day: "the games remains fade out times are weirdly mixed, lets try uniform times:
-30s where they just lay, 2m where they linelary sink into the ground") every kind alike: corpses_lie_seconds (30) as it
-fell, then down at an even pace over corpses_sink_seconds (120) by 0.1 of its model's radius x scale, faded over the
+30s where they just lay, 2m where they linelary sink into the ground") every kind alike: remains_lie_seconds (30) as it
+fell, then down at an even pace over remains_sink_seconds (120) by 0.1 of its model's radius x scale, faded over the
 last 5 s (what a slope or a tall wreck leaves out; uc_cloak: whole until then). Its age: the type's rot time less
 rot_ms (the game sets it at the death and takes each step's ms off), plus the time from its copy's step to the walk's
 game time, so it goes down between steps too. The game removes a corpse at the end of its rot time (a Clubman's 40 s):
@@ -767,7 +767,7 @@ by theirs, which the simulation goes on turning on a dead unit).
 
 Ships sink by their floats (2026-11-11, the player: "maybe 4 points (one front, one back, and 2 in the middle to keep it
 upright) - each point has a buoyancy, 1 to 3 point get a negative buoyancy"; the outcomes weighted, a wreck half out of
-the water in the shallows welcome; [display] ship_sinking, with corpses_sink). The game sinks every ship alike, moving
+the water in the shallows welcome; [display] remains_physics, with remains_sink). The game sinks every ship alike, moving
 the unit itself, its animation still (logged, a frigate: state 6000 turned about one axis to 36 degrees in 2 s, down at
 0.28 tiles a second to 1.3 tiles under, then rotting 2 s, gone). collect_remains_physics.c (us_*) draws a dead ship (hit points 0, the
 naval classes) from its first sight by four floats - bow and stern 0.8 of the way to its hull's ends along the longer
@@ -859,7 +859,7 @@ placed: EEEffectManager.add_at) where it comes down through z 0 over a tile unde
 the wreck drawn fell elsewhere and sooner. And every effect on a unit reads the unit's matrix (its complex unit's
 +0x130) itself at each of its steps (the damage smoke's puffs, the fire, the trails; a ship's death effect, made as it
 starts to die: EEUCNaval::vf29) - there is no getter between, only the effect manager's step (0x4FC94E, called in
-EEPhysics::step at 0x546D76). So while the wrecks are the mod's (its fills, corpses_sink, ship_sinking):
+EEPhysics::step at 0x546D76). So while the wrecks are the mod's (its fills, remains_sink, remains_physics):
 - the four calls in the crash steps are let out (collect_remains.c us_hook_crash_effect, us_hook_crash_splash);
 - the fall makes them itself (us_fx): the splash where a float goes down through the water over a tile under it, the
   death effect where one hits the ground going down faster than 0.5 tiles/s (an aircraft killed standing on its airfield

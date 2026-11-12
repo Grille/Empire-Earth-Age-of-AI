@@ -446,7 +446,7 @@ internal double g_uc_clock = -1.0, g_uc_now = -1.0;   // the walk's copy's game 
 // there), in the same order - the game's precision whatever the FPU is set to on the render thread. Of the object's
 // copy (collect_copy.c: what the game reads of the unit and its complex unit), the camera the frame's.
 internal int uc_cloak(const uc_obj *o, int see, float *out, const opacity_consts *c) {
-    if (o->rotting && g_set.corpses_sink && !uc_game_sinks(o->ty)) {   // whole while it sinks, then faded out; a kind without a rot time none (UC_NO_CORPSE)
+    if (o->rotting && g_set.remains_sink && !uc_game_sinks(o->ty)) {   // whole while it sinks, then faded out; a kind without a rot time none (UC_NO_CORPSE)
         *out = o->rot_t > 0 ? uc_dead_opacity(uc_dead_ms(o)) : 0.0f;
         return see;
     }
@@ -820,8 +820,8 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         ground_point(map, p, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
-    int ship = cu && g_set.corpses_sink && g_set.ship_sinking && o->cu_hp <= 0 && uc_is_ship(o->ty);   // (uc_ship_*)
-    if (cu && (o->rotting || ship) && g_set.corpses_sink && (ship || !uc_game_sinks(o->ty))) {   // after the ground's height under it: that stays the ground's
+    int ship = cu && g_set.remains_sink && g_set.remains_physics && o->cu_hp <= 0 && uc_is_ship(o->ty);   // (uc_ship_*)
+    if (cu && (o->rotting || ship) && g_set.remains_sink && (ship || !uc_game_sinks(o->ty))) {   // after the ground's height under it: that stays the ground's
         double d = uc_dead_ms(o);
         if (o->rot_t > 0 || ship) uc_corpse_saw(c, o, rec, t, d, ship);
         if (!ship) uc_sink_at(t, o->gfx, o->anim, o->anim_frame, o->cu_height, d);

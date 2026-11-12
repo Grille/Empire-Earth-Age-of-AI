@@ -238,17 +238,18 @@ class display
         bool unit_silhouettes = false;
         /// With units_smooth: the dead sink slowly into the ground instead of fading out, every kind the same time - the
         /// game's own fade takes from a few seconds to minutes by the unit's kind:
-        bool corpses_sink = true;
-        /// With corpses_sink: how long the dead lie as they fell (seconds of game time):
+        bool remains_sink = true;
+        /// With remains_sink: how long the dead lie as they fell (seconds of game time):
         [range(0, 600)]
-        int corpses_lie_seconds = 30;
-        /// With corpses_sink: and how long they then take to sink into the ground, at an even pace (seconds):
+        int remains_lie_seconds = 30;
+        /// With remains_sink: and how long they then take to sink into the ground, at an even pace (seconds):
         [range(1, 600)]
-        int corpses_sink_seconds = 120;
-        /// With corpses_sink: a sunk ship goes down by its own weight and what keeps it afloat - it springs leaks fore,
+        int remains_sink_seconds = 120;
+        /// With remains_sink: a sunk ship goes down by its own weight and what keeps it afloat - it springs leaks fore,
         /// aft or on one side, so it dives by the bow or the stern, rolls over or settles level, and comes to rest on
-        /// the bottom (in the shallows half out of the water) instead of the game's one tilt and sink:
-        bool ship_sinking = true;
+        /// the bottom (in the shallows half out of the water) instead of the game's one tilt and sink; a downed
+        /// aircraft falls with its way and lies where it hit, burnt out on land:
+        bool remains_physics = true;
         /// With units_smooth: a moving unit is drawn turned the way it is actually going - units pushed along by the others
         /// in a crowd or a formation point at the spot they are heading for, across the way they all move. Only the picture
         /// turns, eased over a third of a second; the game's own heading (where it shoots, how it steers) stays:

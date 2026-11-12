@@ -1,6 +1,6 @@
 // THE WRECKS' FALL (collect_remains.c includes it after the corpses' entries): a ship's or an aircraft's wreck as
 // points on a frame - their forces, the water's and the air's, the ground, their pose and look
-// THE SHIPS SINKING ([display] ship_sinking, with corpses_sink; the player, 2026-11-11: "i wonderd if we could make sinking
+// THE SHIPS SINKING ([display] remains_physics, with remains_sink; the player, 2026-11-11: "i wonderd if we could make sinking
 // ships more intretsing. maybe 4 points (one front, one back, and 2 in the middle to keep it upright) - each point has a
 // buoyancy, 1 to 3 point get a negative buoyancy ... ships that sink similar to now, ships that fall over etc", the
 // outcomes weighted, a wreck half out of the water in the shallows welcome). The game sinks every ship alike - it moves

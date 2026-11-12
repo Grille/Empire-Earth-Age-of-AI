@@ -1,13 +1,13 @@
 // THE REMAINS (collect.c includes it where the fills need them): the dead kept after the game lets them go, sunk,
 // faded and drawn by the walk's end; a ship's and an aircraft's wreck by its floats, their fall in
 // collect_remains_physics.c
-// THE DEAD SINKING ([display] corpses_sink, corpses_lie_seconds, corpses_sink_seconds; the player, 2026-11-11: "dead units
+// THE DEAD SINKING ([display] remains_sink, remains_lie_seconds, remains_sink_seconds; the player, 2026-11-11: "dead units
 // next, how about letting them slowly sink into the ground instead of the fafing out?", then "the games remains fade out
 // times are weirdly mixed, lets try uniform times: 30s where they just lay, 2m where they linelary sink into the ground").
 // The game fades a corpse over its type's rot time - rot_ms set to it at the death, a step's ms taken off each step (the
 // rotting state's updates), the object removed at 0: a Clubman's 40 s - and the opacity's check tells the rotting apart
-// from the game's then. Here every corpse lies as it fell for corpses_lie_seconds of game time (the death's animation
-// plays then), goes down at an even pace over corpses_sink_seconds by UC_SINK_DEPTH of its model's radius, and fades over
+// from the game's then. Here every corpse lies as it fell for remains_lie_seconds of game time (the death's animation
+// plays then), goes down at an even pace over remains_sink_seconds by UC_SINK_DEPTH of its model's radius, and fades over
 // the last UC_FADE_MS (what a slope or a tall wreck leaves out of the ground); whole until then. The radius is the
 // standing unit's (a Clubman's 0.70 tiles with its scale), and one lying dead shows hardly 0.06 over the ground: sunk 0.1
 // of it, it is under shortly before the end (by twice the radius over 55 % of its 40 s it was gone in 2 s). Its age at the
@@ -15,8 +15,8 @@
 // (the walk shows the game a step and a half behind: it goes down between steps too).
 #define UC_SINK_DEPTH 0.1
 #define UC_FADE_MS 5000.0
-internal double uc_lie_ms(void) { return g_set.corpses_lie_seconds * 1000.0; }
-internal double uc_end_ms(void) { return (g_set.corpses_lie_seconds + g_set.corpses_sink_seconds) * 1000.0; }
+internal double uc_lie_ms(void) { return g_set.remains_lie_seconds * 1000.0; }
+internal double uc_end_ms(void) { return (g_set.remains_lie_seconds + g_set.remains_sink_seconds) * 1000.0; }
 internal double uc_dead_ms(const uc_obj *o) {   // a rotting object's age at the walk's game time
     double d = (double)o->rot_t - o->rot_ms;
     if (g_uc_now >= 0.0 && g_uc_clock >= 0.0) d += g_uc_now - g_uc_clock;
@@ -27,16 +27,16 @@ internal float uc_dead_opacity(double d) {   // how much of a corpse is seen at 
     return d >= end ? 0.0f : d <= end - UC_FADE_MS ? 1.0f : (float)((end - d) / UC_FADE_MS);
 }
 // a kind the game moves itself as it dies - a ship goes down, a spaceship falls - and fades over its own rot time: left
-// to the game unless it is a wreck of ours (ship_sinking), not kept, sunk or faded here (the player, 2026-11-12:
+// to the game unless it is a wreck of ours (remains_physics), not kept, sunk or faded here (the player, 2026-11-12:
 // "ships and spaceships should be collected like the game does when our physic arent enabled, elsewise they just get
-// stuck halfway" - kept at the pose where the game took it off, halfway down, and lying on for corpses_lie_seconds)
+// stuck halfway" - kept at the pose where the game took it off, halfway down, and lying on for remains_lie_seconds)
 internal int uc_game_sinks(const ee_unit_type *ty) {
     int k = unit_type_get_class_id(ty);
     return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || k == CLS_SPACESHIP || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP;
 }
 // a corpse's pose t lowered as far as its age has taken it
 internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t frame, float scale, double d) {
-    double q = (d - uc_lie_ms()) / (g_set.corpses_sink_seconds * 1000.0);
+    double q = (d - uc_lie_ms()) / (g_set.remains_sink_seconds * 1000.0);
     if (q <= 0.0 || !gfx) return;
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(gfx))[anim];
     if (!m) return;
@@ -350,7 +350,7 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
             graphics_release(k->gfx);
             continue;
         }
-        if ((k->gone || unmet) && g_set.corpses_sink && *n < room) {
+        if ((k->gone || unmet) && g_set.remains_sink && *n < room) {
             float at[2] = { k->t[3], k->t[7] };
             if (k->ship) at[0] = 0.25f * (k->sp[0][0] + k->sp[1][0] + k->sp[2][0] + k->sp[3][0]),
                          at[1] = 0.25f * (k->sp[0][1] + k->sp[1][1] + k->sp[2][1] + k->sp[3][1]);
@@ -367,7 +367,7 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
 }
 // THE EFFECTS OF ITS FALL, on the simulation's thread (above us_fx): the wrecks are the mod's while its fills are on and
 // the corpses go down by their floats
-internal int us_effects_on(void) { return g_uc_own && g_uc_fill == 2 && g_set.corpses_sink && g_set.ship_sinking; }
+internal int us_effects_on(void) { return g_uc_own && g_uc_fill == 2 && g_set.remains_sink && g_set.remains_physics; }
 // the crash steps' death effect and splash: let out while the wrecks are the mod's (it makes its own)
 internal int __thiscall us_hook_crash_effect(ee_effect_mgr *m, ee_unit *unit, void *effect, int *handle, int keeps, int tag, int goal) {
     return us_effects_on() ? 0 : effect_mgr_add_on_unit(m, unit, effect, handle, keeps, tag, goal);
