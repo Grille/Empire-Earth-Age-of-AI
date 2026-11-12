@@ -89,7 +89,8 @@ typedef struct {
     float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
                              // tailplane's (nose up), its fin's (nose right) - us_wings, from the controls at its death
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
-    float leak[4][3];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s)
+    float leak[4][4];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s),
+                             // its buoyancy before (its kind's, a seesaw's sides more)
     float dig[9];            // how deep each point can go into the seabed (tiles; the floats' and the ballast's)
     float shift;             // how far its ballast has slid to the low side (0 .. 1), once it heeled past US_SHIFT
     int32_t shift_to;        // ... that side's float (2 port, 3 starboard; 0 not yet)

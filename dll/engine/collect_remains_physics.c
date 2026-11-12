@@ -14,7 +14,13 @@
 // less than their weight (it goes down in the end), and by the plan of its serial (the same on every PC, the picture only)
 // one or two fast to below nothing - a dive by the bow or the stern half the time (now and then with a list), a roll onto
 // one side a quarter (the other side holding on longest), level a quarter. Stepped by the game time (stands while paused),
-// US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death. Each float goes into
+// US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death.
+// A ship's fifth way (the player, 2026-11-12: "what would it take for a wrek to stqand up when sinking?" - "the middle
+// buoyant so it stay at the waterline, with the other side rasing in the air"): a seesaw, US_SEESAW of them, the four
+// above sharing the rest as before - its bow or its stern flooded at once to a little below nothing, its sides lifting
+// US_SEESAW_LIFT (the middle carries the whole ship and that end's pull at the waterline: at 2 it went under with it)
+// until they leak late and slowly, the other end's slow leak as any; the flooded end goes down, the other rises out of
+// the water, it hangs about its middle and slides under. Not a submarine's or an aircraft's. Each float goes into
 // the seabed by a depth of its own, up to US_DIG of the beam by the same plan (the player, the same day: "each point
 // should have a random value how deep it can sink into the ground"): a wreck comes to rest unevenly buried, tilted.
 // It goes on at the speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats
@@ -31,6 +37,8 @@
 #define US_BALLAST 3.0f // its weight, a float's 1
 #define US_SHIFT 0.8f   // the heel (its sine: 53 degrees) past which the ballast slides
 #define US_SHIFT_S 1.5f // ... over this long (s), 0.8 of the way to the low side
+#define US_SEESAW (1.0f / 6.0f)   // the ships that go down as a seesaw
+#define US_SEESAW_LIFT 3.0f        // its side floats' buoyancy, fully under (g's), until they leak
 // The blow that kills it (the player, the same day: "on death an units should get a bit of random rotation for a start.
 // even if it levels out again, the kick is suposed to make clearer something happend"): it starts turning about its
 // own axes, half to all of these (radians/s) by its serial, either way - the buoyancy and the drag level it out again
@@ -253,14 +261,22 @@ internal void cmd_wreck(char *out, const char *args) {
         REPLY("ok: a falling plane's base %.1f roll %.1f pitch %.1f yaw %.1f for all (degrees: + port wing up, nose up, nose right)\n",
               g_us_ctl[0], g_us_ctl[1], g_us_ctl[2], g_us_ctl[3]);
 }
-// its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
-internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
+// its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once; seesaw: a
+// ship's (a submarine's and an aircraft's plans as before)
+internal void us_leaks(uc_corpse *k, int32_t serial, int late, int seesaw) {
     uint32_t s = (uint32_t)serial * 2654435761u + 0x9E3779B9u;
     us_rnd(&s);
     float plan = us_rnd(&s);
     for (int i = 0; i < 4; i++)   // the slow leaks: each float to less than its weight
-        k->leak[i][0] = 0.55f + 0.3f * us_rnd(&s), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&s);
-    int fast = plan < 0.25f ? 0 : plan < 0.5f ? 1 : plan < 0.75f ? 2 + (us_rnd(&s) < 0.5f) : -1;   // bow, stern, a side, level
+        k->leak[i][0] = 0.55f + 0.3f * us_rnd(&s), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&s),
+        k->leak[i][3] = k->lift;
+    if (seesaw && plan >= 1.0f - US_SEESAW) {   // one end flooded at once, the middle holding late
+        int e = us_rnd(&s) < 0.5f;   // the bow or the stern
+        k->leak[e][0] = -0.3f - 0.3f * us_rnd(&s), k->leak[e][1] = 0.2f * us_rnd(&s), k->leak[e][2] = 1.5f + 2.0f * us_rnd(&s);
+        for (int i = 2; i < 4; i++) k->leak[i][1] = 8.0f + 7.0f * us_rnd(&s), k->leak[i][2] = 10.0f + 10.0f * us_rnd(&s), k->leak[i][3] = US_SEESAW_LIFT;
+        plan = -1.0f;
+    } else if (seesaw) plan /= 1.0f - US_SEESAW;   // the others share the rest as before
+    int fast = plan < 0.0f ? -1 : plan < 0.25f ? 0 : plan < 0.5f ? 1 : plan < 0.75f ? 2 + (us_rnd(&s) < 0.5f) : -1;   // bow, stern, a side, level
     if (fast >= 0) {
         k->leak[fast][0] = -0.6f - 0.6f * us_rnd(&s), k->leak[fast][1] = 0.2f * us_rnd(&s), k->leak[fast][2] = 1.5f + 2.0f * us_rnd(&s);
         if (fast >= 2) {   // the other side holds on longest: it rolls over before it goes
@@ -422,7 +438,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         }
     int late = o->rotting || (!air && (t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f)));   // (a submarine is under anyway)
     memset(k->dig, 0, sizeof k->dig);
-    us_leaks(k, o->serial, late);
+    us_leaks(k, o->serial, late, !air && !sub);
     for (int i = 0; i < 4 && k->heli; i++) k->leak[i][1] *= US_HELI_LEAK, k->leak[i][2] *= US_HELI_LEAK;
     for (int i = 0; i < US_PTS; i++) k->dig[i] *= (air ? US_DIG_AIR : US_DIG) * 2.5f * half_across;   // the beam: half_across is 0.4 of it
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
@@ -530,7 +546,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         if (i < 4 && k->lift > 0.0f) {
             float u = k->wet_at < 0.0f ? -1.0f : (t - k->wet_at - k->leak[i][1]) / k->leak[i][2];
             u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
-            b = (k->lift + (k->leak[i][0] - k->lift) * u) * carry;
+            b = (k->leak[i][3] + (k->leak[i][0] - k->leak[i][3]) * u) * carry;
         }
         float v[3], a = 0.0f;
         for (int j = 0; j < 3; j++) v[j] = p[j] - q[j], a += v[j] * ln[j];
