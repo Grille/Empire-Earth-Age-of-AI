@@ -789,7 +789,11 @@ last step's move along the water (the collection's poses before its death; the o
 in the step it died; none when met already sinking, or beyond 1.5 times its own top speed, at least 4 tiles/s - a
 jump: a fixed 4 stopped the player's ship of 170 dead), the water's drag and the seabed stop it (along its length
 the light drag below: a frigate at 0.8 tiles/s coasts about 2.3 tiles; at the sinking's drag it was half a tile,
-hardly seen).
+hardly seen). An aircraft's up or down as well (the player, 2026-11-12: "can it be that airplanes lose speed when they
+die?" - "its espacialy noticable at launch when they are pointing up"): a P-51 shot climbing from its airfield (0.9
+tiles/s on, 0.45 up, its nose 27 degrees up) went on level only, across its wings, which took a fifth of its way in a
+quarter second and up to half in 1.5 s; with its climb it keeps 0.86 - 0.95 of it at first, rises half a second
+longer and noses over (logged, 8 planes; one a round its tailplane pitches up into a stall, as drawn).
 The water's drag is the hull's own (the player, the same day: "what do you think of adding a lift plane? basicly that
 vertical movment from the orientation of the model get converted to horizontal movment. real ships glide when they
 sink right?"): a hull slips along its length (US_ALONG 0.35/s) and is held across it, sideways and through its deck

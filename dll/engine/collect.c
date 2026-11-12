@@ -754,10 +754,13 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
     for (int i = 0; i < US_PTS; i++) k->dig[i] = us_rnd(&s);   // its share of US_DIG (drawn last: the leaks stay as they were)
     if (late) for (int i = 0; i < 4; i++) k->leak[i][1] = -1000.0f, k->leak[i][2] = 0.01f;
 }
-// its velocity along the water at its death (tiles/s) into v: its newest move between the poses the collection kept of
-// it (the game may stop it in the step it dies: then the one before), none if it is met already sinking
-internal void us_velocity(const uc_obj *o, float *v) {
-    v[0] = v[1] = 0.0f;
+// its velocity at its death (tiles/s) into v: its newest move between the poses the collection kept of it (the game may
+// stop it in the step it dies: then the one before), none if it is met already sinking; along the water - an aircraft's
+// up or down too (the player, 2026-11-12: "can it be that airplanes lose speed when they die?" - "its espacialy
+// noticable at launch when they are pointing up": a P-51 shot climbing from its airfield, 0.9 tiles/s on and 0.45
+// up, its nose 27 degrees up, went on level only - across its wings, which took half its way in 1.5 s; logged)
+internal void us_velocity(const uc_obj *o, float *v, int air) {
+    v[0] = v[1] = v[2] = 0.0f;
     const float *now = (const float *)o->pm;
     float top = fmaxf(o->st ? unit_stats_get_speed(o->st) : 0.0f, o->cst ? unit_stats_get_speed(o->cst) : 0.0f);
     float fast = fmaxf(US_FAST * top, US_JUMP);
@@ -767,7 +770,7 @@ internal void us_velocity(const uc_obj *o, float *v) {
         if (!(i ? o->has_was2 : o->has_was) || dt <= 0.0f || dt > 1.0f) return;
         float dx = (b[3] - a[3]) / dt, dy = (b[7] - a[7]) / dt, s = dx * dx + dy * dy;
         if (s > fast * fast) return;
-        if (s > 1e-4f) { v[0] = dx, v[1] = dy; return; }
+        if (s > 1e-4f) { v[0] = dx, v[1] = dy, v[2] = air ? (b[11] - a[11]) / dt : 0.0f; return; }
     }
 }
 // the kick at its death: each point's way a step behind by the turn about its own axes (the frame's as it starts,
@@ -880,9 +883,10 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         float stop = mesh_z(mesh, p[0], p[1]) + (i == 4 ? 1.0f - US_LOW : 1.0f) * k->keel;   // upright: the keel under it
         if (p[2] < stop - k->dig[i]) k->dig[i] = stop - p[2];
     }
-    float v[2] = { 0.0f, 0.0f };
-    if (!late) us_velocity(o, v);
-    for (int i = 0; i < k->n; i++) k->sq[i][0] -= v[0] * (float)US_DT, k->sq[i][1] -= v[1] * (float)US_DT;   // Verlet: a step's way behind
+    float v[3] = { 0.0f, 0.0f, 0.0f };
+    if (!late) us_velocity(o, v, air);
+    for (int i = 0; i < k->n; i++)   // Verlet: a step's way behind
+        for (int j = 0; j < 3; j++) k->sq[i][j] -= v[j] * (float)US_DT;
     if (!late) us_kick(k, o->serial);
     k->sim = k->died;
     k->ship = 1;
