@@ -199,14 +199,22 @@ internal int uc_is_ship(const ee_unit_type *ty) {
     return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k);
 }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
+// a stream's start by a serial, its bits mixed whole (salt: the stream's own): a product alone drew alike for ids a power
+// of two or a few apart - the leaks' plan climbed evenly with the id and wrapped round, three neighbours the same way
+// down and ids 32 or 64 apart dozens alike (the player, 2026-11-12: "it seems ships of the same type nerly always pick
+// the same sinking": built in a batch among other units)
+internal uint32_t us_seed(int32_t serial, uint32_t salt) {
+    uint32_t s = (uint32_t)serial ^ salt;
+    s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+    return s;
+}
 // a point's weight (a float's 1): the ballast, a helicopter's hub, an airplane's tail points and nose weight
 internal float us_w(const uc_corpse *k, int i) {
     return i < 4 ? 1.0f : i == 4 ? US_BALLAST : k->heli ? US_ROTOR_W : i == 8 ? US_NOSE : US_FIN_W;
 }
 // a helicopter's rotor by its serial (a stream of its own, hashed): its hold even 0 .. 1, its disc's tilt any way
 internal void us_rotor(uc_corpse *k, int32_t serial) {
-    uint32_t s = (uint32_t)serial ^ 0x27D4EB2Fu;
-    s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+    uint32_t s = us_seed(serial, 0x27D4EB2Fu);
     k->rotor[0] = us_rnd(&s);
     float dir = 6.2831853f * us_rnd(&s), a = sinf(US_DISC_TILT * us_rnd(&s) * 3.14159265f / 180.0f);
     k->rotor[1] = a * cosf(dir), k->rotor[2] = a * sinf(dir);
@@ -238,8 +246,7 @@ internal void us_wings(uc_corpse *k, int32_t serial) {
     const float rad = 3.14159265f / 180.0f;
     float roll = g_us_ctl[1], pitch = g_us_ctl[2], yaw = g_us_ctl[3];
     if (!g_us_fixed) {
-        uint32_t s = (uint32_t)serial ^ 0x165667B1u;
-        s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+        uint32_t s = us_seed(serial, 0x165667B1u);
         roll = US_RND_ROLL * (2.0f * us_rnd(&s) - 1.0f);
         pitch = US_RND_PITCH_LO + (US_RND_PITCH_HI - US_RND_PITCH_LO) * us_rnd(&s);
         yaw = US_RND_YAW * (2.0f * us_rnd(&s) - 1.0f);
@@ -271,8 +278,7 @@ internal void cmd_wreck(char *out, const char *args) {
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once; seesaw: a
 // ship's (a submarine's and an aircraft's plans as before)
 internal void us_leaks(uc_corpse *k, int32_t serial, int late, int seesaw) {
-    uint32_t s = (uint32_t)serial * 2654435761u + 0x9E3779B9u;
-    us_rnd(&s);
+    uint32_t s = us_seed(serial, 0x9E3779B9u);
     float plan = us_rnd(&s);
     for (int i = 0; i < 4; i++)   // the slow leaks: each float to less than its weight
         k->leak[i][0] = 0.55f + 0.3f * us_rnd(&s), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&s),
@@ -342,8 +348,7 @@ internal void us_spin(uc_corpse *k, const uc_obj *o, const float *t, int pair) {
 // the kick at its death: each point's way a step behind by the turn about its own axes (the frame's as it starts,
 // about its points' middle by their weights), random by its serial - a stream of its own, the leaks' plans as before
 internal void us_kick(uc_corpse *k, int32_t serial) {
-    uint32_t s = (uint32_t)serial * 2246822519u + 0x27D4EB2Fu;
-    us_rnd(&s);
+    uint32_t s = us_seed(serial, 0x85EBCA6Bu);
     float w[3], m[3] = { 0, 0, 0 }, al[3], ac[3], up[3], la = 0.0f, lc = 0.0f, lu = 0.0f, sum = 0.0f;
     static const float ship[3] = { US_KICK_ROLL, US_KICK_PITCH, US_KICK_YAW },
                        plane[3] = { US_KICK_PLANE_ROLL, US_KICK_AIR_OTHER, US_KICK_AIR_OTHER },
