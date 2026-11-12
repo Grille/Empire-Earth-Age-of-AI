@@ -54,6 +54,10 @@ def same(kind, value, default):
     if kind in ('FLAG', 'INT', 'NUM', 'LIMIT'):
         try: return int(value, 0) == int(want, 0)
         except ValueError: return False
+    if kind == 'COLOR':   # none or #RRGGBB against -1 or 0xRRGGBB
+        if value == 'none': return int(want, 0) == -1
+        try: return int(value.lstrip('#'), 16) == int(want, 0)
+        except ValueError: return False
     return value == want
 
 

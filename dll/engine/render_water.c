@@ -108,14 +108,12 @@ internal int rw_own_colour(int r, int g, int b) {
     g_wa.owned = 1;
     return 1;
 }
-// the colour under the water: the player's ([display] water_fog_color, read once, a mistake told), else the map's deepest
+// the colour under the water: the player's ([display] water_fog_color, a colour setting: 0xRRGGBB, -1 none), else the map's deepest
 internal const float *rw_colour(void) {
     if (g_wa.owned < 0) {
-        int r, g, b;
-        char more;
+        int c = g_set.water_fog_color;
         g_wa.owned = 0;
-        if (g_set.water_fog_color[0] && (sscanf(g_set.water_fog_color, "%d %d %d %c", &r, &g, &b, &more) != 3 || !rw_own_colour(r, g, b)))
-            log_locked("# ageofai.ini: water_fog_color=%s is no colour (three whole numbers from 0 to 255: red green blue): the map's own instead\n", g_set.water_fog_color);
+        if (c >= 0) rw_own_colour(c >> 16 & 255, c >> 8 & 255, c & 255);
     }
     return g_wa.owned ? g_wa.own : g_wa.fc;
 }

@@ -42,6 +42,9 @@
 //   [range(1, 3)] factor k = 1.25;               FACTOR   a multiplier, 1 the game's own (dll_cs/language.cs), in percent
 //   k_fields k;                                  FLAGS    a struct of the section: bool fields and enum fields; its
 //                                                         default all at their first ([on("a, b")]: those on)
+//   color k = rgb(50, 101, 187);                 COLOR    a colour, in the file #RRGGBB (six hex digits, the # may be
+//                                                         left out) or none - its code's own then (= none: the default);
+//                                                         ageofai_config.exe gives it a colour button and the picker
 //
 // THE FILE, line for line: a key's /// lines are the file's lines above it - "/// text" the line "; text", an empty
 // "///" a blank line (headings like "; --- Attacks ---" are lines as any other); several keys under one comment: the

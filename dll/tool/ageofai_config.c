@@ -29,6 +29,7 @@
 #include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
 #include "tool/engine_import.c"   // the game's settings in a file: ageofai.dll an import of the engine
 #include "ui/theme.c"   // the game's look, else plain dark: g_pal, the colours drawn with
+#include "ui/color_picker.c"   // a colour setting's picker (pick_color)
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
@@ -155,6 +156,7 @@ internal void default_text(const struct setting_row *r, char *out, int cap) {
     switch (r->kind) {
     case SETK_SHARE: case SETK_FACTOR: snprintf(out, cap, "%d%%", r->def); break;   // both keep whole percents
     case SETK_CHOICE: case SETK_STR: case SETK_STR_P: case SETK_FLAGS: lstrcpynA(out, r->def_s, cap); break;
+    case SETK_COLOR: setting_text(r, (const uint8_t *)&r->def, out, cap); break;   // none, #RRGGBB
     default: snprintf(out, cap, "%d", r->def);
     }
 }
@@ -683,6 +685,9 @@ internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard
 internal struct { uint8_t bold, grey, game, own, level, other, on, reset, member; } g_look[sizeof g_e / sizeof *g_e];
 internal int g_box_pad, g_def_pad;   // the spaces a flag's value starts with (room for its check box: draw_cell's post
                                      // paint), and every default (room for the selected line's "<" button)
+internal int g_color_pad;            // a colour's value (its button: the list's own text not beside it)
+internal int is_color(const struct entry *e);
+internal int color_field_left(const RECT *cell);
 
 internal int is_flag(const struct entry *e) { return row_of(e)->kind == SETK_FLAG; }
 
@@ -752,9 +757,9 @@ internal void fill_item(int item, LPARAM p) {
         if (easy && !g_e[g_all_of[e->row]].text[0]) { check(row_of(e), sec_of(e), key, easy, why, def, sizeof def); lstrcpyA(def + strlen(def), "  (the easy AI's own)"); }
         else lstrcpyA(def, "as [ai_base]");
     }
-    if (is_flag(e)) {   // room for the box
+    if (is_flag(e) || is_color(e)) {   // room for the box, the colour's button (the list's text from under the field on)
         char t[TEXT_CAP];
-        snprintf(t, sizeof t, "%*s%s", g_box_pad, "", v);
+        snprintf(t, sizeof t, "%*s%s", is_flag(e) ? g_box_pad : g_color_pad, "", v);
         lstrcpyA(v, t);
     }
     {   // room for the "<" button
@@ -1028,8 +1033,9 @@ internal void show_help(void) {
     SetWindowTextA(g_help, text);
 }
 
-// the dropdown or the field over the selected line's Value cell - hidden while the cell is scrolled out of the list
-// (under its header, past its bottom) or the line has none; again after whatever moves the list's lines (list_proc)
+// the dropdown or the field over the selected line's Value cell (a colour's after its button) - hidden while the cell is
+// scrolled out of the list (under its header, past its bottom) or the line has none; again after whatever moves the
+// list's lines (list_proc)
 internal void editor_place(void) {
     if (g_placing || !g_list) return;
     g_placing = 1;
@@ -1042,6 +1048,7 @@ internal void editor_place(void) {
         GetWindowRect(ListView_GetHeader(g_list), &head);
         MapWindowPoints(NULL, g_list, (POINT *)&head, 2);
         if (cell.right > rc.right) cell.right = rc.right;
+        if (g_sel >= 0 && is_color(&g_e[g_sel])) cell.left = color_field_left(&cell);
         if (cell.top < head.bottom || cell.bottom > rc.bottom || cell.right - cell.left < dpi_px(40)) item = -1;
     }
     HWND both[2] = { g_combo, g_edit };
@@ -1149,6 +1156,57 @@ internal void editor_start(void) {
     else if (g_ed_kind == ED_FIELD && IsWindowVisible(g_edit)) { SetFocus(g_edit); SendMessageA(g_edit, EM_SETSEL, 0, -1); }
 }
 
+// A COLOUR (rows.h COLOR): its Value cell begins with a button in the colour, raised as the game's colour buttons (its
+// player colours' in the game setup), the field after it (#RRGGBB or none); the button - a click, or Space on the line -
+// opens the colour picker (ui/color_picker.c), whose OK writes the colour into the field
+internal int is_color(const struct entry *e) { return row_of(e)->kind == SETK_COLOR; }
+internal void color_rect(const RECT *cell, RECT *b) {   // the button in a Value cell
+    int m = dpi_px(2), side = cell->bottom - cell->top - 2 * m;
+    SetRect(b, cell->left + m, cell->top + m, cell->left + m + side, cell->top + m + side);
+}
+internal int color_field_left(const RECT *cell) { RECT b; color_rect(cell, &b); return b.right + dpi_px(4); }
+internal int color_value(const struct entry *e) {   // the colour it plays: 0xRRGGBB, -1 none (a mistake: the default)
+    char def[TEXT_CAP];
+    int v;
+    if (e->text[0] && setting_color(e->text, &v)) return v;
+    default_text(row_of(e), def, sizeof def);
+    return setting_color(def, &v) ? v : -1;
+}
+internal void color_button(HDC dc, const struct entry *e, const RECT *cell) {
+    RECT b;
+    color_rect(cell, &b);
+    int v = color_value(e);
+    if (v >= 0) {
+        HBRUSH c = CreateSolidBrush(RGB(v >> 16 & 255, v >> 8 & 255, v & 255));
+        FillRect(dc, &b, c);
+        DeleteObject(c);
+    } else {   // none: the field's colour, struck through red
+        FillRect(dc, &b, g_pal.b_field);
+        HPEN pen = CreatePen(PS_SOLID, dpi_px(2), RGB(200, 40, 40)), old = (HPEN)SelectObject(dc, pen);
+        MoveToEx(dc, b.left + dpi_px(3), b.bottom - dpi_px(3), NULL);
+        LineTo(dc, b.right - dpi_px(3), b.top + dpi_px(3));
+        DeleteObject(SelectObject(dc, old));
+    }
+    if (g_gl.on) theme_bevel(dc, &b, 0);
+    else {
+        HBRUSH fr = CreateSolidBrush(g_pal.grey);
+        FrameRect(dc, &b, fr);
+        DeleteObject(fr);
+    }
+}
+internal void pick_color(int entry) {
+    struct entry *e = &g_e[entry];
+    int v = color_value(e);
+    uint8_t c[3] = { 128, 128, 128 };   // none: a grey to start from
+    if (v >= 0) c[0] = (uint8_t)(v >> 16), c[1] = (uint8_t)(v >> 8), c[2] = (uint8_t)v;
+    static const struct cpk_words words = { L"Colour", L"OK", L"Cancel", L" Recent:" };
+    if (!cpk_dialog(g_wnd, c, &words, 9)) return;
+    char text[16];
+    snprintf(text, sizeof text, "#%02X%02X%02X", c[0], c[1], c[2]);
+    entry_set(e, text);
+    if (entry == g_sel) editor_fill();
+}
+
 // the selected line's "<" button (the default over to the value): a square at the start of its Default cell, the
 // column's text after it on every line (g_def_pad)
 internal void reset_rect(int item, RECT *b) {
@@ -1170,7 +1228,11 @@ internal LRESULT CALLBACK list_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp, UINT
     if (msg == WM_CHAR && (wp == ' ' || wp == '\r')) return 0;   // no search for a line starting so (the indent), no beep
     if (msg == WM_KEYDOWN) {
         if (wp == VK_RETURN || wp == VK_F2) { editor_start(); return 0; }
-        if (wp == VK_SPACE) { if (g_sel >= 0 && is_flag(&g_e[g_sel])) flag_toggle(g_sel); return 0; }
+        if (wp == VK_SPACE) {
+            if (g_sel >= 0 && is_flag(&g_e[g_sel])) flag_toggle(g_sel);
+            else if (g_sel >= 0 && is_color(&g_e[g_sel])) pick_color(g_sel);
+            return 0;
+        }
         if (wp == VK_DELETE) { if (g_sel >= 0 && g_look[g_sel].reset) set_default(g_sel); return 0; }
     }
     LRESULT res = DefSubclassProc(w, msg, wp, lp);
@@ -1333,6 +1395,8 @@ internal void create_controls(void) {
     SelectObject(dc, old);
     ReleaseDC(g_list, dc);
     g_box_pad = sp.cx > 0 ? (dpi_px(18) + sp.cx - 1) / sp.cx : 5;   // the box at the cell's start (as the fields), the text after it (past the list's own 6 px)
+    RECT cell = { 0, 0, 0, g_row_h };
+    g_color_pad = sp.cx > 0 ? (color_field_left(&cell) + sp.cx - 1) / sp.cx : 6;   // a colour's button: its field's text under the field's face
     g_def_pad = sp.cx > 0 ? (g_row_h + sp.cx - 1) / sp.cx : 6;
     g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
     g_help_open = make_child(WC_BUTTONA, "Help (F1)", BS_PUSHBUTTON | WS_TABSTOP, ID_HELP_OPEN);
@@ -1429,6 +1493,10 @@ internal void draw_field(HDC dc, LPARAM p, int item, RECT r) {
     COLORREF color, bk;
     cell_look(p, 1, &bold, &color, &bk);
     RECT f = r;
+    if (is_color(&g_e[p])) {   // its button, the field after it
+        color_button(dc, &g_e[p], &r);
+        f.left = color_field_left(&r);
+    }
     if (choice) {
         RECT now;
         GetWindowRect(g_combo, &now);
@@ -1474,7 +1542,9 @@ internal void draw_field(HDC dc, LPARAM p, int item, RECT r) {
     HFONT old = (HFONT)SelectObject(dc, cell_font(p, 1, bold));
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, color);
-    DrawTextA(dc, text, -1, &t, DT_LEFT | how | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+    const char *shown = text;
+    while (is_color(&g_e[p]) && *shown == ' ') shown++;   // its room for the button (fill_item)
+    DrawTextA(dc, shown, -1, &t, DT_LEFT | how | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
     SelectObject(dc, old);
 }
 
@@ -1558,6 +1628,8 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                      "always does)." },
     { HL_TEXT, NULL, "A text field takes arithmetic, as the file does: 35%, 2 * 60, min(10, 4 * 3). It is checked as "
                      "you type." },
+    { HL_TEXT, NULL, "A colour has a button in its colour before its field: click it (or press Space on the line) for the "
+                     "colour picker. The field takes the colour as #RRGGBB, or none (struck through on the button)." },
     { HL_TEXT, NULL, "The < button at the start of the selected line's Default cell (or Delete) puts the mod's default back - "
                      "on an easy or hard line, the [ai_base] value." },
     { HL_TEXT, NULL, "A master setting opens to its children (Movement: improved_unit_movement). default plays each "
@@ -1744,7 +1816,13 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
                 int tri = dpi_px(6) + g_vis[a->iItem].level * dpi_px(14) + dpi_px(16);   // about where the triangle ends
                 RECT b;
                 reset_rect(a->iItem, &b);
+                RECT cell = { LVIR_BOUNDS, 1, 0, 0 }, cb;
+                SendMessageA(g_list, LVM_GETSUBITEMRECT, a->iItem, (LPARAM)&cell);
+                color_rect(&cell, &cb);
                 if (node_kind(p) == NODE_ENTRY && hit.iSubItem == 1 && is_flag(&g_e[p])) flag_toggle((int)p);
+                else if (node_kind(p) == NODE_ENTRY && hit.iSubItem == 1 && is_color(&g_e[p]) && PtInRect(&cb, a->ptAction)) {
+                    if (n->code == NM_CLICK) pick_color((int)p);
+                }
                 else if (node_kind(p) == NODE_ENTRY && hit.iSubItem == 1 && n->code == NM_CLICK) editor_start();   // the real one there now
                 else if (node_kind(p) == NODE_ENTRY && hit.iSubItem == COLS - 1 && a->iItem == g_btn_item && g_look[p].reset && PtInRect(&b, a->ptAction)) set_default((int)p);
                 else if (n->code == NM_DBLCLK || a->ptAction.x < tri) toggle(g_node);

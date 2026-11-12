@@ -14,6 +14,8 @@ namespace ageofai;
 // a name with no value of its own, the game's code gives it where the key is worked out (settings.cs "A SIZE")
 static class language_functions {
     public static vec2 vec(double x, double y) => default;
+    public static color rgb(int r, int g, int b) => default;   // a colour, 0 to 255 each (a setting's default: color k = rgb(50, 101, 187))
+    public static color none => default;                        // no colour (color k = none: the key's code has its own then)
     public static T game_input<T>() where T : struct => default;
 }
 

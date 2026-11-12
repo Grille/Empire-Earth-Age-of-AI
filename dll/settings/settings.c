@@ -16,6 +16,7 @@
 #define SET_FIELD_STR(name, a) char name[a];
 #define SET_FIELD_STR_P(name, a) char name[16][a];
 #define SET_FIELD_FACTOR(name, a) float name;
+#define SET_FIELD_COLOR(name, a) int name;   // 0xRRGGBB, -1 none
 #define SETF_INT_B(f) int f;
 #define SETF_INT_E(f, names) int f;
 #define SET_FIELD_FLAGS(name, a) struct { a(SETF_INT_B, SETF_INT_E) } name;   // a FLAGS row: an int per field
@@ -33,7 +34,7 @@ internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };  
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
 enum { SETTINGS(SET_ID_X, SET_ID_D) SETTING_N };
 
-enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_FACTOR, SETK_FLAGS, SETK_LIMIT };
+enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_FACTOR, SETK_FLAGS, SETK_LIMIT, SETK_COLOR };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, ',' between them (a name
 // may hold a '|': a master's default | file) - a FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
 // settings_ai, a value per difficulty); a: a FLAGS row's count of fields
@@ -47,6 +48,7 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_STR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR, ai, offsetof(st, name), 0, def, NULL, a, b },
 #define SET_ROW_STR_P(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR_P, ai, offsetof(st, name), 0, def, NULL, a, b },
 #define SET_ROW_FACTOR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FACTOR, ai, offsetof(st, name), def, NULL, NULL, a, b },
+#define SET_ROW_COLOR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_COLOR, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SETF_STR_B(f) #f "|"
 #define SETF_STR_E(f, names) #f "=" names "|"
 #define SETF_ONE_B(f) + 1
@@ -244,6 +246,25 @@ internal int setting_vec2(const char *sec, const char *text, const char *const *
     return g_ini_eval_vec2 && g_ini_eval_vec2(text, names, n, out, why);
 }
 
+// a colour's text as its value (*out 0xRRGGBB, -1 none), 1 parsed: #RRGGBB (six hex digits of either case, the # may be
+// left out) or none, spaces round it counting for nothing (the colour picker's hex field: the same but none - ui/color_picker.c)
+internal int setting_color(const char *t, int *out) {
+    while (*t == ' ') t++;
+    size_t n = strlen(t);
+    while (n && t[n - 1] == ' ') n--;
+    if (n == 4 && !_strnicmp(t, "none", 4)) { *out = -1; return 1; }
+    if (n && *t == '#') t++, n--;
+    if (n != 6) return 0;
+    int v = 0;
+    for (size_t i = 0; i < 6; i++) {
+        int c = t[i] | 32, x = t[i] >= '0' && t[i] <= '9' ? t[i] - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+        if (x < 0) return 0;
+        v = v * 16 + x;
+    }
+    *out = v;
+    return 1;
+}
+
 // row r's default into at
 internal void setting_default(const struct setting_row *r, void *at) {
     char why[96];
@@ -302,6 +323,14 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
             return 0;
         }
         *(int *)at = i;
+        return 1;
+    }
+    if (r->kind == SETK_COLOR) {
+        if (!setting_color(v, (int *)at)) {
+            ini_error(f, s, k, v, "#RRGGBB (six hex digits) or none expected");
+            setting_default(r, at);
+            return 0;
+        }
         return 1;
     }
     if (r->kind == SETK_SHARE || r->kind == SETK_FACTOR) {   // a mistake: told, the default
@@ -438,6 +467,7 @@ internal void setting_text(const struct setting_row *r, const uint8_t *at, char 
     switch (r->kind) {
     case SETK_SHARE: case SETK_FACTOR: snprintf(out, cap, "%.4g%%", *(const float *)at * 100.0); break;
     case SETK_CHOICE: setting_choice_name(r->choices, *(const int *)at, out, cap); break;
+    case SETK_COLOR: if (*(const int *)at < 0) lstrcpynA(out, "none", cap); else snprintf(out, cap, "#%06X", *(const int *)at); break;
     case SETK_FLAGS: {   // the fields not at their first: name (a bool), name=b (an enum), ", " between them
         char name[32], val[32];
         const char *vals;

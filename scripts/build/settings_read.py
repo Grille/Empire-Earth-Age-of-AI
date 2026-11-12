@@ -71,6 +71,16 @@ def percent(x, where):   # a share's fraction as the whole percents rows.h keeps
     return str(int(d))
 
 
+def color(x, where):   # a colour key's default (none, rgb(r, g, b)) as rows.h keeps it and the file writes it: (-1, 'none'), (0x3265BB, '#3265BB')
+    if x.strip() == 'none':
+        return -1, 'none'
+    m = re.match(r'^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$', x.strip())
+    if not m or any(int(c) > 255 for c in m.groups()):
+        raise SystemExit('%s: a colour\'s default is none or rgb(r, g, b), 0 to 255 each: %s' % (where, x))
+    v = int(m.group(1)) << 16 | int(m.group(2)) << 8 | int(m.group(3))
+    return v, '#%06X' % v
+
+
 def arg_text(a):   # an attribute's argument as written: a string's text, a number, a name (nameof(x) -> x)
     if isinstance(a, str):   # its escapes undone: "_aimod\\config" -> _aimod\config
         return re.sub(r'\\(.)', r'\1', a)
@@ -98,6 +108,8 @@ def kind_of(sec, k):   # rows.h's kind of a key
         return 'STR'
     if k.type == 'share':
         return 'SHARE'
+    if k.type == 'color':
+        return 'COLOR'
     if k.type == 'int':
         if not k.has('range'):
             return 'NUM'

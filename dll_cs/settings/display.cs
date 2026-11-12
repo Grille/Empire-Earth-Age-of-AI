@@ -194,11 +194,10 @@ class display
         /// control pipe: water opaque <n>):
         [range(0, 200)]
         int water_opaque_depth = 20;
-        /// With water_look: the colour of that fading, as three whole numbers from 0 to 255: red green blue (50 101 187 is
-        /// a blue like the game's deep water). It is lit as the water is. Empty = the deepest of the map's own underwater
-        /// colours (the control pipe: water color <red green blue> / water color map):
-        [length(32)]
-        string water_fog_color = "";
+        /// With water_look: the colour of that fading, as #RRGGBB (#3265BB is a blue like the game's deep water). It is
+        /// lit as the water is. none = the deepest of the map's own underwater colours (the control pipe: water color
+        /// <red green blue> / water color map):
+        color water_fog_color = none;
         /// With water_look: the light the waves gather on the seabed, lines of light that run with the waves, none at
         /// the waterline and fading with the depth; how bright, of the light on the ground (0% = none; the control
         /// pipe: water caustics <0..2>):

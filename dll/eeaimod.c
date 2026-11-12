@@ -31,6 +31,7 @@ struct ustring;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"   // taken whole: the dialogs use part of it, ageofai_config.exe the rest
 #include "ui/theme.c"             // Win32 controls in the game's look: the DLL's dialogs (engine/terrain_dialog.c)
+#include "ui/color_picker.c"      // the colour picker: the terrain colour dialog's, ageofai_config.exe's dialog of its own
 #pragma GCC diagnostic pop
 #include "game/api/api.c"         // the game's code and objects: typed functions, data accessors, hooks (game/api/)
 #include "game/players.c"

@@ -76,6 +76,8 @@ TEXT = {
         '          g_set.key.name. In the file words apart by commas or spaces: a bool by its name (on) or',
         '          name=0 / name=1, an enum name=b, all: every bool on, none or empty: every field its first; the',
         '          default the same way. A part that keeps a bit mask: SETTING_BITS(g_set_ai[1].army_plan) - field i, bit i.',
+        '  COLOR   a colour, an int 0xRRGGBB, -1 none (its code\'s own then); in the file #RRGGBB (the # may be left out) or',
+        '          none (settings.c setting_color)',
         '',
         'A range (INT, SHARE) is a sanity bound, not a limit the code relies on: a value outside it is a warning in the log',
         '("- used anyway") and the value kept (formation_wait=0% is silly but runs). A mistake is only what can\'t be used at',
