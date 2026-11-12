@@ -182,6 +182,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
 #define RW_CAUSTICS_SCALE 1.1f   // the waves' pattern units a tile: its cells about a tile across ([display] water_caustics_size 100%)
 #define RW_CAUSTICS_WIND 0.0f    // the way the waves run (radians from the map's x): along an axis, the lines run diagonally on the screen (along the screen's own axes they read as streaks)
 internal float g_rw_caustics = -1;   // the pipe's, -1 the setting's
+internal float g_rw_cobj = -1;       // the pipe's water caustics_objects, -1 the setting's
 internal double g_rw_ctime;          // their time: the wobble's half pace times [display] water_caustics_speed
 internal void rw_caustics_pc(rd3_pcb *pc, int on) {
     pc->cau[0] = on ? (g_rw_caustics >= 0 ? g_rw_caustics : g_set.water_caustics) : 0.0f;
@@ -189,6 +190,7 @@ internal void rw_caustics_pc(rd3_pcb *pc, int on) {
     pc->cau[2] = cosf(RW_CAUSTICS_WIND);
     pc->cau[3] = sinf(RW_CAUSTICS_WIND);
     pc->cat[0] = (float)g_rw_ctime;
+    pc->cat[3] = g_rw_cobj >= 0 ? g_rw_cobj : g_set.water_caustics_objects;   // on what stands in the water: times this ([display] water_caustics_objects)
 }
 internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
@@ -474,6 +476,7 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "sea") && v >= 0 && v <= 1) g_wa.sea = v;
     else if (n == 2 && !strcmp(mode, "seadepth") && v > 0) g_wa.seadepth = v;
     else if (n == 2 && !strcmp(mode, "caustics") && v >= 0 && v <= 2) g_rw_caustics = v;
+    else if (n == 2 && !strcmp(mode, "objects") && v >= 0 && v <= 4) g_rw_cobj = v;
     else if (n == 2 && !strcmp(mode, "refract") && v >= 0 && v <= 4) g_rw_refract = v;
     else if (n == 2 && !strcmp(mode, "ripples") && v >= 0 && v <= 4) g_rw_ripples = v;
     else if (n == 2 && !strcmp(mode, "strength") && v >= 0 && v <= 1) g_wa.strength = v;
@@ -493,7 +496,7 @@ internal void cmd_water(char *out, const char *args) {
     else if (!strcmp(mode, "away")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.away = 1; else if (!strcmp(a, "off")) g_wa.away = 0; }
     else if (!strcmp(mode, "edges")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_fe.force = 1; else if (!strcmp(a, "off")) g_fe.force = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..4> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
     const float *wc = rw_colour();
     REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,

@@ -144,7 +144,7 @@ typedef struct {
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
     float wat[4], sea[4], wop[4], wfc[4];   // the water by its depth, the seabed's detail, the camera and 1 / the way through it that hides all, the colour under the water and the projection's depth term (render_water.c)
     float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
-    float cau[4], cat[4];   // the caustics: strength (0 none), the pattern's units a tile, the wind's way (cos, sin); their time, the refraction's and the reflections' shift by the waves (tiles a unit of slope; render_water.c)
+    float cau[4], cat[4];   // the caustics: strength (0 none), the pattern's units a tile, the wind's way (cos, sin); their time, the refraction's and the reflections' shift by the waves (tiles a unit of slope), the caustics on objects times this (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
@@ -336,7 +336,7 @@ internal const char k_rd3_shader[] =
     // hull lies hardly deeper; the player, 2026-11-11: "next making casutics work on units again" - drawn by
     // the surface they had lit what lay behind it; on the seabed alone they had left the units)
     " if (gnd.x == 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9) && wat.x > 0 && cau.x > 0 && sea.w == 0 && i.w.z < sea.z) {"
-    "  float cd = sea.z - i.w.z; c.rgb = max(0, c.rgb * (1 + caus(i.w, cd, cd * 6))); }"
+    "  float cd = sea.z - i.w.z; c.rgb = max(0, c.rgb * (1 + caus(i.w, cd, cd * 6) * cat.w)); }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"

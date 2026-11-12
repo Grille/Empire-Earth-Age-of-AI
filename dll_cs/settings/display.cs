@@ -210,6 +210,10 @@ class display
         /// With water_caustics: how fast they move at the game's normal speed (0% = they stand):
         [range(0, 4)]
         factor water_caustics_speed = 1;
+        /// With water_caustics: their light on what stands in the water - a ship's hull, a wading unit - times this, over
+        /// the seabed's (0% = none on them; the control pipe: water objects <0..4>):
+        [range(0, 4)]
+        share water_caustics_objects = 2;
         /// With water_look: what lies under the water seen bent by the surface's waves (the waves the caustics come
         /// from), none at the shore, all where the line of sight runs a quarter tile or more through the water; how far
         /// (100%: 0.06 tiles at a wave of middling slope; 0% = none; the control pipe: water refract <0..4>):
