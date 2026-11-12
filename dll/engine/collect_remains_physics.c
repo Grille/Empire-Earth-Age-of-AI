@@ -21,8 +21,11 @@
 // buoyant so it stay at the waterline, with the other side rasing in the air"): a seesaw, US_SEESAW of them, the four
 // above sharing the rest as before - its bow or its stern flooded at once to a little below nothing, its sides lifting
 // US_SEESAW_LIFT (the middle carries the whole ship and that end's pull at the waterline: at 2 it went under with it)
-// until they leak late and slowly, the other end's slow leak as any; the flooded end goes down, the other rises out of
-// the water, it hangs about its middle and slides under. Not a submarine's or an aircraft's. Each float goes into
+// until they leak, late and slowly - one side from 3 - 6 s, the other 3 - 6 s after it, each over 14 - 22 s (both from
+// 8 - 15 s over 10 - 20 until 2026-11-13, the player: "the seesaw looks a bit stiff, the middle should ease into the
+// sinking a bit earlier", "also make one point fail before the other": it heels to that side as it settles) -, the
+// other end's slow leak as any; the flooded end goes down, the other rises out of the water, it hangs about its middle
+// and slides under. Not a submarine's or an aircraft's. Each float goes into
 // the seabed by a depth of its own, up to US_DIG of the beam by the same plan (the player, the same day: "each point
 // should have a random value how deep it can sink into the ground"): a wreck comes to rest unevenly buried, tilted.
 // It goes on at the speed it had when it died (the player: "also let the unit keep its velocity on death"): the floats
@@ -286,7 +289,9 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late, int seesaw) {
     if (seesaw && plan >= 1.0f - US_SEESAW) {   // one end flooded at once, the middle holding late
         int e = us_rnd(&s) < 0.5f;   // the bow or the stern
         k->leak[e][0] = -0.3f - 0.3f * us_rnd(&s), k->leak[e][1] = 0.2f * us_rnd(&s), k->leak[e][2] = 1.5f + 2.0f * us_rnd(&s);
-        for (int i = 2; i < 4; i++) k->leak[i][1] = 8.0f + 7.0f * us_rnd(&s), k->leak[i][2] = 10.0f + 10.0f * us_rnd(&s), k->leak[i][3] = US_SEESAW_LIFT;
+        int a = 2 + (us_rnd(&s) < 0.5f);   // the side that fails first
+        k->leak[a][1] = 3.0f + 3.0f * us_rnd(&s), k->leak[a ^ 1][1] = k->leak[a][1] + 3.0f + 3.0f * us_rnd(&s);
+        for (int i = 2; i < 4; i++) k->leak[i][2] = 14.0f + 8.0f * us_rnd(&s), k->leak[i][3] = US_SEESAW_LIFT;
         plan = -1.0f;
     } else if (seesaw) plan /= 1.0f - US_SEESAW;   // the others share the rest as before
     int fast = plan < 0.0f ? -1 : plan < 1.0f / 3.0f ? 0 : plan < 2.0f / 3.0f ? 1 : 2 + (us_rnd(&s) < 0.5f);   // bow, stern, a side
