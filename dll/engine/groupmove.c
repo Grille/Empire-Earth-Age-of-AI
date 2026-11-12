@@ -597,6 +597,153 @@ internal void ff_start(void *group, int n, vec2 c, vec2 fwd, vec2 right, int que
     if (g_ff_count > 1) g_ff_split++;
 }
 
+// MARCHES RESUMED (the player, 2026-11-12: "units selected together dont move as an formation, formations/group arent
+// part of the save data yet right?"): a march is the mod's own memory, and a game start empties it (groupmove_new_game) -
+// a saved game loaded, a scenario played, the editor's scenario read back after its Test (editor_orders.c); the units keep
+// their orders (each one's spot and facing in its location goal) but not the game's group (NULL after the scenario was
+// read back: seen), and walked each its own way. So at the first look after a start (ff_linger_tick) the moves are found
+// again from the goals: the units in no march whose current order is a location goal (behind an attack-move's attacks
+// at most), of one owner, one forced flag and one facing (a group move gives all its units the drag's or the click's
+// angle - a circle's differ, it never marches) and spots within FF_LINK of each other's (padded by their sizes, chained)
+// are one move; it marches anew as ff_start lays out a move's march (blocks by where they stand, at the slowest one's
+// speed) from where they stand, by its leader's goal. A queued move after it isn't (its units go on to it each its own
+// way), nor the formation's kind (the default's layout is no one's). From the game's state in the simulation: the same on
+// every PC
+#define FF_RESUME_MAX 8192
+struct ff_res { ee_unit *u; ee_goal *g; uint32_t yaw, serial; int owner, forced; vec2 at; float w; };
+internal struct ff_res g_ffr[FF_RESUME_MAX];
+internal int g_ffr_root[FO_MAX];
+internal int g_ff_resumed;   // looked since the start (groupmove_new_game)
+internal unsigned g_ff_resumed_marches, g_ff_resumed_units;
+// u's current move: its first order a location goal, or behind attacks only (an attack-move's fights on the way)
+internal ee_goal *ff_res_goal(ee_unit *u) {
+    int n = unit_orders(u);
+    for (int i = 0; i < n; i++) {
+        ee_goal *g = unit_order_at(u, i);
+        if (!g) return NULL;
+        if (goal_is_location(g)) return g;
+        if (!goal_is_attack(g)) return NULL;
+    }
+    return NULL;
+}
+// by owner, forced flag, facing (one move's units together), then id: the same order on every PC
+internal int ff_res_key(const struct ff_res *a, const struct ff_res *b) {
+    if (a->owner != b->owner) return a->owner < b->owner ? -1 : 1;
+    if (a->forced != b->forced) return a->forced < b->forced ? -1 : 1;
+    if (a->yaw != b->yaw) return a->yaw < b->yaw ? -1 : 1;
+    return 0;
+}
+internal int ff_res_cmp(const void *pa, const void *pb) {
+    const struct ff_res *a = pa, *b = pb;
+    int k = ff_res_key(a, b);
+    return k ? k : a->serial < b->serial ? -1 : a->serial > b->serial;
+}
+internal int ffr_root(int i) { while (g_ffr_root[i] != i) i = g_ffr_root[i] = g_ffr_root[g_ffr_root[i]]; return i; }
+internal int g_ffr_idx[FO_MAX];   // a move's units in g_ffr (ff_start has g_ff_idx for its blocks)
+// one move found again: g_ffr[idx[0 .. k)] marching
+internal void ff_resume_move(const int *idx, int k) {
+    const float PI = 3.14159265f;
+    vec2 c = v2(0, 0), now = v2(0, 0);
+    int kind = g_set.formation_kind >= 0 && g_set.formation_kind < FORMATION_INWARD_CIRCLE ? g_set.formation_kind : 0;
+    g_fo_naval = 1;
+    for (int j = 0; j < k; j++) {
+        const struct ff_res *r = &g_ffr[idx[j]];
+        struct fo_unit *f = &g_fo[j];
+        vec3 p = unit_get_pos(r->u);
+        memset(f, 0, sizeof *f);
+        f->u = r->u;
+        f->p = f->from = v2(p.x, p.y);
+        f->at = r->at;
+        f->w = r->w * FO_PAD[kind];
+        f->facing = r->yaw;
+        f->rank = fo_rank(r->u);
+        c = vec2_add(c, r->at);
+        now = vec2_add(now, f->from);
+        ee_unit_type *td = unit_get_type_data(r->u);
+        int mk = td ? model_kind(unit_type_get_model(td)) : 0;
+        if (mk != MODEL_SHIPS && mk != MODEL_SUBS) g_fo_naval = 0;
+    }
+    c = vec2_scale(c, 1.0f / (float)k);
+    now = vec2_scale(now, 1.0f / (float)k);
+    float yaw;
+    memcpy(&yaw, &g_ffr[idx[0]].yaw, sizeof yaw);
+    vec2 fwd, to = vec2_sub(c, now);
+    float tl = vec2_len(to);
+    if (yaw != 0) {   // the facing's direction (-sin, cos), as hook_formation_slots takes the drag's angle
+        float ang = yaw + PI / 2;
+        while (ang < 0) ang += 2 * PI;
+        while (ang >= 2 * PI) ang -= 2 * PI;
+        fwd = fo_dir(ang);
+    } else fwd = tl > 0.5f ? vec2_scale(to, 1.0f / tl) : v2(0, 1);
+    g_fo_has_march = 0;
+    g_fo_kind = kind;
+    g_fo_forced = g_ffr[idx[0]].forced;
+    ff_start(NULL, k, c, fwd, v2(fwd.y, -fwd.x), 0, -1);
+    for (int m = 0; m < g_ff_count; m++) {   // each march by its leader's goal (hook_slot_goal's for a move given now)
+        struct ff_group *gr = &g_ff[(g_ff_first + m) % FF_GROUPS];
+        for (int j = 0; j < k; j++) if (g_ffr[idx[j]].serial == gr->leader) gr->goal = g_ffr[idx[j]].g;
+        g_ff_resumed_marches++;
+        g_ff_resumed_units += (unsigned)gr->n;
+    }
+    g_fo_forced = 1;
+}
+// the look held (0) or the next one to come (1): the editor's scenario read back after its Test - a look of the
+// simulation's thread between the start (groupmove_new_game) and the end of the read saw the units halted, no orders,
+// or half read
+internal void groupmove_resume_next(int on) { g_ff_resumed = !on; }
+internal void ff_resume(void) {
+    int n = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && n < FF_RESUME_MAX; ) {
+        ee_unit *u = it.u;
+        ee_unit_stats *st = unit_get_stats(u);
+        ee_player *pl = unit_get_owner(u);
+        if (!st || unit_stats_get_speed(st) <= 0 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !pl || !player_get_index(pl)) continue;
+        ee_goal *g = ff_res_goal(u);
+        if (!g) continue;
+        struct ff_unit *e = ff_find((uint32_t)unit_get_serial(u), 0);
+        if (e && e->g >= 0 && g_ff[e->g].on) continue;   // in a march (the editor's first Test: the editor's marches)
+        struct ff_res *r = &g_ffr[n++];
+        float yaw = location_goal_get_yaw((ee_location_goal *)g), s = unit_get_size(u);
+        vec3 t = goal_target(g, u);
+        r->u = u;
+        r->g = g;
+        memcpy(&r->yaw, &yaw, sizeof r->yaw);
+        r->serial = (uint32_t)unit_get_serial(u);
+        r->owner = player_get_index(pl);
+        r->forced = location_goal_get_forced((ee_location_goal *)g) != 0;
+        r->at = v2(t.x, t.y);
+        r->w = s < FO_MIN_SIZE ? FO_MIN_SIZE : s;
+    }
+    if (!n) return;
+    qsort(g_ffr, (size_t)n, sizeof *g_ffr, ff_res_cmp);
+    unsigned marches = g_ff_resumed_marches, units = g_ff_resumed_units;
+    for (int a = 0; a < n; ) {
+        int b = a + 1;
+        while (b < n && !ff_res_key(&g_ffr[a], &g_ffr[b])) b++;
+        if (b - a >= 2 && b - a <= FO_MAX) {   // one owner, forced flag and facing: chained by their spots
+            int k = b - a;
+            for (int i = 0; i < k; i++) g_ffr_root[i] = i;
+            for (int i = 1; i < k; i++)
+                for (int j = 0; j < i; j++) {
+                    float lk = FF_LINK + (g_ffr[a + i].w + g_ffr[a + j].w) * FO_PAD[0] * 0.5f;
+                    if (vec2_dist2(g_ffr[a + i].at, g_ffr[a + j].at) < lk * lk) {
+                        int x = ffr_root(i), y = ffr_root(j);
+                        if (x != y) g_ffr_root[x > y ? x : y] = x < y ? x : y;
+                    }
+                }
+            for (int r = 0; r < k; r++) {
+                if (ffr_root(r) != r) continue;
+                int m = 0;
+                for (int i = r; i < k; i++) if (ffr_root(i) == r) g_ffr_idx[m++] = a + i;
+                if (m >= 2) ff_resume_move(g_ffr_idx, m);
+            }
+        }
+        a = b;
+    }
+    if (g_log)
+        fprintf(g_log, "# formation: %u marches resumed from the units' moves after the start (%u units of %d with a move in no march), game time %u\n", g_ff_resumed_marches - marches, g_ff_resumed_units - units, n, game_time());
+}
+
 // a queued move turning so little from the last march its units are on or queued for (all of them, all on it) that
 // the formation wheels (ff_wheels): the same formation goes on - each unit's spot its offset from the leader in that march, turned to the new facing
 // around the leader's spot (as far from the point c as before) - instead of a new layout; the march's index, else -1
@@ -1715,6 +1862,7 @@ internal void ff_linger_tick(void) {
     // 2026-11-11, zz_am_fail.ees: 50 riders attack-moved through the enemy, no look for enemies given)
     if (!g_ff_on || step / FF_HOME_EVERY == g_ff_ticked) return;
     g_ff_ticked = step / FF_HOME_EVERY;
+    if (!g_ff_resumed) { g_ff_resumed = 1; ff_resume(); }   // the first look since the start: the moves' marches again
     static int moving[FF_GROUPS];
     int any = 0;
     for (int k = 0; k < FF_GROUPS; k++) {
@@ -2240,6 +2388,7 @@ internal void groupmove_new_game(void) {
     memset(g_fo_marched, 0, sizeof g_fo_marched);
     g_ff_next = g_fo_marched_n = 0;
     g_ff_count = 0;
+    g_ff_resumed = 0;
 }
 
 internal void __thiscall hook_formation_slots(void *f, void *group, void *slots) {

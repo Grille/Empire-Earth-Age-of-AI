@@ -314,6 +314,11 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   turns it to face the way to the point, as the game does;
   `formation_keep_facing=1` keeps its facing instead (in the game's view a click comes as a drag facing the way to
   the point, so a drag within 10 degrees of that way counts as a click here).
+  A march goes on after a load: a saved game, a scenario played with orders given in the editor, the editor's Test
+  after the scenario was read back - the units kept their orders, but the march is the mod's own and wasn't saved, and
+  each unit walked to its spot on its own. Now the units whose orders are one group move's (one player's, one facing,
+  their spots close together) march again from where they stand, as a new move would; a shift-queued move after it is
+  walked by each unit on its own.
 - `[general] formation_wheel=3` (tiles, with formation_follow): a formation turns as it stands - told to form where it
   stands facing another way, to face another way at its goal, or at a shift-queued turn - when the turn moves its
   outermost unit no further than this; turned further it forms anew, each unit to the nearest place. Not an angle: a

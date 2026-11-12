@@ -46,6 +46,7 @@ internal void __thiscall hook_eo_open(ee_editor_form *f) {
     editor_form_open(f);
     if (!back) return;
     groupmove_new_game();   // the test's marches over: their linger would send the units back to the test's spots
+    groupmove_resume_next(0);   // (not looked for till the read is done, below)
     int n = eo_orders(1), left = eo_orders(0);   // (the read gives a unit the file's orders, but leaves it its own when the file has none)
     __attribute__((aligned(8))) uint8_t spec[0x100] = { 0 };
     int read = -1;
@@ -54,6 +55,7 @@ internal void __thiscall hook_eo_open(ee_editor_form *f) {
         fs_spec_free(spec);
     }
     g_eo_have = 0;
+    groupmove_resume_next(1);   // the editor's orders march again: looked for after the read (groupmove.c ff_resume)
     if (g_log) log_locked("# editor: back from a test, %d units' orders of it dropped (%d left), %s, %d units hold orders\n", n, left,
                           read == 0 ? "the scenario read as it was before it" : "the scenario NOT read again: the editor's orders lost", eo_orders(0));
 }
