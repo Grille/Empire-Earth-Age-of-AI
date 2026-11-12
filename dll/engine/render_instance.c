@@ -424,8 +424,11 @@ typedef struct { const float *outer; float scale; in_pose pose; ee_texture *tex;
 internal int g_in_capture;   // render_units.c's comparison: the parts noted (1 only noted, 2 noted and drawn)
 internal LONG g_in_walks;   // ... and the walks while it notes
 internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni, const rd_device *d);
+internal void *g_kt_cap;   // render_units.c: a tree being kept - its parts taken, not drawn
+internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni);
 // a material of a model seen: what the DLL does for it, without the device's calls
 internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
+    if (g_kt_cap) { kt_capture(m, mat, tex, p, world, idx, ni); return; }
     if (g_in_capture) {
         ud_note(m, mat, tex, p, world, idx, ni, c->d);
         if (g_in_capture == 1) return;
@@ -498,6 +501,18 @@ internal void *in_tex(const in_rec *r, ee_material *mat, uint32_t i, int depth) 
     if (depth == 0) return k < n && !texture_get_one_frame(t) ? fr[k] : fr[0];
     return k < n ? (texture_get_one_frame(t) ? fr[0] : fr[k]) : t;
 }
+// the detail a root model is drawn in at transformation t and size s: by its size on the screen (the engine's) against
+// the view's width and the graphics' bias, as the DLL's DrawModelHierarchy chooses it
+internal uint32_t in_lod(const in_ctx *c, ee_model *m, float *t, float s) {
+    uint32_t lods = model_get_lods(m);
+    float w = screen_state_get_view_right(c->view) - screen_state_get_view_left(c->view);
+    long double f = (long double)g_in.pixels(c->ras, m, c->view, t, s, 0);
+    f = ((long double)800 / (long double)w * f) / (long double)c->bias;
+    if (f > 1) f = 1;
+    float k = (float)((1 - f) * (long double)(int)lods);
+    uint32_t lod = (uint32_t)lrintf(k);
+    return lod >= lods - 1 ? lods - 1 : lod;
+}
 // a model and what hangs on it (parent: its parent's transformation, pscale its size; r: a record the mod draws, NULL
 // for the game's draw, which set the model)
 internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float pscale, const in_rec *r, int depth) {
@@ -515,16 +530,7 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
     uint8_t seen = 0, clip = 0;
     shr_hook_visible(c->ras, m, s, c->view, t, &seen, &clip);
     if (seen) {
-        uint32_t lod = 0, lods = model_get_lods(m);
-        if (!parent) {
-            float w = screen_state_get_view_right(c->view) - screen_state_get_view_left(c->view);
-            long double f = (long double)g_in.pixels(c->ras, m, c->view, t, s, 0);
-            f = ((long double)800 / (long double)w * f) / (long double)c->bias;
-            if (f > 1) f = 1;
-            float k = (float)((1 - f) * (long double)(int)lods);
-            lod = (uint32_t)lrintf(k);
-            if (lod >= lods - 1) lod = lods - 1;
-        }
+        uint32_t lod = parent ? 0 : in_lod(c, m, t, s);
         D3DMATRIX world = { ._11 = t[0], ._12 = t[4], ._13 = t[8], ._14 = t[12], ._21 = t[1], ._22 = t[5], ._23 = t[9], ._24 = t[13],
                             ._31 = t[2], ._32 = t[6], ._33 = t[10], ._34 = t[14], ._41 = t[3], ._42 = t[7], ._43 = t[11], ._44 = t[15] };
         const WORD *indices = polygons_get_indices(model_get_polygons(m)[lod]);
@@ -532,7 +538,7 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
         for (uint32_t i = 0, nm = model_get_material_count(m); i < nm; i++) {
             ee_material *mat = mats[i];
             uint32_t tris = material_get_polygon_count(mat)[lod];
-            if (tris) in_part(c, m, mat, r && !r->mat_tex ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
+            if (tris || g_kt_cap) in_part(c, m, mat, r && !r->mat_tex ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
                               indices + material_get_polygon_first(mat)[lod] * 3, tris * 3);
         }
     }

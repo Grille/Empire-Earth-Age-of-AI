@@ -34,12 +34,16 @@ internal struct {
 } g_ud = { .force = -1 };
 internal int ud_mode(void) { return g_ud.force >= 0 ? g_ud.force : 1; }
 // the device's states a part is drawn under (all but the world matrix and the material, which the walk sets from the
-// part, and the texture bound, which it binds - the part's own is compared) and its material's colour, as a hash (compared
-// as the parts are)
+// part, and the texture bound with the mipmaps' bias the DLL's SetTexture sets by it, which the walk binds - the part's
+// own is compared; the noted side binds none, its second part had the bias of the record before: 2 360 of 1.9 million
+// differed over the player's save) and its material's colour, as a hash (compared as the parts are)
 internal uint32_t ud_states(const rd_device *d, const ee_material *mat) {
     vec3 col = material_get_colour(mat);
-    const void *parts[] = { &d->view, &d->proj, &d->viewport, d->light, d->light_on, d->rs, d->tss, &col };
-    const size_t sizes[] = { sizeof d->view, sizeof d->proj, sizeof d->viewport, sizeof d->light, sizeof d->light_on, sizeof d->rs, sizeof d->tss, sizeof col };
+    DWORD tss[2][RD_TSS];
+    memcpy(tss, d->tss, sizeof tss);
+    tss[0][D3DTSS_MIPMAPLODBIAS] = tss[1][D3DTSS_MIPMAPLODBIAS] = 0;
+    const void *parts[] = { &d->view, &d->proj, &d->viewport, d->light, d->light_on, d->rs, tss, &col };
+    const size_t sizes[] = { sizeof d->view, sizeof d->proj, sizeof d->viewport, sizeof d->light, sizeof d->light_on, sizeof d->rs, sizeof tss, sizeof col };
     uint32_t h = 2166136261u;
     for (int k = 0; k < 8; k++) for (size_t i = 0; i < sizes[k]; i++) h = (h ^ ((const uint8_t *)parts[k])[i]) * 16777619u;
     return h;
@@ -284,18 +288,198 @@ internal int ut_draw(float *at, void *rec) {
     at[3] = pos.x, at[7] = pos.y, at[11] = pos.z;
     return in_draw_rec(m, &r, dmg_model_get_detail_bias(g)) ? 1 : ud_fell(UD_BENT);
 }
+// THE TREES KEPT (the pipe: picture kept on | off | (nothing: its counts); on with the mod's tree draw). A tree stands
+// still: its place, its size and the camera's turn its caller made for all the trees are the same from one frame to the
+// next, and only its sway (the fraction between its two frames) moves - yet every frame took the whole walk for it, the
+// display DLL's Draw, the hierarchy, its transformations made (10 800 trees a frame zoomed out over the player's
+// 7-player save, 5 ms). Here a tree's parts are taken once from that walk (kt_capture: what in_part would draw - model,
+// material, texture, place - of every material, drawn in this detail or not) and kept by everything they come of: its
+// graphics, animation, model, frames, size and the turn with its place written in. Later frames choose the detail as the
+// walk does (in_lod: its size on the screen, which the camera changes) and hand the kept parts to in_part with that
+// detail's indices and the record's sway and opacity. Kept only what the walk gives alike at every sway (taken twice, at
+// fractions 0 and 1: the frames' own transformations may differ, and the walk blends them), and drawn so only while
+// every model is let through the view's test (render_shadows.c shr_pass: the casters off the screen collected) - else
+// the walk as before. The trees come in the same order every frame (their sort map's): kept in the order first drawn,
+// each knows the one drawn after it, and that guess is tried before the hash (a table of 27 MB looked up by hash cost
+// more than the walk saved: a cache miss a tree).
+#define KT_SLOTS 65536       // the hash's (a tree's number + 1), at most half full
+#define KT_TREES 32768       // trees kept; full, it starts over
+#define KT_ALL_PARTS 65536   // their parts
+#define KT_PARTS 8           // a tree's parts at most
+enum { KT_NEW, KT_OK, KT_NOT };
+enum { KT_SWAY, KT_MANY, KT_NONE, KT_REASONS };
+internal const char *const k_kt_reason[KT_REASONS] = { "moved by its sway", "of too many parts", "none drawn" };
+typedef struct { ee_model *m; ee_material *mat; void *tex; D3DMATRIX w; int root; } kt_part;
+typedef struct {
+    ee_dmg_model *g; ee_model *m; int anim; uint32_t frame, next; float scale, at[12];
+    int state;
+    uint32_t part, np;   // its parts in g_kt.part
+    uint32_t follow;     // the tree drawn after it last (its number + 1; 0 none)
+    float t[16];         // the root's transformation (its size on the screen is asked by it)
+} kt_tree;
+internal struct {
+    int force;   // the pipe's: 0 off, 1 on; -1: on
+    uint32_t *hash;
+    kt_tree *t;
+    kt_part *part;
+    uint32_t n, nparts, last;   // last: the tree drawn last (its number + 1)
+    void *map;
+    int starts;
+    int pass, seen, bad;        // the tree being taken (g_kt_cap): its pass, the second pass's parts so far, why it can't be kept
+    LONG drawn, walked, made, starts_over, guessed, reason[KT_REASONS];
+} g_kt = { .force = -1 };
+internal int kt_on(void) { return g_kt.force < 0 ? 1 : g_kt.force; }
+// the walk's part into the tree being taken (render_instance.c in_part, while g_kt_cap): the first pass's kept, the
+// second's held against them
+internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
+    (void)idx; (void)ni;   // (the detail's: chosen at each draw)
+    kt_tree *k = g_kt_cap;
+    if (p->va) { g_kt.bad |= 1 << KT_MANY; return; }
+    if (!g_kt.pass) {
+        if (k->np >= KT_PARTS || g_kt.nparts >= KT_ALL_PARTS) { g_kt.bad |= 1 << KT_MANY; return; }
+        kt_part *e = &g_kt.part[g_kt.nparts++];
+        k->np++;
+        e->m = m; e->mat = mat; e->tex = tex; e->w = *world; e->root = m == k->m;
+        return;
+    }
+    uint32_t i = (uint32_t)g_kt.seen++;
+    const kt_part *e = &g_kt.part[k->part + i];
+    if (i >= k->np || e->m != m || e->mat != mat || e->tex != tex || memcmp(&e->w, world, sizeof *world)) g_kt.bad |= 1 << KT_SWAY;
+}
+internal inline int kt_same(const kt_tree *k, const ee_dmg_model *g, const ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at) {
+    return k->g == g && k->m == m && k->anim == anim && k->frame == frame && k->next == next && k->scale == scale && !memcmp(k->at, at, sizeof k->at);
+}
+// the tree kept for these (made, KT_NEW, if new); NULL: no room
+internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at) {
+    void *map = game_map();
+    if (!g_kt.hash) {
+        g_kt.hash = calloc(KT_SLOTS, sizeof *g_kt.hash);
+        g_kt.t = malloc(KT_TREES * sizeof *g_kt.t);
+        g_kt.part = malloc(KT_ALL_PARTS * sizeof *g_kt.part);
+        if (!g_kt.hash || !g_kt.t || !g_kt.part) { free(g_kt.hash); free(g_kt.t); free(g_kt.part); g_kt.hash = NULL; return NULL; }
+    }
+    if (map != g_kt.map || g_kt.starts != g_game_starts || g_kt.n >= KT_TREES || g_kt.nparts > KT_ALL_PARTS - KT_PARTS) {
+        if (map == g_kt.map && g_kt.starts == g_game_starts) InterlockedIncrement(&g_kt.starts_over);
+        memset(g_kt.hash, 0, KT_SLOTS * sizeof *g_kt.hash);
+        g_kt.n = g_kt.nparts = g_kt.last = 0;
+        g_kt.map = map; g_kt.starts = g_game_starts;
+    }
+    kt_tree *k = NULL;
+    if (g_kt.last && g_kt.t[g_kt.last - 1].follow) {
+        kt_tree *f = &g_kt.t[g_kt.t[g_kt.last - 1].follow - 1];
+        if (kt_same(f, g, m, anim, frame, next, scale, at)) k = f, g_kt.guessed++;
+    }
+    if (!k) {
+        uint32_t h = ((uint32_t)(uintptr_t)g >> 4) * 2654435761u ^ (uint32_t)anim * 40503u ^ frame * 2246822519u, w;
+        memcpy(&w, &scale, 4); h = (h ^ w) * 16777619u;
+        for (int i = 0; i < 12; i++) { memcpy(&w, at + i, 4); h = (h ^ w) * 16777619u; }
+        for (h &= KT_SLOTS - 1;; h = (h + 1) & (KT_SLOTS - 1)) {
+            if (!g_kt.hash[h]) {
+                k = &g_kt.t[g_kt.n++];
+                memset(k, 0, sizeof *k);
+                k->g = g; k->m = m; k->anim = anim; k->frame = frame; k->next = next; k->scale = scale;
+                memcpy(k->at, at, sizeof k->at);
+                k->state = KT_NEW;
+                g_kt.hash[h] = g_kt.n;
+                break;
+            }
+            kt_tree *e = &g_kt.t[g_kt.hash[h] - 1];
+            if (kt_same(e, g, m, anim, frame, next, scale, at)) { k = e; break; }
+        }
+    }
+    uint32_t no = (uint32_t)(k - g_kt.t) + 1;
+    if (g_kt.last) g_kt.t[g_kt.last - 1].follow = no;
+    g_kt.last = no;
+    return k;
+}
+// a new tree's parts taken from the walk at fractions 0 and 1 (the states of its draw set by the caller)
+internal void kt_make(kt_tree *k, const in_rec *r0, float bias) {
+    k->state = KT_NOT;
+    k->part = g_kt.nparts; k->np = 0;
+    g_kt.seen = g_kt.bad = 0;
+    in_rec r = *r0;
+    float t1[16];
+    r.pose.frac = 0.0f; in_local(k->m, r.outer, r.scale, &r.pose, k->t);
+    r.pose.frac = 1.0f; in_local(k->m, r.outer, r.scale, &r.pose, t1);
+    if (memcmp(k->t, t1, sizeof t1)) g_kt.bad |= 1 << KT_SWAY;
+    g_kt_cap = k;
+    g_kt.pass = 0; r.pose.frac = 0.0f;
+    if (!g_kt.bad && !in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
+    g_kt.pass = 1; r.pose.frac = 1.0f;
+    if (!g_kt.bad && !in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
+    g_kt_cap = NULL;
+    if ((uint32_t)g_kt.seen != k->np) g_kt.bad |= 1 << KT_SWAY;   // (the second pass saw another count of parts)
+    if (!k->np) g_kt.bad |= 1 << KT_NONE;
+    for (int i = 0; i < KT_REASONS; i++)
+        if (g_kt.bad & 1 << i) { InterlockedIncrement(&g_kt.reason[i]); g_kt.nparts = k->part; k->np = 0; return; }
+    k->state = KT_OK;
+    InterlockedIncrement(&g_kt.made);
+}
+// a tree's record drawn from its kept parts (as ut_draw, which it falls back to): 1 drawn, 0 the game's draw is to draw it
+internal int kt_draw(float *at, void *rec) {
+    if (!kt_on()) return ut_draw(at, rec);
+    ee_dmg_model *g = draw_small_record_get_gfx(rec);
+    if (!g) return 0;
+    float scale = draw_small_record_get_scale(rec);
+    if (!(scale > *(const float *)engine_display_float_zero_at())) return 1;
+    if (bl_noted(g) || !shr_pass() || !in_can(*game_camera_fixed_at()) || !in_init()) return ut_draw(at, rec);
+    int anim = draw_small_record_get_anim(rec);
+    ee_model *m = graphics_anim_model(g, anim);
+    if (!m) return ut_draw(at, rec);
+    float op = draw_small_record_get_opacity(rec);
+    vec3 pos = draw_small_record_get_pos(rec);
+    uint32_t frame = (uint32_t)draw_small_record_get_frame(rec), next = (uint32_t)draw_small_record_get_next_frame(rec);
+    at[3] = pos.x, at[7] = pos.y, at[11] = pos.z;   // (as ut_draw writes it)
+    kt_tree *k = kt_find(g, m, anim, frame, next, scale, at);
+    if (!k || k->state == KT_NOT) { InterlockedIncrement(&g_kt.walked); return ut_draw(at, rec); }
+    ee_rasterizer *ras = rasterizer();
+    uint32_t screen = (uint32_t)screen_index();
+    float ref = dmg_model_get_alpha_ref(g), bias = dmg_model_get_detail_bias(g);
+    rasterizer_set_alpha_ref(ras, ref > op ? *(const float *)engine_display_alpha_ref_low_at() : ref, screen);
+    rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
+    rd_device *d = in_device(ras, screen);
+    if (!d) return ud_fell(UD_CANT);
+    in_rec r = { at, scale, { frame, next, draw_small_record_get_sway(rec), op, NULL }, graphics_anim_texture(g, anim), model_get_material_count(m), 0, 0 };
+    if (k->state == KT_NEW) {
+        if (!in_model_ok(m, &r.pose, 1)) k->state = KT_NOT;
+        else kt_make(k, &r, bias);
+        if (k->state != KT_OK) { InterlockedIncrement(&g_kt.walked); return ut_draw(at, rec); }
+    }
+    in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
+    uint32_t lod = in_lod(&c, m, k->t, scale);
+    for (uint32_t i = 0; i < k->np; i++) {
+        const kt_part *e = &g_kt.part[k->part + i];
+        uint32_t l = e->root ? lod : 0, tris = material_get_polygon_count(e->mat)[l];
+        if (tris) in_part(&c, e->m, e->mat, e->tex, &r.pose, &e->w, polygons_get_indices(model_get_polygons(e->m)[l]) + material_get_polygon_first(e->mat)[l] * 3, tris * 3);
+    }
+    InterlockedIncrement(&g_kt.drawn);
+    return 1;
+}
+internal int kt_pipe(char *out, const char *arg) {
+    if (!strcmp(arg, "on") || !strcmp(arg, "off")) {
+        g_kt.force = arg[1] == 'n';
+        REPLY("the trees kept %s\n", g_kt.force ? "on" : "off");
+        return 1;
+    }
+    if (arg[0]) { REPLY("error: usage: picture kept [on | off]\n"); return 1; }
+    REPLY("the trees kept: %s; %lu in the table (%ld made, started over %ld times), drawn kept %ld (found by the guess %ld), by the walk %ld (",
+          kt_on() ? "on" : "off", (unsigned long)g_kt.n, (long)g_kt.made, (long)g_kt.starts_over, (long)g_kt.drawn, (long)g_kt.guessed, (long)g_kt.walked);
+    for (int i = 0; i < KT_REASONS; i++) REPLY("%s%s %ld", i ? ", " : "", k_kt_reason[i], (long)g_kt.reason[i]);
+    REPLY(")\n");
+    return 1;
+}
 // render_silhouette.c's hook of the game's tree draw: 1 when it is drawn here
 internal int ut_record(ee_ro_units *ro, float *at, void *rec) {
     int mode = ud_mode();
     if (!mode) return 0;
     if (mode == 1) {
-        if (!ut_draw(at, rec)) { InterlockedIncrement(&g_ud.trees_game); return 0; }
+        if (!kt_draw(at, rec)) { InterlockedIncrement(&g_ud.trees_game); return 0; }
         InterlockedIncrement(&g_ud.trees_own);
         return 1;
     }
     g_ud.side = 0; g_ud.n[0] = g_ud.n[1] = 0; g_ud.over = 0; g_ud.bent = 0;
     g_in_capture = 1;
-    int mine = ut_draw(at, rec);
+    int mine = kt_draw(at, rec);
     g_ud.side = 1;
     g_in_capture = 2;
     LONG fell = g_in_fell;
@@ -312,6 +496,7 @@ internal int pd_pipe(char *out, const char *arg);   // render_effects.c
 internal int ud_pipe(char *out, const char *mode, const char *arg) {
     if (!strcmp(mode, "maps")) return um_pipe(out, arg);
     if (!strcmp(mode, "pieces")) return pd_pipe(out, arg);
+    if (!strcmp(mode, "kept")) return kt_pipe(out, arg);
     if (strcmp(mode, "draw")) return 0;
     if (!strcmp(arg, "game") || !strcmp(arg, "own") || !strcmp(arg, "check")) {
         g_ud.force = arg[0] == 'g' ? 0 : arg[0] == 'o' ? 1 : 2;

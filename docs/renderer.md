@@ -996,7 +996,20 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    out, paused: the units' draw 6.0-6.4 ms a frame before, 4.5-5.0 now (the records 3.6-3.8 to 2.6-2.9, the trees 1.45
    to 1.05-1.15); 6.0-6.9 with the game's record and tree draw in the same build. Next: the view test and the detail
    (GetPixelSize) by our own code.
-4. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
+4. Done (2026-11-12, the player: "could checking trees (and units) by the 32x32 chunks be a good idea? ... build
+   meshes from trees and buildings and update them on changes"): the trees kept (render_units.c kt_draw; the pipe:
+   `picture kept on | off`). Measured first over the player's 7-player save (zoomed out, 33 ms frames as in their game):
+   a frame draws 10 800 trees (one part each, 5.0 ms), 3 050 units (7 400 parts, 3.05), 1 740 buildings (3 250, 1.23),
+   1 275 gaia objects (2 375, 1.98); the units' update 6-7 ms, the lists to the GPU 3.5. A tree's parts are taken once
+   from the walk at sways 0 and 1 (alike, or not kept) - model, material, texture, place of every material - and kept by
+   its graphics, animation, model, frames, size and the trees' turn with its place; each frame chooses the detail as the
+   walk (in_lod: GetPixelSize - every tree there has several) and hands the parts to in_part. Kept in the order first
+   drawn, each with the one drawn after it as the guess (99.6 % found so; a 27 MB table by hash alone cost more than it
+   saved). Compared (`picture draw check`, the trees through the kept draw): 1.55 million records and trees, none differ
+   - with the mipmaps' bias left out of the states' hash: the DLL's SetTexture sets it by the texture, and the noted
+   side, which binds none, carried the record before's into its second part (2 360 of 1.9 million over that save; the
+   part's texture is compared). The trees 4.9-5.1 ms a frame to 4.0, the frame 34-35 to 33-34.
+5. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
    for long instanced draws; the 0x420 records, the circles and bars, the shadows' render object.
 
 The larger part of the zoomed-out frame is the units' update, not their draw (the same test's render thread: the update
