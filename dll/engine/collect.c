@@ -513,7 +513,7 @@ typedef struct {
     double turn_ms;          //     measured while the game turns them, at its last sight (game ms; 0 none yet)
     float turn_at;           //     and its spin_t then: on from there by their rates (us_turn)
     float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
-                             // tailplane's (nose up), its fin's (a yaw) - us_wings
+                             // tailplane's (nose up), its fin's (nose right) - us_wings, from the controls at its death
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
     float leak[4][3];        // each float's leak: its buoyancy in the end (g's, fully under), from when, over how long (s)
     float dig[9];            // how deep each point can go into the seabed (tiles; the floats' and the ballast's)
@@ -629,11 +629,13 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // doing their job when failing they stear the plane. pitch the plane up and stall it, yaw it into a trun"): each
 // pushes by the speed along it, across its tilted surface. Each wing between 8 degrees front up and 6 front down (by
 // its serial, us_wings): two alike glide, two apart roll it; the tailplane pitches its nose up (a stall: it rears and
-// sinks, slowed by its wings across the way) or down, the fin yaws it into a turn
-#define US_WING_UP 8.0f     // degrees, the most front up
-#define US_WING_DOWN 6.0f   // ... front down
-#define US_TAIL_TURN 20.0f  // the tailplane's, the most either way (8 hardly lifted a nose: they die at about 1 tile/s)
-#define US_FIN_TURN 15.0f
+// sinks, slowed by its wings across the way) or down, the fin yaws it into a turn.
+// Since the same day no surface draws its own angle (the player: "the airplanes dont make me happy yet, disable the per
+// point randomness. the planes points should get feed 3 angle values: roll ... pitch ... and a yaw value"): every
+// plane alike, its wings at a base angle (front up: the glide) plus the roll on the port wing and minus it on the
+// starboard one, the tailplane's two points at the pitch, the fin at the yaw - degrees, set by the pipe's wreck plane
+// for the planes killed from then on (the player tries them before any is drawn at random)
+internal float g_us_ctl[4] = { 4.0f, 0.0f, 0.0f, 0.0f };   // base, roll (+ port wing up: it banks right), pitch (+ nose up), yaw (+ nose right)
 // A HELICOPTER'S FALL (the player, 2026-11-12: "now lets improve the helicopters, bougancy, some other ideas?", then
 // "yes do 1- 4": it floats a little and rolls over, its rotor holds it, its spin builds up, its rotors turn until it
 // hits). Six points: the floats, its ballast high - its engine and rotor over its cabin: top-heavy, a helicopter in
@@ -724,14 +726,24 @@ internal void us_turn_seen(float *rate, uint32_t *held, uint32_t now, double dms
     }
     *held = now;
 }
-// an airplane's surfaces' angles by its serial (a stream of their own, its seed hashed), even over their ranges
-internal void us_wings(uc_corpse *k, int32_t serial) {
-    uint32_t s = (uint32_t)serial ^ 0x165667B1u;   // mixed whole: ids one apart drew nearly alike by a product alone
-    s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+// an airplane's surfaces' angles from the controls (g_us_ctl)
+internal void us_wings(uc_corpse *k) {
     const float rad = 3.14159265f / 180.0f;
-    for (int i = 0; i < 2; i++) k->tilt[i] = sinf((-US_WING_DOWN + (US_WING_UP + US_WING_DOWN) * us_rnd(&s)) * rad);
-    k->tilt[2] = sinf(US_TAIL_TURN * (2.0f * us_rnd(&s) - 1.0f) * rad);
-    k->tilt[3] = sinf(US_FIN_TURN * (2.0f * us_rnd(&s) - 1.0f) * rad);
+    k->tilt[0] = sinf((g_us_ctl[0] + g_us_ctl[1]) * rad), k->tilt[1] = sinf((g_us_ctl[0] - g_us_ctl[1]) * rad);
+    k->tilt[2] = sinf(g_us_ctl[2] * rad), k->tilt[3] = sinf(g_us_ctl[3] * rad);
+}
+// the pipe: wreck plane [<base> <roll> <pitch> <yaw>] - a falling airplane's controls (degrees, -45 .. 45), for those
+// killed from then on; without numbers what they are
+internal void cmd_wreck(char *out, const char *args) {
+    char mode[16] = "";
+    float v[4];
+    int n = sscanf(args, "%15s %f %f %f %f", mode, &v[0], &v[1], &v[2], &v[3]);
+    if (n < 1 || strcmp(mode, "plane") || (n != 1 && n != 5)) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw>] (degrees)\n"); return; }
+    for (int i = 0; i < 4 && n == 5; i++)
+        if (!(v[i] >= -45.0f && v[i] <= 45.0f)) { REPLY("error: an angle is -45 .. 45 degrees\n"); return; }
+    if (n == 5) memcpy(g_us_ctl, v, sizeof v);
+    REPLY("ok: a falling plane's base %.1f roll %.1f pitch %.1f yaw %.1f (degrees: + port wing up, nose up, nose right)\n",
+          g_us_ctl[0], g_us_ctl[1], g_us_ctl[2], g_us_ctl[3]);
 }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
 internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
@@ -850,7 +862,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         // its ballast at its wings' height: under them it hung from their lift as a pendulum and rolled a plane with a
         // broken wing level again (logged: banked to 40 degrees in a second, back to 25 by its crash)
         k->body[4][2] = fz;
-        us_wings(k, o->serial);
+        us_wings(k);
     }
     k->lift = sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;

@@ -794,6 +794,16 @@ die?" - "its espacialy noticable at launch when they are pointing up"): a P-51 s
 tiles/s on, 0.45 up, its nose 27 degrees up) went on level only, across its wings, which took a fifth of its way in a
 quarter second and up to half in 1.5 s; with its climb it keeps 0.86 - 0.95 of it at first, rises half a second
 longer and noses over (logged, 8 planes; one a round its tailplane pitches up into a stall, as drawn).
+A falling airplane's surfaces no longer draw their own angles (the player, 2026-11-12: "the airplanes dont make me
+happy yet, disable the per point randomness. the planes points should get feed 3 angle values: roll ... pitch ... and
+a yaw value"): every plane alike, its wings at a base angle (4 degrees front up, the glide) plus the roll on one wing
+and minus it on the other, the tailplane's two points at the pitch (+ nose up), the fin at the yaw (collect.c
+g_us_ctl, us_wings), all 0 but the base - the pipe's `wreck plane <base> <roll> <pitch> <yaw>` (degrees, -45 .. 45)
+sets them for the planes killed from then on, for the player to try before any range is drawn at random. Logged with
+P-51s shot climbing from their airfield: at 0 one climbs on for a second and noses over into a dive steepening to
+57 degrees by 3.5 s; pitch +15 holds its nose up and stalls (0.15 tiles/s at 2 s), -15 dives it vertical at once; roll
++15 banks it to 40 degrees and it turns toward its low wing; yaw +15 turns it the same way as + roll.
+
 The water's drag is the hull's own (the player, the same day: "what do you think of adding a lift plane? basicly that
 vertical movment from the orientation of the model get converted to horizontal movment. real ships glide when they
 sink right?"): a hull slips along its length (US_ALONG 0.35/s) and is held across it, sideways and through its deck

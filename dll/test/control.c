@@ -20,6 +20,7 @@ internal void cmd_rprobe(char *out, const char *args);   // engine/render_3d.c
 internal void cmd_shadows(char *out, const char *args);  // engine/render_shadows.c
 internal void cmd_water(char *out, const char *args);    // engine/render_water.c
 internal void cmd_picture(char *out, const char *args);  // engine/render_fxaa.c
+internal void cmd_wreck(char *out, const char *args);    // engine/collect.c
 internal void cmd_palette(char *out, const char *args);  // engine/terrain_palette.c
 internal void cmd_record(char *out, const char *args);   // engine/render_record.c
 internal void cmd_landing(char *out, const char *args);
@@ -387,6 +388,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "shadows")) cmd_shadows(out, args);
     else if (!strcmp(verb, "water")) cmd_water(out, args);
     else if (!strcmp(verb, "picture")) cmd_picture(out, args);
+    else if (!strcmp(verb, "wreck")) cmd_wreck(out, args);
     else if (!strcmp(verb, "palette")) cmd_palette(out, args);
     else if (!strcmp(verb, "record")) cmd_record(out, args);
     else if (!strcmp(verb, "sites")) cmd_sites(out, args);
