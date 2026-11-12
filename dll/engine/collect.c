@@ -1249,7 +1249,13 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
         for (int32_t i = 0; i < nb; i++) ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = us_turn(k, 2, i, k->lb[i][0]);
         if (ship && !k->ship) k->died = g_uc_now, us_start(k, o, t);   // a ship's age from its first sight dead (its rot is its last 2 s)
         else if (!k->ship) k->died = g_uc_now - d;
-        if (k->ship) us_run(k), us_pose(k, t);
+        if (k->ship) {   // its floats' pose; never fainter than its own age has it - the game fades a helicopter it is
+            // taking off to nothing in its last steps (opacity 0 for three frames before the walk no longer met it, then
+            // whole again as a kept one: the player, 2026-11-12, "when an helicopter is falling there is a single fram when
+            // the object gets deleted where the falling model flickers"; logged)
+            us_run(k), us_pose(k, t);
+            draw_record_set_opacity(rec, fmaxf(draw_record_get_opacity(rec), uc_dead_opacity(g_uc_now - k->died)));
+        }
         if (us_burnt(k)) sil_tag(rec, g_uc_walk_gen, SIL_WRECK);
         k->gen = g_uc_walk_gen, k->gone = 0;
     }
@@ -1463,8 +1469,12 @@ internal float g_us_kept[UC_CORPSES][12];   // the game's matrices of the wrecks
 internal float *g_us_put[UC_CORPSES];
 internal uint32_t g_us_fx_made;
 // the effects' step: each wreck's unit has the wreck's pose for its matrix meanwhile (the game's put back after), the
-// splashes and crashes the fall noted made first (on the unit when the game still has it, else at the place: a kind
-// with no placed version, the game's explosion, is then left out)
+// splashes and crashes the fall noted made first: an airplane's crash on its unit while the game still has it (it
+// lies there for 30 s, the wreck's pose its matrix in every step), else at the place (a kind with no placed version,
+// the game's explosion, is then left out); a helicopter's always at the place (its pair, kind 0x3b, is placed). On the
+// unit too until 2026-11-12 (the player: "the second explosion at the base game crash also still happens sometimes"):
+// the game takes a helicopter's unit off where its copy lands, and an effect on it goes on by the unit's own matrix -
+// one made by a wreck that hit first (2 of 9 helicopters, logged) at the game's copy
 internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
     uint32_t n = 0;
     if (g_kc_cs_ok && us_effects_on()) {
@@ -1485,7 +1495,7 @@ internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
             if (k->fx_due & US_FX_SPLASH) effect_mgr_add_at(m, k->fx_at[0], unit_type_get_ground_gfx(k->ty), NULL), g_us_fx_made++;
             if (k->fx_due & US_FX_CRASH) {
                 void *fx = unit_type_get_impact_gfx(k->ty);
-                if (cu) effect_mgr_add_on_unit(m, cu, fx, NULL, 0, 0, 0);
+                if (cu && !k->heli) effect_mgr_add_on_unit(m, cu, fx, NULL, 0, 0, 0);
                 else effect_mgr_add_at(m, k->fx_at[1], fx, NULL);
                 g_us_fx_made++;
             }
