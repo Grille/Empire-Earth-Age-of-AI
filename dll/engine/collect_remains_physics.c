@@ -39,6 +39,11 @@
 #define US_SHIFT_S 1.5f // ... over this long (s), 0.8 of the way to the low side
 #define US_SEESAW (1.0f / 6.0f)   // the ships that go down as a seesaw
 #define US_SEESAW_LIFT 3.0f        // its side floats' buoyancy, fully under (g's), until they leak
+// a ship's leaks a second on at its death (the player, 2026-11-12: "most shift take a second before they sink, makes
+// sence, looks good, but sadly reduces readabilithy... maybe skip a second of the flooding simulation so tzhat certan
+// point will drag down imediatly?"): its fast leak pulls at once, the slow ones a second sooner; an aircraft's clock
+// from its first touch of the water as before
+#define US_LEAK_HEAD 1.0f
 // The blow that kills it (the player, the same day: "on death an units should get a bit of random rotation for a start.
 // even if it levels out again, the kick is suposed to make clearer something happend"): it starts turning about its
 // own axes, half to all of these (radians/s) by its serial, either way - the buoyancy and the drag level it out again
@@ -544,7 +549,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         if (i < 4) wet += 0.25f * under;
         if (i < 4 && under > 0.0f && k->wet_at < 0.0f) k->wet_at = t;   // the leaks' clock starts
         if (i < 4 && k->lift > 0.0f) {
-            float u = k->wet_at < 0.0f ? -1.0f : (t - k->wet_at - k->leak[i][1]) / k->leak[i][2];
+            float u = k->wet_at < 0.0f ? -1.0f : (t + (k->air ? 0.0f : US_LEAK_HEAD) - k->wet_at - k->leak[i][1]) / k->leak[i][2];
             u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
             b = (k->leak[i][3] + (k->leak[i][0] - k->leak[i][3]) * u) * carry;
         }
