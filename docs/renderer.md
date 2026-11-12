@@ -919,6 +919,12 @@ spinning, its drift's way along it turned to and fro and rocked it over. Checked
 probe logging six Apaches twice a second: holds 0.62 - 0.94 came down upright (their up's height 0.8 - 1.0) at 0.35 -
 0.55 tiles/s in about 5 s, spinning faster as they fell; one of 0.02 dropped at up to 1.9 tiles/s; all four in the
 water rolled onto their backs within 2 - 3 s of their splash, floated and sank.
+An aircraft's ground collider is up in its body, 0.35 of its model's height over its foot along its own up (US_HIT_HIGH;
+the player, the same day: "the ground collider should be placed a bit heigher, so that upright crashes sink in a bit
+and upside ones dont completly vanish"): at its floats an upright one stopped on its skids, untouched, and one on its
+back went in to its floats, its body buried. Checked headless with the player's ini and a probe at each hit: upright
+Apaches stopped with their floats 0.03 - 0.08 tiles in the ground, one on its back on the seabed with its body 0.15
+under it and 0.16 over it.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

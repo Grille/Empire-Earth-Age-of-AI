@@ -507,6 +507,7 @@ typedef struct {
     float body[9][3];        // ... in the hull's own space times its scale, the floats at its waterline
     int32_t n;               // its points: US_PTS, an airplane's US_PTS_AIR
     uint8_t heli;            // a helicopter (US_PTS_HELI)
+    float hit;               // an aircraft's ground collider over its floats' middle, along its up (tiles: US_HIT_HIGH)
     float rotor[3];          // ... its rotor's hold (0 .. 1) and its disc's tilt (sines, along and across) - us_rotor
     float spin_t;            // ... how long its rotors have turned since its death (s, in the air; held when it hits)
     float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
@@ -656,6 +657,11 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_SUB_FLOAT 1.0f   // a submarine's: it hangs at its depth (all under) until the leaks take it down
 #define US_DIG 0.6f     // the deepest a float goes into the seabed: a share of the beam
 #define US_DIG_AIR 0.1f // ... an aircraft's into the ground (a flat thing: 0.6 buried it whole)
+// an aircraft's ground collider up in its body (us_step's end; the player, 2026-11-12: "the ground collider should be
+// placed a bit heigher, so that upright crashes sink in a bit and upside ones dont completly vanish"): at the floats -
+// its model's foot - an upright one stopped on its skids or belly, untouched, and one on its back went in to its
+// floats, its whole body buried
+#define US_HIT_HIGH 0.35f   // of its model's height over its foot
 #define US_FAST 1.5f    // a move between its poses faster than this times its top speed (at least US_JUMP tiles/s)
 #define US_JUMP 4.0f    // was no sailing but a jump: a ship of 170 tiles/s stopped dead at a fixed 4 (the player)
 // the ships on the water and the submarines (the player, the same day: "next add subs to the system"): a submarine's
@@ -827,6 +833,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->lift = sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
     k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0, k->in_game = 1;
+    k->hit = air ? US_HIT_HIGH * fmaxf(hi[2] * s, 0.0f) : 0.0f;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     k->zw = g_sh.water_on ? g_sh.level : t[11];
@@ -1041,10 +1048,18 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
     }
     if (k->air) {   // its middle on the ground or the seabed: it stays as it hit (a crash on land going down fast)
-        float m[3] = { 0, 0, 0 }, mq = 0.0f;
+        float m[3] = { 0, 0, 0 }, mq = 0.0f, a[3], b[3], u[3], lu2 = 0.0f;
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) m[j] += 0.25f * k->sp[i][j];
             mq += 0.25f * k->sq[i][2];
+        }
+        for (int j = 0; j < 3; j++) a[j] = k->sp[0][j] - k->sp[1][j], b[j] = k->sp[2][j] - k->sp[3][j];
+        u[0] = a[1] * b[2] - a[2] * b[1], u[1] = a[2] * b[0] - a[0] * b[2], u[2] = a[0] * b[1] - a[1] * b[0];
+        for (int j = 0; j < 3; j++) lu2 += u[j] * u[j];
+        if (lu2 > 1e-12f) {   // the collider up its body, by US_HIT_HIGH (the way down its own as well)
+            float h = k->hit / sqrtf(lu2);
+            for (int j = 0; j < 3; j++) m[j] += h * u[j];
+            mq += h * u[2];
         }
         if (mesh_has_tile(mesh, (int)floorf(m[0]), (int)floorf(m[1]))) {
             float ground = mesh_z(mesh, m[0], m[1]);
