@@ -1060,7 +1060,15 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    shadows drop - and no user of its graphics: the list holds one of each, given back at the next walk and the scene's
    release). One tree stays in the game's list, the anchor: right after the game's loop draws it, under the states it
    set for a whole tree, the list is drawn in the sort map's order (key, then the walk's) by ut_record. Trees the player
-   remembers under fog (the doppelgangers) stay the game's list's for now. Checked: `picture draw check` with the list's
+   remembers under fog (the doppelgangers, 2026-11-12: collect.c tl_dopp, uc_fill_dopp_tree's mode 2 - no view test: it
+   passes every model while the list is made) are listed too. The game's loop lights a tree by its record's flag
+   (+0x38: EE 0x50B2A9, AoC 0x515AC4), a remembered one with the fogged lights (all halved: EE 0x504D17, AoC 0x50FB74),
+   so they have an anchor of their own - the walk's first, in the game's list - and are drawn after it, the others after
+   the normal one. Checked on perf41's random map (Continental huge, seed 6) with the watching player's see-all off
+   (the map explored, fogged out of sight; 95% of the listed trees remembered ones): the check 3.16 million in the 2017
+   update and 1.55 million in Art of Conquest, none differ - it compares a tree's two draws under the same lights, so
+   the lights by pictures: paused, off and on, the fogged forests alike, at the closest zoom too; the picker's list the
+   same (2922 and 1578 entries). Zoomed out over 2600 trees the units' draw 2.8 to 2.45 ms. Checked before: `picture draw check` with the list's
    trees compared too, 1.56 million records and trees in the 2017 update and 1.55 million in Art of Conquest, none
    differ; the picker's list the same with the list off and on (15 807 entries, their units in the same order); two
    shots paused, off and on, differ only inside the forests, by the sway between them. The save's frame 37-38 ms to

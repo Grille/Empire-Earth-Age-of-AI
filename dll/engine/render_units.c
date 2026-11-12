@@ -510,7 +510,11 @@ internal int ut_record(ee_ro_units *ro, float *at, void *rec) {
 // records one each), given back at the next walk and at the scene's release. One tree of the walk stays in the game's
 // list, the anchor: right after the game's loop draws it, under the states it set for it - a whole tree's lights, no
 // see-through blending - the list is drawn by the draw the game's would have made of each (ut_record), in the sort map's
-// order (its graphics' key, then the walk's).
+// order (its graphics' key, then the walk's). The trees the player remembers on tiles out of sight (doppelgangers,
+// collect.c tl_dopp) too: the game's loop lights a tree by its record's flag (+0x38: EE 0x50B2A9, AoC 0x515AC4 - the
+// fogged lights, all of them halved, EE 0x504D17 / AoC 0x50FB74 instead of 0x504C8B / 0x50FAE8), so they have an anchor
+// of their own, the walk's first such tree, and are drawn after it under its lights; the list's others after the normal
+// anchor.
 #define TL_MAX 32768
 #define TL_GFX 256
 internal struct {
@@ -519,11 +523,11 @@ internal struct {
     uint8_t *rec;           // the records (DRAW_SMALL_REC each)
     uint32_t *key, *order;  // each's sort key; the draw's order
     uint32_t n;
-    const void *anchor;     // the tree in the game's list the list is drawn after
-    int want;               // the walk's next tree it can take is to be the anchor
+    const void *anchor[2];  // the trees in the game's list the list is drawn after: a normal one's, a remembered one's
+    int want[2];            // the walk's next such tree it can take is to be the anchor
     ee_dmg_model *gfx[TL_GFX];
     int ngfx;
-    LONG walks, listed, drawn, normal, full;
+    LONG walks, listed, fogged, drawn, normal, full;
 } g_tl = { .force = -1 };
 internal int tl_on(void) { return (g_tl.force < 0 ? 1 : g_tl.force) && kt_on(); }
 // a graphics drawn from the list: a user of it held until the next walk
@@ -539,15 +543,18 @@ internal void tl_clear(void) {
     for (int i = 0; i < g_tl.ngfx; i++) graphics_release(g_tl.gfx[i]);
     g_tl.ngfx = 0;
     g_tl.n = 0;
-    g_tl.anchor = NULL;
-    g_tl.want = 0;
+    g_tl.anchor[0] = g_tl.anchor[1] = NULL;
+    g_tl.want[0] = g_tl.want[1] = 0;
 }
-// the list drawn after the anchor (render_silhouette.c's tree hook): the sort map's order by key - few keys, each's
-// trees in the order listed
+// the list's trees of an anchor drawn after it (render_silhouette.c's tree hook): the sort map's order by key - few
+// keys, each's trees in the order listed
+internal inline int tl_of(uint32_t i, int fog) { return (draw_small_record_get_flag(g_tl.rec + (size_t)i * DRAW_SMALL_REC) != 0) == fog; }
 internal void tl_after(ee_ro_units *ro, float *at, const void *rec) {
-    if (rec != g_tl.anchor || !g_tl.n) return;
-    uint32_t keys[TL_GFX], at_k[TL_GFX], nk = 0;
+    int fog = rec == g_tl.anchor[0] ? 0 : rec == g_tl.anchor[1] ? 1 : -1;
+    if (fog < 0 || !g_tl.n) return;
+    uint32_t keys[TL_GFX], at_k[TL_GFX], nk = 0, m = 0;
     for (uint32_t i = 0; i < g_tl.n; i++) {
+        if (!tl_of(i, fog)) continue;
         uint32_t k = 0;
         while (k < nk && keys[k] != g_tl.key[i]) k++;
         if (k == nk) {
@@ -563,15 +570,17 @@ internal void tl_after(ee_ro_units *ro, float *at, const void *rec) {
         }
     for (uint32_t k = 0, sum = 0; k < nk; k++) { uint32_t c = at_k[k]; at_k[k] = sum; sum += c; }
     for (uint32_t i = 0; i < g_tl.n; i++) {
+        if (!tl_of(i, fog)) continue;
         uint32_t k = 0;
         while (keys[k] != g_tl.key[i]) k++;
         g_tl.order[at_k[k]++] = i;
+        m++;
     }
-    for (uint32_t i = 0; i < g_tl.n; i++) {
+    for (uint32_t i = 0; i < m; i++) {
         uint8_t *r = g_tl.rec + (size_t)g_tl.order[i] * DRAW_SMALL_REC;
         if (!ut_record(ro, at, r)) ro_units_draw_tree(ro, at, r);
     }
-    InterlockedExchangeAdd(&g_tl.drawn, (LONG)g_tl.n);
+    InterlockedExchangeAdd(&g_tl.drawn, (LONG)m);
 }
 internal int tl_pipe(char *out, const char *arg) {
     if (!strcmp(arg, "on") || !strcmp(arg, "off")) {
@@ -580,8 +589,8 @@ internal int tl_pipe(char *out, const char *arg) {
         return 1;
     }
     if (arg[0]) { REPLY("error: usage: picture trees [on | off]\n"); return 1; }
-    REPLY("the trees' own list: %s; %lu now, %d graphics held; walks %ld, listed %ld, drawn %ld, left to the game's list %ld, full %ld\n",
-          tl_on() ? "on" : "off", (unsigned long)g_tl.n, g_tl.ngfx, (long)g_tl.walks, (long)g_tl.listed, (long)g_tl.drawn,
+    REPLY("the trees' own list: %s; %lu now, %d graphics held; walks %ld, listed %ld (remembered %ld), drawn %ld, left to the game's list %ld, full %ld\n",
+          tl_on() ? "on" : "off", (unsigned long)g_tl.n, g_tl.ngfx, (long)g_tl.walks, (long)g_tl.listed, (long)g_tl.fogged, (long)g_tl.drawn,
           (long)g_tl.normal, (long)g_tl.full);
     return 1;
 }

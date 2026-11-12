@@ -1947,6 +1947,8 @@ internal int uc_fill_dopp(const uc_dopp *p, uint8_t *rec, uint32_t *count, void 
 }
 internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, void *sort_map, uint32_t room, int x,
                                int y, uc_info *info, int dry) {
+    // (dry 2: the trees' own list's - the picker's and the ambient sounds' entries, no sort map, no user of its
+    // graphics (the list holds one), no view test: the list is made only while every model passes it - shr_hook_view)
     opacity_consts oc = opacity_consts_now();
     tree_consts tc = tree_consts_now();
     fill_consts fc = fill_consts_now();
@@ -1954,7 +1956,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
     ee_unit_type *ty = p->ty;
     __attribute__((aligned(8))) uint8_t pm[0x60];
     __attribute__((aligned(8))) float t[16];
-    physical_model_new(pm);
+    if (dry != 2) physical_model_new(pm);
     float h = unit_type_get_unknown_42c(ty);
     int id = p->serial, size = unit_type_get_size(ty);
     float *pos = (float *)draw_small_record_pos_at(rec);
@@ -1964,7 +1966,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
     transform_orient(t, info->yaw, 0.0f, 0.0f);
     t[3] = pos[0], t[7] = pos[1], t[11] = pos[2];
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
-    int drawn = *count < room && uc_dopp_view(p, pm, t, h, 3);
+    int drawn = *count < room && (dry == 2 || uc_dopp_view(p, pm, t, h, 3));
     if (drawn) {
         draw_small_record_set_scale(rec, h);
         draw_small_record_set_flag(rec, 1);
@@ -1989,7 +1991,11 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
             else if (s > oc.one) s = 1;
             draw_small_record_set_sway(rec, (float)s);
         } else draw_small_record_set_sway(rec, 0.0f);
-        if (!dry) {
+        if (dry == 2) {
+            if (info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), p->u);
+            uc_pick_add(p->u, t, draw_small_record_get_opacity(rec));
+            ++*count;
+        } else if (!dry) {
             if (info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), p->u);
             void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
             uc_map_insert(sort_map, pair);
@@ -2000,7 +2006,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
             ++*count;
         }
     }
-    physical_model_free(pm);
+    if (dry != 2) physical_model_free(pm);
     return drawn;
 }
 
@@ -2175,7 +2181,7 @@ internal void tl_begin(void) {
         if (!g_tl.rec || !g_tl.key || !g_tl.order) { free(g_tl.rec); free(g_tl.key); free(g_tl.order); g_tl.rec = NULL; return; }
     }
     g_tl.on = 1;
-    g_tl.want = 1;
+    g_tl.want[0] = g_tl.want[1] = 1;
     g_tl.walks++;
 }
 // a tree of the walk's tile ct for the list: 1 listed, 0 not drawn (as uc_drawn tests a tree with every model let
@@ -2192,7 +2198,7 @@ internal int tl_tree(uc_obj *o, const uc_ctile *ct, uc_info *info, int during) {
     if (during && o->walked == g_uc_walk_gen) return 0;
     float op;
     if (uc_opacity(o, &op)) return -1;
-    if (g_tl.want) { g_tl.normal++; return -2; }
+    if (g_tl.want[0]) { g_tl.normal++; return -2; }
     if (g_tl.n >= TL_MAX || !tl_hold(o->gfx)) { g_tl.full++; return -1; }
     o->walked = g_uc_walk_gen;
     uint8_t *rec = g_tl.rec + (size_t)g_tl.n * DRAW_SMALL_REC;
@@ -2201,6 +2207,27 @@ internal int tl_tree(uc_obj *o, const uc_ctile *ct, uc_info *info, int during) {
     uc_fill_tree(o, rec, NULL, info, 2);
     g_tl.key[g_tl.n++] = graphics_anim_key(o->gfx, 0);
     g_tl.listed++;
+    return 1;
+}
+// a tree the player remembers on a tile out of sight, of one tile, for the list: 1 taken (listed, the remembered
+// trees' anchor, or not drawn), 0 the game's list's as before. Filled as the game's (uc_fill_dopp_tree, the list's mode);
+// the walk's first is the anchor, filled into the game's list
+internal int tl_dopp(const uc_dopp *p, uint8_t *small, uint32_t *sn, uint32_t small_room, int x, int y, uc_info *info) {
+    if (g_tl.want[1]) {
+        uint8_t *rec = small + (size_t)*sn * DRAW_SMALL_REC;
+        uint32_t n0 = *sn;
+        uc_fill_dopp_tree(p, rec, sn, engine_display_sort_maps_at() + 0x24, small_room, x, y, info, 0);
+        if (*sn != n0) g_tl.anchor[1] = rec, g_tl.want[1] = 0, g_tl.normal++;
+        return 1;
+    }
+    if (g_tl.n >= TL_MAX || !tl_hold(p->gfx)) { g_tl.full++; return 0; }
+    uint8_t *rec = g_tl.rec + (size_t)g_tl.n * DRAW_SMALL_REC;
+    memset(rec, 0, DRAW_SMALL_REC);
+    uint32_t n = g_tl.n;
+    if (!uc_fill_dopp_tree(p, rec, &n, NULL, TL_MAX, x, y, info, 2)) return 1;
+    g_tl.key[g_tl.n] = graphics_anim_key(p->gfx, 0);
+    g_tl.n = n;
+    g_tl.listed++, g_tl.fogged++;
     return 1;
 }
 
@@ -2278,7 +2305,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                         if (g_uc_fill == 2) uc_fill_tree(o, rec, maps + (see ? 0x30 : 0x24), (uc_info *)info, 0);
                         else uc_fill_tree_of(ro, o, rec, maps + (see ? 0x30 : 0x24), info);
                         ++*sn;
-                        if (tl == -2 && !see) g_tl.anchor = rec, g_tl.want = 0;
+                        if (tl == -2 && !see) g_tl.anchor[0] = rec, g_tl.want[0] = 0;
                     }
                 }
             }
@@ -2296,7 +2323,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                 if (!unit_type_get_is_tree(p->ty))
                     uc_fill_dopp_of(ro, p, recs + (size_t)*n * DRAW_REC, n, maps + (unit_type_get_is_obstacle(p->ty) ? 0xC : 0), room,
                                     (int)x, (int)y, info, 0);
-                else
+                else if (!g_tl.on || unit_type_get_size(p->ty) != 1 || !tl_dopp(p, small, sn, small_room, (int)x, (int)y, (uc_info *)info))
                     uc_fill_dopp_of(ro, p, small + (size_t)*sn * DRAW_SMALL_REC, sn, maps + 0x24, small_room, (int)x, (int)y, info, 1);
             }
         }
