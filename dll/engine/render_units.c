@@ -88,7 +88,7 @@ internal void ud_turns(void *rec) {
         }
     }
 }
-// A BURNT WRECK (collect.c us_burnt: a crashed helicopter from its hit on, tagged SIL_WRECK): drawn with the game's
+// A BURNT WRECK (collect_remains.c us_burnt: a crashed aircraft from its hit on, tagged SIL_WRECK): drawn with the game's
 // generic death texture instead of its animation's, and the models of its list a - its rotors - shrunk to nothing
 // (their own transformations, which ud_turns sets for each record anew)
 internal ee_texture *g_ud_death_tex;   // collect.c's, while it has it

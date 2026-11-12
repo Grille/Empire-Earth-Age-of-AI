@@ -740,7 +740,7 @@ fell, then down at an even pace over corpses_sink_seconds (120) by 0.1 of its mo
 last 5 s (what a slope or a tall wreck leaves out; uc_cloak: whole until then). Its age: the type's rot time less
 rot_ms (the game sets it at the death and takes each step's ms off), plus the time from its copy's step to the walk's
 game time, so it goes down between steps too. The game removes a corpse at the end of its rot time (a Clubman's 40 s):
-collect.c keeps it then (uc_corpse: its last pose, graphics, animation and parts; a user of the graphics of ours -
+collect_remains.c keeps it then (uc_corpse: its last pose, graphics, animation and parts; a user of the graphics of ours -
 EEGraphicObject.release in the spec, EE 0x4D343B, AoC vf2 - as the last user's release frees the models) and the walk
 draws it where the player sees, as the remembered buildings are drawn, until its time is up; let go at the scene's
 release. One not met by a walk was removed when its rot_ms was under 2 s at its last sight, else it went out of view
@@ -769,7 +769,7 @@ Ships sink by their floats (2026-11-11, the player: "maybe 4 points (one front, 
 upright) - each point has a buoyancy, 1 to 3 point get a negative buoyancy"; the outcomes weighted, a wreck half out of
 the water in the shallows welcome; [display] ship_sinking, with corpses_sink). The game sinks every ship alike, moving
 the unit itself, its animation still (logged, a frigate: state 6000 turned about one axis to 36 degrees in 2 s, down at
-0.28 tiles a second to 1.3 tiles under, then rotting 2 s, gone). collect.c (us_*) draws a dead ship (hit points 0, the
+0.28 tiles a second to 1.3 tiles under, then rotting 2 s, gone). collect_remains_physics.c (us_*) draws a dead ship (hit points 0, the
 naval classes) from its first sight by four floats - bow and stern 0.8 of the way to its hull's ends along the longer
 side of its frame's bounding box, port and starboard as far out, at the waterline - a rigid frame (six distances held,
 Verlet, 10 ms steps of game time) under gravity, each float lifted by its buoyancy times how deep it lies, slowed by the
@@ -797,7 +797,7 @@ longer and noses over (logged, 8 planes; one a round its tailplane pitches up in
 A falling airplane's surfaces no longer draw their own angles (the player, 2026-11-12: "the airplanes dont make me
 happy yet, disable the per point randomness. the planes points should get feed 3 angle values: roll ... pitch ... and
 a yaw value"): every plane alike, its wings at a base angle (4 degrees front up, the glide) plus the roll on one wing
-and minus it on the other, the tailplane's two points at the pitch (+ nose up), the fin at the yaw (collect.c
+and minus it on the other, the tailplane's two points at the pitch (+ nose up), the fin at the yaw (collect_remains_physics.c
 g_us_ctl, us_wings), all 0 but the base - the pipe's `wreck plane <base> <roll> <pitch> <yaw>` (degrees, -45 .. 45)
 sets them for the planes killed from then on, for the player to try before any range is drawn at random. Logged with
 P-51s shot climbing from their airfield: at 0 one climbs on for a second and noses over into a dive steepening to
@@ -808,14 +808,14 @@ properly it start to tumble very quickly", "its the base 4", "also it stillloses
 own up, a surface tilted by a degrees braked the plane by sin(a)^2 of its way: at roll 45 the wings were two flat plates
 into the wind (45% of its energy gone in 2.5 s), and with the base 4 they stood at 49 and -41 degrees and braked
 unequally (0.57 against 0.43), yawing it into a tumble. Now the part of each push along the flight path (the points'
-mean way, so a turn about its middle is still held whole) is left out but 10% of it when it brakes (collect.c
+mean way, so a turn about its middle is still held whole) is left out but 10% of it when it brakes (collect_remains_physics.c
 US_SURF_DRAG). An aircraft also keeps its own turn: each point starts a step behind by the turn between the same two
 poses as its way (us_spin; a snap of over 30 degrees none), and an airplane's kick is a roll of 0.5 radians/s at most
 (2.5 before). Logged, P-51s shot in level flight: their energy (speed and height) kept within 1 - 5% over the fall
 where roll 45 lost 45%, base 4 and 0 at roll 45 now alike, the game's own turn 0.08 - 0.10 radians/s.
 Each plane then draws its own (the player, the same day: "4 lift is good as a modifier. roll: -30 to 30 pitch: -5 to
 30 yae -30 to 30 would be the random values i would try"): the base 4 for all, roll, pitch and yaw even over those
-ranges by its serial (hashed: a stream of their own; collect.c US_RND_*). `wreck plane <base> <roll> <pitch> <yaw>`
+ranges by its serial (hashed: a stream of their own; collect_remains_physics.c US_RND_*). `wreck plane <base> <roll> <pitch> <yaw>`
 fixes them for every plane killed from then on, `wreck plane random [<base>]` draws them again. Logged with 8 P-51s:
 each drew its own, within the ranges.
 
@@ -860,7 +860,7 @@ the wreck drawn fell elsewhere and sooner. And every effect on a unit reads the 
 +0x130) itself at each of its steps (the damage smoke's puffs, the fire, the trails; a ship's death effect, made as it
 starts to die: EEUCNaval::vf29) - there is no getter between, only the effect manager's step (0x4FC94E, called in
 EEPhysics::step at 0x546D76). So while the wrecks are the mod's (its fills, corpses_sink, ship_sinking):
-- the four calls in the crash steps are let out (collect.c us_hook_crash_effect, us_hook_crash_splash);
+- the four calls in the crash steps are let out (collect_remains.c us_hook_crash_effect, us_hook_crash_splash);
 - the fall makes them itself (us_fx): the splash where a float goes down through the water over a tile under it, the
   death effect where one hits the ground going down faster than 0.5 tiles/s (an aircraft killed standing on its airfield
   none) - on the unit when the game still has it, else placed;
@@ -984,7 +984,7 @@ helicopter: its graphics give all 14 animations the same texture (logged, an Apa
 dies, but its death animation (5) is drawn with the game's generic death texture - each graphics names a texture per
 animation (EEGraphicObject.anim_texture_names, EE +0x1C4, AoC +0x1D4: acquire loads each into anim_keys), a tank's
 fifth textures\gen_deathT, one texture for every graphics that names it (a Panzer's and a Sherman's the same). A
-helicopter's wreck that hit land is tagged from its hit on (SIL_WRECK, collect.c us_burnt): the mod's record draw
+helicopter's wreck that hit land is tagged from its hit on (SIL_WRECK, collect_remains.c us_burnt): the mod's record draw
 (render_units.c ud_draw) draws it with that texture and the models of its list a - its rotors - shrunk to nothing;
 without unit_instancing the game's draw draws it as it was. The texture is the first unit type's whose graphics name
 it, their models loaded for it once and held until the scene's release. Checked headless with the player's ini: the

@@ -286,7 +286,7 @@ internal void in_card_queue(rd_device *d, const float *pa, const float *pb, floa
 typedef struct { void *ras, *view; rd_device *d; unsigned long screen; float bias; } in_ctx;
 // A SHIP'S UNDERSIDE (the player, 2026-11-11: "that the ships have no underside is very noticable now, you think the mesh
 // undersides could be filled? a simple face betwen oposidte lowest edges or something like that"). The hulls are open
-// below - on the water nobody saw it; sinking by their floats (collect.c us_*) they dive and roll over, and the inside
+// below - on the water nobody saw it; sinking by their floats (collect_remains_physics.c us_*) they dive and roll over, and the inside
 // showed. A sailing ship's open bottom is one flat loop at its hull material's lowest point (read from data.ssa: the
 // frigate's 14 edges at z -0.03, the galley's 10 at -0.05, the Victory's 14; the sails' own open loops lie higher). For a
 // ship's record (render_silhouette.c g_sl.ship) a material's list gets its flat lowest loops filled - once, by triangles
