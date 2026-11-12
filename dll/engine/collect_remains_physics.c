@@ -12,8 +12,10 @@
 // lifted by its buoyancy times how deep it lies (0 dry, 1 fully under over range: half under at rest), slowed by the
 // water's drag, and stopped by the seabed under it at its keel's depth. Their buoyancy leaks away: all of them slowly to
 // less than their weight (it goes down in the end), and by the plan of its serial (the same on every PC, the picture only)
-// one or two fast to below nothing - a dive by the bow or the stern half the time (now and then with a list), a roll onto
-// one side a quarter (the other side holding on longest), level a quarter. Stepped by the game time (stands while paused),
+// one or two fast to below nothing - a dive by the bow or the stern two thirds of the time (now and then with a list), a
+// roll onto one side a third (the other side holding on longest). A quarter went down level until 2026-11-12 (the
+// player: "a ship that sits level is indisguingisble from a alive one, but bow or stern must dip and/or its falling
+// over"). Stepped by the game time (stands while paused),
 // US_DT a step; kept after the game removes it as the other corpses, its time theirs from its death.
 // A ship's fifth way (the player, 2026-11-12: "what would it take for a wrek to stqand up when sinking?" - "the middle
 // buoyant so it stay at the waterline, with the other side rasing in the air"): a seesaw, US_SEESAW of them, the four
@@ -35,10 +37,6 @@
 #define US_PTS 5        // the four floats and the ballast (the last)
 #define US_LOW 0.6f     // the ballast under the waterline: a share of the keel's depth
 #define US_BALLAST 3.0f // its weight, a float's 1
-// a ship's and a submarine's points: their floats alone since 2026-11-12 (the player: "disable the weight point below
-// the middle") - the ballast's code kept for the aircraft (a plane's at its wings, a helicopter's high), US_PTS again
-// to bring it back
-#define US_PTS_SHIP 4
 #define US_SHIFT 0.8f   // the heel (its sine: 53 degrees) past which the ballast slides
 #define US_SHIFT_S 1.5f // ... over this long (s), 0.8 of the way to the low side
 #define US_SEESAW (1.0f / 6.0f)   // the ships that go down as a seesaw
@@ -285,7 +283,7 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late, int seesaw) {
         for (int i = 2; i < 4; i++) k->leak[i][1] = 8.0f + 7.0f * us_rnd(&s), k->leak[i][2] = 10.0f + 10.0f * us_rnd(&s), k->leak[i][3] = US_SEESAW_LIFT;
         plan = -1.0f;
     } else if (seesaw) plan /= 1.0f - US_SEESAW;   // the others share the rest as before
-    int fast = plan < 0.0f ? -1 : plan < 0.25f ? 0 : plan < 0.5f ? 1 : plan < 0.75f ? 2 + (us_rnd(&s) < 0.5f) : -1;   // bow, stern, a side, level
+    int fast = plan < 0.0f ? -1 : plan < 1.0f / 3.0f ? 0 : plan < 2.0f / 3.0f ? 1 : 2 + (us_rnd(&s) < 0.5f);   // bow, stern, a side
     if (fast >= 0) {
         k->leak[fast][0] = -0.6f - 0.6f * us_rnd(&s), k->leak[fast][1] = 0.2f * us_rnd(&s), k->leak[fast][2] = 1.5f + 2.0f * us_rnd(&s);
         if (fast >= 2) {   // the other side holds on longest: it rolls over before it goes
@@ -406,7 +404,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
                             ((const int32_t *)dmg_model_anim_last_at(o->gfx))[US_SHATTER_ANIM] > ((const int32_t *)dmg_model_anim_first_at(o->gfx))[US_SHATTER_ANIM]);
     k->shatter_t = -1.0f;   // its look at its death (met already shattered: its first animation)
     k->fly_anim = o->anim == US_SHATTER_ANIM ? 0 : o->anim, k->fly_frame = o->anim == US_SHATTER_ANIM ? 0 : o->anim_frame;
-    k->n = cls == CLS_AIRPLANE ? US_PTS_AIR : k->heli ? US_PTS_HELI : US_PTS_SHIP;
+    k->n = cls == CLS_AIRPLANE ? US_PTS_AIR : k->heli ? US_PTS_HELI : US_PTS;
     if (k->heli) {   // its ballast high over its floats (its model stands on them), its hub at its top
         float top = fmaxf(hi[2] * s, 0.1f);
         k->body[4][2] = fz + US_HELI_HIGH * top;
@@ -449,11 +447,11 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     memset(k->dig, 0, sizeof k->dig);
     us_leaks(k, o->serial, late, !air && !sub);
     for (int i = 0; i < 4 && k->heli; i++) k->leak[i][1] *= US_HELI_LEAK, k->leak[i][2] *= US_HELI_LEAK;
-    for (int i = 0; i < US_PTS && i < k->n; i++) k->dig[i] *= (air ? US_DIG_AIR : US_DIG) * 2.5f * half_across;   // the beam: half_across is 0.4 of it
+    for (int i = 0; i < US_PTS; i++) k->dig[i] *= (air ? US_DIG_AIR : US_DIG) * 2.5f * half_across;   // the beam: half_across is 0.4 of it
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
     // in the sand and came up with its nose out: a point below its stop at the start digs in as deep as it was
     const void *mesh = game_map() ? map_mesh_at(game_map()) : NULL;
-    for (int i = 0; i < US_PTS && i < k->n && mesh; i++) {
+    for (int i = 0; i < US_PTS && mesh; i++) {
         const float *p = k->sp[i];
         if (!mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1]))) continue;
         float stop = mesh_z(mesh, p[0], p[1]) + (i == 4 ? 1.0f - US_LOW : 1.0f) * k->keel;   // upright: the keel under it
@@ -649,7 +647,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
                 float wi = 1.0f / us_w(k, i), wj = 1.0f / us_w(k, j), w = (len - rest) / (len * (wi + wj));
                 for (int c = 0; c < 3; c++) k->sp[i][c] += d[c] * w * wi, k->sp[j][c] -= d[c] * w * wj;
             }
-        for (int i = 0; i < US_PTS && i < k->n && !k->air; i++) {   // (an aircraft's ground: its middle, below)
+        for (int i = 0; i < US_PTS && !k->air; i++) {   // (an aircraft's ground: its middle, below)
             float *p = k->sp[i], *q = k->sq[i];
             int x = (int)floorf(p[0]), y = (int)floorf(p[1]);
             if (!mesh_has_tile(mesh, x, y)) continue;
