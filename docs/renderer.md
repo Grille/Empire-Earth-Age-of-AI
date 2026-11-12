@@ -905,6 +905,20 @@ fin yaws it, and a bank turns it. Checked headless with the player's ini and a p
 heading of eight P-51s: tailplanes at 13 - 15 reared them to about 6 degrees nose up and they sank slowly, 5 s instead of
 3 (8 had hardly lifted a nose), nose down ones dived at 55 - 60; wings 8 - 11 degrees apart banked them to 33 - 52, and
 the banked ones turned 45 - 75 degrees as they fell. A plane dies at about 1 tile/s here, so no surface flips it.
+A helicopter's fall (the player, 2026-11-12: "now lets improve the helicopters, bougancy, some other ideas?", then "yes
+do 1- 4"): six points (US_PTS_HELI) - the floats, its ballast high over them (US_HELI_HIGH of its height: its engine
+and rotor over its cabin), its rotor's hub at its top. It floats briefly (US_HELI_FLOAT, its leaks at US_HELI_LEAK of a
+ship's times) and, top-heavy, rolls over in the water and floats on its back before it goes, as ditched ones do. The
+hub's way along its up is slowed by US_ROTOR times its hold, 0 .. 1 by its serial (autorotating down slowly, or
+dropping), and a little every way (US_ROTOR_SIDE: it hangs under its rotor upright, a shuttlecock); its disc's tilt, up
+to US_DISC_TILT any way, drifts the whole sideways by the rotor's push - pushed at its top by a tilted disc it tumbled
+(on its side in 2 s). Its main rotor's torque turns it about its up the more the longer it falls (US_HELI_TWIST, the
+same way for all; its kick's yaw down to a start, US_KICK_HELI_YAW 1), and its rotors' parts turn on (US_ROTOR_SPIN) until
+it hits or is wet, then are held - all of it in the air only. No planing in the air any more, a helicopter's neither:
+spinning, its drift's way along it turned to and fro and rocked it over. Checked headless with the player's ini and a
+probe logging six Apaches twice a second: holds 0.62 - 0.94 came down upright (their up's height 0.8 - 1.0) at 0.35 -
+0.55 tiles/s in about 5 s, spinning faster as they fell; one of 0.02 dropped at up to 1.9 tiles/s; all four in the
+water rolled onto their backs within 2 - 3 s of their splash, floated and sank.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

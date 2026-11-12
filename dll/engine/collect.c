@@ -506,6 +506,9 @@ typedef struct {
                              // (world); an airplane's tailplane, fin and nose weight after them (US_PTS_AIR)
     float body[9][3];        // ... in the hull's own space times its scale, the floats at its waterline
     int32_t n;               // its points: US_PTS, an airplane's US_PTS_AIR
+    uint8_t heli;            // a helicopter (US_PTS_HELI)
+    float rotor[3];          // ... its rotor's hold (0 .. 1) and its disc's tilt (sines, along and across) - us_rotor
+    float spin_t;            // ... how long its rotors have turned since its death (s, in the air; held when it hits)
     float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
                              // tailplane's (nose up), its fin's (a yaw) - us_wings
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
@@ -571,7 +574,7 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_KICK_YAW 0.3f     // about its up: slewed round
 // an aircraft's (the player: "helicopters get a strong yaw kick, and airplanes an roll kick"): nothing in the air holds it
 // back, the turn goes on until it hits - a helicopter spins down, an airplane rolls over
-#define US_KICK_HELI_YAW 4.0f    // up to two thirds of a turn a second
+#define US_KICK_HELI_YAW 1.0f    // a start: its spin builds up as it falls (US_HELI_TWIST; 4 until 2026-11-12)
 #define US_KICK_PLANE_ROLL 2.5f
 #define US_KICK_AIR_OTHER 0.2f   // its other two axes
 #define US_G 3.0f       // gravity (tiles/s^2)
@@ -624,6 +627,27 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_WING_DOWN 6.0f   // ... front down
 #define US_TAIL_TURN 20.0f  // the tailplane's, the most either way (8 hardly lifted a nose: they die at about 1 tile/s)
 #define US_FIN_TURN 15.0f
+// A HELICOPTER'S FALL (the player, 2026-11-12: "now lets improve the helicopters, bougancy, some other ideas?", then
+// "yes do 1- 4": it floats a little and rolls over, its rotor holds it, its spin builds up, its rotors turn until it
+// hits). Six points: the floats, its ballast high - its engine and rotor over its cabin: top-heavy, a helicopter in
+// the water rolls over and floats on its back before it goes, as ditched ones do - and its rotor's hub at its top.
+// Its floats carry it briefly (US_HELI_FLOAT, leaking at US_HELI_LEAK of a ship's times). The hub's way through the
+// rotor's disc is slowed by US_ROTOR times its hold, 0 .. 1 by its serial (autorotating down slowly, or dropping), and
+// a little every way (held at its top it falls upright, a shuttlecock); the disc tilted up to US_DISC_TILT any way
+// drifts it off sideways as it sinks.
+// Its main rotor's torque, no tail rotor to hold it, turns it about its up the more the longer it falls (US_HELI_TWIST,
+// the same way for all: their rotors turn alike), and its rotors' parts turn on (US_ROTOR_SPIN) until it hits or is
+// wet - all of it in the air only
+#define US_PTS_HELI 6       // the floats, the ballast (high), the rotor's hub
+#define US_HELI_FLOAT 1.6f  // buoyancy, fully under (g's)
+#define US_HELI_LEAK 0.3f   // its leaks' start and length: a share of a ship's (afloat a few seconds)
+#define US_HELI_HIGH 0.6f   // the ballast at this share of its height over its floats
+#define US_ROTOR 12.0f      // 1/s, a whole hold
+#define US_ROTOR_SIDE 3.0f  // 1/s, the hub's every way, a whole hold
+#define US_ROTOR_W 2.0f     // the hub's weight, a float's 1
+#define US_DISC_TILT 12.0f  // degrees, the most
+#define US_HELI_TWIST 1.5f  // radians/s^2: about 4.5 radians/s after 3 s
+#define US_ROTOR_SPIN 12.0f // radians/s
 #define US_TAIL_SPAN 0.35f   // the tailplane's half span: a share of the wings' (a P-51's: 4 m to 11 m)
 #define US_FIN_W 0.5f   // the tail's points' weights, a float's 1
 #define US_NOSE 2.0f    // the nose weight's
@@ -653,8 +677,28 @@ internal int uc_is_ship(const ee_unit_type *ty) {
     return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k);
 }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
-// a point's weight (a float's 1): the ballast, an airplane's tail points and nose weight
-internal float us_w(int i) { return i < 4 ? 1.0f : i == 4 ? US_BALLAST : i == 8 ? US_NOSE : US_FIN_W; }
+// a point's weight (a float's 1): the ballast, a helicopter's hub, an airplane's tail points and nose weight
+internal float us_w(const uc_corpse *k, int i) {
+    return i < 4 ? 1.0f : i == 4 ? US_BALLAST : k->heli ? US_ROTOR_W : i == 8 ? US_NOSE : US_FIN_W;
+}
+// a helicopter's rotor by its serial (a stream of its own, hashed): its hold even 0 .. 1, its disc's tilt any way
+internal void us_rotor(uc_corpse *k, int32_t serial) {
+    uint32_t s = (uint32_t)serial ^ 0x27D4EB2Fu;
+    s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+    k->rotor[0] = us_rnd(&s);
+    float dir = 6.2831853f * us_rnd(&s), a = sinf(US_DISC_TILT * us_rnd(&s) * 3.14159265f / 180.0f);
+    k->rotor[1] = a * cosf(dir), k->rotor[2] = a * sinf(dir);
+}
+// its part i's turn for the record: a falling helicopter's rotors turned on by its spin's time
+internal uint32_t us_part(const uc_corpse *k, int32_t i) {
+    if (!k->ship || !k->heli) return k->part[i];
+    float f;
+    uint32_t r;
+    memcpy(&f, &k->part[i], 4);
+    f = fmodf(f + US_ROTOR_SPIN * k->spin_t, 6.2831853f);
+    memcpy(&r, &f, 4);
+    return r;
+}
 // an airplane's surfaces' angles by its serial (a stream of their own, its seed hashed), even over their ranges
 internal void us_wings(uc_corpse *k, int32_t serial) {
     uint32_t s = (uint32_t)serial ^ 0x165667B1u;   // mixed whole: ids one apart drew nearly alike by a product alone
@@ -710,7 +754,7 @@ internal void us_kick(uc_corpse *k, int32_t serial) {
     static const float ship[3] = { US_KICK_ROLL, US_KICK_PITCH, US_KICK_YAW },
                        plane[3] = { US_KICK_PLANE_ROLL, US_KICK_AIR_OTHER, US_KICK_AIR_OTHER },
                        heli[3] = { US_KICK_AIR_OTHER, US_KICK_AIR_OTHER, US_KICK_HELI_YAW };
-    const float *rate = !k->air ? ship : k->lift > 0.0f ? plane : heli;   // (an airplane floats, a helicopter doesn't)
+    const float *rate = !k->air ? ship : k->heli ? heli : plane;
     for (int a = 0; a < 3; a++) w[a] = rate[a] * (0.5f + 0.5f * us_rnd(&s)) * (us_rnd(&s) < 0.5f ? -1.0f : 1.0f);
     for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], la += al[j] * al[j], lc += ac[j] * ac[j];
     la = sqrtf(la), lc = sqrtf(lc);
@@ -723,7 +767,7 @@ internal void us_kick(uc_corpse *k, int32_t serial) {
     float om[3];   // the turn in the world: about its length, its beam, its up
     for (int j = 0; j < 3; j++) om[j] = w[0] * al[j] + w[1] * ac[j] + w[2] * up[j] / lu;
     for (int i = 0; i < k->n; i++) {
-        float wt = us_w(i);
+        float wt = us_w(k, i);
         for (int j = 0; j < 3; j++) m[j] += wt * k->sp[i][j];
         sum += wt;
     }
@@ -760,7 +804,14 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     k->keel = fminf(fmaxf(fz - lo[2] * s, 0.05f), 1.0f);
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
-    k->n = cls == CLS_AIRPLANE ? US_PTS_AIR : US_PTS;
+    k->heli = (uint8_t)(air && cls != CLS_AIRPLANE), k->spin_t = 0.0f;
+    k->n = cls == CLS_AIRPLANE ? US_PTS_AIR : k->heli ? US_PTS_HELI : US_PTS;
+    if (k->heli) {   // its ballast high over its floats (its model stands on them), its hub at its top
+        float top = fmaxf(hi[2] * s, 0.1f);
+        k->body[4][2] = fz + US_HELI_HIGH * top;
+        k->body[5][0] = c[0], k->body[5][1] = c[1], k->body[5][2] = fz + 0.95f * top;
+        us_rotor(k, o->serial);
+    }
     if (k->n == US_PTS_AIR) {   // the tail at the stern float, the fin over it, the nose weight at the bow float's height
         float tail = US_TAIL_SPAN * half_across, fin = fmaxf(0.6f * hi[2] * s, 0.2f * half_across);
         for (int j = 0; j < 3; j++) {
@@ -773,7 +824,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         k->body[4][2] = fz;
         us_wings(k, o->serial);
     }
-    k->lift = sub ? US_SUB_FLOAT : air && cls != CLS_AIRPLANE ? 0.0f : US_FLOAT;
+    k->lift = sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
     k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0, k->in_game = 1;
     k->shift = 0.0f, k->shift_to = 0;
@@ -787,6 +838,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     int late = o->rotting || (!air && (t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f)));   // (a submarine is under anyway)
     memset(k->dig, 0, sizeof k->dig);
     us_leaks(k, o->serial, late);
+    for (int i = 0; i < 4 && k->heli; i++) k->leak[i][1] *= US_HELI_LEAK, k->leak[i][2] *= US_HELI_LEAK;
     for (int i = 0; i < US_PTS; i++) k->dig[i] *= (air ? US_DIG_AIR : US_DIG) * 2.5f * half_across;   // the beam: half_across is 0.4 of it
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
     // in the sand and came up with its nose out: a point below its stop at the start digs in as deep as it was
@@ -835,7 +887,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     if (k->stuck) return;
     const float dt = (float)US_DT;
     float carry = 0.0f;   // a float's lift: its share of all the weight
-    for (int i = 0; i < k->n; i++) carry += 0.25f * us_w(i);
+    for (int i = 0; i < k->n; i++) carry += 0.25f * us_w(k, i);
     // the hull's length as it lies (from the stern to the bow): the way along it the water's drag spares
     float ln[3], ll = 0.0f;
     for (int j = 0; j < 3; j++) ln[j] = k->sp[0][j] - k->sp[1][j], ll += ln[j] * ln[j];
@@ -846,7 +898,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     // its way along its length (the points' by their weights; + bow-ward), as far as it is counted
     float way = 0.0f, ws = 0.0f;
     for (int i = 0; i < k->n; i++) {
-        float w = us_w(i);
+        float w = us_w(k, i);
         for (int j = 0; j < 3; j++) way += w * (k->sp[i][j] - k->sq[i][j]) * ln[j];
         ws += w;
     }
@@ -862,7 +914,14 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     for (int j = 0; j < 3; j++) un[j] = lu > 1e-6f ? un[j] / lu : 0.0f;
     // each surface's up tilted by its angle: a wing's front up (back), the tailplane's to pitch the nose up (forward: it
     // pushes the tail down), the fin's to yaw it
-    float nw[4][3];
+    float nw[4][3], cm[3] = { 0, 0, 0 }, cw = 0.0f, hub = 0.0f;   // hub: the rotor's push this step (tiles/step, along its up)
+    if (k->heli) {   // its middle by the weights (the spin's axis through it)
+        for (int i = 0; i < k->n; i++) {
+            for (int j = 0; j < 3; j++) cm[j] += us_w(k, i) * k->sp[i][j];
+            cw += us_w(k, i);
+        }
+        for (int j = 0; j < 3; j++) cm[j] /= cw;
+    }
     if (k->n == US_PTS_AIR)
         for (int s = 0; s < 4; s++) {
             const float *base = s == 3 ? sn : un;
@@ -889,8 +948,16 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float in_water = a * ln[j] * f_along + (v[j] - a * ln[j]) * f_across, in_air = v[j] * f_air;
             v[j] = in_air + (in_water - in_air) * wd;
         }
-        float surf = k->n != US_PTS_AIR ? 0.0f : i == 2 || i == 3 ? US_WING : i == 5 || i == 6 ? US_TAILPLANE : i == 7 ? US_FIN : 0.0f;
-        if (surf > 0.0f) {   // its way through its surface cancelled, as far as it is dry
+        float surf = k->heli ? (i == 5 ? US_ROTOR * k->rotor[0] : 0.0f)
+                   : k->n != US_PTS_AIR ? 0.0f : i == 2 || i == 3 ? US_WING : i == 5 || i == 6 ? US_TAILPLANE : i == 7 ? US_FIN : 0.0f;
+        if (surf > 0.0f && k->heli) {   // the rotor: its hub's way along its up slowed, a little every way (it hangs
+            // under its rotor as under a shuttlecock's feathers: upright); the disc's tilt only drifts the whole (below) -
+            // pushed by a tilted disc at its top it tumbled in the air (logged: on its side in 2 s)
+            float c = 0.0f, f = expf(-surf * (1.0f - wd) * dt), fs = expf(-US_ROTOR_SIDE * k->rotor[0] * (1.0f - wd) * dt);
+            for (int j = 0; j < 3; j++) c += v[j] * un[j];
+            for (int j = 0; j < 3; j++) v[j] = (v[j] - (1.0f - f) * c * un[j]) * fs;
+            hub = -(1.0f - f) * c;
+        } else if (surf > 0.0f) {   // its way through its surface cancelled, as far as it is dry
             const float *nv = nw[i == 2 ? 0 : i == 3 ? 1 : i == 7 ? 3 : 2];
             float c = 0.0f, f = expf(-surf * (1.0f - wd) * dt);
             for (int j = 0; j < 3; j++) c += v[j] * nv[j];
@@ -898,17 +965,29 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
         float g = k->air ? US_G_AIR : US_G;
         v[2] += (-g + b * g * under) * dt * dt;
-        if (i < 2)   // the leading end up, the other down: in the water, a helicopter's in the air as well (an airplane's fins)
-            v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * (k->air && k->lift <= 0.0f ? 1.0f : under) * dt * dt;
+        if (k->heli) {   // the main rotor's torque about its up through its middle, as far as it is dry
+            float r[3], tw = US_HELI_TWIST * (1.0f - wd) * dt * dt;
+            for (int j = 0; j < 3; j++) r[j] = p[j] - cm[j];
+            v[0] += tw * (un[1] * r[2] - un[2] * r[1]), v[1] += tw * (un[2] * r[0] - un[0] * r[2]), v[2] += tw * (un[0] * r[1] - un[1] * r[0]);
+        }
+        if (i < 2)   // the leading end up, the other down: in the water only (a helicopter's in the air too until 2026-11-12:
+                     // spinning, its drift's way along it turned to and fro and rocked it over)
+            v[2] += (i == 0 ? 1.0f : -1.0f) * US_RISE * way * under * dt * dt;
         for (int j = 0; j < 3; j++) q[j] = p[j], p[j] += v[j];
         if (k->air && i < 4 && !(k->fx_done & US_FX_SPLASH) && q[2] > k->zw && p[2] <= k->zw &&   // into the water
             mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1])) && mesh_z(mesh, p[0], p[1]) < k->zw)
             us_fx(k, US_FX_SPLASH, p[0], p[1], k->zw);
     }
+    if (k->heli) {   // its rotors turn while it is dry; the disc's tilt drifts the whole by the rotor's push, sideways
+        k->spin_t += dt * (1.0f - fminf(2.0f * wet, 1.0f));
+        float dr = hub * US_ROTOR_W / cw;
+        for (int i = 0; i < k->n; i++)
+            for (int j = 0; j < 3; j++) k->sp[i][j] += dr * (k->rotor[1] * ln[j] + k->rotor[2] * sn[j]);
+    }
     // its turning held: each point's way about the points' middle (by their weights) slowed, the whole's way kept
     float vm[3] = { 0, 0, 0 }, wsum = 0.0f, f_turn = expf(-US_TURN * wet * dt);
     for (int i = 0; i < k->n; i++) {
-        float w = us_w(i);
+        float w = us_w(k, i);
         for (int j = 0; j < 3; j++) vm[j] += w * (k->sp[i][j] - k->sq[i][j]);
         wsum += w;
     }
@@ -946,7 +1025,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
                 len = sqrtf(len), rest = sqrtf(rest);
                 if (len < 1e-6f) continue;
                 // by their weights: the lighter moves the more (a float 1, the ballast US_BALLAST ...: us_w)
-                float wi = 1.0f / us_w(i), wj = 1.0f / us_w(j), w = (len - rest) / (len * (wi + wj));
+                float wi = 1.0f / us_w(k, i), wj = 1.0f / us_w(k, j), w = (len - rest) / (len * (wi + wj));
                 for (int c = 0; c < 3; c++) k->sp[i][c] += d[c] * w * wi, k->sp[j][c] -= d[c] * w * wj;
             }
         for (int i = 0; i < US_PTS && !k->air; i++) {   // (an aircraft's ground: its middle, below)
@@ -1035,7 +1114,7 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
             for (int32_t i = 0; i < na; i++) k->la[i][0] = c->pool[o->a_at + 2 * i], k->la[i][1] = c->pool[o->a_at + 2 * i + 1];
             for (int32_t i = 0; i < nb; i++) k->lb[i][0] = c->pool[o->b_at + 2 * i], k->lb[i][1] = c->pool[o->b_at + 2 * i + 1];
         }
-        for (int32_t i = 0; i < np; i++) ((uint32_t *)vector_first(draw_record_part_values_at(rec)))[i] = k->part[i];
+        for (int32_t i = 0; i < np; i++) ((uint32_t *)vector_first(draw_record_part_values_at(rec)))[i] = us_part(k, i);
         for (int32_t i = 0; i < na; i++) ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = k->la[i][0];
         for (int32_t i = 0; i < nb; i++) ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = k->lb[i][0];
         if (ship && !k->ship) k->died = g_uc_now, us_start(k, o, t);   // a ship's age from its first sight dead (its rot is its last 2 s)
@@ -1102,7 +1181,8 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
     vector_resize(draw_record_part_values_at(rec), (uint32_t)k->n_parts, 0);
     vector_resize(draw_record_part_models_at(rec), (uint32_t)k->n_parts, 0);
     for (int32_t i = 0; i < k->n_parts; i++) {
-        memcpy((float *)vector_first(draw_record_part_values_at(rec)) + i, &k->part[i], 4);
+        uint32_t pv = us_part(k, i);
+        memcpy((float *)vector_first(draw_record_part_values_at(rec)) + i, &pv, 4);
         uint8_t *part = *type_stats_game((uint8_t *)k->gfx + 4, (int)i);
         ((uint32_t *)vector_first(draw_record_part_models_at(rec)))[i] = *(uint32_t *)(part + 0x4C);
     }
