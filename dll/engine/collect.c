@@ -941,7 +941,10 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->lift = sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
     k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0, k->in_game = 1;
-    k->hit = air ? US_HIT_HIGH * fmaxf(hi[2] * s, 0.0f) : 0.0f;
+    // (a shattering flier's at its foot: raised, its body went a third of its height into the ground before its pieces
+    // flew - the player, 2026-11-12: "they still react to slugish when hitting the ground, maybe becaus the ground
+    // colidor is abit raised? for helicopter sthis makes sence, the 3 flying cybor unit need it at 0 again i think")
+    k->hit = air && !k->shatters ? US_HIT_HIGH * fmaxf(hi[2] * s, 0.0f) : 0.0f;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
     // the water's level: the drawn water's, known while some is in the view; else a ship's own height (it lies on the
