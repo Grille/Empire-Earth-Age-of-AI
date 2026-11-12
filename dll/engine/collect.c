@@ -579,7 +579,7 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // an aircraft's (the player: "helicopters get a strong yaw kick, and airplanes an roll kick"): nothing in the air holds it
 // back, the turn goes on until it hits - a helicopter spins down, an airplane rolls over
 #define US_KICK_HELI_YAW 1.0f    // a start: its spin builds up as it falls (US_HELI_TWIST; 4 until 2026-11-12)
-#define US_KICK_PLANE_ROLL 2.5f
+#define US_KICK_PLANE_ROLL 0.5f   // 2.5 until 2026-11-12: now its controls and its own turn (us_spin) show the hit
 #define US_KICK_AIR_OTHER 0.2f   // its other two axes
 // gravity (tiles/s^2); the ships' 3 until 2026-11-12, then 1 for the player to try ("just set it to 1 for a quick test,
 // i wnat to play around with it"): buoyancy scales with it (the same depth afloat), the water's drag and the planing
@@ -622,6 +622,14 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_WING 16.0f   // a wing point's (1/s, wholly in the air)
 #define US_TAILPLANE 12.0f
 #define US_FIN 12.0f
+// A surface's push is across the plane's flight path, a share of it braking (the player, 2026-11-12: "roll is very
+// unstable, instead of rolling properly it start to tumble very quickly", "its the base 4", "also it stillloses speed
+// on death"): pushed along its own up, a surface tilted by a degrees braked the plane by sin(a)^2 of its way - at
+// roll 45 two flat plates into the wind, 45% of its energy gone in 2.5 s, and with the base the two wings at 49 and
+// -41 degrees braked unequally (0.57 against 0.43) and yawed it into a tumble (logged, P-51s in level flight). Now
+// the part of each push along the flight path (the points' mean way: a turn about its middle stays held whole) is
+// left out but US_SURF_DRAG of it when it brakes
+#define US_SURF_DRAG 0.1f
 // Its surfaces meet the air at angles of their own (the player, the same day: "no plane started rotating, are you sure
 // the brocken wings work?" - a surface that only cancels the way across it pushes nothing once the tail has turned the
 // nose into the way, so a weak wing made no difference after its first second; then "maybe disabeling/softening wings is
@@ -771,8 +779,8 @@ internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
 // up or down too (the player, 2026-11-12: "can it be that airplanes lose speed when they die?" - "its espacialy
 // noticable at launch when they are pointing up": a P-51 shot climbing from its airfield, 0.9 tiles/s on and 0.45
 // up, its nose 27 degrees up, went on level only - across its wings, which took half its way in 1.5 s; logged)
-internal void us_velocity(const uc_obj *o, float *v, int air) {
-    v[0] = v[1] = v[2] = 0.0f;
+internal void us_velocity(const uc_obj *o, float *v, int air, int *pair) {
+    v[0] = v[1] = v[2] = 0.0f, *pair = -1;
     const float *now = (const float *)o->pm;
     float top = fmaxf(o->st ? unit_stats_get_speed(o->st) : 0.0f, o->cst ? unit_stats_get_speed(o->cst) : 0.0f);
     float fast = fmaxf(US_FAST * top, US_JUMP);
@@ -782,7 +790,30 @@ internal void us_velocity(const uc_obj *o, float *v, int air) {
         if (!(i ? o->has_was2 : o->has_was) || dt <= 0.0f || dt > 1.0f) return;
         float dx = (b[3] - a[3]) / dt, dy = (b[7] - a[7]) / dt, s = dx * dx + dy * dy;
         if (s > fast * fast) return;
-        if (s > 1e-4f) { v[0] = dx, v[1] = dy, v[2] = air ? (b[11] - a[11]) / dt : 0.0f; return; }
+        if (s > 1e-4f) { v[0] = dx, v[1] = dy, v[2] = air ? (b[11] - a[11]) / dt : 0.0f, *pair = i; return; }
+    }
+}
+// an aircraft's own turn between the same two poses (pair: us_velocity's; the game banks and turns it), each point a
+// step behind by it (the player, 2026-11-12: "are the point copping the planes rotation and velocithy peroperly?" -
+// only its way was, the kick instead of its turn); a snap of more than 30 degrees between them is no turn
+internal void us_spin(uc_corpse *k, const uc_obj *o, const float *t, int pair) {
+    const float *a = pair ? o->was2 : o->was, *b = pair ? o->was : (const float *)o->pm;
+    float dt = (o->ms[pair] - o->ms[pair + 1]) / 1000.0f, sa = 0.0f, sb = 0.0f, m[3][3];
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++) sa += a[r * 4 + c] * a[r * 4 + c], sb += b[r * 4 + c] * b[r * 4 + c];
+    if (dt <= 0.0f || sa < 1e-8f || sb < 1e-8f) return;
+    float n = 3.0f / sqrtf(sa * sb);   // their scales out
+    for (int j = 0; j < 3; j++)   // its turn over dt (b times a's transpose), less the unit
+        for (int l = 0; l < 3; l++) {
+            float s = 0.0f;
+            for (int c = 0; c < 3; c++) s += b[j * 4 + c] * a[l * 4 + c];
+            m[j][l] = n * s - (j == l ? 1.0f : 0.0f);
+        }
+    if (1.0f + 0.5f * (m[0][0] + m[1][1] + m[2][2]) < 0.866f) return;
+    float f = (float)US_DT / dt;
+    for (int i = 0; i < k->n; i++) {
+        float r[3] = { k->sp[i][0] - t[3], k->sp[i][1] - t[7], k->sp[i][2] - t[11] };
+        for (int j = 0; j < 3; j++) k->sq[i][j] -= f * (m[j][0] * r[0] + m[j][1] * r[1] + m[j][2] * r[2]);
     }
 }
 // the kick at its death: each point's way a step behind by the turn about its own axes (the frame's as it starts,
@@ -896,9 +927,11 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         if (p[2] < stop - k->dig[i]) k->dig[i] = stop - p[2];
     }
     float v[3] = { 0.0f, 0.0f, 0.0f };
-    if (!late) us_velocity(o, v, air);
+    int pair = -1;
+    if (!late) us_velocity(o, v, air, &pair);
     for (int i = 0; i < k->n; i++)   // Verlet: a step's way behind
         for (int j = 0; j < 3; j++) k->sq[i][j] -= v[j] * (float)US_DT;
+    if (air && pair >= 0) us_spin(k, o, t, pair);
     if (!late) us_kick(k, o->serial);
     k->sim = k->died;
     k->ship = 1;
@@ -946,12 +979,15 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     const float f_across = expf(-US_DRAG * dt), f_along = expf(-US_ALONG * dt), f_air = k->air ? 1.0f : expf(-US_AIR * dt);
     float wet = 0.0f;   // how much of it is under: its floats' mean
     // its way along its length (the points' by their weights; + bow-ward), as far as it is counted
-    float way = 0.0f, ws = 0.0f;
+    float way = 0.0f, ws = 0.0f, fl[3] = { 0, 0, 0 }, lf = 0.0f;   // fl: its flight path (the mean way's direction)
     for (int i = 0; i < k->n; i++) {
         float w = us_w(k, i);
-        for (int j = 0; j < 3; j++) way += w * (k->sp[i][j] - k->sq[i][j]) * ln[j];
+        for (int j = 0; j < 3; j++) way += w * (k->sp[i][j] - k->sq[i][j]) * ln[j], fl[j] += w * (k->sp[i][j] - k->sq[i][j]);
         ws += w;
     }
+    for (int j = 0; j < 3; j++) lf += fl[j] * fl[j];
+    lf = sqrtf(lf);
+    for (int j = 0; j < 3; j++) fl[j] = lf > 1e-7f ? fl[j] / lf : 0.0f;
     way = fminf(fmaxf(way / (ws * dt), -US_RISE_TOP), US_RISE_TOP);
     // an airplane's surfaces' ups: its wings' and tailplane's (length x span), its fin's (its span)
     float sn[3], un[3], ls = 0.0f, lu = 0.0f;
@@ -1009,9 +1045,11 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             hub = -(1.0f - f) * c;
         } else if (surf > 0.0f) {   // its way through its surface cancelled, as far as it is dry
             const float *nv = nw[i == 2 ? 0 : i == 3 ? 1 : i == 7 ? 3 : 2];
-            float c = 0.0f, f = expf(-surf * (1.0f - wd) * dt);
+            float c = 0.0f, f = expf(-surf * (1.0f - wd) * dt), dv[3], br = 0.0f;
             for (int j = 0; j < 3; j++) c += v[j] * nv[j];
-            for (int j = 0; j < 3; j++) v[j] -= (1.0f - f) * c * nv[j];
+            for (int j = 0; j < 3; j++) dv[j] = -(1.0f - f) * c * nv[j], br += dv[j] * fl[j];
+            if (br < 0.0f) br *= 1.0f - US_SURF_DRAG;   // along the flight path: a share of a brake, nothing that speeds it
+            for (int j = 0; j < 3; j++) v[j] += dv[j] - br * fl[j];
         }
         float g = k->air ? US_G_AIR : US_G;
         v[2] += (-g + b * g * under) * dt * dt;

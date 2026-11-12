@@ -803,6 +803,16 @@ sets them for the planes killed from then on, for the player to try before any r
 P-51s shot climbing from their airfield: at 0 one climbs on for a second and noses over into a dive steepening to
 57 degrees by 3.5 s; pitch +15 holds its nose up and stalls (0.15 tiles/s at 2 s), -15 dives it vertical at once; roll
 +15 banks it to 40 degrees and it turns toward its low wing; yaw +15 turns it the same way as + roll.
+A surface's push is across the flight path (the player, the same day: "roll is very unstable, instead of rolling
+properly it start to tumble very quickly", "its the base 4", "also it stillloses speed on death"). Pushed along its
+own up, a surface tilted by a degrees braked the plane by sin(a)^2 of its way: at roll 45 the wings were two flat plates
+into the wind (45% of its energy gone in 2.5 s), and with the base 4 they stood at 49 and -41 degrees and braked
+unequally (0.57 against 0.43), yawing it into a tumble. Now the part of each push along the flight path (the points'
+mean way, so a turn about its middle is still held whole) is left out but 10% of it when it brakes (collect.c
+US_SURF_DRAG). An aircraft also keeps its own turn: each point starts a step behind by the turn between the same two
+poses as its way (us_spin; a snap of over 30 degrees none), and an airplane's kick is a roll of 0.5 radians/s at most
+(2.5 before). Logged, P-51s shot in level flight: their energy (speed and height) kept within 1 - 5% over the fall
+where roll 45 lost 45%, base 4 and 0 at roll 45 now alike, the game's own turn 0.08 - 0.10 radians/s.
 
 The water's drag is the hull's own (the player, the same day: "what do you think of adding a lift plane? basicly that
 vertical movment from the orientation of the model get converted to horizontal movment. real ships glide when they
