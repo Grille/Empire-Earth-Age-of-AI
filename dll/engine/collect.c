@@ -581,7 +581,10 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 #define US_KICK_HELI_YAW 1.0f    // a start: its spin builds up as it falls (US_HELI_TWIST; 4 until 2026-11-12)
 #define US_KICK_PLANE_ROLL 2.5f
 #define US_KICK_AIR_OTHER 0.2f   // its other two axes
-#define US_G 3.0f       // gravity (tiles/s^2)
+// gravity (tiles/s^2); the ships' 3 until 2026-11-12, then 1 for the player to try ("just set it to 1 for a quick test,
+// i wnat to play around with it"): buoyancy scales with it (the same depth afloat), the water's drag and the planing
+// don't - sinking about 3 times slower, heeling and bobbing about 1.7, a ship under way rearing about 3 times higher
+#define US_G 1.0f
 // an aircraft's (the player, the same day: "reduce grafithy to 1 tile/s"): it falls slower, its spin or roll and its
 // planing have longer to show before it hits; its float in the water scaled alike (buoyancy is lift x gravity)
 #define US_G_AIR 1.0f
