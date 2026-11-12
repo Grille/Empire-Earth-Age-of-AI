@@ -725,6 +725,8 @@ internal void install(HMODULE self) {
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
                            ok ? "ok" : "FAILED", start ? "ok" : "FAILED");
     }
+    if (g_autotest && g_log)   // the test server reads it from outside: a hung game is one whose time stands still (testd.py watch)
+        fprintf(g_log, "# autotest: game clock at [%08lx]+%lx\n", (unsigned long)game_clock_ptr_at(), (unsigned long)game_clock_offset());
     if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); mp_start(); dx_probe_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
 }

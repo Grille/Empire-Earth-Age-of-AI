@@ -9,6 +9,10 @@
 // THE GAME'S DATA (spec/game/game.cs's): its globals read through these, typed - NULL / 0 before they exist
 internal inline ee_map *game_map(void) { return *(ee_map **)data_game_map; }                   // +0x1816FC its size in tiles
 internal inline ee_physics *game_physics(void) { return *(ee_physics **)data_api_world_clock; }       // EEPhysics: +0xD0 the game time
+// where the game time is for another process (the test server reads it to tell a hung game, testd.py watch): the
+// address of the EEPhysics pointer and the time's offset in it
+internal inline uintptr_t game_clock_ptr_at(void) { return data_api_world_clock; }
+internal inline uint32_t game_clock_offset(void) { return of_physics_time; }
 internal inline int phys_substeps(void) { return *(int *)data_game_phys_substeps; }                    // the push's factor on a step (at least 1)
 internal inline ee_server *game_server(void) { return *(ee_server **)data_game_server; }                   // the lockstep server (EEServer, EEClient)
 internal inline ee_game_data *game_data(void) { return *(ee_game_data **)data_game_game_data; }            // the game data loaded (GAMEDATA)

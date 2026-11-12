@@ -348,6 +348,70 @@ def prune(j):   # old logs and dumps go (work_prune.ps1: older than 7 days, or o
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+HANG_S = int(os.environ.get('EE_TEST_HANG_S', '240'))
+
+
+def clock_place(log_file):   # the DLL's "# autotest: game clock at [ptr]+off" (eeaimod.c), None before it / without it
+    try:
+        with open(log_file, 'rb') as f:
+            m = re.search(rb'^# autotest: game clock at \[([0-9a-f]+)\]\+([0-9a-f]+)', f.read(1 << 20), re.M)
+    except OSError:
+        return None
+    return (int(m.group(1), 16), int(m.group(2), 16)) if m else None
+
+
+def game_clock(hp, place):   # the game time read out of the game's memory (no thread of the game needed), None: unreadable
+    def rd(a):
+        v, got = ctypes.c_uint32(), ctypes.c_size_t()
+        ok = k32.ReadProcessMemory(hp, ctypes.c_void_p(a), ctypes.byref(v), 4, ctypes.byref(got))
+        return v.value if ok and got.value == 4 else None
+    phys = rd(place[0]) if place else None
+    return rd(phys + place[1]) if phys else None
+
+
+def watch(j, hp, log_file, t0, sdir):
+    """waits for the game to end: '' when it did, else why it was stopped - its time up, or HUNG: once its clock ran (read
+    out of its memory every 10 s where its log's "# autotest: game clock at" says), it stood still HANG_S seconds
+    (EE_TEST_HANG_S, default 240; a game whose clock never starts - a menu, the editor - or a DLL without the line: only
+    by its time). Not through the pipe: in a hang the simulation's thread spun holding the heap, and the pipe's thread
+    gave no answer that told it apart. A hung game's threads (where each is, hangdump.py) go into its log as "# hang:"
+    lines and a minidump beside it (local/work/hang_s<slot>_<time>.dmp) before it is killed: 2026-11-12 one sat 100
+    minutes spinning in the heap under the unit list's re-sort until its time was up, and nothing said where."""
+    end = t0 + int(j.timeout)
+    last_ms, last_t, ran, place = None, time.time(), False, None
+    while k32.WaitForSingleObject(hp, 10000) != 0:
+        now = time.time()
+        if now >= end:
+            return 'TIMEOUT after %s s - killed' % j.timeout
+        place = place or clock_place(log_file)
+        ms = game_clock(hp, place)
+        if ms is not None and ms != last_ms:
+            ran = ran or last_ms is not None
+            last_ms, last_t = ms, now
+            continue
+        if not ran or now - last_t < HANG_S:
+            continue
+        pid = k32.GetProcessId(hp)
+        lines = []
+        try:
+            import hangdump
+            lines = hangdump.describe(pid, 1024)
+            dump = os.path.join(j.repo, 'local', 'work', 'hang_s%d_%s.dmp' % (j.slot, time.strftime('%Y%m%d_%H%M%S')))
+            lines.append('minidump %s %s' % ('written' if hangdump.minidump(pid, dump) else 'FAILED', dump))
+        except Exception as e:
+            lines.append('hangdump failed: %s' % e)
+        game = 'at %.1f min' % (last_ms / 60000.0) if last_ms is not None else 'before its first row'
+        try:
+            with open(log_file, 'a', encoding='mbcs', errors='replace') as f:
+                f.write('# hang: the game time stood still %d s %s - killed by the test server\n' % (now - last_t, game))
+                for l in lines:
+                    f.write('# hang: %s\n' % l)
+        except OSError:
+            pass
+        return 'HUNG: the game time stood still %d s %s - killed (its threads: "# hang:" lines in its log)' % (now - last_t, game)
+    return ''
+
+
 def play(j, slot_h):
     # ES_CONTINUOUS | ES_SYSTEM_REQUIRED for this thread, as long as it runs: unattended suites were stopped by the PC
     # going to sleep (the screen may still turn off)
@@ -452,11 +516,12 @@ def play(j, slot_h):
             k32.WaitForSingleObject(hp, 0xFFFFFFFF)
             why = 'ABORTED: ' + why
             j.say(why)
-        elif k32.WaitForSingleObject(hp, int(j.timeout) * 1000) != 0:
-            k32.TerminateProcess(hp, 0xFFFFFFFF)
-            k32.WaitForSingleObject(hp, 0xFFFFFFFF)
-            why = 'TIMEOUT after %s s - killed' % j.timeout
-            j.say(why)
+        else:
+            why = watch(j, hp, log_file, t0, sdir)
+            if why:
+                k32.TerminateProcess(hp, 0xFFFFFFFF)
+                k32.WaitForSingleObject(hp, 0xFFFFFFFF)
+                j.say(why)
         k32.GetExitCodeProcess(hp, ctypes.byref(code))
         secs = int(time.time() - t0)
     finally:
@@ -476,10 +541,21 @@ def play(j, slot_h):
                 shutil.move(m.group(1).decode('mbcs'), os.path.join(sdir, 'ddrawcompat.log'))
             except OSError:
                 pass
+    # a crash: the DLL's exception line (dll/base: "# exception c0000005 at ...") or an exit code but 0 - said first on
+    # the line, with where, so that a batch's output shows it (jobs.sh counts them)
+    crash = ''
+    if os.path.exists(log_file):
+        with open(log_file, 'rb') as f:
+            m = re.search(rb'^# exception (.{0,120})', f.read(), re.M)
+        if m:
+            crash = m.group(1).decode('mbcs', errors='replace').split(';')[0]
+    rc = ctypes.c_int32(code.value).value
     dest = archive(j, sdir)
     prune(j)
-    return 'finished in %d s real time (started in %d s), exit code %d%s, log: %s' % (
-        secs, started, ctypes.c_int32(code.value).value, ' (%s)' % why if why else '', dest), 0
+    head = ('HUNG: ' if why.startswith('HUNG') else 'TIMEOUT: ' if why.startswith('TIMEOUT') else
+            'CRASHED (%s): ' % crash if crash else 'CRASHED (exit code %d): ' % rc if rc and not why else 'ABORTED: ' if why else '')
+    return '%sfinished in %d s real time (started in %d s), exit code %d%s, log: %s' % (
+        head, secs, started, rc, ' (%s)' % why if why else '', dest), 0
 
 
 def play_and_finish(j, slot_h):

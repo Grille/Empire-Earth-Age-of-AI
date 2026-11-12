@@ -380,15 +380,19 @@ internal void cmd_spawn(char *out, const char *args) {
 // each ready one gets a target within AIRRAID_R of tx, ty - the enemy's anti-air first (AA buildings and units), then its
 // airports, then its citizens, then its other buildings, then anything - massed: each target as many as its hit points
 // need (hp / the type's attack, one more), the nearest the attacker's airports (ax, ay) first in each kind; by the game's
-// air order (airstrike.c as_order: a plane in its airport takes it). Fewer than half: home AIRRAID_REST, then the wave
-// filled up to W again at ax, ay (the attacker's production: spawn) and on. "# airraid:" lines.
+// air order (airstrike.c as_order: a plane in its airport takes it). Fewer than half: home at least AIRRAID_REST and
+// until three quarters of W are back. New ones come only as fast as the attacker could train them (the player,
+// 2026-11-12: "building up bombers take time, they should only reinforced as fast as they can be repaired and
+// retrained ... if our ai manages to shot down half the bombers that should matter"): one every S seconds (its
+// airports' rate: the type's build time / their number), spawned at ax, ay up to W; the damaged repair in their
+// airports by the game's own rules. S 0: the wave filled up at once after the rest (as before). "# airraid:" lines.
 #define AIRRAID_R 25
 #define AIRRAID_REST 240000u
-internal struct { int phase; uint32_t t; unsigned runs, sent, refills, filled; } g_raid[16];
+internal struct { int phase; uint32_t t, made_t; unsigned runs, sent, refills, filled; } g_raid[16];
 internal void cmd_airraid(char *out, const char *args) {
-    int p, ax, ay, tx, ty, tt, w;
-    if (sscanf(args, "%d %d %d %d %d %d %d", &p, &ax, &ay, &tx, &ty, &tt, &w) < 7 || p <= 0 || p > 15 || w < 1 || !type_data(tt)) {
-        REPLY("error: usage: airraid P ax ay tx ty T W\n"); return;
+    int p, ax, ay, tx, ty, tt, w, every = 0;
+    if (sscanf(args, "%d %d %d %d %d %d %d %d", &p, &ax, &ay, &tx, &ty, &tt, &w, &every) < 7 || p <= 0 || p > 15 || w < 1 || every < 0 || !type_data(tt)) {
+        REPLY("error: usage: airraid P ax ay tx ty T W [S]\n"); return;
     }
     ee_player *pl = player_at(p);
     ee_civ_mgr *cm = pl ? player_get_civ_mgr(pl) : NULL;
@@ -405,6 +409,25 @@ internal void cmd_airraid(char *out, const char *args) {
         if (!u || unit_get_hp(u) <= 0 || unit_get_owner(u) != pl) continue;
         alive++;
         if (!unit_get_goal(u)) pl_u[ready++] = u;
+    }
+    if (every) {   // its production: one each S seconds while fewer than W
+        if (!r->made_t || alive >= w) r->made_t = now ? now : 1;
+        int n = (int)((now - r->made_t) / (every * 1000u));
+        if (n > w - alive) n = w - alive;
+        if (n > 0) {
+            char a[96];
+            static char o2[256];
+            snprintf(a, sizeof a, "%d %d %d %d %d", p, tt, ax, ay, n);
+            cmd_spawn(o2, a);
+            r->made_t += (uint32_t)n * (uint32_t)every * 1000u;
+            r->filled += (unsigned)n; alive += n;
+        }
+    }
+    if (r->phase == 1 && every) {   // home: the rest's time and three quarters of the wave back
+        if (now - r->t < AIRRAID_REST || alive * 4 < w * 3) { REPLY("ok: P%d's raid rests (%d of %d alive)\n", p, alive, w); return; }
+        r->phase = 0; r->refills++;
+        if (g_log) fprintf(g_log, "# airraid: P%d at %.1f min: the wave out again - %d of %d (%u made so far)\n", p, now / 60000.0, alive, w, r->filled);
+        REPLY("ok: P%d's wave out again with %d\n", p, alive); return;
     }
     if (r->phase == 1) {   // home: the rest's time, then the wave filled up again
         if (now - r->t < AIRRAID_REST) { REPLY("ok: P%d's raid rests (%d of %d alive)\n", p, alive, w); return; }

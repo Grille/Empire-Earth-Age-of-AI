@@ -6,8 +6,9 @@
 // variant_players=2,v_air_strike=0: P2's own air force would hold the bombers): P2 home ~77,28, P3 home ~12,52. P2 gets
 // two airports at 12 min and 30 B-17s (79) at 14; from then on the pipe's airraid flies them - a run once two thirds are
 // ready, the anti-air first, then airports, citizens, buildings, massed by each target's hit points; half lost: home 4
-// minutes, then filled up to 30 again. Measure P3's citizens killed from the air, workers, buildings lost, kills:
-// defence.c anti_air, aa_strong.
+// minutes and until 23 are back - new ones one each 45 s (2 airports, its build time 90 s: what is shot down costs it
+// time, the player 2026-11-12). Measure P3's citizens killed from the air, workers, buildings lost, kills: defence.c
+// anti_air, aa_strong.
 
 defence(2, 0)
 wait_until(12min)
@@ -16,5 +17,5 @@ spawn(2, unit.b_airport, 72, 32, 1)
 wait_until(14min)
 spawn(2, unit.a_bomber_11_b_17, 76, 28, 30)
 every(0.33min, 14.2min, 59.9min, (run) => {
-    airraid(2, 77, 28, 12, 52, unit.a_bomber_11_b_17, 30)
+    airraid(2, 77, 28, 12, 52, unit.a_bomber_11_b_17, 30, 45)
 })
