@@ -530,6 +530,20 @@ internal int ws_post_at(const ee_map *map, int x, int y, const ee_player *pl) {
     return k == WJ_POST || (g_wj_on && k == WJ_HUB);
 }
 
+// how far a plain piece on x, y reaches on past its span (d, half of it) towards its neighbour sx, sy: into a post, a
+// tower or a gate; across a tower the wall goes on beyond, to the tower's middle, where the piece from the other side
+// meets it - a wall laid across a tower narrower than itself (the Copper Age's, on four poles) had a gap there, the
+// ends showing (the player, 2026-11-12: "the wall should stay closed here ignoring the tower"). A gate's beyond is
+// its own next piece
+internal float ws_end(const ee_map *map, int x, int y, int sx, int sy, const ee_player *pl, float d) {
+    if (!ws_post_at(map, x + sx, y + sy, pl)) return 0;
+    if (g_wj_on && wj_at(map, x + sx, y + sy, pl).kind == WJ_HUB) {
+        int k = wj_at(map, x + 2 * sx, y + 2 * sy, pl).kind;
+        if (k == WJ_PIECE || k == WJ_POST || k == WJ_JOG) return d;
+    }
+    return WS_INTO_POST;
+}
+
 // what the fit needs of a piece: a unit's on the map, a placement ghost's (THE PREVIEW below)
 struct ws_piece { int tx, ty, anim, type; float scale; ee_player *pl; ee_dmg_model *gfx; };
 internal int ws_plain_anim(int anim) { return anim == WS_SLOPE ? WS_STRAIGHT : anim == WS_SLOPE_DIAG ? WS_DIAG : anim; }
@@ -617,7 +631,7 @@ internal int ws_fit_piece(const struct ws_piece *p, float *m) {
     }
     int sx = fx > 0.3f ? 1 : fx < -0.3f ? -1 : 0, sy = fy > 0.3f ? 1 : fy < -0.3f ? -1 : 0;
     ee_player *pl = p->pl;
-    float ea = jog ? jf.ea : ws_post_at(map, tx - sx, ty - sy, pl) ? WS_INTO_POST : 0, eb = jog ? jf.eb : ws_post_at(map, tx + sx, ty + sy, pl) ? WS_INTO_POST : 0;
+    float ea = jog ? jf.ea : ws_end(map, tx, ty, -sx, -sy, pl, d), eb = jog ? jf.eb : ws_end(map, tx, ty, sx, sy, pl, d);
     float k = (2 * d + ea + eb) / (yhi - ylo), c = -d - ea - k * ylo, slope = (hb - ha) / (2 * d);   // its y -> k y + c along f
     float wx = jog ? jf.ax : fy, wy = jog ? jf.ay : -fx;   // its local x axis: square to it, a jog's along its neighbour's end
     // a jog is the straight model; beside a diagonal piece as wide and as high as that one's model, another size (concrete:
