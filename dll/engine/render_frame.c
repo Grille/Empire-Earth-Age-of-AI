@@ -614,12 +614,48 @@ internal void rf_ground_frame(int skip) {
 // a frame during a step showed them where the last update's camera had put them while the ground under them moved on (the
 // player, 2026-11-09: "they propably dont get their transforms form the render thread yet", "look like the jittering terrain
 // problem we had"). So such a frame draws them itself, from the queues it took over.
+// Their points are the 3D view's pixels (0x50DD81: from the view's corner, under the top bar), drawn by the viewport the
+// device has: a real frame's is the 3D view's, which the game's ground draw sets - a frame during a step doesn't run it,
+// and the device still had the interface's of the frame before, the whole screen: the lines stood the top bar's height
+// higher (42 pixels at 2560 x 1440) - an airport's from its roof instead of its door, every frame during a step, a
+// paused game's too (the player, 2026-11-12: "every few frames it jumps, this also happen on a paused came with no
+// moving camera"; rprobe: viewport 0 42 2560x1260 against 0 0 2560x1440, the same points). So the last real frame's
+// viewport of the ground's draw is put on the device for them, and the pixels' projection the game makes for its own idea
+// of the screen (2 / width, -2 / height: the whole screen's then) made the 3D view's - what the game sets meanwhile is
+// noted (rd_dev_set_viewport, rd_dev_set_transform) and is the device's again after them.
+internal D3DVIEWPORT7 g_kg_vport, g_kgl_vport;   // the real frame's ground's; the game's own while the lines draw
+internal D3DMATRIX g_kgl_proj;
+internal int g_kg_vport_ok, g_kg_lines;
+internal void rf_ground_vport(rd_device *d) {   // a real frame's ground drawn: its viewport
+    if (d && d->viewport.dwWidth && d->viewport.dwHeight) g_kg_vport = d->viewport, g_kg_vport_ok = 1;
+}
+// the game's projection for pixels (an orthographic one: the view is the identity) as the 3D view's
+internal void rf_lines_proj(D3DMATRIX *m, const D3DMATRIX *game) {
+    *m = *game;
+    if (game->_12 == 0 && game->_21 == 0 && game->_34 == 0 && game->_44 == 1)
+        m->_11 = 2.0f / (float)g_kg_vport.dwWidth, m->_22 = -2.0f / (float)g_kg_vport.dwHeight;
+}
 internal int rf_ground_line(void *ctx, int q, uint32_t key, void *e) {
     (void)ctx, (void)key;
     if (q == 2 && effect_is_marching_line(e)) effect_draw(e);
     return 1;
 }
-internal void rf_ground_lines(void) { effect_queues_each(effect_queues_at(), rf_ground_line, NULL); }
+internal void rf_ground_lines(void) {
+    rd_device *d = g_rd3.prep_dev;
+    int put = d && g_kg_vport_ok;
+    if (put) {
+        g_kgl_vport = d->viewport, g_kgl_proj = d->proj;
+        d->viewport = g_kg_vport, rf_lines_proj(&d->proj, &g_kgl_proj);
+        d->changed |= RD_CH_VC;
+        g_kg_lines = 1;
+    }
+    effect_queues_each(effect_queues_at(), rf_ground_line, NULL);
+    if (put) {
+        g_kg_lines = 0;
+        d->viewport = g_kgl_vport, d->proj = g_kgl_proj;
+        d->changed |= RD_CH_VC;
+    }
+}
 // the kept batches k0 .. k1 - 1 drawn again
 internal void rf_ground_again_part(rf_ground *g, int k0, int k1) {
     if (!g_kg_skip || !g->nb) return;

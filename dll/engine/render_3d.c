@@ -1260,7 +1260,7 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 // again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
 // rf_ground_again)
 internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) {
-    RO_DRAW(RO_TERRAIN, if (g_kg_skip && (g_kg.nb || rg_ready())) { rg_again(0, g_rwl_nonstep > 0); rf_ground_again(&g_kg); rf_ground_lines(); } else ro_terrain_draw(o));
+    RO_DRAW(RO_TERRAIN, if (g_kg_skip && (g_kg.nb || rg_ready())) { rg_again(0, g_rwl_nonstep > 0); rf_ground_again(&g_kg); rf_ground_lines(); } else { ro_terrain_draw(o); rf_ground_vport(g_rd3.prep_dev); });
 }
 // during a step the last real frame's fields (the game's blob shadows aren't drawn: render_shadows.c SH_BLOB)
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) {
@@ -1557,6 +1557,12 @@ internal D3DMATRIX *rd_transform(rd_device *d, D3DTRANSFORMSTATETYPE t) {
 internal HRESULT __stdcall rd_dev_set_transform(rd_device *d, D3DTRANSFORMSTATETYPE t, D3DMATRIX *m) {
     D3DMATRIX *x = rd_transform(d, t);
     if (!x) return D3D_OK;
+    if (g_kg_lines && x == &d->proj) {   // the lines of a frame during a step drawing (render_frame.c rf_ground_lines)
+        g_kgl_proj = *m;
+        rf_lines_proj(x, m);
+        d->changed |= RD_CH_VC;
+        return D3D_OK;
+    }
     if (x != &d->world && memcmp(x, m, sizeof *m)) d->changed |= RD_CH_VC, g_rd_vgen++;   // the world is the vertices' own (the batch)
     *x = *m;
     return D3D_OK;
@@ -1567,6 +1573,7 @@ internal HRESULT __stdcall rd_dev_get_transform(rd_device *d, D3DTRANSFORMSTATET
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_set_viewport(rd_device *d, D3DVIEWPORT7 *v) {
+    if (g_kg_lines) { g_kgl_vport = *v; return D3D_OK; }   // as the projection above
     if (memcmp(&d->viewport, v, sizeof *v) != 0) d->changed |= RD_CH_VC;
     d->viewport = *v;
     return D3D_OK;
