@@ -528,7 +528,7 @@ typedef struct {
     uint8_t fx_done;         // ... the effects it had: US_FX_SPLASH, US_FX_CRASH
     uint8_t fx_due;          // ... the ones still to be made on the simulation's thread, at fx_at
     uint8_t stuck;           // an aircraft whose middle hit the ground (or the seabed): it stays as it hit
-    uint8_t burnt;           // ... a helicopter's hit on land: drawn burnt out from then on (us_burnt)
+    uint8_t burnt;           // ... an aircraft's hit on land: drawn burnt out from then on (us_burnt)
     uint8_t shatters;        // ... a flier that lies shattered (us_shatter): its death animation from its hit on land
     int32_t fly_anim, fly_frame;   // ... its animation and frame at its death, drawn until it shatters
     float shatter_t;         // ... when it hit land (s after its death; < 0 not)
@@ -1196,7 +1196,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float ground = mesh_z(mesh, m[0], m[1]);
             if (m[2] <= ground) {
                 if (ground >= k->zw && !(k->fx_done & US_FX_CRASH) && mq - m[2] > US_CRASH_V * dt) us_fx(k, US_FX_CRASH, m[0], m[1], ground);
-                k->stuck = 1, k->burnt = k->heli && !k->shatters && ground >= k->zw;
+                k->stuck = 1, k->burnt = !k->shatters && ground >= k->zw;
                 if (k->shatters && ground >= k->zw && k->shatter_t < 0.0f) k->shatter_t = t;
             }
         }
@@ -1232,7 +1232,7 @@ internal void us_pose(const uc_corpse *k, float *t) {
         for (int j = 0; j < 3; j++) mean[j] += 0.25f * k->sp[i][j], body[j] += 0.25f * k->body[i][j];
     for (int r = 0; r < 3; r++) t[r * 4 + 3] = mean[r] - (t[r * 4] * body[0] + t[r * 4 + 1] * body[1] + t[r * 4 + 2] * body[2]);
 }
-internal int us_burnt(const uc_corpse *k);   // below: a crashed helicopter drawn burnt out
+internal int us_burnt(const uc_corpse *k);   // below: a crashed aircraft drawn burnt out
 // a shattering flier's animation, frame, next frame and fraction now, and its pose t upright on the ground once it
 // shatters; others' left as they are
 internal void us_shatter(const uc_corpse *k, float *t, int32_t *anim, int32_t *frame, int32_t *next, float *fraction) {
@@ -1328,6 +1328,9 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
 // ud_draw) draws it with that texture and its rotors shrunk to nothing; the game's own draw (without unit_instancing)
 // as it was. The texture is the first unit type's whose graphics name it (their models loaded for it once, held until
 // the scene's release); none found, nothing changes.
+// An airplane's too since the same day (the player: "do the burnt out plane wrecks next"): its list a is its
+// propellers (logged: a Sopwith's and a P-51's 1, a B-17's 4, the jets' none), gone with the rotors' shrinking; one
+// that came down in the water keeps its paint, as a helicopter there does.
 #define US_ANIMS 14   // a graphics' animations (acquire's loop over them)
 internal ee_dmg_model *g_us_dgfx;
 internal int g_us_dlooked;
@@ -1352,7 +1355,7 @@ internal ee_texture *us_death_texture(ee_player *pl) {
     if (g_log) log_locked("# wrecks: no graphics names the death texture - helicopters' wrecks drawn as they are\n");
     return NULL;
 }
-// its record drawn burnt out (a crashed helicopter on land, once the texture is had)
+// its record drawn burnt out (a crashed aircraft on land, once the texture is had)
 internal int us_burnt(const uc_corpse *k) { return k->ship && k->burnt && us_death_texture(k->owner); }
 internal void uc_corpses_clear(void) {
     if (!g_kc_cs_ok) return;
