@@ -896,7 +896,10 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
 // only notes them (fx_due).
 #define US_FX_SPLASH 1
 #define US_FX_CRASH 2
-#define US_CRASH_V 0.5f   // tiles/s down
+// tiles/s down; 0.5 until 2026-11-12 (the player: "if i delete the selected helicopter it wont explode on impact for
+// some reason"): a helicopter its rotor holds comes down at 0.35 - 0.55 tiles/s and mostly blew up no more - one killed
+// standing doesn't move at all
+#define US_CRASH_V 0.15f
 internal void us_fx(uc_corpse *k, uint8_t f, float x, float y, float z) {
     float *at = k->fx_at[f == US_FX_SPLASH ? 0 : 1];
     at[0] = x, at[1] = y, at[2] = z;

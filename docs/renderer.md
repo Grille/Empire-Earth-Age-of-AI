@@ -933,6 +933,11 @@ the copy's game time (us_turn_seen), and on by those rates while it isn't (us_tu
 the game's copy lands); held from its hit or its first wet on. Checked headless with the player's ini and a probe of the
 turns drawn: rates of 6.98 and -3.49 radians/s measured, the drawn turn the game's while met, on at 7 radians/s after the
 game took the unit off, held from the hit and in the water.
+A crash's death effect from 0.15 tiles/s down (US_CRASH_V, 0.5 before; the player, the same day: "if i delete the
+selected helicopter it wont explode on impact for some reason"): a helicopter its rotor holds comes down at 0.35 - 0.55
+tiles/s and mostly landed without it; one killed standing doesn't move at all. Checked headless with the player's ini
+and a probe: three Apaches killed in the air blew up where they hit, each one's unit already taken off by the game -
+their death effect (a pair, kind 0x3b) is one the effect manager places too.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the
