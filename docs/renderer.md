@@ -1060,6 +1060,19 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    moved). Kept trees drawn first in the units' object took the frame before's camera or the 2D one. Now kt_draw takes
    the lock and the 3D mode as Draw does. Art of Conquest's check with the camera moved between spots had shown it: 71
    trees of 1.5 million differed in the view and projection; 0 of 1.55 million after.
+   The records kept (2026-11-12, the player: "continue with the buildings"; render_units.c kr_find, kr_parts, in the
+   same table): what stands still - a building's record, a remembered one's, a bent object's (mines, bushes: walls.c
+   bends them onto the ground) - kept by its graphics, animation, model, frames and fraction, size and transformation,
+   taken once by the walk at its own fraction, its bent copy's vertices with it. Not kept: blended between two frames
+   (an animation moving on: an entry each frame), turned parts, a gate, a tint on its model (written into the shared
+   models the walk reads), a building site, and while a wall's skirt is asked for (walls.c makes it at its model's next
+   draw through the DLL). Measured first on the save (udtime9: the walk's records by kind): a building a frame costs its
+   view test 0.07 us (5 350 tests for 1 740: on each of its tiles), its fill 0.55 us, its draw 0.73 us; a gaia object
+   0.15, 0.39 and 1.6 us - the bent copy's lookup at every draw (ub_get, 3 % of the render thread). After: gaia 2.05 ms a
+   frame to 1.28, the buildings 1.27 to 1.26 - their draw is the parts' own (in_part, about 0.25 us a part) and the
+   states a record sets; the record loop 6.8 to 6.1 ms. Checked: `picture draw check` 2.32 million on the save and 3.57
+   million on perf41's fogged random map, none differ - it compares no bent object's parts (the game's side goes to the
+   DLL), so those by pictures: a stone mine on that map, kept on and off, paused, the same to the pixel.
    The trees' own list (render_units.c g_tl, collect.c tl_tree; the pipe: `picture trees on | off`): measured after the
    kept draw, a tree still cost the walk of the units' update its test (uc_drawn: a physical model made and the view
    asked - 134 ns, with every model let through anyway while the shadows' casters off the screen are collected) and its

@@ -152,57 +152,8 @@ internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     return e;
 }
 // a record of the units' lists drawn by the mod: 1 drawn (or nothing to draw, as the game's draw would), 0 the game's
-// draw is to draw it
-internal int ud_draw(void *rec) {
-    ee_dmg_model *g = draw_record_get_gfx(rec);
-    if (!g) return 0;
-    if (!*dmg_model_drawable_at(g) || !(draw_record_get_scale(rec) > *(const float *)engine_display_float_zero_at())) return 1;
-    ee_dmg_model *gb = draw_record_get_gfx_built(rec);
-    if (gb && *dmg_model_drawable_at(gb) && dmg_model_get_built_model(gb)) return ud_fell(UD_BUILT);
-    int bent = bl_noted(g);
-    int anim = draw_record_get_anim(rec);
-    ee_model *m = graphics_anim_model(g, anim);
-    float op = draw_record_get_opacity(rec);
-    int burnt = g_ud_death_tex && sil_of(rec) == SIL_WRECK;
-    in_rec r = { draw_record_transform_at(rec), draw_record_get_scale(rec),
-                 { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
-                   *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },
-                 burnt ? g_ud_death_tex : graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
-    if (bent && (!game_time() || r.pose.frac != 0)) return ud_fell(UD_BENT);
-    if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
-    if (!m || !in_model_ok(m, &r.pose, 1)) return ud_fell(UD_MODEL_NOT);
-    if (bent) {   // its bent frame kept (the root's transformation as the walk makes it)
-        float t[16];
-        in_local(m, r.outer, r.scale, &r.pose, t);
-        const ub_entry *e = ub_get(m, r.pose.frame, t);
-        if (!e) return ud_fell(UD_BENT);
-        r.pose.va = e->v;
-        r.decal = e->decal;
-        g_ud.bent = 1;
-        if (g_in_capture && e->v) {   // compared: the kept copy against one bent now
-            uint32_t nv = vertices_get_count(model_get_vertices(m)[r.pose.frame]);
-            float *now = malloc((size_t)nv * 8 * sizeof(float));
-            if (now && bl_bend_at(m, r.pose.frame, t, now) && memcmp(now, e->v, (size_t)nv * 8 * sizeof(float))) InterlockedIncrement(&g_ub.stale);
-            free(now);
-        }
-    }
-    ee_rasterizer *ras = rasterizer();
-    uint32_t screen = (uint32_t)screen_index();
-    float ref = dmg_model_get_alpha_ref(g);
-    rasterizer_set_alpha_ref(ras, ref > op ? *(const float *)engine_display_alpha_ref_low_at() : ref, screen);
-    rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
-    if (!in_device(ras, screen)) return ud_fell(UD_CANT);
-    dmg_model_set_player_colour(g, draw_record_color_at(rec), anim);
-    ud_turns(rec);
-    if (burnt) ud_rotors_off(rec);
-    if (draw_record_get_gated(rec)) ud_gate(m, draw_record_get_gate_open(rec));
-    if (draw_record_tints_model(rec) && model_get_material_count(m)) material_set_colour(model_get_materials(m)[0], draw_record_get_tint(rec));
-    int mode = *(const int32_t *)engine_display_detail_mode_at();
-    float bias = dmg_model_get_detail_bias(g);
-    if (mode == 1) bias *= *(const float *)engine_display_float_half_at();
-    else if (mode) bias = 1.0f;
-    return in_draw_rec(m, &r, bias) ? 1 : ud_fell(UD_BENT);
-}
+// draw is to draw it (below the trees kept: it keeps records the same way)
+internal int ud_draw(void *rec);
 internal float ud_off(const float *a, const float *b, int n) {   // the largest difference, relative above 1
     float w = 0.0f;
     for (int i = 0; i < n; i++) w = fmaxf(w, fabsf(a[i] - b[i]) / fmaxf(1.0f, fabsf(b[i])));
@@ -317,16 +268,26 @@ internal int ut_draw(float *at, void *rec) {
 // the walk as before. The trees come in the same order every frame (their sort map's): kept in the order first drawn,
 // each knows the one drawn after it, and that guess is tried before the hash (a table of 27 MB looked up by hash cost
 // more than the walk saved: a cache miss a tree).
+// THE RECORDS KEPT the same way (2026-11-12, the player of the static objects: "continue with the buildings"; kr_find):
+// a building's, a remembered one's, a bent object's (a mine, a bush: walls.c bends it onto the ground) - what stands still
+// - kept by its graphics, animation, model, pose (frames and fraction), size and transformation, taken once by the walk
+// (a single pass: its fraction is in what keeps it) with its bent copy's vertices (render_units.c ub_get: looked up
+// at every draw before) and drawn so later; the states its draw sets are set as ud_draw sets them (the alpha test, the
+// depth's use, its player's colour into the materials). Not kept: a record with turned parts, a gate, a tint on its
+// model (its draw writes them into the shared models the walk reads), a building site, and while a wall's skirt is
+// asked for (walls.c: made at its model's next draw through the display DLL).
 #define KT_SLOTS 65536       // the hash's (a tree's number + 1), at most half full
-#define KT_TREES 32768       // trees kept; full, it starts over
+#define KT_TREES 32768       // trees and records kept; full, it starts over
 #define KT_ALL_PARTS 65536   // their parts
-#define KT_PARTS 8           // a tree's parts at most
+#define KT_PARTS 32          // a tree's or record's parts at most
 enum { KT_NEW, KT_OK, KT_NOT };
 enum { KT_SWAY, KT_MANY, KT_NONE, KT_REASONS };
 internal const char *const k_kt_reason[KT_REASONS] = { "moved by its sway", "of too many parts", "none drawn" };
-typedef struct { ee_model *m; ee_material *mat; void *tex; D3DMATRIX w; int root; } kt_part;
+typedef struct { ee_model *m; ee_material *mat; void *tex; D3DMATRIX w; int root; const float *va; } kt_part;
 typedef struct {
     ee_dmg_model *g; ee_model *m; int anim; uint32_t frame, next; float scale, at[12];
+    float frac; int rec;   // a record's: its fraction (a tree's sway isn't kept by), 1
+    int decal, bent;       // a record's bent copy: a decal to the shadows (walls.c), its vertices in a part
     int state;
     uint32_t part, np;   // its parts in g_kt.part
     uint32_t follow;     // the tree drawn after it last (its number + 1; 0 none)
@@ -342,6 +303,7 @@ internal struct {
     int starts;
     int pass, seen, bad;        // the tree being taken (g_kt_cap): its pass, the second pass's parts so far, why it can't be kept
     LONG drawn, walked, made, starts_over, guessed, reason[KT_REASONS];
+    LONG rec_drawn, rec_made, rec_not;   // the records'
 } g_kt = { .force = -1 };
 internal int kt_on(void) { return g_kt.force < 0 ? 1 : g_kt.force; }
 // the walk's part into the tree being taken (render_instance.c in_part, while g_kt_cap): the first pass's kept, the
@@ -349,23 +311,25 @@ internal int kt_on(void) { return g_kt.force < 0 ? 1 : g_kt.force; }
 internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
     (void)idx; (void)ni;   // (the detail's: chosen at each draw)
     kt_tree *k = g_kt_cap;
-    if (p->va) { g_kt.bad |= 1 << KT_MANY; return; }
+    if (p->va && !k->rec) { g_kt.bad |= 1 << KT_MANY; return; }
     if (!g_kt.pass) {
         if (k->np >= KT_PARTS || g_kt.nparts >= KT_ALL_PARTS) { g_kt.bad |= 1 << KT_MANY; return; }
         kt_part *e = &g_kt.part[g_kt.nparts++];
         k->np++;
-        e->m = m; e->mat = mat; e->tex = tex; e->w = *world; e->root = m == k->m;
+        e->m = m; e->mat = mat; e->tex = tex; e->w = *world; e->root = m == k->m; e->va = p->va;
+        if (p->va) k->bent = 1;
         return;
     }
     uint32_t i = (uint32_t)g_kt.seen++;
     const kt_part *e = &g_kt.part[k->part + i];
     if (i >= k->np || e->m != m || e->mat != mat || e->tex != tex || memcmp(&e->w, world, sizeof *world)) g_kt.bad |= 1 << KT_SWAY;
 }
-internal inline int kt_same(const kt_tree *k, const ee_dmg_model *g, const ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at) {
-    return k->g == g && k->m == m && k->anim == anim && k->frame == frame && k->next == next && k->scale == scale && !memcmp(k->at, at, sizeof k->at);
+internal inline int kt_same(const kt_tree *k, const ee_dmg_model *g, const ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at, float frac, int rec) {
+    return k->g == g && k->m == m && k->anim == anim && k->frame == frame && k->next == next && k->scale == scale && !memcmp(k->at, at, sizeof k->at) &&
+           k->rec == rec && !memcmp(&k->frac, &frac, sizeof frac);
 }
-// the tree kept for these (made, KT_NEW, if new); NULL: no room
-internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at) {
+// the tree (rec 0, frac 0) or record kept for these (made, KT_NEW, if new); NULL: no room
+internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at, float frac, int rec) {
     void *map = game_map();
     if (!g_kt.hash) {
         g_kt.hash = calloc(KT_SLOTS, sizeof *g_kt.hash);
@@ -382,11 +346,12 @@ internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame
     kt_tree *k = NULL;
     if (g_kt.last && g_kt.t[g_kt.last - 1].follow) {
         kt_tree *f = &g_kt.t[g_kt.t[g_kt.last - 1].follow - 1];
-        if (kt_same(f, g, m, anim, frame, next, scale, at)) k = f, g_kt.guessed++;
+        if (kt_same(f, g, m, anim, frame, next, scale, at, frac, rec)) k = f, g_kt.guessed++;
     }
     if (!k) {
         uint32_t h = ((uint32_t)(uintptr_t)g >> 4) * 2654435761u ^ (uint32_t)anim * 40503u ^ frame * 2246822519u, w;
         memcpy(&w, &scale, 4); h = (h ^ w) * 16777619u;
+        memcpy(&w, &frac, 4); h = (h ^ w ^ (uint32_t)rec) * 16777619u;
         for (int i = 0; i < 12; i++) { memcpy(&w, at + i, 4); h = (h ^ w) * 16777619u; }
         for (h &= KT_SLOTS - 1;; h = (h + 1) & (KT_SLOTS - 1)) {
             if (!g_kt.hash[h]) {
@@ -394,12 +359,13 @@ internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame
                 memset(k, 0, sizeof *k);
                 k->g = g; k->m = m; k->anim = anim; k->frame = frame; k->next = next; k->scale = scale;
                 memcpy(k->at, at, sizeof k->at);
+                k->frac = frac; k->rec = rec;
                 k->state = KT_NEW;
                 g_kt.hash[h] = g_kt.n;
                 break;
             }
             kt_tree *e = &g_kt.t[g_kt.hash[h] - 1];
-            if (kt_same(e, g, m, anim, frame, next, scale, at)) { k = e; break; }
+            if (kt_same(e, g, m, anim, frame, next, scale, at, frac, rec)) { k = e; break; }
         }
     }
     uint32_t no = (uint32_t)(k - g_kt.t) + 1;
@@ -413,22 +379,31 @@ internal void kt_make(kt_tree *k, const in_rec *r0, float bias) {
     k->part = g_kt.nparts; k->np = 0;
     g_kt.seen = g_kt.bad = 0;
     in_rec r = *r0;
-    float t1[16];
-    r.pose.frac = 0.0f; in_local(k->m, r.outer, r.scale, &r.pose, k->t);
-    r.pose.frac = 1.0f; in_local(k->m, r.outer, r.scale, &r.pose, t1);
-    if (memcmp(k->t, t1, sizeof t1)) g_kt.bad |= 1 << KT_SWAY;
-    g_kt_cap = k;
-    g_kt.pass = 0; r.pose.frac = 0.0f;
-    if (!g_kt.bad && !in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
-    g_kt.pass = 1; r.pose.frac = 1.0f;
-    if (!g_kt.bad && !in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
-    g_kt_cap = NULL;
-    if ((uint32_t)g_kt.seen != k->np) g_kt.bad |= 1 << KT_SWAY;   // (the second pass saw another count of parts)
+    if (k->rec) {   // a record's: once, at its own fraction (its bent copy's vertices in r0)
+        in_local(k->m, r.outer, r.scale, &r.pose, k->t);
+        k->decal = r.decal; k->bent = 0;
+        g_kt_cap = k;
+        g_kt.pass = 0;
+        if (!in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
+        g_kt_cap = NULL;
+    } else {
+        float t1[16];
+        r.pose.frac = 0.0f; in_local(k->m, r.outer, r.scale, &r.pose, k->t);
+        r.pose.frac = 1.0f; in_local(k->m, r.outer, r.scale, &r.pose, t1);
+        if (memcmp(k->t, t1, sizeof t1)) g_kt.bad |= 1 << KT_SWAY;
+        g_kt_cap = k;
+        g_kt.pass = 0; r.pose.frac = 0.0f;
+        if (!g_kt.bad && !in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
+        g_kt.pass = 1; r.pose.frac = 1.0f;
+        if (!g_kt.bad && !in_draw_rec(k->m, &r, bias)) g_kt.bad |= 1 << KT_NONE;
+        g_kt_cap = NULL;
+        if ((uint32_t)g_kt.seen != k->np) g_kt.bad |= 1 << KT_SWAY;   // (the second pass saw another count of parts)
+    }
     if (!k->np) g_kt.bad |= 1 << KT_NONE;
     for (int i = 0; i < KT_REASONS; i++)
         if (g_kt.bad & 1 << i) { InterlockedIncrement(&g_kt.reason[i]); g_kt.nparts = k->part; k->np = 0; return; }
     k->state = KT_OK;
-    InterlockedIncrement(&g_kt.made);
+    InterlockedIncrement(k->rec ? &g_kt.rec_made : &g_kt.made);
 }
 // a tree's record drawn from its kept parts (as ut_draw, which it falls back to): 1 drawn, 0 the game's draw is to draw it
 internal int kt_draw(float *at, void *rec) {
@@ -446,7 +421,7 @@ internal int kt_draw(float *at, void *rec) {
     vec3 pos = draw_small_record_get_pos(rec);
     uint32_t frame = (uint32_t)draw_small_record_get_frame(rec), next = (uint32_t)draw_small_record_get_next_frame(rec);
     at[3] = pos.x, at[7] = pos.y, at[11] = pos.z;   // (as ut_draw writes it)
-    kt_tree *k = kt_find(g, m, anim, frame, next, scale, at);
+    kt_tree *k = kt_find(g, m, anim, frame, next, scale, at, 0.0f, 0);
     if (!k || k->state == KT_NOT) { InterlockedIncrement(&g_kt.walked); return ut_draw(at, rec); }
     ee_rasterizer *ras = rasterizer();
     uint32_t screen = (uint32_t)screen_index();
@@ -478,6 +453,112 @@ internal int kt_draw(float *at, void *rec) {
     InterlockedIncrement(&g_kt.drawn);
     return 1;
 }
+// a record's entry kept (the THE RECORDS KEPT above): NULL when it isn't one to keep, or no room
+internal int ws_skirts_asked(void);   // walls.c
+internal kt_tree *kr_find(void *rec, ee_dmg_model *g, ee_model *m, int anim, const in_rec *r) {
+    if (!kt_on() || !shr_pass() || !g_in.mode3d || !g_in.cs_enter || !g_in.cs_leave || ws_skirts_asked()) return NULL;
+    ee_unit_type *ty = draw_record_get_type(rec);
+    if (!(ty && unit_type_is_land_building(ty)) && !bl_noted(g)) return NULL;   // (what stands still)
+    // (blended between two frames: an animation moving on, another entry each frame - the table would fill and start over)
+    if (r->pose.frac != 0 || draw_record_get_gated(rec) || draw_record_tints_model(rec)) return NULL;
+    uint8_t *lists[3] = { draw_record_part_values_at(rec), draw_record_list_a_c_at(rec), draw_record_list_b_c_at(rec) };
+    for (int l = 0; l < 3; l++) if (vector_first(lists[l]) != vector_end(lists[l])) return NULL;
+    kt_tree *k = kt_find(g, m, anim, r->pose.frame, r->pose.next, r->scale, r->outer, r->pose.frac, 1);
+    if (k && k->state == KT_NOT) { InterlockedIncrement(&g_kt.rec_not); return NULL; }
+    return k;
+}
+// a kept record's parts drawn (its states set by the caller, as for the walk): the display DLL's lock and 3D mode as
+// kt_draw takes them, the detail by its size on the screen, its bent copy a decal to the shadows as walls.c's draw says
+internal int kr_parts(kt_tree *k, const in_rec *r, float bias) {
+    ee_rasterizer *ras = rasterizer();
+    uint32_t screen = (uint32_t)screen_index();
+    rd_device *d = in_device(ras, screen);
+    if (!d) return ud_fell(UD_CANT);
+    void *cs = rasterizer_get_lock(ras);
+    if (cs) g_in.cs_enter(cs);
+    g_in.mode3d(ras, screen);
+    in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
+    uint32_t lod = in_lod(&c, k->m, k->t, k->scale);
+    in_pose p = r->pose;
+    g_sh_decal = k->decal;
+    for (uint32_t i = 0; i < k->np; i++) {
+        const kt_part *e = &g_kt.part[k->part + i];
+        uint32_t l = e->root ? lod : 0, tris = material_get_polygon_count(e->mat)[l];
+        p.va = e->va;
+        if (tris) in_part(&c, e->m, e->mat, e->tex, &p, &e->w, polygons_get_indices(model_get_polygons(e->m)[l]) + material_get_polygon_first(e->mat)[l] * 3, tris * 3);
+    }
+    g_sh_decal = 0;
+    if (cs) g_in.cs_leave(cs);
+    if (k->bent) g_ud.bent = 1;   // (the check compares no bent object's parts: the game's side goes to the DLL)
+    InterlockedIncrement(&g_kt.rec_drawn);
+    return 1;
+}
+// the states a record's draw sets before its model's (the game's draw sets them the same): the alpha test's reference by
+// its opacity, the depth's use, its player's colour into the materials, its parts' turns, a gate's leaf, a tint; the
+// detail's bias. 0: no device
+internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op, float *bias) {
+    ee_rasterizer *ras = rasterizer();
+    uint32_t screen = (uint32_t)screen_index();
+    float ref = dmg_model_get_alpha_ref(g);
+    rasterizer_set_alpha_ref(ras, ref > op ? *(const float *)engine_display_alpha_ref_low_at() : ref, screen);
+    rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
+    if (!in_device(ras, screen)) return 0;
+    dmg_model_set_player_colour(g, draw_record_color_at(rec), anim);
+    ud_turns(rec);
+    if (g_ud_death_tex && sil_of(rec) == SIL_WRECK) ud_rotors_off(rec);
+    if (draw_record_get_gated(rec)) ud_gate(m, draw_record_get_gate_open(rec));
+    if (draw_record_tints_model(rec) && model_get_material_count(m)) material_set_colour(model_get_materials(m)[0], draw_record_get_tint(rec));
+    int mode = *(const int32_t *)engine_display_detail_mode_at();
+    *bias = dmg_model_get_detail_bias(g);
+    if (mode == 1) *bias *= *(const float *)engine_display_float_half_at();
+    else if (mode) *bias = 1.0f;
+    return 1;
+}
+internal int ud_draw(void *rec) {
+    ee_dmg_model *g = draw_record_get_gfx(rec);
+    if (!g) return 0;
+    if (!*dmg_model_drawable_at(g) || !(draw_record_get_scale(rec) > *(const float *)engine_display_float_zero_at())) return 1;
+    ee_dmg_model *gb = draw_record_get_gfx_built(rec);
+    if (gb && *dmg_model_drawable_at(gb) && dmg_model_get_built_model(gb)) return ud_fell(UD_BUILT);
+    int bent = bl_noted(g);
+    int anim = draw_record_get_anim(rec);
+    ee_model *m = graphics_anim_model(g, anim);
+    float op = draw_record_get_opacity(rec), bias;
+    int burnt = g_ud_death_tex && sil_of(rec) == SIL_WRECK;
+    in_rec r = { draw_record_transform_at(rec), draw_record_get_scale(rec),
+                 { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
+                   *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },
+                 burnt ? g_ud_death_tex : graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
+    if (bent && (!game_time() || r.pose.frac != 0)) return ud_fell(UD_BENT);
+    if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
+    kt_tree *k = m ? kr_find(rec, g, m, anim, &r) : NULL;   // kept: no test of its model, no lookup of its bent copy
+    if (k && k->state == KT_OK) return ud_set(rec, g, m, anim, op, &bias) ? kr_parts(k, &r, bias) : ud_fell(UD_CANT);
+    if (!m || !in_model_ok(m, &r.pose, 1)) {
+        if (k) k->state = KT_NOT;
+        return ud_fell(UD_MODEL_NOT);
+    }
+    if (bent) {   // its bent frame kept (the root's transformation as the walk makes it)
+        float t[16];
+        in_local(m, r.outer, r.scale, &r.pose, t);
+        const ub_entry *e = ub_get(m, r.pose.frame, t);
+        if (!e) return ud_fell(UD_BENT);
+        r.pose.va = e->v;
+        r.decal = e->decal;
+        g_ud.bent = 1;
+        if (g_in_capture && e->v) {   // compared: the kept copy against one bent now
+            uint32_t nv = vertices_get_count(model_get_vertices(m)[r.pose.frame]);
+            float *now = malloc((size_t)nv * 8 * sizeof(float));
+            if (now && bl_bend_at(m, r.pose.frame, t, now) && memcmp(now, e->v, (size_t)nv * 8 * sizeof(float))) InterlockedIncrement(&g_ub.stale);
+            free(now);
+        }
+    }
+    if (!ud_set(rec, g, m, anim, op, &bias)) return ud_fell(UD_CANT);
+    if (k) {   // a new one: taken from the walk, then drawn kept
+        kt_make(k, &r, bias);
+        if (k->state == KT_OK) return kr_parts(k, &r, bias);
+    }
+    return in_draw_rec(m, &r, bias) ? 1 : ud_fell(UD_BENT);
+}
 internal int kt_pipe(char *out, const char *arg) {
     if (!strcmp(arg, "on") || !strcmp(arg, "off")) {
         g_kt.force = arg[1] == 'n';
@@ -488,7 +569,7 @@ internal int kt_pipe(char *out, const char *arg) {
     REPLY("the trees kept: %s; %lu in the table (%ld made, started over %ld times), drawn kept %ld (found by the guess %ld), by the walk %ld (",
           kt_on() ? "on" : "off", (unsigned long)g_kt.n, (long)g_kt.made, (long)g_kt.starts_over, (long)g_kt.drawn, (long)g_kt.guessed, (long)g_kt.walked);
     for (int i = 0; i < KT_REASONS; i++) REPLY("%s%s %ld", i ? ", " : "", k_kt_reason[i], (long)g_kt.reason[i]);
-    REPLY(")\n");
+    REPLY("); records drawn kept %ld (made %ld), not to be kept %ld\n", (long)g_kt.rec_drawn, (long)g_kt.rec_made, (long)g_kt.rec_not);
     return 1;
 }
 // render_silhouette.c's hook of the game's tree draw: 1 when it is drawn here

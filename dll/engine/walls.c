@@ -91,6 +91,9 @@ internal ee_model *ws_model(ee_dmg_model *gfx, int anim) {
 struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
 internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
 internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
+// a skirt is asked for: made at its model's next draw through the display DLL (render_units.c's kept records skip that
+// draw: none kept meanwhile)
+internal int ws_skirts_asked(void) { return g_ws_sk_asked > 0; }
 internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
 internal int g_ws_draw_hooks;
 
