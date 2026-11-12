@@ -37,6 +37,11 @@ internal inline void ***input_mouse_device_at(const ee_input_mouse *o) { return 
 internal inline ee_screen_state **rasterizer_get_screen_states(const ee_rasterizer *o) { return *(ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states); }
 internal inline void rasterizer_set_screen_states(ee_rasterizer *o, ee_screen_state **v) { *(ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states) = v; }
 internal inline ee_screen_state ***rasterizer_screen_states_at(const ee_rasterizer *o) { return (ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states); }
+// its lock (a TSCriticalSection*): Draw(GEModel *, K, M, bool) holds it around Set3DMode and DrawModelHierarchy
+// (both display DLLs of both builds: mov ecx, [esi+0x38]; call TSCriticalSection::Enter)
+internal inline void *rasterizer_get_lock(const ee_rasterizer *o) { return *(void **)((uint8_t *)o + of_rasterizer_lock); }
+internal inline void rasterizer_set_lock(ee_rasterizer *o, void *v) { *(void **)((uint8_t *)o + of_rasterizer_lock) = v; }
+internal inline void **rasterizer_lock_at(const ee_rasterizer *o) { return (void **)((uint8_t *)o + of_rasterizer_lock); }
 internal inline ee_draw_state **rasterizer_get_dstates(const ee_rasterizer *o) { return *(ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates); }
 internal inline void rasterizer_set_dstates(ee_rasterizer *o, ee_draw_state **v) { *(ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates) = v; }
 internal inline ee_draw_state ***rasterizer_dstates_at(const ee_rasterizer *o) { return (ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates); }
@@ -1220,6 +1225,7 @@ internal int spec_engine_display_select(int build) {
         of_input_mouse_had_input = 0x5C;
         of_input_mouse_device = 0x44;
         of_rasterizer_screen_states = 0x20;
+        of_rasterizer_lock = 0x38;
         of_rasterizer_dstates = 0x6C;
         slot_rasterizer_begin_scene = 4;
         slot_rasterizer_clear = 6;
@@ -1632,6 +1638,7 @@ internal int spec_engine_display_select(int build) {
         of_input_mouse_had_input = 0x5C;
         of_input_mouse_device = 0x44;
         of_rasterizer_screen_states = 0x20;
+        of_rasterizer_lock = 0x38;
         of_rasterizer_dstates = 0x6C;
         slot_rasterizer_begin_scene = 4;
         slot_rasterizer_clear = 6;

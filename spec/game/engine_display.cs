@@ -47,6 +47,11 @@ unsafe struct DX7Rasterizer
     [offset(0x20), found(c)]
     ee_screen_state** screen_states;
 
+    /// its lock (a TSCriticalSection*): Draw(GEModel *, K, M, bool) holds it around Set3DMode and DrawModelHierarchy
+    /// (both display DLLs of both builds: mov ecx, [esi+0x38]; call TSCriticalSection::Enter)
+    [offset(0x38), found(c)]
+    void* lock;
+
     [offset(0x6C), found(c)]
     ee_draw_state** dstates;
 

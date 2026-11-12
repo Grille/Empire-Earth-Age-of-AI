@@ -39,6 +39,10 @@ internal struct {
     float (__thiscall *pixels)(void *ras, void *model, void *viewport, void *at, float scale, uint8_t ortho);
     void (__thiscall *apply)(const void *parent, const void *local, void *out);
     const uint32_t *stack;   // sTransformStack (a vector: its first +4, its last +8)
+    // what the DLL's Draw does before the walk (render_units.c kt_draw draws without it): its 3D mode - the camera's view
+    // and projection set when they aren't (after its 2D drawing, or the camera moved) -, inside its lock
+    long (__thiscall *mode3d)(void *ras, unsigned long screen);
+    void (__thiscall *cs_enter)(void *cs), (__thiscall *cs_leave)(void *cs);
 } g_in;
 internal int in_on(void) { return g_in_force < 0 ? g_set.unit_instancing : g_in_force; }
 internal int in_init(void) {
@@ -612,6 +616,9 @@ internal int in_display_loaded(HMODULE m, const char *name) {
     *(void **)&g_in.pixels = (void *)GetProcAddress(lle, "?GetPixelSize@GERasterizer@@QAEMPAVGEModel@@PAVGEViewport@@AAVGETransformation@@M_N@Z");
     *(void **)&g_in.apply = (void *)GetProcAddress(lle, "?Apply@GETransformation@@QBEXABV1@AAV1@@Z");
     g_in.stack = (const uint32_t *)(void *)GetProcAddress(lle, "?sTransformStack@GERasterizer@@1V?$vector@UTransformStack@GERasterizer@@V?$allocator@UTransformStack@GERasterizer@@@std@@@std@@A");
+    *(void **)&g_in.mode3d = (void *)GetProcAddress(m, "?Set3DMode@DX7Rasterizer@@IAEJK@Z");
+    *(void **)&g_in.cs_enter = (void *)GetProcAddress(lle, "?Enter@TSCriticalSection@@QAEXXZ");
+    *(void **)&g_in.cs_leave = (void *)GetProcAddress(lle, "?Leave@TSCriticalSection@@QAEXXZ");
     if (!g_in.pixels || !g_in.apply || !g_in.stack) return 0;
     void *o = NULL;
     if (!patch_entry(f, build_is("aoc") ? aoc : ee, 9, (void *)in_hook, &o)) return 0;

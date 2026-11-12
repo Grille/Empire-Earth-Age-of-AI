@@ -1234,8 +1234,9 @@ internal void rf_scene_end(void) {
     static UINT was[3];   // where the frame began in each (after a wrap inside it: 0, the use a little short)
     UINT *pos[3] = { &g_rd3.vb_pos, &g_rd3.ib_pos, &g_rd3.wb_pos }, cap[3] = { g_rd3.vb_cap, g_rd3.ib_cap, g_rd3.wb_cap };
     for (int k = 0; k < 3; k++) {
+        if (*pos[k] == RD3_RESTART) { was[k] = 0; continue; }   // (not used this frame: still to start over)
         UINT used = *pos[k] >= was[k] && *pos[k] <= cap[k] ? *pos[k] - was[k] : *pos[k] <= cap[k] ? *pos[k] : 0;
-        if (*pos[k] >= cap[k] || cap[k] - *pos[k] < used + used / 8) *pos[k] = cap[k];   // with an eighth to spare
-        was[k] = *pos[k] >= cap[k] ? 0 : *pos[k];
+        if (*pos[k] >= cap[k] || cap[k] - *pos[k] < used + used / 8) *pos[k] = RD3_RESTART;   // with an eighth to spare
+        was[k] = *pos[k] == RD3_RESTART ? 0 : *pos[k];
     }
 }

@@ -580,6 +580,7 @@ internal uint32_t of_input_mouse_buttons_before;
 internal uint32_t of_input_mouse_had_input;
 internal uint32_t of_input_mouse_device;
 internal uint32_t of_rasterizer_screen_states;
+internal uint32_t of_rasterizer_lock;
 internal uint32_t of_rasterizer_dstates;
 internal uint32_t slot_rasterizer_begin_scene;
 internal uint32_t slot_rasterizer_clear;

@@ -386,6 +386,7 @@ internal const char k_rd3_shader[] =
 #define RD3_IB_BYTES (16u << 20)
 #define RD3_WB_BYTES (4u << 20)   // the batches' entries (rb_world), appended like the vertices (no discard a batch)
 #define RD3_GROW_MAX 8
+#define RD3_RESTART 0xFFFFFFFFu   // an upload ring's place: it starts over at its next use (rd3_upload)
 // THE BATCH: the game draws an object at a time (5000 draws a frame in a busy base, each a few dozen triangles), and
 // a draw call costs its time on the game's thread whatever its size. Draws in a row whose states match - the same
 // texture, blend, lights ... - differing only in their world matrix and material are collected and drawn as one: their
@@ -488,9 +489,7 @@ internal int rd3_init(void) {
     g_rb.i = malloc(RB_INDICES * sizeof *g_rb.i);
     g_rb.w = malloc(RB_WORLDS * sizeof *g_rb.w);
     if (!g_rb.v || !g_rb.i || !g_rb.w) return rd_fail("the 3D pipeline's batch", E_OUTOFMEMORY), 0;
-    g_rd3.vb_pos = g_rd3.vb_cap;   // the first write discards
-    g_rd3.ib_pos = g_rd3.ib_cap;
-    g_rd3.wb_pos = g_rd3.wb_cap;
+    g_rd3.vb_pos = g_rd3.ib_pos = g_rd3.wb_pos = RD3_RESTART;   // the first write discards
     g_rd3.ready = 1;
     return 1;
 }
@@ -722,12 +721,18 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     return 1;
 }
 
-// n bytes into an upload ring (*b, *cap bytes; bind its use) at a multiple of align; the offset, or -1
+// n bytes into an upload ring (*b, *cap bytes; bind its use) at a multiple of align; the offset, or -1. A ring marked
+// at the scene's end (*pos RD3_RESTART: the list was drawn, less was left in it than the frame used) holds nothing the
+// list draws from: it starts over, discarded, at its first use. It was marked full instead, and the first use found it
+// full while the list held the frame's draws so far from the other rings (the ground's, the units' entries) - each time
+// a ring started over the frame was drawn in parts, its shadows and ambient occlusion cut (16 - 31 frames a minute in the
+// player's air test, 2026-11-12: "tress flicker in and out in frames, and ao flickers for evrething"), and the ring grew
+// up to its limit
 internal long rd3_upload(ID3D11Buffer **b, UINT *cap, UINT bind, UINT *pos, const void *src, UINT n, UINT align) {
     if (n > *cap) return -1;
-    UINT at = (*pos + align - 1) / align * align;
-    D3D11_MAP how = D3D11_MAP_WRITE_NO_OVERWRITE;
-    if (at + n > *cap) {   // the ring full: what the list draws from drawn first (render_frame.c), then the ring bigger
+    UINT at = *pos == RD3_RESTART ? 0 : (*pos + align - 1) / align * align;
+    D3D11_MAP how = *pos == RD3_RESTART ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE;
+    if (*pos != RD3_RESTART && at + n > *cap) {   // the ring full: what the list draws from drawn first (render_frame.c), then the ring bigger
         if (g_rf.n) {
             g_rf.wraps++;
             rf_replay();

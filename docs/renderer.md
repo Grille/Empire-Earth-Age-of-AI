@@ -1037,6 +1037,12 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    - with the mipmaps' bias left out of the states' hash: the DLL's SetTexture sets it by the texture, and the noted
    side, which binds none, carried the record before's into its second part (2 360 of 1.9 million over that save; the
    part's texture is compared). The trees 4.9-5.1 ms a frame to 4.0, the frame 34-35 to 33-34.
+   Fixed the same day (the player: "tress flicker in and out in frames"; gone with `picture kept off` in their game):
+   the kept draw skipped the DLL's Draw, and with it what Draw does before the walk - its lock (DX7Rasterizer +0x38)
+   and Set3DMode, which sets the camera's view and projection when they are stale (after its 2D drawing, the camera
+   moved). Kept trees drawn first in the units' object took the frame before's camera or the 2D one. Now kt_draw takes
+   the lock and the 3D mode as Draw does. Art of Conquest's check with the camera moved between spots had shown it: 71
+   trees of 1.5 million differed in the view and projection; 0 of 1.55 million after.
 5. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
    for long instanced draws; the 0x420 records, the circles and bars, the shadows' render object.
 
@@ -1225,6 +1231,13 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   frame's end when less is left than the frame used. Checked there, 2560 x 1440: the vertices' ring 96 MB, the
   indices' 32 MB after one cut each, then the list drawn once a frame (before: 3.29 times, 2762 cuts a minute in the
   player's game), two shots a second apart with the same shadows over the mass.
+  The start-over was itself a cut (2026-11-12, the player: "ao flickers for evrething"): a ring was marked full at the
+  frame's end, and the next frame's first use of it found it full while the list held that frame's draws from the other
+  rings - the ground's and the units' entries - so each start-over drew the frame in parts and grew the ring, to 384 MB
+  in every game of the player's log, 16 - 31 frames a minute in their air test. A ring marked at the frame's end now
+  starts over at its next use without the list drawn (RD3_RESTART: nothing the list draws from is in it). Over their
+  7-player save: the rings full inside a frame 95 and 206 times a minute before, 1 and 0 after; none grew past its
+  first size but the entries' (8 MB, once).
 - The ground's shadow by the light it faces (2026-11-05). The game re-shades the terrain's vertices as the sun moves
   (measured with the pipe's `shadows hour <0..24>`, which sets the time of day as the daylight-hour effect does -
   EEWorld.set_time_of_day: the hillsides' light and dark sides swap between 10 and 15 o'clock, the ground's mean

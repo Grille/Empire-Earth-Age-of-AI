@@ -422,7 +422,8 @@ internal int kt_draw(float *at, void *rec) {
     if (!g) return 0;
     float scale = draw_small_record_get_scale(rec);
     if (!(scale > *(const float *)engine_display_float_zero_at())) return 1;
-    if (bl_noted(g) || !shr_pass() || !in_can(*game_camera_fixed_at()) || !in_init()) return ut_draw(at, rec);
+    if (bl_noted(g) || !shr_pass() || !in_can(*game_camera_fixed_at()) || !in_init() || !g_in.mode3d || !g_in.cs_enter || !g_in.cs_leave)
+        return ut_draw(at, rec);
     int anim = draw_small_record_get_anim(rec);
     ee_model *m = graphics_anim_model(g, anim);
     if (!m) return ut_draw(at, rec);
@@ -445,6 +446,12 @@ internal int kt_draw(float *at, void *rec) {
         else kt_make(k, &r, bias);
         if (k->state != KT_OK) { InterlockedIncrement(&g_kt.walked); return ut_draw(at, rec); }
     }
+    // as the DLL's Draw: its lock, its 3D mode (the camera's view and projection, stale after its 2D drawing or a move of
+    // the camera - kept trees drawn without it took the frame before's, or the 2D one, and flickered: the player,
+    // 2026-11-12, "tress flicker in and out in frames"), then the parts
+    void *cs = rasterizer_get_lock(ras);
+    if (cs) g_in.cs_enter(cs);
+    g_in.mode3d(ras, screen);
     in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
     uint32_t lod = in_lod(&c, m, k->t, scale);
     for (uint32_t i = 0; i < k->np; i++) {
@@ -452,6 +459,7 @@ internal int kt_draw(float *at, void *rec) {
         uint32_t l = e->root ? lod : 0, tris = material_get_polygon_count(e->mat)[l];
         if (tris) in_part(&c, e->m, e->mat, e->tex, &r.pose, &e->w, polygons_get_indices(model_get_polygons(e->m)[l]) + material_get_polygon_first(e->mat)[l] * 3, tris * 3);
     }
+    if (cs) g_in.cs_leave(cs);
     InterlockedIncrement(&g_kt.drawn);
     return 1;
 }
