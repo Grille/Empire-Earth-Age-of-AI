@@ -476,7 +476,7 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "sea") && v >= 0 && v <= 1) g_wa.sea = v;
     else if (n == 2 && !strcmp(mode, "seadepth") && v > 0) g_wa.seadepth = v;
     else if (n == 2 && !strcmp(mode, "caustics") && v >= 0 && v <= 2) g_rw_caustics = v;
-    else if (n == 2 && !strcmp(mode, "objects") && v >= 0 && v <= 4) g_rw_cobj = v;
+    else if (n == 2 && !strcmp(mode, "objects") && v >= 0 && v <= 8) g_rw_cobj = v;
     else if (n == 2 && !strcmp(mode, "refract") && v >= 0 && v <= 4) g_rw_refract = v;
     else if (n == 2 && !strcmp(mode, "ripples") && v >= 0 && v <= 4) g_rw_ripples = v;
     else if (n == 2 && !strcmp(mode, "strength") && v >= 0 && v <= 1) g_wa.strength = v;
@@ -496,7 +496,7 @@ internal void cmd_water(char *out, const char *args) {
     else if (!strcmp(mode, "away")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.away = 1; else if (!strcmp(a, "off")) g_wa.away = 0; }
     else if (!strcmp(mode, "edges")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_fe.force = 1; else if (!strcmp(a, "off")) g_fe.force = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..4> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..8> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
     const float *wc = rw_colour();
     REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
