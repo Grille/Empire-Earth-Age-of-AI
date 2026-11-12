@@ -360,6 +360,21 @@ def clock_place(log_file):   # the DLL's "# autotest: game clock at [ptr]+off" (
     return (int(m.group(1), 16), int(m.group(2), 16)) if m else None
 
 
+def log_game_ms(log_file):   # without the clock's place (a DLL older than it): the game time of the log's last data row
+    try:
+        with open(log_file, 'rb') as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 65536))
+            lines = f.read().split(b'\n')[1:]
+    except OSError:
+        return None
+    for line in reversed(lines):
+        head = line.split(b',', 1)[0]
+        if head.isdigit():
+            return int(head)
+    return None
+
+
 def game_clock(hp, place):   # the game time read out of the game's memory (no thread of the game needed), None: unreadable
     def rd(a):
         v, got = ctypes.c_uint32(), ctypes.c_size_t()
@@ -372,8 +387,8 @@ def game_clock(hp, place):   # the game time read out of the game's memory (no t
 def watch(j, hp, log_file, t0, sdir):
     """waits for the game to end: '' when it did, else why it was stopped - its time up, or HUNG: once its clock ran (read
     out of its memory every 10 s where its log's "# autotest: game clock at" says), it stood still HANG_S seconds
-    (EE_TEST_HANG_S, default 240; a game whose clock never starts - a menu, the editor - or a DLL without the line: only
-    by its time). Not through the pipe: in a hang the simulation's thread spun holding the heap, and the pipe's thread
+    (EE_TEST_HANG_S, default 240; a DLL without that line: the game time of its log's last data row instead; a game whose
+    clock never starts - a menu, the editor, a probe without AI rows on an old DLL - only by its time). Not through the pipe: in a hang the simulation's thread spun holding the heap, and the pipe's thread
     gave no answer that told it apart. A hung game's threads (where each is, hangdump.py) go into its log as "# hang:"
     lines and a minidump beside it (local/work/hang_s<slot>_<time>.dmp) before it is killed: 2026-11-12 one sat 100
     minutes spinning in the heap under the unit list's re-sort until its time was up, and nothing said where."""
@@ -384,7 +399,8 @@ def watch(j, hp, log_file, t0, sdir):
         if now >= end:
             return 'TIMEOUT after %s s - killed' % j.timeout
         place = place or clock_place(log_file)
-        ms = game_clock(hp, place)
+        # an older DLL (a probe built on an old commit: 2026-11-12 two such hung 20 minutes unseen): its log's data rows
+        ms = game_clock(hp, place) if place else log_game_ms(log_file)
         if ms is not None and ms != last_ms:
             ran = ran or last_ms is not None
             last_ms, last_t = ms, now
