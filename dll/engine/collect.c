@@ -855,7 +855,12 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->hit = air ? US_HIT_HIGH * fmaxf(hi[2] * s, 0.0f) : 0.0f;
     k->shift = 0.0f, k->shift_to = 0;
     k->range = fminf(fmaxf(1.2f * half_across, 0.1f), 0.5f);
-    k->zw = g_sh.water_on ? g_sh.level : t[11];
+    // the water's level: the drawn water's, known while some is in the view; else a ship's own height (it lies on the
+    // water), an aircraft's the game's water line, z 0 (its crash steps' splash) - its own height made the air at its death
+    // its water: with no water on the screen every helicopter killed splashed at once and floated where it died (the
+    // player, 2026-11-12, "standing army waterhely": "all helecopter in cmaera view that die imdeiatly splash into water
+    // even tough they are over land and heigh in the air")
+    k->zw = g_sh.water_on ? g_sh.level : air ? 0.0f : t[11];
     for (int i = 0; i < k->n; i++)
         for (int j = 0; j < 3; j++) {
             const float *b = k->body[i];
