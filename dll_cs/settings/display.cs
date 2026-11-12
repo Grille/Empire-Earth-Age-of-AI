@@ -195,7 +195,8 @@ class display
         [range(0, 200)]
         int water_opaque_depth = 20;
         /// With water_look: the colour of that fading, as #RRGGBB (#3265BB is a blue like the game's deep water). It is
-        /// lit as the water is. none = the deepest of the map's own underwater colours (the control pipe: water color
+        /// lit as the water is. none = the deepest of the map's own underwater colours times 0.75 (the game multiplies it with
+        /// the ground's texture, raw it is too bright; the control pipe: water color
         /// <red green blue> / water color map):
         color water_fog_color = none;
         /// With water_look: the light the waves gather on the seabed, lines of light that run with the waves, none at

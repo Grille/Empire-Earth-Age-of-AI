@@ -28,6 +28,10 @@
 // "i didnt mean to make the water surface opaque"). The editor's number is the height over half a height step
 // (EEUIFSEPaintElevation: 0.204 tiles). Refraction would be the copy read a little aside. Before: each face under the water
 // faded by itself with the table by depth, and its own idea of the light (which flickered at the edge of what is explored).
+// the map's deepest underwater colour is a vertex colour, multiplied with the ground's texture where the game draws it:
+// raw as the fog it was too bright (the player, 2026-11-12: "the color is never used raw ingame, but multiplied with
+// ground textures etc."; "the deepest underwater colour * 0.75 maybe?"). A colour the player sets stays as set
+#define RW_MAP_FOG 0.75f
 internal struct {
     int on;          // -1: as the ini says
     float fog;       // the depth (tiles) by which 63% of the way from the shallows' alpha to the deep's is done
@@ -39,7 +43,7 @@ internal struct {
     int haze;        // what lies under the water fogged from where the line of sight enters it
     float opaque;    // the way through the water that hides all (the editor's height units; 0 none, -1 as the ini says)
     float tint;      // the colour under the water times this
-    float fc[3];     // the deepest of the game's colours for the ground under the water (rw_table)
+    float fc[3];     // the deepest of the game's colours for the ground under the water (rw_table), times RW_MAP_FOG
     float own[3];    // [display] water_fog_color, the colour under the water instead of that
     int owned;       // 1: own is in use, 0: fc, -1: the ini not read yet (rw_colour)
     ee_map *tmap;    // the map those are of
@@ -89,7 +93,7 @@ internal void rw_table(void) {
         for (int a = 0; a < 3; a++) {
             float v = fminf(1, fmaxf(0, c[a]));
             px |= (uint32_t)(v * 255 + 0.5f) << ((2 - a) * 8);
-            if (last) g_wa.fc[a] = v;
+            if (last) g_wa.fc[a] = v * RW_MAP_FOG;
         }
         if (last) g_wa.tlast = px; else g_wa.tfirst = px;
     }
