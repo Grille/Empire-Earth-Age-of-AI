@@ -26,6 +26,14 @@ internal float uc_dead_opacity(double d) {   // how much of a corpse is seen at 
     double end = uc_end_ms();
     return d >= end ? 0.0f : d <= end - UC_FADE_MS ? 1.0f : (float)((end - d) / UC_FADE_MS);
 }
+// a kind the game moves itself as it dies - a ship goes down, a spaceship falls - and fades over its own rot time: left
+// to the game unless it is a wreck of ours (ship_sinking), not kept, sunk or faded here (the player, 2026-11-12:
+// "ships and spaceships should be collected like the game does when our physic arent enabled, elsewise they just get
+// stuck halfway" - kept at the pose where the game took it off, halfway down, and lying on for corpses_lie_seconds)
+internal int uc_game_sinks(const ee_unit_type *ty) {
+    int k = unit_type_get_class_id(ty);
+    return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || k == CLS_SPACESHIP || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP;
+}
 // a corpse's pose t lowered as far as its age has taken it
 internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t frame, float scale, double d) {
     double q = (d - uc_lie_ms()) / (g_set.corpses_sink_seconds * 1000.0);
