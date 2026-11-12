@@ -756,11 +756,22 @@ internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl
     return a;
 }
 
-// the neighbours (of any kind) among the 8 around x, y: how many, the first two's directions
+// the neighbours (of any kind) among the 8 around x, y: how many, the first two's directions. A piece over a diagonal
+// link that is beside a post, a tower or a gate beside x, y too is left out: another wall running into the same post,
+// touching this one only across the post's corner (over a straight link it can be this wall's own corner). Counted, a wall bending into a corner post had three neighbours at the post and was no jog
+// there - a straight piece pointing into the post, the jog before it running into its side and showing its end (the
+// player, 2026-11-12: "the pices next to a connector still bug out")
 internal int wj_links(const ee_map *map, int x, int y, const ee_player *pl, int *a, int *b) {
+    struct wj_at nb[8];
+    for (int k = 0; k < 8; k++) nb[k] = wj_at(map, x + k_wj_dir[k][0], y + k_wj_dir[k][1], pl);
     int n = 0;
     for (int k = 0; k < 8; k++) {
-        if (wj_at(map, x + k_wj_dir[k][0], y + k_wj_dir[k][1], pl).kind == WJ_NONE) continue;
+        if (nb[k].kind == WJ_NONE) continue;
+        int other = 0;
+        for (int j = 0; j < 8 && !other && (k & 1) && nb[k].kind != WJ_POST && nb[k].kind != WJ_HUB; j++)
+            other = (nb[j].kind == WJ_POST || nb[j].kind == WJ_HUB) && abs(k_wj_dir[j][0] - k_wj_dir[k][0]) <= 1 &&
+                    abs(k_wj_dir[j][1] - k_wj_dir[k][1]) <= 1;
+        if (other) continue;
         if (n == 0) *a = k; else if (n == 1) *b = k;
         n++;
     }
