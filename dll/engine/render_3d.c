@@ -144,7 +144,7 @@ typedef struct {
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
     float wat[4], sea[4], wop[4], wfc[4];   // the water by its depth, the seabed's detail, the camera and 1 / the way through it that hides all, the colour under the water and the projection's depth term (render_water.c)
     float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
-    float cau[4], cat[4];   // the caustics: strength (0 none), the pattern's units a tile, the wind's way (cos, sin); their time (render_water.c)
+    float cau[4], cat[4];   // the caustics: strength (0 none), the pattern's units a tile, the wind's way (cos, sin); their time, the refraction's and the reflections' shift by the waves (tiles a unit of slope; render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
@@ -270,8 +270,17 @@ internal const char k_rd3_shader[] =
     // the lines, under it in the cells
     "float3 caus(float3 w, float d, float f) { float2 cp = float2(dot(w.xy, cau.zw), dot(w.xy, float2(-cau.w, cau.z))) * cau.y, cw = fwidth(cp);"
     " return cwl(cp, cat.x, 0.35 * (1 - exp(-d * 4))) * (cau.x * smoothstep(0.08, 0.45, f) * exp(-d * 0.8) * saturate(2 - (cw.x + cw.y) * 8)); }\n"
+    // The surface's slope at the world point w (render_water.c, the player 2026-11-12: "can we do refraction for underwater
+    // and diortion for the surface reflections?"): the caustics' waves - one sea, the light on the seabed and the bending
+    // over it from the same waves -, their slope turned back to the map's axes
+    "float2 wslope(float2 w) { float2 cp = float2(dot(w, cau.zw), dot(w, float2(-cau.w, cau.z))) * cau.y; float3 h; float2 g = cwg(cp, cat.x, h);"
+    " return float2(g.x * cau.z - g.y * cau.w, g.x * cau.w + g.y * cau.z); }\n"
+    // a move dw on the map (tiles) as a move on the screen (pixels), by how the map's place changes from pixel to pixel
+    // (wx, wy: its ddx, ddy); no more than 48 pixels (the surface seen edge on)
+    "float2 wpix(float2 dw, float2 wx, float2 wy) { float det = wx.x * wy.y - wy.x * wx.y; if (abs(det) < 1e-12) return 0;"
+    " float2 q = float2(dw.x * wy.y - wy.x * dw.y, wx.x * dw.y - dw.x * wx.y) / det; float l = length(q); return l > 48 ? q * (48 / l) : q; }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
-    " float2 gdx = ddx(i.t), gdy = ddy(i.t);"
+    " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
     // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
     // Under the level the game's own blending and colours (the seabed's depth is painted in them, and a ragged border showed
@@ -340,10 +349,11 @@ internal const char k_rd3_shader[] =
     "  if (shh.w > 0) { float2 hh = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool og = shd.x == 1 || shd.x == 4;"
     "   hl = saturate(((og ? hh.y : hh.x - i.w.z) - (og ? 0.01 : shh.z)) / (og ? min(0.12, shh.y) : shh.y)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
-    // the mirrored picture on the surface (render_water.c), moved a little by the water's own ripples, none of it at
+    // the mirrored picture on the surface (render_water.c), moved by the waves' slope (cat.z) and a little by the water's
+    // texture, none of it at
     // the shore, all from the depth of full strength on; in that picture's own pass what lies under the level is left out and what
     // the fog has taken goes with it (its alpha the object's own fog)
-    " if (rfa.z > 0 && shd.x == 6) { float2 ru = (i.p.xy - rfb.xy) * rfb.zw + (x.rg - 0.5) * rfa.y;"
+    " if (rfa.z > 0 && shd.x == 6) { float2 ru = (i.p.xy - rfb.xy + wpix(wslope(i.w.xy) * cat.z, wdx, wdy)) * rfb.zw + (x.rg - 0.5) * rfa.y;"
     "  float rk = rfa.x; if (shh.w > 0) { float2 rh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "   rk *= smoothstep(0, 1, (i.w.z - (rh.x - rh.y)) * rfa.w); }"
     "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
@@ -353,9 +363,15 @@ internal const char k_rd3_shader[] =
     // the water's step over the picture (render_water.c rd3_water_pass): a pixel of the surface, what was drawn behind it
     // from the copy toward the water's colour by the way from the surface to it (views' depths: the ratio of the two along
     // the same line of sight); nothing drawn behind it is the farthest there is. The surface's vertices bring the light
-    // and the game's fade to black at what isn't explored, its fog the distance's
-    "float4 wfog(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1;"
-    " if (d < 0.99999) wp = saturate(length(i.w - wop.xyz) * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
+    // and the game's fade to black at what isn't explored, its fog the distance's. The refraction (cat.y): what lies
+    // behind read aside by the waves' slope, by the way through the water to it - none at the shore, all from a quarter
+    // tile on -, but only what lies behind the surface there too: a hull or the shore in front of it stays where it is
+    "float4 wfog(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz);"
+    " float2 wx = ddx(i.w.xy), wy = ddy(i.w.xy);"
+    " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1;"
+    "  int3 b = int3(i.p.xy + wpix(wslope(i.w.xy) * (cat.y * saturate(tw * 4)), wx, wy), 0); float db = wsd.Load(b);"
+    "  if (db > i.p.z) { a = b; d = db; } }"
+    " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
     " return float4(lerp(wsc.Load(a).rgb, fc, wp * wp * (3 - 2 * wp)), 1); }\n"
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the

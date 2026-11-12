@@ -128,6 +128,18 @@ internal float rw_opaque(void) {
     return on && m && units > 0 && g_wa.tn ? 1 / (units * map_get_height_step(m) * 0.5f) : 0;
 }
 internal void rw_caustics_pc(rd3_pcb *pc, int on);
+// THE WAVES' BENDING (the player, 2026-11-12: "can we do refraction for underwater and diortion for the surface
+// reflections?"): the surface's slope from the caustics' waves (one sea: the light on the seabed and its bending come
+// from the same waves), turned from a move on the map into one on the screen by how the map's place changes from pixel to
+// pixel. The refraction ([display] water_refraction) is the water's step reading its copy of the picture aside - only
+// what lies behind the surface there too (a hull or the shore in front stays put), none at the shore, all where the line
+// of sight runs a quarter tile through the water. The reflections ([display] water_reflection_ripples) read the
+// mirrored picture aside by the same slope; the water texture's own wobble stays under it. Before, only that wobble: the
+// texture's colours as a slope, a faint shimmer that didn't follow the waves
+#define RW_SLOPE 0.5f      // the waves' slope (render_3d.c cwg) at a middling place
+#define RW_REFRACT 0.06f   // tiles the refraction moves at that slope at 100%
+#define RW_RIPPLES 0.06f   // tiles the reflections move at that slope at 100%
+internal float g_rw_refract = -1, g_rw_ripples = -1;   // the pipe's, -1 the settings'
 internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     // without a map the draws don't know their place in the world (rd3_shadow_vc)
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && water_seen && (g_sh.valid || (g_sh.hill_ok && !g_sh.nohills));
@@ -150,6 +162,10 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     pc->rfa[3] = 1 / g_wa.full;
     memcpy(pc->rfb, g_wa.rfb, sizeof pc->rfb);
     rw_caustics_pc(pc, on);
+    // the waves' bending (render_3d.c wslope, wpix): the refraction only with the water's step, the reflections' by
+    // themselves - their slope is about RW_SLOPE where it is middling
+    pc->cat[1] = on && rw_opaque() > 0 ? (g_rw_refract >= 0 ? g_rw_refract : g_set.water_refraction) * RW_REFRACT / RW_SLOPE : 0.0f;
+    pc->cat[2] = (g_rw_ripples >= 0 ? g_rw_ripples : g_set.water_reflection_ripples) * RW_RIPPLES / RW_SLOPE;
 }
 
 // THE REFLECTIONS ([display] water_reflections): before the list is drawn, what stands in the world - the units,
@@ -444,7 +460,7 @@ internal void rd3_water_reflect(void) {
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
-// | haze on | off | late on | off | away on | off (what lies off the screen in the mirrored picture) | edges on | off (not the water's: the units' soft edges, render_frame.c rf_edges) | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
+// | haze on | off | late on | off | away on | off (what lies off the screen in the mirrored picture) | edges on | off (not the water's: the units' soft edges, render_frame.c rf_edges) | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | refract <0..4> | ripples <0..4>
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -458,6 +474,8 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "sea") && v >= 0 && v <= 1) g_wa.sea = v;
     else if (n == 2 && !strcmp(mode, "seadepth") && v > 0) g_wa.seadepth = v;
     else if (n == 2 && !strcmp(mode, "caustics") && v >= 0 && v <= 2) g_rw_caustics = v;
+    else if (n == 2 && !strcmp(mode, "refract") && v >= 0 && v <= 4) g_rw_refract = v;
+    else if (n == 2 && !strcmp(mode, "ripples") && v >= 0 && v <= 4) g_rw_ripples = v;
     else if (n == 2 && !strcmp(mode, "strength") && v >= 0 && v <= 1) g_wa.strength = v;
     else if (n == 2 && !strcmp(mode, "wobble") && v >= 0) g_wa.wobble = v;
     else if (n == 2 && !strcmp(mode, "full") && v > 0) g_wa.full = v;
@@ -475,11 +493,12 @@ internal void cmd_water(char *out, const char *args) {
     else if (!strcmp(mode, "away")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.away = 1; else if (!strcmp(a, "off")) g_wa.away = 0; }
     else if (!strcmp(mode, "edges")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_fe.force = 1; else if (!strcmp(a, "off")) g_fe.force = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
     const float *wc = rw_colour();
-    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f\n",
+    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth, g_wa.haze ? "on" : "off", (double)(g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque),
           g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, (double)(wc[0] * 255), (double)(wc[1] * 255), (double)(wc[2] * 255), g_wa.owned ? "the setting" : "the map's deepest", g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za,
-          (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full);
+          (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full,
+          (double)(g_rw_refract >= 0 ? g_rw_refract : g_set.water_refraction), (double)(g_rw_ripples >= 0 ? g_rw_ripples : g_set.water_reflection_ripples));
 }

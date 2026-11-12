@@ -210,6 +210,15 @@ class display
         /// With water_caustics: how fast they move at the game's normal speed (0% = they stand):
         [range(0, 4)]
         factor water_caustics_speed = 1;
+        /// With water_look: what lies under the water seen bent by the surface's waves (the waves the caustics come
+        /// from), none at the shore, all where the line of sight runs a quarter tile or more through the water; how far
+        /// (100%: 0.06 tiles at a wave of middling slope; 0% = none; the control pipe: water refract <0..4>):
+        [range(0, 4)]
+        share water_refraction = 1;
+        /// With water_reflections: the mirrored picture moved by the same waves (100%: 0.06 tiles at a wave of
+        /// middling slope; 0% = by the water's texture only, as before; the control pipe: water ripples <0..4>):
+        [range(0, 4)]
+        share water_reflection_ripples = 1;
         /// The own renderer: the water moves by the game time - its waves, its caustics and its animation stand while the
         /// game is paused and go slower at a slower speed. The game's own water moves by the real time, paused or not:
         bool water_game_time = false;
