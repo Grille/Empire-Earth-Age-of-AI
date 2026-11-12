@@ -13,6 +13,13 @@ unsafe struct EEGraphicObject
     [offset((ee)0x234, (aoc)0x244), found(c)]
     block anim_model;
 
+    /// per animation (UString* each, 0 none): its texture's file name - acquire (0x4D29BC, AoC 0x4D85ED) loads each
+    /// into anim_keys (0x4D2ED8, AoC 0x4D8B09), the graphics' default texture where it has none; a tank's death
+    /// animation (5) names the game's generic death texture, gen_deathT (logged 2026-11-12: a Panzer's and a Sherman's
+    /// the same texture there, every other animation its own)
+    [offset((ee)0x1C4, (aoc)0x1D4), found(c)]
+    block anim_texture_names;
+
     /// per animation (uint32 each): the key its record goes into the sort map by (the units' fill: FillUnit's insert)
     /// - objects of one key are drawn together
     [offset((ee)0x1FC, (aoc)0x20C), found(c)]

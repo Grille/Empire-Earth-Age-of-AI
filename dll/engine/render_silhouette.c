@@ -14,7 +14,7 @@
 // The fill knows a record's kind (sil_tag), the draw only the record: the game's draw of a record is hooked to say whose
 // draws follow, and a batch holds one kind (sil_batch); its player's colour is per draw, the entry's free number. A cloaked
 // unit is a kind of its own: no silhouette and no shadow (render_shadows.c), either would show where it is.
-enum { SIL_UNIT = 1, SIL_BUILDING = 2, SIL_CLOAKED = 3 };
+enum { SIL_UNIT = 1, SIL_BUILDING = 2, SIL_CLOAKED = 3, SIL_WRECK = 4 };   // (a burnt wreck: no silhouette, render_units.c)
 #define SIL_TABLE (1u << 16)
 typedef struct { const void *rec; uint32_t gen; int tag; } sil_e;
 internal sil_e g_sil_t[SIL_TABLE];
@@ -58,7 +58,7 @@ internal int ud_record(ee_ro_units *ro, void *rec);   // render_units.c: the mod
 internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
     int kind = sil_of(rec);
     g_sh_cloaked = kind == SIL_CLOAKED;
-    g_sl.tag = sil_on() && kind != SIL_CLOAKED ? kind : 0;
+    g_sl.tag = sil_on() && kind != SIL_CLOAKED && kind != SIL_WRECK ? kind : 0;
     g_sl.in = 1;
     g_sl.ship = class_is_ship(draw_record_get_class_id(rec));
     if (g_sl.tag == SIL_UNIT) {

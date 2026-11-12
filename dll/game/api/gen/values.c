@@ -3604,6 +3604,7 @@ internal uint32_t value_unit_type_slot_type_can_carry;
 // world.cs
 internal uint32_t of_dmg_model_map;
 internal uint32_t of_dmg_model_anim_model;
+internal uint32_t of_dmg_model_anim_texture_names;
 internal uint32_t of_dmg_model_anim_keys;
 internal uint32_t of_dmg_model_shadow_key;
 internal uint32_t of_dmg_model_anim_first;

@@ -938,6 +938,18 @@ selected helicopter it wont explode on impact for some reason"): a helicopter it
 tiles/s and mostly landed without it; one killed standing doesn't move at all. Checked headless with the player's ini
 and a probe: three Apaches killed in the air blew up where they hit, each one's unit already taken off by the game -
 their death effect (a pair, kind 0x3b) is one the effect manager places too.
+A crashed helicopter lies burnt out (the player, the same day: "could you generate wreck models for the helicopters?
+swaping the textures for the games generc bunrt out texture and removing the rotor completly"). The game has no burnt
+helicopter: its graphics give all 14 animations the same texture (logged, an Apache). A tank keeps its model when it
+dies, but its death animation (5) is drawn with the game's generic death texture - each graphics names a texture per
+animation (EEGraphicObject.anim_texture_names, EE +0x1C4, AoC +0x1D4: acquire loads each into anim_keys), a tank's
+fifth textures\gen_deathT, one texture for every graphics that names it (a Panzer's and a Sherman's the same). A
+helicopter's wreck that hit land is tagged from its hit on (SIL_WRECK, collect.c us_burnt): the mod's record draw
+(render_units.c ud_draw) draws it with that texture and the models of its list a - its rotors - shrunk to nothing;
+without unit_instancing the game's draw draws it as it was. The texture is the first unit type's whose graphics name
+it, their models loaded for it once and held until the scene's release. Checked headless with the player's ini: the
+texture found (a type's animation 5), an Apache green with its rotors as it fell, charred and without them from its
+hit on, its player's colour kept as a tank wreck's is.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

@@ -529,6 +529,7 @@ typedef struct {
     uint8_t fx_done;         // ... the effects it had: US_FX_SPLASH, US_FX_CRASH
     uint8_t fx_due;          // ... the ones still to be made on the simulation's thread, at fx_at
     uint8_t stuck;           // an aircraft whose middle hit the ground (or the seabed): it stays as it hit
+    uint8_t burnt;           // ... a helicopter's hit on land: drawn burnt out from then on (us_burnt)
     uint8_t in_game;         // the game still has its unit (the effects' step, by its id): not met by a walk, it is out of
                              // the view by the game's copy, not removed (us_alive_known)
     float fx_at[2][3];       // where: the splash's (on the water), the crash's
@@ -1087,7 +1088,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float ground = mesh_z(mesh, m[0], m[1]);
             if (m[2] <= ground) {
                 if (ground >= k->zw && !(k->fx_done & US_FX_CRASH) && mq - m[2] > US_CRASH_V * dt) us_fx(k, US_FX_CRASH, m[0], m[1], ground);
-                k->stuck = 1;
+                k->stuck = 1, k->burnt = k->heli && ground >= k->zw;
             }
         }
     }
@@ -1122,6 +1123,7 @@ internal void us_pose(const uc_corpse *k, float *t) {
         for (int j = 0; j < 3; j++) mean[j] += 0.25f * k->sp[i][j], body[j] += 0.25f * k->body[i][j];
     for (int r = 0; r < 3; r++) t[r * 4 + 3] = mean[r] - (t[r * 4] * body[0] + t[r * 4 + 1] * body[1] + t[r * 4 + 2] * body[2]);
 }
+internal int us_burnt(const uc_corpse *k);   // below: a crashed helicopter drawn burnt out
 // a rotting object the walk met (or a dead ship, rotting or not yet), its record rec filled and its pose t not yet sunk:
 // its entry made or brought up to date, the record's turns its held ones, and a ship's pose its floats'
 internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, float *t, double d, int ship) {
@@ -1165,15 +1167,52 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
         if (ship && !k->ship) k->died = g_uc_now, us_start(k, o, t);   // a ship's age from its first sight dead (its rot is its last 2 s)
         else if (!k->ship) k->died = g_uc_now - d;
         if (k->ship) us_run(k), us_pose(k, t);
+        if (us_burnt(k)) sil_tag(rec, g_uc_walk_gen, SIL_WRECK);
         k->gen = g_uc_walk_gen, k->gone = 0;
     }
     LeaveCriticalSection(&g_kc_cs);
 }
+// A CRASHED HELICOPTER BURNT OUT (the player, 2026-11-12: "could you generate wreck models for the helicopters? swaping
+// the textures for the games generc bunrt out texture and removing the rotor completly"). The game has no burnt
+// helicopter - its graphics give every animation the same texture - but a tank's death animation (5) is drawn with the
+// game's generic death texture, gen_deathT, its graphics' name for it (one texture for every graphics that names it).
+// A helicopter's wreck that hit land is tagged from its hit on (SIL_WRECK): the mod's record draw (render_units.c
+// ud_draw) draws it with that texture and its rotors shrunk to nothing; the game's own draw (without unit_instancing)
+// as it was. The texture is the first unit type's whose graphics name it (their models loaded for it once, held until
+// the scene's release); none found, nothing changes.
+#define US_ANIMS 14   // a graphics' animations (acquire's loop over them)
+internal ee_dmg_model *g_us_dgfx;
+internal int g_us_dlooked;
+internal ee_texture *us_death_texture(ee_player *pl) {
+    if (g_ud_death_tex || g_us_dlooked || !pl) return g_ud_death_tex;
+    g_us_dlooked = 1;
+    for (unsigned t = 0, n = type_stats_count(pl); t < n; t++) {
+        ee_unit_stats **sp = type_stats(pl, (int)t), *st = sp ? *sp : NULL;
+        ee_dmg_model *g = st ? unit_stats_get_gfx(st) : NULL;
+        if (!g) continue;
+        ee_ustring *const *names = (ee_ustring *const *)dmg_model_anim_texture_names_at(g);
+        for (int a = 0; a < US_ANIMS; a++) {
+            const char *s = names[a] ? ustring_get_text(names[a]) : NULL, *f = s ? strrchr(s, '\\') : NULL;
+            f = f ? f + 1 : s;   // (its folder before it, textures)
+            if (!f || _strnicmp(f, "gen_death", 9)) continue;
+            graphics_acquire(g);   // (its textures loaded by it)
+            g_us_dgfx = g, g_ud_death_tex = graphics_anim_texture(g, a);
+            if (g_log) log_locked("# wrecks: the death texture from type %u's animation %d (%s): %p\n", t, a, s, (void *)g_ud_death_tex);
+            return g_ud_death_tex;
+        }
+    }
+    if (g_log) log_locked("# wrecks: no graphics names the death texture - helicopters' wrecks drawn as they are\n");
+    return NULL;
+}
+// its record drawn burnt out (a crashed helicopter on land, once the texture is had)
+internal int us_burnt(const uc_corpse *k) { return k->ship && k->burnt && us_death_texture(k->owner); }
 internal void uc_corpses_clear(void) {
     if (!g_kc_cs_ok) return;
     EnterCriticalSection(&g_kc_cs);
     for (uint32_t i = 0; i < g_kc_n; i++) graphics_release(g_kc[i].gfx);
     g_kc_n = 0;
+    if (g_us_dgfx) graphics_release(g_us_dgfx);
+    g_us_dgfx = NULL, g_ud_death_tex = NULL, g_us_dlooked = 0;
     LeaveCriticalSection(&g_kc_cs);
 }
 // a kept corpse into the record rec at its age d, as uc_fill_dopp fills a remembered building: whole or see-through by
@@ -1197,7 +1236,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d)
     ee_map *map = game_map();
     ee_unit_type *ty = k->ty;
     float op = uc_dead_opacity(d), pos[3], ground[3] = { 0, 0, 0 };
-    sil_tag(rec, g_uc_walk_gen, 0);
+    sil_tag(rec, g_uc_walk_gen, us_burnt(k) ? SIL_WRECK : 0);
     draw_record_set_type(rec, ty);
     draw_record_set_size(rec, unit_type_get_size(ty));
     memcpy(draw_record_color_at(rec), player_color_at(k->owner), 12);

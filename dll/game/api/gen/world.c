@@ -10,6 +10,11 @@ internal inline uint8_t *dmg_model_map_at(const ee_dmg_model *o) { return (uint8
 // (EEUnit.model); a wall's: 9 the straight piece, 10 the diagonal, 11 the post (a building site draws another
 // meanwhile)
 internal inline uint8_t *dmg_model_anim_model_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_model; }
+// per animation (UString* each, 0 none): its texture's file name - acquire (0x4D29BC, AoC 0x4D85ED) loads each
+// into anim_keys (0x4D2ED8, AoC 0x4D8B09), the graphics' default texture where it has none; a tank's death
+// animation (5) names the game's generic death texture, gen_deathT (logged 2026-11-12: a Panzer's and a Sherman's
+// the same texture there, every other animation its own)
+internal inline uint8_t *dmg_model_anim_texture_names_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_texture_names; }
 // per animation (uint32 each): the key its record goes into the sort map by (the units' fill: FillUnit's insert)
 // - objects of one key are drawn together
 internal inline uint8_t *dmg_model_anim_keys_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_keys; }
@@ -317,6 +322,7 @@ internal int spec_world_select(int build) {
     case 0:   // ee
         of_dmg_model_map = 0x14C;
         of_dmg_model_anim_model = 0x234;
+        of_dmg_model_anim_texture_names = 0x1C4;
         of_dmg_model_anim_keys = 0x1FC;
         of_dmg_model_shadow_key = 0x278;
         of_dmg_model_anim_first = 0x350;
@@ -391,6 +397,7 @@ internal int spec_world_select(int build) {
     case 1:   // aoc
         of_dmg_model_map = 0x14C;
         of_dmg_model_anim_model = 0x244;
+        of_dmg_model_anim_texture_names = 0x1D4;
         of_dmg_model_anim_keys = 0x20C;
         of_dmg_model_shadow_key = 0x288;
         of_dmg_model_anim_first = 0x360;

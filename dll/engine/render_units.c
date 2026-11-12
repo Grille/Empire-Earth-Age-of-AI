@@ -88,6 +88,19 @@ internal void ud_turns(void *rec) {
         }
     }
 }
+// A BURNT WRECK (collect.c us_burnt: a crashed helicopter from its hit on, tagged SIL_WRECK): drawn with the game's
+// generic death texture instead of its animation's, and the models of its list a - its rotors - shrunk to nothing
+// (their own transformations, which ud_turns sets for each record anew)
+internal ee_texture *g_ud_death_tex;   // collect.c's, while it has it
+internal void ud_rotors_off(void *rec) {
+    const float *a = vector_first(draw_record_list_a_c_at(rec)), *end = vector_end(draw_record_list_a_c_at(rec));
+    ee_model *const *mm = vector_first(draw_record_list_a_4_at(rec));
+    if (!a || !mm) return;
+    for (uint32_t i = 0, n = (uint32_t)(end - a); i < n; i++) {
+        const float t[16] = { 1e-4f, 0, 0, 0, 0, 1e-4f, 0, 0, 0, 0, 1e-4f, 0, 0, 0, 0, 1 };
+        memcpy(model_own_at(mm[i]), t, sizeof t);
+    }
+}
 // a gate's leaf: the model's first part placed at its first frame's place times the opening (the game's draw keeps the
 // part's turn over its frame, outer, as it is)
 internal void ud_gate(ee_model *m, float open) {
@@ -150,10 +163,11 @@ internal int ud_draw(void *rec) {
     int anim = draw_record_get_anim(rec);
     ee_model *m = graphics_anim_model(g, anim);
     float op = draw_record_get_opacity(rec);
+    int burnt = g_ud_death_tex && sil_of(rec) == SIL_WRECK;
     in_rec r = { draw_record_transform_at(rec), draw_record_get_scale(rec),
                  { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
                    *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },
-                 graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
+                 burnt ? g_ud_death_tex : graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
     if (bent && (!game_time() || r.pose.frac != 0)) return ud_fell(UD_BENT);
     if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
     if (!m || !in_model_ok(m, &r.pose, 1)) return ud_fell(UD_MODEL_NOT);
@@ -180,6 +194,7 @@ internal int ud_draw(void *rec) {
     if (!in_device(ras, screen)) return ud_fell(UD_CANT);
     dmg_model_set_player_colour(g, draw_record_color_at(rec), anim);
     ud_turns(rec);
+    if (burnt) ud_rotors_off(rec);
     if (draw_record_get_gated(rec)) ud_gate(m, draw_record_get_gate_open(rec));
     if (draw_record_tints_model(rec) && model_get_material_count(m)) material_set_colour(model_get_materials(m)[0], draw_record_get_tint(rec));
     int mode = *(const int32_t *)engine_display_detail_mode_at();
