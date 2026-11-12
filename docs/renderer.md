@@ -813,6 +813,11 @@ US_SURF_DRAG). An aircraft also keeps its own turn: each point starts a step beh
 poses as its way (us_spin; a snap of over 30 degrees none), and an airplane's kick is a roll of 0.5 radians/s at most
 (2.5 before). Logged, P-51s shot in level flight: their energy (speed and height) kept within 1 - 5% over the fall
 where roll 45 lost 45%, base 4 and 0 at roll 45 now alike, the game's own turn 0.08 - 0.10 radians/s.
+Each plane then draws its own (the player, the same day: "4 lift is good as a modifier. roll: -30 to 30 pitch: -5 to
+30 yae -30 to 30 would be the random values i would try"): the base 4 for all, roll, pitch and yaw even over those
+ranges by its serial (hashed: a stream of their own; collect.c US_RND_*). `wreck plane <base> <roll> <pitch> <yaw>`
+fixes them for every plane killed from then on, `wreck plane random [<base>]` draws them again. Logged with 8 P-51s:
+each drew its own, within the ranges.
 
 The water's drag is the hull's own (the player, the same day: "what do you think of adding a lift plane? basicly that
 vertical movment from the orientation of the model get converted to horizontal movment. real ships glide when they

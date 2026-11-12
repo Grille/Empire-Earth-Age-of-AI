@@ -642,8 +642,15 @@ internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC
 // point randomness. the planes points should get feed 3 angle values: roll ... pitch ... and a yaw value"): every
 // plane alike, its wings at a base angle (front up: the glide) plus the roll on the port wing and minus it on the
 // starboard one, the tailplane's two points at the pitch, the fin at the yaw - degrees, set by the pipe's wreck plane
-// for the planes killed from then on (the player tries them before any is drawn at random)
+// for the planes killed from then on (the player tries them before any is drawn at random). Then drawn (the player:
+// "4 lift is good as a modifier. roll: -30 to 30 pitch: -5 to 30 yae -30 to 30 would be the random values i would
+// try"): the base the same for all, the three by its serial, even over these ranges - unless the pipe fixed them
 internal float g_us_ctl[4] = { 4.0f, 0.0f, 0.0f, 0.0f };   // base, roll (+ port wing up: it banks right), pitch (+ nose up), yaw (+ nose right)
+internal int g_us_fixed;   // the pipe's: roll, pitch and yaw g_us_ctl's for every plane, not drawn
+#define US_RND_ROLL 30.0f      // degrees, either way
+#define US_RND_PITCH_LO -5.0f
+#define US_RND_PITCH_HI 30.0f
+#define US_RND_YAW 30.0f
 // A HELICOPTER'S FALL (the player, 2026-11-12: "now lets improve the helicopters, bougancy, some other ideas?", then
 // "yes do 1- 4": it floats a little and rolls over, its rotor holds it, its spin builds up, its rotors turn until it
 // hits). Six points: the floats, its ballast high - its engine and rotor over its cabin: top-heavy, a helicopter in
@@ -734,24 +741,41 @@ internal void us_turn_seen(float *rate, uint32_t *held, uint32_t now, double dms
     }
     *held = now;
 }
-// an airplane's surfaces' angles from the controls (g_us_ctl)
-internal void us_wings(uc_corpse *k) {
+// an airplane's surfaces' angles from its controls: the base and, drawn by its serial (a stream of their own, its seed
+// hashed: ids one apart drew nearly alike by a product alone) or the pipe's, its roll, pitch and yaw
+internal void us_wings(uc_corpse *k, int32_t serial) {
     const float rad = 3.14159265f / 180.0f;
-    k->tilt[0] = sinf((g_us_ctl[0] + g_us_ctl[1]) * rad), k->tilt[1] = sinf((g_us_ctl[0] - g_us_ctl[1]) * rad);
-    k->tilt[2] = sinf(g_us_ctl[2] * rad), k->tilt[3] = sinf(g_us_ctl[3] * rad);
+    float roll = g_us_ctl[1], pitch = g_us_ctl[2], yaw = g_us_ctl[3];
+    if (!g_us_fixed) {
+        uint32_t s = (uint32_t)serial ^ 0x165667B1u;
+        s ^= s >> 16, s *= 0x7FEB352Du, s ^= s >> 15, s *= 0x846CA68Bu, s ^= s >> 16;
+        roll = US_RND_ROLL * (2.0f * us_rnd(&s) - 1.0f);
+        pitch = US_RND_PITCH_LO + (US_RND_PITCH_HI - US_RND_PITCH_LO) * us_rnd(&s);
+        yaw = US_RND_YAW * (2.0f * us_rnd(&s) - 1.0f);
+    }
+    k->tilt[0] = sinf((g_us_ctl[0] + roll) * rad), k->tilt[1] = sinf((g_us_ctl[0] - roll) * rad);
+    k->tilt[2] = sinf(pitch * rad), k->tilt[3] = sinf(yaw * rad);
 }
-// the pipe: wreck plane [<base> <roll> <pitch> <yaw>] - a falling airplane's controls (degrees, -45 .. 45), for those
-// killed from then on; without numbers what they are
+// the pipe: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] - a falling airplane's controls (degrees,
+// -45 .. 45) for every plane killed from then on, or drawn for each again; without more what they are
 internal void cmd_wreck(char *out, const char *args) {
-    char mode[16] = "";
+    char mode[16] = "", word[16] = "";
     float v[4];
-    int n = sscanf(args, "%15s %f %f %f %f", mode, &v[0], &v[1], &v[2], &v[3]);
-    if (n < 1 || strcmp(mode, "plane") || (n != 1 && n != 5)) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw>] (degrees)\n"); return; }
-    for (int i = 0; i < 4 && n == 5; i++)
+    int n = sscanf(args, "%15s %f %f %f %f", mode, &v[0], &v[1], &v[2], &v[3]), nb = 0;
+    if (n < 1 || strcmp(mode, "plane")) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees)\n"); return; }
+    int drawn = n == 1 && sscanf(args, "%*s %15s", word) == 1 && !strcmp(word, "random");
+    if (drawn) nb = sscanf(args, "%*s %*s %f", &v[0]);
+    else if (n != 1 && n != 5) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees)\n"); return; }
+    for (int i = 0; i < (drawn ? nb : n == 5 ? 4 : 0); i++)
         if (!(v[i] >= -45.0f && v[i] <= 45.0f)) { REPLY("error: an angle is -45 .. 45 degrees\n"); return; }
-    if (n == 5) memcpy(g_us_ctl, v, sizeof v);
-    REPLY("ok: a falling plane's base %.1f roll %.1f pitch %.1f yaw %.1f (degrees: + port wing up, nose up, nose right)\n",
-          g_us_ctl[0], g_us_ctl[1], g_us_ctl[2], g_us_ctl[3]);
+    if (drawn) g_us_fixed = 0, g_us_ctl[0] = nb == 1 ? v[0] : g_us_ctl[0];
+    else if (n == 5) memcpy(g_us_ctl, v, sizeof v), g_us_fixed = 1;
+    if (!g_us_fixed)
+        REPLY("ok: a falling plane's base %.1f, roll %.0f .. %.0f, pitch %.0f .. %.0f, yaw %.0f .. %.0f drawn for each (degrees: + port wing up, nose up, nose right)\n",
+              g_us_ctl[0], -US_RND_ROLL, US_RND_ROLL, US_RND_PITCH_LO, US_RND_PITCH_HI, -US_RND_YAW, US_RND_YAW);
+    else
+        REPLY("ok: a falling plane's base %.1f roll %.1f pitch %.1f yaw %.1f for all (degrees: + port wing up, nose up, nose right)\n",
+              g_us_ctl[0], g_us_ctl[1], g_us_ctl[2], g_us_ctl[3]);
 }
 // its leaks by the plan of its serial; late: met already sinking (come into the view): at their end at once
 internal void us_leaks(uc_corpse *k, int32_t serial, int late) {
@@ -893,7 +917,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         // its ballast at its wings' height: under them it hung from their lift as a pendulum and rolled a plane with a
         // broken wing level again (logged: banked to 40 degrees in a second, back to 25 by its crash)
         k->body[4][2] = fz;
-        us_wings(k);
+        us_wings(k, o->serial);
     }
     k->lift = sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
