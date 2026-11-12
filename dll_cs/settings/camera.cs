@@ -36,6 +36,12 @@ class camera
     /// How far the camera sees, in tiles (0 = the game's 35); further out it grows with the camera's distance:
     [range(0, 100)]
     int camera_view_distance = 50;
+    /// The own renderer: where the distance's fog starts, as a share of how far the camera sees at that zoom (the fog's
+    /// end, which grows as the camera goes out). 0% = the game's own: a band of 8 tiles before the end - with a long view
+    /// distance the far land stays clear up to there and then fades within those tiles. Lower starts the haze nearer,
+    /// over more of the way (the control pipe: picture fog <0..0.95>):
+    [range(0, 0.95)]
+    share fog_start = 0;
     /// The field of view in degrees (0 = the game's 30):
     [range(0, 90)]
     int camera_fov = 48;

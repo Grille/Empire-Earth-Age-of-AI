@@ -887,11 +887,25 @@ internal void rf_depth_vpm(float *m) {
 // the fog ("when zooming out quickly the top sometimes is drawn in fog for a frame": a far depth of 296 with the fog
 // ending at 139). camera.c's far value isn't the fog's end either: at rest after a zoom in it was 115 and the step's
 // far depth, the fog's with it, 296 (the step copies it when the camera moves).
+// THE FOG'S START ([camera] fog_start; the player, 2026-11-12: "add a fog start distance, with long render distances
+// propper fogging becomes desiarble"): the game's band is 8 tiles before its end whatever the view distance - with the
+// mod's long views the far land stayed clear and then faded within those tiles. A share of the end (which grows as the
+// camera goes out), so the haze keeps its shape at every zoom; never later than the game's own start. Linear fog only
+// (the game's); the water's fog under the level is the same fog (render_3d.c fog_at) and follows.
+internal float g_rf_fog_start = -1;   // the pipe's picture fog, -1 the setting's
+internal void rf_fog_start(rd3_vcb *vc) {
+    float s = g_rf_fog_start >= 0 ? g_rf_fog_start : g_set.fog_start;
+    if (vc->fog[0] != 3 || s <= 0) return;
+    float a = vc->fog[2] * s;
+    if (a < vc->fog[1]) vc->fog[1] = a;
+}
 internal void rf_depth_vc(rd3_vcb *vc) {
     float n, f;
-    if (!g_dz.on || !rf_depth_of(vc->vpm, &n, &f)) return;
-    if (!rf_depth_same(n, f)) rf_depth_vpm(vc->vpm);
-    if (vc->fog[0] == 3 && fabsf(vc->fog[2] - g_dz.f) > 1e-3f * g_dz.f) { vc->fog[1] += g_dz.f - vc->fog[2]; vc->fog[2] = g_dz.f; }
+    if (g_dz.on && rf_depth_of(vc->vpm, &n, &f)) {
+        if (!rf_depth_same(n, f)) rf_depth_vpm(vc->vpm);
+        if (vc->fog[0] == 3 && fabsf(vc->fog[2] - g_dz.f) > 1e-3f * g_dz.f) { vc->fog[1] += g_dz.f - vc->fog[2]; vc->fog[2] = g_dz.f; }
+    }
+    rf_fog_start(vc);
 }
 // a frame drawn with an update: the axes from its view where its eye is the transformation's - to 0.01 tile: the
 // view's eye made back from its rotation and place is a float's rounding off, more far out on the map (eyes 130 tiles

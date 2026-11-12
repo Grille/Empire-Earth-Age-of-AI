@@ -1452,6 +1452,10 @@ objects out of the picture). Probed 2026-11-04 in a Continental game at 8 min (e
   unlit 128x128, 56 untextured, a few lit) - those must not cast. 3 nearly flat upright draws of 56 vertices (a
   0.12 x 0.04 x 0.06 part scaled 2x). Buildings under construction are drawn translucent (alpha test 7).
 
+## The fog's start (2026-11-12)
+
+`[camera] fog_start` (share of the fog's end, default 0% = the game's; the pipe's `picture fog <0..0.95>`; the player: "add a fog start distance, with long render distances propper fogging becomes desiarble"). The game's linear distance fog is a band of 8 tiles before its end, whatever the view distance; render_frame.c already moves its end to the frame's far depth (rf_depth_vc). rf_fog_start puts the start at that share of the end, never later than the game's own: a share because the end grows as the camera goes out (zoomed far out with the player's ini: the near ground 34 from the eye, the far depth 162), so the haze keeps its shape at every zoom. Every world draw passes it (rf_shift), the mirrored picture too; the water's fog under the level is the same fog (fog_at). Checked headless with the player's ini, zoomed far out and paused: at 50% hardly a change in that view (all of it nearer than 81), at 30% the far half hazy. Seen then: the large dark pieces beyond the map's edge take the fog in steps, one shade each - the fog is worked out at the vertices (range fog, a distance) and their triangles are large; per-pixel fog would smooth that.
+
 ## The water (2026-11-08)
 
 `[display] water_look` and `water_reflections` (dll/engine/render_water.c, the pipe's `water`; both need dynamic shadows, the first the hills too).

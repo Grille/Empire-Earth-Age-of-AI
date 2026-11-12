@@ -237,7 +237,7 @@ internal int collect_anim_mode(int on), collect_own(int on), collect_opacity(int
 internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
-// the pipe: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
+// the pipe: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [fog <0..0.95>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -284,6 +284,10 @@ internal void cmd_picture(char *out, const char *args) {
         float m = (float)atof(arg);
         if (arg[0] && m >= 0 && m <= 2) g_gm_margin = m;
         else { REPLY("error: usage: picture margin <0..2>\n"); return; }
+    } else if (!strcmp(mode, "fog")) {   // render_frame.c rf_fog_start: where the distance's fog starts, of its end
+        float s = (float)atof(arg);
+        if (arg[0] && s >= 0 && s <= 0.95f) g_rf_fog_start = s;
+        else { REPLY("error: usage: picture fog <0..0.95> (of the fog's end; 0 the game's)\n"); return; }
     } else if (!strcmp(mode, "handoff")) {
         int ms = atoi(arg);
         if (arg[0] && ms >= 0 && ms <= 1000) g_rwl_handoff_after = ms;
