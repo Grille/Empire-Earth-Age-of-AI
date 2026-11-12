@@ -529,6 +529,9 @@ typedef struct {
     uint8_t fx_due;          // ... the ones still to be made on the simulation's thread, at fx_at
     uint8_t stuck;           // an aircraft whose middle hit the ground (or the seabed): it stays as it hit
     uint8_t burnt;           // ... a helicopter's hit on land: drawn burnt out from then on (us_burnt)
+    uint8_t shatters;        // ... a flier that lies shattered (us_shatter): its death animation from its hit on land
+    int32_t fly_anim, fly_frame;   // ... its animation and frame at its death, drawn until it shatters
+    float shatter_t;         // ... when it hit land (s after its death; < 0 not)
     uint8_t in_game;         // the game still has its unit (the effects' step, by its id): not met by a walk, it is out of
                              // the view by the game's copy, not removed (us_alive_known)
     float fx_at[2][3];       // where: the splash's (on the water), the crash's
@@ -666,6 +669,18 @@ internal int g_us_fixed;   // the pipe's: roll, pitch and yaw g_us_ctl's for eve
 // no parts): falling dry, they are the game's own while it is met, each one's rate measured, and on by those rates
 // while it isn't (out of the view, or taken off where the game's copy lands); held from its hit or its first wet on
 #define US_PTS_HELI 6       // the floats, the ballast (high), the rotor's hub
+// A FLIER THAT SHATTERS (the player, 2026-11-12, of the Ares: "they have an shatter animation when hitting the ground, but
+// its triggerd by the game, not by us, and it also triggers when hitting the water surface. it should only trigger when
+// hitting land, and the remains position has to be corected than to sit properly on the terrain"). The game lets an
+// Ares down to z 0 - the water's surface too - and there switches it to its death animation (5: its pieces flying
+// apart, 16 frames of about 95 ms, played as it dies and again from the start of its 14 s rot, then held; logged),
+// while the wreck drawn here still fell, slowed by its rotor: it burst in the air and its pieces sank with the floats.
+// A helicopter whose type has a rot time and a death animation of more than one frame is drawn with its animation at
+// its death until its wreck hits land; from then its death animation plays once (US_SHATTER_MS a frame) and holds its
+// last frame, upright on the ground under its floats, turned as the wreck lay - in the water it never shatters (it
+// sinks whole), and it is never drawn burnt (its pieces have their own texture)
+#define US_SHATTER_ANIM 5
+#define US_SHATTER_MS 95.0f
 #define US_HELI_FLOAT 1.6f  // buoyancy, fully under (g's)
 #define US_HELI_LEAK 0.3f   // its leaks' start and length: a share of a ship's (afloat a few seconds)
 #define US_HELI_HIGH 0.6f   // the ballast at this share of its height over its floats
@@ -900,6 +915,10 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->keel = fminf(fmaxf(fz - lo[2] * s, 0.05f), 1.0f);
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
     k->heli = (uint8_t)(air && cls != CLS_AIRPLANE), k->spin_t = 0.0f;
+    ee_model *sm = ((ee_model **)dmg_model_anim_model_at(o->gfx))[US_SHATTER_ANIM];
+    k->shatters = (uint8_t)(k->heli && unit_type_get_rot_time(o->ty) > 0 && sm && model_get_frames(sm) > 1);
+    k->shatter_t = -1.0f;   // its look at its death (met already shattered: its first animation)
+    k->fly_anim = o->anim == US_SHATTER_ANIM ? 0 : o->anim, k->fly_frame = o->anim == US_SHATTER_ANIM ? 0 : o->anim_frame;
     k->n = cls == CLS_AIRPLANE ? US_PTS_AIR : k->heli ? US_PTS_HELI : US_PTS;
     if (k->heli) {   // its ballast high over its floats (its model stands on them), its hub at its top
         float top = fmaxf(hi[2] * s, 0.1f);
@@ -1170,7 +1189,8 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float ground = mesh_z(mesh, m[0], m[1]);
             if (m[2] <= ground) {
                 if (ground >= k->zw && !(k->fx_done & US_FX_CRASH) && mq - m[2] > US_CRASH_V * dt) us_fx(k, US_FX_CRASH, m[0], m[1], ground);
-                k->stuck = 1, k->burnt = k->heli && ground >= k->zw;
+                k->stuck = 1, k->burnt = k->heli && !k->shatters && ground >= k->zw;
+                if (k->shatters && ground >= k->zw && k->shatter_t < 0.0f) k->shatter_t = t;
             }
         }
     }
@@ -1206,6 +1226,31 @@ internal void us_pose(const uc_corpse *k, float *t) {
     for (int r = 0; r < 3; r++) t[r * 4 + 3] = mean[r] - (t[r * 4] * body[0] + t[r * 4 + 1] * body[1] + t[r * 4 + 2] * body[2]);
 }
 internal int us_burnt(const uc_corpse *k);   // below: a crashed helicopter drawn burnt out
+// a shattering flier's animation, frame, next frame and fraction now, and its pose t upright on the ground once it
+// shatters; others' left as they are
+internal void us_shatter(const uc_corpse *k, float *t, int32_t *anim, int32_t *frame, int32_t *next, float *fraction) {
+    if (!k->ship || !k->shatters) return;
+    if (k->shatter_t < 0.0f) {
+        *anim = k->fly_anim, *frame = *next = k->fly_frame, *fraction = 0.0f;
+        return;
+    }
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[US_SHATTER_ANIM];
+    int32_t n = m ? (int32_t)model_get_frames(m) : 1;
+    float f = (float)((k->sim - k->died) / 1000.0 - k->shatter_t) * 1000.0f / US_SHATTER_MS;
+    f = f < 0.0f ? 0.0f : f;
+    int32_t i = (int32_t)f;
+    *anim = US_SHATTER_ANIM, *frame = i < n - 1 ? i : n - 1, *next = i + 1 < n - 1 ? i + 1 : n - 1;
+    *fraction = i < n - 1 ? f - (float)i : 0.0f;
+    float ex = t[0], ey = t[4], l = sqrtf(ex * ex + ey * ey), cx = 0.0f, cy = 0.0f;   // its x axis laid flat
+    if (l < 1e-4f) ex = 1.0f, ey = 0.0f, l = 1.0f;
+    ex /= l, ey /= l;
+    for (int i2 = 0; i2 < 4; i2++) cx += 0.25f * k->sp[i2][0], cy += 0.25f * k->sp[i2][1];
+    const void *mesh = game_map() ? map_mesh_at(game_map()) : NULL;
+    t[0] = ex, t[1] = -ey, t[2] = 0.0f, t[3] = cx;
+    t[4] = ey, t[5] = ex, t[6] = 0.0f, t[7] = cy;
+    t[8] = 0.0f, t[9] = 0.0f, t[10] = 1.0f;
+    t[11] = mesh && mesh_has_tile(mesh, (int)floorf(cx), (int)floorf(cy)) ? mesh_z(mesh, cx, cy) : t[11];
+}
 // a rotting object the walk met (or a dead ship, rotting or not yet), its record rec filled and its pose t not yet sunk:
 // its entry made or brought up to date, the record's turns its held ones, and a ship's pose its floats'
 internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, float *t, double d, int ship) {
@@ -1255,6 +1300,12 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
             // the object gets deleted where the falling model flickers"; logged)
             us_run(k), us_pose(k, t);
             draw_record_set_opacity(rec, fmaxf(draw_record_get_opacity(rec), uc_dead_opacity(g_uc_now - k->died)));
+            if (k->shatters) {
+                int32_t an = draw_record_get_anim(rec), fr = draw_record_get_frame(rec), nx = draw_record_get_next_frame(rec);
+                float fc = draw_record_get_fraction(rec);
+                us_shatter(k, t, &an, &fr, &nx, &fc);
+                draw_record_set_anim(rec, an), draw_record_set_frame(rec, fr), draw_record_set_next_frame(rec, nx), draw_record_set_fraction(rec, fc);
+            }
         }
         if (us_burnt(k)) sil_tag(rec, g_uc_walk_gen, SIL_WRECK);
         k->gen = g_uc_walk_gen, k->gone = 0;
@@ -1307,15 +1358,18 @@ internal void uc_corpses_clear(void) {
 // a kept corpse into the record rec at its age d, as uc_fill_dopp fills a remembered building: whole or see-through by
 // its fade, fogged out of the player's sight, never picked, no silhouette, its parts as last seen; 0 when outside the view
 internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d, int fogged) {
-    ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[k->anim];
-    if (!m) return 0;
     __attribute__((aligned(8))) float pose[16];   // where it lies: its last pose, a ship's by its floats on
     memcpy(pose, k->t, sizeof pose);
     if (k->ship) us_run(k), us_pose(k, pose);
+    int32_t anim = k->anim, frame = k->frame, next = k->frame;
+    float fraction = 0.0f;
+    us_shatter(k, pose, &anim, &frame, &next, &fraction);
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[anim];
+    if (!m) return 0;
     __attribute__((aligned(8))) uint8_t pm[0x60];
     physical_model_new(pm);
     physical_model_set_model(pm, m);
-    physical_model_set_frame(pm, k->frame);
+    physical_model_set_frame(pm, frame);
     transform_assign(pm, pose);
     physical_model_set_scale(pm, k->scale);
     int in = units_view_call(4)(pm, opacity_viewport(), *game_camera_fixed_at()) != 0;
@@ -1371,11 +1425,11 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
         ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = us_turn(k, 2, i, k->lb[i][0]);
         ((uint32_t *)vector_first(draw_record_list_b_4_at(rec)))[i] = k->lb[i][1];
     }
-    draw_record_set_frame(rec, k->frame);
-    draw_record_set_next_frame(rec, k->frame);
-    draw_record_set_fraction(rec, 0.0f);
+    draw_record_set_frame(rec, frame);
+    draw_record_set_next_frame(rec, next);
+    draw_record_set_fraction(rec, fraction);
     draw_record_set_state(rec, 0);
-    draw_record_set_anim(rec, k->anim);
+    draw_record_set_anim(rec, anim);
     transform_assign(rec, pose);
     float *t = draw_record_transform_at(rec);
     if (map_tile_lit(map, (int)floorf(t[3]), (int)floorf(t[7])) && t[11] >= oc.zero) draw_record_set_ground_z(rec, 0.0f);
@@ -1385,7 +1439,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
         draw_record_set_ground_z(rec, ground[2]);
     }
     if (!k->ship) uc_sink_at(t, k->gfx, k->anim, k->frame, k->scale, d);
-    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, k->anim), rec };
+    void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(k->gfx, anim), rec };
     uc_map_insert(maps + (op < 1.0f ? 0xC : 0), pair);
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(k->gfx);
     pair[1] = rec;
