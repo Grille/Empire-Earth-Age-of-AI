@@ -673,14 +673,17 @@ internal int g_us_fixed;   // the pipe's: roll, pitch and yaw g_us_ctl's for eve
 // its triggerd by the game, not by us, and it also triggers when hitting the water surface. it should only trigger when
 // hitting land, and the remains position has to be corected than to sit properly on the terrain"). The game lets an
 // Ares down to z 0 - the water's surface too - and there switches it to its death animation (5: its pieces flying
-// apart, 16 frames of about 95 ms, played as it dies and again from the start of its 14 s rot, then held; logged),
+// apart, played as it dies and again from the start of its 14 s rot, then held; logged),
 // while the wreck drawn here still fell, slowed by its rotor: it burst in the air and its pieces sank with the floats.
 // A helicopter whose type has a rot time and a death animation of more than one frame is drawn with its animation at
-// its death until its wreck hits land; from then its death animation plays once (US_SHATTER_MS a frame) and holds its
-// last frame, upright on the ground under its floats, turned as the wreck lay - in the water it never shatters (it
-// sinks whole), and it is never drawn burnt (its pieces have their own texture)
+// its death until its wreck hits land; from then its death animation plays once - its own stretch of its model's
+// frames at its own frames' time (anim_first .. anim_last, anim_frame_ms: an Ares' 0 .. 15 at 97 ms, an Apollo's 14 ..
+// 29 at 60; the model's every frame at the Ares' 95 ms until the same day showed an Apollo's other frames 0 .. 13
+// first, rising - the player: "apol is a bit weired, on hitting the ground it get the death texture, moves up a bit,
+// and than shatters after a second maybe") - and holds its last frame, upright on the ground under its floats,
+// turned as the wreck lay. In the water it never shatters (it sinks whole), and it is never drawn burnt
 #define US_SHATTER_ANIM 5
-#define US_SHATTER_MS 95.0f
+#define US_SHATTER_MS 95.0f   // a frame's time when its graphics give none
 #define US_HELI_FLOAT 1.6f  // buoyancy, fully under (g's)
 #define US_HELI_LEAK 0.3f   // its leaks' start and length: a share of a ship's (afloat a few seconds)
 #define US_HELI_HIGH 0.6f   // the ballast at this share of its height over its floats
@@ -916,7 +919,8 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
     k->heli = (uint8_t)(air && cls != CLS_AIRPLANE), k->spin_t = 0.0f;
     ee_model *sm = ((ee_model **)dmg_model_anim_model_at(o->gfx))[US_SHATTER_ANIM];
-    k->shatters = (uint8_t)(k->heli && unit_type_get_rot_time(o->ty) > 0 && sm && model_get_frames(sm) > 1);
+    k->shatters = (uint8_t)(k->heli && unit_type_get_rot_time(o->ty) > 0 && sm &&
+                            ((const int32_t *)dmg_model_anim_last_at(o->gfx))[US_SHATTER_ANIM] > ((const int32_t *)dmg_model_anim_first_at(o->gfx))[US_SHATTER_ANIM]);
     k->shatter_t = -1.0f;   // its look at its death (met already shattered: its first animation)
     k->fly_anim = o->anim == US_SHATTER_ANIM ? 0 : o->anim, k->fly_frame = o->anim == US_SHATTER_ANIM ? 0 : o->anim_frame;
     k->n = cls == CLS_AIRPLANE ? US_PTS_AIR : k->heli ? US_PTS_HELI : US_PTS;
@@ -1237,12 +1241,13 @@ internal void us_shatter(const uc_corpse *k, float *t, int32_t *anim, int32_t *f
         *anim = k->fly_anim, *frame = *next = k->fly_frame, *fraction = 0.0f;
         return;
     }
-    ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[US_SHATTER_ANIM];
-    int32_t n = m ? (int32_t)model_get_frames(m) : 1;
-    float f = (float)((k->sim - k->died) / 1000.0 - k->shatter_t) * 1000.0f / US_SHATTER_MS;
+    int32_t first = ((const int32_t *)dmg_model_anim_first_at(k->gfx))[US_SHATTER_ANIM],
+            last = ((const int32_t *)dmg_model_anim_last_at(k->gfx))[US_SHATTER_ANIM],
+            ms = ((const int32_t *)dmg_model_anim_frame_ms_at(k->gfx))[US_SHATTER_ANIM], n = last - first + 1;
+    float f = (float)((k->sim - k->died) / 1000.0 - k->shatter_t) * 1000.0f / (ms > 0 ? (float)ms : US_SHATTER_MS);
     f = f < 0.0f ? 0.0f : f;
     int32_t i = (int32_t)f;
-    *anim = US_SHATTER_ANIM, *frame = i < n - 1 ? i : n - 1, *next = i + 1 < n - 1 ? i + 1 : n - 1;
+    *anim = US_SHATTER_ANIM, *frame = first + (i < n - 1 ? i : n - 1), *next = first + (i + 1 < n - 1 ? i + 1 : n - 1);
     *fraction = i < n - 1 ? f - (float)i : 0.0f;
     float ex = t[0], ey = t[4], l = sqrtf(ex * ex + ey * ey), cx = 0.0f, cy = 0.0f;   // its x axis laid flat
     if (l < 1e-4f) ex = 1.0f, ey = 0.0f, l = 1.0f;

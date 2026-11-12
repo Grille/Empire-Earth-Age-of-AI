@@ -27,6 +27,10 @@ internal inline uint32_t *dmg_model_shadow_key_at(const ee_dmg_model *o) { retur
 internal inline uint8_t *dmg_model_anim_first_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_first; }
 // per animation (int32 each): its last frame - after it the animation's next frame is its first (0x5F1463)
 internal inline uint8_t *dmg_model_anim_last_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_last; }
+// per animation (int32 each): the time a frame of it is shown (ms) - read in a running game (EE) beside the
+// frames' times measured: an Ares' death animation (frames 0 .. 15) 97 against 95 ms seen, an Apollo's (14 .. 29)
+// 60 against 59, an Apache's (none: 0 .. 0) 0
+internal inline uint8_t *dmg_model_anim_frame_ms_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_frame_ms; }
 // per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
 // (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
 internal inline uint8_t *dmg_model_anim_strike_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_strike; }
@@ -327,6 +331,7 @@ internal int spec_world_select(int build) {
         of_dmg_model_shadow_key = 0x278;
         of_dmg_model_anim_first = 0x350;
         of_dmg_model_anim_last = 0x388;
+        of_dmg_model_anim_frame_ms = 0x3C0;
         of_dmg_model_anim_strike = 0x3F8;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D29BC;
         fn_dmg_model_release = (dmg_model_release_fn)0x004D343B;
@@ -402,6 +407,7 @@ internal int spec_world_select(int build) {
         of_dmg_model_shadow_key = 0x288;
         of_dmg_model_anim_first = 0x360;
         of_dmg_model_anim_last = 0x398;
+        of_dmg_model_anim_frame_ms = 0x3D0;
         of_dmg_model_anim_strike = 0x408;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D85ED;
         fn_dmg_model_release = (dmg_model_release_fn)0x004D907E;

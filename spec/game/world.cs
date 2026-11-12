@@ -38,6 +38,12 @@ unsafe struct EEGraphicObject
     [offset((ee)0x388, (aoc)0x398), found(c)]
     block anim_last;
 
+    /// per animation (int32 each): the time a frame of it is shown (ms) - read in a running game (EE) beside the
+    /// frames' times measured: an Ares' death animation (frames 0 .. 15) 97 against 95 ms seen, an Apollo's (14 .. 29)
+    /// 60 against 59, an Apache's (none: 0 .. 0) 0
+    [offset((ee)0x3C0, (aoc)0x3D0), found(b)]
+    block anim_frame_ms;
+
     /// per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
     /// (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
     [offset((ee)0x3F8, (aoc)0x408), found(c)]

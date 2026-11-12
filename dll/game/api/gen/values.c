@@ -3609,6 +3609,7 @@ internal uint32_t of_dmg_model_anim_keys;
 internal uint32_t of_dmg_model_shadow_key;
 internal uint32_t of_dmg_model_anim_first;
 internal uint32_t of_dmg_model_anim_last;
+internal uint32_t of_dmg_model_anim_frame_ms;
 internal uint32_t of_dmg_model_anim_strike;
 internal uint32_t of_dmg_model_users;
 internal uint32_t of_dmg_model_loading;
