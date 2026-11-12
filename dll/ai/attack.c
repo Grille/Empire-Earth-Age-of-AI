@@ -1876,10 +1876,16 @@ __attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call 
 // (0x628CDD from the projectile set-up 0x5EA105), the unit list loops or breaks as above. Once the memory is out again
 // such a stale release hits a live unit (mIsValid +0x2B still 1: a unit is taken out of the game - 0x628B8E, mIsValid
 // 0 - before its last release; 0 such releases in normal play). Guard: a release of a unit that is back in the pool
-// (count 0, +0x2A set, no node - kept until the pool's reset on reuse) or still in the game is skipped.
+// (+0x2A set, no node - kept until the pool's reset on reuse) or still in the game is skipped - whatever its count:
+// the last release leaves it at 1 (0x4FCAD3 calls vf13 without counting down), and the strong anti-air's 88mm guns
+// came back with 1 (2026-11-12, massed raids, deterministic on two seeds: a crash at 0x53110D and a hang spinning in
+// the heap under the list's re-sort). A gun going up was given back by a dying citizen's cleanup (EEComplexUnit vf1
+// 0x5E91C3, its held units at +0x58) while builders' orders still held it; each order's end (EEUGBuildRepair's
+// destructor 0x60BC04) released it again, the count 1 let it through, and the pool handed its memory to the next
+// building - a concrete tower linked in after a B-29 that still pointed at it.
 internal unsigned g_release_again;
 internal void __thiscall hook_unit_release(ee_unit *u) {
-    int again = !unit_get_refs(u) && unit_get_released(u) == 1 && !unit_get_list_node(u), live = unit_get_valid(u) != 0;
+    int again = unit_get_released(u) == 1 && !unit_get_list_node(u), live = unit_get_valid(u) != 0;
     if (again || live) {
         if (g_log && g_release_again++ < 10) {
             ee_unit_type *td = unit_get_type_data(u);
