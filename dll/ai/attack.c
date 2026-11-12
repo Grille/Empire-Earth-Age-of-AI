@@ -1958,6 +1958,7 @@ internal void attack_install(void) {
     g_danger_routes = g_set_ai[1].danger_routes;
     g_avoid_lost = g_set_ai[1].avoid_lost_fights;
     g_bunkers = g_set_ai[1].bunkers;
+    g_shelter_first = g_set_ai[1].shelter_first;
     g_bk_res = g_set_ai[1].bunker_reserve;
     town_guards_install();   // bunker.c
     BOOL repair = patch_repair_goal(hook_repair_goal);

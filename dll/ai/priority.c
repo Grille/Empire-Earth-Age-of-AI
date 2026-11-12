@@ -26,9 +26,18 @@
 internal int g_aa_urgent[16];      // the threat is real now
 internal int g_aa_hold[16][7];     // what its AA still wants (a block's buildings, a round of units)
 internal int g_aa_maker[16];       // the building it asks for to make its AA units (0 none)
+// ... and the shelter (bunker.c, [ai_base] shelter_first; the player 2026-11-12: "the fortresses are a good protection
+// against bombers, why is that off again?" - on, but under the massed raids it laid one in 3 of 32 games: its 350 wood
+// waited behind the farms' 525): while its citizens are being hurt and it still wants a fortress, the fortress is of
+// this row too - its wood held from every other spender, and it waits for no row
+internal int g_shelter_first = 1, g_v_shelter_first = -1;   // [ai_base] shelter_first (read in attack.c with the bunkers), [autotest] v_shelter_first
+internal int g_shelter_urgent[16];  // the fortress it wants now
+internal int g_shelter_wood[16];    // the wood it still lacks for it
 internal int prio_air_type(unsigned idx, int type) {
     idx &= 15;
-    if (!g_aa_urgent[idx] || type <= 0) return 0;
+    if (type <= 0) return 0;
+    if (g_shelter_urgent[idx] && type == UT(B_FORTRESS)) return 1;
+    if (!g_aa_urgent[idx]) return 0;
     ee_unit_type *td = type_data(type);
     int f = td ? unit_type_get_family(td) : -1;
     return f == KIND_LAND_AA || f == KIND_AA_BUILDING || type == g_aa_maker[idx];
@@ -57,7 +66,11 @@ internal void wood_reserve(ee_player *pl, int reserve[7]);      // mines.c
 internal void navy_hold(ee_player *pl, unsigned idx, int reserve[7]);   // navy.c
 
 #define PRIO_IDX ((unsigned)player_get_index(pl) & 15)
-internal void prio_air(ee_player *pl, unsigned s, int r[7]) { (void)s; if (g_aa_urgent[PRIO_IDX]) for (int k = 2; k < 7; k++) r[k] += g_aa_hold[PRIO_IDX][k]; }
+internal void prio_air(ee_player *pl, unsigned s, int r[7]) {
+    (void)s;
+    if (g_aa_urgent[PRIO_IDX]) for (int k = 2; k < 7; k++) r[k] += g_aa_hold[PRIO_IDX][k];
+    if (g_shelter_urgent[PRIO_IDX]) r[3] += g_shelter_wood[PRIO_IDX];
+}
 internal void prio_epoch(ee_player *pl, unsigned s, int r[7]) { (void)s; spend_reserve(pl, PRIO_IDX, r, NULL); }
 // units: the next fields' wood, or the silo's whole sum while it has its turn; a building only yields to the silo
 internal void prio_farms(ee_player *pl, unsigned s, int r[7]) { r[3] += s & S_BUILD ? g_farm_hold[PRIO_IDX] : field_wood(PRIO_IDX); }
@@ -115,7 +128,7 @@ internal int prio_refuses(ee_player *pl, int type) {
     static unsigned refused[16];
     static uint32_t log_t[16];
     unsigned idx = PRIO_IDX, s = S_BUILD;
-    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx]) return 0;
+    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx] && !g_shelter_urgent[idx]) return 0;
     if (type == g_prio_cur[idx] - 1) s |= S_WANTED;
     if (prio_air_type(idx, type)) s |= S_AIR;
     if (UT_IN(type, UT_TOWNS, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM, UT_B_HOUSE, UT_B_DOCK)) s |= S_BUILD_ECON;

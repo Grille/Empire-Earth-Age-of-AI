@@ -245,7 +245,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
     return sent;
 }
 internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
-    if (g_bk[pi].build_t && now >= g_bk[pi].build_t && now - g_bk[pi].build_t < 60000) return;
+    if (g_bk[pi].build_t && now >= g_bk[pi].build_t && now - g_bk[pi].build_t < (g_shelter_urgent[pi] ? 15000u : 60000u)) return;   // under fire: a look every 15 s
     g_bk[pi].build_t = now ? now : 1;
     int e = current_epoch(pl);
     if (e < 2 || e >= 14) return;
@@ -280,6 +280,18 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
         if (guard_at.x >= 0 && want < g_bk[pi].nall + 1) want = g_bk[pi].nall + 1;
     }
     g_bk[pi].need_wood = 0;
+    // shelter_first: its citizens being hurt and a fortress still wanted - the fortress joins the priority list's first
+    // row (priority.c g_shelter_urgent: its wood held from every other spender, its foundation refused by no row)
+    // - and before that, the first one once enemy aircraft are possible and the economy runs (20 citizens): measured,
+    // hurt alone came too late - after the first massed run its wood stock was 30 of the 350, the income gone with the
+    // woodcutters, the row held wood that never came (in 2 of 8 games a fortress). Measured (2026-11-12, Small Islands
+    // seed 101 from epoch 10, 60 min, 8 games each, off / on): a fortress in 1-2 / 8 of 8 games; 30 B-17s
+    // (air_raid.eeai) its citizens at minute 30 / 40 / 50 13 / 5 / 7 against 17 / 15 / 11, with aa_strong 25 / 28 / 26;
+    // 30 B-29s 0 / 0 / 0 against 9 / 6 / 0. Ordinary games (h2h, Continental from World War I, 4 AIs, 60 min, 12 games
+    // mirrored, B on): alive +0.00 (se 0.09), workers -13 (14), soldiers -8 (10), razed +3 (6) - nothing beyond noise. On.
+    g_shelter_urgent[pi] = PV(pi, g_v_shelter_first, g_shelter_first) && g_bk[pi].nall < want &&
+                           (bk_hurt_recent(pi, 0, 0, 10000, 120000) >= 3 || (air && cit >= 20 && !g_bk[pi].nall));
+    g_shelter_wood[pi] = 0;
     if (g_bk[pi].nall >= want) return;
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
     // game's own builders take the foundation up anyway)
@@ -287,6 +299,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *tech = od && tt ? tech_tree_lookup(tt, unit_type_get_tech(od)) : NULL;
     int cost = tech && tech_get_data(tech) ? tech_data_get_cost(tech_get_data(tech), 3) : 350;   // the cost lives in its tech (wood)
+    if (g_shelter_urgent[pi]) g_shelter_wood[pi] = cost;
     if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
     ivec2 base = build_mgr_get_base(bm), d = iv2(0, 0);
