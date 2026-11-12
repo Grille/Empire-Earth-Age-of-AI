@@ -498,6 +498,93 @@ internal int ut_record(ee_ro_units *ro, float *at, void *rec) {
     if (mine && !g_ud.over) ud_compare(rec, 1);
     return 1;
 }
+// THE TREES' OWN LIST (the pipe: picture trees on | off | (nothing: its counts); with the kept trees). The walk of the
+// units' update (collect.c collect_walk) tested every tree on the view's tiles against the view, made its record and put
+// it into two of the game's sort maps (the trees' and the shadows'), and the game's tree loop (EEROUnits.draw_trees, EE
+// 0x50B235, AoC 0x515A50) set the lights and the blending for each before its draw - about 1.5 + 2.3 + 1 ms a frame for
+// the 10 800 trees of the player's save, on top of the draw. A tree the walk can list here instead (collect.c tl_tree:
+// every model let through the view's test, the casters off the screen collected - so the test is its tile's sight and its
+// size -, whole, of one tile, not selected) gets its record in this list, filled as the game's would be, with the
+// picker's entry and the ambient sounds' as before but in no sort map: the game's shadows' render object draws only
+// blobs from that one, which the dynamic shadows don't draw. The list holds one user of each graphics it draws (the game's
+// records one each), given back at the next walk and at the scene's release. One tree of the walk stays in the game's
+// list, the anchor: right after the game's loop draws it, under the states it set for it - a whole tree's lights, no
+// see-through blending - the list is drawn by the draw the game's would have made of each (ut_record), in the sort map's
+// order (its graphics' key, then the walk's).
+#define TL_MAX 32768
+#define TL_GFX 256
+internal struct {
+    int force;              // the pipe's: 0 off, 1 on; -1: on
+    int on;                 // this walk lists trees here
+    uint8_t *rec;           // the records (DRAW_SMALL_REC each)
+    uint32_t *key, *order;  // each's sort key; the draw's order
+    uint32_t n;
+    const void *anchor;     // the tree in the game's list the list is drawn after
+    int want;               // the walk's next tree it can take is to be the anchor
+    ee_dmg_model *gfx[TL_GFX];
+    int ngfx;
+    LONG walks, listed, drawn, normal, full;
+} g_tl = { .force = -1 };
+internal int tl_on(void) { return (g_tl.force < 0 ? 1 : g_tl.force) && kt_on(); }
+// a graphics drawn from the list: a user of it held until the next walk
+internal int tl_hold(ee_dmg_model *g) {
+    for (int i = 0; i < g_tl.ngfx; i++) if (g_tl.gfx[i] == g) return 1;
+    if (g_tl.ngfx >= TL_GFX) return 0;
+    graphics_acquire(g);
+    g_tl.gfx[g_tl.ngfx++] = g;
+    return 1;
+}
+// the users given back and the list emptied (a walk's start, the scene's release)
+internal void tl_clear(void) {
+    for (int i = 0; i < g_tl.ngfx; i++) graphics_release(g_tl.gfx[i]);
+    g_tl.ngfx = 0;
+    g_tl.n = 0;
+    g_tl.anchor = NULL;
+    g_tl.want = 0;
+}
+// the list drawn after the anchor (render_silhouette.c's tree hook): the sort map's order by key - few keys, each's
+// trees in the order listed
+internal void tl_after(ee_ro_units *ro, float *at, const void *rec) {
+    if (rec != g_tl.anchor || !g_tl.n) return;
+    uint32_t keys[TL_GFX], at_k[TL_GFX], nk = 0;
+    for (uint32_t i = 0; i < g_tl.n; i++) {
+        uint32_t k = 0;
+        while (k < nk && keys[k] != g_tl.key[i]) k++;
+        if (k == nk) {
+            if (nk == TL_GFX) { g_tl.key[i] = keys[0]; k = 0; }   // (more keys than room: drawn with the first's)
+            else keys[nk] = g_tl.key[i], at_k[nk++] = 0;
+        }
+        at_k[k]++;
+    }
+    for (uint32_t a = 1; a < nk; a++)   // the keys ascending, their counts with them
+        for (uint32_t b = a; b > 0 && keys[b - 1] > keys[b]; b--) {
+            uint32_t t = keys[b]; keys[b] = keys[b - 1]; keys[b - 1] = t;
+            t = at_k[b]; at_k[b] = at_k[b - 1]; at_k[b - 1] = t;
+        }
+    for (uint32_t k = 0, sum = 0; k < nk; k++) { uint32_t c = at_k[k]; at_k[k] = sum; sum += c; }
+    for (uint32_t i = 0; i < g_tl.n; i++) {
+        uint32_t k = 0;
+        while (keys[k] != g_tl.key[i]) k++;
+        g_tl.order[at_k[k]++] = i;
+    }
+    for (uint32_t i = 0; i < g_tl.n; i++) {
+        uint8_t *r = g_tl.rec + (size_t)g_tl.order[i] * DRAW_SMALL_REC;
+        if (!ut_record(ro, at, r)) ro_units_draw_tree(ro, at, r);
+    }
+    InterlockedExchangeAdd(&g_tl.drawn, (LONG)g_tl.n);
+}
+internal int tl_pipe(char *out, const char *arg) {
+    if (!strcmp(arg, "on") || !strcmp(arg, "off")) {
+        g_tl.force = arg[1] == 'n';
+        REPLY("the trees' own list %s\n", g_tl.force ? "on" : "off");
+        return 1;
+    }
+    if (arg[0]) { REPLY("error: usage: picture trees [on | off]\n"); return 1; }
+    REPLY("the trees' own list: %s; %lu now, %d graphics held; walks %ld, listed %ld, drawn %ld, left to the game's list %ld, full %ld\n",
+          tl_on() ? "on" : "off", (unsigned long)g_tl.n, g_tl.ngfx, (long)g_tl.walks, (long)g_tl.listed, (long)g_tl.drawn,
+          (long)g_tl.normal, (long)g_tl.full);
+    return 1;
+}
 // the pipe: picture draw [game | own | check]
 internal int um_pipe(char *out, const char *arg);   // collect_maps.c
 internal int pd_pipe(char *out, const char *arg);   // render_effects.c
@@ -505,6 +592,7 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
     if (!strcmp(mode, "maps")) return um_pipe(out, arg);
     if (!strcmp(mode, "pieces")) return pd_pipe(out, arg);
     if (!strcmp(mode, "kept")) return kt_pipe(out, arg);
+    if (!strcmp(mode, "trees")) return tl_pipe(out, arg);
     if (strcmp(mode, "draw")) return 0;
     if (!strcmp(arg, "game") || !strcmp(arg, "own") || !strcmp(arg, "check")) {
         g_ud.force = arg[0] == 'g' ? 0 : arg[0] == 'o' ? 1 : 2;

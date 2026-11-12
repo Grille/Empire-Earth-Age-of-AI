@@ -646,6 +646,7 @@ internal int collect_fx_sims(void) { return g_fx_sims; }
 internal void uc_corpses_clear(void);   // collect.c
 internal void __cdecl fx_hook_scene_release(void) {
     uc_corpses_clear();
+    tl_clear(), g_tl.on = 0;   // the trees' own list (render_units.c): its graphics' users given back while they are there
     if (g_fx_made && g_rwl_world) {
         g_rwl_read(g_rwl_world);
         EnterCriticalSection(&g_cp_cs);

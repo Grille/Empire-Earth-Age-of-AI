@@ -1766,7 +1766,9 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
 // values when a diagonal neighbour tile has no tree (the copy's open); its selection circle and the trees' health bars'
 // list while it is the player's selected unit; its sway in the wind by the clock and its id (a model of more than one
 // frame); then into the sort map by its graphics' key, the picker (its transformation) and the sixth sort map. (The
-// game makes a physical model on its stack it never uses: left out.)
+// game makes a physical model on its stack it never uses: left out.) dry: 1 only the record (the check), 2 for the trees'
+// own list (render_units.c: the ambient sounds' and the picker's entries, no user of its graphics taken - the list holds
+// one -, in no sort map)
 internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *info, int dry) {
     opacity_consts oc = opacity_consts_now();
     tree_consts tc = tree_consts_now();
@@ -1783,7 +1785,7 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
     transform_orient(t, info->yaw, 0.0f, 0.0f);
     transform_set_position(t, pos[0], pos[1], pos[2]);
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
-    if (!dry && info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), o->u);
+    if (dry != 1 && info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), o->u);
     draw_small_record_set_hp(rec, (float)((long double)o->hp / o->st_hp));
     draw_small_record_set_flag(rec, 0);
     draw_small_record_set_gfx(rec, o->gfx);
@@ -1810,7 +1812,8 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
         else if (s > oc.one) s = 1;
         draw_small_record_set_sway(rec, (float)s);
     } else draw_small_record_set_sway(rec, 0.0f);
-    if (dry) return;
+    if (dry == 1) return;
+    if (dry == 2) { uc_pick_add(o->u, t, draw_small_record_get_opacity(rec)); return; }
     void *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
     uc_map_insert(sort_map, pair);
     uc_pick_add(o->u, t, draw_small_record_get_opacity(rec));
@@ -2151,6 +2154,50 @@ internal int uc_opacity_of(ee_ro_units *ro, uc_obj *o, float *out) {
     return see;
 }
 
+// THE TREES' OWN LIST (render_units.c g_tl): whether this walk lists trees there - the mod's walk, test, opacity and
+// fill, the trees kept, the mod's tree draw, every model let through the view's test (the shadows' casters off the screen
+// collected: this walk's rows widened), no free camera - and the list emptied (its graphics' users given back)
+internal void tl_begin(void) {
+    tl_clear();
+    g_tl.on = 0;
+    if (!tl_on() || ud_mode() == 0 || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || *game_free_camera_at()) return;
+    if (g_shr.n <= 0 || !g_shr.on || g_shr.off || !g_sh.on || !draw_list_moved()) return;
+    if (!g_tl.rec) {
+        g_tl.rec = malloc((size_t)TL_MAX * DRAW_SMALL_REC);
+        g_tl.key = malloc(TL_MAX * sizeof *g_tl.key);
+        g_tl.order = malloc(TL_MAX * sizeof *g_tl.order);
+        if (!g_tl.rec || !g_tl.key || !g_tl.order) { free(g_tl.rec); free(g_tl.key); free(g_tl.order); g_tl.rec = NULL; return; }
+    }
+    g_tl.on = 1;
+    g_tl.want = 1;
+    g_tl.walks++;
+}
+// a tree of the walk's tile ct for the list: 1 listed, 0 not drawn (as uc_drawn tests a tree with every model let
+// through: the tile in the player's sight, a scale), -1 the game's list's as before, -2 that and the anchor. Of one tile
+// (else the walk's set of the met), not selected nor with its health bar shown (the game's list of the trees' bars holds
+// the record), not seen through (the trees' second map); its opacity before the walk's mark, which the game's path tests
+internal int tl_tree(uc_obj *o, const uc_ctile *ct, uc_info *info, int during) {
+    if (o->food || unit_type_get_size(o->ty) != 1) return -1;
+    ee_player *me = game_players()[local_player_index()];
+    if (o->u == player_get_selected_unit(me) || uc_in_bar_ids(o->serial)) return -1;
+    if (!ct->seen_me) return 0;
+    float sc = o->height;
+    if (!(sc < 0.0f || sc > 0.0f)) return 0;
+    if (during && o->walked == g_uc_walk_gen) return 0;
+    float op;
+    if (uc_opacity(o, &op)) return -1;
+    if (g_tl.want) { g_tl.normal++; return -2; }
+    if (g_tl.n >= TL_MAX || !tl_hold(o->gfx)) { g_tl.full++; return -1; }
+    o->walked = g_uc_walk_gen;
+    uint8_t *rec = g_tl.rec + (size_t)g_tl.n * DRAW_SMALL_REC;
+    memset(rec, 0, DRAW_SMALL_REC);
+    draw_small_record_set_opacity(rec, op);
+    uc_fill_tree(o, rec, NULL, info, 2);
+    g_tl.key[g_tl.n++] = graphics_anim_key(o->gfx, 0);
+    g_tl.listed++;
+    return 1;
+}
+
 // THE WALK, OF THE COPY: the view's tiles (the terrain mesh's visible rows) as the game walks them, from the copy of
 // them (cp_take: the simulation's, or made now) - an explored tile's objects in their order, each the view test lets
 // through and the picker hasn't got into a record of the objects' list or the trees'; on a tile out of sight the
@@ -2197,6 +2244,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     if (c && g_cp_smooth == 1 && g_cp_cs_ok) pt_clock(), g_uc_show = g_pt_show_ms;
     g_uc_clock = c ? c->clock : -1.0;   // the corpses' clock (uc_dead_ms)
     g_uc_now = g_uc_show >= 0.0 ? g_uc_show : g_uc_clock;
+    tl_begin();   // (after the rows: whether they were widened)
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;
         w.row(mesh, r, &y, &x0, &x1);
@@ -2205,6 +2253,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
             if (!ct->t || (!ct->explored && !free_cam)) continue;
             for (uint32_t k = 0; k < ct->n_obj; k++) {
                 uc_obj *o = &c->objs[c->seq[ct->obj_at + k]];
+                int tl = o->tree && g_tl.on ? tl_tree(o, ct, (uc_info *)info, during) : -1;   // the trees' own list
+                if (tl >= 0) continue;
                 if (uc_drawn_of(ro, o, ct, w.met) && (during ? o->walked != g_uc_walk_gen : !w.listed(picker, o->u))) {
                     o->walked = g_uc_walk_gen;
                     if (!o->tree) {
@@ -2222,6 +2272,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                         if (g_uc_fill == 2) uc_fill_tree(o, rec, maps + (see ? 0x30 : 0x24), (uc_info *)info, 0);
                         else uc_fill_tree_of(ro, o, rec, maps + (see ? 0x30 : 0x24), info);
                         ++*sn;
+                        if (tl == -2 && !see) g_tl.anchor = rec, g_tl.want = 0;
                     }
                 }
             }

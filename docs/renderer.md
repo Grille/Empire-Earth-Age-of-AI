@@ -1043,6 +1043,23 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    moved). Kept trees drawn first in the units' object took the frame before's camera or the 2D one. Now kt_draw takes
    the lock and the 3D mode as Draw does. Art of Conquest's check with the camera moved between spots had shown it: 71
    trees of 1.5 million differed in the view and projection; 0 of 1.55 million after.
+   The trees' own list (render_units.c g_tl, collect.c tl_tree; the pipe: `picture trees on | off`): measured after the
+   kept draw, a tree still cost the walk of the units' update its test (uc_drawn: a physical model made and the view
+   asked - 134 ns, with every model let through anyway while the shadows' casters off the screen are collected) and its
+   fill (212 ns: the record, two of the game's sort maps, its graphics' user), and the game's tree loop (EEROUnits
+   draw_trees, EE 0x50B235, AoC 0x515A50) its lights and blending: 1.5 + 2.3 + about 1 ms a frame for the save's 10 800.
+   A tree the list can take - every model let through (its rows widened: its test its tile's sight and its size), the
+   mod's walk, test, opacity and fill, the kept and the mod's tree draw, no free camera; of one tile, whole, not
+   selected nor with its bar shown - gets its record there, filled as the game's (uc_fill_tree's mode 2: the picker's and
+   the ambient sounds' entries, no sort map - the shadows' render object draws only blobs from its map, which the dynamic
+   shadows drop - and no user of its graphics: the list holds one of each, given back at the next walk and the scene's
+   release). One tree stays in the game's list, the anchor: right after the game's loop draws it, under the states it
+   set for a whole tree, the list is drawn in the sort map's order (key, then the walk's) by ut_record. Trees the player
+   remembers under fog (the doppelgangers) stay the game's list's for now. Checked: `picture draw check` with the list's
+   trees compared too, 1.56 million records and trees in the 2017 update and 1.55 million in Art of Conquest, none
+   differ; the picker's list the same with the list off and on (15 807 entries, their units in the same order); two
+   shots paused, off and on, differ only inside the forests, by the sway between them. The save's frame 37-38 ms to
+   32-34 with the list (timers in), the update 10.3-10.8 to 7.3-8.0, the units' draw 17.1-17.5 to 15.1-15.5.
 5. Then no DX7 state per record (alpha, textures, materials straight into the batch entries) and the records sorted
    for long instanced draws; the 0x420 records, the circles and bars, the shadows' render object.
 
