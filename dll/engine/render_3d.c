@@ -798,8 +798,9 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
 // the batch into the upload buffers and the frame's list (render_frame.c), with the states it was collected under
 internal void rd3_flush(void) {
     if (!g_rb.ni) return;
-    if (g_rb.morph == 2) { in_flush(); return; }
+    if (g_rb.morph == 2) { fsw_pend_clear(); in_flush(); return; }
     rf_keep_ground();
+    fsw_pend_clear();
     long wa = rd3_upload(&g_rd3.wb, &g_rd3.wb_cap, D3D11_BIND_SHADER_RESOURCE, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
     if (wa >= 0 && g_rb.morph) {   // indices only: their entries' slots moved to the matrices' place
         uint32_t add = (uint32_t)wa / sizeof *g_rb.w << 12;
@@ -848,6 +849,7 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
         memcpy(v->fvf, vb->mem + (size_t)(start + k) * vb->stride, sizeof v->fvf);
         v->w = w;
     }
+    fsw_rb_tag(base, nv);
     uint32_t *o = g_rb.i + g_rb.ni;
     #define RB_AT(k) (base + (idx ? idx[k] : (k)))
     if (!strip) for (DWORD k = 0; k < n; k++) *o++ = RB_AT(k);

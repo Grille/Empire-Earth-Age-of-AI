@@ -380,6 +380,62 @@ internal void fsw_sway_at(const float *table, double at, float *xy) {
 }
 #define FSW_VERTS 4096
 internal float g_fsw_keep[FSW_VERTS][2];   // the tops' x and y as the game left them (the graphics thread's)
+// THE STALKS IN THE FRAMES DURING A STEP (the player, 2026-11-13: "with stepload 100 the weed still dosnt animate
+// smothly"): the farms are drawn in the game's shadows' render object, and a frame during a step draws that object's
+// batches of the last real frame again (render_frame.c g_ks) - the wheat stood until the step's end. So the stalks'
+// draw of a real frame tags its tops' vertices in the batch (rd3_append -> fsw_rb_tag: the draw's vertices the farm's
+// stalks', point for point; the ground's mesh drawn in the same call isn't), the tags follow the batch into g_ks
+// (fsw_tags_keep), and the frames during a step put each tagged top at the sway of their own time (fsw_tags_apply).
+typedef struct { uint32_t at; float bx, by; double phase, dir, period; } fsw_tag;   // the vertex; its bottom's x, y; the sway's place at game time 0, its way, the period
+#define FSW_TAGS 65536
+#define FSW_PEND 8192
+internal fsw_tag g_fsw_tags[FSW_TAGS], g_fsw_pend[FSW_PEND];   // g_ks's (by its vertices, in order), the batch's being made (by g_rb's)
+internal int g_fsw_ntags, g_fsw_npend;
+internal struct { int on; ee_vertices *va; uint32_t type, n, rows; double up, down, period; } g_fsw_now;   // the stalks being drawn
+internal void fsw_tags_clear(void) { g_fsw_ntags = 0; }
+internal void fsw_pend_clear(void) { g_fsw_npend = 0; }
+internal void fsw_tags_keep(int v0) {
+    for (int i = 0; i < g_fsw_npend && g_fsw_ntags < FSW_TAGS; i++) {
+        fsw_tag t = g_fsw_pend[i];
+        t.at += (uint32_t)v0;
+        g_fsw_tags[g_fsw_ntags++] = t;
+    }
+    g_fsw_npend = 0;
+}
+internal void fsw_rb_tag(uint32_t base, uint32_t nv) {
+    if (!g_fsw_now.on || g_ro_cur != RO_SHADOWS || g_kg_skip || nv != g_fsw_now.n) return;
+    for (uint32_t k = 0; k < nv; k++) {
+        const float *p = vertices_point_at(g_fsw_now.va, g_fsw_now.type, k);
+        if (!p || memcmp(p, g_rb.v[base + k].fvf, 12)) return;
+    }
+    uint32_t rows = g_fsw_now.rows, span = 2u * rows;
+    for (uint32_t k = 0; k + rows < nv && g_fsw_npend < FSW_PEND; k++) {
+        if (k % span >= rows) continue;
+        const float *b = vertices_point_at(g_fsw_now.va, g_fsw_now.type, k + rows);
+        g_fsw_pend[g_fsw_npend++] = (fsw_tag){ base + k, b[0], b[1], k & 1 ? g_fsw_now.down : g_fsw_now.up, k & 1 ? -1.0 : 1.0,
+                                               g_fsw_now.period };
+    }
+}
+internal void fsw_tags_apply(int v0, int nv) {
+    if (!g_fsw_ntags || !g_uc_anim_smooth || g_cp_smooth != 1) return;
+    const float *table = engine_display_get_farm_sway();
+    if (!table) return;
+    pt_clock();
+    double show = g_pt_show_ms;
+    if (show < 0.0) return;
+    int lo = 0, hi = g_fsw_ntags;
+    while (lo < hi) {
+        int m = (lo + hi) / 2;
+        if (g_fsw_tags[m].at < (uint32_t)v0) lo = m + 1; else hi = m;
+    }
+    for (int i = lo; i < g_fsw_ntags && g_fsw_tags[i].at < (uint32_t)(v0 + nv); i++) {
+        const fsw_tag *t = &g_fsw_tags[i];
+        float xy[2];
+        fsw_sway_at(table, t->phase + t->dir * show / t->period, xy);
+        float *p = (float *)g_rb.v[t->at - (uint32_t)v0].fvf;
+        p[0] = t->bx + xy[0], p[1] = t->by + xy[1];
+    }
+}
 internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
     if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok || !farm_fx_get_stalks_drawn(o)) return eee3_d_farm_draw(o);
     ee_model *m = farm_fx_get_stalks(o);
@@ -414,7 +470,10 @@ internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
         g_fsw_keep[i][0] = top[0], g_fsw_keep[i][1] = top[1];
         top[0] = bottom[0] + d[0], top[1] = bottom[1] + d[1];
     }
+    g_fsw_now.va = va, g_fsw_now.type = type, g_fsw_now.n = n, g_fsw_now.rows = (uint32_t)rows;
+    g_fsw_now.up = e->up, g_fsw_now.down = e->down, g_fsw_now.period = (double)period, g_fsw_now.on = 1;
     uint32_t r = eee3_d_farm_draw(o);
+    g_fsw_now.on = 0;
     for (uint32_t i = 0; i + (uint32_t)rows < n; i++) {
         if (i % span >= (uint32_t)rows) continue;
         float *top = vertices_point_at(va, type, i);

@@ -126,6 +126,12 @@ internal int g_kw_surface = -1;   // of those the surface's (the ones before the
 internal rf_ground g_ks;   // the game's shadows' decals, the farms' fields: the same (their draw, as the ground's, draws
                            // nothing during a step - every frame drawn during one showed the farms without their fields,
                            // the player 2026-11-06: "farms flicker in visibility", the pipe's record: fields 0 in those)
+// the farms' stalks among g_ks's vertices, swayed again in the frames during a step (collect.c fsw_tags_*)
+internal void fsw_tags_clear(void);
+internal void fsw_tags_keep(int v0);
+internal void fsw_tags_apply(int v0, int nv);
+internal void fsw_pend_clear(void);
+internal void fsw_rb_tag(uint32_t base, uint32_t nv);
 // The interface's draws too, for the frames without the game's update at all (render_3d.c g_rwl_bare: the interface's
 // lock held by a thread waiting to write): each form's DrawPolygons draws the list its CopyData (the interface's update)
 // made for the frame and empties it - the command buttons, the cancel button while placing a building, parts of the
@@ -154,6 +160,7 @@ internal void rf_ground_clear(rf_ground *g) {
         if (g->b[k].src) rd_sf_release(g->b[k].src);
     }
     g->nv = g->ni = g->nw = g->nb = 0;
+    if (g == &g_ks) fsw_tags_clear();
 }
 // A target or depth buffer freed (render.c rd_surface_free): what is kept to be drawn again holds its views without a
 // reference - the kept batches here, the ground's states (render_ground.c) - and a frame during a step bound them freed.
@@ -208,6 +215,7 @@ internal void rf_keep_ground(void) {
     if (b->src) rd_sf_addref(b->src);
     b->vc = g_rd3.vc; b->pc = g_rd3.pc;
     b->v0 = g->nv; b->nv = g_rb.nv; b->i0 = g->ni; b->ni = g_rb.ni; b->w0 = g->nw; b->nw = g_rb.nw;
+    if (g == &g_ks) fsw_tags_keep(b->v0);
     memcpy(g->v + g->nv, g_rb.v, (size_t)g_rb.nv * sizeof *g->v);
     memcpy(g->i + g->ni, g_rb.i, (size_t)g_rb.ni * sizeof *g->i);
     memcpy(g->w + g->nw, g_rb.w, (size_t)g_rb.nw * sizeof *g->w);
@@ -677,6 +685,7 @@ internal void rf_ground_again_part(rf_ground *g, int k0, int k1) {
         g_rd3.vc = b->vc; g_rd3.pc = b->pc;
         g_rf.vc_new = g_rf.pc_new = 1;
         memcpy(g_rb.v, g->v + b->v0, (size_t)b->nv * sizeof *g_rb.v);
+        if (g == &g_ks) fsw_tags_apply(b->v0, b->nv);
         memcpy(g_rb.i, g->i + b->i0, (size_t)b->ni * sizeof *g_rb.i);
         memcpy(g_rb.w, g->w + b->w0, (size_t)b->nw * sizeof *g_rb.w);
         g_rb.nv = b->nv; g_rb.ni = b->ni; g_rb.nw = b->nw;
