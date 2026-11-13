@@ -16,6 +16,18 @@
 internal int ao_kfmt(char *o, int cap, int v) {   // 950, 9.7k, 14k
     return v < 1000 ? snprintf(o, (size_t)cap, "%d", v) : v < 10000 ? snprintf(o, (size_t)cap, "%.1fk", v / 1000.0) : snprintf(o, (size_t)cap, "%dk", v / 1000);
 }
+// the player's own colour (the game's: three floats 0..1, as the units are tinted - render_units.c), else the overlay's
+internal uint32_t ao_colour(ee_player *pl, unsigned idx, unsigned alpha) {
+    const float *c = (const float *)player_color_at(pl);
+    uint32_t r = 0;
+    for (int k = 0; k < 3; k++) {
+        if (!(c[k] >= 0.0f && c[k] <= 1.0f)) return overlay_player_argb((int)idx, alpha);
+        uint32_t v = (uint32_t)(c[k] * 255.0f + 0.5f);
+        v = v < 40 ? 40 : v;   // not black on the dark plates and edges
+        r = r << 8 | v;
+    }
+    return (uint32_t)(alpha & 255) << 24 | r;
+}
 internal vec2 ao_at(ivec2 p) { return v2((float)p.x + 0.5f, (float)p.y + 0.5f); }
 internal int ao_has(ivec2 p) { return p.x > 0 || p.y > 0; }
 internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
@@ -26,7 +38,7 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (last[idx] && now >= last[idx] && now - last[idx] < AO_EVERY) return;
     last[idx] = now ? now : 1;
-    uint32_t col = overlay_player_argb((int)idx, 255), dim = overlay_player_argb((int)idx, 150);
+    uint32_t col = ao_colour(pl, idx, 255), dim = ao_colour(pl, idx, 150);
     static struct av_sum sum;
     char b[5][16];
     overlay_begin(layer, idx, now, AO_TTL);
@@ -57,8 +69,21 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
     if (is_vanilla(pl)) { overlay_end(); return; }
     // the force
     if (ar_on(pl, idx) && sum.n) {
-        int ashore = sum.n - sum.aboard;
-        vec2 mid = ashore > 0 ? ao_at(sum.mid) : ao_at(a->home);
+        // each member a dot (out: in its colour, those left home dim), the diamond at the middle the force's judgements
+        // take (armies.c ar_side: the plain mean of the members' tiles, out only those out) - between its groups when
+        // it is strung out (the player, 2026-11-13: "the marker and where the units are is very off, is that what the
+        // ai think their force is?")
+        long sx = 0, sy = 0;
+        int nm = 0;
+        for (int k = 0; k < a->n; k++) {
+            ee_unit *u = a->held[k].u;
+            if (!cv_alive(u)) continue;
+            ivec2 p = unit_get_tile(u);
+            int in = !a->out || a->held[k].out;
+            overlay_mark(ao_at(p), OVM_SQUARE, 7, in ? col : (col & 0xFFFFFF) | 0x60000000u);
+            if (in) sx += p.x, sy += p.y, nm++;
+        }
+        vec2 mid = nm ? ao_at(iv2((int)(sx / nm), (int)(sy / nm))) : ao_at(a->home);
         int hp = sum.hp_full > 0 ? (int)(100.0f * sum.hp / sum.hp_full + 0.5f) : 0;
         if (a->out) {
             vec2 dest = ao_at(a->dest);
@@ -71,12 +96,13 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
                 overlay_arrow(p, dest, 2, dim);
             } else overlay_arrow(mid, dest, 4, col);
             overlay_mark(dest, OVM_DIAMOND | OVM_HOLLOW, 18, col);
-        } else if (ao_has(a->home) && ivec2_dist2(sum.mid, a->home) > 12 * 12 && ashore > 0) {
+        } else if (ao_has(a->home) && nm && ivec2_dist2(iv2((int)(sx / nm), (int)(sy / nm)), a->home) > 12 * 12) {
             overlay_arrow(mid, ao_at(a->home), 2, dim);
             overlay_mark(ao_at(a->home), OVM_TRIANGLE | OVM_HOLLOW, 14, col);
         }
         overlay_mark(mid, OVM_DIAMOND, 26, col);
-        overlay_text(mid, 0, col, "force %d, health %d%%%s", sum.n, hp, sum.siege ? ", siege" : "");
+        if (a->out && nm < sum.n - sum.aboard) overlay_text(mid, 0, col, "force %d of %d out, health %d%%%s", nm, sum.n, hp, sum.siege ? ", siege" : "");
+        else overlay_text(mid, 0, col, "force %d, health %d%%%s", sum.n, hp, sum.siege ? ", siege" : "");
         if (a->out == 1)
             overlay_text(mid, 1, 0xFFFFFFFF, "%s %d,%d (odds %.1f)", a->stage == 1 ? "approach to" : a->stage == 2 ? "way round to" : a->stage == 3 ? "breach at" : "push at",
                          a->dest.x, a->dest.y, a->ratio > 99.0f ? 99.0 : (double)a->ratio);
@@ -88,7 +114,11 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
     for (int j = 0; j < g_av[idx].n; j++) {
         struct av_army *o = &g_av[idx].a[j];
         av_clear(&sum);
-        for (int k = 0; k < o->n; k++) if (av_live(&o->m[k], pl)) av_add(&sum, o->m[k].u);
+        for (int k = 0; k < o->n; k++)
+            if (av_live(&o->m[k], pl)) {
+                av_add(&sum, o->m[k].u);
+                if (unit_get_x(o->m[k].u) >= 0) overlay_mark(ao_at(unit_get_tile(o->m[k].u)), OVM_SQUARE, 7, col);
+            }
         av_done(&sum);
         if (!sum.n || sum.n == sum.aboard) continue;
         vec2 mid = ao_at(sum.mid);
