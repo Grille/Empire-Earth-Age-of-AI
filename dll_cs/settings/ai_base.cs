@@ -772,7 +772,9 @@ class ai_base
         /// Islands it has hardly looked at are scouted first by the empty transport. Empty = off (default): measured against the
         /// base AI (outposts|ally_islands|early|extra_citizens|more_islands and more on Large / Huge maps, unit limit 1500) the
         /// outposts went up from minute 25-30 and the enemy's soldiers on the home island fell, but wins, kills - losses and the
-        /// miners at 60 minutes moved both ways between the maps. Its parts:
+        /// miners at 60 minutes moved both ways between the maps. Against the game's own ferrying of citizens (2026-11-13, in its
+        /// place: outposts|extra_citizens|more_islands) level on Small Islands and behind on a large one - an outpost that holds
+        /// is worth 10-25 soldiers, one that is lost costs as much, and half are lost (econ.c THE TRANSPORTS THE MOD'S). Its parts:
         expand_islands_fields expand_islands;
         [commented]
         int expand_citizens = 8;
@@ -1110,6 +1112,12 @@ class ai_base
         /// 4-16), then the landing comes. 0 = off (default)
         [commented]
         bool landing_bombard = false;
+        /// Air transport (the player 2026-11-13: "expansion and landings should also include (and prefer) air transport in
+        /// later ages"): where an Airport stands, a landing and an outpost order transport helicopters before ships and take
+        /// the ones they have first - no dock, no sea to hold, ashore in seconds; with a helicopter to be had and no
+        /// Airport, one is wanted through the priority list while a landing or an outpost waits for its transport.
+        /// 0 = ships only
+        bool air_transport = true;
         /// The game's transport manager takes a landing's transport for its own crossings (an unload order in any phase):
         /// refused. 1 = on (default), 0 = the game may take them
         [commented]

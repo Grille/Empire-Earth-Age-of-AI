@@ -235,4 +235,12 @@ transports do is its island expansion, the transport manager's citizen crossings
 orders none, no crossings; landings go on) a standard Small Islands game from epoch 9 goes better - losses -16, kills +7,
 razed +2, twice - and a large one with free islands worse: soldiers -20 (the game's 25 gatherers on 1.7 other islands).
 The mod's outposts in its place (`expand_islands=57`): level on the large map, a loss on the standard one (soldiers -15).
-So the transports wait for the outposts to choose by what the islands hold.
+Without `early` and with a transport they can pay and an outpost that stays when a rival settles beside it: level on the
+standard map (soldiers +2, -11, +7 in three runs), behind on the large one (-10, -3, -17) - the game's ferrying keeps 20-23
+gatherers on other islands there, the outposts 7-9; an outpost that stands is worth 10-25 soldiers, one lost costs as
+much, and half are lost. The transports stay the game's.
+
+Air transport (`air_transport`, landing.c AIR TRANSPORT, 2026-11-13, on): a landing and an outpost use transport
+helicopters before ships where an Airport stands, and want one otherwise. A landing by helicopter is ashore in seconds
+and flies a wave every 1.5 minutes. Against ships only, from the Atomic Age - Modern: level on Small Islands, soldiers
++18 on a large one.

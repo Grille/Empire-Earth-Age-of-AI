@@ -143,8 +143,8 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // soldiers +4 (12) and +4 (8), workers +8 (15) and +5 (15), alive +0.08 (0.12) twice (seeds 1-6, 7-12); from the
 // start workers +19 (12), razed +8 (4), soldiers +6 (10), then level on seeds 7-12 (soldiers -6 (14), workers -1
 // (14)). All three on (2026-11-13).
-// own_ships: 2 = the warships' orders and requests too (fleet.c EVERY WARSHIP THE MOD'S), 1 ([autotest] v_own_ships
-// only) = the fleet on every map alone; own_citizens: 2 = the fishing boats too (fleet.c THE FISHING BOATS THE MOD'S)
+// own_ships: 2 = the warships' orders and requests too (fleet.c EVERY WARSHIP THE MOD'S), 1 = the fleet on every map
+// alone, 3 = the transports too (THE TRANSPORTS THE MOD'S, below) - 1 and 3: [autotest] v_own_ships only; own_citizens: 2 = the fishing boats too (fleet.c THE FISHING BOATS THE MOD'S)
 internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own_ships = -1, g_own_citizens = 2, g_v_own_citizens = -1;
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
@@ -161,8 +161,17 @@ internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own
 // 25 gathering, 5.6 drop sites): soldiers -20 (6), losses -13 (9), workers +6 (6) - its stone, gold and iron miners
 // 11 / 18 / 20 against 7 / 13 / 14 at the end. With the mod's outposts in its place (v_expand_islands=57) on the
 // large map soldiers +3 (6), kills +8 (5), workers -5 (5), epoch -0.12 (0.07): level; on the standard map soldiers
-// -15 (6), razed -3.7 (1.0), epoch -0.21 (0.07), workers -6 (3): a loss. Neither answer fits both maps: the
-// transports stay the game's until the outposts choose by what the islands hold (resource expansion, next).
+// -15 (6), razed -3.7 (1.0), epoch -0.21 (0.07), workers -6 (3): a loss. Then the outposts without EARLY
+// (v_expand_islands=49): their transport never came behind the wood savings (311 "can't train" in 12 games) until it
+// was paid as the economy's (g_expand_econ, train_budget), and an outpost was sent home when a rival's Settlement
+// beside it grew into a Town Center (expand.c ex_enemy_home: not once its own drop site stands). With both: standard
+// soldiers +2 (7), -11 (9), +7 (7) in three runs, kills 0, -3, +5 (2), losses -8, -5, 0; large soldiers -10 (10), -3
+// (11), -17 (9) - the game's ferrying keeps 20-23 gatherers on 1.5 other islands there at minute 55, the outposts
+// 7-9. Split by what became of the outpost (24 outpost players a cell): one that stands ends with 114-119 soldiers
+// against the others' 89-91 on the standard map and 82-85 against 72-73 on the large one, one lost with 72-78 and
+// 44-52 - and 9-13 of 15-17 ashore were lost on the standard map, 8-10 of 18-21 on the large one. From the Atomic
+// Age - Modern (standard) soldiers -2 (11), kills -9 (10). So the transports stay the game's: its ferrying is the
+// better island expansion until the outposts hold what they take (level 3 and expand_islands for the tests).
 #define OWN_TRANSPORTS(idx) (OWN_SHIPS(idx) >= 3)
 internal int own_transport(ee_unit *u) {   // a transport ship of a player whose transports are the mod's
     ee_player *pl = u ? unit_get_owner(u) : NULL;
@@ -2181,6 +2190,7 @@ internal void special_reserve(ee_player *pl, int reserve[7]) {
     }
 }
 internal int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
+internal int g_expand_econ;     // expand.c: the outpost's transport where the transports are the mod's - paid as the economy's (train_budget)
 internal int g_expand_order;    // expand.c EARLY: the outpost's transport before every reserve (250 wood; the reserves held it 6 minutes)
 internal void landing_reserve(ee_player *pl, int reserve[7]);   // landing.c
 internal void expand_reserve(ee_player *pl, int reserve[7]);    // expand.c
@@ -2251,7 +2261,8 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     // saving stood above it - the fields', the landing's transports', the fortress's, the navy's (reserve W258-1171 at
     // a stock of 35-300): the game's standing request, tried every tick, got a boat through only when the stock topped
     // them all (4008 tries for 50 boats in a 40-minute island game from epoch 9, the first at minute 28.7)
-    int tr_econ = (g_tr_econ && !military && is_transport(req[0])) || (!military && is_fishing_boat(req[0]) && OWN_CITIZENS(idx) >= 2);
+    int tr_econ = (g_tr_econ && !military && is_transport(req[0])) || (!military && is_fishing_boat(req[0]) && OWN_CITIZENS(idx) >= 2) ||
+                  (g_expand_econ && !military && is_transport(req[0]));   // the outpost's (expand.c ex_ferry_ship)
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |

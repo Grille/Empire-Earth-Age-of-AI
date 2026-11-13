@@ -177,20 +177,26 @@ internal int prio_buildable(ee_player *pl, int t) {   // the game offers it to t
     ee_tech *x = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
     return x && tech_available(x) && tech_get_epoch(x) <= current_epoch(pl);   // not can_build: it tests the cost too, nothing would be saved for
 }
+internal void air_wants(ee_player *pl, unsigned idx);   // landing.c
 internal void prio_wants_tick(ee_player *pl, unsigned idx, uint32_t now) {
-    static struct { uint32_t next, asked; int cur; struct { int have; uint32_t since; } w[PRIO_WANTS]; } st[16];
+    static struct { uint32_t next, asked; int cur; struct { int have, type; uint32_t since; } w[PRIO_WANTS]; } st[16];
     if (now < st[idx].next && st[idx].next - now <= 10000) return;
     if (now + 10000 < st[idx].next) memset(&st[idx], 0, sizeof st[idx]);   // a new game
     st[idx].next = now + 10000;
     g_prio_off[idx] = 0;
     g_prio_nwant[idx] = 0;
     if (g_prio_refresh) g_prio_refresh(pl, idx);
+    air_wants(pl, idx);   // landing.c AIR TRANSPORT: an Airport for a landing's or an outpost's transport helicopters
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int cur = -1, cur_have = 0, cur_n = 0;
     for (int k = 0; um && k < g_prio_nwant[idx]; k++) {
         int t = g_prio_want[idx][k].type, have = 0;
+        // another entry in this place (or one back after it was gone): its wait starts anew - an entry that comes and
+        // goes (landing.c air_wants: an Airport while a landing waits for transports) was skipped for good 6 minutes
+        // after its first turn, with 8700 wood in stock at minute 40
+        if (st[idx].w[k].type != t + 1) { st[idx].w[k].type = t + 1; st[idx].w[k].since = 0; }
         uint8_t *q = type_list(um, t);
         for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c; j++) {
             ee_unit *u = deque_at(q, f + j);
@@ -201,6 +207,7 @@ internal void prio_wants_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (cur >= 0 || have >= g_prio_want[idx][k].n || now - st[idx].w[k].since > PRIO_WAIT || !prio_buildable(pl, t)) continue;
         cur = t; cur_have = have; cur_n = g_prio_want[idx][k].n;
     }
+    for (int k = g_prio_nwant[idx]; k < PRIO_WANTS; k++) st[idx].w[k].type = 0;
     g_prio_cur[idx] = cur + 1;
     if (cur != st[idx].cur - 1 && g_log) log_locked("# priority: P%u at %.1f min: its list wants %s (%d of %d)\n", idx, now / 60000.0, cur >= 0 ? unit_ident(cur) : "nothing now", cur_have, cur_n);
     st[idx].cur = cur + 1;

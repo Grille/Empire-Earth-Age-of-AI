@@ -284,6 +284,7 @@ struct ex_proj { ee_unit *b; int id, kind, type, state, tries; ivec2 p; int wait
 #define EX_PROJ 8
 struct ex_unit { ee_unit *u; int id; };
 internal struct ex_st {
+    int air;                              // the ferry's transport flies (ex_ferry_ship): it waits and unloads on the land tiles, not the water in front
     int active; unsigned cont; int ocean; ivec2 mines, unload, unload_w;   // the outpost's island, its sea, the mines' middle, the unload tile and its water
     ivec2 home, home_w;                   // the home shore where they board and the water in front
     struct ex_proj proj[EX_PROJ]; int nproj;
@@ -304,6 +305,7 @@ internal struct ex_st {
     uint32_t fsay_t, ftrained_t;          // the last "can't train a transport" line, the last transport ordered
     unsigned scouted, scouts, scout_bad;  // the island the ferry's transport has looked at (phase 4)
     uint32_t scout_at;                    // the scouting transport at the island's shore since
+    uint32_t air_wait_t;                  // AIR: a transport helicopter ordered while a ship stood free
     struct sfort fort; int fort_set;      // FORT: its square (defence.c), walls ordered every wall_t
     int guard_only; uint32_t wall_t;      // FORT: this boat takes soldiers only
     int gun_trip;                         // FORT'S GUNS: and the battery's guns first
@@ -552,38 +554,64 @@ internal int ex_battery(unsigned idx, ivec2 *p, ivec2 *sea, unsigned *cont, int 
     *p = x->unload; *sea = x->unload_w; *cont = x->cont; *ready = x->drop_ok && towers >= 2;
     return 1;
 }
+// where the ferry's transport waits at home and at the island: a ship on the water in front of the shore tile, a
+// transport helicopter (landing.c AIR TRANSPORT) on the shore tile itself
+internal ivec2 ex_tp_home(const struct ex_st *x) { return x->air ? x->home : x->home_w; }
+internal ivec2 ex_tp_isle(const struct ex_st *x) { return x->air ? x->unload : x->unload_w; }
 internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_unit *best = NULL;
+    // AIR (landing.c AIR TRANSPORT): with a transport helicopter to be had and nowhere to train it, an Airport is wanted
+    // (expand_act, the priority list's row "wants") - the ferry goes by ship meanwhile; with one standing and no
+    // helicopter yet, one is trained before a free ship is taken (2 minutes at most, then the ship)
+    int at = ld_air_transport_type(pl), can_air = ld_air_ready(pl) != 0;
     int bd = 0x7FFFFFFF, all = 0, nl = 0, nld = 0, no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_transport(unit_type_get_id(it.td)) || unit_get_x(u) < 0) continue;
+        int air = ld_is_air_transport(it.td);
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !(is_transport(unit_type_get_id(it.td)) || air) || unit_get_x(u) < 0) continue;
         all++;
         if (landing_has_unit(pl, u)) { nl++; continue; }
         if (ex_cargo(u) > 0) { nld++; continue; }
-        if ((int)ocean_near(unit_get_tile(u), 2, NULL) != x->ocean) { no++; continue; }
-        int d = ivec2_dist2(unit_get_tile(u), x->home_w);
+        if (!air && (int)ocean_near(unit_get_tile(u), 2, NULL) != x->ocean) { no++; continue; }
+        int d = ivec2_dist2(unit_get_tile(u), air ? x->home : x->home_w);
         if (u == x->last.u && unit_get_id(u) == x->last.id) d = -1;   // the last trip's
+        if (air) d -= 0x40000000;   // one that flies first
         if (d < bd) { bd = d; best = u; }
     }
+    if (best && can_air && !ld_is_air_transport(unit_get_type_data(best))) {   // AIR: a helicopter before the ship
+        if (!x->air_wait_t || now < x->air_wait_t) {
+            int req[4] = { at, 1, 0, 0 };
+            unsigned got = 0;
+            g_priority_mil = 1;
+            hook_train_units(um, req, (uintptr_t)&got);
+            g_priority_mil = 0;
+            if (got) { x->air_wait_t = now ? now : 1; x->trained++; ex_say(idx, now, "trains a transport helicopter (type %d) for the ferry - the ship waits", at); }
+        }
+        if (x->air_wait_t && now - x->air_wait_t < 120000) return;
+    }
+    if (best && ld_is_air_transport(unit_get_type_data(best))) x->air_wait_t = 0;
     if (!best) {
         // (not while one it ordered is still being built: 2 minutes - the landing took the new ones now and then)
         if (now - x->fsince >= (EXPAND(idx) & 8 ? 720000u : 360000u) && (!x->ftrained_t || now - x->ftrained_t >= 120000)) { ex_ferry_end(pl, idx, x, now, "no transport - given up");   // EARLY: 12 minutes (the early wood is spent on buildings as it comes)
             x->next_try = now + 600000; if (!x->ever_ashore) x->active = 0; return; }
-        int tt = ld_transport_type(pl);
+        int tt = can_air ? at : ld_transport_type(pl);   // one that flies where an airport stands
         if (um && tt && now >= x->ftrain_t) {   // as a landing's transport: economy, the stock above the reserve
             x->ftrain_t = now + 30000;
             int req[4] = { tt, 1, 0, 0 };
             unsigned got = 0;
             g_priority_mil = 1; g_landing_order = 1; g_expand_order = (EXPAND(idx) & 8) != 0 || g_spend_tiers;   // the top tier: the whole stock
+            // THE TRANSPORTS THE MOD'S (econ.c): no transport of the game's stands about to borrow, and behind every wood
+            // saving its own never came (311 "can't train" and 24 "no transport - given up" in 12 games without EARLY)
+            // - paid as the economy's transports: above the epoch's reserve and urgent anti-air only
+            g_expand_econ = OWN_TRANSPORTS(idx) && !g_expand_order;
             hook_train_units(um, req, (uintptr_t)&got);
-            g_priority_mil = 0; g_landing_order = 0; g_expand_order = 0;
+            g_priority_mil = 0; g_landing_order = 0; g_expand_order = 0; g_expand_econ = 0;
             if (got) { x->trained++; x->ftrain_t = now + 90000; x->ftrained_t = now ? now : 1; }
             // EARLY: tried again at every tick (2 s) while it can't pay - the wood for it (250) is spent by the buildings
             // within seconds of coming in (6 minutes of "can't train" at minute 15-21 with 150-257 wood passing through)
-            else if ((EXPAND(idx) & 8) || g_spend_tiers) { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }
+            else if ((EXPAND(idx) & 8) || g_spend_tiers || OWN_TRANSPORTS(idx)) { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }
             x->fsay_t = now;
             int *st = player_stock_at(pl);
             ex_say(idx, now, "%s a transport (type %d) - transports %d (landing's %d, loaded %d, other sea %d), landing phase %d, stock %d,%d,%d,%d,%d",
@@ -592,6 +620,8 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         return;
     }
     x->ship.u = best; x->ship.id = unit_get_id(best);
+    x->air = ld_is_air_transport(unit_get_type_data(best));
+    if (x->air && !unit_get_ai_held(best)) player_hold_unit(pl, best);   // out of the game's air transport groups (their update isn't hooked)
     ex_scan(pl, now, 0);
     {   struct ex_cont *c = ex_cont_of(x->cont, 0);   // an island it has hardly looked at: scouted first, empty
         if (x->scouted != x->cont && c && c->mexp[idx] * 2 < c->mn) {
@@ -602,9 +632,9 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
                 return;
             }
             x->fphase = 4; x->fsince = now; x->scouts++; x->scout_at = 0;
-            x->orders += unit_goal(best, goal_move((float)x->unload_w.x + 0.5f, (float)x->unload_w.y + 0.5f), 0, 0x1F40);
-            ex_say(idx, now, "scouts the island %u first (%d of %d mines looked at) - the transport at %d,%d to %d,%d", x->cont, c->mexp[idx], c->mn,
-                   unit_get_x(best), unit_get_y(best), x->unload_w.x, x->unload_w.y);
+            x->orders += unit_goal(best, goal_move((float)ex_tp_isle(x).x + 0.5f, (float)ex_tp_isle(x).y + 0.5f), 0, 0x1F40);
+            ex_say(idx, now, "scouts the island %u first (%d of %d mines looked at) - the %s at %d,%d to %d,%d", x->cont, c->mexp[idx], c->mn,
+                   x->air ? "transport helicopter" : "transport", unit_get_x(best), unit_get_y(best), ex_tp_isle(x).x, ex_tp_isle(x).y);
             return;
         } }
     // the passengers
@@ -647,14 +677,15 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     }
     if (x->guard_only ? !x->npass : nc < 3) { ex_ferry_end(pl, idx, x, now, x->guard_only ? "no soldiers near the shore - later" : "fewer than 3 citizens near the shore - later"); x->next_try = now + 120000; if (!x->ever_ashore) x->active = 0; return; }
     x->fphase = 2; x->fsince = now; x->freissue = 0; x->load_t = 0; x->sea_t = 0;
-    ex_say(idx, now, "boarding %d citizens and %d soldiers at %d,%d for the island %u (mines by %d,%d, unload at %d,%d), transport at %d,%d, %d of them guns",
-           nc, x->npass - nc, x->home.x, x->home.y, x->cont, x->mines.x, x->mines.y, x->unload.x, x->unload.y, unit_get_x(best), unit_get_y(best), ngun);
+    ex_say(idx, now, "boarding %d citizens and %d soldiers at %d,%d for the island %u (mines by %d,%d, unload at %d,%d), %s at %d,%d, %d of them guns",
+           nc, x->npass - nc, x->home.x, x->home.y, x->cont, x->mines.x, x->mines.y, x->unload.x, x->unload.y, x->air ? "transport helicopter" : "transport",
+           unit_get_x(best), unit_get_y(best), ngun);
 }
 // the sea on the way: enemy ships, submarines and aircraft that hit the transport, against its warships (landing.c)
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp) {
     static struct ld_sea e, o;
     memset(&o, 0, sizeof o);
-    ld_sea_threat(pl, trtd, x->home_w, x->unload_w, x->unload, &e);
+    ld_sea_threat(pl, trtd, ex_tp_home(x), ex_tp_isle(x), x->unload, &e);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -671,11 +702,11 @@ internal void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     struct ex_cont *c = ex_cont_of(x->cont, 0);
     // looked at: half its mines (intel.c), or the transport 10 s at the island's shore water (it sees the shore and
     // what stands by it - the mines often lie beyond its sight)
-    if (ivec2_dist2(unit_get_tile(sh), x->unload_w) <= 36) { if (!x->scout_at) x->scout_at = now ? now : 1; } else x->scout_at = 0;
+    if (ivec2_dist2(unit_get_tile(sh), ex_tp_isle(x)) <= 36) { if (!x->scout_at) x->scout_at = now ? now : 1; } else x->scout_at = 0;
     int seen = (c && c->mexp[idx] * 2 >= c->mn) || (x->scout_at && now - x->scout_at >= 10000);
     if (c && (c->etown[idx] || c->etow[idx] || c->eseen[idx] > 3)) {
         while (ex_mark_lost(x, x->cont, now) < 3 && x->ngone < 8) ;
-        x->orders += unit_goal(sh, goal_move((float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f), 0, 0x1F40);
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         ex_say(idx, now, "scouted the island %u: %s (%d known enemy buildings) - never again", x->cont, c->etown[idx] ? "an enemy town" : c->etow[idx] ?
                "enemy defences" : "enemy buildings", c->eseen[idx]);
         x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->active = 0; x->next_try = now + 30000; x->scout_bad++;
@@ -683,19 +714,19 @@ internal void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     }
     if (seen) {
         x->scouted = x->cont; x->fphase = 1; x->fsince = now;
-        x->orders += unit_goal(sh, goal_move((float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f), 0, 0x1F40);
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         ex_say(idx, now, "scouted the island %u: free (%d of %d mines looked at, %d known enemy buildings) - the passengers next", x->cont, c->mexp[idx],
                c->mn, c->eseen[idx]);
         return;
     }
     if (now - x->fsince >= 240000) {
-        x->orders += unit_goal(sh, goal_move((float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f), 0, 0x1F40);
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         ex_say(idx, now, "scouting the island %u: not looked at in 4 minutes - later", x->cont);
         x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->active = 0; x->next_try = now + 180000;
         return;
     }
-    if (!goal_near(sh, (float)x->unload_w.x + 0.5f, (float)x->unload_w.y + 0.5f, 3.0f))
-        x->orders += unit_goal(sh, goal_move((float)x->unload_w.x + 0.5f, (float)x->unload_w.y + 0.5f), 0, 0x1F40);
+    if (!goal_near(sh, (float)ex_tp_isle(x).x + 0.5f, (float)ex_tp_isle(x).y + 0.5f, 3.0f))
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_isle(x).x + 0.5f, (float)ex_tp_isle(x).y + 0.5f), 0, 0x1F40);
 }
 // phase 2: to the home shore, aboard, then off
 internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
@@ -709,9 +740,9 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         int ab = unit_get_x(u) < 0;
         aboard += ab; cits += ab && is_citizen_type(unit_type_get_id(unit_get_type_data(u)));
     }
-    int sdx = unit_get_x(sh) - x->home_w.x, sdy = unit_get_y(sh) - x->home_w.y, there = sdx * sdx + sdy * sdy <= 49;
-    if (!there && !goal_near(sh, (float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f, 2.0f) && !x->load_t)
-        x->orders += unit_goal(sh, goal_move((float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f), 0, 0x1F40);
+    int sdx = unit_get_x(sh) - ex_tp_home(x).x, sdy = unit_get_y(sh) - ex_tp_home(x).y, there = sdx * sdx + sdy * sdy <= 49;
+    if (!there && !goal_near(sh, (float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f, 2.0f) && !x->load_t)
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
     int all = aboard == x->npass && x->npass;
     if (all || (x->load_t && now - x->load_t >= 90000 && aboard * 10 >= x->npass * 7) || (now - x->fsince >= 240000 && (cits >= 3 || (x->guard_only && aboard)))) {
         if (cits < 3 && !x->guard_only) { ex_ferry_end(pl, idx, x, now, "boarding failed"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return; }
@@ -761,7 +792,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     if (g_log && (now - x->fsince) % 30000 < 2000)
         ex_say(idx, now, "boarding - the transport at %d,%d (%s, %d to the shore water %d,%d), %d of %d near the shore %d,%d, %d aboard%s", unit_get_x(sh),
                unit_get_y(sh), unit_get_goal(sh) ? rtti_name(unit_get_goal(sh)) : "no goal",
-               (int)sqrtf((float)(sdx * sdx + sdy * sdy)), x->home_w.x, x->home_w.y, close, x->npass, x->home.x, x->home.y, aboard, x->load_t ? ", loading" : "");
+               (int)sqrtf((float)(sdx * sdx + sdy * sdy)), ex_tp_home(x).x, ex_tp_home(x).y, close, x->npass, x->home.x, x->home.y, aboard, x->load_t ? ", loading" : "");
     if (!x->load_t && !((there && close * 4 >= x->npass * 3) || now - x->fsince >= 120000)) return;
     if (x->freissue && now - x->freissue < 20000) return;
     x->freissue = now ? now : 1;
@@ -788,7 +819,7 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         for (int k = 0; k < x->npass; k++) ashore += ex_alive(&x->pass[k], pl) && unit_get_x(x->pass[k].u) >= 0;
         x->ashore++; x->ever_ashore = 1; x->empty_t = 0;
         if (x->nproj && !x->base_t) x->base_t = now;
-        x->orders += unit_goal(sh, goal_move((float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f), 0, 0x1F40);
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         x->last = x->ship;
         x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0;
         ex_say(idx, now, "ashore on the island %u - %d landed", x->cont, ashore);
@@ -1115,6 +1146,10 @@ internal void ex_enemy_home(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     ex_scan(pl, now, 0);
     struct ex_cont *c = ex_cont_of(x->cont, 0);
     if (!c || !c->etown[idx]) return;
+    // not once its own drop site stands there: it came first, and a rival's Settlement beside it that grew into a Town
+    // Center is no home island (two AIs on one free island: the second one's 5 citizens in its Settlement sent the
+    // first home - 4 of 15 outposts ashore on the standard map, 7 of 21 on the large one)
+    if (x->ever_ashore && x->drop_ok) return;
     while (ex_mark_lost(x, x->cont, now) < 3 && x->ngone < 8) ;
     if (x->fphase == 3) x->fphase = 2;   // unloaded at the home shore, not on that island
     if (x->fphase) ex_ferry_end(pl, idx, x, now, NULL);
@@ -1259,6 +1294,10 @@ internal void expand_act(ee_player *pl, unsigned idx, uint32_t now) {
         (void)aboard;
     }
     if (x->active) ex_enemy_home(pl, idx, x, now);
+    // AIR: an outpost under way, a transport helicopter to be had and nowhere to train it - an Airport is wanted
+    // (landing.c ld_air_want)
+    if ((x->active || x->fphase) && ld_air_want(pl, idx, now))
+        ex_say(idx, now, "wants an Airport - the transport helicopter (type %d) flies the ferry once it stands", ld_air_transport_type(pl));
     if (x->fphase == 1) ex_ferry_ship(pl, idx, x, now);
     else if (x->fphase == 2) { g_sg_order = x->gun_trip; ex_ferry_board(pl, idx, x, now); g_sg_order = 0; }   // the guns are held: only these orders reach them
     else if (x->fphase == 3) ex_ferry_sail(pl, idx, x, now);
@@ -1520,6 +1559,7 @@ internal void expand_install(const char *autotest_ini) {
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
+    if (autotest_ini) g_v_air_tr = ini_int("autotest", "v_air_transport", -1, autotest_ini);   // landing.c AIR TRANSPORT (its install has no test ini)
     g_ex_cits = g_set_ai[1].expand_citizens;
     g_ex_guard = g_set_ai[1].expand_guard;
     g_ex_min = g_set_ai[1].expand_minute;

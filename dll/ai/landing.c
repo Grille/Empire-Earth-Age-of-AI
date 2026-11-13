@@ -102,6 +102,61 @@ internal int ld_transport_type(ee_player *pl) {
     }
     return best;
 }
+// AIR TRANSPORT (the player 2026-11-13: "expansion and landungs should also include (and prefer) air transport in later
+// ages"): the newest transport helicopter the player may train (the class: Helicopter Transport from the Atomic Age -
+// Modern, Pegasus after it; 75 gold and 75 iron against a ship's 250 wood, no dock, no sea to hold), 0: none yet
+// ([ai_base] air_transport, [autotest] v_air_transport). A landing and an outpost take the ones they have first
+// (ld_unit, expand.c ex_ferry_ship), order one where a building stands to train it (ld_order_type) and want an
+// Airport otherwise (ld_air_want); one that flies waits and loads on the shore tile, not on the water in front
+// (ld_tp), is never sent out onto open water while loaded, and is held out of the game's air transport groups. The
+// game's load and unload goals carry it as they carry a ship. Seen (a game from the Atomic Age - Modern): an outpost's
+// helicopter scouted, loaded 10 and had them on the island 2.4 minutes after the plan (a ship: 6-9); a landing of 10
+// on one helicopter ashore 24 s after it took off, a new wave every 1.5 minutes. Measured (head-to-head, mirrored, 12
+// games a cell, 60 min, Small Islands from that epoch, 4 AIs, against v_air_transport=0; with - without per game):
+// standard soldiers 0 (se 12), kills +4 (8), losses -8 (7), razed +1.6 (3.0), workers -6 (10); map_scale=large
+// soldiers +18 (7), kills -4 (9), losses -9 (10), workers -6 (8). One of those 24 games crashed (c0000005 at
+// 0x54DBED, EEPMLand::vf4: a land unit stepped with no goal - a signature not in the 1500 logs before; the same
+// game played again twice with and twice without air transport ran through): not traced to it, not ruled out.
+internal int g_air_tr = 1, g_v_air_tr = -1;   // [ai_base] air_transport, [autotest] v_air_transport
+internal int ld_is_air_transport(ee_unit_type *td) { return td && unit_type_get_class_id(td) == CLS_HELICOPTER_TRANSPORT; }
+internal int ld_air_transport_type(ee_player *pl) {
+    int best = 0, bt = 0;
+    if (!pl || !PV((unsigned)player_get_index(pl) & 15, g_v_air_tr, g_air_tr)) return 0;
+    for (int t = 1; t < G_TYPES_N; t++) {
+        ee_unit_type *td = type_data(t);
+        if (!td || unit_type_get_id(td) != t || !ld_is_air_transport(td) || !ld_type_avail(pl, t)) continue;
+        if (unit_type_get_tech(td) > bt) { bt = unit_type_get_tech(td); best = t; }
+    }
+    return best;
+}
+internal int ld_is_tr(ee_unit_type *td) { return td && (is_transport(unit_type_get_id(td)) || ld_is_air_transport(td)); }   // a landing's transport: a ship or one that flies
+// where a transport waits by a shore tile: a ship on the water in front, one that flies on the tile itself
+internal ivec2 ld_tp(ee_unit *sh, ivec2 water, ivec2 land) { return ld_is_air_transport(unit_get_type_data(sh)) ? land : water; }
+// the transport type a landing or an outpost orders: one that flies where a building stands to train it (an Airport),
+// else the newest ship
+internal int ld_air_ready(ee_player *pl) {
+    void *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    int at = ld_air_transport_type(pl);
+    return at && um && queue_room(pl, um, at, 99) >= 0 ? at : 0;
+}
+internal int ld_order_type(ee_player *pl) { int at = ld_air_ready(pl); return at ? at : ld_transport_type(pl); }
+// ... and with one to be had and nowhere to train it, an Airport is wanted while a landing or an outpost is under way:
+// an entry of the priority list's "wants" (priority.c prio_wants_tick asks air_wants) - its cost held, the game asked
+// to build it (the AIs had none by minute 30 of a game from the Atomic Age - Modern: the game's build list held one
+// it never paid)
+internal uint32_t g_air_want_t[16];
+internal int ld_air_want(ee_player *pl, unsigned idx, uint32_t now) {   // 1: newly wanted (for the caller's log line)
+    int at = ld_air_transport_type(pl);
+    if (!at || ld_air_ready(pl) || !ut_has(UT(B_AIRPORT))) return 0;
+    int fresh = !g_air_want_t[idx & 15] || now < g_air_want_t[idx & 15] || now - g_air_want_t[idx & 15] > 60000;
+    g_air_want_t[idx & 15] = now ? now : 1;
+    return fresh;
+}
+internal void air_wants(ee_player *pl, unsigned idx) {
+    uint32_t now = game_time(), t = g_air_want_t[idx & 15];
+    if (pl && t && now >= t && now - t < 60000) prio_want_add(idx & 15, UT(B_AIRPORT), 1);
+}
 internal int ld_affordable(ee_player *pl, int t) {   // how many of type t its stock pays now
     int *st = player_stock_at(pl), n = 20;
     for (int r = 2; r < 7; r++) {
@@ -330,6 +385,8 @@ internal void ld_unit(ee_unit *u, void *ctx) {
         s->b[s->nb++] = unit_get_tile(u);
     } else if (o == s->pl && t == UT(B_DOCK) && s->nd < 16) {
         s->dk[s->nd++] = unit_get_tile(u);
+    } else if (o == s->pl && ld_is_air_transport(td) && unit_get_x(u) >= 0 && !expand_ship(u) && s->nt < 32) {   // AIR TRANSPORT: those that fly first
+        memmove(s->tr + 1, s->tr, (size_t)s->nt * sizeof *s->tr); s->tr[0] = u; s->nt++;
     } else if (o == s->pl && is_transport(t) && unit_get_x(u) >= 0 && !expand_ship(u) && s->nt < 32) s->tr[s->nt++] = u;   // not an outpost's ferry (expand.c)
     else if (o == s->pl && fam == CLS_NAVAL && !is_transport(t) && !is_fishing_boat(t) && unit_type_get_attack(td) > 0 && s->nw < 32)
         s->war[s->nw++] = u;
@@ -1057,8 +1114,9 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         for (int k = 0; k < l->nships && l->all_ashore && l->meet; k++) {
             ee_unit *sh = l->ships[k];
             ee_goal *g = unit_get_goal(sh);
-            if (ivec2_dist2(unit_get_tile(sh), l->board_w) > 49 && (!g || goal_get_state(g) == 1) && unit_count_inside(sh) <= 0)
-                l->orders += unit_goal(sh, goal_move((float)l->board_w.x + 0.5f, (float)l->board_w.y + 0.5f), 0, 0x1F40);
+            ivec2 bw = ld_tp(sh, l->board_w, l->board);
+            if (ivec2_dist2(unit_get_tile(sh), bw) > 49 && (!g || goal_get_state(g) == 1) && unit_count_inside(sh) <= 0)
+                l->orders += unit_goal(sh, goal_move((float)bw.x + 0.5f, (float)bw.y + 0.5f), 0, 0x1F40);
         }
         if (!l->all_ashore || l->waves >= g_land_waves || !l->meet || now - l->wt < 20000) return;
         l->wt = now;
@@ -1121,9 +1179,10 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         int there = 0, close = 0;
         for (int k = 0; k < l->nships; k++) {
             ee_unit *sh = l->ships[k];
-            if (ivec2_dist2(unit_get_tile(sh), l->board_w) <= 49) { there++; continue; }
-            if (!goal_near(sh, (float)l->board_w.x + 0.5f, (float)l->board_w.y + 0.5f, 2.0f))
-                l->orders += unit_goal(sh, goal_move((float)l->board_w.x + 0.5f, (float)l->board_w.y + 0.5f), 0, 0x1F40);
+            ivec2 bw = ld_tp(sh, l->board_w, l->board);
+            if (ivec2_dist2(unit_get_tile(sh), bw) <= 49) { there++; continue; }
+            if (!goal_near(sh, (float)bw.x + 0.5f, (float)bw.y + 0.5f, 2.0f))
+                l->orders += unit_goal(sh, goal_move((float)bw.x + 0.5f, (float)bw.y + 0.5f), 0, 0x1F40);
         }
         for (int k = 0; k < l->nw; k++) {
             ee_unit *u = l->wpass[k];
@@ -1135,7 +1194,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         if (need > l->nships) need = l->nships;
         there = 0;
         for (int k = 0; k < need; k++) {
-            there += ivec2_dist2(unit_get_tile(l->ships[k]), l->board_w) <= 49;
+            there += ivec2_dist2(unit_get_tile(l->ships[k]), ld_tp(l->ships[k], l->board_w, l->board)) <= 49;
         }
         if ((there == need && close * 4 >= l->nw * 3) || now - l->wt >= 180000) { l->wst = 2; l->wt = now; l->wre = 0; }
         return;
@@ -1152,7 +1211,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
             if (g && goal_is_unload(g) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
                         pi, now / 60000.0, k, unit_count_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
-            if (ld_open_water(unit_get_tile(sh), (unsigned)l->ocean, &w))
+            if (!ld_is_air_transport(unit_get_type_data(sh)) && ld_open_water(unit_get_tile(sh), (unsigned)l->ocean, &w))
                 l->orders += unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
         }
         if (aboard == l->nw || now - l->wt >= 150000) {
@@ -1530,7 +1589,7 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     // (just enough) lost one boarding and were called off
     int keep = home_threat(pl), avail = home - keep;
     if (avail < 6) { ld_why(pi, now, keep ? "an enemy army at its door - no soldiers to spare" : "fewer than 6 soldiers at home"); return; }
-    int ttype = ld_transport_type(pl), cap = ld_cap(ttype);
+    int ttype = ld_order_type(pl), cap = ld_cap(ttype);
     if (!ttype) { ld_why(pi, now, "no transport in its epoch"); return; }
     int afford = s->nt + ld_affordable(pl, ttype) + 1;
     if (afford > g_land_ships) afford = g_land_ships;
@@ -1607,7 +1666,7 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
     if (s->nt < want && now - l->since >= 180000 && s->nt) {
         // not all there after 3 minutes: those it has, if they carry enough for the beach (a size it cannot reach in
         // time - no waiting for it)
-        int cap = ld_cap(ld_transport_type(pl)), cits = ld_cits_for(s->nt, cap), n = s->nt * cap - cits < l->want_n ? s->nt * cap - cits : l->want_n;
+        int cap = ld_cap(ld_order_type(pl)), cits = ld_cits_for(s->nt, cap), n = s->nt * cap - cits < l->want_n ? s->nt * cap - cits : l->want_n;
         if (l->unit_pw * (float)n >= l->need) {
             if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: goes with %d of %d transports (%d soldiers, strength %.0f, the beach needs %.0f)\n",
                                pi, now / 60000.0, s->nt, want, n, l->unit_pw * (float)n, l->need);
@@ -1622,10 +1681,11 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
                     s->nt, want, s->nd, st[2], st[3], st[4], st[5], st[6]);
         }
         l->tr_missing = want - s->nt;
+        if (ld_air_want(pl, pi, now) && g_log) fprintf(g_log, "# landing: P%u at %.1f min: wants an Airport - transport helicopters (type %d) once it stands\n", pi, now / 60000.0, ld_air_transport_type(pl));
         // what was ordered takes time (ordered every 20 s: 7); nothing taken (not affordable): again in 20 s
         if (!l->trained_t || now - l->trained_t >= (l->tr_got ? 120000u : 20000u)) {
             l->trained_t = now;
-            int tt = ld_transport_type(pl);
+            int tt = ld_order_type(pl);
             if (tt) {
                 int req[4] = { tt, want - s->nt, 0, 0 };
                 unsigned got = 0;
@@ -1642,7 +1702,10 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
     // the ships, their subgroups, the passengers' subgroups
     ld_home_scan(pl);
     l->nships = 0; l->nfrozen = 0; l->npass = 0;
-    for (int k = 0; k < s->nt && l->nships < want; k++) l->ships[l->nships++] = s->tr[k];
+    for (int k = 0; k < s->nt && l->nships < want; k++) {
+        l->ships[l->nships++] = s->tr[k];
+        if (ld_is_air_transport(unit_get_type_data(s->tr[k])) && !unit_get_ai_held(s->tr[k])) player_hold_unit(pl, s->tr[k]);   // out of the game's air transport groups (their update isn't hooked)
+    }
     // the warships go ahead from now on: they shell the beach while the troops board (the user: "bombing the landing
     // area free with planes and warships first") - not before the transports are there: sent while those were
     // being built, P3's warships waited off the beach and 3 of 4 were sunk, the transports never came
@@ -1753,9 +1816,10 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
         int there = 0;
         for (int k = 0; k < l->nships; k++) {
             ee_unit *sh = l->ships[k];
-            if (ivec2_dist2(unit_get_tile(sh), l->board_w) <= 49) { there++; continue; }
-            if (!goal_near(sh, (float)l->board_w.x + 0.5f, (float)l->board_w.y + 0.5f, 2.0f))
-                l->orders += unit_goal(sh, goal_move((float)l->board_w.x + 0.5f, (float)l->board_w.y + 0.5f), 0, 0x1F40);
+            ivec2 bw = ld_tp(sh, l->board_w, l->board);
+            if (ivec2_dist2(unit_get_tile(sh), bw) <= 49) { there++; continue; }
+            if (!goal_near(sh, (float)bw.x + 0.5f, (float)bw.y + 0.5f, 2.0f))
+                l->orders += unit_goal(sh, goal_move((float)bw.x + 0.5f, (float)bw.y + 0.5f), 0, 0x1F40);
         }
         int close = 0;
         for (int k = 0; k < l->npass; k++) {
@@ -1791,7 +1855,7 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
             if (g && goal_is_unload(g) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
                         pi, now / 60000.0, k, unit_count_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
-            if (ld_open_water(unit_get_tile(sh), (unsigned)l->ocean, &w))
+            if (!ld_is_air_transport(unit_get_type_data(sh)) && ld_open_water(unit_get_tile(sh), (unsigned)l->ocean, &w))
                 l->orders += unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
         }
     if (l->phase == 2) {   // board
@@ -2059,7 +2123,7 @@ internal void landing_tick(ee_player *pl, uint32_t now) {
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
         ee_unit_type *td = ld_alive(sh) ? unit_get_type_data(sh) : NULL;
-        if (!td || unit_get_owner(sh) != pl || !is_transport(unit_type_get_id(td))) { l->ships[k--] = l->ships[--l->nships]; }
+        if (!td || unit_get_owner(sh) != pl || !ld_is_tr(td)) { l->ships[k--] = l->ships[--l->nships]; }
     }
     for (int k = 0; k < l->npass; k++) if (!ld_alive(l->pass[k]) || unit_get_owner(l->pass[k]) != pl) { l->pass[k--] = l->pass[--l->npass]; }
     if (!l->nships && l->phase < 4) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "transports lost", now); return; }
@@ -2401,7 +2465,7 @@ internal void ld_fu_check(uint32_t now) {
         struct ld_fu *f = &g_fu[j];
         if (!f->sh) continue;
         ee_unit_type *td = ld_alive(f->sh) ? unit_get_type_data(f->sh) : NULL;
-        if (!td || !is_transport(unit_type_get_id(td))) { ld_fu_log(f, "transport lost", 0); continue; }
+        if (!ld_is_tr(td)) { ld_fu_log(f, "transport lost", 0); continue; }
         ee_goal *cur = unit_get_goal(f->sh);
         int n = unit_count_inside(f->sh), is = cur == f->g && goal_is_unload(cur);
         if (f->state < 2 && is) { f->state = 2; f->aboard = n; continue; }
@@ -2493,6 +2557,7 @@ internal void landing_install(void) {
     g_landing = g_set_ai[1].landing;
     g_land_bombard = g_set_ai[1].landing_bombard;
     g_land_keep = g_set_ai[1].landing_keep_transports;
+    g_air_tr = g_set_ai[1].air_transport;
     g_land_ships = g_set_ai[1].landing_transports;
     g_land_flag = g_set.landing_flag;
     g_land_knows = g_set.landing_knows_map;
