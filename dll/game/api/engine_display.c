@@ -30,6 +30,15 @@ internal inline HFONT font_get_hfont(const ee_font *f) { return FIELD(f, of_font
 // for one material
 internal inline ee_vertex *vertex_at(ee_vertex *data, uint32_t i) { return (ee_vertex *)((uint8_t *)data + (size_t)i * size_d3_dvertex); }
 internal inline uint32_t vertex_size(void) { return size_d3_dvertex; }
+// the i-th vertex's texture coordinate (u, then v) of a model's vertices of either kind - DX7StandardVertexArray
+// (type 0) or DX7StdColorVertexArray (type 1, a farm's stalks); NULL for another kind or past its end
+internal inline float *vertices_uv_at(ee_vertices *va, uint32_t type, uint32_t i) {
+    uint8_t *d = (uint8_t *)vertices_get_data(va);
+    if (!d || i >= vertices_get_count(va)) return NULL;
+    if (type == 0) return (float *)(d + (size_t)i * size_d3_dvertex + of_vertex_u);
+    if (type == 1) return (float *)(d + (size_t)i * size_dx7_color_vertex + of_color_vertex_u);
+    return NULL;
+}
 // the file name of a model's k-th material's texture ("" none)
 internal inline const char *model_texture_name(const ee_model *m, uint32_t k) {
     const char *s = ustring_get_text((const ee_ustring *)((const uint8_t *)model_get_texture_names(m) + (size_t)k * size_u_string));

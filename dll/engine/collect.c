@@ -346,6 +346,81 @@ internal uint32_t __thiscall pt_hook_draw2d(ee_particle2d *o) {
     memcpy(place, cur, 12); *angle = cur[3], *fade = cur[4];
     return r;
 }
+// THE FARMS' STALKS SWAYING BETWEEN STEPS (with the animation's: picture collect anim; the player, 2026-11-13: "do the
+// weat next, it looks like an uv animation"): a farm's stalks are a mesh of its effect (EEE3DFarm), and they sway by
+// their texture - the update sets each stalk top's texture coordinate to its bottom's plus an entry of a table of 64
+// (engine_display.farm_sway), one entry on each time the game time has gone on by the kind's period (100 ms) - but one
+// entry an update at most, the rest kept for later (sway_left: tens of thousands after a game at speed 8, the wheat
+// then stepping on at every step for minutes). Either way it changed in steps (a recording at 0.25 speed: still in 76
+// of 119 frames). So the draw puts each top between the two entries round its place at the pieces' game time
+// (pt_clock, the units' too) - the entry the game shows at the farm's first draw (FSW_FARMS remembered; one not drawn
+// for a second taken again) and from there one entry a period, the pace the game means - and back after.
+#define FSW_FARMS 512
+typedef struct { void *o; LONGLONG seen; double up, down; } fsw_e;   // the farm, when last drawn, its two places at game time 0
+internal fsw_e g_fsw[FSW_FARMS];
+internal fsw_e *fsw_entry(void *o) {
+    unsigned h = (unsigned)(((uintptr_t)o >> 4) * 2654435761u) % FSW_FARMS;
+    fsw_e *take = NULL;
+    for (int k = 0; k < 8; k++) {
+        fsw_e *e = &g_fsw[(h + (unsigned)k) % FSW_FARMS];
+        if (e->o == o) return e;
+        if (!take || e->seen < take->seen) take = e;
+    }
+    take->o = o, take->seen = 0;
+    return take;
+}
+// a place in the table (entries, any real number) as the move of a stalk's top: the two entries round it blended
+internal void fsw_sway_at(const float *table, double at, float *uv) {
+    double f = floor(at);
+    int i = (int)(f - 64.0 * floor(f / 64.0)), j = (i + 1) & 63;
+    float a = (float)(at - f);
+    uv[0] = table[2 * i] + (table[2 * j] - table[2 * i]) * a;
+    uv[1] = table[2 * i + 1] + (table[2 * j + 1] - table[2 * i + 1]) * a;
+}
+#define FSW_VERTS 4096
+internal float g_fsw_keep[FSW_VERTS][2];   // the tops' texture coordinates as the game left them (the graphics thread's)
+internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
+    if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok || !farm_fx_get_stalks_drawn(o)) return eee3_d_farm_draw(o);
+    ee_model *m = farm_fx_get_stalks(o);
+    ee_graphic_effect *kind = farm_fx_get_graphic_effect(o);
+    const float *table = engine_display_get_farm_sway();
+    ee_vertices *va = m && model_get_vertices(m) ? model_get_vertices(m)[0] : NULL;
+    float period = kind ? graphic_effect_get_period(kind) : 0.0f;
+    int32_t rows = farm_fx_get_rows(o);
+    uint32_t type = va ? vertices_get_type(va) : 2u, n = va ? vertices_get_count(va) : 0u;
+    if (!va || !table || !(period > 0.0f) || rows < 1 || type > 1 || n > FSW_VERTS) return eee3_d_farm_draw(o);
+    pt_clock();
+    double show = g_pt_show_ms;
+    if (show < 0.0) return eee3_d_farm_draw(o);
+    LONGLONG t = g_pt_show_at;
+    fsw_e *e = fsw_entry(o);
+    if (!e->seen || t - e->seen > rd_qpc_ms(1000)) {
+        double at0 = show / (double)period;
+        e->up = (double)farm_fx_get_sway_up(o) - at0;
+        e->down = (double)farm_fx_get_sway_down(o) + at0;
+    }
+    e->seen = t;
+    double at = show / (double)period;
+    float up[2], down[2];
+    fsw_sway_at(table, e->up + at, up);
+    fsw_sway_at(table, e->down - at, down);
+    uint32_t span = 2u * (uint32_t)rows;
+    for (uint32_t i = 0; i + (uint32_t)rows < n; i++) {
+        if (i % span >= (uint32_t)rows) continue;   // a bottom
+        float *top = vertices_uv_at(va, type, i), *bottom = vertices_uv_at(va, type, i + (uint32_t)rows);
+        if (!top || !bottom) continue;
+        const float *d = i & 1 ? down : up;
+        g_fsw_keep[i][0] = top[0], g_fsw_keep[i][1] = top[1];
+        top[0] = bottom[0] + d[0], top[1] = bottom[1] + d[1];
+    }
+    uint32_t r = eee3_d_farm_draw(o);
+    for (uint32_t i = 0; i + (uint32_t)rows < n; i++) {
+        if (i % span >= (uint32_t)rows) continue;
+        float *top = vertices_uv_at(va, type, i);
+        if (top) top[0] = g_fsw_keep[i][0], top[1] = g_fsw_keep[i][1];
+    }
+    return r;
+}
 // THE MODELS' FRAME TRANSFORMATIONS BETWEEN FRAMES (with the animation's: picture collect anim): a model moves by its
 // vertices per frame, which the engine blends by next_frame and fraction, and by a transformation per frame (GEModel
 // frame_transforms), which PrepareTransforms takes from the frame alone. A part that hangs on a model flies by the
@@ -1536,6 +1611,7 @@ internal void collect_install(void) {
     int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts), fx_of = 0;
     if (!patch_particle3d_draw(pt_hook_draw) && g_log) fprintf(g_log, "# collect: the flying pieces' draw NOT hooked\n");
     if (!patch_particle2d_draw(pt_hook_draw2d) && g_log) fprintf(g_log, "# collect: the flames' and smoke's draw NOT hooked\n");
+    if (!patch_farm_fx_draw(fsw_hook_draw) && g_log) fprintf(g_log, "# collect: the farms' stalks' draw NOT hooked\n");
     g_mt_apply = transform_mul_export();
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");

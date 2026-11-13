@@ -454,6 +454,53 @@ unsafe struct EEE3DParticle
     extern uint32 draw();
 }
 
+/// a farm's crops: two meshes of its own - the ground ("graphics farm ground model") and the rows of stalks ("graphics
+/// farm stalk model") - drawn by vf2. The stalks sway by their texture: the update (vf19) adds the step's ms over its
+/// kind's period to sway_left and, past 1, steps sway_up on and sway_down back (both kept within 0..63) and sets each
+/// stalk's top texture coordinate to its bottom's plus an entry of engine_display.farm_sway - the even vertices by
+/// sway_up, the odd by sway_down; vf9 copies them into the stalks' model drawn (with the crops shown)
+[vtable((ee)0x0082B7EC, (aoc)0x008407A8), c_type("ee_farm_fx")]
+unsafe struct EEE3DFarm
+{
+    /// its kind: period, the ms a step of the sway takes
+    [offset(0xC), found(c)]
+    EEGraphicEffect* graphic_effect;
+
+    /// the stalks' model drawn (vf2's second, when stalks_drawn): its vertices the rows' tops and bottoms in turn,
+    /// rows of them each (a top at i, its bottom at i + rows)
+    [offset(0xA0), found(c)]
+    GEModel* stalks;
+
+    /// the sway's way to its next step (vf19: + step ms / period; past 1 its steps move on and it goes down by 1)
+    [offset(0xA4), found(c)]
+    float32 sway_left;
+
+    /// the odd vertices' entry of farm_sway (vf19: one back each step, 0..63)
+    [offset(0xA8), found(c)]
+    int32 sway_down;
+
+    /// the even vertices' entry (one on each step, 0..63)
+    [offset(0xAC), found(c)]
+    int32 sway_up;
+
+    /// the vertices of a row (the farm's size + 1, vf15)
+    [offset(0xB0), found(c)]
+    int32 rows;
+
+    /// the stalks drawn (vf9: the crops shown, the farm built, and seen by the player)
+    [offset(0xB7), found(c)]
+    uint8 stalks_drawn;
+
+    /// vf2: draws the ground and, when stalks_drawn, the stalks
+    [slot(2), address((ee)0x004E7399, (aoc)0x004F0CE2)]
+    [vtable_site("farm_fx_draw")]
+    extern uint32 draw();
+
+    /// vf19: the update - the sway's step
+    [slot(19), address((ee)0x004E76BE, (aoc)0x004F1043)]
+    extern uint32 update();
+}
+
 /// an effect's kind (an effect's +0xC: its look, shared by all of the kind) - the fields EEE3DParticle's draw (vf6) reads
 [c_type("ee_graphic_effect")]
 unsafe struct EEGraphicEffect
@@ -472,6 +519,10 @@ unsafe struct EEGraphicEffect
     /// its opacity (vf6: times 1 - fade, unless it glows)
     [offset((ee)0x24, (aoc)0x28), found(c)]
     float32 opacity;
+
+    /// a farm's (EEE3DFarm): the ms a step of its stalks' sway takes (vf19 adds the step's ms over this)
+    [offset((ee)0x28, (aoc)0x2C), found(c)]
+    float32 period;
 
     /// its colour: the model's first material's while it is drawn (white again after)
     [offset((ee)0x34, (aoc)0x38), found(c)]
@@ -855,6 +906,18 @@ unsafe struct D3DVERTEX
     float32 v;
 }
 
+/// a vertex of DX7StdColorVertexArray (type 1 of DX7Rasterizer.create_vertex_array; SetTextureCoordinate, SizeOf: 0x24
+/// each in both builds' display DLLs) - a farm's stalks are such an array
+[c_type("ee_color_vertex"), size(0x24)]
+unsafe struct DX7ColorVertex
+{
+    [offset(0x1C), found(c)]
+    float32 u;
+
+    [offset(0x20), found(c)]
+    float32 v;
+}
+
 /// the engine's narrow string (0x10 each in GEModel.texture_names: LoadTexturesForScreen's step; its length at +8)
 [c_type("ee_ustring"), size(0x10)]
 unsafe struct UString
@@ -910,6 +973,11 @@ static unsafe class engine_display
     [import_slot("kernel32.dll", "Sleep")]
     [address((ee)0x0082318C, (aoc)0x00837174)]
     static block iat_sleep;
+
+    /// the farms' stalks' sway (EEE3DFarm): 64 pairs of floats, the move of a stalk top's texture coordinate (u, v)
+    /// per step of the sway - made once by the farms' update (EE 0x4E68AA, AoC 0x4F01CB), read there (vf19)
+    [address((ee)0x008D240C, (aoc)0x008E8B84)]
+    static float32* farm_sway;
 
     /// the units' render object's collection (EEROUnits.draw): the terrain mesh's visible tile rows - how many, then
     /// each by its index (its y, first and last x: map tiles) - and the objects on their tiles; call
