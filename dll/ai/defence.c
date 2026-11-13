@@ -192,6 +192,7 @@ internal struct encl {
     int ngate; struct { int16_t x, y; uint8_t dir, tries; } gate[16];
     // the town ring (base_ring): its eight sides, kept from plan to plan - xmin, xmax, ymin, ymax, x+y min/max, x-y min/max
     int town, has_rb, rb[8], grows; uint32_t wall_t;
+    int nopen; int16_t open_x[32], open_y[32];   // pieces taken down for a pocket: never walled again
     struct { int16_t x, y; uint8_t dir, ok; } sgate[8];   // each side's gate, as the last plan placed it
     int ninner; struct { int16_t x, y; uint8_t dir, tries; } inner[8];   // the gates of the stretches left inside
     int box_x, box_y; uint8_t box[RING_BOX * RING_BOX / 8];   // the ring and the tiles beside it: no building there
@@ -200,7 +201,7 @@ internal struct encl {
     int stone;   // the open ring's walls (the wall it builds now)
     int ready;   // citizens enough for the walls (enclose_citizens), at the last tick
     int safe, mines, safe_mines, sheltered;   // safe space: land and mines beyond ENCL_SAFE of the sea; enough of it
-    unsigned skip_pend, skip_fire, skip_raid, skip_stone, skip_econ;   // DIAG: why the scans since the last log ordered nothing
+    unsigned skip_pend, skip_fire, skip_raid, skip_stone, skip_econ, skip_shut;   // DIAG: why the scans since the last log ordered nothing
 } g_encs[16];
 
 struct encl_scan { ee_player *pl; unsigned hc; int nb, enemy; ivec2 b[2048]; uint8_t bs[2048], btower[2048], bw[2048]; int nd; ivec2 d[16]; int nfoe; ivec2 foe[8]; int neb; ivec2 eb[512]; };
@@ -674,12 +675,12 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
             }
         fprintf(g_log, "# enclose diag: P%u open ring tiles: %d placeable, %d hold an object, %d bare but refused; the land's edges: %d ocean, %d no area, %d another land\n",
                 idx, place, obj, bare, nb_ocean, nb_none, nb_other);
-        fprintf(g_log, "# enclose: P%u at %.1f min: %s (continent %d tiles%s), ring %d tiles, %d walled, tower spots %d, gates %d, docks %d; runs %u, pieces %u, gates built %u; skipped: pending %u, tower fire %u, enemies near %u, no stone %u, few citizens %u; safe space %d of %d tiles, mines %d of %d%s\n",
+        fprintf(g_log, "# enclose: P%u at %.1f min: %s (continent %d tiles%s), ring %d tiles, %d walled, tower spots %d, gates %d, docks %d; runs %u, pieces %u, gates built %u; skipped: pending %u, tower fire %u, enemies near %u, no stone %u, few citizens %u, would shut in %u; safe space %d of %d tiles, mines %d of %d%s\n",
                 idx, now / 60000.0, e->sheltered ? "island, safe room enough" : e->island ? "island" : "town ring", e->tiles,
                 e->island || e->sheltered ? "" : s.enemy ? ", an enemy on it" : " or more",
-                m, walled, e->nslot, e->ngate, s.nd, e->runs, e->pieces, e->gates, e->skip_pend, e->skip_fire, e->skip_raid, e->skip_stone, e->skip_econ,
+                m, walled, e->nslot, e->ngate, s.nd, e->runs, e->pieces, e->gates, e->skip_pend, e->skip_fire, e->skip_raid, e->skip_stone, e->skip_econ, e->skip_shut,
                 e->safe, e->tiles, e->safe_mines, e->mines, e->sheltered ? " - no ring" : "");
-        e->skip_pend = e->skip_fire = e->skip_raid = e->skip_stone = e->skip_econ = 0;
+        e->skip_pend = e->skip_fire = e->skip_raid = e->skip_stone = e->skip_econ = e->skip_shut = 0;
     }
 }
 
@@ -904,7 +905,189 @@ internal int encl_in_flight(struct encl *e, uint32_t now) {
 }
 internal int raiders_scan(ee_player *pl, ivec2 p, int r0, int *kinds);   // attack.c
 internal int encl_free(ee_player *pl, struct encl *e, int wtype, int x, int y, uint32_t now) {
+    for (int i = 0; i < e->nopen; i++) if (e->open_x[i] == x && e->open_y[i] == y) return 0;
     return encl_ring_has(e, x, y) && !encl_walled(x, y) && !encl_pending(e, x, y, now) && can_place(pl, wtype, iv2(x, y));
+}
+// NOTHING SHUT IN (the player 2026-11-13, with base_ring on: "the ai now has a tendency to close sections off, box
+// resources or its citizens in, it should check that gates can actually be placed in a way to keep everything
+// accessible"). Each tick a walk from the base (four ways, as the reach map's corners allow; gates open, the runs
+// ordered and not built yet shut) over the ring's box and RF_PAD round it: a run is ordered only if every tile that
+// walk reached it still reaches, but for the run's own - else its first piece alone, else the next tile. A planned
+// gate's five pieces go first (the gate is laid over them finished, so it stands before its side closes) and are
+// exempt while a gate can be built. What is shut in already - a citizen or a building of its own the walk over what
+// stands (the ordered runs open) doesn't reach, where its own walls are part of what closes it - gets a gate in a
+// straight run of five of its finished pieces between it and the base's side; where none fits (a short stretch
+// between trees, cliffs and a Town Center laid after it: a woodcutter shut in by its diagonal of three) the piece
+// between them is taken down, and its tile is never walled again (built again, it shut the pocket again: 4 times a game).
+#define RF_W 192
+#define RF_PAD 16
+internal struct rflood {
+    int x0, y0, w, h, sx, sy, n0;
+    uint8_t walk[RF_W * RF_W], base[RF_W * RF_W], seen[RF_W * RF_W];   // walk: the ordered runs shut too
+    uint8_t real[RF_W * RF_W], base_real[RF_W * RF_W];   // what stands: the pockets' look
+    uint8_t *on;   // the tiles rf_walk walks
+    int16_t q[RF_W * RF_W][2];
+} g_shut;
+internal const int8_t k_gate_step[5][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { -1, 1 }, { 1, 1 } };   // gate_fits' dirs
+internal int rf_in(int x, int y) { return x >= g_shut.x0 && y >= g_shut.y0 && x < g_shut.x0 + g_shut.w && y < g_shut.y0 + g_shut.h; }
+internal int rf_at(int x, int y) { return (y - g_shut.y0) * RF_W + x - g_shut.x0; }
+// the walk from (sx, sy) into seen with the run a-b shut (ax < 0: none); the tiles reached
+internal int rf_walk(int sx, int sy, int ax, int ay, int bx, int by, uint8_t *seen) {
+    uint8_t *walk = g_shut.on ? g_shut.on : g_shut.walk;
+    int dx = bx - ax, dy = by - ay, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), ux = dx > 0 ? 1 : dx < 0 ? -1 : 0, uy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+    static int16_t shut[16][2];
+    int ns = 0;
+    for (int j = 0; ax >= 0 && j <= len && ns < 16; j++) {
+        int x = ax + ux * j, y = ay + uy * j;
+        if (rf_in(x, y) && walk[rf_at(x, y)]) { walk[rf_at(x, y)] = 0; shut[ns][0] = (int16_t)x; shut[ns++][1] = (int16_t)y; }
+    }
+    memset(seen, 0, sizeof g_shut.seen);
+    int head = 0, tail = 0, n = 0;
+    if (rf_in(sx, sy) && walk[rf_at(sx, sy)]) { seen[rf_at(sx, sy)] = 1; g_shut.q[tail][0] = (int16_t)sx; g_shut.q[tail++][1] = (int16_t)sy; }
+    static const int8_t nx4[4] = { 1, -1, 0, 0 }, ny4[4] = { 0, 0, 1, -1 };
+    while (head < tail) {
+        int cx = g_shut.q[head][0], cy = g_shut.q[head][1];
+        head++; n++;
+        for (int d = 0; d < 4; d++) {
+            int x = cx + nx4[d], y = cy + ny4[d];
+            if (!rf_in(x, y) || seen[rf_at(x, y)] || !walk[rf_at(x, y)]) continue;
+            seen[rf_at(x, y)] = 1; g_shut.q[tail][0] = (int16_t)x; g_shut.q[tail++][1] = (int16_t)y;
+        }
+    }
+    for (int j = 0; j < ns; j++) walk[rf_at(shut[j][0], shut[j][1])] = 1;
+    return n;
+}
+// the box, its walkable tiles and the base's walk; 0: no room for it
+internal int rf_setup(struct encl *e, ivec2 b, uint32_t now) {
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0, x0 = b.x, y0 = b.y, x1 = b.x, y1 = b.y;
+    if (!n) return 0;
+    for (int i = 0; i < e->nring; i++) {
+        if (e->rx[i] < x0) x0 = e->rx[i];
+        if (e->rx[i] > x1) x1 = e->rx[i];
+        if (e->ry[i] < y0) y0 = e->ry[i];
+        if (e->ry[i] > y1) y1 = e->ry[i];
+    }
+    x0 -= RF_PAD; y0 -= RF_PAD; x1 += RF_PAD; y1 += RF_PAD;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 >= n) x1 = n - 1;
+    if (y1 >= n) y1 = n - 1;
+    if (x1 - x0 + 1 > RF_W || y1 - y0 + 1 > RF_W) return 0;
+    g_shut.x0 = x0; g_shut.y0 = y0; g_shut.w = x1 - x0 + 1; g_shut.h = y1 - y0 + 1;
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++) {
+            g_shut.real[rf_at(x, y)] = (uint8_t)(rm_tile_ok(map, n, x, y) != 0);
+            g_shut.walk[rf_at(x, y)] = (uint8_t)(g_shut.real[rf_at(x, y)] && !encl_pending(e, x, y, now));
+        }
+    g_shut.sx = -1;
+    for (int r = 0; r <= 6 && g_shut.sx < 0; r++)   // the walkable tile nearest the base point
+        for (int dx = -r; dx <= r && g_shut.sx < 0; dx++)
+            for (int dy = -r; dy <= r; dy++)
+                if ((abs(dx) == r || abs(dy) == r) && rf_in(b.x + dx, b.y + dy) && g_shut.walk[rf_at(b.x + dx, b.y + dy)]) { g_shut.sx = b.x + dx; g_shut.sy = b.y + dy; break; }
+    if (g_shut.sx < 0) return 0;
+    g_shut.on = NULL;
+    g_shut.n0 = rf_walk(g_shut.sx, g_shut.sy, -1, 0, 0, 0, g_shut.base);
+    g_shut.on = g_shut.real;
+    rf_walk(g_shut.sx, g_shut.sy, -1, 0, 0, 0, g_shut.base_real);
+    g_shut.on = NULL;
+    return 1;
+}
+// the run a-b shuts nothing in: what the base's walk reached, it still reaches, but the run's own tiles
+internal int rf_run_ok(int ax, int ay, int bx, int by) {
+    int dx = bx - ax, dy = by - ay, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), ux = dx > 0 ? 1 : dx < 0 ? -1 : 0, uy = dy > 0 ? 1 : dy < 0 ? -1 : 0, own = 0;
+    for (int j = 0; j <= len; j++) { int x = ax + ux * j, y = ay + uy * j; own += rf_in(x, y) && g_shut.base[rf_at(x, y)]; }
+    return rf_walk(g_shut.sx, g_shut.sy, ax, ay, bx, by, g_shut.seen) >= g_shut.n0 - own;
+}
+internal void rf_ordered(int ax, int ay, int bx, int by) {   // a run ordered: shut from now on, the base's walk again
+    int dx = bx - ax, dy = by - ay, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), ux = dx > 0 ? 1 : dx < 0 ? -1 : 0, uy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+    for (int j = 0; j <= len; j++) { int x = ax + ux * j, y = ay + uy * j; if (rf_in(x, y)) g_shut.walk[rf_at(x, y)] = 0; }
+    g_shut.n0 = rf_walk(g_shut.sx, g_shut.sy, -1, 0, 0, 0, g_shut.base);
+}
+internal int encl_gate_type(ee_player *pl) {   // the newest gate it can build, 0 none
+    static const enum ut_name gline[] = { UT_GATE_LINE };   // oldest first
+    for (int i = 5; i >= 0; i--) if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) return g_ut[gline[i]];
+    return 0;
+}
+internal ee_unit *encl_own_piece(ee_player *pl, int x, int y) {   // a wall piece of pl's (not a gate) on the tile
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    if (x < 0 || y < 0 || x >= n || y >= n) return NULL;
+    ee_tile *tile = map_get_tiles(map)[y * n + x];
+    for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+        ee_unit *o = tilenode_get_object(node);
+        ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+        if (td && unit_get_owner(o) == pl && unit_type_get_is_wall(td) && !ut_role(unit_type_get_id(td), UTR_GATE) && unit_get_hp(o) > 0) return o;
+    }
+    return NULL;
+}
+// something of its own shut in already: a gate in a straight run of five of its finished pieces between that and the
+// base's side - 1 when one was ordered
+internal int rf_free_pocket(ee_player *pl, unsigned idx, struct encl *e, uint32_t now) {
+    static uint32_t logged[16];
+    int count = 0, px = -1, py = -1;
+    for (ee_unit *u = player_get_units(pl); u && count < 8192 && px < 0; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0) continue;
+        int t = unit_type_get_id(td), cls = unit_type_get_class_id(td), x = unit_get_x(u), y = unit_get_y(u);
+        if (!rf_in(x, y) || is_wall(t)) continue;
+        if (is_citizen_type(t)) {
+            if (g_shut.real[rf_at(x, y)] && !g_shut.base_real[rf_at(x, y)]) { px = x; py = y; }
+        } else if (cls == CLS_BUILDING || cls == CLS_FORTRESS) {   // a free tile round it, none the base reaches
+            int s = unit_type_get_size(td), fx = -1, fy = -1, reached = 0;
+            if (s < 1 || s > 8) continue;
+            for (int ry = y - 1; ry <= y + s && !reached; ry++)
+                for (int rx = x - 1; rx <= x + s && !reached; rx++) {
+                    if ((rx >= x && rx < x + s && ry >= y && ry < y + s) || !rf_in(rx, ry) || !g_shut.real[rf_at(rx, ry)]) continue;
+                    if (g_shut.base_real[rf_at(rx, ry)]) reached = 1; else if (fx < 0) { fx = rx; fy = ry; }
+                }
+            if (!reached && fx >= 0) { px = fx; py = fy; }
+        }
+    }
+    if (px < 0) return 0;
+    g_shut.on = g_shut.real;
+    int size = rf_walk(px, py, -1, 0, 0, 0, g_shut.seen);   // the pocket
+    g_shut.on = NULL;
+    int gtype = encl_gate_type(pl), walls = 0;
+    ee_unit *piece = NULL;   // else a piece of its own between the pocket and the base's side, taken down
+    int qx = 0, qy = 0;
+    static const int8_t nx4[4] = { 1, -1, 0, 0 }, ny4[4] = { 0, 0, 1, -1 };
+    for (int y = g_shut.y0; y < g_shut.y0 + g_shut.h; y++)
+        for (int x = g_shut.x0; x < g_shut.x0 + g_shut.w; x++) {
+            int pocket = 0, base = 0;   // a wall tile with the pocket on one side and the base's side on the other
+            for (int d = 0; d < 4; d++) {
+                int ax = x + nx4[d], ay = y + ny4[d];
+                if (!rf_in(ax, ay)) continue;
+                pocket |= g_shut.seen[rf_at(ax, ay)];
+                base |= g_shut.base_real[rf_at(ax, ay)];
+            }
+            if (!pocket || !encl_built(x, y)) continue;
+            walls = 1;   // its own walls close it (not only buildings, cliffs or trees: not the ring's doing)
+            if (!base) continue;
+            if (!piece) piece = encl_own_piece(pl, x, y), qx = x, qy = y;
+            if (!gtype) continue;
+            for (int dir = 1; dir <= 4; dir++)
+                for (int off = -2; off <= 2; off++) {
+                    int cx = x + k_gate_step[dir][0] * off, cy = y + k_gate_step[dir][1] * off;
+                    if (!gate_fits(pl, cx, cy, dir)) continue;
+                    int tile[2] = { cx, cy };
+                    build_gate(tile, player_get_index(pl), unit_type_get_tech(type_data(gtype)), dir);
+                    if (g_log) fprintf(g_log, "# enclose: P%u gate %d at %d,%d frees a pocket of %d tiles (its unit at %d,%d)\n", idx, gtype, cx, cy, size, px, py);
+                    return 1;
+                }
+        }
+    if (piece) {   // no gate fits there (a corner, a short stretch between trees and buildings): the piece goes
+        unit_destroy(piece, 0, 0, 0);
+        if (e->nopen < 32) { e->open_x[e->nopen] = (int16_t)qx; e->open_y[e->nopen++] = (int16_t)qy; }   // built again it shut the pocket again (4 times a game)
+        if (g_log) fprintf(g_log, "# enclose: P%u wall piece at %d,%d taken down: it shut in a pocket of %d tiles (its unit at %d,%d), no gate fits\n",
+                           idx, qx, qy, size, px, py);
+        return 1;
+    }
+    if (walls && g_log && (!logged[idx] || now - logged[idx] >= 300000)) {
+        logged[idx] = now ? now : 1;
+        fprintf(g_log, "# enclose: P%u a pocket of %d tiles at %d,%d shut in - none of its pieces borders the base's side\n", idx, size, px, py);
+    }
+    return 0;
 }
 // The ring's walls and gates (defence_tick): up to two runs a tick, the stone above a tower's 100 kept back.
 internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *wm, const int *have_stock, uint32_t now) {
@@ -925,10 +1108,7 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
     if (!e->ready) { e->skip_econ++; return; }
     for (int g = 0; g < e->ngate; g++) {   // a gate, once the side's middle stands finished: the newest it can build
         if (e->gate[g].tries >= 20 || !gate_fits(pl, e->gate[g].x, e->gate[g].y, e->gate[g].dir)) continue;
-        static const enum ut_name gline[] = { UT_GATE_LINE };   // oldest first
-        int gtype = 0;
-        for (int i = 5; i >= 0 && !gtype; i--)
-            if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) gtype = g_ut[gline[i]];
+        int gtype = encl_gate_type(pl);
         e->gate[g].tries++;
         if (!gtype) continue;
         int tile[2] = { e->gate[g].x, e->gate[g].y };
@@ -950,6 +1130,9 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
     // (a few builders at a time, from the start); enclose_under_ships: on an island only enemy land units near stop a run
     // (a piece that stands stops the ships' fire)
     if (g_encl_flight > 0 && encl_in_flight(e, now) >= g_encl_flight) { e->skip_pend++; return; }
+    if (!rf_setup(e, iv2(p->bx, p->by), now)) { e->skip_shut++; return; }   // nothing ordered that can't be checked
+    if (rf_free_pocket(pl, idx, e, now)) return;
+    int gtype = encl_gate_type(pl);
     for (int order = 0; order < g_encl_runs; order++) {
         int most = 12;   // the pieces the stock pays for
         for (int r = 2; r < 7; r++) {
@@ -958,8 +1141,26 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
         }
         if (most < 1) { e->skip_stone++; return; }
         int ax = -1, ay = -1, bx = -1, by = -1;
+        // the planned gates' pieces first (only those: a run along the gate's line within its five), then the ring
+        for (int g = 0; g < e->ngate && ax < 0; g++) {
+            int dir = e->gate[g].dir, ux = k_gate_step[dir][0], uy = k_gate_step[dir][1], f = -3, l = -3;
+            if (dir < 1 || dir > 4 || !gtype) continue;
+            for (int i = -2; i <= 2; i++) {
+                int x = e->gate[g].x + ux * i, y = e->gate[g].y + uy * i;
+                if (!encl_free(pl, e, wtype, x, y, now)) { if (f > -3) break; continue; }
+                if (f == -3) f = i;
+                l = i;
+                if (l - f + 1 >= most) break;
+            }
+            if (f == -3 || route_covered(pl, p->bx, p->by, e->gate[g].x, e->gate[g].y) || raiders_near(pl, iv2(e->gate[g].x, e->gate[g].y), 10)) continue;
+            ax = e->gate[g].x + ux * f; ay = e->gate[g].y + uy * f; bx = e->gate[g].x + ux * l; by = e->gate[g].y + uy * l;   // exempt: its gate opens it
+        }
+        static int16_t skip[64][2];
+        int nskip = 0;
         for (int i = 0; i < e->nring && ax < 0; i++) {
-            int x = e->rx[i], y = e->ry[i];
+            int x = e->rx[i], y = e->ry[i], skipped = 0;
+            for (int k = 0; k < nskip && !skipped; k++) skipped = skip[k][0] == x && skip[k][1] == y;
+            if (skipped) continue;
             if (!encl_free(pl, e, wtype, x, y, now)) { e->skip_pend += !encl_walled(x, y) && encl_pending(e, x, y, now); continue; }
             if (route_covered(pl, p->bx, p->by, x, y)) { e->skip_fire++; continue; }   // the builders would walk into enemy fire
             int foes = 0;
@@ -975,8 +1176,14 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
                 while (f + bk + 1 < most && encl_free(pl, e, wtype, x - dx * (bk + 1), y - dy * (bk + 1), now)) bk++;
                 if (f + bk + 1 > best) { best = f + bk + 1; ax = x - dx * bk; ay = y - dy * bk; bx = x + dx * f; by = y + dy * f; }
             }
+            if (rf_run_ok(ax, ay, bx, by)) break;
+            if (rf_run_ok(x, y, x, y)) { ax = bx = x; ay = by = y; break; }   // the run would shut something in: this piece alone
+            e->skip_shut++;   // even that one would: the next tile
+            if (nskip < 64) { skip[nskip][0] = (int16_t)x; skip[nskip++][1] = (int16_t)y; }
+            ax = -1;
         }
         if (ax < 0) return;
+        rf_ordered(ax, ay, bx, by);
         int a[2] = { ax, ay }, bb[2] = { bx, by }, len = abs(bx - ax) > abs(by - ay) ? abs(bx - ax) : abs(by - ay);
         build_wall(wm, a, bb, wtype);
         int o = 0;
