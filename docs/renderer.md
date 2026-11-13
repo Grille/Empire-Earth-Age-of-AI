@@ -1037,8 +1037,9 @@ A corpse has no silhouette (the player, the same day: "dead units should no long
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
 A ship breaks in two (the player, 2026-11-13: "could ships split in halp on sink?", "short ones like fisihing boats shouldnt snap"). collect_remains_physics.c A SHIP BREAKING IN TWO: a
 ship of 1.5 tiles or more (the fishing boats are 0.7 - 1.3 long, the first transports 1.4, the warships 1.6 - 3.8:
-logged, every type) draws it by its serial, 30% of them (the pipe: `wreck snap all | none | random`); it settles with
-slow leaks only and 1.5 - 3.5 s after its death breaks at 0.45 - 0.55 of its length - its entry the bow's half, a new
+logged, every type) draws it by its serial, 30% of them (the pipe: `wreck snap all | none | random`); kicked at its
+death, 0.25 - 0.4 s after it (the kick's turn begun, the halves take it on: the player, "make the ship break the moment
+it dies after the kick") it breaks at 0.45 - 0.55 of its length - its entry the bow's half, a new
 one (twin, never the game's unit's) the stern's, each with its floats over its own stretch, placed by the ship's pose
 then and a step before (its way and turn kept); the broken end floods at once, the far end last, the broken ends drop
 and the halves drift apart: each stands up on its broken end and goes under by it. Each half is a model of its own

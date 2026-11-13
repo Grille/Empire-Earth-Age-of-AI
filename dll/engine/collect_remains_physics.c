@@ -46,9 +46,10 @@
 #define US_SEESAW_LIFT 3.0f        // its side floats' buoyancy, fully under (g's), until they leak
 // A SHIP BREAKING IN TWO (the player, 2026-11-13: "could ships split in halp on sink?", "short ones like fisihing boats
 // shouldnt snap"): a ship US_SNAP_LEN tiles long or more draws it, US_SNAP of them (the pipe's wreck snap all / none /
-// random), before the other plans. It settles a little, its floats leaking slowly only, and US_SNAP_AT .. + US_SNAP_AT_RND
-// s after its death it breaks at 0.45 .. 0.55 of its length: its entry the bow's half from then on and a new one the
-// stern's (twin), each with four floats and its ballast of its own over its own stretch of the hull - as far as its
+// random), before the other plans. Kicked at its death (us_kick), US_SNAP_AT .. + US_SNAP_AT_RND s after it - the kick's
+// turn begun, the halves take it on - it breaks (the player, the same day: "make the ship break the moment it dies after
+// the kick"; 1.5 .. 3.5 s before, settling with slow leaks) at 0.45 .. 0.55 of its length: its entry the bow's half
+// from then on and a new one the stern's (twin), each with four floats and its ballast of its own over its own stretch of the hull - as far as its
 // hull's ends from its middle as a whole ship's - and all the rest the ship's, its pose and way at the break (both
 // halves' points from the frame's pose then and a step before). The broken end's float floods at once, its far end
 // holds longest, its sides between: each half stands up on its broken end and goes down by it; their broken ends drop
@@ -56,8 +57,8 @@
 // first drawn broken (render_units.c A BROKEN SHIP'S HALF: us_clip_tag). Not a submarine's or an aircraft's; one met already sinking stays whole.
 #define US_SNAP 0.3f
 #define US_SNAP_LEN 1.5f
-#define US_SNAP_AT 1.5f
-#define US_SNAP_AT_RND 2.0f
+#define US_SNAP_AT 0.25f
+#define US_SNAP_AT_RND 0.15f
 #define US_SNAP_DROP 0.3f   // tiles/s
 #define US_SNAP_PART 0.12f  // tiles/s, each away from the other
 // its hull's top: this share of its model's height over the water, at most US_HULL_MAX (the models' own space: a
