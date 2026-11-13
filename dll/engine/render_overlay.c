@@ -5,7 +5,10 @@
 // circle (below); depth tested so hills and buildings hide them, not written; blended by their alpha; under the
 // interface drawn after them.
 
-#define RO_VERTS 131072   // 3 MB of 24-byte vertices: about 21000 ribbon quads a frame
+#define RO_VERTS 131072      // 3 MB of 24-byte vertices at first: about 21000 ribbon quads a frame - grown as a frame needs
+#define RO_VERTS_MAX 2097152 // ... to 48 MB at most: past it the rest is cut (counted). A fixed room cut what came last,
+                             // and the producers' shapes move to the end as each updates: a different part missing every
+                             // update - all layers on a big map flickered (the player, 2026-11-13: "now evrething flickers")
 typedef struct { float x, y, z; uint32_t argb; float u, v; } ro_vertex;
 internal const char k_ro_shader[] =
     "cbuffer o : register(b0) { row_major float4x4 vp; float4 px; };\n"
@@ -23,7 +26,8 @@ internal struct {
     ID3D11Buffer *cb, *vb;
     ID3D11SamplerState *samp;
     ro_vertex *v;
-    int n;
+    int n, cap, vb_cap;   // the vertices of this frame, the room for them, the buffer's
+    int last_n, cut;      // the last frame's vertices; those cut since the start (the pipe's overlay)
     ov_shape shapes[OV_SHAPES];
     // the map, read once a frame
     ee_tile **tiles;
@@ -39,6 +43,7 @@ internal int ro_init(void) {
     if (g_ro.ready) return g_ro.ready > 0;
     g_ro.ready = -1;
     if (!g_d3d.dev || !(g_ro.v = malloc(RO_VERTS * sizeof *g_ro.v))) return 0;
+    g_ro.cap = g_ro.vb_cap = RO_VERTS;
     ID3DBlob *code = d3d_compile(k_ro_shader, sizeof k_ro_shader - 1, "vs", "vs_4_0");
     HRESULT hr = code ? ID3D11Device_CreateVertexShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_ro.vs) : E_FAIL;
     static const D3D11_INPUT_ELEMENT_DESC el[] = {
@@ -83,12 +88,23 @@ internal float ro_height(float x, float y) {
     float h1 = ro_tile_h(ix, iy + 1) * (1 - ax) + ro_tile_h(ix + 1, iy + 1) * ax;
     return h0 * (1 - ay) + h1 * ay + 0.06f;   // a little above: no fight with the ground's own depth
 }
+internal void ro_counts(int *last, int *cap, int *cut) { *last = g_ro.last_n; *cap = g_ro.cap; *cut = g_ro.cut; }   // the pipe's overlay
+// room for k more vertices this frame (the room grown to RO_VERTS_MAX); 0: none, they are cut
+internal int ro_room(int k) {
+    if (g_ro.n + k <= g_ro.cap) return 1;
+    int cap = g_ro.cap;
+    while (cap < g_ro.n + k && cap < RO_VERTS_MAX) cap *= 2;
+    ro_vertex *v = g_ro.n + k <= cap ? realloc(g_ro.v, (size_t)cap * sizeof *v) : NULL;
+    if (!v) { g_ro.cut += k; return 0; }
+    g_ro.v = v; g_ro.cap = cap;
+    return 1;
+}
 internal void ro_vtx(float x, float y, uint32_t argb, float u, float v) {
     ro_vertex *o = &g_ro.v[g_ro.n++];
     o->x = x; o->y = y; o->z = ro_height(x, y); o->argb = argb; o->u = u; o->v = v;
 }
 internal void ro_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t argb) {
-    if (g_ro.n + 6 > RO_VERTS) return;
+    if (!ro_room(6)) return;
     float px[4] = { x0, x1, x2, x3 }, py[4] = { y0, y1, y2, y3 };
     static const int order[6] = { 0, 1, 2, 0, 2, 3 };
     for (int k = 0; k < 6; k++) ro_vtx(px[order[k]], py[order[k]], argb, 0, 0);
@@ -155,7 +171,7 @@ internal void ro_ring(const float *vp, float x, float y, float r, uint32_t argb)
     if (!ro_screen_axes(vp, x, y, rt, up)) return;
     int n = (int)ceilf(2.0f * h / RO_RING_CELL);
     n = n < 1 ? 1 : n > RO_RING_CELLS ? RO_RING_CELLS : n;
-    if (g_ro.n + n * n * 6 > RO_VERTS) return;
+    if (!ro_room(n * n * 6)) return;
     for (int j = 0; j < n; j++)
         for (int i = 0; i < n; i++) {
             static const int ci[6] = { 0, 1, 1, 0, 1, 0 }, cj[6] = { 0, 0, 1, 0, 1, 1 };
@@ -241,7 +257,7 @@ internal void ro_svtx(float px, float py, uint32_t argb, float u, float v) {
     o->x = px / g_ro.sw * 2.0f - 1.0f; o->y = 1.0f - py / g_ro.sh * 2.0f; o->z = 0; o->argb = argb; o->u = u; o->v = v;
 }
 internal void ro_squad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t argb) {
-    if (g_ro.n + 6 > RO_VERTS) return;
+    if (!ro_room(6)) return;
     ro_svtx(x0, y0, argb, 0, 0); ro_svtx(x1, y1, argb, 0, 0); ro_svtx(x2, y2, argb, 0, 0);
     ro_svtx(x0, y0, argb, 0, 0); ro_svtx(x2, y2, argb, 0, 0); ro_svtx(x3, y3, argb, 0, 0);
 }
@@ -266,7 +282,7 @@ internal int ro_corners(int shape, float cx, float cy, float r, float *x, float 
 internal void ro_spoly(int shape, float cx, float cy, float r, uint32_t argb) {
     float x[16], y[16];
     int k = ro_corners(shape, cx, cy, r, x, y);
-    if (g_ro.n + 3 * k > RO_VERTS) return;
+    if (!ro_room(3 * k)) return;
     for (int i = 0; i < k; i++) {
         int j = (i + 1) % k;
         ro_svtx(cx, cy, argb, 0, 0); ro_svtx(x[i], y[i], argb, 0, 0); ro_svtx(x[j], y[j], argb, 0, 0);
@@ -307,7 +323,7 @@ internal void ro_arrow(const float *vp, const ov_shape *s) {
         float g = pass ? 0.0f : 1.5f;
         uint32_t c = pass ? s->argb : edge;
         ro_sline(ax - dx * g, ay - dy * g, hx, hy, w + 2.0f * g, c);
-        if (g_ro.n + 3 > RO_VERTS) return;
+        if (!ro_room(3)) return;
         ro_svtx(bx + dx * g * 2.0f, by + dy * g * 2.0f, c, 0, 0);
         ro_svtx(hx + nx * (1 + g / head * 2.0f), hy + ny * (1 + g / head * 2.0f), c, 0, 0);
         ro_svtx(hx - nx * (1 + g / head * 2.0f), hy - ny * (1 + g / head * 2.0f), c, 0, 0);
@@ -316,7 +332,7 @@ internal void ro_arrow(const float *vp, const ov_shape *s) {
 internal void ro_glyphs(const char *t, float x, float y, uint32_t argb) {
     for (const uint8_t *p = (const uint8_t *)t; *p; p++) {
         int c = *p;
-        if (c >= 32 && g_ro.n + 6 <= RO_VERTS) {
+        if (c >= 32 && ro_room(6)) {
             float u0 = (float)((c % 16) * RO_FONT_CELL) / RO_FONT_SIDE, v0 = (float)((c / 16) * RO_FONT_CELL) / RO_FONT_SIDE;
             float u1 = u0 + (float)RO_FONT_CELL / RO_FONT_SIDE, v1 = v0 + (float)RO_FONT_CELL / RO_FONT_SIDE;
             float x0 = x - 2, y0 = y - 2, x1 = x0 + RO_FONT_CELL, y1 = y0 + RO_FONT_CELL;
@@ -455,7 +471,18 @@ internal void rd3_overlay(rd_device *d) {
     int screen = g_ro.n;
     if (g_ro.sw > 0 && g_ro.sh > 0)
         for (int i = 0; i < n; i++) if (g_ro.shapes[i].kind == OV_TEXT && ro_font()) ro_text(c.vp, &g_ro.shapes[i]);
+    g_ro.last_n = g_ro.n;
     if (!g_ro.n) return;
+    if (g_ro.n > g_ro.vb_cap) {   // the buffer as large as the room grew
+        ID3D11Buffer *nb = NULL;
+        D3D11_BUFFER_DESC ud = { (UINT)g_ro.cap * sizeof(ro_vertex), D3D11_USAGE_DYNAMIC, D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0 };
+        HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &nb);
+        if (FAILED(hr)) { g_ro.cut += g_ro.n - g_ro.vb_cap; g_ro.n = g_ro.vb_cap; }
+        else { D3D_RELEASE(g_ro.vb); g_ro.vb = nb; g_ro.vb_cap = g_ro.cap; }
+    }
+    if (plain > g_ro.n) plain = g_ro.n;
+    if (rings > g_ro.n) rings = g_ro.n;
+    if (screen > g_ro.n) screen = g_ro.n;
     rd3_submit();
     ID3D11DeviceContext *x = g_d3d.ctx;
     D3D11_MAPPED_SUBRESOURCE ms;

@@ -11,7 +11,7 @@
 // glides the anchor's mark from where it was drawn to its new place over the time the updates come apart, and moves the
 // anchor's text and arrows' starts with it (render_overlay.c ro_glide).
 #define OV_LAYERS 16
-#define OV_SHAPES 16384
+#define OV_SHAPES 65536   // all layers on a big map: the danger and fronts layers' runs of tiles, the AI's dots
 #define OV_TEXT_MAX 47
 enum { OV_LINE, OV_CIRCLE, OV_TILE, OV_RING, OV_MARK, OV_ARROW, OV_TEXT };
 enum { OVM_SQUARE, OVM_DIAMOND, OVM_CIRCLE, OVM_TRIANGLE, OVM_HOLLOW = 0x80 };   // a mark's shape, | OVM_HOLLOW: its outline only
@@ -41,6 +41,7 @@ internal struct {
     uintptr_t open_key;
     uint32_t open_until;
     uint32_t open_id;
+    unsigned dropped;   // shapes refused, the store full
 } g_ov;
 
 internal void ov_init(void) {
@@ -143,7 +144,7 @@ internal void overlay_begin(int layer, uintptr_t key, uint32_t now, uint32_t ttl
 internal void overlay_anchor(uint32_t id) { g_ov.open_id = id; }
 internal void overlay_end(void) { LeaveCriticalSection(&g_ov.cs); }
 internal ov_shape *ov_add(int kind, uint32_t argb, float width) {
-    if (g_ov.n == OV_SHAPES) return NULL;   // full: the rest of this plan isn't shown
+    if (g_ov.n == OV_SHAPES) { g_ov.dropped++; return NULL; }   // full: the rest of this plan isn't shown (counted: the pipe's overlay)
     ov_shape *s = &g_ov.s[g_ov.n++];
     s->kind = (uint8_t)kind;
     s->sub = 0;
