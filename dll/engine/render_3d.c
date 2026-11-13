@@ -153,15 +153,16 @@ typedef struct {
 // 8000-unit save's army (16 500 draws in 24 states, 21 changes of a state other than the material)
 typedef struct { float m[16], diff[4], amb[4], emi[4], mo[4]; } rb_world;
 // a blended draw's vertex (render_morph.c): its index has the top bit, its entry (mo: the two runs' places in the pool,
-// the fraction) and the vertex in the run - the vertex buffer isn't read for it (the input assembler's read past the
-// buffer gives zeros)
+// the fraction; 18 bits, all set: the instance's) and the vertex in the run - the vertex buffer isn't read for it (the
+// input assembler's read past the buffer gives zeros). Bit 30: a triangle of a ship's filled bottom (render_instance.c
+// in_cap_make) - morph says so, and the pixel shader takes its first vertex's texel whole for all of it (cf)
 #define RD3_MORPH_HLSL \
     "Buffer<float4> mp : register(t5);\n" \
-    "void morph(inout I i, uint id) { if (id < 0x80000000) return; uint s = (id >> 12) & 0x7FFFF, k = id & 0xFFF; if (s == 0x7FFFF) s = i.inst;" \
+    "uint morph(inout I i, uint id) { if (id < 0x80000000) return 0; uint s = (id >> 12) & 0x3FFFF, k = id & 0xFFF; if (s == 0x3FFFF) s = i.inst;" \
     " float4 m = wt.Load(s * 8 + 7); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
     " float4 a0 = mp.Load(a), a1 = mp.Load(a + 1), b0 = mp.Load(b), b1 = mp.Load(b + 1);" \
     " i.p = lerp(a0.xyz, b0.xyz, m.z); i.n = lerp(float3(a0.w, a1.xy), float3(b0.w, b1.xy), m.z); i.t = a1.zw;" \
-    " i.c = float4(1, 1, 1, 1); i.w = s; }\n"
+    " i.c = float4(1, 1, 1, 1); i.w = s; return (id >> 30) & 1; }\n"
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
@@ -181,7 +182,8 @@ internal const char k_rd3_shader[] =
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
-    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float3 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6; };\n"
+    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float3 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6;"
+    " nointerpolation float3 cf : TEXCOORD7; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -206,7 +208,7 @@ internal const char k_rd3_shader[] =
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
     " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); gt = i.w > 1 ? float4(0, 0, 0, -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
@@ -227,7 +229,7 @@ internal const char k_rd3_shader[] =
     "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a);"
     // a caster in a shadow (shadows all on): its colour without the lights' diffuse part, as much as the strength takes
     "  o.k = saturate(e.rgb + a.rgb * am + d.rgb * df * (1 - shk.w)) / max(c.rgb, 0.001); }"
-    " o.c = c; o.t = i.t; o.gw = i.p;"
+    " o.c = c; o.t = i.t; o.gw = i.p; o.cf = float3(cp, i.t);"
     " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = fog_at(z);"
     // what lies under the water takes the fog of the place the line of sight enters it (render_water.c) - the game's
     // own again toward the fog's end, where the ground's mesh stops
@@ -279,7 +281,11 @@ internal const char k_rd3_shader[] =
     // (wx, wy: its ddx, ddy); no more than 48 pixels (the surface seen edge on)
     "float2 wpix(float2 dw, float2 wx, float2 wy) { float det = wx.x * wy.y - wy.x * wx.y; if (abs(det) < 1e-12) return 0;"
     " float2 q = float2(dw.x * wy.y - wy.x * dw.y, wx.x * dw.y - dw.x * wx.y) / det; float l = length(q); return l > 48 ? q * (48 / l) : q; }\n"
-    "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
+    // a ship's filled bottom: one texel of its hull, whole - stretched between its rim's own places in the texture it took
+    // in what lay between them, the sails' and the rigging's clear parts too (the player, 2026-11-13: "the undersides of the
+    // ships render quite messy, partly picking up transparent section of the texture")
+    "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
+    " if (i.cf.x > 0.5) x.a = 1;"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
     // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
@@ -377,7 +383,7 @@ internal const char k_rd3_shader[] =
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
     // colour lit as the unit is - the brightest channel of its vertex colour, which is the light on a white part and on a
     // part in the player's colour alike - where a building's surface is what the pixel shows and the unit lies behind it
-    "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x7FFFF : (uint)i.w; if (r == 0x7FFFF) r = i.inst; r *= 8; O o = vs(i, id);"
+    "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x3FFFF : (uint)i.w; if (r == 0x3FFFF) r = i.inst; r *= 8; O o = vs(i, id);"
     " uint q = (uint)wt.Load(r + 7).w; o.k = float3((q >> 16) & 255, (q >> 8) & 255, q & 255) / 255; return o; }\n"
     "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
     "cbuffer sf : register(b4) { float4 slf; };\n"   // the depth's terms a, b (depth = a + b / the view's distance in tiles); the tiles behind the face at which the fade starts and ends

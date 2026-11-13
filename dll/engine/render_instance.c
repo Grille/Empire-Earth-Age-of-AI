@@ -15,7 +15,8 @@
 #define IN_IDS (1u << 19)        // the instance stream: as far as an entry's number goes (the index's 19 bits)
 #define IN_GROUPS 1024           // lists in one batch
 #define IN_HASH 4096
-#define IN_THIS_ENTRY 0xFFFFF000u   // the index's top bits: RD3_MORPH_HLSL reads the entry from the instance
+#define IN_THIS_ENTRY 0xBFFFF000u   // the index's top bits: RD3_MORPH_HLSL reads the entry from the instance
+#define IN_CAP_TRI 0x40000000u      // ... and this one: a triangle of a ship's filled bottom (in_cap_make)
 typedef long (__thiscall *in_model_fn)(void *ras, ee_model *m, unsigned long screen, float bias, uint8_t ortho);
 typedef struct { const WORD *src; uint32_t n, at; WORD first[3], last[3]; } in_list;
 typedef struct { const WORD *src; uint32_t n, at; int head, tail, count; } in_group;
@@ -66,7 +67,7 @@ internal int in_init(void) {
     return 1;
 }
 // the list's place in the pool, put there if new (or its memory holds another now); NULL when it can't be
-internal const in_list *in_list_of(const WORD *idx, uint32_t ni) {
+internal const in_list *in_list_of(const WORD *idx, uint32_t ni, uint32_t cap_at) {
     uint32_t h = (uint32_t)(((uintptr_t)idx >> 1) * 2654435761u ^ ni * 40503u) & (IN_SLOTS - 1);
     in_list *r;
     for (;; h = (h + 1) & (IN_SLOTS - 1)) {
@@ -83,7 +84,7 @@ internal const in_list *in_list_of(const WORD *idx, uint32_t ni) {
         memset(g_in.list, 0, sizeof g_in.list);
         g_in.used = 0;
         g_in.n = 0;
-        return in_list_of(idx, ni);
+        return in_list_of(idx, ni, cap_at);
     }
     if (!r->src) g_in.n++;
     r->src = idx;
@@ -91,7 +92,7 @@ internal const in_list *in_list_of(const WORD *idx, uint32_t ni) {
     r->at = g_in.used;
     memcpy(r->first, idx, 6);
     memcpy(r->last, idx + ni - 3, 6);
-    for (uint32_t k = 0; k < ni; k++) g_in.tmp[k] = IN_THIS_ENTRY | (idx[k] & 0xFFF);
+    for (uint32_t k = 0; k < ni; k++) g_in.tmp[k] = IN_THIS_ENTRY | (k >= cap_at ? IN_CAP_TRI : 0) | (idx[k] & 0xFFF);
     D3D11_BOX box = { r->at * 4, 0, 0, (r->at + ni) * 4, 1, 1 };
     ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_in_ib, 0, &box, g_in.tmp, 0, 0);
     g_in.used += ni;
@@ -112,8 +113,9 @@ internal in_group *in_group_of(const in_list *l) {
     }
 }
 // a part into the batch (rd3_prepare bound its states): its entry - the matrix, the material, the runs - to its list
-internal void in_append(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni) {
-    const in_list *l = in_list_of(idx, ni);   // (may draw the list so far)
+// (cap_at: the first index of a ship's filled bottom, ni none)
+internal void in_append(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni, DWORD cap_at) {
+    const in_list *l = in_list_of(idx, ni, cap_at);   // (may draw the list so far)
     if (!l) return;
     sil_batch();
     if (g_rb.ni && (g_rb.morph != 2 || g_rb.nw >= RB_WORLDS || g_in.ng >= IN_GROUPS)) rd3_flush();
@@ -250,7 +252,7 @@ internal void in_cards_flush(rd_device *d) {
             d->world._11 = d->world._22 = d->world._33 = e->size;
             d->world._44 = 1;
             d->world._41 = e->at[0]; d->world._42 = e->at[1]; d->world._43 = e->at[2];
-            in_append(d, a, b, e->frac, e->idx, e->ni);
+            in_append(d, a, b, e->frac, e->idx, e->ni, e->ni);
         }
     g_sl.in = in;
     for (int k = 0; k < 3; k++) d->rs[k_ic_rs[k]] = rs[k];
@@ -295,6 +297,10 @@ typedef struct { void *ras, *view; rd_device *d; unsigned long screen; float bia
 // mirror draw from the same lists. A list's edges are the vertices' places' (a texture's seam is no edge), an open one is
 // on one triangle; the loop runs against the way its triangles do. Lists without such a loop are kept as they are
 // (marked), and so are the units drawn by the display DLL (not instanced: [display] unit_instancing off).
+// The fill's triangles are its rim's vertices', and so their places in the texture: stretched across the bottom between
+// those of the two sides, they took in whatever lay between them on the texture - the sails' and rigging's clear parts
+// cut holes (the player, 2026-11-13). Their indices carry IN_CAP_TRI: the pixel shader gives each its first vertex's
+// texel, whole (render_3d.c ps) - a hull's colour at its waterline.
 #define IN_CAPS 2048
 #define IN_CAP_LOOP 256
 typedef struct { const WORD *src; uint32_t n; WORD first[3], last[3]; WORD *out; uint32_t nout; } in_cap;
@@ -479,7 +485,7 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
         if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) {
             DWORD cn = ni;
             const WORD *ci = g_sl.ship ? in_capped(idx, ni, pa, n, &cn) : idx;   // a ship's: its open bottom filled
-            in_append(d, a, b, frac, ci, cn);
+            in_append(d, a, b, frac, ci, cn, ni);
         }
         if (d->sh_card && n <= SH_CARD_MAX) in_card_queue(d, pa, pb, frac, n, idx, ni);
         InterlockedIncrement(&g_in_parts);
