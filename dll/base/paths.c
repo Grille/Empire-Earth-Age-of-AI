@@ -37,6 +37,26 @@ internal void slot_dir(char *dir) {   // dir: the game folder (with its \) -> wh
 // folder is the first to use it (persona.c ai_folder).
 #define LINK_FILE "folder.link"
 #define LINK_DEPTH 8
+// dir (with its \) where it really is -> real (MAX_PATH, with its \): through the junctions and symbolic links on its way,
+// so that a relative link counts from the folder that holds it, not from the way it was reached (the player 2026-11-13:
+// AoC's ageofai\ a junction to EE's - EE's personalities\folder.link "..\..\_aimod\config\personalities" climbed out of
+// AoC's folder instead); 0: not known (the path as given then)
+internal int link_real_dir(const char *dir, char *real) {
+    HANDLE h = CreateFileA(dir, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    char buf[MAX_PATH + 8];
+    DWORD n = GetFinalPathNameByHandleA(h, buf, sizeof buf, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CloseHandle(h);
+    if (!n || n >= sizeof buf) return 0;
+    const char *p = buf;
+    if (!strncmp(p, "\\\\?\\UNC\\", 8)) { p += 6; buf[6] = '\\'; }   // \\?\UNC\server\share -> \\server\share
+    else if (!strncmp(p, "\\\\?\\", 4)) p += 4;
+    size_t len = strlen(p);
+    if (len + 2 > MAX_PATH) return 0;
+    memcpy(real, p, len + 1);
+    if (len && real[len - 1] != '\\') lstrcatA(real, "\\");
+    return 1;
+}
 // dir (a folder with its \, MAX_PATH) -> the folder it stands for, through its links; 0: a mistake, told in why
 internal int link_follow(char *dir, char *why, int cap) {
     for (int depth = 0;; depth++) {
@@ -68,9 +88,9 @@ internal int link_follow(char *dir, char *why, int cap) {
             FindClose(f);
             if (other) { snprintf(why, cap, "%s: %s beside it - a linked folder holds nothing but its link", path, fd.cFileName); return 0; }
         }
-        char to[MAX_PATH * 2];
+        char to[MAX_PATH * 2], real[MAX_PATH];
         if (s[1] == ':' || (s[0] == '\\' && s[1] == '\\') || (s[0] == '/' && s[1] == '/')) lstrcpynA(to, s, sizeof to);
-        else snprintf(to, sizeof to, "%s%s", dir, s);
+        else snprintf(to, sizeof to, "%s%s", link_real_dir(dir, real) ? real : dir, s);
         for (char *c = to; *c; c++) if (*c == '/') *c = '\\';
         char full[MAX_PATH];
         DWORD fn = GetFullPathNameA(to, MAX_PATH - 1, full, NULL);   // the ..\ out
