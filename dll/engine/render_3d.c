@@ -150,34 +150,8 @@ typedef struct {
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
 // units' draws alternate between two materials - the white of a model's parts and the player's colour of its banner
 // parts -, and as a constant of the batch's the material ended it at every other draw: 12 000 batches a frame over the
-// 8000-unit save's army (16 500 draws in 24 states, 21 changes of a state other than the material). The ninth row, clip:
-// a broken ship's half's cut (RD3_CLIP_HLSL), 0 for every other draw
-typedef struct { float m[16], diff[4], amb[4], emi[4], mo[4], clip[4]; } rb_world;
-#define RD3_WT_ROWS "9"   // the shaders' stride through the entries (float4 rows)
-// A BROKEN SHIP'S HALF (collect_remains_physics.c us_snap; the player, 2026-11-13: "could ships split in halp on sink?",
-// then of drawing each half as the whole model clipped: "yes, do the clip one"): its record's draw (render_units.c
-// ud_draw) sets the cut, each of its parts' entries takes it - the plane in the world (its normal toward the half
-// kept, unit long, and its offset) times 1 .. 6: + 1 or 2 its inside drawn dark - the faces its material hides, drawn now
-// (render_instance.c in_part): 1 Direct3D 11's back faces (D3DCULL_CCW), 2 its front ones (D3DCULL_CW, the ships'
-// materials: taken for back faces, a ship was all dark) -, + 3 the stern's half (its jag the bow's mirrored: the two fit).
-// Those faces are its inside only up to its hull's top (its entry's emissive alpha, which nothing else reads: the model's
-// own height, collect_remains_physics.c US_HULL_TOP); above it they are left out as the material would - a sail is
-// one-sided, and drawn with its back it stood black in the air.
-// The pixel shader leaves out what lies beyond it, the cut's line jagged by a noise of the model's own place (it
-// moves with the half) - CLIP_JAG tiles either way, CLIP_FREQ bumps a unit of the model -, and what is seen of the
-// hull's inside through the cut, its back faces, is a dark solid: the cut reads as a section, not an empty shell
-internal float g_rd_clip[4];   // the record's plane while its parts are drawn
-internal int g_rd_clip_on, g_rd_clip_stern, g_rd_clip_dark;   // ... a cut at all, the stern's half; this part's inside (0, 1, 2)
-internal float g_rd_clip_deck;   // ... its hull's top
-#define RD3_CLIP_HLSL \
-    "static const float CLIP_JAG = 0.06, CLIP_FREQ = 5; static const float3 CLIP_DARK = float3(0.10, 0.08, 0.06);\n" \
-    "float clh(float3 p) { p = frac(p * 0.1031); p += dot(p, p.zyx + 31.32); return frac((p.x + p.y) * p.z); }\n" \
-    "float cln(float3 p) { float3 a = floor(p), f = p - a; f = f * f * (3 - 2 * f);" \
-    " return lerp(lerp(lerp(clh(a), clh(a + float3(1, 0, 0)), f.x), lerp(clh(a + float3(0, 1, 0)), clh(a + float3(1, 1, 0)), f.x), f.y)," \
-    " lerp(lerp(clh(a + float3(0, 0, 1)), clh(a + float3(1, 0, 1)), f.x), lerp(clh(a + float3(0, 1, 1)), clh(a + 1), f.x), f.y), f.z); }\n" \
-    "void clip_at(float4 cl, float dk, float3 w, out float cd, out float4 ck) { float n = length(cl.xyz); cd = 1; ck = 0; if (n < 0.5) return;" \
-    " float k = round(n) - 1; cd = (dot(cl.xyz, w) + cl.w) / n; ck = float4(1, fmod(k, 3), k > 2.5 ? -1 : 1, dk); }\n" \
-    "bool clip_cut(float cd, float4 ck, float3 m) { return ck.x > 0.5 && cd < ck.z * CLIP_JAG * (cln(m * CLIP_FREQ) * 2 - 1); }\n"
+// 8000-unit save's army (16 500 draws in 24 states, 21 changes of a state other than the material)
+typedef struct { float m[16], diff[4], amb[4], emi[4], mo[4]; } rb_world;
 // a blended draw's vertex (render_morph.c): its index has the top bit, its entry (mo: the two runs' places in the pool,
 // the fraction; 18 bits, all set: the instance's) and the vertex in the run - the vertex buffer isn't read for it (the
 // input assembler's read past the buffer gives zeros). Bit 30: a triangle of a ship's filled bottom (render_instance.c
@@ -185,7 +159,7 @@ internal float g_rd_clip_deck;   // ... its hull's top
 #define RD3_MORPH_HLSL \
     "Buffer<float4> mp : register(t5);\n" \
     "uint morph(inout I i, uint id) { if (id < 0x80000000) return 0; uint s = (id >> 12) & 0x3FFFF, k = id & 0xFFF; if (s == 0x3FFFF) s = i.inst;" \
-    " float4 m = wt.Load(s * " RD3_WT_ROWS " + 7); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
+    " float4 m = wt.Load(s * 8 + 7); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
     " float4 a0 = mp.Load(a), a1 = mp.Load(a + 1), b0 = mp.Load(b), b1 = mp.Load(b + 1);" \
     " i.p = lerp(a0.xyz, b0.xyz, m.z); i.n = lerp(float3(a0.w, a1.xy), float3(b0.w, b1.xy), m.z); i.t = a1.zw;" \
     " i.c = float4(1, 1, 1, 1); i.w = s; return (id >> 30) & 1; }\n"
@@ -207,10 +181,9 @@ internal const char k_rd3_shader[] =
     "Texture2D<float2> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
-    RD3_CLIP_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
     " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float3 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6;"
-    " nointerpolation float3 cf : TEXCOORD7; float cd : TEXCOORD8; nointerpolation float4 ck : TEXCOORD9; };\n"
+    " nointerpolation float3 cf : TEXCOORD7; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -235,10 +208,9 @@ internal const char k_rd3_shader[] =
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
     " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); gt = i.w > 1 ? float4(0, 0, 0, -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * " RD3_WT_ROWS "; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
-    " clip_at(gnd.x > 0 ? 0 : wt.Load(r + 8), wt.Load(r + 6).w, p.xyz, o.cd, o.ck);"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
     " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - o.w.z) * shl.y) : 1;"
@@ -312,9 +284,7 @@ internal const char k_rd3_shader[] =
     // a ship's filled bottom: one texel of its hull, whole - stretched between its rim's own places in the texture it took
     // in what lay between them, the sails' and the rigging's clear parts too (the player, 2026-11-13: "the undersides of the
     // ships render quite messy, partly picking up transparent section of the texture")
-    "float4 ps(O i, bool ff : SV_IsFrontFace) : SV_Target { if (clip_cut(i.cd, i.ck, i.gw)) discard;"
-    " bool hid = i.ck.y > 0.5 && ff == (i.ck.y > 1.5); if (hid && i.gw.z >= i.ck.w) discard;"
-    " float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
+    "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " if (i.cf.x > 0.5) x.a = 1;"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
@@ -394,7 +364,6 @@ internal const char k_rd3_shader[] =
     "   rk *= smoothstep(0, 1, (i.w.z - (rh.x - rh.y)) * rfa.w); }"
     "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
     " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = misc.y > 0.5 ? saturate(i.f) : 1; }"
-    " if (hid) c = float4(CLIP_DARK, 1);"   // a broken half's inside, seen through its cut
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n"
     // the water's step over the picture (render_water.c rd3_water_pass): a pixel of the surface, what was drawn behind it
@@ -414,7 +383,7 @@ internal const char k_rd3_shader[] =
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
     // colour lit as the unit is - the brightest channel of its vertex colour, which is the light on a white part and on a
     // part in the player's colour alike - where a building's surface is what the pixel shows and the unit lies behind it
-    "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x3FFFF : (uint)i.w; if (r == 0x3FFFF) r = i.inst; r *= " RD3_WT_ROWS "; O o = vs(i, id);"
+    "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x3FFFF : (uint)i.w; if (r == 0x3FFFF) r = i.inst; r *= 8; O o = vs(i, id);"
     " uint q = (uint)wt.Load(r + 7).w; o.k = float3((q >> 16) & 255, (q >> 8) & 255, q & 255) / 255; return o; }\n"
     "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
     "cbuffer sf : register(b4) { float4 slf; };\n"   // the depth's terms a, b (depth = a + b / the view's distance in tiles); the tiles behind the face at which the fade starts and ends
@@ -856,11 +825,6 @@ internal void rd3_entry(const rd_device *d, rb_world *e) {
     rd3_value(e->amb, &d->material.ambient);
     rd3_value(e->emi, &d->material.emissive);
     e->mo[3] = sil_colour();
-    if (g_rd_clip_on) {   // a broken ship's half: its cut, its kind in the plane's length (RD3_CLIP_HLSL)
-        float k = (float)(1 + g_rd_clip_dark + 3 * g_rd_clip_stern);
-        for (int j = 0; j < 4; j++) e->clip[j] = g_rd_clip[j] * k;
-        e->emi[3] = g_rd_clip_deck;
-    }
 }
 // a draw into the batch (rd3_prepare bound its states): nv vertices from start, ni indices (NULL: 0..nv-1) of type
 internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, const WORD *idx, DWORD ni) {

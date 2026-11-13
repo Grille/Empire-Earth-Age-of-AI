@@ -1034,25 +1034,29 @@ frame with and without (picture inst off): a frigate and a galley of the Middle 
 cruiser, the Bismarck - the rolled hulls closed, no other change in the picture but the game's blinking marks.
 A corpse has no silhouette (the player, the same day: "dead units should no longer have silluetes"): uc_fill tags a
 rotting object as no unit for render_silhouette.c, so it is drawn as it lies, hidden behind a building like the ground.
-A ship breaks in two (the player, 2026-11-13: "could ships split in halp on sink?", the clip drawing chosen over two
-generated meshes, "short ones like fisihing boats shouldnt snap"). collect_remains_physics.c A SHIP BREAKING IN TWO: a
+A ship breaks in two (the player, 2026-11-13: "could ships split in halp on sink?", "short ones like fisihing boats shouldnt snap"). collect_remains_physics.c A SHIP BREAKING IN TWO: a
 ship of 1.5 tiles or more (the fishing boats are 0.7 - 1.3 long, the first transports 1.4, the warships 1.6 - 3.8:
 logged, every type) draws it by its serial, 30% of them (the pipe: `wreck snap all | none | random`); it settles with
 slow leaks only and 1.5 - 3.5 s after its death breaks at 0.45 - 0.55 of its length - its entry the bow's half, a new
 one (twin, never the game's unit's) the stern's, each with its floats over its own stretch, placed by the ship's pose
 then and a step before (its way and turn kept); the broken end floods at once, the far end last, the broken ends drop
-and the halves drift apart: each stands up on its broken end and goes under by it. Each half is the whole model drawn
-cut (render_3d.c A BROKEN SHIP'S HALF): its record tagged with the break's plane in the world (us_clip_tag ->
-render_units.c ud_clip_tag, by the walk's number), its draw sets it, each part's entry carries it in a ninth row
-(rb_world clip; the shaders' stride RD3_WT_ROWS), and the pixel shader leaves out the far side - its line jagged by a
-noise of the model's own place, the stern's mirrored so the two fit - in the picture and the casters' map alike. Its
-inside shows through the cut: the faces the material hides are drawn too (its cull mode off for the part,
-render_instance.c in_part), dark below the hull's top (US_HULL_TOP of the model's height: the entry's emissive alpha)
-and left out above it, as the game would (a sail is one-sided: drawn with its back it stood black in the air; the
-ships' materials cull D3DCULL_CW, Direct3D 11's front faces - taken the other way round, a ship was all dark). A half
-the mod can't draw is left out, never drawn whole by the game. Checked headless with the player's ini on open water: a
-Middle Ages frigate and an Imperial battleship broken - cracked at about 2 s, a V at 3, both halves on end by 4 - 6,
-under by 9 - 13; a probe painting the inside magenta showed it through the frigate's cut, nothing else.
+and the halves drift apart: each stands up on its broken end and goes under by it. Each half is a model of its own
+(render_units.c A BROKEN SHIP'S HALF; the clip drawing of before showed the model's back faces through its cut - most
+hulls have none inside, the sails only one side: the player, "the enabled backfaces often dont trigger, they mess with
+the sails badly, maybe generating the two halfes and filling the holes with the death texture is the better choice").
+Its record is tagged with the break's plane in the world (us_clip_tag -> ud_clip_tag, by the walk's number); its first
+draw walks the model taking every part (the frame's vertices, the full detail's triangles, the bottom filled) and
+uh_make cuts them in the root model's own space, where both halves agree: a piece (triangles joined by their places)
+that reaches under the hull's top along most of the ship is cut - the hull, its deck -, any other goes whole to the
+half its middle lies in (a sail, a mast, an oar). A triangle across the plane keeps its side, its new corners blended
+from its edges' ends, each edge's corner shared and moved along the edge by a noise of its place - the break's teeth,
+the same in both halves. The cut's edges are chained into outlines (an open one closed by its chord, two open ones that
+meet joined), filled flat with the game's death texture, facing out. The half is drawn from those lists by the record
+draw's walk (render_instance.c in_part -> uh_part: each part at its place, frozen at the break's frame), a part it
+hasn't left out; never drawn whole by the game. Kept 48 at a time, the longest unseen given up (made again alike).
+Checked headless with the player's ini on open water: a Middle Ages frigate and an Imperial battleship broken (39 and 10
+edges of the cut, filled by 28 and 9 triangles), their sails whole and none dark; a probe colouring the filling magenta
+showed it closing the battleship's hull at the break.
 
 ## The units' draw, the mod's own (2026-11-11 on)
 

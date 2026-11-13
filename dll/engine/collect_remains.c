@@ -114,8 +114,8 @@ typedef struct {
     float snap_t;            // a ship that breaks in two (us_snap): when (s after its death; < 0 never)
     float cut, ends[2];      // ... where, along its length (k->along, its own space times its scale), and its hull's ends
                              //     there (the stern's, the bow's)
-    float deck;              // ... its hull's top in its model's own space: its inside drawn below it (US_HULL_TOP)
-    uint8_t half;            // ... broken: 1 the bow's half, 2 the stern's (drawn cut: us_clip_tag); 0 whole
+    float deck;              // ... its hull's top in its model's own space: what reaches under it is the hull (US_HULL_TOP)
+    uint8_t half;            // ... broken: 1 the bow's half, 2 the stern's (each a model of its own: us_clip_tag); 0 whole
     uint8_t twin;            // ... the stern's half: an entry of its own, never the game's unit's
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];

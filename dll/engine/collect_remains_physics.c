@@ -52,18 +52,18 @@
 // hull's ends from its middle as a whole ship's - and all the rest the ship's, its pose and way at the break (both
 // halves' points from the frame's pose then and a step before). The broken end's float floods at once, its far end
 // holds longest, its sides between: each half stands up on its broken end and goes down by it; their broken ends drop
-// (US_SNAP_DROP) and they drift apart (US_SNAP_PART). Drawn as the whole model each, cut at the break's plane (render_3d.c's
-// A BROKEN SHIP'S HALF: us_clip_tag). Not a submarine's or an aircraft's; one met already sinking stays whole.
+// (US_SNAP_DROP) and they drift apart (US_SNAP_PART). Each half drawn as a model of its own, made from the ship's when it is
+// first drawn broken (render_units.c A BROKEN SHIP'S HALF: us_clip_tag). Not a submarine's or an aircraft's; one met already sinking stays whole.
 #define US_SNAP 0.3f
 #define US_SNAP_LEN 1.5f
 #define US_SNAP_AT 1.5f
 #define US_SNAP_AT_RND 2.0f
 #define US_SNAP_DROP 0.3f   // tiles/s
 #define US_SNAP_PART 0.12f  // tiles/s, each away from the other
-// its inside, seen through the cut, drawn dark up to its hull's top: this share of its model's height over the water, at
-// most US_HULL_MAX (the models' own space: a sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55;
-// an Imperial battleship's lower sails hang to 0.2: at 0.28 of its height their backs stood dark over its deck) - above
-// it what the material hides stays hidden, a sail seen from behind (one-sided: drawn with its back it stood black in the air)
+// its hull's top: this share of its model's height over the water, at most US_HULL_MAX (the models' own space: a
+// sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55; an Imperial battleship's lower sails hang
+// to 0.2) - a piece of the model reaching under it along most of the ship is the hull, cut; one that doesn't (a sail,
+// a mast, an oar) goes whole to one half
 #define US_HULL_TOP 0.3f
 #define US_HULL_MAX 0.15f
 internal int g_us_snap;     // the pipe's: 1 every ship long enough breaks, -1 none, 0 drawn (US_SNAP)
@@ -502,7 +502,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     float len = (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s;
     k->ends[0] = (x_long ? lo[0] : lo[1]) * s, k->ends[1] = (x_long ? hi[0] : hi[1]) * s;
     k->half = k->twin = 0, k->snap_t = -1.0f, k->deck = fminf(US_HULL_TOP * hi[2], US_HULL_MAX);
-    if (!air && !sub && !late && len >= US_SNAP_LEN && ud_cuts()) {   // (drawn cut: the mod's record draw)
+    if (!air && !sub && !late && len >= US_SNAP_LEN && ud_cuts()) {   // (its halves drawn: the mod's record draw)
         uint32_t ss = us_seed(o->serial, 0xC2B2AE3Du);
         float drawn = us_rnd(&ss);
         if (g_us_snap > 0 || (!g_us_snap && drawn < US_SNAP)) {
@@ -845,8 +845,9 @@ internal void us_snap(uc_corpse *k, float t) {
     us_half_go(k, now, was, t, b, 1.0f);
     us_half_go(o, now, was, t, b, -1.0f);
 }
-// a broken half's cut for its record (render_3d.c's A BROKEN SHIP'S HALF): the break's plane in the world by its pose t,
+// a broken half's cut for its record (render_units.c A BROKEN SHIP'S HALF): the break's plane in the world by its pose t,
 // its normal toward the half kept
+internal ee_texture *us_death_texture(ee_player *pl);   // collect_remains.c
 internal void us_clip_tag(const void *rec, const uc_corpse *k, const float *t) {
     if (!k->ship || !k->half) return;
     float sg = k->half == 1 ? 1.0f : -1.0f, pl[4], nt = 0.0f;
@@ -855,7 +856,8 @@ internal void us_clip_tag(const void *rec, const uc_corpse *k, const float *t) {
         nt += pl[r] * t[r * 4 + 3];
     }
     pl[3] = -nt - sg * k->cut;   // (the hull's place x: along . (x - its place) = cut, turned into the world)
-    ud_clip_tag(rec, g_uc_walk_gen, pl, k->half == 2, k->deck);
+    us_death_texture(k->owner);   // (the filling's)
+    ud_clip_tag(rec, g_uc_walk_gen, (uint32_t)k->serial, k->half, pl, k->deck);
 }
 internal int us_burnt(const uc_corpse *k);   // below: a crashed aircraft drawn burnt out
 // a shattering flier's animation, frame, next frame and fraction now, and its pose t upright on the ground once it

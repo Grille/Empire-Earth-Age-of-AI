@@ -114,13 +114,12 @@ internal const char k_sh_shader[] =
     "Buffer<float4> wt : register(t1);\n"
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
-    RD3_CLIP_HLSL   // a broken ship's half casts its own half (render_3d.c's A BROKEN SHIP'S HALF)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
-    "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; float3 m : TEXCOORD1; float cd : TEXCOORD2; nointerpolation float4 ck : TEXCOORD3; };\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * " RD3_WT_ROWS "; float4 r0 = wt.Load(r); r0.w = 0;"
-    " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3))); o.m = i.p; clip_at(wt.Load(r + 8), 0, p.xyz, o.cd, o.ck);"
+    "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
+    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 8; float4 r0 = wt.Load(r); r0.w = 0;"
+    " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3)));"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
-    "void ps(O i) { if (clip_cut(i.cd, i.ck, i.m)) discard; if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
+    "void ps(O i) { if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
     " float l = clamp(0.5 * log2(max(dot(ddx(u), ddx(u)), dot(ddy(u), ddy(u)))), 0, 1);"
     " if (t.SampleLevel(s, i.t, l).a < sa.x) discard; }\n";
 

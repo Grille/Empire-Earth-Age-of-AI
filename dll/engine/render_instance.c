@@ -447,24 +447,18 @@ internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p
 internal void *g_kt_cap;   // render_units.c: a tree being kept - its parts taken, not drawn
 internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni);
 // a material of a model seen: what the DLL does for it, without the device's calls
-internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
-    if (g_kt_cap) { kt_capture(m, mat, tex, p, world, idx, ni); return; }
-    if (g_in_capture) {
-        ud_note(m, mat, tex, p, world, idx, ni, c->d);
-        if (g_in_capture == 1) return;
-    }
-    uint32_t n = material_get_vertex_count(mat), first = material_get_vertex_first(mat);
-    ee_vertices **fr = model_get_vertices(m);
-    float frac = p->frac;
-    const float *pa = (p->va ? p->va : (const float *)vertices_get_data(fr[p->frame])) + first * 8;
-    const float *pb = frac != 0 ? (const float *)vertices_get_data(fr[p->next]) + first * 8 : pa;
+// a part's frames drawn (pa, pb: their n vertices, frac between them) by idx's ni indices under this texture, colour,
+// opacity and world: cap_at the list's first triangle of a ship's filled bottom (in_cap_make), or IN_FILL - a ship's
+// own list, its bottom filled here
+#define IN_FILL 0xFFFFFFFFu
+internal void in_draw(const in_ctx *c, void *tex, vec3 col, float alpha, const D3DMATRIX *world, const float *pa, const float *pb, float frac,
+                      uint32_t n, const WORD *idx, DWORD ni, DWORD cap_at) {
     rd_device *d = c->d;
     g_in.settex(c->ras, tex, c->screen);
-    vec3 col = material_get_colour(mat);
     D3DMATERIAL7 mt;
     memset(&mt, 0, sizeof mt);
     mt.diffuse.r = mt.ambient.r = col.x; mt.diffuse.g = mt.ambient.g = col.y; mt.diffuse.b = mt.ambient.b = col.z;
-    mt.diffuse.a = p->alpha * material_get_alpha(mat);
+    mt.diffuse.a = alpha;
     mt.ambient.a = 1;
     InterlockedIncrement(&g_rd_draws);
     LONGLONG t0 = rd_cyc();
@@ -482,19 +476,36 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
         g_mo_box = box;
         rd3_shadow_classify(d, &none, 0, n);
         g_mo_box = NULL;
-        DWORD cn = ni, cull = d->rs[D3DRENDERSTATE_CULLMODE];
-        const WORD *ci = g_sl.ship && d->sh_role != SH_BLOB ? in_capped(idx, ni, pa, n, &cn) : idx;   // a ship's: its open bottom filled
-        // a broken ship's half (render_3d.c's A BROKEN SHIP'S HALF): a material that hides faces shows them, dark below
-        // the hull's top - its inside through the cut - and left out above it (a one-sided sail from behind, as the game)
-        g_rd_clip_dark = !g_rd_clip_on || cull == D3DCULL_NONE ? 0 : cull == D3DCULL_CCW ? 1 : 2;
-        if (g_rd_clip_dark) d->rs[D3DRENDERSTATE_CULLMODE] = D3DCULL_NONE;
-        if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) in_append(d, a, b, frac, ci, cn, ni);
-        d->rs[D3DRENDERSTATE_CULLMODE] = cull;
+        DWORD cn = ni;
+        const WORD *ci = idx;
+        if (cap_at == IN_FILL) {
+            cap_at = ni;
+            if (g_sl.ship && d->sh_role != SH_BLOB) ci = in_capped(idx, ni, pa, n, &cn);   // a ship's: its open bottom filled
+        }
+        if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) in_append(d, a, b, frac, ci, cn, cap_at);
         if (d->sh_card && n <= SH_CARD_MAX) in_card_queue(d, pa, pb, frac, n, idx, ni);
         InterlockedIncrement(&g_in_parts);
     }
     g_rd_draw_cyc += rd_cyc() - t0;
     RD_UNLOCK();
+}
+internal int g_uh_on;   // render_units.c: a broken ship's half is drawn - its parts are its own (uh_part)
+internal int g_uh_take;   // ... its parts being taken: every model of the walk let through the view's test
+internal int uh_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world);
+internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
+    if (g_kt_cap) { kt_capture(m, mat, tex, p, world, idx, ni); return; }
+    if (g_in_capture) {
+        ud_note(m, mat, tex, p, world, idx, ni, c->d);
+        if (g_in_capture == 1) return;
+    }
+    if (g_uh_on && uh_part(c, m, mat, tex, p, world)) return;
+    if (!ni) return;
+    uint32_t n = material_get_vertex_count(mat), first = material_get_vertex_first(mat);
+    ee_vertices **fr = model_get_vertices(m);
+    float frac = p->frac;
+    const float *pa = (p->va ? p->va : (const float *)vertices_get_data(fr[p->frame])) + first * 8;
+    const float *pb = frac != 0 ? (const float *)vertices_get_data(fr[p->next]) + first * 8 : pa;
+    in_draw(c, tex, material_get_colour(mat), p->alpha * material_get_alpha(mat), world, pa, pb, frac, n, idx, ni, IN_FILL);
 }
 // a x b (GETransformation::Apply: 4 x 4 by row, the place in the fourth column, the last row b's)
 internal void in_mul(const float *a, const float *b, float *out) {
@@ -553,6 +564,7 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
     else memcpy(t, model_transform_at(m), sizeof t);
     uint8_t seen = 0, clip = 0;
     shr_hook_visible(c->ras, m, s, c->view, t, &seen, &clip);
+    if (g_uh_take) seen = 1;
     if (seen) {
         uint32_t lod = parent ? 0 : in_lod(c, m, t, s);
         D3DMATRIX world = { ._11 = t[0], ._12 = t[4], ._13 = t[8], ._14 = t[12], ._21 = t[1], ._22 = t[5], ._23 = t[9], ._24 = t[13],
@@ -562,7 +574,7 @@ internal void in_node(const in_ctx *c, ee_model *m, const float *parent, float p
         for (uint32_t i = 0, nm = model_get_material_count(m); i < nm; i++) {
             ee_material *mat = mats[i];
             uint32_t tris = material_get_polygon_count(mat)[lod];
-            if (tris || g_kt_cap) in_part(c, m, mat, r && !r->mat_tex ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
+            if (tris || g_kt_cap || g_uh_on) in_part(c, m, mat, r && !r->mat_tex ? in_tex(r, mat, i, depth) : material_get_textures(mat)[c->screen], p, &world,
                               indices + material_get_polygon_first(mat)[lod] * 3, tris * 3);
         }
     }
