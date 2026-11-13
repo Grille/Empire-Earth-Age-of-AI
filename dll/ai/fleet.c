@@ -68,6 +68,7 @@ internal struct fleet {
     unsigned kills[6], lost, lost_task[FT_N]; ee_unit *tgt[FL_MAX]; int tgt_id[FL_MAX], ntgt;   // lost: its ships sunk (lost_task: by its task then)
     int wp; uint32_t wp_t, build_t; unsigned built, build_refused;
     uint32_t bring_t[8]; int bring_i;   // the mod's warship orders of the last 90 s (not afloat yet)
+    int need; uint32_t need_t; unsigned held;   // fleet_own without the navy account: the enemy warships known in its sea (the most, until 10 minutes after the last); ships held out of the game's groups
 } g_fl[16];
 internal unsigned g_fl_refused;
 
@@ -81,6 +82,33 @@ internal int fleet_on(unsigned idx) {
 // stage 4 (navy_fleet=big): the size target and the mod's own warship orders (navy.c), task forces (below)
 internal int fleet_builds(unsigned idx) { return fleet_on(idx) && g_nv_map[idx & 15].strength > 0 && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
 internal int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
+// EVERY WARSHIP THE MOD'S (own_ships, econ.c EVERY UNIT THE MOD'S; the player 2026-11-13: "go after the ships next").
+// With the fleet on every map the game still led and ordered them: a new warship was offered to its groups before the
+// fleet's next scan, joined one and got its order (18 games, 60 min, 4 AIs: 47 orders to frigates and battleships a
+// player on Small Islands, 6.5 on Continental from epoch 9), and its requests trained 8.5 of a player's 52 warships on
+// the islands and all of them on Continental (5 a player: frigates, U-boats, battleships). Now: no warship or submarine
+// is taken into its groups (attack.c hook_unit_to_group) and the fleet holds its ships the game's way (fl_scan:
+// hold_unit, as armies.c its soldiers); the game's requests for them train none (econ.c hook_train_units; the next
+// epoch's required units and a landing's still go) - the fleet's own orders do (fl_build): up to the size target where
+// the navy account pays (fleet_builds), elsewhere by need - one more than the enemy warships it knows in its own sea
+// (seen, remembered 5 minutes; the need kept 10 minutes after the last), at most navy_fleet_pop % of the cap, of the
+// mix's type, paid by the military account: none while no enemy ship shows. Not where neither applies (navy_fleet=1
+// on a water map: the game's requests are its only ships). Carriers, transports and fishing boats stay the game's.
+// own_ships' second level ([autotest] v_own_ships=1: the fleet on every map alone, as before).
+internal int fleet_own(unsigned idx) {
+    idx &= 15;
+    return fleet_on(idx) && OWN_SHIPS(idx) >= 2 && (fleet_builds(idx) || g_nv_map[idx].strength <= 0);
+}
+internal int fleet_need(unsigned idx) { return g_fl[idx & 15].need; }
+internal int fleet_own_ship(ee_player *pl, ee_unit *u) {   // one of them: a warship or submarine, not a landing's
+    ee_unit_type *td = pl && u ? unit_get_type_data(u) : NULL;
+    int k = td ? navy_kind(td) : NV_NONE;
+    return (k == NV_WAR || k == NV_SUB) && !is_vanilla(pl) && fleet_own((unsigned)player_get_index(pl)) && !landing_has_unit(pl, u);
+}
+internal int fleet_own_type(ee_player *pl, int type) {   // a type the game's requests train none of
+    int k = navy_type_kind(type);
+    return (k == NV_WAR || k == NV_SUB) && pl && !is_vanilla(pl) && fleet_own((unsigned)player_get_index(pl));
+}
 internal int g_fl_mass = 1;   // navy_fleet_mass: stage 4 masses at the rally while weaker (fl_rally, below)
 internal int g_fl_s4;   // set while a stage-4 fleet is led (fl_orders' preferences, fl_safe_toward's margin)
 internal int fleet_has(ee_player *pl, ee_unit *u) {
@@ -230,7 +258,10 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
         if (!o || unit_get_hp(u) <= 0 || x < 0) continue;
         int k = navy_kind(td);
         if (o == pl) {
-            if ((k == NV_WAR || k == NV_SUB) && f->n < FL_MAX && !landing_has_unit(pl, u)) f->u[f->n++] = u;
+            if ((k == NV_WAR || k == NV_SUB) && f->n < FL_MAX && !landing_has_unit(pl, u)) {
+                f->u[f->n++] = u;
+                if (!unit_get_ai_held(u) && fleet_own(idx)) { player_hold_unit(pl, u); f->held++; }   // EVERY WARSHIP THE MOD'S: out of the game's groups
+            }
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 if (unit_type_get_id(td) == UT(B_DOCK) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);
@@ -1257,7 +1288,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct fleet *f = &g_fl[idx];
     if (now < f->last) { memset(f, 0, sizeof *f); memset(g_tf[idx], 0, sizeof g_tf[idx]); g_ntfm[idx] = 0; }   // a new game (also fleet_new_game)
-    if (!fleet_on(idx)) { if (f->n) fl_armies(idx, f, 0, now); f->n = 0; return; }
+    if (!fleet_on(idx)) { if (f->n) fl_armies(idx, f, 0, now); f->n = 0; f->need = 0; return; }
     if (f->last && now - f->last < 2000) return;
     f->last = now ? now : 1;
     fl_scan(pl, idx);
@@ -1312,6 +1343,13 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
         if (now - f->log_t >= 60000) { f->log_t = now; fl_log(pl, idx, f, now, c); }
         fl_armies(idx, f, 1, now);
         return;
+    }
+    if (fleet_own(idx)) {   // EVERY WARSHIP THE MOD'S, without the navy account: by need (navy.c navy_tick: the target)
+        int e = 0;
+        for (int k = 0; k < g_fs.ne; k++) e += (int)area_id(g_fs.es[k].p, 1) == f->ocean;
+        if (e) { if (e > f->need || now - f->need_t > 600000) f->need = e; f->need_t = now ? now : 1; }
+        else if (f->need && now - f->need_t > 600000) f->need = 0;
+        fl_build(pl, idx, f, now);
     }
     int changed = fl_decide(idx, f, now, 0);
     fl_targets(f);

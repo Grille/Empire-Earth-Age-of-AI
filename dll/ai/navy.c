@@ -47,6 +47,8 @@ internal void fleet_tick(ee_player *pl, uint32_t now);
 internal int nv_role(ee_unit_type *td);
 internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
 internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=big) for this AI - the fleet's size target below
+internal int fleet_own(unsigned idx);      // fleet.c EVERY WARSHIP THE MOD'S: the game's requests train none
+internal int fleet_need(unsigned idx);     // the enemy warships it knows in its sea (without the navy account)
 // THE FLEET'S SIZE (stage 4, navy_fleet=big; docs/navy.md): the playtester expects 20+ warships at a low population
 // limit and more with higher ones - navy_fleet_pop % (15) of the AI's population cap x the map strength (cap 176 in
 // the 2-AI island tests: 26; cap 135: 20). Below it the account's share grows toward navy_share_max (50) with what is
@@ -685,7 +687,8 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
 }
 // the mix's type for the game's warship order asked (0: the game's own)
 internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
-    if (!fleet_builds(idx) || !navy_pays(idx, asked)) return 0;   // stage 4 only
+    int need = fleet_own(idx) && !fleet_builds(idx);   // by need (fleet.c EVERY WARSHIP THE MOD'S): the military account pays
+    if (!need && (!fleet_builds(idx) || !navy_pays(idx, asked))) return 0;   // stage 4 only
     int k = navy_type_kind(asked);
     if (k != NV_WAR && k != NV_SUB) return 0;
     uint32_t now = game_time();
@@ -700,7 +703,7 @@ internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
     // the role furthest below its share - or, when its type can't be paid now, the next one below its share that can
     // (h2h, 160 games: waiting for the first choice cost the AI with the mix a ship an hour)
     const int *st = player_stock_at(pl);
-    int pool = navy_account(idx, 3), done[NR_N] = { 0 };
+    int pool = need ? 0x7FFFFFFF : navy_account(idx, 3), done[NR_N] = { 0 };
     for (int pass = 0; pass < NR_N; pass++) {
         int r0 = 0;
         float d0 = 0;
@@ -872,6 +875,9 @@ internal void navy_tick(ee_player *pl, uint32_t now) {
     if (fleet_builds(idx)) {   // the fleet's size target (stage 4): navy_fleet_pop % of the population cap x the map strength
         int cap = unit_limit(pl);
         g_nv_target[idx] = mt_fleet_target(pl, idx, (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f));   // metal.c FLEET
+    } else if (fleet_own(idx)) {   // by need (fleet.c EVERY WARSHIP THE MOD'S): one more than the enemy's known in its sea
+        int e = fleet_need(idx), most = unit_limit(pl) * g_navy_fleet_pop / 100;
+        g_nv_target[idx] = !e ? 0 : e + 1 < most ? e + 1 : most;
     } else g_nv_target[idx] = 0;
     if (m->done && (now < g_nv_nodes[idx].t || now - g_nv_nodes[idx].t >= 60000)) navy_nodes(pl, idx, now);   // once a minute
     navy_budget_log(pl, idx, now);

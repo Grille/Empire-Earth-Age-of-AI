@@ -143,7 +143,9 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // soldiers +4 (12) and +4 (8), workers +8 (15) and +5 (15), alive +0.08 (0.12) twice (seeds 1-6, 7-12); from the
 // start workers +19 (12), razed +8 (4), soldiers +6 (10), then level on seeds 7-12 (soldiers -6 (14), workers -1
 // (14)). All three on (2026-11-13).
-internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 1, g_v_own_ships = -1, g_own_citizens = 1, g_v_own_citizens = -1;
+// own_ships: 2 = the warships' orders and requests too (fleet.c EVERY WARSHIP THE MOD'S), 1 ([autotest] v_own_ships
+// only) = the fleet on every map alone
+internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own_ships = -1, g_own_citizens = 1, g_v_own_citizens = -1;
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
 #define OWN_CITIZENS(idx) PV(idx, g_v_own_citizens, g_own_citizens)
@@ -167,7 +169,7 @@ internal int own_land_type(int type) {   // a land soldier's type (mass.c ms_lan
 // game's subgroups ordered most, the soldier types its requests trained and how many at each of its train sites (spec's
 // calls_train_units order). Measured: docs/game-ai-routines.md "Who decides in play".
 #define CEN_TYPES 2048
-internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins, refused; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
+internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins, refused, refused_ships; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
 internal void census_build_ask(ee_build_mgr *bm, int type) {
     ee_player *pl = bm ? build_mgr_get_player(bm) : NULL;
     if (!g_autotest || !pl || is_vanilla(pl) || type <= 0 || type >= CEN_TYPES) return;
@@ -210,10 +212,10 @@ internal void census_log(unsigned idx, uint32_t now) {
         for (int k = 0; k < 5; k++)
             if (c->by_game[t] && (!top[k] || c->by_game[t] > c->by_game[top[k]])) { memmove(top + k + 1, top + k, (4 - k) * sizeof *top); top[k] = t; break; }
     log_locked("# who decides: P%u at %u min: trained at the game's requests citizens %u soldiers %u ships %u, by the mod's orders %u %u %u | "
-               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u, its soldier requests refused %u\n",
+               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u, its soldier requests refused %u, its warship requests %u\n",
                idx, now / 60000, c->tr_game[0], c->tr_game[1], c->tr_game[2], c->tr_mod[0], c->tr_mod[1], c->tr_mod[2], c->pl_game, c->pl_mod,
                top[0], top[0] ? c->by_game[top[0]] : 0, top[1], top[1] ? c->by_game[top[1]] : 0, top[2], top[2] ? c->by_game[top[2]] : 0,
-               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins, c->refused);
+               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins, c->refused, c->refused_ships);
     int to[5], tt[5];
     census_top(c->ord_type, to); census_top(c->tr_type, tt);
     log_locked("# who decides: P%u at %u min: the game's orders to types %d x%u %d x%u %d x%u %d x%u %d x%u | its soldiers trained %d x%u %d x%u %d x%u %d x%u %d x%u, by site %u %u %u %u %u\n",
@@ -784,6 +786,7 @@ internal int navy_earmarked(unsigned idx);   // navy.c (stage 4): a warship spen
 internal void navy_paid(unsigned idx, int type, const int *spent, int got);
 internal int navy_room_reserve(ee_player *pl);
 internal int navy_pick(ee_player *pl, unsigned idx, int asked);
+internal int fleet_own_type(ee_player *pl, int type);   // fleet.c EVERY WARSHIP THE MOD'S: a warship type the game's requests train none of
 internal void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked);
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 internal int current_epoch(ee_player *pl);
@@ -2503,7 +2506,8 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     // the fleet mix (navy.c): a warship the game asks for at its own sites is trained as the type the mix wants; the
     // request entry (req points into the unit manager's list) gets its own type back afterwards
     int asked = req[0], pick = 0, game_site = train_site(ra) >= 0;
-    if (pl && game_site && !g_priority_mil && !g_landing_order) pick = navy_pick(pl, idx, asked);
+    int own_ship = pl && game_site && !g_priority_mil && !g_landing_order && fleet_own_type(pl, asked) && !requirement_unit(pl, asked);   // fleet.c EVERY WARSHIP THE MOD'S: none for the game's request
+    if (pl && game_site && !own_ship && !g_priority_mil && !g_landing_order) pick = navy_pick(pl, idx, asked);
     if (pick) req[0] = pick;
     // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
     int military = !is_citizen_type(req[0]) && !(pl && navy_economy(idx, req[0], g_landing_order));
@@ -2516,6 +2520,7 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     if (pl && game_site && military && !ship && !req_unit && !g_priority_mil && !g_landing_order && OWN_SOLDIERS(idx) && own_land_type(req[0]) && ar_on(pl, idx)) {
         blocked = 1; g_cen[idx].refused++;
     }
+    if (own_ship) { blocked = 1; g_cen[idx].refused_ships++; }
     if (stock && !military && is_citizen_type(req[0])) cz_budget_note(pl, idx, req, stock, visibles, blocked, cfg->budget ? afford : req[1]);
     unsigned got_local = 0;
     if (!b) b = (uintptr_t)&got_local;   // train_call did the same; army.c reads the count
@@ -2564,7 +2569,7 @@ internal void econ_install(const char *autotest_ini) {
     g_special_orders = g_set_ai[1].special_orders;
     g_spend_tiers = g_set_ai[1].spend_tiers;
     g_tight_build = g_set_ai[1].tight_build;
-    g_own_soldiers = g_set_ai[1].own_soldiers; g_own_ships = g_set_ai[1].own_ships; g_own_citizens = g_set_ai[1].own_citizens;
+    g_own_soldiers = g_set_ai[1].own_soldiers; g_own_ships = g_set_ai[1].own_ships ? 2 : 0; g_own_citizens = g_set_ai[1].own_citizens;
     if (autotest_ini) {
         g_v_own_soldiers = ini_int("autotest", "v_own_soldiers", -1, autotest_ini);
         g_v_own_ships = ini_int("autotest", "v_own_ships", -1, autotest_ini);

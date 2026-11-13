@@ -215,3 +215,10 @@ the same, on islands 51; to Sampsons, Howitzers, Trench Mortars, Incan Warriors,
 and to the Frigates and Battleships of Continental's seas (the fleet leads only where `strength > 0`). The land soldiers
 most likely come from its own requests (a unit trained for a group's request joining that group: not traced), and armies_tick never takes
 a member of a game subgroup (`kept_group`) - the force's hold covers only free soldiers.
+
+The warships since (own_ships, fleet.c EVERY WARSHIP THE MOD'S, 2026-11-13; 18 games as above with 6 seeds a cell, before /
+after): orders of the game's subgroups to Frigates and Battleships a player 47 / 4.3 on Small Islands, 6.5 / 0 on Continental
+from epoch 9, Copper Age ships 7 / 0 from the start; warships trained at the game's requests 8.5 / 0, 5 / 0, 3.7 / 0 - the
+fleet's own orders 44 / 51.5 on the islands, none on Continental while no enemy warship shows in its sea. Still the game's at
+sea: transports (2.4 a player trained at its requests on the islands, 2.3 orders), fishing boats (its citizen request: 26 a
+player), carriers. The 4 orders left: most likely to ships a landing has just let go, before the fleet's next scan (not traced).

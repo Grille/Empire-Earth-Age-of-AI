@@ -1815,9 +1815,11 @@ internal void __thiscall hook_asg_land_stats(ee_attack_subgroup *sg) {
 internal int g_in_calloff;
 internal unsigned g_calloff_skips;
 internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *unit);   // armies.c: a mod-army player's land soldier - not taken
+internal int fleet_own_ship(ee_player *pl, ee_unit *u);   // fleet.c: a warship of the mod's fleet - not taken
 internal char __thiscall hook_unit_to_group(ee_attack_cmd *cmd, ee_unit *unit) {
     if (g_in_calloff) { g_calloff_skips++; return 0; }
     if (armies_refuses_offer(cmd, unit)) return 0;
+    if (unit && fleet_own_ship(unit_get_owner(unit), unit)) return 0;   // fleet.c EVERY WARSHIP THE MOD'S
     char r = attack_cmd_unit_to_group(cmd, unit);
     if (r) census_join(unit_get_owner(unit));   // econ.c WHO DECIDES
     return r;
