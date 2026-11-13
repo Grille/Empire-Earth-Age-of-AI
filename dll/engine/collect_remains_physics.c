@@ -197,9 +197,13 @@ internal int uc_is_aircraft(int k) {
 // as a ship does, its leaks' clock from its first touch of the water (it comes up before it goes down), a helicopter
 // has no buoyancy. Its length is its model's y (the way it faces; a fighter is wider than long), a tilt is no sign of
 // its going down (it banks in flight), and it digs into the ground by US_DIG_AIR of its span at most.
+// Not a fish: its class a ship's (it moves on the ships' model), killed by a fishing boat's first hit (1 hp) it was taken
+// for a wreck and went down under the boats fishing it - the game leaves it where it swims until its food is gone (the
+// player, 2026-11-13: "fisherboats kill the fish and now the fish sinks to the seafloor where it cant be reached", "fish
+// have no death animation, they just stay where they are und vanish when the resource is fully gathered")
 internal int uc_is_ship(const ee_unit_type *ty) {
     int k = unit_type_get_class_id(ty);
-    return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k);
+    return (class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k)) && unit_type_get_family(ty) != KIND_FISH;
 }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // a stream's start by a serial, its bits mixed whole (salt: the stream's own): a product alone drew alike for ids a power
