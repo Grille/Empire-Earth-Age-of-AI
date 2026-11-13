@@ -202,3 +202,16 @@ the ally never in need (buildings lost 0.7 a player in every cell), 3-10 raids o
 ally against two game AIs - the ally's buildings lost 2.0 / 2.6 / 4.0, its units lost 98 / 87 / 93, the team won 6 / 8 / 5 and
 never lost, 0-24 raids on the ally answered a game. Nothing beyond the noise: the game AI never presses the ally hard enough to
 show it. Off; a switch for games with an ally under real pressure (a human's).
+
+Who decides in play (econ.c WHO DECIDES, the log's `# who decides:` lines in tests), 2026-11-13: 4 mod AIs, 60 min, 3 games
+each on Continental from the start, Continental from epoch 9 and Small Islands; a mod AI's counts at minute 55 (the game's /
+the mod's). Citizens trained: 143 / 0 on land, 148 / 0 from epoch 9, 165 / 1 on islands - the game's request (row 25) orders
+every one. Soldiers: 29 / 54, 32 / 103, 18 / 37 - a third still from the game's request lists (row 26, sites 0x490E12 and
+0x490F1F nearly all), the types the game's groups ask for (Sampsons, Spearmen, Incan Warriors; Machine Guns, German
+Infantry, Gotha Bombers from epoch 9). Ships on islands 4 / 20. Buildings placed from the build lists: 19 / 9, 20 / 13,
+19 / 21 - Houses most, then Barracks, Temples, Docks, Primitive Towers, Copper Walls; from epoch 9 Naval Yards and Tank
+Factories (2 a game each, on Continental). Orders the game's subgroups gave: on land 160 a game (0 - 725), from epoch 9
+the same, on islands 51; to Sampsons, Howitzers, Trench Mortars, Incan Warriors, Macemen, Spearmen and German Infantry,
+and to the Frigates and Battleships of Continental's seas (the fleet leads only where `strength > 0`). The land soldiers
+most likely come from its own requests (a unit trained for a group's request joining that group: not traced), and armies_tick never takes
+a member of a game subgroup (`kept_group`) - the force's hold covers only free soldiers.

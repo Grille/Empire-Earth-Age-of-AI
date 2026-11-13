@@ -120,6 +120,71 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now);
 internal int g_build_fix = 1;
 internal struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
 internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // below, with the farm fields
+
+// WHO DECIDES (tests only, the log; the player 2026-11-13: "where we replace the ai and where it still rains on our
+// parade" - docs/game-ai-routines.md read it from the code, this counts it in play): per mod player, what came from the
+// game's own routines and what from the mod's - units trained at the game's request sites (the unit manager's request
+// walk) against the mod's own orders; buildings placed from the build lists (hook_place) for an entry the mod asked for
+// (build_mgr_request_one, build_mgr_queue_add) or one of the game's (its plan, its requests, re-queues); orders the
+// game's subgroups gave (land, air) and units its commander took into a group. "# who decides: P<n> at <m> min: ..."
+// every 5 minutes, the counts since the start, the game's building types most placed; a second line the unit types the
+// game's subgroups ordered most, the soldier types its requests trained and how many at each of its train sites (spec's
+// calls_train_units order). Measured: docs/game-ai-routines.md "Who decides in play".
+#define CEN_TYPES 2048
+internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
+internal void census_build_ask(ee_build_mgr *bm, int type) {
+    ee_player *pl = bm ? build_mgr_get_player(bm) : NULL;
+    if (!g_autotest || !pl || is_vanilla(pl) || type <= 0 || type >= CEN_TYPES) return;
+    struct census *c = &g_cen[player_get_index(pl) & 15];
+    if (c->asked[type] < 0xFFFF) c->asked[type]++;
+}
+internal void census_placed(ee_player *pl, int type) {
+    if (!g_autotest || !pl || is_vanilla(pl) || type <= 0 || type >= CEN_TYPES) return;
+    struct census *c = &g_cen[player_get_index(pl) & 15];
+    if (c->asked[type]) { c->asked[type]--; c->pl_mod++; }
+    else { c->pl_game++; if (c->by_game[type] < 0xFFFF) c->by_game[type]++; }
+}
+internal void census_trained(ee_player *pl, int type, unsigned n, int game_site, int military, int ship, int site) {
+    if (!g_autotest || !pl || is_vanilla(pl) || !n) return;
+    struct census *c = &g_cen[player_get_index(pl) & 15];
+    int k = ship ? 2 : military ? 1 : 0;
+    if (game_site) c->tr_game[k] += n; else c->tr_mod[k] += n;
+    if (game_site && k && type > 0 && type < CEN_TYPES) { c->tr_type[type] = (uint16_t)(c->tr_type[type] + n); if (site >= 0 && site < 8) c->tr_site[site] += n; }
+}
+internal void census_order(ee_player *pl, int air, ee_unit *u) {
+    if (!g_autotest || !pl || is_vanilla(pl)) return;
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    int t = td ? unit_type_get_id(td) : 0;
+    if (t > 0 && t < CEN_TYPES && g_cen[player_get_index(pl) & 15].ord_type[t] < 0xFFFF) g_cen[player_get_index(pl) & 15].ord_type[t]++;
+    if (air) g_cen[player_get_index(pl) & 15].ord_air++; else g_cen[player_get_index(pl) & 15].ord_land++;
+}
+internal void census_join(ee_player *pl) { if (g_autotest && pl && !is_vanilla(pl)) g_cen[player_get_index(pl) & 15].joins++; }
+internal void census_top(const uint16_t *v, int top[5]) {
+    for (int k = 0; k < 5; k++) top[k] = 0;
+    for (int t = 1; t < CEN_TYPES; t++)
+        for (int k = 0; k < 5; k++)
+            if (v[t] && (!top[k] || v[t] > v[top[k]])) { memmove(top + k + 1, top + k, (4 - k) * sizeof *top); top[k] = t; break; }
+}
+internal void census_log(unsigned idx, uint32_t now) {
+    struct census *c = &g_cen[idx];
+    if (!g_autotest || !g_log || now / 300000 == c->log_t / 300000) return;
+    c->log_t = now ? now : 1;
+    int top[5] = { 0 };
+    for (int t = 1; t < CEN_TYPES; t++)
+        for (int k = 0; k < 5; k++)
+            if (c->by_game[t] && (!top[k] || c->by_game[t] > c->by_game[top[k]])) { memmove(top + k + 1, top + k, (4 - k) * sizeof *top); top[k] = t; break; }
+    log_locked("# who decides: P%u at %u min: trained at the game's requests citizens %u soldiers %u ships %u, by the mod's orders %u %u %u | "
+               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u\n",
+               idx, now / 60000, c->tr_game[0], c->tr_game[1], c->tr_game[2], c->tr_mod[0], c->tr_mod[1], c->tr_mod[2], c->pl_game, c->pl_mod,
+               top[0], top[0] ? c->by_game[top[0]] : 0, top[1], top[1] ? c->by_game[top[1]] : 0, top[2], top[2] ? c->by_game[top[2]] : 0,
+               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins);
+    int to[5], tt[5];
+    census_top(c->ord_type, to); census_top(c->tr_type, tt);
+    log_locked("# who decides: P%u at %u min: the game's orders to types %d x%u %d x%u %d x%u %d x%u %d x%u | its soldiers trained %d x%u %d x%u %d x%u %d x%u %d x%u, by site %u %u %u %u %u\n",
+               idx, now / 60000, to[0], to[0] ? c->ord_type[to[0]] : 0, to[1], to[1] ? c->ord_type[to[1]] : 0, to[2], to[2] ? c->ord_type[to[2]] : 0, to[3], to[3] ? c->ord_type[to[3]] : 0,
+               to[4], to[4] ? c->ord_type[to[4]] : 0, tt[0], tt[0] ? c->tr_type[tt[0]] : 0, tt[1], tt[1] ? c->tr_type[tt[1]] : 0, tt[2], tt[2] ? c->tr_type[tt[2]] : 0,
+               tt[3], tt[3] ? c->tr_type[tt[3]] : 0, tt[4], tt[4] ? c->tr_type[tt[4]] : 0, c->tr_site[0], c->tr_site[1], c->tr_site[2], c->tr_site[3], c->tr_site[4]);
+}
 internal int upgraded_type(ee_player *pl, int type);   // defence.c: the type an upgrade put in place of this one
 internal struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
 internal int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
@@ -183,6 +248,7 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     if (!x && !y) defence_spot(((void *)build_mgr_get_player(bm)), type, &x, &y);   // towers: where the defence plan wants them
     if (!x && !y && PV(player_get_index(owner), g_v_tight_build, g_tight_build)) tb_spot(bm, owner, place_as, &x, &y);   // packed with its own (packing.c)
     char ok = build_mgr_place(bm, place_as, x, y);
+    if (ok) census_placed(owner, type);
     ee_player *pl = build_mgr_get_player(bm);
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     int k = 0;
@@ -946,6 +1012,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     spend_log(ai, now);
     gather_log(pl, ai, now);
     place_log(ai, now);
+    census_log(ai, now);
     tb_layout(pl, ai, now);
     retry_dropped(pl, ai, now);
     prod_sync(pl, ai, now);
@@ -2378,6 +2445,7 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
                    idx, game_time() / 60000.0, req0, req1, at, g_landing_order ? " (landing)" : g_expand_order ? " (outpost)" : "", military, blocked, afford,
                    *(unsigned *)b, stock ? stock[3] : -1, stock ? stock[5] : -1, stock ? stock[6] : -1, reserve[3], visibles[3]);
     }
+    census_trained(pl, req0, *(unsigned *)b, game_site && !g_priority_mil && !g_landing_order, military, ship, train_site(ra));
     if (pl && military) { int q[2] = { req0, req1 }; am_train_note(pl, idx, q, blocked, sub_type, *(unsigned *)b, stock, visibles); }
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     if (pick) { navy_pick_done(pl, idx, pick, asked, before, stock, blocked); req[0] = asked; }
@@ -2386,6 +2454,7 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
 
 internal void econ_install(const char *autotest_ini) {
     settings_load();
+    if (autotest_ini) g_on_build_ask = census_build_ask;   // WHO DECIDES (tests)
     sites_install();
     // finer tuning, same for all difficulties ([ai_base] section; autotest may override)
     g_citizen_slack = g_set_ai[1].idle_citizen_slack;
@@ -2486,6 +2555,7 @@ internal void econ_new_game(void) {
     memset(g_rate, 0, sizeof g_rate);
     memset(g_spend, 0, sizeof g_spend);
     memset(g_place, 0, sizeof g_place);
+    memset(g_cen, 0, sizeof g_cen);
     memset(g_retry, 0, sizeof g_retry);
     memset(g_researched, 0, sizeof g_researched);
     memset(g_att, 0, sizeof g_att);

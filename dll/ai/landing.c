@@ -268,6 +268,7 @@ internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, 
     if (!is_vanilla(attack_subgroup_get_player(sg)) && !stage_leg(sg, u, goal))   // a march into danger to the staging point (stage.c),
         cover_hold_leg(sg, u, goal);                                              // else one into a lost fight stops at its edge (cover.c)
     char r = attack_subgroup_give_goal(sg, u, goal, a, prio);
+    if (r) census_order(attack_subgroup_get_player(sg), 0, u);   // econ.c WHO DECIDES
     ld_fu_given(goal, r != 0);
     if (g_set.order_log && r && g_log) {   // tests (order_log): each order given - how much of it is a group's march
         vec3 p = unit_get_pos(u), t = goal_target(goal, u);
@@ -283,7 +284,9 @@ internal int af_takes(ee_unit *u);   // airstrike.c: a bomber of the air force -
 internal char __thiscall hook_asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {
     if (!is_vanilla(attack_subgroup_get_player(sg)) && landing_leads(sg)) { g_ld_refused++; return 0; }
     if (af_takes(u)) return 0;
-    return attack_subgroup_air_give_goal(sg, u, goal, a, prio);
+    char r = attack_subgroup_air_give_goal(sg, u, goal, a, prio);
+    if (r) census_order(attack_subgroup_get_player(sg), 1, u);
+    return r;
 }
 
 // nothing (trees, buildings, units of any owner) on the 3x3 tiles around p: room to unload - a landing site

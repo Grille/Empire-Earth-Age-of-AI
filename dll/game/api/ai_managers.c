@@ -39,7 +39,9 @@ internal inline int *research_mgr_get_epoch_end(const ee_research_mgr *rs, int e
 
 // the build manager places type at x, y (0, 0: where it finds room) - the original of econ.c's hook_place
 // one building of type into the build manager's list (as the AI's own requests: (1, 0))
-internal inline void build_mgr_request_one(ee_build_mgr *bm, int type) { fn_build_mgr_request(bm, type, 1, 0); }
+// the mod's own asks (these wrappers; the game calls 0x46802D and the list's add itself): told to g_on_build_ask, if set
+internal void (*g_on_build_ask)(ee_build_mgr *bm, int type);
+internal inline void build_mgr_request_one(ee_build_mgr *bm, int type) { if (g_on_build_ask) g_on_build_ask(bm, type); fn_build_mgr_request(bm, type, 1, 0); }
 // the resource manager's turn (the originals of the wiring's hooks, eeaimod.c): its gatherer targets computed (1: they
 // changed), its citizens assigned, its update
 // the citizen u to work at site (a resource, a field, a building); resource_mgr_assign_as: with the game's third argument
@@ -52,7 +54,7 @@ internal inline void resource_mgr_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_
 // count of the next epoch's missing requirements asked for (buildings, units, techs)
 // enemies near x, y as the build manager sees them (its threat test)
 // entry (type, x, y) into the build manager's list of epoch e (the lists at +4, 0x14 each)
-internal inline void build_mgr_queue_add(ee_build_mgr *bm, int e, int *entry) { fn_bq_add(FIELD_AT(bm, of_build_mgr_queues + e * 0x14), entry); }
+internal inline void build_mgr_queue_add(ee_build_mgr *bm, int e, int *entry) { if (g_on_build_ask) g_on_build_ask(bm, entry[0]); fn_bq_add(FIELD_AT(bm, of_build_mgr_queues + e * 0x14), entry); }
 // the unit (its state, unit +0x30) in none of the combat manager's groups (combat_mgr_unit_free)
 // a unit of type ordered but not started yet, one in production (the unit manager's queues)
 // the unit manager's citizens, the citizens it wants (share x population cap: the original of citizens.c's hook)

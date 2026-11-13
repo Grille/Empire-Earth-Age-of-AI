@@ -1818,7 +1818,9 @@ internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *unit);   // armie
 internal char __thiscall hook_unit_to_group(ee_attack_cmd *cmd, ee_unit *unit) {
     if (g_in_calloff) { g_calloff_skips++; return 0; }
     if (armies_refuses_offer(cmd, unit)) return 0;
-    return attack_cmd_unit_to_group(cmd, unit);
+    char r = attack_cmd_unit_to_group(cmd, unit);
+    if (r) census_join(unit_get_owner(unit));   // econ.c WHO DECIDES
+    return r;
 }
 
 // WONDERS ([ai_base] wonder_reactions, default off - the player 2026-11-10: "it just baits the ai to its death"): a
