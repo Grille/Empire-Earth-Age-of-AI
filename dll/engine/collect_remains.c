@@ -117,6 +117,9 @@ typedef struct {
     float deck;              // ... its hull's top in its model's own space: what reaches under it is the hull (US_HULL_TOP)
     uint8_t half;            // ... broken: 1 the bow's half, 2 the stern's (each a model of its own: us_clip_tag); 0 whole
     uint8_t twin;            // ... the stern's half: an entry of its own, never the game's unit's
+    uint8_t floor_snap;      // ... one that breaks on the seabed instead (US_SNAP_FLOOR), once it hit it (floor_hit)
+    uint8_t floor_hit;
+    float hit_v;             // ... how fast it went down then (tiles/s)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
 internal uint32_t g_kc_n, g_kc_full, g_kc_drawn;

@@ -61,6 +61,15 @@
 #define US_SNAP_AT_RND 0.15f
 #define US_SNAP_DROP 0.3f   // tiles/s
 #define US_SNAP_PART 0.12f  // tiles/s, each away from the other
+// BREAKING ON THE SEABED (the player, 2026-11-13: "what do you think about a 50% chance a ship breaks apart after it hit
+// seafloor?" - "yes"): a ship long enough that doesn't break at its death draws it again, US_SNAP_FLOOR of them (the
+// pipe's wreck floor all / none / random), and breaks at its first touch of the bottom going down faster than US_FLOOR_V
+// (one that settles gently stays whole), lying as it hit: its halves flooded through at once (they don't stand up
+// again), their broken ends sunk US_FLOOR_SAG deeper into the seabed, one side of each a little (a list), drifting apart
+#define US_SNAP_FLOOR 0.5f
+#define US_FLOOR_V 0.05f    // tiles/s
+#define US_FLOOR_SAG 0.12f  // tiles
+internal int g_us_floor;   // the pipe's: 1 every ship long enough that doesn't break at its death breaks on the seabed, -1 none, 0 drawn
 // its hull's top: this share of its model's height over the water, at most US_HULL_MAX (the models' own space: a
 // sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55; an Imperial battleship's lower sails hang
 // to 0.2) - a piece of the model reaching under it along most of the ship is the hull, cut; one that doesn't (a sail,
@@ -303,7 +312,18 @@ internal void cmd_wreck(char *out, const char *args) {
         else REPLY("ok: ships of %.1f tiles or longer break in two: %.0f%% of them, drawn by their ids\n", US_SNAP_LEN, US_SNAP * 100.0f);
         return;
     }
-    if (n < 1 || strcmp(mode, "plane")) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees) | wreck snap [all | none | random]\n"); return; }
+    if (!strcmp(mode, "floor")) {
+        if (sscanf(args, "%*s %15s", word) == 1) {
+            if (!strcmp(word, "all")) g_us_floor = 1;
+            else if (!strcmp(word, "none")) g_us_floor = -1;
+            else if (!strcmp(word, "random")) g_us_floor = 0;
+            else { REPLY("error: usage: wreck floor [all | none | random]\n"); return; }
+        }
+        if (g_us_floor) REPLY("ok: ships of %.1f tiles or longer that don't break at their death break on the seabed: %s\n", US_SNAP_LEN, g_us_floor > 0 ? "all" : "none");
+        else REPLY("ok: ships of %.1f tiles or longer that don't break at their death break on the seabed: %.0f%% of them, drawn by their ids\n", US_SNAP_LEN, US_SNAP_FLOOR * 100.0f);
+        return;
+    }
+    if (n < 1 || strcmp(mode, "plane")) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees) | wreck snap [all | none | random] | wreck floor [all | none | random]\n"); return; }
     int drawn = n == 1 && sscanf(args, "%*s %15s", word) == 1 && !strcmp(word, "random");
     if (drawn) nb = sscanf(args, "%*s %*s %f", &v[0]);
     else if (n != 1 && n != 5) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees)\n"); return; }
@@ -502,7 +522,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     // until then
     float len = (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s;
     k->ends[0] = (x_long ? lo[0] : lo[1]) * s, k->ends[1] = (x_long ? hi[0] : hi[1]) * s;
-    k->half = k->twin = 0, k->snap_t = -1.0f, k->deck = fminf(US_HULL_TOP * hi[2], US_HULL_MAX);
+    k->half = k->twin = k->floor_snap = k->floor_hit = 0, k->hit_v = 0.0f, k->snap_t = -1.0f, k->deck = fminf(US_HULL_TOP * hi[2], US_HULL_MAX);
     if (!air && !sub && !late && len >= US_SNAP_LEN && ud_cuts()) {   // (its halves drawn: the mod's record draw)
         uint32_t ss = us_seed(o->serial, 0xC2B2AE3Du);
         float drawn = us_rnd(&ss);
@@ -512,6 +532,10 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             for (int i = 0; i < 4; i++)
                 k->leak[i][0] = 0.6f + 0.25f * us_rnd(&ss), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&ss), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&ss),
                 k->leak[i][3] = k->lift;
+        } else {   // on the seabed, by a stream of its own (its leaks as any ship's)
+            uint32_t sf = us_seed(o->serial, 0x165667B1u);
+            if (g_us_floor > 0 || (!g_us_floor && us_rnd(&sf) < US_SNAP_FLOOR))
+                k->floor_snap = 1, k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&sf)) * (k->ends[1] - k->ends[0]);
         }
     }
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
@@ -719,6 +743,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             if (!mesh_has_tile(mesh, x, y)) continue;
             float bottom = mesh_z(mesh, p[0], p[1]) + below[i] - k->dig[i];
             if (p[2] < bottom) {   // on the bottom: held up, and dragged along it
+                if (!k->floor_hit && (q[2] - p[2]) / dt > US_FLOOR_V) k->floor_hit = 1, k->hit_v = (q[2] - p[2]) / dt;   // (BREAKING ON THE SEABED)
                 p[2] = bottom;
                 if (q[2] < p[2]) q[2] = p[2];
                 q[0] = p[0] - (p[0] - q[0]) * 0.8f, q[1] = p[1] - (p[1] - q[1]) * 0.8f;
@@ -749,7 +774,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
     }
 }
-internal void us_snap(uc_corpse *k, float t);   // below
+internal void us_snap(uc_corpse *k, float t, int floor);   // below
 // simulated on to the walk's game time (at most 3 s at once: one long out of the view jumps there); a ship that breaks
 // in two broken as its time comes
 internal void us_run(uc_corpse *k) {
@@ -759,8 +784,9 @@ internal void us_run(uc_corpse *k) {
     while (k->sim + US_DT * 1000.0 <= g_uc_now) {
         k->sim += US_DT * 1000.0;
         float t = (float)((k->sim - k->died) / 1000.0);
-        if (k->snap_t >= 0.0f && !k->half && t >= k->snap_t) us_snap(k, t);
+        if (k->snap_t >= 0.0f && !k->half && t >= k->snap_t) us_snap(k, t, 0);
         us_step(k, t, mesh);
+        if (k->floor_snap && k->floor_hit && !k->half) us_snap(k, t, 1);
     }
 }
 // its pose into t (rows, the place in the fourth column) from its floats p (its own, or where they were a step before):
@@ -803,8 +829,8 @@ internal void us_body_half(uc_corpse *k, float a, float b) {
 }
 // a half's points placed by the frame's pose now and a step before (now, was), its leaks from now (t s after the death)
 // by its own stream, starting from b - the ship's floats' mean buoyancy then -, its broken end dropping and the half
-// drifting away from the other (sign: + bow-ward)
-internal void us_half_go(uc_corpse *k, const float *now, const float *was, float t, float b, float sign) {
+// drifting away from the other (sign: + bow-ward); floor: broken on the seabed (BREAKING ON THE SEABED)
+internal void us_half_go(uc_corpse *k, const float *now, const float *was, float t, float b, float sign, int floor) {
     for (int i = 0; i < US_PTS; i++)
         for (int r = 0; r < 3; r++) {
             const float *p = k->body[i];
@@ -819,16 +845,24 @@ internal void us_half_go(uc_corpse *k, const float *now, const float *was, float
     k->leak[end][0] = 0.3f + 0.4f * us_rnd(&s), k->leak[end][1] = at + 5.0f + 4.0f * us_rnd(&s), k->leak[end][2] = 10.0f + 6.0f * us_rnd(&s);
     for (int i = 2; i < 4; i++)
         k->leak[i][0] = 0.2f + 0.4f * us_rnd(&s), k->leak[i][1] = at + 1.5f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 5.0f * us_rnd(&s);
+    if (floor) {   // flooded through, its broken end and one side deeper in the seabed
+        for (int i = 0; i < 4; i++) k->leak[i][0] = -0.3f - 0.3f * us_rnd(&s), k->leak[i][1] = at, k->leak[i][2] = 0.3f + 0.4f * us_rnd(&s);
+        k->dig[cut] += US_FLOOR_SAG;
+        k->dig[2 + (us_rnd(&s) < 0.5f)] += 0.4f * US_FLOOR_SAG * us_rnd(&s);
+    }
     float al[3], dt = (float)US_DT;
     for (int r = 0; r < 3; r++) al[r] = now[r * 4] * k->along[0] + now[r * 4 + 1] * k->along[1] + now[r * 4 + 2] * k->along[2];
     for (int i = 0; i < US_PTS; i++)
         for (int r = 0; r < 3; r++) k->sq[i][r] -= sign * US_SNAP_PART * dt * al[r];
     k->sq[cut][2] += US_SNAP_DROP * dt;
 }
-// it breaks (A SHIP BREAKING IN TWO) t s after its death: this entry the bow's half, a new one the stern's; none when
-// the table is full (it goes down whole)
-internal void us_snap(uc_corpse *k, float t) {
-    k->snap_t = -1.0f;
+// it breaks (A SHIP BREAKING IN TWO) t s after its death - floor: on the seabed (BREAKING ON THE SEABED): this entry the
+// bow's half, a new one the stern's; none when the table is full (it goes down whole)
+internal void us_snap(uc_corpse *k, float t, int floor) {
+    k->snap_t = -1.0f, k->floor_snap = 0;
+    static LONG logged;
+    if (floor && g_log && InterlockedIncrement(&logged) <= 16)
+        log_locked("# wrecks: a ship (serial %d) broke on the seabed %.1f s after its death, going down at %.2f tiles/s\n", (int)k->serial, (double)t, (double)k->hit_v);
     if (g_kc_n >= UC_CORPSES) return;
     float now[16], was[16], b = 0.0f;
     us_pose_at(k, (const float (*)[3])k->sp, now), us_pose_at(k, (const float (*)[3])k->sq, was);
@@ -843,8 +877,8 @@ internal void us_snap(uc_corpse *k, float t) {
     o->twin = 1, o->gone = 1, o->in_game = 0, o->half = 2, k->half = 1;
     us_body_half(k, k->cut, k->ends[1]);
     us_body_half(o, k->ends[0], k->cut);
-    us_half_go(k, now, was, t, b, 1.0f);
-    us_half_go(o, now, was, t, b, -1.0f);
+    us_half_go(k, now, was, t, b, 1.0f, floor);
+    us_half_go(o, now, was, t, b, -1.0f, floor);
 }
 // a broken half's cut for its record (render_units.c A BROKEN SHIP'S HALF): the break's plane in the world by its pose t,
 // its normal toward the half kept

@@ -1059,6 +1059,10 @@ hasn't left out; never drawn whole by the game. Kept 48 at a time, the longest u
 Checked headless with the player's ini on open water: a Middle Ages frigate and an Imperial battleship broken (39 and 10
 edges of the cut, filled by 28 and 9 triangles), their sails whole and none dark; a probe colouring the filling magenta
 showed it closing the battleship's hull at the break.
+A long ship that doesn't break at its death draws again, 50% (BREAKING ON THE SEABED; the pipe: `wreck floor all |
+none | random`): it breaks at its first touch of the bottom going down faster than 0.05 tiles/s, its halves flooded
+through at once, their broken ends sunk deeper into the seabed, drifting apart. Checked headless: an Imperial battleship
+broke on the bottom 11 s after its death (0.24 tiles/s), an Atomic transport, capsized, 14 s after it (0.30).
 
 ## The units' draw, the mod's own (2026-11-11 on)
 
