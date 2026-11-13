@@ -323,6 +323,7 @@ internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
 // OWN CITIZENS (own_citizens, econ.c EVERY UNIT THE MOD'S): every 2 s the citizens wanted (cz_wanted) less those there
 // and those queued at the producers, at most 2 queued a producer and the room, ordered through hook_train_units (its
 // budget, the train gate) - the game's request (attention flag, one batch of at most 10 at a time) never asks
+#define CZO_IDLE 5   // idle citizens the orders allow (and a tenth of the workforce)
 internal struct { uint32_t t; unsigned orders, ordered; } g_czo[16];
 internal void cz_own(ee_player *pl, unsigned idx, uint32_t now) {
     if (!pl || is_vanilla(pl) || !OWN_CITIZENS(idx)) return;
@@ -346,6 +347,13 @@ internal void cz_own(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
     if (!nprod) return;
+    // none while citizens stand without work (more than CZO_IDLE and a tenth of the workforce): the orders went on up
+    // to the game's share of the cap - 29 idle at minute 40, 40 at 55 against 18 and 20 with the game's request (it asks
+    // only now and then), the army's food and room in them (head-to-head from epoch 9, all on against citizens off:
+    // soldiers -20 (se 10), workers level)
+    ee_resource_mgr *rm = civ_mgr_get_resource_mgr(cm);
+    int idle = rm ? rm_count(rm, 0) : 0;
+    if (idle > CZO_IDLE && idle * 10 > workforce(pl)) return;
     int room = unit_limit(pl) - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
     int n = cz_wanted(pl, idx, um, unit_mgr_citizens_wanted(um)) - unit_mgr_citizens(um) - queued;
     if (n > 2 * nprod - queued) n = 2 * nprod - queued;
