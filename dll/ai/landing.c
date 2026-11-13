@@ -197,7 +197,7 @@ internal void __thiscall hook_asg_air_update(ee_attack_subgroup *sg, int now) {
     attack_subgroup_air_update(sg, now);
 }
 internal void __thiscall hook_asg_sea_transport_update(ee_attack_subgroup *sg, int now) {
-    if (!is_vanilla(attack_subgroup_get_player(sg)) && (landing_leads(sg) || expand_leads(sg))) return;
+    if (!is_vanilla(attack_subgroup_get_player(sg)) && (landing_leads(sg) || expand_leads(sg) || OWN_TRANSPORTS((unsigned)player_get_index(attack_subgroup_get_player(sg)) & 15))) return;
     attack_subgroup_sea_transport_update(sg, now);
 }
 
@@ -258,7 +258,7 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
 internal unsigned g_ld_refused, g_ld_kept_goal;
 internal void ld_fu_given(ee_goal *g, int ok);   // below (the game's unload orders to landing transports)
 internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {
-    if (!is_vanilla(attack_subgroup_get_player(sg)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u) ||
+    if (!is_vanilla(attack_subgroup_get_player(sg)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u) || own_transport(u) ||
                                                         shore_gun((unsigned)player_get_index(attack_subgroup_get_player(sg)) & 15, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c; a shore gun at its post (defence.c)
         g_ld_refused++;
         if (from_land_handoff((uintptr_t)__builtin_return_address(0))) { g_ld_kept_goal++; return 1; }
@@ -2412,6 +2412,7 @@ internal void ld_fu_check(uint32_t now) {
 internal ee_goal *__thiscall hook_unload_ctor(ee_goal *g, ee_unit *tr, int x, int y, int flag) {
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
     if (unload_from_rm(ret) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
+    if (unload_from_rm(ret) && own_transport(tr)) { g_cen[(unsigned)player_get_index(unit_get_owner(tr)) & 15].tr_crossings++; return NULL; }   // econ.c THE TRANSPORTS THE MOD'S
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_get_owner(tr)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) {

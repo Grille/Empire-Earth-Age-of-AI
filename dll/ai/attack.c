@@ -1820,6 +1820,7 @@ internal char __thiscall hook_unit_to_group(ee_attack_cmd *cmd, ee_unit *unit) {
     if (g_in_calloff) { g_calloff_skips++; return 0; }
     if (armies_refuses_offer(cmd, unit)) return 0;
     if (unit && fleet_own_ship(unit_get_owner(unit), unit)) return 0;   // fleet.c EVERY WARSHIP THE MOD'S
+    if (own_transport(unit)) return 0;   // econ.c THE TRANSPORTS THE MOD'S
     char r = attack_cmd_unit_to_group(cmd, unit);
     if (r) census_join(unit_get_owner(unit));   // econ.c WHO DECIDES
     return r;

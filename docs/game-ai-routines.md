@@ -229,3 +229,10 @@ resource manager's timer for it is held - and the mod orders one by its own rule
 minutes: 43 boats trained at the game's standing request (tried every tick, paid only when the stock topped every wood
 saving: the first at minute 28.7 in a 40-minute game) against 4 by the mod's orders (the first at minute 5.5), 4.6 against
 1.9 of them sunk.
+
+The transports (2026-11-13, a test level: `v_own_ships=3`, econ.c THE TRANSPORTS THE MOD'S - not on): what the game's
+transports do is its island expansion, the transport manager's citizen crossings. Without them (the game trains none,
+orders none, no crossings; landings go on) a standard Small Islands game from epoch 9 goes better - losses -16, kills +7,
+razed +2, twice - and a large one with free islands worse: soldiers -20 (the game's 25 gatherers on 1.7 other islands).
+The mod's outposts in its place (`expand_islands=57`): level on the large map, a loss on the standard one (soldiers -15).
+So the transports wait for the outposts to choose by what the islands hold.

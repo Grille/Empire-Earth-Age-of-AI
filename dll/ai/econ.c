@@ -148,6 +148,27 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own_ships = -1, g_own_citizens = 2, g_v_own_citizens = -1;
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
+// THE TRANSPORTS THE MOD'S (own_ships' third level): the game trains none for its transport manager, its subgroups
+// give them no orders and take none in, and the manager's crossings (landing.c hook_unload_ctor) get none - the
+// landing's and the outpost's own orders are all that moves them. A test level only ([autotest] v_own_ships=3; the
+// setting gives 2): what the game's transports do is its island expansion - the transport manager ferries citizens
+// to mines on other islands (0x48A382 -> 0x48CC10) - and whether that pays depends on the map. Measured (head-to-head,
+// mirrored, 12 games a cell, 60 min, Small Islands from epoch 9, 4 AIs; level 3 - now per game). The standard map
+// (every island somebody's home; the game had 16-20 citizens on 0.8-1.0 other islands at minute 55, 8-10 gathering):
+// losses -16 (se 6) and -16 (7), kills +8 (4) and +7 (5), razed +2.3 (1.1) and +2.1 (1.2), workers +6 (4) and +3
+// (14), soldiers -5 (10) and -13 (12) on seeds 1-6 and 7-12 - the citizens ferried over are lost there; from the
+// start level (soldiers -4 (5), workers -1 (8)). map_scale=large (free islands; the game 30 citizens on 1.7 islands,
+// 25 gathering, 5.6 drop sites): soldiers -20 (6), losses -13 (9), workers +6 (6) - its stone, gold and iron miners
+// 11 / 18 / 20 against 7 / 13 / 14 at the end. With the mod's outposts in its place (v_expand_islands=57) on the
+// large map soldiers +3 (6), kills +8 (5), workers -5 (5), epoch -0.12 (0.07): level; on the standard map soldiers
+// -15 (6), razed -3.7 (1.0), epoch -0.21 (0.07), workers -6 (3): a loss. Neither answer fits both maps: the
+// transports stay the game's until the outposts choose by what the islands hold (resource expansion, next).
+#define OWN_TRANSPORTS(idx) (OWN_SHIPS(idx) >= 3)
+internal int own_transport(ee_unit *u) {   // a transport ship of a player whose transports are the mod's
+    ee_player *pl = u ? unit_get_owner(u) : NULL;
+    ee_unit_type *td = pl ? unit_get_type_data(u) : NULL;
+    return td && !is_vanilla(pl) && OWN_TRANSPORTS((unsigned)player_get_index(pl) & 15) && is_transport(unit_type_get_id(td));
+}
 #define OWN_CITIZENS(idx) PV(idx, g_v_own_citizens, g_own_citizens)
 internal int ar_on(ee_player *pl, unsigned idx);   // armies.c
 internal void cz_own(ee_player *pl, unsigned idx, uint32_t now);   // citizens.c
@@ -169,7 +190,7 @@ internal int own_land_type(int type) {   // a land soldier's type (mass.c ms_lan
 // game's subgroups ordered most, the soldier types its requests trained and how many at each of its train sites (spec's
 // calls_train_units order). Measured: docs/game-ai-routines.md "Who decides in play".
 #define CEN_TYPES 2048
-internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins, refused, refused_ships; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
+internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins, refused, refused_ships, refused_tr, tr_crossings; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
 internal void census_build_ask(ee_build_mgr *bm, int type) {
     ee_player *pl = bm ? build_mgr_get_player(bm) : NULL;
     if (!g_autotest || !pl || is_vanilla(pl) || type <= 0 || type >= CEN_TYPES) return;
@@ -212,10 +233,10 @@ internal void census_log(unsigned idx, uint32_t now) {
         for (int k = 0; k < 5; k++)
             if (c->by_game[t] && (!top[k] || c->by_game[t] > c->by_game[top[k]])) { memmove(top + k + 1, top + k, (4 - k) * sizeof *top); top[k] = t; break; }
     log_locked("# who decides: P%u at %u min: trained at the game's requests citizens %u soldiers %u ships %u, by the mod's orders %u %u %u | "
-               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u, its soldier requests refused %u, its warship requests %u\n",
+               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u, its soldier requests refused %u, its warship requests %u, its transport requests %u, its crossings %u\n",
                idx, now / 60000, c->tr_game[0], c->tr_game[1], c->tr_game[2], c->tr_mod[0], c->tr_mod[1], c->tr_mod[2], c->pl_game, c->pl_mod,
                top[0], top[0] ? c->by_game[top[0]] : 0, top[1], top[1] ? c->by_game[top[1]] : 0, top[2], top[2] ? c->by_game[top[2]] : 0,
-               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins, c->refused, c->refused_ships);
+               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins, c->refused, c->refused_ships, c->refused_tr, c->tr_crossings);
     int to[5], tt[5];
     census_top(c->ord_type, to); census_top(c->tr_type, tt);
     log_locked("# who decides: P%u at %u min: the game's orders to types %d x%u %d x%u %d x%u %d x%u %d x%u | its soldiers trained %d x%u %d x%u %d x%u %d x%u %d x%u, by site %u %u %u %u %u\n",
@@ -2525,6 +2546,7 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
         blocked = 1; g_cen[idx].refused++;
     }
     if (own_ship) { blocked = 1; g_cen[idx].refused_ships++; }
+    if (pl && game_site && !g_priority_mil && !g_landing_order && !g_expand_order && OWN_TRANSPORTS(idx) && is_transport(req[0])) { blocked = 1; g_cen[idx].refused_tr++; }   // THE TRANSPORTS THE MOD'S
     if (stock && !military && is_citizen_type(req[0])) cz_budget_note(pl, idx, req, stock, visibles, blocked, cfg->budget ? afford : req[1]);
     unsigned got_local = 0;
     if (!b) b = (uintptr_t)&got_local;   // train_call did the same; army.c reads the count
