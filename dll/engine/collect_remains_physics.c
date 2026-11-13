@@ -64,8 +64,9 @@
 // BREAKING ON THE SEABED (the player, 2026-11-13: "what do you think about a 50% chance a ship breaks apart after it hit
 // seafloor?" - "yes"): a ship long enough that doesn't break at its death draws it again, US_SNAP_FLOOR of them (the
 // pipe's wreck floor all / none / random), and breaks at its first touch of the bottom going down faster than US_FLOOR_V
-// (one that settles gently stays whole), lying as it hit: its halves flooded through at once (they don't stand up
-// again), their broken ends sunk US_FLOOR_SAG deeper into the seabed, one side of each a little (a list), drifting apart
+// (one that settles gently stays whole), lying as it hit: its halves go on as broken halves do (their broken ends
+// flooded, their far ends holding: one may stand up again - flooded through at once they dropped, jarring: the player,
+// "dont do that ... them standing up etc based on their simulation isnt nercesarly a problem"), their broken ends sunk US_FLOOR_SAG deeper into the seabed, one side of each a little (a list), drifting apart
 #define US_SNAP_FLOOR 0.5f
 #define US_FLOOR_V 0.05f    // tiles/s
 #define US_FLOOR_SAG 0.12f  // tiles
@@ -845,8 +846,7 @@ internal void us_half_go(uc_corpse *k, const float *now, const float *was, float
     k->leak[end][0] = 0.3f + 0.4f * us_rnd(&s), k->leak[end][1] = at + 5.0f + 4.0f * us_rnd(&s), k->leak[end][2] = 10.0f + 6.0f * us_rnd(&s);
     for (int i = 2; i < 4; i++)
         k->leak[i][0] = 0.2f + 0.4f * us_rnd(&s), k->leak[i][1] = at + 1.5f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 5.0f * us_rnd(&s);
-    if (floor) {   // flooded through, its broken end and one side deeper in the seabed
-        for (int i = 0; i < 4; i++) k->leak[i][0] = -0.3f - 0.3f * us_rnd(&s), k->leak[i][1] = at, k->leak[i][2] = 0.3f + 0.4f * us_rnd(&s);
+    if (floor) {   // its broken end and one side deeper in the seabed (its leaks as a broken half's on the water)
         k->dig[cut] += US_FLOOR_SAG;
         k->dig[2 + (us_rnd(&s) < 0.5f)] += 0.4f * US_FLOOR_SAG * us_rnd(&s);
     }
