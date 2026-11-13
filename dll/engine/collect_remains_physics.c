@@ -82,6 +82,29 @@
                            // the ship apart a few steps after the sea floor hit, than the new speed rotation etc could
                            // travel trough all points": the hit stopped the one float that touched, and the halves'
                            // poses made of that turned that one too hard while the other kept all its way)
+// A SPACESHIP'S WRECK (the player, 2026-11-13: "how dou you think we should handle spaceships? right now they just stop
+// and explore, than fade out in a second, i would say they explode break into 2-3 burnt pieces that each get a kick,
+// (tendential downwards) that drift for a bit before a secondary explosion clears the debries" - "fighters should break
+// to, i would increase the drifting to 10-30 seconds"): an Art of Conquest spaceship (its classes spaceship, space
+// transport, planet spaceship) is a wreck of ours as an aircraft is - no drag, its ground a planet's only (over space
+// nothing holds it), drawn burnt from its death (the game's death texture) - but with no air: no wings, a pull down of
+// US_SPACE_G. Kicked at its death, it breaks US_SNAP_AT .. + US_SNAP_AT_RND s after it into two pieces, or three when
+// it is US_SPACE_LEN3 tiles long or more (cuts at about a third and two thirds), each its own entry with its floats over
+// its own stretch: each kicked again - its end away from the middle along the ship (US_SPACE_PART), sideways and up or
+// down (US_SPACE_SIDE), down (US_SPACE_DOWN), a spin of its own (US_SPACE_SPIN) - drifting until its blast, US_BOOM_AT ..
+// + US_BOOM_RND s after the death, each piece its own: the ship's death effect made where it is, and it is gone. A piece
+// that comes down on a planet blows up there.
+#define US_SPACE_G 0.02f      // tiles/s^2
+#define US_SPACE_LEN3 1.5f    // tiles
+#define US_SPACE_PART 0.25f   // tiles/s, half to 1.5 times
+#define US_SPACE_SIDE 0.12f   // tiles/s, either way
+#define US_SPACE_DOWN 0.1f    // tiles/s, half to 1.5 times
+#define US_SPACE_SPIN 0.8f    // radians/s, half to all of it about an axis drawn
+#define US_KICK_SPACE 0.4f    // radians/s about each axis at its death, half to all of it, either way
+#define US_BOOM_AT 10.0f
+#define US_BOOM_RND 20.0f
+internal int uc_is_space(int k) { return k == CLS_SPACESHIP || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP; }
+internal int rg_space_tile(const void *mesh, int x, int y);   // render_ground.c
 internal int g_us_floor;   // the pipe's: 1 every ship long enough that doesn't break at its death breaks on the seabed, -1 none, 0 drawn
 // its hull's top: this share of its model's height over the water, at most US_HULL_MAX (the models' own space: a
 // sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55; an Imperial battleship's lower sails hang
@@ -249,7 +272,7 @@ internal int uc_is_aircraft(int k) {
 // have no death animation, they just stay where they are und vanish when the resource is fully gathered")
 internal int uc_is_ship(const ee_unit_type *ty) {
     int k = unit_type_get_class_id(ty);
-    return (class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k)) && unit_type_get_family(ty) != KIND_FISH;
+    return (class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k) || uc_is_space(k)) && unit_type_get_family(ty) != KIND_FISH;
 }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
 // a stream's start by a serial, its bits mixed whole (salt: the stream's own): a product alone drew alike for ids a power
@@ -431,7 +454,8 @@ internal void us_kick(uc_corpse *k, int32_t serial) {
     static const float ship[3] = { US_KICK_ROLL, US_KICK_PITCH, US_KICK_YAW },
                        plane[3] = { US_KICK_PLANE_ROLL, US_KICK_AIR_OTHER, US_KICK_AIR_OTHER },
                        heli[3] = { US_KICK_AIR_OTHER, US_KICK_AIR_OTHER, US_KICK_HELI_YAW };
-    const float *rate = !k->air ? ship : k->heli ? heli : plane;
+    static const float space[3] = { US_KICK_SPACE, US_KICK_SPACE, US_KICK_SPACE };
+    const float *rate = k->space ? space : !k->air ? ship : k->heli ? heli : plane;
     for (int a = 0; a < 3; a++) w[a] = rate[a] * (0.5f + 0.5f * us_rnd(&s)) * (us_rnd(&s) < 0.5f ? -1.0f : 1.0f);
     for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], la += al[j] * al[j], lc += ac[j] * ac[j];
     la = sqrtf(la), lc = sqrtf(lc);
@@ -468,8 +492,8 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     // a ship's floats at its waterline (its model's 0), a submarine's at its hull's middle height: its model stands on
     // its keel (0 .. 0.5 of its scale, logged), the game holds it 0.4 tiles under the water, wholly under
-    int cls = unit_type_get_class_id(o->ty), sub = cls == CLS_SUBMERGED_NAVAL, air = uc_is_aircraft(cls);
-    int x_long = !air && hi[0] - lo[0] >= hi[1] - lo[1];
+    int cls = unit_type_get_class_id(o->ty), sub = cls == CLS_SUBMERGED_NAVAL, space = uc_is_space(cls), air = uc_is_aircraft(cls) || space;
+    int x_long = (!air || space) && hi[0] - lo[0] >= hi[1] - lo[1];   // (a spaceship's the longer way, as a ship's)
     float fz = sub ? 0.5f * (lo[2] + hi[2]) * s : 0.0f;
     float c[3] = { 0.5f * (lo[0] + hi[0]) * s, 0.5f * (lo[1] + hi[1]) * s, fz };
     float half_long = 0.4f * (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s, half_across = 0.4f * (x_long ? hi[1] - lo[1] : hi[0] - lo[0]) * s;
@@ -481,7 +505,8 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     k->keel = fminf(fmaxf(fz - lo[2] * s, 0.05f), 1.0f);
     k->body[4][0] = c[0], k->body[4][1] = c[1], k->body[4][2] = fz - US_LOW * k->keel;
-    k->heli = (uint8_t)(air && cls != CLS_AIRPLANE), k->spin_t = 0.0f;
+    k->heli = (uint8_t)(air && !space && cls != CLS_AIRPLANE), k->spin_t = 0.0f;
+    k->space = (uint8_t)space, k->blown = 0, k->boom_t = -1.0f, k->burnt = (uint8_t)space;
     ee_model *sm = ((ee_model **)dmg_model_anim_model_at(o->gfx))[US_SHATTER_ANIM];
     k->shatters = (uint8_t)(k->heli && unit_type_get_rot_time(o->ty) > 0 && sm &&
                             ((const int32_t *)dmg_model_anim_last_at(o->gfx))[US_SHATTER_ANIM] > ((const int32_t *)dmg_model_anim_first_at(o->gfx))[US_SHATTER_ANIM]);
@@ -506,7 +531,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         k->body[4][2] = fz;
         us_wings(k, o->serial);
     }
-    k->lift = sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
+    k->lift = space ? 0.0f : sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
     k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0, k->in_game = 1;
     // (a shattering flier's at its foot: raised, its body went a third of its height into the ground before its pieces
@@ -541,14 +566,24 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         float drawn = us_rnd(&ss);
         if (g_us_snap > 0 || (!g_us_snap && drawn < (sub ? US_SNAP_SUB : US_SNAP))) {
             k->snap_t = US_SNAP_AT + US_SNAP_AT_RND * us_rnd(&ss);
-            k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&ss)) * (k->ends[1] - k->ends[0]);
+            k->cut = k->cut2 = k->ends[0] + (0.45f + 0.1f * us_rnd(&ss)) * (k->ends[1] - k->ends[0]);
             for (int i = 0; i < 4 && !sub; i++)   // (a submarine's own leaks kept: it hangs at its depth as it would)
                 k->leak[i][0] = 0.6f + 0.25f * us_rnd(&ss), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&ss), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&ss),
                 k->leak[i][3] = k->lift;
         } else {   // on the seabed, by a stream of its own (its leaks as any ship's)
             uint32_t sf = us_seed(o->serial, 0x165667B1u);
             if (g_us_floor > 0 || (!g_us_floor && us_rnd(&sf) < (sub ? US_SNAP_FLOOR_SUB : US_SNAP_FLOOR)))
-                k->floor_snap = 1, k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&sf)) * (k->ends[1] - k->ends[0]);
+                k->floor_snap = 1, k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&sf)) * (k->ends[1] - k->ends[0]), k->cut2 = k->cut;
+        }
+    }
+    if (space && !late) {   // (A SPACESHIP'S WRECK) its blast whole, unless it breaks (each piece its own then)
+        uint32_t ss = us_seed(o->serial, 0x1B873593u);
+        k->boom_t = US_BOOM_AT + US_BOOM_RND * us_rnd(&ss);
+        if (ud_cuts()) {
+            float span = k->ends[1] - k->ends[0];
+            k->snap_t = US_SNAP_AT + US_SNAP_AT_RND * us_rnd(&ss);
+            if (len >= US_SPACE_LEN3) k->cut = k->ends[0] + (0.3f + 0.08f * us_rnd(&ss)) * span, k->cut2 = k->ends[0] + (0.62f + 0.08f * us_rnd(&ss)) * span;
+            else k->cut = k->cut2 = k->ends[0] + (0.4f + 0.2f * us_rnd(&ss)) * span;
         }
     }
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
@@ -584,12 +619,13 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
 // only notes them (fx_due).
 #define US_FX_SPLASH 1
 #define US_FX_CRASH 2
+#define US_FX_BOOM 4
 // tiles/s down; 0.5 until 2026-11-12 (the player: "if i delete the selected helicopter it wont explode on impact for
 // some reason"): a helicopter its rotor holds comes down at 0.35 - 0.55 tiles/s and mostly blew up no more - one killed
 // standing doesn't move at all
 #define US_CRASH_V 0.15f
 internal void us_fx(uc_corpse *k, uint8_t f, float x, float y, float z) {
-    float *at = k->fx_at[f == US_FX_SPLASH ? 0 : 1];
+    float *at = k->fx_at[f == US_FX_SPLASH ? 0 : f == US_FX_CRASH ? 1 : 2];
     at[0] = x, at[1] = y, at[2] = z;
     k->fx_done |= f, k->fx_due |= f;
 }
@@ -666,7 +702,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
     for (int i = 0; i < k->n; i++) {
         float *p = k->sp[i], *q = k->sq[i], b = 0.0f, under = 0.5f + (k->zw - p[2]) / k->range;
-        under = under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
+        under = k->space || under < 0.0f ? 0.0f : under > 1.0f ? 1.0f : under;
         if (i < 4) wet += 0.25f * under;
         if (i < 4 && under > 0.0f && k->wet_at < 0.0f) k->wet_at = t;   // the leaks' clock starts
         if (i < 4 && k->lift > 0.0f) {
@@ -701,7 +737,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             if (br < 0.0f) br *= 1.0f - US_SURF_DRAG;   // along the flight path: a share of a brake, nothing that speeds it
             for (int j = 0; j < 3; j++) v[j] += dv[j] - br * fl[j];
         }
-        float g = k->air ? US_G_AIR : US_G;
+        float g = k->space ? US_SPACE_G : k->air ? US_G_AIR : US_G;
         v[2] += (-g + b * g * under) * dt * dt;
         if (k->heli) {   // the main rotor's torque about its up through its middle, as far as it is dry
             float r[3], tw = US_HELI_TWIST * (1.0f - wd) * dt * dt;
@@ -783,11 +819,12 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             for (int j = 0; j < 3; j++) m[j] += h * u[j];
             mq += h * u[2];
         }
-        if (mesh_has_tile(mesh, (int)floorf(m[0]), (int)floorf(m[1]))) {
+        if (mesh_has_tile(mesh, (int)floorf(m[0]), (int)floorf(m[1])) && !(k->space && rg_space_tile(mesh, (int)floorf(m[0]), (int)floorf(m[1])))) {
             float ground = mesh_z(mesh, m[0], m[1]);
             if (m[2] <= ground) {
                 if (ground >= k->zw && !(k->fx_done & US_FX_CRASH) && mq - m[2] > US_CRASH_V * dt) us_fx(k, US_FX_CRASH, m[0], m[1], ground);
-                k->stuck = 1, k->burnt = !k->shatters && ground >= k->zw;
+                k->stuck = 1, k->burnt = k->space || (!k->shatters && ground >= k->zw);
+                if (k->space && k->boom_t > t) k->boom_t = t;   // (a spaceship's piece on a planet: blown up there)
                 if (k->shatters && ground >= k->zw && k->shatter_t < 0.0f) k->shatter_t = t;
             }
         }
@@ -873,9 +910,10 @@ internal void us_run(uc_corpse *k) {
     if (g_uc_now < 0.0) return;
     if (g_uc_now - k->sim > 3000.0) k->sim = g_uc_now - 3000.0;
     const void *mesh = map_mesh_at(game_map());
-    uc_corpse *other = NULL;   // the bow's half: the stern's (THE HALVES KEPT APART)
-    for (uint32_t i = 0; i < g_kc_n && k->half == 1 && !other; i++)
-        if (g_kc[i].twin && g_kc[i].half == 2 && g_kc[i].serial == k->serial) other = &g_kc[i];
+    uc_corpse *other = NULL;   // the bow's piece: the middle's, else the stern's; the middle's: the stern's (THE HALVES KEPT APART)
+    for (int want = k->half == 1 ? 3 : 2; want >= 2 && !other && (k->half == 1 || k->half == 3); want--)
+        for (uint32_t i = 0; i < g_kc_n && !other; i++)
+            if (g_kc[i].twin && g_kc[i].half == want && g_kc[i].serial == k->serial) other = &g_kc[i];
     while (k->sim + US_DT * 1000.0 <= g_uc_now) {
         k->sim += US_DT * 1000.0;
         float t = (float)((k->sim - k->died) / 1000.0);
@@ -883,6 +921,14 @@ internal void us_run(uc_corpse *k) {
         us_step(k, t, mesh);
         if (k->floor_snap && k->floor_hit && !k->half && ++k->floor_hit > US_FLOOR_STEPS) us_snap(k, t, 1);   // (BREAKING ON THE SEABED)
         if (other) us_halves_apart(k, other);
+        if (k->space && !k->blown && k->boom_t >= 0.0f && t >= k->boom_t) {   // (A SPACESHIP'S WRECK) its blast
+            float m[3] = { 0, 0, 0 };
+            for (int i = 0; i < 4; i++)
+                for (int j = 0; j < 3; j++) m[j] += 0.25f * k->sp[i][j];
+            us_fx(k, US_FX_BOOM, m[0], m[1], m[2]);
+            k->blown = 1;
+            break;
+        }
     }
 }
 // its pose into t (rows, the place in the fourth column) from its floats p (its own, or where they were a step before):
@@ -963,6 +1009,37 @@ internal void us_half_go(uc_corpse *k, const float *now, const float *was, float
         for (int r = 0; r < 3; r++) k->sq[i][r] -= sign * US_SNAP_PART * dt * al[r];
     k->sq[cut][2] += US_SNAP_DROP * dt;
 }
+// a spaceship's piece placed by the pose now and a step before, and kicked (A SPACESHIP'S WRECK): along the ship by side
+// (+ bow-ward, - stern-ward, 0 the middle: sideways only), sideways, down, a spin of its own; its blast's time
+internal void us_space_go(uc_corpse *k, const float *now, const float *was, float t, float side) {
+    for (int i = 0; i < US_PTS; i++)
+        for (int r = 0; r < 3; r++) {
+            const float *p = k->body[i];
+            k->sp[i][r] = now[r * 4 + 3] + now[r * 4] * p[0] + now[r * 4 + 1] * p[1] + now[r * 4 + 2] * p[2];
+            k->sq[i][r] = was[r * 4 + 3] + was[r * 4] * p[0] + was[r * 4 + 1] * p[1] + was[r * 4 + 2] * p[2];
+        }
+    uint32_t s = us_seed(k->serial, 0x5BD1E995u + k->half);
+    float al[3], ac[3], v[3], om[3], ol = 0.0f, m[3] = { 0, 0, 0 }, dt = (float)US_DT;
+    for (int r = 0; r < 3; r++)
+        al[r] = now[r * 4] * k->along[0] + now[r * 4 + 1] * k->along[1] + now[r * 4 + 2] * k->along[2],
+        ac[r] = now[r * 4] * k->across[0] + now[r * 4 + 1] * k->across[1] + now[r * 4 + 2] * k->across[2];
+    float part = side * US_SPACE_PART * (0.5f + us_rnd(&s)), sa = US_SPACE_SIDE * (2.0f * us_rnd(&s) - 1.0f);
+    float su = US_SPACE_SIDE * (2.0f * us_rnd(&s) - 1.0f), down = US_SPACE_DOWN * (0.5f + us_rnd(&s));
+    for (int r = 0; r < 3; r++) v[r] = part * al[r] + sa * ac[r] + (r == 2 ? su - down : 0.0f);
+    for (int r = 0; r < 3; r++) om[r] = 2.0f * us_rnd(&s) - 1.0f, ol += om[r] * om[r];
+    ol = sqrtf(ol);
+    float w = US_SPACE_SPIN * (0.5f + 0.5f * us_rnd(&s)) / (ol > 1e-6f ? ol : 1.0f);
+    for (int r = 0; r < 3; r++) om[r] *= w;
+    for (int i = 0; i < 4; i++)
+        for (int r = 0; r < 3; r++) m[r] += 0.25f * k->sp[i][r];
+    for (int i = 0; i < US_PTS; i++) {
+        float d[3] = { k->sp[i][0] - m[0], k->sp[i][1] - m[1], k->sp[i][2] - m[2] };
+        k->sq[i][0] -= (v[0] + om[1] * d[2] - om[2] * d[1]) * dt;
+        k->sq[i][1] -= (v[1] + om[2] * d[0] - om[0] * d[2]) * dt;
+        k->sq[i][2] -= (v[2] + om[0] * d[1] - om[1] * d[0]) * dt;
+    }
+    k->boom_t = fmaxf(t, US_BOOM_AT + US_BOOM_RND * us_rnd(&s));
+}
 // it breaks (A SHIP BREAKING IN TWO) t s after its death - floor: on the seabed (BREAKING ON THE SEABED): this entry the
 // bow's half, a new one the stern's; none when the table is full (it goes down whole)
 internal void us_snap(uc_corpse *k, float t, int floor) {
@@ -970,7 +1047,8 @@ internal void us_snap(uc_corpse *k, float t, int floor) {
     static LONG logged;
     if (floor && g_log && InterlockedIncrement(&logged) <= 16)
         log_locked("# wrecks: a ship (serial %d) broke on the seabed %.1f s after its death, going down at %.2f tiles/s\n", (int)k->serial, (double)t, (double)k->hit_v);
-    if (g_kc_n >= UC_CORPSES) return;
+    int three = k->cut2 > k->cut;
+    if (g_kc_n + (three ? 2u : 1u) > UC_CORPSES) return;
     float now[16], was[16], b = 0.0f;
     us_pose_at(k, (const float (*)[3])k->sp, now), us_pose_at(k, (const float (*)[3])k->sq, was);
     for (int i = 0; i < 4; i++) {   // the floats' buoyancy now (us_step's), their mean
@@ -981,10 +1059,25 @@ internal void us_snap(uc_corpse *k, float t, int floor) {
     uc_corpse *o = &g_kc[g_kc_n++];
     *o = *k;
     graphics_acquire(o->gfx);
-    o->twin = 1, o->gone = 1, o->in_game = 0, o->half = 2, k->half = 1;
+    o->twin = 1, o->gone = 1, o->in_game = 0, o->half = 2;
     if (!floor) o->sim -= US_DT * 1000.0;   // (on the water the step at t is still to come for both: us_run takes this one's next)
-    us_body_half(k, k->cut, k->ends[1]);
+    uc_corpse *mid = NULL;
+    if (three) {   // the middle's (A SPACESHIP'S WRECK)
+        mid = &g_kc[g_kc_n++];
+        *mid = *o;
+        graphics_acquire(mid->gfx);
+        mid->half = 3;
+    }
+    k->half = 1;
+    us_body_half(k, k->cut2, k->ends[1]);
     us_body_half(o, k->ends[0], k->cut);
+    if (mid) us_body_half(mid, k->cut, k->cut2);
+    if (k->space) {
+        us_space_go(k, now, was, t, 1.0f);
+        us_space_go(o, now, was, t, -1.0f);
+        if (mid) us_space_go(mid, now, was, t, 0.0f);
+        return;
+    }
     us_half_go(k, now, was, t, b, 1.0f, floor);
     us_half_go(o, now, was, t, b, -1.0f, floor);
 }
@@ -993,14 +1086,15 @@ internal void us_snap(uc_corpse *k, float t, int floor) {
 internal ee_texture *us_death_texture(ee_player *pl);   // collect_remains.c
 internal void us_clip_tag(const void *rec, const uc_corpse *k, const float *t) {
     if (!k->ship || !k->half) return;
-    float sg = k->half == 1 ? 1.0f : -1.0f, pl[4], nt = 0.0f;
+    float pl[4], nt = 0.0f;
     for (int r = 0; r < 3; r++) {
-        pl[r] = sg * (t[r * 4] * k->along[0] + t[r * 4 + 1] * k->along[1] + t[r * 4 + 2] * k->along[2]);
+        pl[r] = t[r * 4] * k->along[0] + t[r * 4 + 1] * k->along[1] + t[r * 4 + 2] * k->along[2];
         nt += pl[r] * t[r * 4 + 3];
     }
-    pl[3] = -nt - sg * k->cut;   // (the hull's place x: along . (x - its place) = cut, turned into the world)
+    pl[3] = -nt;   // (along . (x - its place), turned into the world: the cuts are on it)
+    float lo = k->half == 2 ? -1e30f : k->half == 1 ? k->cut2 : k->cut, hi = k->half == 1 ? 1e30f : k->half == 2 ? k->cut : k->cut2;
     us_death_texture(k->owner);   // (the filling's)
-    ud_clip_tag(rec, g_uc_walk_gen, (uint32_t)k->serial, k->half, pl, k->deck);
+    ud_clip_tag(rec, g_uc_walk_gen, (uint32_t)k->serial, k->half, pl, lo, hi, k->deck);
 }
 internal int us_burnt(const uc_corpse *k);   // below: a crashed aircraft drawn burnt out
 // a shattering flier's animation, frame, next frame and fraction now, and its pose t upright on the ground once it

@@ -109,7 +109,7 @@ typedef struct {
     float shatter_t;         // ... when it hit land (s after its death; < 0 not)
     uint8_t in_game;         // the game still has its unit (the effects' step, by its id): not met by a walk, it is out of
                              // the view by the game's copy, not removed (us_alive_known)
-    float fx_at[2][3];       // where: the splash's (on the water), the crash's
+    float fx_at[3][3];       // where: the splash's (on the water), the crash's, a spaceship's piece's blast (US_FX_BOOM)
     double sim;              // the game time it is simulated to (ms)
     float snap_t;            // a ship that breaks in two (us_snap): when (s after its death; < 0 never)
     float cut, ends[2];      // ... where, along its length (k->along, its own space times its scale), and its hull's ends
@@ -117,6 +117,10 @@ typedef struct {
     float deck;              // ... its hull's top in its model's own space: what reaches under it is the hull (US_HULL_TOP)
     uint8_t half;            // ... broken: 1 the bow's half, 2 the stern's (each a model of its own: us_clip_tag); 0 whole
     uint8_t twin;            // ... the stern's half: an entry of its own, never the game's unit's
+    float cut2;              // ... the second cut of three pieces (half 3 the middle's between them); cut when two
+    uint8_t space;           // a spaceship's wreck (A SPACESHIP'S WRECK): it drifts, burnt, and blows up at boom_t
+    uint8_t blown;           // ... it has: its entry let go once its blast is made
+    float boom_t;            // ... when (s after its death; < 0 never)
     uint8_t floor_snap;      // ... one that breaks on the seabed instead (US_SNAP_FLOOR), once it hit it (floor_hit)
     uint8_t floor_hit;       // ... and the steps since (it breaks US_FLOOR_STEPS on)
     float hit_v;             // ... how fast it went down then (tiles/s)
@@ -357,11 +361,11 @@ internal void uc_corpses_walk(const uc_copy *c, uint8_t *recs, uint32_t *n, uint
         int unmet = k->gen != g_uc_walk_gen;
         if (unmet && !k->gone) k->gone = k->ship && known && k->in_game ? 0 : 1;
         double d = g_uc_now - k->died;
-        if (k->gone && d >= end) {
+        if ((k->gone && d >= end) || (k->blown && !k->fx_due)) {
             graphics_release(k->gfx);
             continue;
         }
-        if ((k->gone || unmet) && g_set.remains_sink && *n < room) {
+        if ((k->gone || unmet) && !k->blown && g_set.remains_sink && *n < room) {
             float at[2] = { k->t[3], k->t[7] };
             if (k->ship) at[0] = 0.25f * (k->sp[0][0] + k->sp[1][0] + k->sp[2][0] + k->sp[3][0]),
                          at[1] = 0.25f * (k->sp[0][1] + k->sp[1][1] + k->sp[2][1] + k->sp[3][1]);
@@ -427,6 +431,7 @@ internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
                 g_us_put[n++] = mt;
             }
             if (k->fx_due & US_FX_SPLASH) effect_mgr_add_at(m, k->fx_at[0], unit_type_get_ground_gfx(k->ty), NULL), g_us_fx_made++;
+            if (k->fx_due & US_FX_BOOM) effect_mgr_add_at(m, k->fx_at[2], unit_type_get_impact_gfx(k->ty), NULL), g_us_fx_made++;
             if (k->fx_due & US_FX_CRASH) {
                 void *fx = unit_type_get_impact_gfx(k->ty);
                 if (cu && !k->heli) effect_mgr_add_on_unit(m, cu, fx, NULL, 0, 0, 0);

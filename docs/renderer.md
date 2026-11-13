@@ -1072,6 +1072,15 @@ A submarine breaks too, by its own shares (A SUBMARINE BREAKING: 50% at its deat
 seabed), its own way down kept (it hangs at its depth until its leaks take it down). The Nautilus's hull is rings: a
 piece under the hull's top across half the beam is cut too (UH_WIDE; its cut fell in one ring 0.04 of its length long,
 its halves parted at a seam, unfilled).
+An Art of Conquest spaceship (spaceship, space transport, planet spaceship) is a wreck of the mod's too (A SPACESHIP'S
+WRECK): drawn burnt from its death, no drag, a pull down of 0.02 tiles/s^2, held only by a planet (rg_space_tile: over
+space nothing). Kicked at its death, it breaks 0.25 - 0.4 s after it into two pieces, three from 1.5 tiles long (cuts at
+about a third and two thirds: the pieces' cut by a slab, cut[0] <= F < cut[1], the middle's filled at both ends), each
+kicked again - apart along the ship, sideways, down, a spin of its own - and blown up 10 - 30 s after the death, each
+in its own time, by the ship's death effect where it is (US_FX_BOOM); one that comes down on a planet blows up there.
+Checked headless in Art of Conquest, Small Planets, over space: a capital ship and a corvette in three pieces, a space
+transport and a space fighter in two, all cut and filled; the pieces scattered, tumbling, drifting down, and blew up
+between 10 and 30 s.
 
 ## The units' draw, the mod's own (2026-11-11 on)
 

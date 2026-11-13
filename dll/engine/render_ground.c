@@ -359,6 +359,10 @@ internal void rg_space_corners(void **t, void **sets, unsigned long x, unsigned 
     }
 }
 internal int rg_space_map(const void *mesh) { return g_rg.is_space && g_rg.is_space(mesh); }
+// a tile of space on a space map (collect_remains_physics.c A SPACESHIP'S WRECK: nothing holds a wreck there)
+internal int rg_space_tile(const void *mesh, int x, int y) {
+    return g_rg.water_info && x >= 0 && y >= 0 && rg_space_map(mesh) && (g_rg.water_info(mesh, (unsigned long)x, (unsigned long)y) & RG_SPACE);
+}
 internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     if (g_rg.space && g_rg.water_info(g_rg.mesh, x, y) & RG_SPACE) return rg_space_quad(out, x, y);
     unsigned long own = g_rg.set(g_rg.mesh, x, y);
