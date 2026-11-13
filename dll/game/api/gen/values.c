@@ -747,6 +747,7 @@ internal uint32_t of_vertex_normal;
 internal uint32_t of_vertex_u;
 internal uint32_t of_vertex_v;
 internal uint32_t size_dx7_color_vertex;
+internal uint32_t of_color_vertex_point;
 internal uint32_t of_color_vertex_u;
 internal uint32_t of_color_vertex_v;
 internal uint32_t size_u_string;

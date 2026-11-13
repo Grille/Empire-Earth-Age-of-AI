@@ -378,10 +378,12 @@ internal inline int patch_particle3d_draw(particle3d_draw_fn h) { return patch_v
 
 // class EEE3DFarm (ee_farm_fx)
 // a farm's crops: two meshes of its own - the ground ("graphics farm ground model") and the rows of stalks ("graphics
-// farm stalk model") - drawn by vf2. The stalks sway by their texture: the update (vf19) adds the step's ms over its
-// kind's period to sway_left and, past 1, steps sway_up on and sway_down back (both kept within 0..63) and sets each
-// stalk's top texture coordinate to its bottom's plus an entry of engine_display.farm_sway - the even vertices by
-// sway_up, the odd by sway_down; vf9 copies them into the stalks' model drawn (with the crops shown)
+// farm stalk model") - drawn by vf2. The stalks sway by their tops' points: the update (vf19) adds the step's ms over
+// its kind's period to sway_left and, past 1, steps sway_up on and sway_down back (both kept within 0..63) and sets
+// each stalk top's point (x and y; vertex array slots 5 GetPoint and 12 SetPoint) to its bottom's plus an entry of
+// engine_display.farm_sway - the even vertices by sway_up, the odd by sway_down; vf9 copies them into the stalks'
+// model drawn (with the crops shown). A probe of a worked farm: the tops' points off their bottoms' by the entry, the
+// texture coordinates the rows' own (0 1, 2 1, 4 1 over 0 0, 2 0, 4 0)
 // its kind: period, the ms a step of the sway takes
 internal inline ee_graphic_effect *farm_fx_get_graphic_effect(const ee_farm_fx *o) { return *(ee_graphic_effect **)((uint8_t *)o + of_farm_fx_graphic_effect); }
 internal inline void farm_fx_set_graphic_effect(ee_farm_fx *o, ee_graphic_effect *v) { *(ee_graphic_effect **)((uint8_t *)o + of_farm_fx_graphic_effect) = v; }
@@ -802,8 +804,11 @@ internal inline void vertex_set_v(ee_vertex *o, float v) { *(float *)((uint8_t *
 internal inline float *vertex_v_at(const ee_vertex *o) { return (float *)((uint8_t *)o + of_vertex_v); }
 
 // class DX7ColorVertex (ee_color_vertex)
-// a vertex of DX7StdColorVertexArray (type 1 of DX7Rasterizer.create_vertex_array; SetTextureCoordinate, SizeOf: 0x24
-// each in both builds' display DLLs) - a farm's stalks are such an array
+// a vertex of DX7StdColorVertexArray (type 1 of DX7Rasterizer.create_vertex_array; SetPoint, SetTextureCoordinate,
+// SizeOf: 0x24 each in both builds' display DLLs) - a farm's stalks are such an array
+internal inline vec3 color_vertex_get_point(const ee_color_vertex *o) { return *(vec3 *)((uint8_t *)o + of_color_vertex_point); }
+internal inline void color_vertex_set_point(ee_color_vertex *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_color_vertex_point) = v; }
+internal inline vec3 *color_vertex_point_at(const ee_color_vertex *o) { return (vec3 *)((uint8_t *)o + of_color_vertex_point); }
 internal inline float color_vertex_get_u(const ee_color_vertex *o) { return *(float *)((uint8_t *)o + of_color_vertex_u); }
 internal inline void color_vertex_set_u(ee_color_vertex *o, float v) { *(float *)((uint8_t *)o + of_color_vertex_u) = v; }
 internal inline float *color_vertex_u_at(const ee_color_vertex *o) { return (float *)((uint8_t *)o + of_color_vertex_u); }
@@ -851,8 +856,8 @@ internal inline uint8_t *engine_display_call_frame_sleep_at(void) { return (uint
 internal inline uint8_t *engine_display_call_frame_mouse_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_frame_mouse; }
 // the exe's import slot of Sleep
 internal inline uint8_t *engine_display_iat_sleep_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_sleep; }
-// the farms' stalks' sway (EEE3DFarm): 64 pairs of floats, the move of a stalk top's texture coordinate (u, v)
-// per step of the sway - made once by the farms' update (EE 0x4E68AA, AoC 0x4F01CB), read there (vf19)
+// the farms' stalks' sway (EEE3DFarm): 64 pairs of floats, the move of a stalk top's point (x, y) from its
+// bottom's per step of the sway - made once by the farms' update (EE 0x4E68AA, AoC 0x4F01CB), read there (vf19)
 internal inline float *engine_display_get_farm_sway(void) { return *(float **)(uint8_t *)(uintptr_t)data_engine_display_farm_sway; }
 internal inline void engine_display_set_farm_sway(float *v) { *(float **)(uint8_t *)(uintptr_t)data_engine_display_farm_sway = v; }
 internal inline float **engine_display_farm_sway_at(void) { return (float **)(uint8_t *)(uintptr_t)data_engine_display_farm_sway; }
@@ -1492,6 +1497,7 @@ internal int spec_engine_display_select(int build) {
         of_vertex_u = 0x18;
         of_vertex_v = 0x1C;
         size_dx7_color_vertex = 0x24;
+        of_color_vertex_point = 0x0;
         of_color_vertex_u = 0x1C;
         of_color_vertex_v = 0x20;
         size_u_string = 0x10;
@@ -1922,6 +1928,7 @@ internal int spec_engine_display_select(int build) {
         of_vertex_u = 0x18;
         of_vertex_v = 0x1C;
         size_dx7_color_vertex = 0x24;
+        of_color_vertex_point = 0x0;
         of_color_vertex_u = 0x1C;
         of_color_vertex_v = 0x20;
         size_u_string = 0x10;

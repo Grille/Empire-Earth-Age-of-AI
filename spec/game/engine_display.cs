@@ -455,10 +455,12 @@ unsafe struct EEE3DParticle
 }
 
 /// a farm's crops: two meshes of its own - the ground ("graphics farm ground model") and the rows of stalks ("graphics
-/// farm stalk model") - drawn by vf2. The stalks sway by their texture: the update (vf19) adds the step's ms over its
-/// kind's period to sway_left and, past 1, steps sway_up on and sway_down back (both kept within 0..63) and sets each
-/// stalk's top texture coordinate to its bottom's plus an entry of engine_display.farm_sway - the even vertices by
-/// sway_up, the odd by sway_down; vf9 copies them into the stalks' model drawn (with the crops shown)
+/// farm stalk model") - drawn by vf2. The stalks sway by their tops' points: the update (vf19) adds the step's ms over
+/// its kind's period to sway_left and, past 1, steps sway_up on and sway_down back (both kept within 0..63) and sets
+/// each stalk top's point (x and y; vertex array slots 5 GetPoint and 12 SetPoint) to its bottom's plus an entry of
+/// engine_display.farm_sway - the even vertices by sway_up, the odd by sway_down; vf9 copies them into the stalks'
+/// model drawn (with the crops shown). A probe of a worked farm: the tops' points off their bottoms' by the entry, the
+/// texture coordinates the rows' own (0 1, 2 1, 4 1 over 0 0, 2 0, 4 0)
 [vtable((ee)0x0082B7EC, (aoc)0x008407A8), c_type("ee_farm_fx")]
 unsafe struct EEE3DFarm
 {
@@ -906,11 +908,14 @@ unsafe struct D3DVERTEX
     float32 v;
 }
 
-/// a vertex of DX7StdColorVertexArray (type 1 of DX7Rasterizer.create_vertex_array; SetTextureCoordinate, SizeOf: 0x24
-/// each in both builds' display DLLs) - a farm's stalks are such an array
+/// a vertex of DX7StdColorVertexArray (type 1 of DX7Rasterizer.create_vertex_array; SetPoint, SetTextureCoordinate,
+/// SizeOf: 0x24 each in both builds' display DLLs) - a farm's stalks are such an array
 [c_type("ee_color_vertex"), size(0x24)]
 unsafe struct DX7ColorVertex
 {
+    [offset(0x0), found(c)]
+    vec3 point;
+
     [offset(0x1C), found(c)]
     float32 u;
 
@@ -974,8 +979,8 @@ static unsafe class engine_display
     [address((ee)0x0082318C, (aoc)0x00837174)]
     static block iat_sleep;
 
-    /// the farms' stalks' sway (EEE3DFarm): 64 pairs of floats, the move of a stalk top's texture coordinate (u, v)
-    /// per step of the sway - made once by the farms' update (EE 0x4E68AA, AoC 0x4F01CB), read there (vf19)
+    /// the farms' stalks' sway (EEE3DFarm): 64 pairs of floats, the move of a stalk top's point (x, y) from its
+    /// bottom's per step of the sway - made once by the farms' update (EE 0x4E68AA, AoC 0x4F01CB), read there (vf19)
     [address((ee)0x008D240C, (aoc)0x008E8B84)]
     static float32* farm_sway;
 

@@ -347,8 +347,9 @@ internal uint32_t __thiscall pt_hook_draw2d(ee_particle2d *o) {
     return r;
 }
 // THE FARMS' STALKS SWAYING BETWEEN STEPS (with the animation's: picture collect anim; the player, 2026-11-13: "do the
-// weat next, it looks like an uv animation"): a farm's stalks are a mesh of its effect (EEE3DFarm), and they sway by
-// their texture - the update sets each stalk top's texture coordinate to its bottom's plus an entry of a table of 64
+// weat next, it looks like an uv animation"; then "its not smooth and also broken now": the first try moved the tops'
+// texture coordinates, the wheat thin strands): a farm's stalks are a mesh of its effect (EEE3DFarm), and they sway by
+// their tops' points - the update sets each stalk top's x and y to its bottom's plus an entry of a table of 64
 // (engine_display.farm_sway), one entry on each time the game time has gone on by the kind's period (100 ms) - but one
 // entry an update at most, the rest kept for later (sway_left: tens of thousands after a game at speed 8, the wheat
 // then stepping on at every step for minutes). Either way it changed in steps (a recording at 0.25 speed: still in 76
@@ -370,15 +371,15 @@ internal fsw_e *fsw_entry(void *o) {
     return take;
 }
 // a place in the table (entries, any real number) as the move of a stalk's top: the two entries round it blended
-internal void fsw_sway_at(const float *table, double at, float *uv) {
+internal void fsw_sway_at(const float *table, double at, float *xy) {
     double f = floor(at);
     int i = (int)(f - 64.0 * floor(f / 64.0)), j = (i + 1) & 63;
     float a = (float)(at - f);
-    uv[0] = table[2 * i] + (table[2 * j] - table[2 * i]) * a;
-    uv[1] = table[2 * i + 1] + (table[2 * j + 1] - table[2 * i + 1]) * a;
+    xy[0] = table[2 * i] + (table[2 * j] - table[2 * i]) * a;
+    xy[1] = table[2 * i + 1] + (table[2 * j + 1] - table[2 * i + 1]) * a;
 }
 #define FSW_VERTS 4096
-internal float g_fsw_keep[FSW_VERTS][2];   // the tops' texture coordinates as the game left them (the graphics thread's)
+internal float g_fsw_keep[FSW_VERTS][2];   // the tops' x and y as the game left them (the graphics thread's)
 internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
     if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok || !farm_fx_get_stalks_drawn(o)) return eee3_d_farm_draw(o);
     ee_model *m = farm_fx_get_stalks(o);
@@ -407,7 +408,7 @@ internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
     uint32_t span = 2u * (uint32_t)rows;
     for (uint32_t i = 0; i + (uint32_t)rows < n; i++) {
         if (i % span >= (uint32_t)rows) continue;   // a bottom
-        float *top = vertices_uv_at(va, type, i), *bottom = vertices_uv_at(va, type, i + (uint32_t)rows);
+        float *top = vertices_point_at(va, type, i), *bottom = vertices_point_at(va, type, i + (uint32_t)rows);
         if (!top || !bottom) continue;
         const float *d = i & 1 ? down : up;
         g_fsw_keep[i][0] = top[0], g_fsw_keep[i][1] = top[1];
@@ -416,7 +417,7 @@ internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
     uint32_t r = eee3_d_farm_draw(o);
     for (uint32_t i = 0; i + (uint32_t)rows < n; i++) {
         if (i % span >= (uint32_t)rows) continue;
-        float *top = vertices_uv_at(va, type, i);
+        float *top = vertices_point_at(va, type, i);
         if (top) top[0] = g_fsw_keep[i][0], top[1] = g_fsw_keep[i][1];
     }
     return r;
