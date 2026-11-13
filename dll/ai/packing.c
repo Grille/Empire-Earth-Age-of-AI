@@ -71,6 +71,98 @@ internal int tb_ring_ok(ee_map *map, int size, int x, int y, int s, ee_player *p
     }
     return walkable >= s + 2;   // the builders' and the new units' way out
 }
+// the footprint of o, which stands on (tx, ty): the tiles that hold it, near that one
+internal void tb_footprint(ee_map *map, int size, ee_unit *o, int tx, int ty, int *x0, int *y0, int *x1, int *y1) {
+    *x0 = *x1 = tx; *y0 = *y1 = ty;
+    for (int qy = ty - TB_MAX_SIZE; qy <= ty + TB_MAX_SIZE; qy++)
+        for (int qx = tx - TB_MAX_SIZE; qx <= tx + TB_MAX_SIZE; qx++) {
+            if (qx < 0 || qy < 0 || qx >= size || qy >= size) continue;
+            ee_tile *q = map_get_tiles(map)[qy * size + qx];
+            for (void *m = q ? tile_get_objects(q) : NULL; m; m = tilenode_get_next(m))
+                if (tilenode_get_object(m) == o) {
+                    if (qx < *x0) *x0 = qx;
+                    if (qx > *x1) *x1 = qx;
+                    if (qy < *y0) *y0 = qy;
+                    if (qy > *y1) *y1 = qy;
+                    break;
+                }
+        }
+}
+// walkable with a building planned at (bx, by, bs)
+internal int tb_free(ee_map *map, int size, int x, int y, int bx, int by, int bs) {
+    return !(x >= bx && y >= by && x < bx + bs && y < by + bs) && rm_tile_ok(map, size, x, y);
+}
+#define TB_REACH 24
+#define TB_NEAR 16
+// the free tiles round the footprint x0..x1, y0..y1 lead out: a walk from them (four ways, the planned building at (bx,
+// by, bs) shut) gets TB_REACH tiles away
+internal int tb_leads_out(ee_map *map, int size, int x0, int y0, int x1, int y1, int bx, int by, int bs) {
+    enum { W = TB_MAX_SIZE + 2 * TB_REACH };
+    static uint8_t mark[W * W];
+    static int16_t queue[W * W][2];
+    int ox = x0 - TB_REACH, oy = y0 - TB_REACH, wx = x1 - x0 + 1 + 2 * TB_REACH, wy = y1 - y0 + 1 + 2 * TB_REACH, head = 0, tail = 0;
+    if (wx > W || wy > W) return 1;   // bigger than any this places: not looked at
+    memset(mark, 0, sizeof mark);
+    for (int ty = y0 - 1; ty <= y1 + 1; ty++)
+        for (int tx = x0 - 1; tx <= x1 + 1; tx++) {
+            if ((tx >= x0 && ty >= y0 && tx <= x1 && ty <= y1) || !tb_free(map, size, tx, ty, bx, by, bs)) continue;
+            mark[(ty - oy) * W + tx - ox] = 1;
+            queue[tail][0] = (int16_t)tx; queue[tail][1] = (int16_t)ty; tail++;
+        }
+    static const int8_t sx[4] = { 1, -1, 0, 0 }, sy[4] = { 0, 0, 1, -1 };
+    while (head < tail) {
+        int cx = queue[head][0], cy = queue[head][1];
+        head++;
+        for (int d = 0; d < 4; d++) {
+            int nx = cx + sx[d], ny = cy + sy[d];
+            if (nx < ox || ny < oy || nx >= ox + wx || ny >= oy + wy) return 1;   // out of the window: out
+            uint8_t *m = &mark[(ny - oy) * W + nx - ox];
+            if (*m || !tb_free(map, size, nx, ny, bx, by, bs)) continue;
+            *m = 1;
+            queue[tail][0] = (int16_t)nx; queue[tail][1] = (int16_t)ny; tail++;
+        }
+    }
+    return 0;
+}
+// The arc keeps every way through the footprint, but not a neighbour's way out: a building whose free tiles lie where
+// the new one stands is shut in (the player's screenshot 2026-11-13: factories four deep, the inner ones walled in by
+// those placed after them). Each of the player's buildings on the ring keeps the free tiles round it it had, up to its
+// side plus two (its builders' and its new units' way out), and the new building's own free tiles reach TB_REACH tiles
+// out (a pocket among old buildings is no way out either).
+internal int tb_neighbours_ok(ee_map *map, int size, int x, int y, int s, ee_player *pl) {
+    ee_unit *seen[TB_NEAR];
+    int n = 0;
+    for (int ty = y - 1; ty <= y + s; ty++)
+        for (int tx = x - 1; tx <= x + s; tx++) {
+            if ((tx >= x && ty >= y && tx < x + s && ty < y + s) || tx < 0 || ty < 0 || tx >= size || ty >= size) continue;
+            ee_tile *tile = map_get_tiles(map)[ty * size + tx];
+            for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+                ee_unit *o = tilenode_get_object(node);
+                ee_unit_type *otd = o ? unit_get_type_data(o) : NULL;
+                ee_unit_stats *st = o ? unit_get_stats(o) : NULL;
+                if (!otd || unit_get_owner(o) != pl || (st && unit_stats_get_speed(st) > 0) || unit_lets_pass(o, g_reach.walker)) continue;
+                int k = 0;
+                while (k < n && seen[k] != o) k++;
+                if (k < n) continue;
+                if (n == TB_NEAR) return 0;   // a crowd of them: no spot to pack into
+                seen[n++] = o;
+                int x0, y0, x1, y1;
+                tb_footprint(map, size, o, tx, ty, &x0, &y0, &x1, &y1);
+                int before = 0, after = 0;
+                for (int ry = y0 - 1; ry <= y1 + 1; ry++)
+                    for (int rx = x0 - 1; rx <= x1 + 1; rx++) {
+                        if (rx >= x0 && rx <= x1 && ry >= y0 && ry <= y1) continue;
+                        if (!rm_tile_ok(map, size, rx, ry)) continue;
+                        before++;
+                        after += !(rx >= x && ry >= y && rx < x + s && ry < y + s);
+                    }
+                int want = (x1 - x0 + y1 - y0 + 2) / 2 + 2;
+                if (after < (before < want ? before : want)) return 0;
+                if (after < before && !tb_leads_out(map, size, x0, y0, x1, y1, x, y, s)) return 0;
+            }
+        }
+    return tb_leads_out(map, size, x, y, x + s - 1, y + s - 1, x, y, s);   // a pocket among old buildings is no way out either
+}
 // nothing near it that wants the room
 internal int tb_clear(ee_map *map, int size, int x, int y, int s) {
     int r = TB_CLEAR_DROP;
@@ -122,6 +214,7 @@ internal int tb_spot(ee_build_mgr *bm, ee_player *pl, int type, int *ox, int *oy
                 int score = touch * TB_TOUCH - r;
                 if ((found && score <= best) || !tb_clear(map, size, x, y, s) || !tb_row_ok(map, size, x, y, s)) continue;
                 if (raiders_near(pl, iv2(x, y), 12) || build_mgr_enemy_near(bm, x, y)) continue;
+                if (!tb_neighbours_ok(map, size, x, y, s, pl)) continue;
                 found = 1; best = score; best_r = r; best_touch = touch; *ox = x; *oy = y;
             }
     if (found && g_log) fprintf(g_log, "# packed: P%d at %.1f min: type %d size %d at %d,%d touching %d tiles, %d from the base\n",
@@ -136,11 +229,17 @@ internal void tb_layout(ee_player *pl, unsigned idx, uint32_t now) {
     if (cm) bm = civ_mgr_get_build_mgr(cm);
     if (!g_log || !bm || now / 1200000 == last[idx] / 1200000 || build_mgr_get_base_x(bm) == -10000) return;
     last[idx] = now;
-    int x[TB_LAYOUT], y[TB_LAYOUT], s[TB_LAYOUT], n = 0, count = 0;
+    int x[TB_LAYOUT], y[TB_LAYOUT], s[TB_LAYOUT], n = 0, count = 0, shut = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 8192; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
         if (n == TB_LAYOUT || !td || unit_get_hp(u) <= 0 || !tb_type(unit_type_get_id(td))) continue;
         x[n] = unit_get_x(u); y[n] = unit_get_y(u); s[n] = unit_type_get_size(td); n++;
+        // shut in: no way from the tiles round it out of the block
+        ee_map *map = game_map();
+        int size = map ? (int)map_get_size(map) : 0, x0, y0, x1, y1;
+        if (!size || x[n - 1] < 0 || y[n - 1] < 0 || x[n - 1] >= size || y[n - 1] >= size) continue;
+        tb_footprint(map, size, u, x[n - 1], y[n - 1], &x0, &y0, &x1, &y1);
+        shut += !tb_leads_out(map, size, x0, y0, x1, y1, 0, 0, 0);
     }
     int touching = 0, gaps = 0, most = 0;
     float dist = 0.0f;
@@ -158,6 +257,6 @@ internal void tb_layout(ee_player *pl, unsigned idx, uint32_t now) {
         dist += (float)d;
         if (d > most) most = d;
     }
-    fprintf(g_log, "# layout: P%u at %u min: %d buildings, %d touching, gap to the nearest mean %.1f, from the base mean %.1f, farthest %d\n",
-            idx, now / 60000, n, touching, n > 1 ? (float)gaps / (float)n : 0.0f, n ? dist / (float)n : 0.0f, most);
+    fprintf(g_log, "# layout: P%u at %u min: %d buildings, %d touching, %d shut in, gap to the nearest mean %.1f, from the base mean %.1f, farthest %d\n",
+            idx, now / 60000, n, touching, shut, n > 1 ? (float)gaps / (float)n : 0.0f, n ? dist / (float)n : 0.0f, most);
 }
