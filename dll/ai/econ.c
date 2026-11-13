@@ -1434,7 +1434,7 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
         uint8_t *list = resource_mgr_list_at(rm, r);
         for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
-            if (goal && goal_get_site(goal) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
+            if (goal && !strcmp(rtti_name(goal), "EEUGGather@@") && goal_get_site(goal) == f) return 1;   // the kind first: a smaller goal ends before the site
         }
     }
     return 0;
@@ -1675,7 +1675,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
             uint8_t *list = resource_mgr_list_at(rm, r);
             for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
                 ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
-                if (goal && goal_get_building(goal) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
+                if (goal && !strcmp(rtti_name(goal), "EEUGBuildRepair@@") && goal_get_building(goal) == site) { busy = 1; break; }
             }
         }
         if (busy) continue;

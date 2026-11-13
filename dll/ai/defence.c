@@ -1262,8 +1262,10 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         int nbl = 0;
         for (int k = 0; tower && k < s.nu && nbl < 8; k++) {
             ee_goal *g = unit_get_goal(s.eu[k]);
-            if (g && unit_get_hp(s.eu[k]) > 0 && (goal_get_building(g) == site || goal_get_building(g) == e) &&
-                !strcmp(rtti_name(g), "EEUGBuildRepair@@")) bl[nbl++] = s.eu[k];
+            // the goal's kind before its building: a smaller goal ends before +0x3C (one at the end of the heap's
+            // page faulted there, 2026-11-13)
+            if (g && unit_get_hp(s.eu[k]) > 0 && !strcmp(rtti_name(g), "EEUGBuildRepair@@") &&
+                (goal_get_building(g) == site || goal_get_building(g) == e)) bl[nbl++] = s.eu[k];
         }
         int guards = 0;
         for (int k = 0; k < s.nx; k++) guards += abs(s.ex[k] - x) <= 8 && abs(s.ey[k] - y) <= 8;
