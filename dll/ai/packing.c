@@ -27,6 +27,7 @@
 internal int can_place(ee_player *pl, int type, ivec2 p);    // defence.c
 internal int raiders_near(ee_player *pl, ivec2 p, int r);    // attack.c
 internal unsigned area_id(ivec2 p, int kind);                // forces.c
+internal int ring_blocks(ee_player *pl, int x, int y, int s);   // defence.c: on the town ring or beside it
 internal int g_tight_build = 0, g_v_tight_build = -1;
 // not the Airport (the player 2026-11-09: airports reaching into forests and mountains): its three runways lie beyond its
 // footprint, towards the map's centre, and only the game's own search (0x466235) tests the whole strip
@@ -214,6 +215,7 @@ internal int tb_spot(ee_build_mgr *bm, ee_player *pl, int type, int *ox, int *oy
                 int score = touch * TB_TOUCH - r;
                 if ((found && score <= best) || !tb_clear(map, size, x, y, s) || !tb_row_ok(map, size, x, y, s)) continue;
                 if (raiders_near(pl, iv2(x, y), 12) || build_mgr_enemy_near(bm, x, y)) continue;
+                if (ring_blocks(pl, x, y, s)) continue;   // the town ring's line stays free
                 if (!tb_neighbours_ok(map, size, x, y, s, pl)) continue;
                 found = 1; best = score; best_r = r; best_touch = touch; *ox = x; *oy = y;
             }

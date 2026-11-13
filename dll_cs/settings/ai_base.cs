@@ -854,10 +854,13 @@ class ai_base
         /// The game's own walls: the ring around the base its wall manager builds a segment at a time (in practice a stray
         /// piece with a gate) - its builders walk to the front one by one. 0 = off (the mod's AIs build none), 1 = as the game
         bool game_walls = false;
-        /// Enclose itself fully instead of a front (the player: a tower line with a wall is walked around): on an island of
-        /// its own a wall along the whole coast at the water's edge, so transports find nowhere to unload, and towers
-        /// packed along it; else a closed ring around the town with a gate on each side and towers inside it. Open by
-        /// the docks. 0 = off (default until measured)
+        /// A closed ring of walls around the town instead of a tower line with a wall in front (the player: such a line is
+        /// walked around, "a propper ring with gates and towers around the base"): eight straight sides a few tiles beyond
+        /// the town's buildings and the mines worked near them, the sea, cliffs and forest closing it where they stand,
+        /// a gate in the middle of each side, towers just inside - beside the gates first. A side the town grows up to
+        /// moves out, the old stretch stays as an inner wall with its gate. Built once enclose_citizens work. 0 = off
+        /// (default until measured)
+        bool base_ring = false;
         /// Towers first where the citizens work by the sea (the player: towers defend the resources inland and sink ships
         /// on the coast): on an island map each tower goes to the busiest place of work within a ship's reach of the sea
         /// that has fewer than this many towers by it, near the shore; the usual tower line after those. 0 = off (default
@@ -879,15 +882,19 @@ class ai_base
         /// ships' flat shots and a landing, the catapults and trebuchets fire over them (the player: "maybe they work
         /// better behind a wall"); the coast by a dock stays open. 0 = no wall (default until measured)
         bool shore_walls = false;
+        /// Enclose its island fully (the player: a tower line with a wall is walked around): on an island of its own a
+        /// wall along the whole coast at the water's edge, so transports find nowhere to unload, and towers packed along
+        /// it; open by the docks. 0 = off (default until measured)
         bool enclose = false;
-        /// With enclose: the ring only once the AI has this many citizens, the usual towers and front walls before - the
-        /// economy first (the ring from the start took most of the citizens off gathering: every Small Islands game lost)
+        /// With enclose or base_ring: the ring only once the AI has this many citizens, the usual towers before (with
+        /// enclose the front walls too) - the economy first (the ring from the start took most of the citizens off
+        /// gathering: every Small Islands game lost)
         [range(0, 400)]
         int enclose_citizens = 40;
-        /// With enclose: runs of wall (up to 12 pieces each) ordered every 20 s
+        /// With enclose or base_ring: runs of wall (up to 12 pieces each) ordered every 20 s
         [range(1, 4)]
         int enclose_runs = 1;
-        /// With enclose: a new run of wall only while fewer than this many ordered stand unfinished - a few builders at a
+        /// With enclose or base_ring: a new run of wall only while fewer than this many ordered stand unfinished - a few builders at a
         /// time, so the ring can start early (0 = no limit)
         [range(0, 8)]
         int enclose_in_flight = 0;

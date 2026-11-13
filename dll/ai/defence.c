@@ -162,11 +162,39 @@ internal int g_encl = 0, g_encl_from = 40, g_encl_runs = 1, g_encl_flight = 0, g
 // dock (a square, joining the coast's ring at both ends) - and a gate in the middle of its side towards the town once
 // that side stands: what lands in the pocket meets the gate.
 #define ENCL_POCKET 5
+// THE TOWN RING ([ai_base] base_ring, default 0 until measured; the player 2026-11-13: "right now its open lines and
+// messy, is it possible to plan a propper ring with gates and towers around the base? extending it once the base grew
+// enough with stuff worth protecting" - and his choices: the town and the mines worked near it inside, an outgrown side
+// moved out with the old stretch left standing as an inner wall, the ring only once the economy stands). An octagon
+// whose eight sides lie along the tiles and exactly diagonal (as the game lays a straight wall), each side RING_MARGIN
+// tiles beyond the farthest thing it holds on that side: the town's buildings within RING_TOWN of the base point (not
+// its towers - they stand on the ring's inside), and every mine its citizens work within RING_MINE of one of them. Its
+// wall goes on its border tiles of land: the sea, cliffs, a forest or a mine on the line close it where they stand (a
+// tree cut down leaves a free tile, walled at the next look). A side the town comes closer to than RING_MARGIN moves
+// out RING_GROW further than needed (not tile by tile); the stretch it leaves stays an inner wall, a gate in it. Gates:
+// a run of five wall pieces in the middle of each straight side along the tiles, and of a diagonal side of RING_DIAG_GATE
+// tiles or more. Towers 2 tiles inside: beside the gates first, then the corners, then along the sides. The ring's tiles
+// and those beside it are kept free of new buildings (the packing asks ring_blocks).
+#define RING_TOWN 30
+#define RING_MINE 8
+#define RING_LINK 8
+#define RING_MARGIN 4
+#define RING_GROW 8
+#define RING_PRESS 3
+#define RING_MAX 48
+#define RING_DIAG_GATE 12
+#define RING_BOX 128
+internal int g_ring = 0, g_v_ring = -1;
 internal struct encl {
-    ee_player *pl; uint32_t t, log_t; int island, r, tiles, walled;
+    ee_player *pl; uint32_t t, log_t; int island, tiles, walled;
     int nring; int16_t rx[ENCL_RING], ry[ENCL_RING];   // in build order
     int nslot; int16_t sx[96], sy[96];                 // tower spots
-    int ngate; struct { int16_t x, y; uint8_t dir, tries; } gate[4];
+    int ngate; struct { int16_t x, y; uint8_t dir, tries; } gate[16];
+    // the town ring (base_ring): its eight sides, kept from plan to plan - xmin, xmax, ymin, ymax, x+y min/max, x-y min/max
+    int town, has_rb, rb[8], grows; uint32_t wall_t;
+    struct { int16_t x, y; uint8_t dir, ok; } sgate[8];   // each side's gate, as the last plan placed it
+    int ninner; struct { int16_t x, y; uint8_t dir, tries; } inner[8];   // the gates of the stretches left inside
+    int box_x, box_y; uint8_t box[RING_BOX * RING_BOX / 8];   // the ring and the tiles beside it: no building there
     struct { int16_t ax, ay, bx, by; uint32_t t; } pend[24];   // runs ordered (their builders may not have started)
     unsigned runs, pieces, gates;
     int stone;   // the open ring's walls (the wall it builds now)
@@ -175,7 +203,7 @@ internal struct encl {
     unsigned skip_pend, skip_fire, skip_raid, skip_stone, skip_econ;   // DIAG: why the scans since the last log ordered nothing
 } g_encs[16];
 
-struct encl_scan { ee_player *pl; unsigned hc; int nb, enemy; ivec2 b[512]; int nd; ivec2 d[16]; int nfoe; ivec2 foe[8]; };
+struct encl_scan { ee_player *pl; unsigned hc; int nb, enemy; ivec2 b[2048]; uint8_t bs[2048], btower[2048], bw[2048]; int nd; ivec2 d[16]; int nfoe; ivec2 foe[8]; int neb; ivec2 eb[512]; };
 internal void encl_scan_unit(ee_unit *u, void *ctx) {   // own buildings and docks, an enemy building on the continent
     struct encl_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
@@ -190,8 +218,17 @@ internal void encl_scan_unit(ee_unit *u, void *ctx) {   // own buildings and doc
     ivec2 p = unit_get_tile(u);
     if (o == s->pl) {
         if (t == UT(B_DOCK) && s->nd < 16) s->d[s->nd++] = p;
-        if (s->nb < 512) s->b[s->nb++] = p;
-    } else if (player_get_index(o) > 0 && is_enemy(s->pl, o) && seen_by(u, s->pl) && area_id(p, 2) == s->hc) s->enemy = 1;
+        if (s->nb < 2048) {   // its tile is its footprint's corner (packing.c), size its side
+            int sz = unit_type_get_size(td);
+            s->bs[s->nb] = (uint8_t)(sz < 1 ? 1 : sz > 16 ? 16 : sz);
+            s->btower[s->nb] = (uint8_t)is_tower_type(t);
+            s->bw[s->nb] = (uint8_t)(t == UT(B_HOUSE) || t == UT(B_FARM) ? 1 : 3);   // the town ring: what a side moves out for
+            s->b[s->nb++] = p;
+        }
+    } else if (player_get_index(o) > 0 && is_enemy(s->pl, o) && seen_by(u, s->pl)) {
+        if (area_id(p, 2) == s->hc) s->enemy = 1;
+        if (s->neb < 512) s->eb[s->neb++] = p;   // the town ring keeps halfway to them
+    }
 }
 internal int encl_walled(int x, int y);
 internal int encl_land(ivec2 q, unsigned hc, int n) {   // land of the continent (a wall piece takes its tile out), off the map's edge
@@ -219,6 +256,243 @@ struct encl_key { int16_t x, y; int key; };
 internal int encl_key_cmp(const void *a, const void *b) {
     const struct encl_key *p = a, *q = b;
     return p->key != q->key ? (p->key < q->key ? -1 : 1) : p->x != q->x ? p->x - q->x : p->y - q->y;
+}
+internal int encl_on(unsigned idx) { return g_encl || PV(idx, g_v_ring, g_ring); }   // a ring of either kind
+// the town ring's sides: 0 xmin, 1 xmax, 2 ymin, 3 ymax, 4/5 x+y, 6/7 x-y - odd ones bound from above
+internal int ring_val(int k, int x, int y) { return k < 2 ? x : k < 4 ? y : k < 6 ? x + y : x - y; }
+internal int ring_in(const int *rb, int x, int y) {
+    return x >= rb[0] && x <= rb[1] && y >= rb[2] && y <= rb[3] && x + y >= rb[4] && x + y <= rb[5] && x - y >= rb[6] && x - y <= rb[7];
+}
+internal int ring_border(const int *rb, int x, int y) {   // inside, with a tile outside beside it (four ways: a closed line)
+    return ring_in(rb, x, y) && (!ring_in(rb, x + 1, y) || !ring_in(rb, x - 1, y) || !ring_in(rb, x, y + 1) || !ring_in(rb, x, y - 1));
+}
+internal int ring_sides(const int *rb, int x, int y) {   // the sides the tile lies on: 2 or more at a corner
+    int c = 0;
+    for (int k = 0; k < 8; k++) c += ring_val(k, x, y) == rb[k];
+    return c;
+}
+internal const uint8_t k_ring_dir[8] = { 2, 2, 1, 1, 3, 3, 4, 4 };   // gate_fits' dir along each side
+internal const int8_t k_ring_step[8][2] = { { 0, 1 }, { 0, 1 }, { 1, 0 }, { 1, 0 }, { 1, -1 }, { 1, -1 }, { 1, 1 }, { 1, 1 } };   // along it, x rising
+// a gate's five tiles centred at (x, y) on side k: all on the ring's land, none at a corner
+internal int ring_gate_ok(const int *rb, int k, int x, int y, unsigned hc, int n) {
+    for (int i = -2; i <= 2; i++) {
+        int tx = x + k_ring_step[k][0] * i, ty = y + k_ring_step[k][1] * i;
+        if (!ring_border(rb, tx, ty) || ring_val(k, tx, ty) != rb[k] || ring_sides(rb, tx, ty) != 1 || !encl_land(iv2(tx, ty), hc, n)) return 0;
+    }
+    return 1;
+}
+internal int ring_own_gate(ee_player *pl, int x, int y) {   // a gate piece of pl's on the tile
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    if (x < 0 || y < 0 || x >= n || y >= n) return 0;
+    ee_tile *tile = map_get_tiles(map)[y * n + x];
+    for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+        ee_unit *o = tilenode_get_object(node);
+        ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+        if (td && unit_get_owner(o) == pl && ut_role(unit_type_get_id(td), UTR_GATE)) return 1;
+    }
+    return 0;
+}
+// The town ring's plan (encl_plan, base_ring): its sides moved out where the town presses on them, its border tiles of
+// land into k, its gates and the box of tiles kept free.
+internal void ring_plan(ee_player *pl, unsigned idx, struct encl *e, struct encl_scan *s, ivec2 b, unsigned hc, int n,
+                        struct encl_key *k, int *pnk, uint32_t now) {
+    int need[8], mpress[8] = { 0 }, held = 0, mines = 0;
+    for (int j = 0; j < 8; j++) need[j] = j & 1 ? -0x7FFFFFFF : 0x7FFFFFFF;
+    // the town: the buildings (not towers) joined to the base point by gaps of at most RING_LINK tiles - an outlying
+    // settlement or a camp by a far mine is not its part
+    static uint8_t in[2048];
+    static int16_t town_q[2048];
+    int nq = 0;
+    for (int i = 0; i < s->nb; i++) {
+        int x0 = s->b[i].x, y0 = s->b[i].y, x1 = x0 + s->bs[i] - 1, y1 = y0 + s->bs[i] - 1;
+        int gx = b.x < x0 ? x0 - b.x : b.x > x1 ? b.x - x1 : 0, gy = b.y < y0 ? y0 - b.y : b.y > y1 ? b.y - y1 : 0;
+        in[i] = 0;
+        if (s->btower[i] || abs(x0 - b.x) > RING_TOWN || abs(y0 - b.y) > RING_TOWN || gx > RING_LINK || gy > RING_LINK) continue;
+        in[i] = 1; town_q[nq++] = (int16_t)i;
+    }
+    for (int h = 0; h < nq; h++) {
+        int a = town_q[h], ax1 = s->b[a].x + s->bs[a] - 1, ay1 = s->b[a].y + s->bs[a] - 1;
+        for (int i = 0; i < s->nb; i++) {
+            if (in[i] || s->btower[i] || abs(s->b[i].x - b.x) > RING_TOWN || abs(s->b[i].y - b.y) > RING_TOWN) continue;
+            int x0 = s->b[i].x, y0 = s->b[i].y, x1 = x0 + s->bs[i] - 1, y1 = y0 + s->bs[i] - 1;
+            int gx = x0 > ax1 ? x0 - ax1 : s->b[a].x > x1 ? s->b[a].x - x1 : 0, gy = y0 > ay1 ? y0 - ay1 : s->b[a].y > y1 ? s->b[a].y - y1 : 0;
+            if (gx > RING_LINK || gy > RING_LINK) continue;
+            in[i] = 1; town_q[nq++] = (int16_t)i;
+        }
+    }
+#define RING_HOLD(px, py) do { for (int j_ = 0; j_ < 8; j_++) { int v_ = ring_val(j_, (px), (py)); if (j_ & 1 ? v_ > need[j_] : v_ < need[j_]) need[j_] = v_; } } while (0)
+    RING_HOLD(b.x, b.y);
+    for (int i = 0; i < s->nb; i++) {   // the town's footprints
+        if (!in[i]) continue;
+        int x0 = s->b[i].x, y0 = s->b[i].y, x1 = x0 + s->bs[i] - 1, y1 = y0 + s->bs[i] - 1;
+        RING_HOLD(x0, y0); RING_HOLD(x1, y0); RING_HOLD(x0, y1); RING_HOLD(x1, y1);
+        held++;
+    }
+    void *cm = player_get_civ_mgr(pl);
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    for (int r = 4; rm && r < 7; r++) {   // the mines its citizens work near the town
+        uint8_t *list = resource_mgr_list_at(rm, r);
+        for (unsigned q = 0, first = deque_front(list), cnt = deque_count(list); q < cnt && q < 1024; q++) {
+            ee_unit *u = deque_at(list, first + q);
+            ee_goal *goal = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
+            ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
+            if (!site) continue;
+            ee_unit_type *td = unit_get_type_data(site);
+            int sz = td ? unit_type_get_size(td) : 1, x0 = unit_get_x(site), y0 = unit_get_y(site), by_town = 0;
+            if (sz < 1 || sz > 16) sz = 1;
+            for (int i = 0; i < s->nb && !by_town; i++)
+                by_town = in[i] && abs(s->b[i].x - x0) <= RING_MINE && abs(s->b[i].y - y0) <= RING_MINE;
+            if (!by_town) continue;
+            RING_HOLD(x0, y0); RING_HOLD(x0 + sz - 1, y0); RING_HOLD(x0, y0 + sz - 1); RING_HOLD(x0 + sz - 1, y0 + sz - 1);
+            mines++;
+            for (int j = 0; e->has_rb && j < 8; j++) {   // a worked mine by the wall or beyond: weight enough
+                int out = j & 1 ? 1 : -1, mg = j >= 4 ? 3 : 2, v = ring_val(j, x0, y0);
+                for (int c = 1; c < 4; c++) { int w = ring_val(j, x0 + (c & 1) * (sz - 1), y0 + (c >> 1) * (sz - 1)); if ((w - v) * out > 0) v = w; }
+                if ((v - (e->rb[j] - out * mg)) * out > 0) mpress[j] = RING_PRESS;
+            }
+        }
+    }
+#undef RING_HOLD
+    // a side moves out RING_GROW beyond what it holds (a diagonal side's numbers are x+y or x-y: half again as many for
+    // the same distance) - while no wall stands whenever the town comes within RING_MARGIN of it; once walls stand only
+    // when the ring is closed (or its first wall is 15 minutes old: a stretch moved out half built stays behind as a
+    // fragment), a full RING_GROW further (a step cut short by the enemy's limit left walls 5 tiles apart, three in a
+    // row), and for the town's weight there: RING_PRESS houses or fields, or a bigger building or a worked mine, within 2
+    // tiles of the wall or beyond (not for every house the game puts outside); the stretch it leaves keeps its gate as
+    // an inner wall's. Never beyond halfway from the town's edge to a seen enemy building in front of the side: two
+    // towns' rings don't cross.
+    if (e->walled && !e->wall_t) e->wall_t = now ? now : 1;
+    int building = e->walled && e->walled < e->nring - e->nring / 20 && now - e->wall_t < 900000;
+    for (int j = 0; j < 8 && !building; j++) {
+        int out = j & 1 ? 1 : -1, diag = j >= 4, mg = diag ? (RING_MARGIN * 3 + 1) / 2 : RING_MARGIN;
+        int want = need[j] + out * mg;
+        int lim = ring_val(j, b.x, b.y) + out * (diag ? RING_MAX * 3 / 2 : RING_MAX);
+        for (int i = 0; i < s->neb; i++) {   // the enemy in front of this side
+            int ev = ring_val(j, s->eb[i].x, s->eb[i].y), in_front = (ev - need[j]) * out > 0;
+            for (int q = 0; q < 8 && in_front; q++) {
+                if (q == j) continue;
+                int qm = (q >= 4 ? 3 : 2) * RING_MARGIN, qb = e->has_rb ? e->rb[q] : need[q] + (q & 1 ? qm : -qm);
+                in_front = q & 1 ? ring_val(q, s->eb[i].x, s->eb[i].y) <= qb + qm : ring_val(q, s->eb[i].x, s->eb[i].y) >= qb - qm;
+            }
+            int half = need[j] + (ev - need[j]) / 2;
+            if (in_front && (half - lim) * out < 0) lim = half;
+        }
+        if (e->has_rb && (want - e->rb[j]) * out <= 0) continue;   // the town is still inside its margin
+        if (e->has_rb && e->walled) {   // walls stand: only for the town's weight on this side
+            int press = 0, pz = diag ? 3 : 2;
+            for (int i = 0; i < s->nb; i++) {
+                if (!in[i]) continue;
+                int x0 = s->b[i].x, y0 = s->b[i].y, x1 = x0 + s->bs[i] - 1, y1 = y0 + s->bs[i] - 1, v = ring_val(j, x0, y0);
+                int v2 = ring_val(j, x1, y0), v3 = ring_val(j, x0, y1), v4 = ring_val(j, x1, y1);
+                if (out > 0) { if (v2 > v) v = v2; if (v3 > v) v = v3; if (v4 > v) v = v4; }
+                else { if (v2 < v) v = v2; if (v3 < v) v = v3; if (v4 < v) v = v4; }
+                if ((v - (e->rb[j] - out * pz)) * out > 0) press += s->bw[i];
+            }
+            if (press + mpress[j] < RING_PRESS) continue;
+        }
+        int to = want + out * (diag ? (RING_GROW * 3 + 1) / 2 : RING_GROW);
+        if ((to - lim) * out > 0) to = lim;
+        if (e->has_rb && (to - e->rb[j]) * out < (e->walled ? (diag ? (RING_GROW * 3 + 1) / 2 : RING_GROW) : 1)) continue;   // at its limit, or not a full step
+        if (e->has_rb && e->walled) {
+            e->grows++;
+            int walled = 0;   // the old stretch's gate, where its pieces stand
+            for (int i = -2; e->sgate[j].ok && i <= 2; i++)
+                walled += encl_walled(e->sgate[j].x + k_ring_step[j][0] * i, e->sgate[j].y + k_ring_step[j][1] * i);
+            if (walled >= 3 && e->ninner < 8) {
+                e->inner[e->ninner].x = e->sgate[j].x; e->inner[e->ninner].y = e->sgate[j].y;
+                e->inner[e->ninner].dir = e->sgate[j].dir; e->inner[e->ninner++].tries = 0;
+            }
+            if (g_log) fprintf(g_log, "# ring: P%u at %.1f min: side %d out from %d to %d (the town at %d)%s\n", idx, now / 60000.0,
+                               j, e->rb[j], to, need[j], walled >= 3 ? ", the old stretch stays with its gate" : "");
+        }
+        e->rb[j] = to;
+    }
+    e->has_rb = 1;
+    const int *rb = e->rb;
+    int nk = *pnk;
+    e->box_x = rb[0] - 1; e->box_y = rb[2] - 1;
+    memset(e->box, 0, sizeof e->box);
+    for (int x = rb[0]; x <= rb[1]; x++)
+        for (int y = rb[2]; y <= rb[3]; y++) {
+            if (!ring_border(rb, x, y)) continue;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++) {
+                    int bx = x + dx - e->box_x, by = y + dy - e->box_y;
+                    if (bx >= 0 && by >= 0 && bx < RING_BOX && by < RING_BOX) e->box[(by * RING_BOX + bx) >> 3] |= (uint8_t)(1 << (bx & 7));
+                }
+            if (nk < ENCL_RING && encl_land(iv2(x, y), hc, n)) { k[nk].x = (int16_t)x; k[nk++].y = (int16_t)y; }
+        }
+    *pnk = nk;
+    // the gates: in the middle of each side along the tiles, and of a long diagonal one - the run of five nearest it
+    for (int j = 0; j < 8; j++) {
+        static int16_t tx[512], ty[512];
+        int nt = 0;
+        e->sgate[j].ok = 0;
+        for (int x = rb[0]; x <= rb[1]; x++)
+            for (int y = rb[2]; y <= rb[3] && nt < 512; y++)
+                if (ring_val(j, x, y) == rb[j] && ring_border(rb, x, y)) { tx[nt] = (int16_t)x; ty[nt++] = (int16_t)y; }
+        if (nt < 5 || (j >= 4 && nt < RING_DIAG_GATE)) continue;
+        int have = -1;   // a gate of its own on the side already: that one (the side's middle moves when its ends do)
+        for (int i = 0; i < nt && have < 0; i++) if (ring_own_gate(pl, tx[i], ty[i])) have = i;
+        if (have >= 0) {
+            int i = have + 2 < nt ? have + 2 : have;
+            e->sgate[j].x = tx[i]; e->sgate[j].y = ty[i]; e->sgate[j].dir = k_ring_dir[j]; e->sgate[j].ok = 1;
+            continue;
+        }
+        for (int off = 0; off <= nt / 2 && !e->sgate[j].ok; off++)
+            for (int sg = -1; sg <= 1 && !e->sgate[j].ok; sg += 2) {
+                int i = nt / 2 + sg * off;
+                if (i < 0 || i >= nt || !ring_gate_ok(rb, j, tx[i], ty[i], hc, n)) continue;
+                e->sgate[j].x = tx[i]; e->sgate[j].y = ty[i]; e->sgate[j].dir = k_ring_dir[j]; e->sgate[j].ok = 1;
+            }
+        if (!e->sgate[j].ok || e->ngate >= 16) continue;
+        e->gate[e->ngate].x = e->sgate[j].x; e->gate[e->ngate].y = e->sgate[j].y;
+        e->gate[e->ngate].dir = e->sgate[j].dir; e->gate[e->ngate++].tries = 0;
+    }
+    for (int i = 0; i < e->ninner && e->ngate < 16; i++) {
+        e->gate[e->ngate].x = e->inner[i].x; e->gate[e->ngate].y = e->inner[i].y;
+        e->gate[e->ngate].dir = e->inner[i].dir; e->gate[e->ngate++].tries = 0;
+    }
+    static uint32_t logged[16];
+    if (g_log && (!logged[idx] || now - logged[idx] >= 300000)) {
+        logged[idx] = now ? now : 1;
+        fprintf(g_log, "# ring: P%u at %.1f min: x %d..%d, y %d..%d, x+y %d..%d, x-y %d..%d around %d buildings and %d mine workers, %d sides moved out, %d gates (%d inner)\n",
+                idx, now / 60000.0, rb[0], rb[1], rb[2], rb[3], rb[4], rb[5], rb[6], rb[7], held, mines, e->grows, e->ngate, e->ninner);
+    }
+}
+// the town ring's tower spots, 2 tiles inside: beside its gates, at its corners, then along it (after its tiles are
+// in e->rx / e->ry)
+internal void ring_slots(struct encl *e, ivec2 b, unsigned hc, int n) {
+    static int16_t cx[ENCL_RING + 64], cy[ENCL_RING + 64];
+    int nc = 0;
+    for (int g = 0; g < e->ngate; g++) {
+        int j = 0;
+        while (j < 8 && k_ring_dir[j] != e->gate[g].dir) j++;
+        for (int sg = -1; j < 8 && sg <= 1; sg += 2) { cx[nc] = (int16_t)(e->gate[g].x + sg * 4 * k_ring_step[j][0]); cy[nc++] = (int16_t)(e->gate[g].y + sg * 4 * k_ring_step[j][1]); }
+    }
+    for (int i = 0; i < e->nring; i++) if (ring_sides(e->rb, e->rx[i], e->ry[i]) >= 2) { cx[nc] = e->rx[i]; cy[nc++] = e->ry[i]; }
+    for (int i = 0; i < e->nring && nc < ENCL_RING + 64; i++) { cx[nc] = e->rx[i]; cy[nc++] = e->ry[i]; }
+    for (int i = 0; i < nc && e->nslot < 96; i++) {
+        int sx = 0, sy = 0, ok = 0;
+        for (int d = 2; d <= 3 && !ok; d++) {
+            sx = cx[i] + d * (b.x > cx[i] ? 1 : b.x < cx[i] ? -1 : 0); sy = cy[i] + d * (b.y > cy[i] ? 1 : b.y < cy[i] ? -1 : 0);
+            ok = ring_in(e->rb, sx, sy) && !ring_border(e->rb, sx, sy) && encl_land(iv2(sx, sy), hc, n) && !encl_walled(sx, sy);
+        }
+        for (int j = 0; j < e->nslot && ok; j++) ok = abs(e->sx[j] - sx) >= 6 || abs(e->sy[j] - sy) >= 6;
+        if (ok) { e->sx[e->nslot] = (int16_t)sx; e->sy[e->nslot++] = (int16_t)sy; }
+    }
+}
+// packing.c: footprint (x, y, s) on the town ring or a tile beside it
+internal int ring_blocks(ee_player *pl, int x, int y, int s) {
+    struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
+    if (!e || e->pl != pl || !e->town || !e->nring) return 0;
+    for (int ty = y; ty < y + s; ty++)
+        for (int tx = x; tx < x + s; tx++) {
+            int bx = tx - e->box_x, by = ty - e->box_y;
+            if (bx >= 0 && by >= 0 && bx < RING_BOX && by < RING_BOX && (e->box[(by * RING_BOX + bx) >> 3] >> (bx & 7) & 1)) return 1;
+        }
+    return 0;
 }
 internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_t now) {
     struct encl *e = &g_encs[idx];
@@ -294,6 +568,7 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
         }
         e->sheltered = e->island && g_encl_safe > 0 && e->safe >= g_encl_safe;
         if (e->sheltered) e->island = 0, nk = 0;   // no coast ring: enough room out of the ships' reach
+        if (!g_encl) e->island = 0;   // base_ring alone: its land is a town's like any other
         for (int h = 0; e->island && h < qn && nk < ENCL_RING; h++) {   // the coast
             ivec2 q = iv2(qx[h], qy[h]);
             if (encl_land(q, hc, n) && encl_coast(q)) { k[nk].x = (int16_t)q.x; k[nk++].y = (int16_t)q.y; }
@@ -315,36 +590,8 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
             e->gate[e->ngate].dir = (uint8_t)(abs(gx) >= abs(gy) ? 2 : 1); e->gate[e->ngate++].tries = 0;
         }
     }
-    if (!e->island && !e->sheltered) {   // the octagon around the town (not on land with safe room enough)
-        int reach = 0;
-        for (int i = 0; i < s.nb; i++) {
-            int dx = abs(s.b[i].x - b.x), dy = abs(s.b[i].y - b.y), d = dx > dy ? dx : dy;
-            int dd = (int)ceilf((float)(dx + dy) / 1.414f);
-            if (dd > d) d = dd;
-            if (d <= 30 && d > reach) reach = d;
-        }
-        int r = reach + 3;
-        if (r < g_def_dist + 2) r = g_def_dist + 2;
-        if (r > 32) r = 32;
-        if (r < e->r) r = e->r;
-        e->r = r;
-        int sd = (int)lroundf((float)r * 1.414f);
-#define ENCL_IN(dx, dy) (abs(dx) <= r && abs(dy) <= r && abs(dx) + abs(dy) <= sd)
-        for (int dx = -r; dx <= r; dx++)
-            for (int dy = -r; dy <= r && nk < ENCL_RING; dy++) {
-                if (!ENCL_IN(dx, dy) || (ENCL_IN(dx + 1, dy) && ENCL_IN(dx - 1, dy) && ENCL_IN(dx, dy + 1) && ENCL_IN(dx, dy - 1))) continue;
-                ivec2 q = iv2(b.x + dx, b.y + dy);
-                if (encl_land(q, hc, n)) { k[nk].x = (int16_t)q.x; k[nk++].y = (int16_t)q.y; }
-            }
-#undef ENCL_IN
-        static const int side[4][3] = { { 1, 0, 2 }, { -1, 0, 2 }, { 0, 1, 1 }, { 0, -1, 1 } };   // gate_fits' dir along the side
-        for (int i = 0; i < 4; i++) {
-            ivec2 q = iv2(b.x + side[i][0] * r, b.y + side[i][1] * r);
-            if (!encl_land(q, hc, n)) continue;
-            e->gate[e->ngate].x = (int16_t)q.x; e->gate[e->ngate].y = (int16_t)q.y;
-            e->gate[e->ngate].dir = (uint8_t)side[i][2]; e->gate[e->ngate++].tries = 0;
-        }
-    }
+    e->town = !e->island && PV(idx, g_v_ring, g_ring);   // the town ring (base_ring): where no coast ring is built
+    if (e->town) ring_plan(pl, idx, e, &s, b, hc, n, k, &nk, now);
     int m = 0;   // open at the docks; the rest by distance to the nearest own building
     for (int i = 0; i < nk; i++) {
         int open = 0, best = 0x7FFFFFFF;
@@ -362,7 +609,7 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
     for (int i = 0; i < m; i++) {
         e->rx[i] = k[i].x; e->ry[i] = k[i].y;
         walled += encl_walled(k[i].x, k[i].y);
-        if (e->nslot >= 96) continue;
+        if (e->nslot >= 96 || e->town) continue;   // the town ring's spots: ring_slots, below
         // a tower spot: inward towards the base point (on the coast 1 or 2 tiles, the first off the ring - asking for a
         // tile without water beside it left 1-2 spots on a small island's 40-tile coast)
         int sx = 0, sy = 0, ok = 0;
@@ -375,6 +622,7 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
         if (ok) { e->sx[e->nslot] = (int16_t)sx; e->sy[e->nslot++] = (int16_t)sy; }
     }
     e->nring = m; e->walled = walled;
+    if (e->town) ring_slots(e, b, hc, n);
     {
         static const enum ut_name wl[] = { UT_WALL_LINE };
         int wt = 0;
@@ -439,7 +687,7 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
 internal int def_slot(struct def_plan *p, int i, int *x, int *y) {
     static const int first[3] = { 0, -1, 1 }, more[2] = { -2, 2 };
     struct encl *e = &g_encs[(p - g_plan) & 15];
-    if (g_encl && e->pl == p->pl && e->nslot && e->ready) {
+    if (encl_on((unsigned)(p - g_plan) & 15) && e->pl == p->pl && e->nslot && e->ready) {
         if (i < e->nslot) { *x = e->sx[i]; *y = e->sy[i]; return 1; }
         i -= e->nslot;
         if (i < p->nout) { *x = p->out[i][0]; *y = p->out[i][1]; return 1; }
@@ -544,7 +792,7 @@ internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
     struct def_plan *p = &g_plan[idx];
     struct def_scan *s = &g_scan;
     if (s->pl != pl) { p->t = now - 60000; def_refresh(pl, idx, now); }   // the scan belongs to another AI
-    if (g_encl) encl_plan(pl, idx, p, now);
+    if (encl_on(idx)) encl_plan(pl, idx, p, now);
     int x, y;
     threat_refresh(pl, now);   // slots inside known enemy defences would cost the builders (attack.c)
     if (g_coast_towers && navy_islands(idx) && coast_spot(pl, idx, p, s, type, now, ox, oy)) return 1;
@@ -611,11 +859,11 @@ internal int gate_fits(ee_player *pl, int x, int y, int dir) {
 internal int sf_stone(ee_player *pl);   // site forts: the stone the fort being built still needs
 internal int encl_stone(ee_player *pl) {   // with the site forts' (econ.c staffs stone for it)
     struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
-    return (g_encl && e && e->pl == pl && e->nring && e->ready ? e->stone + 200 : 0) + sf_stone(pl);   // the ring not before its walls start
+    return (e && encl_on((unsigned)player_get_index(pl) & 15) && e->pl == pl && e->nring && e->ready ? e->stone + 200 : 0) + sf_stone(pl);   // the ring not before its walls start
 }
 internal int encl_owed(ee_player *pl) {   // the open walls' stone alone: the extra towers wait for it
     struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
-    return g_encl && e && e->pl == pl ? e->stone : 0;
+    return e && encl_on((unsigned)player_get_index(pl) & 15) && e->pl == pl ? e->stone : 0;
 }
 internal int encl_ring_has(struct encl *e, int x, int y) {
     for (int i = 0; i < e->nring; i++) if (e->rx[i] == x && e->ry[i] == y) return 1;
@@ -909,7 +1157,7 @@ internal int sf_stone(ee_player *pl) {   // the towers still to order and three 
 // Walls: per AI every 20 s (econ_tick). Best wall type the player can build now (0x555710: available, affordable).
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    if (!g_def || (!g_def_walls && !g_encl) || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 20000)) return;
+    if (!g_def || (!g_def_walls && !g_encl && !g_ring && g_v_ring <= 0) || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 20000)) return;
     last[idx] = now;
     def_refresh(pl, idx, now);
     struct def_plan *p = &g_plan[idx];
@@ -938,9 +1186,9 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
     site_forts_tick(pl, idx, bm, wm, stock, now);
-    if (g_encl) encl_walls(pl, idx, p, wm, stock, now);
-    if (g_encl && g_encs[idx].pl == pl && g_encs[idx].ready) return;   // the ring instead of the fronts' walls
-    if (!g_def_walls) return;
+    if (encl_on(idx)) encl_walls(pl, idx, p, wm, stock, now);
+    if (encl_on(idx) && g_encs[idx].pl == pl && g_encs[idx].ready) return;   // the ring instead of the fronts' walls
+    if (!g_def_walls || PV(idx, g_v_ring, g_ring)) return;   // the town ring: no open lines before it either
     for (int k = 0; k < p->nf; k++) {   // the gate, once the wall's middle stands finished: the newest it can build
         struct front *f = &p->f[k];
         if (!f->gdir || f->gtries >= 20 || !gate_fits(pl, f->gx, f->gy, f->gdir)) continue;
@@ -1779,7 +2027,7 @@ internal void cmd_basemap(char *out, const char *args) {
         }
     grid_each(basemap_unit, &m);
     unsigned pi = (unsigned)p & 15;   // planned tower slots of the defence layout: o; the enclosing ring: ,
-    for (int i = 0; g_encl && g_encs[pi].pl == pl && i < g_encs[pi].nring; i++) {
+    for (int i = 0; encl_on(pi) && g_encs[pi].pl == pl && i < g_encs[pi].nring; i++) {
         int gx = g_encs[pi].rx[i] - m.x0 + r, gy = g_encs[pi].ry[i] - m.y0 + r;
         if (gx >= 0 && gy >= 0 && gx < w && gy < w && g[gy * w + gx] == '.') g[gy * w + gx] = ',';
     }
@@ -1797,6 +2045,63 @@ internal void cmd_basemap(char *out, const char *args) {
         line[2 * w] = 0;
         REPLY("%s\n", line);
     }
+}
+// `ringmap P [r]`: the ground round AI player P's base point for a picture of its walls (scripts/results/ringmap.py),
+// one character a tile, a row per y: . walkable, ~ water, ^ other ground no citizen walks, t tree, m mine or other
+// resource, W its wall, w its wall going up, G its gate, T its tower, C its Town Center, B its other buildings, E another
+// player's building or wall, x something else in the way, , its ring's tile still open, o a tower spot of its ring
+internal void cmd_ringmap(char *out, const char *args) {
+    int p = 0, r = 50;
+    sscanf(args, "%d %d", &p, &r);
+    if (r < 5) r = 5;
+    if (r > 56) r = 56;
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    if (!bm || !n || build_mgr_get_base_x(bm) == -10000) { REPLY("error: no AI player %d with a base\n", p); return; }
+    int x0 = build_mgr_get_base_x(bm) - r, y0 = build_mgr_get_base_y(bm) - r, w = 2 * r + 1;
+    struct encl *e = &g_encs[(unsigned)p & 15];
+    int ring = encl_on((unsigned)p & 15) && e->pl == pl;
+    int nx = 0, xt[8], xc[8];   // what the x tiles hold
+    REPLY("P%d ringmap %d,%d %d (x right, y down)\n", p, x0, y0, w);
+    for (int y = y0; y < y0 + w; y++) {
+        char line[2 * 56 + 3];
+        for (int x = x0; x < x0 + w; x++) {
+            char c = '^';
+            if (x >= 0 && y >= 0 && x < n && y < n) {
+                ee_tile *tile = map_get_tiles(map)[y * n + x];
+                c = rm_tile_ok(map, n, x, y) ? '.' : area_id(iv2(x, y), 1) ? '~' : '^';
+                for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+                    ee_unit *o = tilenode_get_object(node);
+                    ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+                    ee_unit_stats *st = o ? unit_get_stats(o) : NULL;
+                    if (!td || (st && unit_stats_get_speed(st) > 0) || unit_get_hp(o) <= 0) continue;
+                    int t = unit_type_get_id(td), cls = unit_type_get_class_id(td);
+                    ee_player *ow = unit_get_owner(o);
+                    ee_unit *ph = unit_get_physics(o);
+                    float fr, fa;
+                    char ch = cls == CLS_RESOURCE ? (unit_type_get_resource_type(td) == 3 ? 't' : 'm')
+                            : ow != pl ? (ow && player_get_index(ow) > 0 && (cls == CLS_BUILDING || cls == CLS_FORTRESS || unit_type_get_is_wall(td)) ? 'E' : 0)
+                            : unit_type_get_is_wall(td) ? (ut_role(t, UTR_GATE) ? 'G' : ph && unit_get_finished(ph) ? 'W' : 'w')
+                            : defence_stats(o, &fr, &fa) ? 'T' : UT_IN(t, UT_TOWNS) ? 'C' : (cls == CLS_BUILDING || cls == CLS_FORTRESS) ? 'B' : 0;
+                    if (ch) { c = ch; break; }
+                    if (c == '^') {   // in the way, none of the above: x, the first few named after the map
+                        c = 'x';
+                        if (nx < 8) { xt[nx] = t; xc[nx++] = cls; }
+                    }
+                }
+            }
+            if (ring && c == '.' && encl_ring_has(e, x, y)) c = ',';
+            line[x - x0] = c;
+        }
+        line[w] = 0;
+        REPLY("%s\n", line);
+    }
+    for (int i = 0; ring && i < e->nslot; i++) REPLY("slot %d,%d\n", e->sx[i], e->sy[i]);
+    for (int i = 0; ring && i < e->ngate; i++) REPLY("gate %d,%d dir %d\n", e->gate[i].x, e->gate[i].y, e->gate[i].dir);
+    for (int i = 0; i < nx; i++) REPLY("x type %d class %d\n", xt[i], xc[i]);
 }
 
 
@@ -1861,7 +2166,7 @@ internal void __thiscall hook_wall_update(ee_wall_mgr *wm, uint32_t now) {
     }
     wall_mgr_update(wm, now);
 }
-internal void defence_install(void) {
+internal void defence_install(const char *autotest_ini) {
     g_game_walls = g_set_ai[1].game_walls;
     if (!patch_wall_update(hook_wall_update) && g_log) fprintf(g_log, "# defence: the wall manager's update not hooked - the game's walls stay\n");
     g_def = g_set_ai[1].defence_layout;
@@ -1869,6 +2174,8 @@ internal void defence_install(void) {
     g_def_walls = g_set_ai[1].defence_walls;
     g_def_more = g_set_ai[1].defence_towers;
     g_encl = g_set_ai[1].enclose;
+    g_ring = g_set_ai[1].base_ring;
+    if (autotest_ini) g_v_ring = ini_int("autotest", "v_base_ring", -1, autotest_ini);
     g_coast_towers = g_set_ai[1].coast_towers;
     g_site_forts = g_set_ai[1].site_forts;
     g_shore_guns = g_set_ai[1].shore_guns;
@@ -1896,7 +2203,7 @@ internal void defence_install(void) {
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d enclose=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_encl, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d enclose=%d base_ring=%d/%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_encl, g_ring, g_v_ring, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);
 }
 
 // ANTI-AIR ([ai_base] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran

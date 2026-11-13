@@ -680,7 +680,7 @@ internal void install(HMODULE self) {
     landing_install();
     navy_install(g_autotest ? g_ini : NULL);
     intel_install(g_autotest ? g_ini : NULL);
-    defence_install();
+    defence_install(g_autotest ? g_ini : NULL);
     counter_fire_install();
     chat_install();
     persona_install(g_autotest ? g_ini : NULL);

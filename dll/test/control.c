@@ -74,6 +74,7 @@ internal void cmd_epochup(char *out, const char *args);
 internal void cmd_lineup(char *out, const char *args);
 internal void cmd_rlist(char *out, const char *args);
 internal void cmd_basemap(char *out, const char *args);
+internal void cmd_ringmap(char *out, const char *args);   // defence.c: the ground round a base for a picture
 internal void cmd_defence(char *out, const char *args);
 internal void cmd_tinfo(char *out, const char *args);
 internal void cmd_navy(char *out, const char *args);
@@ -457,6 +458,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "lineup")) cmd_lineup(out, args);
     else if (!strcmp(verb, "rlist")) cmd_rlist(out, args);
     else if (!strcmp(verb, "basemap")) cmd_basemap(out, args);
+    else if (!strcmp(verb, "ringmap")) cmd_ringmap(out, args);
     else if (!strcmp(verb, "defence")) cmd_defence(out, args);
     else if (!strcmp(verb, "tinfo")) cmd_tinfo(out, args);
     else if (!strcmp(verb, "navy")) cmd_navy(out, args);
