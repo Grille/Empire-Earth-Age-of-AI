@@ -260,3 +260,10 @@ middle; a mine and the ground 5 steps round it stay in one territory (the player
 has built there. Nothing of the AI asks it yet: `overlay territories` draws it, the pipe's `territories` lists and
 resizes it (docs/testing.md). Meant to replace the separate map scans of expand.c (islands), fronts.c (cells) and the
 garrisons, one user at a time.
+
+The first user (ai/territories.c, `territory_shelter`, 2026-11-14, off): each AI rates its territories from what it
+sees - enemy land soldiers in or within 8 tiles of one against its own soldiers and defences there - and where the
+guard loses, the citizens there go into a Fortress on that land or to a drop site in a safe territory, and no site
+there is given out. Measured over 192 games on island maps: citizens killed -19% (at the outposts up to -46%), the
+army at 60 minutes no larger (a few soldiers fewer, within the noise). A Fortress at the outposts (the test level 2)
+costs workers and comes too late: most outpost citizens die within minutes of the landing, before anything stands.

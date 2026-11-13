@@ -1055,6 +1055,7 @@ internal int g_bunkers;   // bunker.c: citizens under fire into a fortress
 internal void bk_refresh(ee_player *pl, unsigned pi);
 internal int bk_shelter(ee_player *pl, ee_unit *u);
 internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now);
+internal int bk_shelter_in(ee_player *pl, ee_unit *u, int force, int reach);
 internal void bk_build(ee_player *pl, unsigned pi, uint32_t now);
 internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
 internal void town_guards_install(void);
@@ -1126,6 +1127,17 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                     }
                 }
                 continue;
+            }
+            if (unit_get_x(u) >= 0 && tv_unsafe(idx, unit_get_x(u), unit_get_y(u))) {   // its territory is being lost (territories.c)
+                ivec2 at = unit_get_tile(u), rf;
+                int in = g_bunkers ? bk_shelter_in(pl, u, 1, TV_REACH) : 0;   // into a fortress on its land
+                if (in) { sheltered++; if (in > 1) tv_count(idx, 0); continue; }
+                if (tv_refuge(pl, idx, at, &rf)) {   // else to a drop site in a territory that is not
+                    float fx = (float)rf.x + 0.5f, fy = (float)rf.y + 0.5f;
+                    int there = ivec2_dist2(at, rf) <= 16 || (goal && goal_is_location(goal) && fabsf(goal_get_dest_x(goal) - fx) < 2 && fabsf(goal_get_dest_y(goal) - fy) < 2);
+                    if (!there && unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) tv_count(idx, 1);
+                    continue;
+                }
             }
             if (!goal) continue;
             const char *gn = rtti_name(goal);

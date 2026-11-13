@@ -126,6 +126,7 @@ internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     }
     return n;
 }
+internal int expand_building(unsigned idx, ee_unit *b);   // expand.c
 struct bk_own { ee_player *pl; int nf, nall; ee_unit *f[8], *all[8]; int nw; ee_unit *w[256]; };
 internal ee_unit *bk_walking_into(ee_unit *u) {   // the holder unit u walks into (its load goal's part), else NULL
     ee_goal *g = unit_get_goal(u);
@@ -139,7 +140,7 @@ internal void bk_own_unit(ee_unit *u, void *ctx) {   // finished ones (f) and fo
     if (h && o->nw < 256) o->w[o->nw++] = h;
     if (bk_capacity(u) <= 0) return;
     ee_unit *bs = unit_get_physics(u);
-    if (o->nall < 8) o->all[o->nall++] = u;
+    if (o->nall < 8 && !expand_building((unsigned)player_get_index(o->pl) & 15, u)) o->all[o->nall++] = u;   // an outpost's is its own to build, and no fortress of the base's count
     if (bs && unit_get_finished(bs) && o->nf < 8) o->f[o->nf++] = u;
 }
 internal void bk_refresh(ee_player *pl, unsigned pi) {   // the player's fortresses (each pass of citizens_safety, every 4 s)
@@ -166,23 +167,32 @@ internal void bk_refresh(ee_player *pl, unsigned pi) {   // the player's fortres
     memcpy(g_bk[pi].f, o.f, sizeof o.f);
     memset(g_bk[pi].nq, 0, sizeof g_bk[pi].nq);
 }
-// citizen u is under fire: queued for the nearest fortress with room within 15 tiles - 1 if so
-internal int bk_shelter(ee_player *pl, ee_unit *u) {
+internal unsigned bk_land_of(ivec2 p) {   // the land a building stands on (its own tile may name none)
+    unsigned a = area_id(p, 2);
+    for (int d = 0; d < 8 && !a; d++) a = area_id(iv2(p.x + 3 * k_rm_dx[d], p.y + 3 * k_rm_dy[d]), 2);
+    return a;
+}
+// citizen u is under fire: queued for the nearest fortress with room within reach tiles - 2 if so, 1 on its way into
+// one already. force: whether under fire or not, a fortress on its own land (territories.c: its territory is being lost)
+internal int bk_shelter_in(ee_player *pl, ee_unit *u, int force, int reach) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     if (!g_bunkers || !g_bk[pi].nf) return 0;
-    int ux = unit_get_x(u), uy = unit_get_y(u), best = -1, bd = 15 * 15 + 1;
+    int ux = unit_get_x(u), uy = unit_get_y(u), best = -1, bd = reach * reach + 1;
+    unsigned land = force ? area_id(iv2(ux, uy), 2) : 0;
     ee_unit *h = bk_walking_into(u);   // on its way into one of them already (the 4 s passes queued it again and again:
     for (int k = 0; h && k < g_bk[pi].nf; k++) if (g_bk[pi].f[k] == h) return 1;   // the fortress re-ordered, over-filled)
-    if (bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, iv2(ux, uy), 8)) return 0;   // not under fire right now
+    if (!force && bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, iv2(ux, uy), 8)) return 0;   // not under fire right now
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *f = g_bk[pi].f[k];
         int d = ivec2_dist2(unit_get_tile(f), iv2(ux, uy));
+        if (land && bk_land_of(unit_get_tile(f)) != land) continue;
         if (d < bd && !g_bk[pi].store[k] && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = d; best = k; }
     }
     if (best < 0) return 0;
     g_bk[pi].q[best][g_bk[pi].nq[best]++] = u;
-    return 1;
+    return 2;
 }
+internal int bk_shelter(ee_player *pl, ee_unit *u) { return bk_shelter_in(pl, u, 0, 15); }
 internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queued citizens walk in; quiet fortresses let them out
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *f = g_bk[pi].f[k];
@@ -201,6 +211,7 @@ internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queu
         }
         if (!g_bk[pi].shelter[k]) continue;   // the reserve's soldiers only: bk_reserve_tick
         if (bk_hurt_recent(pi, fx, fy, 10, 45000) || raiders_near(pl, iv2(fx, fy), 10)) { g_bk[pi].quiet_t[k] = 0; continue; }
+        if (tv_unsafe(pi, fx, fy)) { g_bk[pi].quiet_t[k] = 0; tv_count(pi, 3); continue; }   // its territory still being lost (territories.c)
         if (!g_bk[pi].quiet_t[k]) { g_bk[pi].quiet_t[k] = now ? now : 1; continue; }
         if (now - g_bk[pi].quiet_t[k] < 8000) continue;   // two quiet looks
         if (bk_unload(f)) {

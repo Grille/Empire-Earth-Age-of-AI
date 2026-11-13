@@ -10,6 +10,11 @@
 internal int g_site_max_dist = 20;   // tiles from the base, ageofai.ini [ai_base] site_max_distance (econ.c: the wild food counted)
 
 internal int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
+internal int tv_unsafe(unsigned idx, int x, int y);   // territories.c: the tile's territory is being lost for that AI
+internal int tv_refuge(ee_player *pl, unsigned idx, ivec2 p, ivec2 *out);
+internal void tv_count(unsigned idx, int what);
+internal int tv_outpost_fortress(unsigned idx);
+#define TV_REACH 30               // a fortress this near takes the citizens of a territory being lost
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);   // attack.c: res 2 food .. 6 iron
 internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit);   // food.c (food_plan NEAR)
 internal unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
@@ -132,6 +137,10 @@ internal int nearest_drop(ee_player *pl, ivec2 p, int food, ivec2 *out) {   // i
 }
 internal void *refuse_danger(ee_resource_mgr *rm, void *site, int food, int res) {
     ee_player *pl = resource_mgr_player(rm);
+    if (site && pl && tv_unsafe((unsigned)player_get_index(pl) & 15, unit_get_x((ee_unit *)site), unit_get_y((ee_unit *)site))) {   // no site in a territory being lost
+        tv_count((unsigned)player_get_index(pl) & 15, 2);
+        return NULL;
+    }
     if (!site || !site_danger_res(pl, site, food, res)) return site;
     g_site_refused[(unsigned)player_get_index(pl) & 15]++;
     return NULL;

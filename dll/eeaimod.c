@@ -105,6 +105,8 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now);   // ai/ai_overlay.c
 internal void armies_new_game(int from_save);
 internal void garrison_tick(ee_player *pl, uint32_t now);   // garrison.c: settlement upgrades with spare citizens
 internal void garrison_new_game(void);
+internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now);   // territories.c: the territories as an AI sees them
+internal void territories_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
 internal void skirmish_tick(ee_player *pl, uint32_t now);   // skirmish.c: small parties of long-range units at a position the force can't take
@@ -240,6 +242,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     if (pl && !is_vanilla(pl)) garrison_tick(pl, now);
     if (pl && !is_vanilla(pl)) airstrike_tick(pl, now);
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
+    if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
@@ -376,6 +379,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     stage_new_game();
     armies_new_game(mode == 2);
     garrison_new_game();
+    territories_new_game();
     airstrike_new_game();
     skirmish_new_game();
     spoils_new_game();
@@ -448,6 +452,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/army_view.c"
 #include "ai/armies.c"
 #include "ai/garrison.c"
+#include "ai/territories.c"   // the territories as an AI sees them: the citizens of one being lost
 #include "ai/airstrike.c"
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
@@ -682,6 +687,7 @@ internal void install(HMODULE self) {
     stage_install(g_autotest ? g_ini : NULL);
     armies_install(g_autotest ? g_ini : NULL);
     garrison_install(g_autotest ? g_ini : NULL);
+    territories_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);
     spoils_install();

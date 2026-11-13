@@ -292,6 +292,12 @@ class ai_base
         /// it a Capitol, which takes up to 50. Each citizen inside adds to the stone, gold and iron dropped there from mines
         /// within 4.5 tiles (+25% at 5, +50% at 15, +102% at 50); the citizens are used up. 1 = on
         bool garrison_upgrades = true;
+        /// Territory shelter (ai/territories.c): the map is split into territories, and where 2 or more enemy land soldiers
+        /// stand in or by one and the AI's soldiers and towers there lose against them, all its citizens in that territory stop
+        /// working: into a Fortress on that land within 30 tiles, else to a drop site in a territory that is safe; no
+        /// citizen is sent to a site there until it is safe again. 1 = on. Off (2026-11-14, 192 games on island maps: a
+        /// fifth fewer citizens killed, the army at 60 minutes no larger - a few soldiers fewer, within the noise)
+        bool territory_shelter = false;
     }
 
     class SiegeAndTowerRouting
