@@ -240,6 +240,8 @@ internal void retry_note(unsigned idx, int type, uint32_t now) {
     g_retry[idx][f].next = now + 120000;
     g_retry[idx][f].tries = 0;
 }
+internal int g_place_asked;   // hook_place: the type its placement is laying out (0: none - a foundation of the mod's own)
+internal int can_pay(ee_player *pl, int type);   // below
 internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     ee_player *owner = build_mgr_get_player(bm);
     if (!is_vanilla(owner) && prio_refuses(owner, type)) return 0;
@@ -248,6 +250,10 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     if (is_vanilla(owner)) return build_mgr_place(bm, type, x, y);
     int place_as = g_build_fix && type == UT(X_SINGLE_PLAYER_SETTLEMENT) && ut_has(UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : type;
     place_as = upgraded_type(((void *)build_mgr_get_player(bm)), place_as);   // queued before its upgrade: the new type
+    // what is laid out must be paid: the game looked at the entry's type, and the single-player Settlement its lists
+    // hold is laid out as the real one - every overdraft left after can_pay's first uses was this (18 in 18 games, the
+    // wood to -30..-130; with a stock below zero the game trains and researches nothing). Refused: the entry comes again
+    if (!can_pay(owner, place_as)) return 0;
     // A tower queued with its spot (defence.c defence_tick) is laid there unchecked: with a position the placement
     // (0x46580A) only looks for a builder and makes the foundation (0x62EF8A). Another building put on that spot in
     // the meantime blocks it - the build manager's round (0x465C9F) finds the builder waiting at a foundation with
@@ -283,7 +289,9 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     }
     if (!x && !y) defence_spot(((void *)build_mgr_get_player(bm)), type, &x, &y);   // towers: where the defence plan wants them
     if (!x && !y && PV(player_get_index(owner), g_v_tight_build, g_tight_build)) tb_spot(bm, owner, place_as, &x, &y);   // packed with its own (packing.c)
+    g_place_asked = type;
     char ok = build_mgr_place(bm, place_as, x, y);
+    g_place_asked = 0;
     if (ok) census_placed(owner, type);
     ee_player *pl = build_mgr_get_player(bm);
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
@@ -759,7 +767,9 @@ internal void __thiscall hook_pay(ee_player *pl, void *what, int b, int c) {
         if (g_autotest && g_log && stock[r] < 0 && before[r] > stock[r]) {
             char at[96];
             crash_addr(at, sizeof at, site - 5);
-            log_locked("# overdraft: P%d at %.1f min: %c from %d to %d, paid from %s\n", player_get_index(pl), game_time() / 60000.0, "..FWSGI"[r], before[r], stock[r], at);
+            ee_tech_data *wd = what ? tech_get_data(what) : NULL;
+            log_locked("# overdraft: P%d at %.1f min: %c from %d to %d for type %d (the build list's entry: %d), paid from %s\n", player_get_index(pl), game_time() / 60000.0, "..FWSGI"[r], before[r], stock[r],
+                       wd ? tech_data_get_unit_type(wd) : -1, g_place_asked, at);
         }
     }
     mt_paid(pl, what, before, stock);
