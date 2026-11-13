@@ -18,6 +18,7 @@
 #define S_BUILD_ECON 128u   // ... that is the economy's own: a town, food, a house, a dock
 #define S_WANTED     256u   // ... that is the wanted entry itself
 #define S_AIR        512u   // anti-air while its air threat is real: an AA building or unit, the building that makes its AA units
+#define S_FOOD       1024u  // ... that is its food base: a silo or a field (the row "air" leaves it alone)
 
 // THE ROW "air" (defence.c STRONG ANTI-AIR, aa_strong; the player 2026-11-11: AA far too weak - in the test the AA
 // buildings waited for the farms while the town was bombed, "27 buildings held back ... type 145 for the farms"): while
@@ -96,7 +97,7 @@ internal const struct prio_row {
     unsigned skip, only;   // skip: these spenders may use it; only: if set, no others have to leave it alone
     int apart;             // a warship with a target sees the stock but this (train_budget)
 } g_prio[] = {
-    { "air",       prio_air,      S_AIR,                                         0,              0 },
+    { "air",       prio_air,      S_AIR | S_FOOD,                                0,              0 },
     { "epoch",     prio_epoch,    S_BUILD,                                       0,              0 },
     { "farms",     prio_farms,    S_TR_ECON | S_BUILD_ECON,                      0,              0 },
     { "wants",     prio_wants,    S_TR_ECON | S_BUILD_ECON | S_WANTED,           0,              0 },
@@ -132,6 +133,12 @@ internal int prio_refuses(ee_player *pl, int type) {
     if (type == g_prio_cur[idx] - 1) s |= S_WANTED;
     if (prio_air_type(idx, type)) s |= S_AIR;
     if (UT_IN(type, UT_TOWNS, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM, UT_B_HOUSE, UT_B_DOCK)) s |= S_BUILD_ECON;
+    // the food base passes the row "air": bombed, a town lost its silo and fields and what the row held (the fortress's
+    // wood, the AA's) kept them from being rebuilt for the rest of the game (the massed B-17s, 2026-11-13: fields refused
+    // 173 times by minute 29, no food, no citizens trained, the town dead) - without food nothing gets built, a fortress
+    // or AA neither. Measured (air_raid.eeai, 8 games, the fortress alone): citizens at minute 30 / 40 / 50 30 / 25 / 25
+    // against 17 / 14 / 15 before; the nuclear bombers' 6 / 3 / 0 as before
+    if (UT_IN(type, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM)) s |= S_FOOD;
     int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1, row = 0;
     for (; row < PRIO_N && held < 0; row++) {
         if (!prio_applies(idx, row, s)) continue;
