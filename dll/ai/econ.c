@@ -133,8 +133,11 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // (head-to-head, mirrored, 12 games a cell, 60 min, Continental, 4 AIs; off - on per game): all three from the start
 // alive -0.08 (se 0.06), losses +18 (12), workers -7 (8); from epoch 9 soldiers +13 (9), kills +36 (23), razed +13 (7),
 // workers +18 (14) - but soldiers and ships alone there kills +21 (21), losses +18 (12), workers +4 (22), citizens alone
-// soldiers +4 (11), losses +21 (12), workers -10 (17). On by the player's call; the citizens' orders are the suspect.
-internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 1, g_v_own_ships = -1, g_own_citizens = 1, g_v_own_citizens = -1;
+// soldiers +4 (11), losses +21 (12), workers -10 (17). Again on seeds 7-12 from epoch 9: soldiers +26 (10), razed +19
+// (9), alive +0.25 (0.13); with the citizens' orders leaving the army 300 food: soldiers +29 (10), workers +64 (14) -
+// worse, not kept (the food alone is not it: the cause not found yet). own_soldiers and own_ships on by the player's
+// call, own_citizens off until the loss together is understood.
+internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 1, g_v_own_ships = -1, g_own_citizens = 0, g_v_own_citizens = -1;
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
 #define OWN_CITIZENS(idx) PV(idx, g_v_own_citizens, g_own_citizens)
