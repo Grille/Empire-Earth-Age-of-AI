@@ -55,6 +55,8 @@ internal void ud_note(ee_model *m, ee_material *mat, void *tex, const in_pose *p
     e->m = m; e->mat = mat; e->tex = tex; e->p = *p; e->w = *world; e->idx = idx; e->ni = ni; e->st = ud_states(d, mat);
 }
 internal int bl_noted(const void *gfx), bl_noted_decal(const ee_model *m), bl_bend_at(ee_model *m, uint32_t f, const float *t, float *out);   // walls.c
+internal int bl_noted_wall(const ee_model *m);   // walls.c
+internal LONG ws_cut_gen(void);                  // walls.c
 internal int ud_fell(int why) { InterlockedIncrement(&g_ud.reason[why]); return 0; }
 // GETransformation::SetOrientationYPR's turn (its 3 x 3; engine 0x472D3) about z by y or about x by p (the other angles
 // 0): its formula with its cosines - the game's (UMCos, a table), those of 0 kept - without the four calls of them that
@@ -116,9 +118,11 @@ internal void ud_gate(ee_model *m, float open) {
 // made once by the same code (bl_bend_at into a copy) and kept by model, frame and place, and drawn instanced like the
 // rest. Kept while the map and the game are the same (a load frees them, and the GPU's pool of runs forgets their memory); only while
 // a game runs (the scenario editor changes the ground under them: the game's draw there), only a frame's own (not one
-// blended toward the next: bl_bend bends the frame alone).
+// blended toward the next: bl_bend bends the frame alone). A wall's piece is bent by its end cuts (walls.c END CUTS),
+// which change with its neighbours under the same transformation: its copy is made again when walls.c's count of the
+// cuts' changes moved on.
 #define UB_SLOTS 8192
-typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; } ub_entry;   // v NULL: drawn as it is
+typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; LONG gen; } ub_entry;   // v NULL: drawn as it is; gen: a wall's cuts' count
 internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale, starts; } g_ub;
 internal void mo_forget(void);   // render_morph.c
 internal void ub_clear(void *map) {
@@ -138,7 +142,18 @@ internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     for (;; h = (h + 1) & (UB_SLOTS - 1)) {
         ub_entry *e = &g_ub.e[h];
         if (!e->m) break;
-        if (e->m == m && e->f == f && !memcmp(e->t, t, sizeof e->t)) return e;
+        if (e->m != m || e->f != f || memcmp(e->t, t, sizeof e->t)) continue;
+        LONG gen = ws_cut_gen();
+        if (e->gen != gen && bl_noted_wall(m)) {   // (its copy in place: kept parts point at it)
+            uint32_t nv = vertices_get_count(model_get_vertices(m)[f]);
+            if (!e->v && nv) e->v = malloc((size_t)nv * 8 * sizeof(float));
+            if (e->v && !bl_bend_at(m, f, t, e->v)) {
+                ee_vertex *data = vertices_get_data(model_get_vertices(m)[f]);
+                for (uint32_t k = 0; k < nv; k++) memcpy(e->v + k * 8, vertex_at(data, k), 8 * sizeof(float));
+            }
+            e->gen = gen;
+        }
+        return e;
     }
     if (g_ub.n >= UB_SLOTS * 3 / 4) { InterlockedIncrement(&g_ub.full); return NULL; }
     ub_entry *e = &g_ub.e[h];
@@ -146,7 +161,8 @@ internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     uint32_t nv = vertices_get_count(model_get_vertices(m)[f]);
     float *v = decal >= 0 && nv ? malloc((size_t)nv * 8 * sizeof(float)) : NULL;
     if (v && !bl_bend_at(m, f, t, v)) { free(v); v = NULL; }   // (not standing on the ground: drawn as it is)
-    e->m = m; e->f = f; memcpy(e->t, t, sizeof e->t); e->v = v; e->decal = decal > 0;
+    LONG gen = ws_cut_gen();
+    e->m = m; e->f = f; memcpy(e->t, t, sizeof e->t); e->v = v; e->decal = decal > 0; e->gen = gen;
     g_ub.n++;
     InterlockedIncrement(&g_ub.made);
     return e;
@@ -288,6 +304,7 @@ typedef struct {
     ee_dmg_model *g; ee_model *m; int anim; uint32_t frame, next; float scale, at[12];
     float frac; int rec;   // a record's: its fraction (a tree's sway isn't kept by), 1
     int decal, bent;       // a record's bent copy: a decal to the shadows (walls.c), its vertices in a part
+    LONG gen;              // a wall's: walls.c's count of its end cuts' changes when it was made
     int state;
     uint32_t part, np;   // its parts in g_kt.part
     uint32_t follow;     // the tree drawn after it last (its number + 1; 0 none)
@@ -465,6 +482,7 @@ internal kt_tree *kr_find(void *rec, ee_dmg_model *g, ee_model *m, int anim, con
     for (int l = 0; l < 3; l++) if (vector_first(lists[l]) != vector_end(lists[l])) return NULL;
     kt_tree *k = kt_find(g, m, anim, r->pose.frame, r->pose.next, r->scale, r->outer, r->pose.frac, 1);
     if (k && k->state == KT_NOT) { InterlockedIncrement(&g_kt.rec_not); return NULL; }
+    if (k && bl_noted_wall(m) && k->gen != ws_cut_gen()) { k->state = KT_NEW; k->gen = ws_cut_gen(); }   // (its cuts changed: made again)
     return k;
 }
 // a kept record's parts drawn (its states set by the caller, as for the walk): the display DLL's lock and 3D mode as

@@ -28,7 +28,6 @@
 #define WS_INTO_POST 0.3f   // a piece's end into a post beside it (the posts' sides 0.49 .. 0.66 from their middle)
 #define WS_ACROSS 0.4f      // barbed wire's lean across: the ground this far to either side of its middle
 #define WS_JOG_HALF 0.559017f   // half a jog's length (below, wj_jog): from the middle of one link to the next, sqrt(5) / 4
-#define WS_JOG_OVER 0.12f   // a jog's end past a neighbour it meets at an angle: closes the wedge on the outside of the bend
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
 internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_model;
@@ -503,7 +502,8 @@ internal int g_ws_laid_n;
 #define WJ_HUB 3   // a tower or a gate: a wall ends into it
 #define WJ_JOG 4   // a piece of a jog (wj_jog): along neither the tiles nor their diagonal, it points at no tile
 struct wj_at { int kind, sx, sy; ee_unit *u; };
-struct wj_jog_fit { float ox, oy, fx, fy, ax, ay, ea, eb; int diag; };   // off its tile's middle, its facing, across it, how far its ends reach on, its ends along a diagonal piece's
+internal const int k_wj_dir[8][2] = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } };
+struct wj_jog_fit { float ox, oy, fx, fy, ea, eb; int diag, la, lb; };   // off its tile's middle, its facing, how far its ends reach on, a diagonal piece beside it, its links at its ends
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl);
 internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, struct wj_jog_fit *j);
 internal void wj_upright_m(const ee_map *map, float *m, int tx, int ty, float fx, float fy);
@@ -547,8 +547,91 @@ internal float ws_end(const ee_map *map, int x, int y, int sx, int sy, const ee_
     return WS_INTO_POST;
 }
 
+// END CUTS: a piece's matrix stretches and shears it, but its two ends stay parallel - a piece between two others at
+// different angles (a jog between a straight and a diagonal piece, a straight one beside a jog) met one of them and stood
+// out past or short of the other, every join a compromise (the overshoot of a jog's end, its ends along one neighbour's)
+// that showed somewhere (the player, 2026-11-13: "you need to fit both end independently to math the wall on its ends
+// right?"). So each end of a piece is cut on its own: on the mitre with the piece running on from it - the line through
+// the point both their axes end at, halfway between their directions, where the faces of both meet edge to edge whatever
+// the angle; square where it meets nothing, a post, a tower. The fit keeps the cuts by tile (a local shear of each end:
+// its local y moves by its local x times ca at its low end, cb at its high one, in between along y), and the model is
+// bent by them where it is drawn, as the objects on the ground are (BENT OBJECTS below: the game's draw, render_units.c's
+// copy kept). The placement preview's in a table of its own, for the ghosts' draws a moment (the game's draw only).
+// g_wc_gen counts the changes: the copies kept are made again.
+#define WC_SLOTS 65536      // the pieces' (a power of two; at most half full - more are drawn uncut)
+#define WC_PV_SLOTS 4096    // the preview's
+#define WC_PV_MS 500        // the preview's cuts are looked at this long after the ghosts' last fit
+struct wc_cut { int key; float px, py, ylo, yhi, ca, cb; };   // key: its tile (y * 65536 + x) + 1, 0 none; its place (the matrix's)
+internal struct wc_cut g_wc[WC_SLOTS], g_wc_pv[WC_PV_SLOTS];
+internal int g_wc_n;
+internal volatile LONG g_wc_gen;
+internal volatile DWORD g_wc_pv_at;
+internal int wj_jog(const ee_map *map, int x, int y, const ee_player *pl, int *a, int *b);
+internal void wj_chord(int *a, int *b, float *fx, float *fy);
+
+internal struct wc_cut *wc_slot(struct wc_cut *t, unsigned slots, int key, int add) {
+    for (unsigned h = ((unsigned)key * 2654435761u) & (slots - 1), i = 0; i < slots; i++, h = (h + 1) & (slots - 1)) {
+        if (t[h].key == key) return &t[h];
+        if (!t[h].key) return add ? &t[h] : NULL;
+    }
+    return NULL;
+}
+// a piece's cuts kept (ghost: the preview's); the copies kept are made again when they changed
+internal void wc_put(int ghost, int tx, int ty, const struct wc_cut *c) {
+    int key = (ty * 65536 + tx) + 1;
+    if (ghost) {
+        struct wc_cut *e = wc_slot(g_wc_pv, WC_PV_SLOTS, key, 1);
+        if (e) { *e = *c; e->key = key; }
+        return;
+    }
+    struct wc_cut *e = wc_slot(g_wc, WC_SLOTS, key, 0);
+    if (!e) {
+        if (g_wc_n >= WC_SLOTS / 2 || (!c->ca && !c->cb)) return;   // (nothing to cut: no entry needed)
+        e = wc_slot(g_wc, WC_SLOTS, key, 1);
+        if (!e) return;
+        g_wc_n++;
+    } else if (e->px == c->px && e->py == c->py && e->ylo == c->ylo && e->yhi == c->yhi && e->ca == c->ca && e->cb == c->cb) return;
+    *e = *c;
+    e->key = key;
+    InterlockedIncrement(&g_wc_gen);   // after the entry: a copy made with a half-written one is made again
+}
+// the cuts of the piece drawn at transformation t (its place within a hundredth of a tile); preview: the ghosts' first
+internal int wc_find(const float *t, int preview, struct wc_cut *out) {
+    int tx = (int)floorf(t[3]), ty = (int)floorf(t[7]), key = (ty * 65536 + tx) + 1;
+    for (int pass = preview && GetTickCount() - g_wc_pv_at < WC_PV_MS ? 0 : 1; pass < 2; pass++) {
+        const struct wc_cut *e = pass ? wc_slot(g_wc, WC_SLOTS, key, 0) : wc_slot(g_wc_pv, WC_PV_SLOTS, key, 0);
+        if (!e) continue;
+        *out = *e;
+        if (out->key == key && fabsf(out->px - t[3]) < 0.01f && fabsf(out->py - t[7]) < 0.01f) return out->ca != 0 || out->cb != 0;
+    }
+    return 0;
+}
+// the axis (a unit vector) of the piece a step dx, dy from x, y when it runs on from x, y's end there: a plain piece
+// along that step, a jog linked back to x, y; 0 for anything else (a post, a tower, nothing, a wall's side: a square end)
+internal int wc_next(const ee_map *map, int x, int y, int dx, int dy, const ee_player *pl, float *gx, float *gy) {
+    int nx = x + dx, ny = y + dy, a, b;
+    struct wj_at nb = wj_at(map, nx, ny, pl);
+    if (nb.kind == WJ_PIECE && ((nb.sx == dx && nb.sy == dy) || (nb.sx == -dx && nb.sy == -dy))) {
+        float l = 1.0f / sqrtf((float)(dx * dx + dy * dy));
+        *gx = (float)dx * l; *gy = (float)dy * l;
+        return 1;
+    }
+    if (nb.kind != WJ_JOG || !wj_jog(map, nx, ny, pl, &a, &b)) return 0;
+    if (!((k_wj_dir[a][0] == -dx && k_wj_dir[a][1] == -dy) || (k_wj_dir[b][0] == -dx && k_wj_dir[b][1] == -dy))) return 0;
+    wj_chord(&a, &b, gx, gy);
+    return 1;
+}
+// the cut of an end on the mitre with the next piece's axis g: the local y per local x - f the piece's axis, (wx, wy)
+// its local x axis's direction (square to f), w that axis's length, k its local y's
+internal float wc_mitre(float fx, float fy, float gx, float gy, float wx, float wy, float w, float k) {
+    if (fx * gx + fy * gy < 0) { gx = -gx; gy = -gy; }
+    float mx = fx + gx, my = fy + gy, fm = fx * mx + fy * my;
+    if (fm < 0.1f || k < 1e-3f) return 0;   // (a wall turning back on itself)
+    return -(wx * mx + wy * my) / fm * w / k;
+}
+
 // what the fit needs of a piece: a unit's on the map, a placement ghost's (THE PREVIEW below)
-struct ws_piece { int tx, ty, anim, type; float scale; ee_player *pl; ee_dmg_model *gfx; };
+struct ws_piece { int tx, ty, anim, type; float scale; ee_player *pl; ee_dmg_model *gfx; int ghost; };
 internal int ws_plain_anim(int anim) { return anim == WS_SLOPE ? WS_STRAIGHT : anim == WS_SLOPE_DIAG ? WS_DIAG : anim; }
 
 // one piece (anim a plain one's) onto the ground: its matrix m (3 x 4, by row); 0 when its ground is off the map
@@ -636,7 +719,7 @@ internal int ws_fit_piece(const struct ws_piece *p, float *m) {
     ee_player *pl = p->pl;
     float ea = jog ? jf.ea : ws_end(map, tx, ty, -sx, -sy, pl, d), eb = jog ? jf.eb : ws_end(map, tx, ty, sx, sy, pl, d);
     float k = (2 * d + ea + eb) / (yhi - ylo), c = -d - ea - k * ylo, slope = (hb - ha) / (2 * d);   // its y -> k y + c along f
-    float wx = jog ? jf.ax : fy, wy = jog ? jf.ay : -fx;   // its local x axis: square to it, a jog's along its neighbour's end
+    float wx = fy, wy = -fx;   // its local x axis: square to it (its ends are cut, END CUTS)
     // a jog is the straight model; beside a diagonal piece as wide and as high as that one's model, another size (concrete:
     // straight 0.44 wide and 1.05 high, diagonal 0.48 and 1.02), they stepped at the join (the player, 2026-11-08: "the 1:2
     // wall is a bit too narrow and too high"). Between straight pieces exactly their width, for their ends to meet: wider, a
@@ -655,6 +738,14 @@ internal int ws_fit_piece(const struct ws_piece *p, float *m) {
         across * len * grow, slope * k, len * grow * tall, (ha + hb) * 0.5f + slope * c,
     };
     memcpy(m, fit, sizeof fit);
+    // its ends cut on the mitres with the pieces running on from them (END CUTS): a jog's at its links, a plain piece's
+    // along its axis - none past a post or a tower it reaches into
+    float w = len * grow * wide, gx, gy;
+    struct wc_cut cut = { 0, fit[3], fit[7], ylo, yhi, 0, 0 };
+    int la = jog ? jf.la : -1, lb = jog ? jf.lb : -1;
+    if (!ea && wc_next(map, tx, ty, jog ? k_wj_dir[la][0] : -sx, jog ? k_wj_dir[la][1] : -sy, pl, &gx, &gy)) cut.ca = wc_mitre(fx, fy, gx, gy, wx, wy, w, k);
+    if (!eb && wc_next(map, tx, ty, jog ? k_wj_dir[lb][0] : sx, jog ? k_wj_dir[lb][1] : sy, pl, &gx, &gy)) cut.cb = wc_mitre(fx, fy, gx, gy, wx, wy, w, k);
+    if (g_wj_on) wc_put(p->ghost, tx, ty, &cut);
     g_ws_pieces++;
     return 1;
 }
@@ -666,7 +757,7 @@ internal int ws_fit(ee_unit *u) {
     if (plain != anim) { unit_start_anim(u, plain, -1, 0); g_ws_unsloped++; }
     else if (anim != WS_STRAIGHT && anim != WS_DIAG && anim != WS_POST) return 0;
     ee_unit_stats *st = unit_get_stats(u);
-    const struct ws_piece p = { unit_get_x(u), unit_get_y(u), plain, unit_type_get_id(unit_get_type_data(u)), unit_get_scale(u), unit_get_owner(u), st ? unit_stats_get_gfx(st) : NULL };
+    const struct ws_piece p = { unit_get_x(u), unit_get_y(u), plain, unit_type_get_id(unit_get_type_data(u)), unit_get_scale(u), unit_get_owner(u), st ? unit_stats_get_gfx(st) : NULL, 0 };
     float m[12];
     for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(u, i);
     if (!ws_fit_piece(&p, m)) return 0;
@@ -721,7 +812,6 @@ internal unsigned g_wj_to_piece, g_wj_to_post, g_wj_gates;
 internal ee_unit *g_wj_units[WJ_MAX];
 internal struct wj_at g_wj_want[WJ_MAX];
 
-internal const int k_wj_dir[8][2] = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } };
 
 internal int wj_alive(ee_unit *o) {   // a site laid out has no hit points yet; a finished piece without is collapsing
     ee_unit *bs = unit_get_physics(o);
@@ -830,27 +920,10 @@ internal int wj_along(const ee_map *map, int x, int y, int m, const ee_player *p
     return nb.kind == WJ_PIECE && ((nb.sx == k_wj_dir[m][0] && nb.sy == k_wj_dir[m][1]) || (nb.sx == -k_wj_dir[m][0] && nb.sy == -k_wj_dir[m][1]));
 }
 
-// which of a jog's links its ends lie square to: its diagonal one (odd) where a plain diagonal piece runs on from it,
-// else its straight one - a whole 1:2 wall the same way, so its pieces meet end to end
-internal int wj_jog_axis(const ee_map *map, int x, int y, const ee_player *pl, int a, int b) {
-    int diag = a & 1 ? a : b, straight = a & 1 ? b : a;
-    return wj_along(map, x, y, diag, pl) ? diag : straight;
-}
-
-// how far a jog's end along link m goes on: into a post or a tower; not at all where it meets its neighbour's end along
-// the same line (a plain piece its ends are square to, a piece of the same jog), whose faces would flicker; else past
-// the neighbour, the wall bends there
-internal float wj_jog_end(const ee_map *map, int x, int y, int m, const ee_player *pl, float fx, float fy, int axis) {
-    int nx = x + k_wj_dir[m][0], ny = y + k_wj_dir[m][1], a, b;
-    if (ws_post_at(map, nx, ny, pl)) return WS_INTO_POST;
-    if (wj_along(map, x, y, m, pl)) return m == axis ? 0 : WS_JOG_OVER;
-    if (wj_jog(map, nx, ny, pl, &a, &b)) {
-        float gx, gy;
-        int theirs = wj_jog_axis(map, nx, ny, pl, a, b);
-        wj_chord(&a, &b, &gx, &gy);
-        if (fabsf(fx * gy - fy * gx) < 0.01f && ((theirs ^ axis) & 3) == 0) return 0;
-    }
-    return WS_JOG_OVER;
+// how far a jog's end along link m goes on: into a post or a tower; else not at all - it meets its neighbour there, the
+// end cut on the mitre with it (END CUTS below)
+internal float wj_jog_end(const ee_map *map, int x, int y, int m, const ee_player *pl) {
+    return ws_post_at(map, x + k_wj_dir[m][0], y + k_wj_dir[m][1], pl) ? WS_INTO_POST : 0;
 }
 
 // where the piece of a jog on x, y stands (ws_fit); 0 when x, y is none
@@ -860,14 +933,10 @@ internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, 
     wj_chord(&a, &b, &j->fx, &j->fy);
     j->ox = (float)(k_wj_dir[a][0] + k_wj_dir[b][0]) * 0.25f;
     j->oy = (float)(k_wj_dir[a][1] + k_wj_dir[b][1]) * 0.25f;
-    // across it: square to its axis link, the same way round as square to itself (its faces' winding)
-    int axis = wj_jog_axis(map, x, y, pl, a, b);
-    float dx = (float)k_wj_dir[axis][0], dy = (float)k_wj_dir[axis][1], l = 1.0f / sqrtf(dx * dx + dy * dy);
-    j->ax = dy * l; j->ay = -dx * l;
-    j->diag = axis & 1;
-    if (j->ax * j->fy - j->ay * j->fx < 0) { j->ax = -j->ax; j->ay = -j->ay; }
-    j->ea = wj_jog_end(map, x, y, b, pl, j->fx, j->fy, axis);
-    j->eb = wj_jog_end(map, x, y, a, pl, j->fx, j->fy, axis);
+    j->diag = wj_along(map, x, y, a & 1 ? a : b, pl);   // a plain diagonal piece runs on from it
+    j->la = b; j->lb = a;
+    j->ea = wj_jog_end(map, x, y, b, pl);
+    j->eb = wj_jog_end(map, x, y, a, pl);
     return 1;
 }
 
@@ -1084,6 +1153,7 @@ internal void wj_ghosts_fit(ee_map *map, ee_player *pl) {
     void *v = ghost_units();
     int n = 0;
     memset(g_wj_pv_slot, 0, sizeof g_wj_pv_slot);
+    memset(g_wc_pv, 0, sizeof g_wc_pv);
     for (uint32_t i = 0; i < vector_size(v) && n < WJ_PV_MAX; i++) {
         ee_ghost_unit *g = *(ee_ghost_unit **)type_stats_game(v, (int)i);
         int x = ghost_unit_get_tile_x(g), y = ghost_unit_get_tile_y(g), anim = ws_plain_anim(ghost_unit_get_anim(g));
@@ -1114,9 +1184,10 @@ internal void wj_ghosts_fit(ee_map *map, ee_player *pl) {
     }
     for (int i = 0; i < n; i++) {
         ee_ghost_unit *g = g_wj_pv[i].g;
-        const struct ws_piece p = { g_wj_pv[i].x, g_wj_pv[i].y, ghost_unit_get_anim(g), unit_type_get_id(ghost_unit_get_type_data(g)), ghost_unit_scale(g), pl, ghost_unit_model(g) };
+        const struct ws_piece p = { g_wj_pv[i].x, g_wj_pv[i].y, ghost_unit_get_anim(g), unit_type_get_id(ghost_unit_get_type_data(g)), ghost_unit_scale(g), pl, ghost_unit_model(g), 1 };
         ws_fit_piece(&p, ghost_unit_transform_at(g));
     }
+    g_wc_pv_at = GetTickCount();
     g_wj_pv_n = 0;
 }
 internal void __cdecl hook_wall_ghosts(ee_tile_vec *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) {
@@ -1246,12 +1317,13 @@ internal void bl_ground_all(const char *what) {
 #define BL_ANIMS 71         // EEGraphicObject's models, one per animation (+0x234 .. +0x350)
 #define BL_BEND_MAX 8192    // vertices of a frame bent at most
 #define BL_SPAN 0.25f       // a bent vertex's bulge: the ground this far around it (a tile, by the model's scale)
-struct bl_model { ee_model *m; int decal; };   // decal: debris - casts no shadow
+struct bl_model { ee_model *m; int decal, wall; };   // decal: debris - casts no shadow; wall: a wall's piece, its ends cut (END CUTS)
 internal struct bl_model g_bl_models[BL_MODELS];
 internal void *g_bl_gfx[BL_GFX];
-internal float g_bl_z[BL_BEND_MAX];   // the bent vertices' own z, put back after the draw (the graphics thread's)
+internal float g_bl_z[BL_BEND_MAX];   // the bent vertices' own z (a wall's: y), put back after the draw (the graphics thread's)
+internal int g_bl_axis;               // which: 2 z, 1 y
 
-internal void bl_mark(ee_unit_stats *st, int decal) {
+internal void bl_mark(ee_unit_stats *st, int decal, int wall) {
     ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
     if (!gfx) return;
     unsigned h = (unsigned)((uintptr_t)gfx >> 4) & (BL_GFX - 1);
@@ -1263,7 +1335,7 @@ internal void bl_mark(ee_unit_stats *st, int decal) {
         int n = g_bl_n, dup = 0;
         for (int i = 0; i < n && !dup; i++) dup = g_bl_models[i].m == m;
         if (!m || dup || n >= BL_MODELS) continue;
-        g_bl_models[n] = (struct bl_model){ m, decal };
+        g_bl_models[n] = (struct bl_model){ m, decal, wall };
         InterlockedIncrement(&g_bl_n);   // after the entry: the graphics thread reads up to the count
     }
 }
@@ -1288,10 +1360,42 @@ internal int bl_noted_decal(const ee_model *m) {
     int i = bl_index(m);
     return i < 0 ? -1 : g_bl_models[i].decal != 0;
 }
+// a noted wall's model (its ends cut, END CUTS) - render_units.c makes its kept copies again when the cuts changed
+internal int bl_noted_wall(const ee_model *m) {
+    int i = bl_index(m);
+    return i >= 0 && g_bl_models[i].wall;
+}
+internal LONG ws_cut_gen(void) { return g_wc_gen; }
+
+// frame f of a wall's piece with its ends cut (END CUTS) at its transformation t, as bl_bend_at; 0 when it has no cut
+internal int wc_bend_at(ee_model *m, uint32_t f, const float *t, float *out) {
+    ee_vertices **va = model_get_vertices(m);
+    if (!va || f >= model_get_frames(m) || !va[f]) return 0;
+    ee_vertices *a = va[f];
+    uint32_t cnt = vertices_get_count(a);
+    ee_vertex *data = vertices_get_data(a);
+    struct wc_cut c;
+    if (!data || cnt > BL_BEND_MAX || !wc_find(t, out == NULL, &c) || !(c.yhi - c.ylo > 1e-3f)) return 0;
+    float dc = (c.cb - c.ca) / (c.yhi - c.ylo);
+    for (uint32_t k = 0; k < cnt; k++) {
+        float *v = (float *)vertex_at(data, k), y = v[1] + v[0] * (c.ca + (v[1] - c.ylo) * dc);
+        if (out) {
+            memcpy(out + k * 8, v, 8 * sizeof(float));
+            out[k * 8 + 1] = y;
+            continue;
+        }
+        g_bl_z[k] = v[1];
+        v[1] = y;
+    }
+    if (!out) g_bl_axis = 1;
+    return 1;
+}
 // frame f of a model bent onto the ground under its transformation t: its vertices in place (their heights kept in
 // g_bl_z, to be put back), or into out (a copy, D3DVERTEX each: render_units.c keeps a standing object's); 0 when it
 // isn't bent (no such frame, too many vertices, not standing on the ground)
 internal int bl_bend_at(ee_model *m, uint32_t f, const float *t, float *out) {
+    int w = bl_index(m);
+    if (w >= 0 && g_bl_models[w].wall) return wc_bend_at(m, f, t, out);
     ee_vertices **va = model_get_vertices(m);
     ee_map *map = game_map();
     if (!va || !map || f >= model_get_frames(m) || !va[f]) return 0;
@@ -1320,6 +1424,7 @@ internal int bl_bend_at(ee_model *m, uint32_t f, const float *t, float *out) {
         g_bl_z[k] = v[2];
         if (d == d) v[2] += d / t[10];
     }
+    if (!out) g_bl_axis = 2;
     return 1;
 }
 // m's frame bent onto the ground at its transformation, when it is a noted model: its vertex array (to put back), else
@@ -1335,7 +1440,7 @@ internal ee_vertices *bl_bend(ee_model *m, int *decal) {
 internal void bl_unbend(ee_vertices *a) {
     uint32_t cnt = vertices_get_count(a);
     ee_vertex *data = vertices_get_data(a);
-    for (uint32_t k = 0; k < cnt && k < BL_BEND_MAX; k++) ((float *)vertex_at(data, k))[2] = g_bl_z[k];
+    for (uint32_t k = 0; k < cnt && k < BL_BEND_MAX; k++) ((float *)vertex_at(data, k))[g_bl_axis] = g_bl_z[k];
 }
 
 // a sheared kind's drawing onto the ground - every frame, the drawing only (the game's state untouched, the same on every
@@ -1343,11 +1448,14 @@ internal void bl_unbend(ee_vertices *a) {
 // resource site (no matrix of its own: the collection turns it by its heading at the ground's height, level) its model
 // noted, to be bent where it is drawn
 // (after the fill: collect.c's walk of the world's copy calls it with the copy's type, complex unit and stats)
+// A wall's models noted too: their ends cut where they are drawn (END CUTS)
 internal void walls_after_fill(ee_unit_type *td, int has_physics, ee_unit_stats *st, float *rec) {
     ee_map *map = game_map();
-    if (!td || !map || !rec || !bl_sheared(td)) return;
+    int t = td ? unit_type_get_id(td) : -1;
+    if (g_wj_on && st && is_wall(t) && !ut_role(t, UTR_GATE)) bl_mark(st, 0, 1);
+    if (!g_bl_on || !td || !map || !rec || !bl_sheared(td)) return;
     if (has_physics) bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING);
-    else if (st) bl_mark(st, UT_IN(unit_type_get_id(td), UT_AMB_DEBRIS_1X, UT_AMB_DEBRIS_2X, UT_AMB_DEBRIS_3X, UT_AMB_DEBRIS_4X));
+    else if (st) bl_mark(st, UT_IN(t, UT_AMB_DEBRIS_1X, UT_AMB_DEBRIS_2X, UT_AMB_DEBRIS_3X, UT_AMB_DEBRIS_4X), 0);
 }
 internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
     collect_fill(c, u, rec, p3, p4);   // the game's fill, or collect.c's port of it
@@ -1491,6 +1599,7 @@ internal void walls_new_game(void) {
     g_ws_fitted_game = 0; g_ws_gfx_n = 0; g_ws_laid_n = 0; g_wj_ev_n = 0;
     g_ws_pieces = g_ws_posts = g_ws_unsloped = g_ws_skipped = g_ws_no_model = 0;
     g_wj_to_piece = g_wj_to_post = g_wj_gates = 0;
+    memset(g_wc, 0, sizeof g_wc); memset(g_wc_pv, 0, sizeof g_wc_pv); g_wc_n = 0; InterlockedIncrement(&g_wc_gen);   // (a new map's tiles)
 }
 
 internal void walls_install(void) {
@@ -1507,7 +1616,7 @@ internal void walls_install(void) {
     if (g_ws_on && !patch_wall_ghosts(hook_wall_ghosts) && g_log) fprintf(g_log, "# walls: the placement preview NOT hooked\n");
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = patch_editor_frame(hook_editor_frame);   // whatever the walls say: the hills' shadows read it too (render_shadows.c)
-    int df = g_bl_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;
+    int df = g_bl_on || g_wj_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;
     if ((g_ws_on || g_bl_on) && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
         fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");
     if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d building_lean=%d (%s%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start, g_bl_on,
@@ -1515,5 +1624,5 @@ internal void walls_install(void) {
                        !any ? "" : more == 1 + g_ws_on ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
                        !g_wj_on && !g_bl_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
                        !any ? "" : ed ? ", the editor's" : ", the editor's FAILED",
-                       !g_bl_on ? "" : df ? ", the objects' drawing" : ", the objects' drawing FAILED");
+                       !g_bl_on && !g_wj_on ? "" : df ? ", the objects' drawing" : ", the objects' drawing FAILED");
 }
