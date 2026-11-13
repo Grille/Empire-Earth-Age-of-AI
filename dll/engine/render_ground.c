@@ -90,6 +90,8 @@ internal struct {
     uint32_t wcol;
     double phase;
     double wms;   // the water's time (ms) for the frames of its animation (rg_water_frame)
+    unsigned wf_seen;   // the game's frame of its animation last seen, since when (rg_water_blend)
+    LONGLONG wf_at;
     LONGLONG at;
     long drawn, tris, frames, remade;
     rg_lights lights;
@@ -817,6 +819,27 @@ internal unsigned rg_water_frame(void) {
     unsigned ours = (unsigned)fmod(floor(g_rg.wms / (double)per), (double)n);
     return (ours + n - mesh_water_frame(g_rg.mesh) % n) % n;
 }
+// THE WATER'S FRAMES BLENDED (the player, 2026-11-13: "the reflection disortion moves for half a second than stops", then
+// "it abselutly moves, but only every second for half a second" - "yes, blend the games water texture"): the animation is
+// a few textures shown in turn, one a frame's ms (100 by the game's time at speed 1); at speed 0.25 by the game time each
+// stood a second, then the water and the reflections it wobbles (rfa.y) jumped. A recording at that speed with the
+// player's ini: the water and a ship's reflection alike, a change of 0.1 a frame and 4 - 6 at each switch. A group's next
+// frame is the next group's texture now (group j shows frame (counter + j) % groups), so each water draw also gets the
+// next group's texture (rf_cmd gwn, t14) and the shader blends the two by how far the frame is through: by the water's own
+// time with [display] water_game_time, else by the real time since the game's counter changed.
+internal float rg_water_blend(void) {
+    unsigned per = mesh_water_frame_ms(g_rg.mesh), n = mesh_water_groups(g_rg.mesh);
+    if (!g_rw_blend || !per || n < 2) return 0;
+    double a;
+    if (g_set.water_game_time) a = g_rg.wms / (double)per, a -= floor(a);
+    else {
+        unsigned f = mesh_water_frame(g_rg.mesh);
+        LONGLONG now = rd_qpc();
+        if (f != g_rg.wf_seen || !g_rg.wf_at) g_rg.wf_seen = f, g_rg.wf_at = now;
+        a = (double)(now - g_rg.wf_at) / (double)rd_qpc_ms(1) / (double)per;
+    }
+    return a < 0 ? 0.0f : a > 1 ? 1.0f : (float)a;
+}
 internal int rg_ready(void) { return g_rg.on && g_rg.lit && g_rg.api >= 0 && g_rd3.scene_view[15] == 1 && g_rd3.prep_dev && g_cam_now_ok && game_map(); }   // the units have drawn once: the projection, from the frame before
 // a target or depth buffer freed (render_frame.c rf_target_gone): the states kept with it are none until a frame draws
 // anew; how many of the two (the ground's, the water's) drew on it
@@ -860,6 +883,15 @@ internal void rg_draw_now(int water, int again) {
     int nmat = again == 2 ? 0 : water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
     if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
+    unsigned wg = water ? mesh_water_groups(g_rg.mesh) : 0;   // the water's groups: each one's next frame is the next one's texture
+    if (wg > RG_MATERIALS) wg = RG_MATERIALS;
+    float wblend = wg > 1 ? rg_water_blend() : 0.0f;
+    if (wblend > 0 && nmat == (int)wg) {
+        static uint8_t next[RG_MATERIALS];
+        memset(next, 0, sizeof next);
+        for (int m = 0; m < nmat; m++) if (want[m]) next[(m + 1) % nmat] = 1;
+        for (int m = 0; m < nmat; m++) want[m] |= next[m];
+    }
     unsigned wf = water && nmat ? rg_water_frame() : 0, wn = water && nmat ? mesh_water_groups(g_rg.mesh) : 1;
     for (int m = 0; m < nmat; m++) {
         if (!want[m]) continue;
@@ -915,6 +947,7 @@ internal void rg_draw_now(int water, int again) {
     float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? ws[1] : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
+    if (water) cb[73] = wblend;   // the water's: its frames' blend (gbl.y; its borders' gbl.x stays 0)
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;
     for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }
@@ -928,7 +961,14 @@ internal void rg_draw_now(int water, int again) {
             if (!srv[c->r[r].m]) continue;
             g_rd3.srv = srv[c->r[r].m];
             rf_record((UINT)c->r[r].first, (UINT)c->r[r].n, 0);
-            if (g_rf.n) { g_rf.cmd[g_rf.n - 1].gvb = c->vb; if (blend) g_rf.cmd[g_rf.n - 1].ghs = g_rg.hgt[c->r[r].m]; }
+            if (g_rf.n) {
+                g_rf.cmd[g_rf.n - 1].gvb = c->vb;
+                if (blend) g_rf.cmd[g_rf.n - 1].ghs = g_rg.hgt[c->r[r].m];
+                if (wblend > 0 && (unsigned)c->r[r].m < wg) {   // none bound (a frame during a step binds nothing): the frame itself, no blend
+                    ID3D11ShaderResourceView *nx = srv[((unsigned)c->r[r].m + 1) % wg];
+                    g_rf.cmd[g_rf.n - 1].gwn = nx ? nx : srv[c->r[r].m];
+                }
+            }
             drawn++;
         }
     }
@@ -953,12 +993,14 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &g_rg.fow_srv);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &c->ghs);
+    ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &c->gwn);
     ID3D11DeviceContext_Draw(x, c->n, c->at);
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &st, &off);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, &none);
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &nos);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, &none);
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &nos);
+    ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &nos);
 }
 internal int g_rw_fx_only;   // a frame during a step: the water's draw for its effects alone (render_3d.c rd_hook_ro_water)
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {

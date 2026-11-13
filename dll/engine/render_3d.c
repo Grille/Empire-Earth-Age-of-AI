@@ -172,6 +172,7 @@ internal const char k_rd3_shader[] =
     "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
+    "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher (render_frame.c rf_water_part)
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
@@ -286,6 +287,7 @@ internal const char k_rd3_shader[] =
     // ships render quite messy, partly picking up transparent section of the texture")
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " if (i.cf.x > 0.5) x.a = 1;"
+    " if (gnd.x > 1.5 && gbl.y > 0 && op.w) x = lerp(x, wnx.Sample(s, i.t), gbl.y);"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
     // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
