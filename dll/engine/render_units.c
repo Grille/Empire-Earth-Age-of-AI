@@ -662,9 +662,6 @@ internal int uh_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, 
 // length along n, the beam
 typedef struct { float n[3], d, up[3], across[3], lo, len, beam, deck; int bow; } uh_frame;
 internal uint32_t uh_cell(float x) { return (uint32_t)(int32_t)lrintf(x / UH_KEY); }
-internal uint32_t uh_hash3(const float *q) {
-    return (uh_cell(q[0]) * 73856093u) ^ (uh_cell(q[1]) * 19349663u) ^ (uh_cell(q[2]) * 83492791u);
-}
 internal int uh_same(const float *a, const float *b) { return uh_cell(a[0]) == uh_cell(b[0]) && uh_cell(a[1]) == uh_cell(b[1]) && uh_cell(a[2]) == uh_cell(b[2]); }
 internal int uh_up(int *up, int k) { while (up[k] != k) k = up[k] = up[up[k]]; return k; }
 // a point of the world into the root's space (w: the root's world, inv its 3 x 3's inverse)
@@ -683,17 +680,12 @@ internal float uh_along(const uh_frame *f, const float *ql, const float *qh, flo
     float jag = UH_JAG * f->len * ((float)(h & 0xFFFF) / 32767.5f - 1.0f), t = (jag - fl) / (fh - fl);
     return t < 0.05f ? 0.05f : t > 0.95f ? 0.95f : t;
 }
-// one part cut into its piece (its vertices' places in the root's space q, their F); 0: it can't be (too many)
-internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const float *F, uh_piece *out) {
-    DWORD cn = e->ni;
-    RD_LOCK();
-    const WORD *L = in_capped(e->idx, e->ni, e->v, e->n, &cn);   // (the bottom filled: its triangles from e->ni on)
-    RD_UNLOCK();
-    uint32_t n = e->n, hn = 1;
-    while (hn < 2 * n) hn <<= 1;
-    int *up = malloc(n * sizeof *up), *cell = malloc(hn * sizeof *cell), *mode = malloc(n * sizeof *mode);
-    float *st = malloc(n * 6 * sizeof *st);   // a piece's: lowest, across lo / hi, F lo / hi / sum
-    uint32_t *cnt = calloc(n, sizeof *cnt), vmax = n + cn;
+// one part cut into its piece (its vertices' places in the root's space q, their F; its list L of cn indices, its
+// bottom's triangles from e->ni on; by each vertex's piece: mode - 1 kept, 0 left out, 2 cut -, hull - its cut's edges
+// go into the filling); 0: it can't be (too many)
+internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const float *F, const WORD *L, DWORD cn, const uint8_t *mode,
+                    const uint8_t *hull, uh_piece *out) {
+    uint32_t n = e->n, vmax = n + cn;
     if (vmax > MO_MAX_VERTS) vmax = MO_MAX_VERTS;
     float *v = malloc((size_t)vmax * 8 * sizeof *v);
     WORD *norm = malloc(cn * 2 * sizeof *norm), *bot = malloc(cn * 2 * sizeof *bot);
@@ -701,46 +693,18 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
     while (eh < 2 * cn) eh <<= 1;
     uint32_t *ekey = malloc(eh * sizeof *ekey);   // an edge's corner: (lo << 16 | hi) + 1, its vertex beside
     WORD *ev = malloc(eh * sizeof *ev);
-    int ok = up && cell && mode && st && cnt && v && norm && bot && ekey && ev;
+    int ok = v && norm && bot && ekey && ev;
     uint32_t nv = n, nn = 0, nb = 0;
     if (ok) {
         memcpy(v, e->v, (size_t)n * 8 * sizeof *v);
         memset(ekey, 0, eh * sizeof *ekey);
-        for (uint32_t k = 0; k < hn; k++) cell[k] = -1;
-        for (uint32_t k = 0; k < n; k++) {   // the pieces: one place, one piece; then each triangle's corners one
-            up[k] = (int)k;
-            for (uint32_t h = uh_hash3(q + k * 3) & (hn - 1);; h = (h + 1) & (hn - 1)) {
-                if (cell[h] < 0) { cell[h] = (int)k; break; }
-                if (uh_same(q + k * 3, q + cell[h] * 3)) { up[uh_up(up, (int)k)] = uh_up(up, cell[h]); break; }
-            }
-        }
-        for (DWORD t = 0; t + 2 < cn; t += 3) {
-            if (L[t] >= n || L[t + 1] >= n || L[t + 2] >= n) continue;
-            int a = uh_up(up, L[t]);
-            up[uh_up(up, L[t + 1])] = a, up[uh_up(up, L[t + 2])] = a;
-        }
-        for (uint32_t k = 0; k < n; k++) {
-            int r = uh_up(up, (int)k);
-            float *s = st + r * 6, a = q[k * 3] * f->across[0] + q[k * 3 + 1] * f->across[1] + q[k * 3 + 2] * f->across[2];
-            float z = q[k * 3] * f->up[0] + q[k * 3 + 1] * f->up[1] + q[k * 3 + 2] * f->up[2];
-            if (!cnt[r]++) s[0] = z, s[1] = s[2] = a, s[3] = s[4] = F[k], s[5] = 0.0f;
-            s[0] = fminf(s[0], z), s[1] = fminf(s[1], a), s[2] = fmaxf(s[2], a), s[3] = fminf(s[3], F[k]), s[4] = fmaxf(s[4], F[k]), s[5] += F[k];
-        }
-        for (uint32_t k = 0; k < n; k++) {   // 1 kept, 0 left out, 2 cut
-            if (!cnt[k]) continue;
-            const float *s = st + k * 6;
-            float along = s[4] - s[3];
-            int across = s[3] < 0.0f && s[4] >= 0.0f &&
-                         (along >= UH_LONG_ANY * f->len || (s[0] < f->deck && (along >= UH_LONG * f->len || s[2] - s[1] >= UH_WIDE * f->beam)));
-            mode[k] = across ? 2 : (s[5] / (float)cnt[k] >= 0.0f) == f->bow;
-        }
     }
     for (DWORD t = 0; ok && t + 2 < cn; t += 3) {
         WORD c3[3] = { L[t], L[t + 1], L[t + 2] };
         if (c3[0] >= n || c3[1] >= n || c3[2] >= n) continue;
         WORD *o = t < e->ni ? norm : bot;
         uint32_t *no = t < e->ni ? &nn : &nb;
-        int md = mode[uh_up(up, c3[0])];
+        int md = mode[c3[0]];
         if (md == 1) { o[(*no)++] = c3[0], o[(*no)++] = c3[1], o[(*no)++] = c3[2]; continue; }
         if (!md) continue;
         WORD poly[4];
@@ -766,7 +730,7 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
             poly[np++] = ev[s];
         }
         if (!ok || np < 3) continue;
-        if (out_at >= 0 && g_uh.nseg < UH_SEGS) {   // the cut's edge, in the part's own space (uh_make turns it into the root's)
+        if (out_at >= 0 && hull[c3[0]] && g_uh.nseg < UH_SEGS) {   // the cut's edge, in the part's own space (uh_make turns it into the root's)
             WORD ca = poly[out_at], cb = poly[(out_at + 1) % np];
             float *sg = g_uh.seg[g_uh.nseg++];
             memcpy(sg, v + ca * 8, 3 * sizeof(float));
@@ -784,7 +748,7 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
         if (out->idx) { memcpy(out->idx, norm, nn * sizeof *norm); memcpy(out->idx + nn, bot, nb * sizeof *bot); v = NULL; }
         else ok = 0;
     }
-    free(up), free(cell), free(mode), free(st), free(cnt), free(v), free(norm), free(bot), free(ekey), free(ev);
+    free(v), free(norm), free(bot), free(ekey), free(ev);
     return ok;
 }
 // the ears of an outline in the plane (p: its corners' u, w): triangles of its corner numbers into out; their count
@@ -906,6 +870,98 @@ internal void uh_fail(uh_half *h, const char *why) {
     if (InterlockedIncrement(&g_uh.failed) <= 16 && g_log)
         log_locked("# wrecks: a ship's half (serial %u, %s) not made: %s (%d parts taken)\n", h->serial, h->half == 1 ? "bow" : "stern", why, g_uh.nt);
 }
+// THE MODEL'S PIECES, JOINED BY DISTANCE (the player, 2026-11-13, of the broken halves: "many have small bug, maybe the
+// models should merge by distance? first before your breaking algorytm"): a piece is the triangles joined by their
+// corners - of every part, its vertices within UH_WELD of the length of one another one (a part laid against the hull with
+// a gap, or in another material, was a piece of its own: shorter than the hull, kept whole by the half its middle lies
+// in, it stood out over the break). By its piece each vertex is cut or kept whole (mode: 1 kept, 0 left out, 2 cut), and
+// its cut's edges fill the break only when the piece reaches under the hull's top (hull: the rigging joined to the hull
+// is cut where it crosses, its edges no filling). Each part's list (its bottom filled) into L, cn. The pieces across the
+// break kept whole; -1: no memory
+#define UH_WELD 0.01f
+internal int uh_pieces(const uh_frame *f, float *const *q, float *const *F, const WORD **L, DWORD *cn, uint8_t **mode, uint8_t **hull) {
+    int nt = g_uh.nt, whole = 0;
+    uint32_t at[UH_PARTS + 1], N = 0;
+    for (int i = 0; i < nt; i++) at[i] = N, N += g_uh.t[i].n;
+    at[nt] = N;
+    uint32_t hn = 1;
+    while (hn < 2 * N) hn <<= 1;
+    int *up = malloc(N * sizeof *up), *head = malloc(hn * sizeof *head), *next = malloc(N * sizeof *next);
+    int32_t (*key)[3] = malloc(hn * sizeof *key), (*cellv)[3] = malloc(N * sizeof *cellv);
+    float *st = malloc((size_t)N * 6 * sizeof *st);   // a piece's: lowest, across lo / hi, F lo / hi / sum
+    uint32_t *cnt = calloc(N, sizeof *cnt);
+    const float **qq = malloc(N * sizeof *qq), **ff = malloc(N * sizeof *ff);
+    int ok = up && head && next && key && cellv && st && cnt && qq && ff;
+    for (int i = 0; ok && i < nt; i++) {
+        mode[i] = malloc(g_uh.t[i].n), hull[i] = malloc(g_uh.t[i].n);
+        if (!mode[i] || !hull[i]) ok = 0;
+    }
+    if (ok) {
+        float wd = UH_WELD * f->len;
+        for (uint32_t h = 0; h < hn; h++) head[h] = -1;
+        for (int i = 0; i < nt; i++)
+            for (uint32_t j = 0; j < g_uh.t[i].n; j++) qq[at[i] + j] = q[i] + j * 3, ff[at[i] + j] = F[i] + j;
+        for (uint32_t v = 0; v < N; v++) {   // each vertex joined to those before it within wd (a grid of wd: the 27 cells round)
+            up[v] = (int)v;
+            int32_t c[3];
+            for (int a = 0; a < 3; a++) c[a] = (int32_t)floorf(qq[v][a] / wd), cellv[v][a] = c[a];
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dz = -1; dz <= 1; dz++) {
+                        int32_t n3[3] = { c[0] + dx, c[1] + dy, c[2] + dz };
+                        uint32_t h = ((uint32_t)n3[0] * 73856093u ^ (uint32_t)n3[1] * 19349663u ^ (uint32_t)n3[2] * 83492791u) & (hn - 1);
+                        for (; head[h] >= 0; h = (h + 1) & (hn - 1)) {
+                            if (memcmp(key[h], n3, sizeof n3)) continue;
+                            for (int o = head[h]; o >= 0; o = next[o]) {
+                                float d2 = 0.0f;
+                                for (int a = 0; a < 3; a++) d2 += (qq[v][a] - qq[o][a]) * (qq[v][a] - qq[o][a]);
+                                if (d2 <= wd * wd) up[uh_up(up, (int)v)] = uh_up(up, o);
+                            }
+                            break;
+                        }
+                    }
+            uint32_t h = ((uint32_t)c[0] * 73856093u ^ (uint32_t)c[1] * 19349663u ^ (uint32_t)c[2] * 83492791u) & (hn - 1);
+            while (head[h] >= 0 && memcmp(key[h], c, sizeof c)) h = (h + 1) & (hn - 1);
+            if (head[h] < 0) memcpy(key[h], c, sizeof c), next[v] = -1;
+            else next[v] = head[h];
+            head[h] = (int)v;
+        }
+        for (int i = 0; i < nt; i++) {   // each triangle's corners one piece (the part's list: its bottom filled)
+            const uh_taken *e = &g_uh.t[i];
+            cn[i] = e->ni;
+            RD_LOCK();
+            L[i] = in_capped(e->idx, e->ni, e->v, e->n, &cn[i]);
+            RD_UNLOCK();
+            for (DWORD t = 0; t + 2 < cn[i]; t += 3) {
+                if (L[i][t] >= e->n || L[i][t + 1] >= e->n || L[i][t + 2] >= e->n) continue;
+                int a = uh_up(up, (int)(at[i] + L[i][t]));
+                up[uh_up(up, (int)(at[i] + L[i][t + 1]))] = a;
+                up[uh_up(up, (int)(at[i] + L[i][t + 2]))] = uh_up(up, a);
+            }
+        }
+        for (uint32_t v = 0; v < N; v++) {
+            int r = uh_up(up, (int)v);
+            const float *y = qq[v];
+            float *p = st + r * 6, a = y[0] * f->across[0] + y[1] * f->across[1] + y[2] * f->across[2];
+            float z = y[0] * f->up[0] + y[1] * f->up[1] + y[2] * f->up[2], Fv = *ff[v];
+            if (!cnt[r]++) p[0] = z, p[1] = p[2] = a, p[3] = p[4] = Fv, p[5] = 0.0f;
+            p[0] = fminf(p[0], z), p[1] = fminf(p[1], a), p[2] = fmaxf(p[2], a), p[3] = fminf(p[3], Fv), p[4] = fmaxf(p[4], Fv), p[5] += Fv;
+        }
+        for (int i = 0; i < nt; i++)
+            for (uint32_t j = 0; j < g_uh.t[i].n; j++) {
+                int r = uh_up(up, (int)(at[i] + j));
+                const float *p = st + r * 6;
+                float along = p[4] - p[3];
+                int crosses = p[3] < 0.0f && p[4] >= 0.0f;
+                int cut = crosses && (along >= UH_LONG_ANY * f->len || (p[0] < f->deck && (along >= UH_LONG * f->len || p[2] - p[1] >= UH_WIDE * f->beam)));
+                mode[i][j] = (uint8_t)(cut ? 2 : (p[5] / (float)cnt[r] >= 0.0f) == f->bow);
+                hull[i][j] = (uint8_t)(p[0] < f->deck);
+                if (crosses && !cut && r == (int)(at[i] + j)) whole++;
+            }
+    }
+    free(up), free(head), free(next), free(key), free(cellv), free(st), free(cnt), free(qq), free(ff);
+    return ok ? whole : -1;
+}
 // the half's model of the parts taken (g_uh.t), the break's plane in the world (cl): UH_OK, UH_NOT - or UH_NEW again when
 // the walk gave nothing (not drawn: tried at the next)
 internal void uh_make(uh_half *h, const ud_clip *cl) {
@@ -967,6 +1023,12 @@ internal void uh_make(uh_half *h, const ud_clip *cl) {
             }
     }
     fr.lo = flo, fr.len = fhi > flo ? fhi - flo : 1.0f, fr.beam = bhi > blo ? bhi - blo : 0.0f;
+    const WORD *L[UH_PARTS];
+    DWORD cn[UH_PARTS];
+    uint8_t *mode[UH_PARTS], *hull[UH_PARTS];
+    for (int i = 0; i < g_uh.nt; i++) mode[i] = hull[i] = NULL, L[i] = NULL, cn[i] = 0;
+    int whole = ok ? uh_pieces(&fr, q, F, L, cn, mode, hull) : -1;
+    if (whole < 0) ok = 0;
     g_uh.nseg = 0;
     h->np = 0, h->root_mat = rt->mat;
     for (int i = 0; ok && i < g_uh.nt; i++) {
@@ -974,7 +1036,7 @@ internal void uh_make(uh_half *h, const ud_clip *cl) {
         memset(pc, 0, sizeof *pc);
         pc->m = g_uh.t[i].m, pc->mat = g_uh.t[i].mat;
         int seg0 = g_uh.nseg;
-        if (uh_cut(&fr, &g_uh.t[i], q[i], F[i], pc)) {
+        if (uh_cut(&fr, &g_uh.t[i], q[i], F[i], L[i], cn[i], mode[i], hull[i], pc)) {
             // the cut's corners into the root's space: uh_cut wrote them in the part's own (its blended vertices)
             const float *tw = &g_uh.t[i].w._11;
             for (int s = seg0; s < g_uh.nseg; s++)
@@ -987,14 +1049,14 @@ internal void uh_make(uh_half *h, const ud_clip *cl) {
         } else memset(pc, 0, sizeof *pc), pc->m = g_uh.t[i].m, pc->mat = g_uh.t[i].mat, g_uh.nseg = seg0;   // (left out)
         h->np++;
     }
-    for (int i = 0; i < g_uh.nt; i++) free(q[i]), free(F[i]);
+    for (int i = 0; i < g_uh.nt; i++) free(q[i]), free(F[i]), free(mode[i]), free(hull[i]);
     if (!ok) { uh_fail(h, "no memory"); return; }
     uh_fill(h, &fr, way >= 0.0f ? 1.0f : -1.0f);
     h->state = UH_OK;
     InterlockedIncrement(&g_uh.made);
     if (g_log && g_uh.made <= 16)
-        log_locked("# wrecks: a ship's half (serial %u, %s) made: %d parts, %d of the cut's edges, its filling %u triangles; length %.3f, beam %.3f\n",
-                   h->serial, h->half == 1 ? "bow" : "stern", h->np, g_uh.nseg, h->cni / 3, (double)fr.len, (double)fr.beam);
+        log_locked("# wrecks: a ship's half (serial %u, %s) made: %d parts, %d of the cut's edges, its filling %u triangles; length %.3f, beam %.3f; %d pieces across the break kept whole\n",
+                   h->serial, h->half == 1 ? "bow" : "stern", h->np, g_uh.nseg, h->cni / 3, (double)fr.len, (double)fr.beam, whole);
 }
 internal int ud_draw_whole(void *rec);
 // a record's draw, a half's of its own model: one the mod can't draw is left out, not drawn whole by the game's draw
