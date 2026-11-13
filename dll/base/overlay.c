@@ -5,16 +5,22 @@
 // again or, ttl game milliseconds after it was (0: never), drop out. A layer off (overlay_on) costs its producer a test.
 // The shapes are kept here, not in the renderer: the AI may use base/ and game/ only.
 
+// The screen's own (OV_MARK, OV_ARROW, OV_TEXT): at a place on the map, but their size in the screen's pixels and over
+// everything of the map - read at any zoom (the AI's tactical map, ai/ai_overlay.c).
 #define OV_LAYERS 16
 #define OV_SHAPES 16384
-enum { OV_LINE, OV_CIRCLE, OV_TILE, OV_RING };
+#define OV_TEXT_MAX 47
+enum { OV_LINE, OV_CIRCLE, OV_TILE, OV_RING, OV_MARK, OV_ARROW, OV_TEXT };
+enum { OVM_SQUARE, OVM_DIAMOND, OVM_CIRCLE, OVM_TRIANGLE, OVM_HOLLOW = 0x80 };   // a mark's shape, | OVM_HOLLOW: its outline only
 typedef struct {
-    uint8_t kind, layer;
+    uint8_t kind, layer, sub;   // sub: a mark's shape (OVM_)
     uint32_t argb;
     uintptr_t key;
     uint32_t until;   // game time it drops out (0: kept)
-    float a[4];       // line x0 y0 x1 y1; circle x y radius; tiles x y and their count along the row
-    float width;      // a line's or circle's width in tiles
+    float a[4];       // line x0 y0 x1 y1; circle x y radius; tiles x y and their count along the row; mark x y size; arrow
+                      // x0 y0 x1 y1; text x y row
+    float width;      // a line's or circle's width in tiles, an arrow's in pixels
+    char t[OV_TEXT_MAX + 1];   // a text's
 } ov_shape;
 internal struct {
     CRITICAL_SECTION cs;
@@ -103,6 +109,8 @@ internal ov_shape *ov_add(int kind, uint32_t argb, float width) {
     if (g_ov.n == OV_SHAPES) return NULL;   // full: the rest of this plan isn't shown
     ov_shape *s = &g_ov.s[g_ov.n++];
     s->kind = (uint8_t)kind;
+    s->sub = 0;
+    s->t[0] = 0;
     s->layer = (uint8_t)g_ov.open_layer;
     s->key = g_ov.open_key;
     s->until = g_ov.open_until;
@@ -128,6 +136,26 @@ internal void overlay_ring(vec2 c, float r, uint32_t argb) {
 internal void overlay_tiles(ivec2 t, int n, uint32_t argb) {   // n tiles along the row from t
     ov_shape *s = ov_add(OV_TILE, argb, 0);
     if (s) { s->a[0] = (float)t.x; s->a[1] = (float)t.y; s->a[2] = (float)n; }
+}
+// the screen's: a mark of shape (OVM_) px pixels across at c, edged in black
+internal void overlay_mark(vec2 c, int shape, float px, uint32_t argb) {
+    ov_shape *s = ov_add(OV_MARK, argb, 0);
+    if (s) { s->sub = (uint8_t)shape; s->a[0] = c.x; s->a[1] = c.y; s->a[2] = px; }
+}
+// ... an arrow from a to b, px pixels wide, its head at b
+internal void overlay_arrow(vec2 a, vec2 b, float px, uint32_t argb) {
+    ov_shape *s = ov_add(OV_ARROW, argb, px);
+    if (s) { s->a[0] = a.x; s->a[1] = a.y; s->a[2] = b.x; s->a[3] = b.y; }
+}
+// ... a line of text centred on c, row lines below a mark there (negative: above it), at most OV_TEXT_MAX characters
+internal PRINTF_LIKE(4, 5) void overlay_text(vec2 c, int row, uint32_t argb, const char *fmt, ...) {
+    ov_shape *s = ov_add(OV_TEXT, argb, 0);
+    if (!s) return;
+    s->a[0] = c.x; s->a[1] = c.y; s->a[2] = (float)row;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(s->t, sizeof s->t, fmt, ap);
+    va_end(ap);
 }
 // a player's colour for its shapes (index 1..8 as the game's slots; the game's own colours roughly)
 internal uint32_t overlay_player_argb(int player, unsigned alpha) {

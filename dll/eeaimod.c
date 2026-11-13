@@ -100,6 +100,7 @@ internal void stage_tick(ee_player *pl, uint32_t now);   // stage.c: the army's 
 internal void stage_new_game(void);
 internal void stage_install(const char *autotest_ini);
 internal void armies_tick(ee_player *pl, uint32_t now);   // armies.c: the mod's armies in the commander's place
+internal void ai_overlay_tick(ee_player *pl, uint32_t now);   // ai/ai_overlay.c: the AI's tactical map
 internal void armies_new_game(int from_save);
 internal void garrison_tick(ee_player *pl, uint32_t now);   // garrison.c: settlement upgrades with spare citizens
 internal void garrison_new_game(void);
@@ -240,6 +241,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
+    if (pl) ai_overlay_tick(pl, now);
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -446,6 +448,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/airstrike.c"
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
+#include "ai/ai_overlay.c"   // the AI's tactical map (the overlay's layer "ai")
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"

@@ -1292,7 +1292,12 @@ depth tested and not written (hills, buildings and trees hide them), blended, un
 (attack.c route_overlay: each attack subgroup's route in its player's colour, red rings at waypoints in reach of known
 defences, a ring at the goal; 3 game minutes) and `danger` (attack.c danger_overlay: each AI's danger map, a faint fill
 where enemies reach, stronger where its fight is lost, the zones' edges strong - a fill alone tinted half the map;
-every 5 game seconds). A layer off costs its producer one test. A new layer: its name a bool field of `overlay_fields` in
+every 5 game seconds), `fronts` (fronts.c) and `ai` (ai/ai_overlay.c, 2026-11-13 - the player: "mostly for when
+zoomed far out, draw symbols for the ais towns and armies, draw line to where they are moving, a few stats as text":
+each AI's base, force, other armies and towns, each second). The screen's shapes (`overlay_mark`, `overlay_arrow`,
+`overlay_text`) have a place on the map but their size in pixels: projected with the same camera, drawn after the
+map's shapes without the depth test (over everything of the map); the text from a font atlas made once with GDI
+(Tahoma bold 20 px, the code page's 256 characters), each line on a dark plate, edged in black. A layer off costs its producer one test. A new layer: its name a bool field of `overlay_fields` in
 `dll_cs/settings/display.cs` (rows.h's `OVERLAY_FIELDS` is made of it) (the setting is a FLAGS row since caa7ea7: a name not there is a mistake in the ini), `overlay_layer("name")` once,
 `overlay_on(layer)` before the work, `overlay_begin(layer, key, now, ttl)` ... `overlay_line / overlay_circle /
 overlay_tiles` ... `overlay_end()`.

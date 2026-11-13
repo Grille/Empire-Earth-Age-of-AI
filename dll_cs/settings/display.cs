@@ -119,6 +119,9 @@ class display
             /// each AI's territory (faint), its border with land the enemy can reach (strong) and a circle at each
             /// front, the bigger the more of its army that front should get
             bool fronts;
+            /// each AI's tactical map, read at any zoom: its base, towns and armies as marks, where they go as
+            /// arrows, its numbers as text (ai/ai_overlay.c)
+            bool ai;
         }
         /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - or all; empty = none. The control
         /// pipe switches them while playing: overlay routes (overlay off: none):

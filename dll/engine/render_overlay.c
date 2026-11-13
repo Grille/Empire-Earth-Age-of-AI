@@ -28,6 +28,11 @@ internal struct {
     // the map, read once a frame
     ee_tile **tiles;
     int size;
+    // the screen's shapes: the view's size in pixels; the font (ro_font)
+    float sw, sh;
+    int font_state;   // 0 not made yet, 1 made, -1 failed
+    ID3D11ShaderResourceView *font;
+    uint8_t adv[256];
 } g_ro;
 
 internal int ro_init(void) {
@@ -162,6 +167,180 @@ internal void ro_ring(const float *vp, float x, float y, float r, uint32_t argb)
         }
 }
 
+// THE SCREEN'S SHAPES (OV_MARK, OV_ARROW, OV_TEXT; the AI's tactical map, ai/ai_overlay.c): their place on the map
+// projected to the view's pixels, their size the screen's, drawn after the map's shapes without the depth test - over
+// hills, buildings and units, seen at any zoom. The text's font: Tahoma bold, RO_FONT_H pixels, the 256 characters of
+// the Windows code page drawn with GDI once into a 16 x 16 grid of RO_FONT_CELL cells (white, its coverage the alpha);
+// each line edged in black (drawn a pixel off four ways first) to be read on any ground.
+#define RO_FONT_H 20
+#define RO_FONT_CELL 28
+#define RO_FONT_SIDE (16 * RO_FONT_CELL)
+#define RO_LINE_H (RO_FONT_H + 2)
+internal int ro_font(void) {
+    if (g_ro.font_state) return g_ro.font_state > 0;
+    g_ro.font_state = -1;
+    HDC dc = CreateCompatibleDC(NULL);
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof bi);
+    bi.bmiHeader.biSize = sizeof bi.bmiHeader;
+    bi.bmiHeader.biWidth = RO_FONT_SIDE; bi.bmiHeader.biHeight = -RO_FONT_SIDE;   // top-down
+    bi.bmiHeader.biPlanes = 1; bi.bmiHeader.biBitCount = 32; bi.bmiHeader.biCompression = BI_RGB;
+    uint32_t *px = NULL;
+    HBITMAP bm = dc ? CreateDIBSection(dc, &bi, DIB_RGB_COLORS, (void **)&px, NULL, 0) : NULL;
+    HFONT f = CreateFontA(-RO_FONT_H, 0, 0, 0, FW_BOLD, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                          ANTIALIASED_QUALITY, DEFAULT_PITCH, "Tahoma");
+    int ok = 0;
+    if (bm && px && f) {
+        HGDIOBJ ob = SelectObject(dc, bm), of = SelectObject(dc, f);
+        memset(px, 0, (size_t)RO_FONT_SIDE * RO_FONT_SIDE * 4);
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, RGB(255, 255, 255));
+        INT w[256];
+        if (!GetCharWidth32A(dc, 0, 255, w)) for (int c = 0; c < 256; c++) w[c] = RO_FONT_H / 2;
+        for (int c = 32; c < 256; c++) {
+            char ch = (char)c;
+            TextOutA(dc, (c % 16) * RO_FONT_CELL + 2, (c / 16) * RO_FONT_CELL + 2, &ch, 1);
+            g_ro.adv[c] = (uint8_t)(w[c] < 0 ? 0 : w[c] > RO_FONT_CELL - 4 ? RO_FONT_CELL - 4 : w[c]);
+        }
+        GdiFlush();
+        for (int i = 0; i < RO_FONT_SIDE * RO_FONT_SIDE; i++) {   // the coverage (grey) into the alpha, white
+            uint32_t g = px[i] >> 8 & 255;
+            px[i] = g << 24 | 0xFFFFFF;
+        }
+        for (int yy = 0; yy < RO_FONT_CELL; yy++)   // character 0's cell solid: the plates' (ro_squad's texture coordinates 0, 0)
+            for (int xx = 0; xx < RO_FONT_CELL; xx++) px[yy * RO_FONT_SIDE + xx] = 0xFFFFFFFF;
+        D3D11_TEXTURE2D_DESC td = { RO_FONT_SIDE, RO_FONT_SIDE, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_IMMUTABLE, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+        D3D11_SUBRESOURCE_DATA sd = { px, RO_FONT_SIDE * 4, 0 };
+        ID3D11Texture2D *t = NULL;
+        HRESULT hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &td, &sd, &t);
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)t, NULL, &g_ro.font);
+        D3D_RELEASE(t);
+        if (FAILED(hr)) rd_fail("the overlay's font", hr);
+        else ok = 1;
+        SelectObject(dc, of); SelectObject(dc, ob);
+    }
+    if (f) DeleteObject(f);
+    if (bm) DeleteObject(bm);
+    if (dc) DeleteDC(dc);
+    g_ro.font_state = ok ? 1 : -1;
+    return ok;
+}
+// a place on the map (on the ground) in the view's pixels; 0: behind the camera
+internal int ro_project(const float *vp, float x, float y, float *px, float *py) {
+    float z = ro_height(x, y);
+    float cx = x * vp[0] + y * vp[4] + z * vp[8] + vp[12], cy = x * vp[1] + y * vp[5] + z * vp[9] + vp[13];
+    float cw = x * vp[3] + y * vp[7] + z * vp[11] + vp[15];
+    if (!(cw > 1e-6f)) return 0;
+    *px = (cx / cw + 1.0f) * 0.5f * g_ro.sw;
+    *py = (1.0f - cy / cw) * 0.5f * g_ro.sh;
+    return 1;
+}
+// a vertex at the view's pixel (px, py): drawn with the identity for the view x projection
+internal void ro_svtx(float px, float py, uint32_t argb, float u, float v) {
+    ro_vertex *o = &g_ro.v[g_ro.n++];
+    o->x = px / g_ro.sw * 2.0f - 1.0f; o->y = 1.0f - py / g_ro.sh * 2.0f; o->z = 0; o->argb = argb; o->u = u; o->v = v;
+}
+internal void ro_squad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t argb) {
+    if (g_ro.n + 6 > RO_VERTS) return;
+    ro_svtx(x0, y0, argb, 0, 0); ro_svtx(x1, y1, argb, 0, 0); ro_svtx(x2, y2, argb, 0, 0);
+    ro_svtx(x0, y0, argb, 0, 0); ro_svtx(x2, y2, argb, 0, 0); ro_svtx(x3, y3, argb, 0, 0);
+}
+internal void ro_sline(float ax, float ay, float bx, float by, float w, uint32_t argb) {
+    float dx = bx - ax, dy = by - ay, len = sqrtf(dx * dx + dy * dy);
+    if (len < 1e-3f) return;
+    float nx = -dy / len * w * 0.5f, ny = dx / len * w * 0.5f;
+    ro_squad(ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny, argb);
+}
+// a shape's corners round (cx, cy), r out: k of them, the first at angle a0 (0: right, the screen's y down)
+internal int ro_corners(int shape, float cx, float cy, float r, float *x, float *y) {
+    int k = shape == OVM_CIRCLE ? 16 : shape == OVM_TRIANGLE ? 3 : 4;
+    float a0 = shape == OVM_SQUARE ? 0.78539816f : -1.5707963f;   // a square's sides upright; a diamond's, a triangle's point up
+    if (shape == OVM_SQUARE) r *= 1.2f;   // its corners out further: the same size to the eye as a diamond
+    if (shape == OVM_TRIANGLE) cy += r * 0.2f, r *= 1.15f;
+    for (int i = 0; i < k; i++) {
+        float a = a0 + 6.2831853f * (float)i / (float)k;
+        x[i] = cx + r * cosf(a); y[i] = cy + r * sinf(a);
+    }
+    return k;
+}
+internal void ro_spoly(int shape, float cx, float cy, float r, uint32_t argb) {
+    float x[16], y[16];
+    int k = ro_corners(shape, cx, cy, r, x, y);
+    if (g_ro.n + 3 * k > RO_VERTS) return;
+    for (int i = 0; i < k; i++) {
+        int j = (i + 1) % k;
+        ro_svtx(cx, cy, argb, 0, 0); ro_svtx(x[i], y[i], argb, 0, 0); ro_svtx(x[j], y[j], argb, 0, 0);
+    }
+}
+internal void ro_sedge(int shape, float cx, float cy, float r, float w, uint32_t argb) {   // its outline, w pixels inward
+    float x[16], y[16], xi[16], yi[16];
+    int k = ro_corners(shape, cx, cy, r, x, y);
+    ro_corners(shape, cx, cy, r - w, xi, yi);
+    for (int i = 0; i < k; i++) {
+        int j = (i + 1) % k;
+        ro_squad(x[i], y[i], x[j], y[j], xi[j], yi[j], xi[i], yi[i], argb);
+    }
+}
+internal void ro_mark(const float *vp, const ov_shape *s) {
+    float px, py;
+    if (!ro_project(vp, s->a[0], s->a[1], &px, &py)) return;
+    int shape = s->sub & 0x7F;
+    float r = s->a[2] * 0.5f;
+    uint32_t edge = (s->argb & 0xFF000000u) | 0x101010;
+    if (s->sub & OVM_HOLLOW) {
+        ro_sedge(shape, px, py, r + 1.5f, 5.0f, edge);
+        ro_sedge(shape, px, py, r, 2.0f, s->argb);
+    } else {
+        ro_spoly(shape, px, py, r + 1.5f, edge);
+        ro_spoly(shape, px, py, r, s->argb);
+    }
+}
+internal void ro_arrow(const float *vp, const ov_shape *s) {
+    float ax, ay, bx, by;
+    if (!ro_project(vp, s->a[0], s->a[1], &ax, &ay) || !ro_project(vp, s->a[2], s->a[3], &bx, &by)) return;
+    float dx = bx - ax, dy = by - ay, len = sqrtf(dx * dx + dy * dy), w = s->width > 0 ? s->width : 2.0f, head = w * 3.0f + 6.0f;
+    if (len < head) return;
+    dx /= len; dy /= len;
+    float hx = bx - dx * head, hy = by - dy * head, nx = -dy * head * 0.55f, ny = dx * head * 0.55f;
+    uint32_t edge = (s->argb & 0xFF000000u) | 0x101010;
+    for (int pass = 0; pass < 2; pass++) {   // the black edge, then the colour
+        float g = pass ? 0.0f : 1.5f;
+        uint32_t c = pass ? s->argb : edge;
+        ro_sline(ax - dx * g, ay - dy * g, hx, hy, w + 2.0f * g, c);
+        if (g_ro.n + 3 > RO_VERTS) return;
+        ro_svtx(bx + dx * g * 2.0f, by + dy * g * 2.0f, c, 0, 0);
+        ro_svtx(hx + nx * (1 + g / head * 2.0f), hy + ny * (1 + g / head * 2.0f), c, 0, 0);
+        ro_svtx(hx - nx * (1 + g / head * 2.0f), hy - ny * (1 + g / head * 2.0f), c, 0, 0);
+    }
+}
+internal void ro_glyphs(const char *t, float x, float y, uint32_t argb) {
+    for (const uint8_t *p = (const uint8_t *)t; *p; p++) {
+        int c = *p;
+        if (c >= 32 && g_ro.n + 6 <= RO_VERTS) {
+            float u0 = (float)((c % 16) * RO_FONT_CELL) / RO_FONT_SIDE, v0 = (float)((c / 16) * RO_FONT_CELL) / RO_FONT_SIDE;
+            float u1 = u0 + (float)RO_FONT_CELL / RO_FONT_SIDE, v1 = v0 + (float)RO_FONT_CELL / RO_FONT_SIDE;
+            float x0 = x - 2, y0 = y - 2, x1 = x0 + RO_FONT_CELL, y1 = y0 + RO_FONT_CELL;
+            ro_svtx(x0, y0, argb, u0, v0); ro_svtx(x1, y0, argb, u1, v0); ro_svtx(x1, y1, argb, u1, v1);
+            ro_svtx(x0, y0, argb, u0, v0); ro_svtx(x1, y1, argb, u1, v1); ro_svtx(x0, y1, argb, u0, v1);
+        }
+        x += (float)g_ro.adv[c];
+    }
+}
+internal void ro_text(const float *vp, const ov_shape *s) {
+    float px, py;
+    if (!s->t[0] || !ro_project(vp, s->a[0], s->a[1], &px, &py)) return;
+    int row = (int)s->a[2];
+    float w = 0;
+    for (const uint8_t *p = (const uint8_t *)s->t; *p; p++) w += (float)g_ro.adv[*p];
+    float x = floorf(px - w * 0.5f), y = floorf(row >= 0 ? py + 16.0f + (float)(row * RO_LINE_H) : py - 16.0f + (float)(row * RO_LINE_H));
+    uint32_t edge = s->argb & 0xFF000000u;
+    // a dark plate under the line, then its edge a pixel off eight ways, then the text
+    ro_squad(x - 4, y - 1, x + w + 4, y - 1, x + w + 4, y + RO_LINE_H - 1, x - 4, y + RO_LINE_H - 1, 0x70000000);
+    static const float off[8][2] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 }, { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } };
+    for (int k = 0; k < 8; k++) ro_glyphs(s->t, x + off[k][0], y + off[k][1], edge);
+    ro_glyphs(s->t, x, y, s->argb);
+}
+
 // the overlay into the target (the map's view of this frame), once
 internal void rd3_overlay(rd_device *d) {
     g_rd3.overlay_done = 1;
@@ -195,7 +374,7 @@ internal void rd3_overlay(rd_device *d) {
         if (s->kind == OV_LINE) ro_ribbon(s->a[0], s->a[1], s->a[2], s->a[3], s->width, s->argb);
         else if (s->kind == OV_CIRCLE) ro_circle(s->a[0], s->a[1], s->a[2], s->width, s->argb);
         else if (s->kind == OV_RING) { if (!ring) ro_circle(s->a[0], s->a[1], s->a[2] * RO_RING_MID, RO_RING_WIDTH, s->argb); }
-        else {   // a run of tiles: a quad per tile, on each one's own heights
+        else if (s->kind == OV_TILE) {   // a run of tiles: a quad per tile, on each one's own heights
             float y = s->a[1];
             for (int k = 0; k < (int)s->a[2]; k++) {
                 float x = s->a[0] + (float)k;
@@ -207,6 +386,17 @@ internal void rd3_overlay(rd_device *d) {
     if (ring)
         for (int i = 0; i < n; i++)
             if (g_ro.shapes[i].kind == OV_RING) ro_ring(c.vp, g_ro.shapes[i].a[0], g_ro.shapes[i].a[1], g_ro.shapes[i].a[2], g_ro.shapes[i].argb);
+    int rings = g_ro.n;
+    // the screen's: arrows under marks, then the text over both
+    D3D11_VIEWPORT port = rs_port(&g_rd3.scene_port, d->target->rtv);
+    g_ro.sw = port.Width; g_ro.sh = port.Height;
+    if (g_ro.sw > 0 && g_ro.sh > 0) {
+        for (int i = 0; i < n; i++) if (g_ro.shapes[i].kind == OV_ARROW) ro_arrow(c.vp, &g_ro.shapes[i]);
+        for (int i = 0; i < n; i++) if (g_ro.shapes[i].kind == OV_MARK) ro_mark(c.vp, &g_ro.shapes[i]);
+    }
+    int screen = g_ro.n;
+    if (g_ro.sw > 0 && g_ro.sh > 0)
+        for (int i = 0; i < n; i++) if (g_ro.shapes[i].kind == OV_TEXT && ro_font()) ro_text(c.vp, &g_ro.shapes[i]);
     if (!g_ro.n) return;
     rd3_submit();
     ID3D11DeviceContext *x = g_d3d.ctx;
@@ -214,7 +404,6 @@ internal void rd3_overlay(rd_device *d) {
     if (FAILED(ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_ro.vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return;
     memcpy(ms.pData, g_ro.v, (size_t)g_ro.n * sizeof *g_ro.v);
     ID3D11DeviceContext_Unmap(x, (ID3D11Resource *)g_ro.vb, 0);
-    D3D11_VIEWPORT port = rs_port(&g_rd3.scene_port, d->target->rtv);
     c.px[0] = port.Width > 0 ? 1.0f / port.Width : 0;   // Direct3D 7's pixel centres, as the map's
     c.px[1] = port.Height > 0 ? -1.0f / port.Height : 0;
     c.px[2] = c.px[3] = 0;
@@ -236,11 +425,28 @@ internal void rd3_overlay(rd_device *d) {
         ID3D11DeviceContext_PSSetShader(x, g_ro.ps, NULL, 0);
         ID3D11DeviceContext_Draw(x, (UINT)plain, 0);
     }
-    if (g_ro.n > plain) {
+    if (rings > plain) {
         ID3D11DeviceContext_PSSetShader(x, g_ro.pst, NULL, 0);
         ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &ring);
         ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_ro.samp);
-        ID3D11DeviceContext_Draw(x, (UINT)(g_ro.n - plain), (UINT)plain);
+        ID3D11DeviceContext_Draw(x, (UINT)(rings - plain), (UINT)plain);
+    }
+    if (g_ro.n > rings) {   // the screen's: in the view's pixels already (the identity), no depth test
+        static const float ident[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+        memcpy(c.vp, ident, sizeof c.vp);
+        c.px[0] = c.px[1] = 0;
+        ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_ro.cb, 0, NULL, &c, 0, 0);
+        ID3D11DeviceContext_OMSetDepthStencilState(x, rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, 0, rd3_mk_depth), 0);
+        if (screen > rings) {
+            ID3D11DeviceContext_PSSetShader(x, g_ro.ps, NULL, 0);
+            ID3D11DeviceContext_Draw(x, (UINT)(screen - rings), (UINT)rings);
+        }
+        if (g_ro.n > screen) {
+            ID3D11DeviceContext_PSSetShader(x, g_ro.pst, NULL, 0);
+            ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &g_ro.font);
+            ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_ro.samp);
+            ID3D11DeviceContext_Draw(x, (UINT)(g_ro.n - screen), (UINT)screen);
+        }
     }
     g_rd3.bound = 0;   // the game's next draw binds all its states again (its texture, its sampler)
 }
