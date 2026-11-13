@@ -1537,7 +1537,10 @@ internal int ws_ed_look(const ee_map *map, struct ws_ed *e) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && n < WS_ED_MAX; ) {
         int t = unit_type_get_id(it.td), x = unit_get_x(it.u), y = unit_get_y(it.u);
         if (!is_wall(t) && !ut_role(t, UTR_TOWER)) continue;
-        uint32_t h = (uint32_t)t * 2654435761u ^ (uint32_t)(uintptr_t)unit_get_owner(it.u) ^ (uint32_t)wj_alive(it.u) << 31;
+        // its animation too: a wall laid over an older one makes no new units, the game's layout turns pieces of the older
+        // into posts - unseen, they stayed posts (the player, 2026-11-13: "placing a single wall piece over an existing one
+        // triggers a brocken autotile")
+        uint32_t h = (uint32_t)t * 2654435761u ^ (uint32_t)(uintptr_t)unit_get_owner(it.u) ^ (uint32_t)wj_alive(it.u) << 31 ^ (uint32_t)unit_get_anim(it.u) * 40503u;
         ee_tile *tile = x >= 0 && y >= 0 && x < size && y < size ? map_get_tiles(map)[y * size + x] : NULL;
         for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node))
             if (tilenode_get_object(node) == it.u) { h ^= 1u << 30; break; }
