@@ -48,6 +48,7 @@ internal int nv_role(ee_unit_type *td);
 internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
 internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=big) for this AI - the fleet's size target below
 internal int fleet_own(unsigned idx);      // fleet.c EVERY WARSHIP THE MOD'S: the game's requests train none
+internal void boats_tick(ee_player *pl, uint32_t now);
 internal int fleet_need(unsigned idx);     // the enemy warships it knows in its sea (without the navy account)
 // THE FLEET'S SIZE (stage 4, navy_fleet=big; docs/navy.md): the playtester expects 20+ warships at a low population
 // limit and more with higher ones - navy_fleet_pop % (15) of the AI's population cap x the map strength (cap 176 in
@@ -883,6 +884,7 @@ internal void navy_tick(ee_player *pl, uint32_t now) {
     navy_budget_log(pl, idx, now);
     navy_docks(pl, idx, now);
     fleet_tick(pl, now);
+    boats_tick(pl, now);   // fleet.c THE FISHING BOATS THE MOD'S
     if (!g_autotest || !g_log) return;
     if (now < g_nv_fish_t) g_nv_fish_t = g_nv_log_t = 0;
     if (now - g_nv_fish_t >= 15000) { g_nv_fish_t = now; navy_fish(); }

@@ -222,3 +222,10 @@ from epoch 9, Copper Age ships 7 / 0 from the start; warships trained at the gam
 fleet's own orders 44 / 51.5 on the islands, none on Continental while no enemy warship shows in its sea. Still the game's at
 sea: transports (2.4 a player trained at its requests on the islands, 2.3 orders), fishing boats (its citizen request: 26 a
 player), carriers. The 4 orders left: most likely to ships a landing has just let go, before the fleet's next scan (not traced).
+
+The fishing boats since (own_citizens, fleet.c THE FISHING BOATS THE MOD'S, 2026-11-13): the game's order (0x48FB05 from the
+citizen assignment, every 30 s while food gatherers are under their target and fewer than 8 boats idle) no longer comes - the
+resource manager's timer for it is held - and the mod orders one by its own rule. Small Islands from epoch 9, a player in 60
+minutes: 43 boats trained at the game's standing request (tried every tick, paid only when the stock topped every wood
+saving: the first at minute 28.7 in a 40-minute game) against 4 by the mod's orders (the first at minute 5.5), 4.6 against
+1.9 of them sunk.

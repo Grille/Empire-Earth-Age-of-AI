@@ -640,7 +640,9 @@ class ai_base
         bool own_ships = true;
         /// ... the citizens ordered by the mod: how many from citizen_plan (the game's share of the cap as its floor), the
         /// orders its own, every 2 s, the game's citizen request left with nothing to ask for. Against the game's
-        /// request: level, from epoch 9 and from the start (econ.c EVERY UNIT THE MOD'S). 1 = on
+        /// request: level, from epoch 9 and from the start (econ.c EVERY UNIT THE MOD'S). The fishing boats too: one
+        /// while food is short, fish is left and no boat stands idle, none after a boat had to flee an enemy warship,
+        /// paid before the wood savings (fleet.c THE FISHING BOATS THE MOD'S). 1 = on
         bool own_citizens = true;
         /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
         /// to spare; 100% = an even fight, as before)

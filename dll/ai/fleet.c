@@ -68,6 +68,7 @@ internal struct fleet {
     unsigned kills[6], lost, lost_task[FT_N]; ee_unit *tgt[FL_MAX]; int tgt_id[FL_MAX], ntgt;   // lost: its ships sunk (lost_task: by its task then)
     int wp; uint32_t wp_t, build_t; unsigned built, build_refused;
     uint32_t bring_t[8]; int bring_i;   // the mod's warship orders of the last 90 s (not afloat yet)
+    uint32_t pull_t;   // the last fishing boat pulled back from an enemy warship (fl_boats)
     int need; uint32_t need_t; unsigned held;   // fleet_own without the navy account: the enemy warships known in its sea (the most, until 10 minutes after the last); ships held out of the game's groups
 } g_fl[16];
 internal unsigned g_fl_refused;
@@ -556,7 +557,7 @@ internal void fl_boats(struct fleet *f, ivec2 c) {
         if (bk < 0 || bd <= 16) continue;
         vec2 dc = ivec2_centre(g_fs.dk[bk]);
         if (goal_near(b, dc.x, dc.y, 3.0f)) continue;
-        if (unit_goal(b, goal_move(dc.x, dc.y), 0, 0x1F40)) f->pulls++;
+        if (unit_goal(b, goal_move(dc.x, dc.y), 0, 0x1F40)) { f->pulls++; f->pull_t = game_time(); }
     }
 }
 internal uint32_t fl_lost(unsigned idx, int sunk) {   // warships and submarines lost (sunk: of the enemy, by this AI)
@@ -1357,7 +1358,63 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     fl_armies(idx, f, 0, now);
 }
 
-internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); }
+// THE FISHING BOATS THE MOD'S (own_citizens, econ.c EVERY UNIT THE MOD'S; the player 2026-11-13: fishing boats and
+// transports next). The game orders them from its citizen assignment (0x48A554: one boat through 0x48FB05 every 30 s
+// while the food gatherers are under their target, the map has fish (player +0xEFA) and fewer than 8 boats stand idle;
+// none while one of the type is asked for or in the making) - 26 a player in 60 minutes on Small Islands from epoch 9,
+// whatever the sea holds. The resource manager's timer for it (+0x16C) is kept from running out, and every FB_EVERY
+// the mod orders one itself (the newest type, hook_fish_type; trained at once through hook_train_units, the economy's
+// budget): food under its target as the game asks, fish with food left known, no boat idle (one that finds no fish
+// is one too many - the game went on to 8), none in the making, and no boat pulled back from an enemy warship in the
+// last FB_DANGER (fl_boats: a new one would sail into the same guns). Paid as the economy's transports are (econ.c
+// train_budget: above the epoch's reserve and urgent anti-air only), and an order not paid is asked again after
+// FB_AGAIN. The game still gives the boats their fish.
+// Measured (head-to-head, mirrored, 12 games a cell, 60 min, Small Islands, 4 AIs, against v_own_citizens=1; new -
+// before per game): from epoch 9 soldiers +8 (se 11), kills +8 (8), losses -6 (9), workers -11 (6: the boats not
+// built - 4 a player against 43, 1.9 against 4.6 sunk), razed -0.7 (0.9), epoch -0.08 (0.06), the first boat at
+// minute 5.5; from the start soldiers +5 (7), kills +3 (4), workers 0 (6), 6 boats a player. Without the budget's
+// place (the boats behind every wood saving, as the game's): from epoch 9 soldiers -5 (8), -14 (7) and -3 (9) in
+// three runs, the first boat at minute 36 - the place is what makes the rule level.
+// own_citizens' second level ([autotest] v_own_citizens=1: the citizens alone, as before).
+#define FB_EVERY 30000
+#define FB_DANGER 120000
+#define FB_AGAIN 2000
+internal struct { uint32_t t; unsigned orders, ordered, idle, no_fish, danger, making; } g_fb[16];
+internal void boats_tick(ee_player *pl, uint32_t now) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (is_vanilla(pl) || OWN_CITIZENS(idx) < 2) return;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    if (!rm || !um) return;
+    resource_mgr_set_next_fishing_boat(rm, now + 600000);   // the game's own order never comes
+    if (now < g_fb[idx].t) memset(&g_fb[idx], 0, sizeof g_fb[idx]);
+    if (g_fb[idx].t && now - g_fb[idx].t < FB_EVERY) return;
+    g_fb[idx].t = now ? now : 1;
+    if (!player_get_boats_for_food(pl) || (int)resource_mgr_get_target(rm, 2) <= rm_count(rm, 2)) return;
+    int type = hook_fish_type(cm);
+    if (!type || !is_fishing_boat(type) || !ld_type_avail(pl, type)) return;
+    if (unit_mgr_in_production_of(um, type) || unit_mgr_pending(um, type)) { g_fb[idx].making++; return; }
+    uint8_t *list = resource_mgr_list_at(rm, 0);
+    for (unsigned k = 0, first = deque_front(list), n = deque_count(list); k < n && k < 1024; k++) {
+        ee_unit *u = deque_at(list, first + k);
+        ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+        if (td && unit_get_hp(u) > 0 && unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) { g_fb[idx].idle++; return; }
+    }
+    int fish = 0;
+    void **qb = resource_mgr_get_fish_begin(rm), **qe = resource_mgr_get_fish_end(rm);
+    for (void **h = qb; qb && h < qe && h - qb < 4096 && !fish; h++) fish = *h && unit_get_amount(*h) > 0;
+    if (!fish) { g_fb[idx].no_fish++; return; }
+    if (g_fl[idx].pull_t && now >= g_fl[idx].pull_t && now - g_fl[idx].pull_t < FB_DANGER) { g_fb[idx].danger++; return; }
+    int req[4] = { type, 1, 0, 0 };
+    unsigned got = 0;
+    hook_train_units(um, req, (uintptr_t)&got);
+    g_fb[idx].orders++; g_fb[idx].ordered += got;
+    if (!got) g_fb[idx].t = now - FB_EVERY + FB_AGAIN;   // not paid now (the reserves, the wood): soon again, as the game's standing request
+    if (g_log && g_autotest && got) log_locked("# fishing: P%u at %.1f min: the mod orders a boat (type %d) - %u ordered so far (%u asked; not: %u a boat idle, %u in the making, %u no fish, %u a boat pulled back)\n",
+                                              idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger);
+}
+internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
 internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);

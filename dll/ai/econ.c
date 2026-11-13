@@ -144,8 +144,8 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // start workers +19 (12), razed +8 (4), soldiers +6 (10), then level on seeds 7-12 (soldiers -6 (14), workers -1
 // (14)). All three on (2026-11-13).
 // own_ships: 2 = the warships' orders and requests too (fleet.c EVERY WARSHIP THE MOD'S), 1 ([autotest] v_own_ships
-// only) = the fleet on every map alone
-internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own_ships = -1, g_own_citizens = 1, g_v_own_citizens = -1;
+// only) = the fleet on every map alone; own_citizens: 2 = the fishing boats too (fleet.c THE FISHING BOATS THE MOD'S)
+internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own_ships = -1, g_own_citizens = 2, g_v_own_citizens = -1;
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
 #define OWN_CITIZENS(idx) PV(idx, g_v_own_citizens, g_own_citizens)
@@ -2226,7 +2226,11 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     // transports_economy: the game's transport for its crossings sees the stock above the epoch's reserve only, as the
     // outpost's transport does (g_expand_order) - the other savings held it back for good: a fortress's 350 wood, the
     // landing's own transports' 250, the navy account's 130-600 (1530 of 1652 orders refused with 400+ wood in stock)
-    int tr_econ = g_tr_econ && !military && is_transport(req[0]);
+    // The mod's fishing boats the same (fleet.c THE FISHING BOATS THE MOD'S): a food worker paid in wood, and every wood
+    // saving stood above it - the fields', the landing's transports', the fortress's, the navy's (reserve W258-1171 at
+    // a stock of 35-300): the game's standing request, tried every tick, got a boat through only when the stock topped
+    // them all (4008 tries for 50 boats in a 40-minute island game from epoch 9, the first at minute 28.7)
+    int tr_econ = (g_tr_econ && !military && is_transport(req[0])) || (!military && is_fishing_boat(req[0]) && OWN_CITIZENS(idx) >= 2);
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |
@@ -2569,7 +2573,7 @@ internal void econ_install(const char *autotest_ini) {
     g_special_orders = g_set_ai[1].special_orders;
     g_spend_tiers = g_set_ai[1].spend_tiers;
     g_tight_build = g_set_ai[1].tight_build;
-    g_own_soldiers = g_set_ai[1].own_soldiers; g_own_ships = g_set_ai[1].own_ships ? 2 : 0; g_own_citizens = g_set_ai[1].own_citizens;
+    g_own_soldiers = g_set_ai[1].own_soldiers; g_own_ships = g_set_ai[1].own_ships ? 2 : 0; g_own_citizens = g_set_ai[1].own_citizens ? 2 : 0;
     if (autotest_ini) {
         g_v_own_soldiers = ini_int("autotest", "v_own_soldiers", -1, autotest_ini);
         g_v_own_ships = ini_int("autotest", "v_own_ships", -1, autotest_ini);
