@@ -594,6 +594,22 @@ internal void us_fx(uc_corpse *k, uint8_t f, float x, float y, float z) {
 // as it hit - nose in, a wing down - no more steps. In the water it floats and is slowed as a ship is.
 // one step at t s after its death: each float moved by its forces (Verlet: its velocity its way since the step before),
 // then the frame's distances and the seabed held, four times round
+// how far the hull reaches under each point as it lies now (us_step's ground: its place's bottom this much above it, less
+// its dig): the keel as far as it is upright, and under the bow and the stern half its beam as far as it lies on its side
+// (the side floats are at its sides) - a ship rolled over comes to rest on its side; held at the keel alone, all four
+// came to rest level and it stood up again on the bottom. The ballast above the keel on the middle line, on its side
+// half the beam up - less as it slid to the low side. Its side's share (0 upright, 1 on its side)
+internal float us_below(const uc_corpse *k, float *below) {
+    float al[3], ac[3], lal = 0.0f, lac = 0.0f, uz;
+    for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], lal += al[j] * al[j], lac += ac[j] * ac[j];
+    lal = sqrtf(lal), lac = sqrtf(lac);
+    uz = lal > 1e-6f && lac > 1e-6f ? (al[0] * ac[1] - al[1] * ac[0]) / (lal * lac) : 1.0f;   // the hull's up, its height
+    float side = lac > 1e-6f ? fabsf(ac[2]) / lac : 0.0f, beam = 0.5f * lac;
+    below[0] = below[1] = k->keel * fmaxf(uz, 0.0f) + beam * side;
+    below[2] = below[3] = k->keel * fmaxf(uz, 0.0f);
+    below[4] = (1.0f - US_LOW) * k->keel * fmaxf(uz, 0.0f) + beam * side * (1.0f - 0.8f * k->shift);
+    return side;
+}
 internal void us_step(uc_corpse *k, float t, const void *mesh) {
     if (k->stuck) return;
     const float dt = (float)US_DT;
@@ -712,16 +728,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             float m = vm[j] / wsum;
             k->sp[i][j] = k->sq[i][j] + m + (k->sp[i][j] - k->sq[i][j] - m) * f_turn;
         }
-    // how far the hull reaches under each float as it lies now: the keel as far as it is upright, and under the bow and
-    // the stern half its beam as far as it lies on its side (the side floats are at its sides) - a ship rolled over
-    // comes to rest on its side; held at the keel alone, all four came to rest level and it stood up again on the bottom
-    float al[3], ac[3], lal = 0.0f, lac = 0.0f, uz, below[US_PTS];
-    for (int j = 0; j < 3; j++) al[j] = k->sp[0][j] - k->sp[1][j], ac[j] = k->sp[2][j] - k->sp[3][j], lal += al[j] * al[j], lac += ac[j] * ac[j];
-    lal = sqrtf(lal), lac = sqrtf(lac);
-    uz = lal > 1e-6f && lac > 1e-6f ? (al[0] * ac[1] - al[1] * ac[0]) / (lal * lac) : 1.0f;   // the hull's up, its height
-    float side = lac > 1e-6f ? fabsf(ac[2]) / lac : 0.0f, beam = 0.5f * lac;
-    below[0] = below[1] = k->keel * fmaxf(uz, 0.0f) + beam * side;
-    below[2] = below[3] = k->keel * fmaxf(uz, 0.0f);
+    float below[US_PTS], side = us_below(k, below);
     if (!k->air && !k->shift_to && side > US_SHIFT) k->shift_to = k->sp[2][2] < k->sp[3][2] ? 2 : 3;
     if (k->shift_to && k->shift < 1.0f) {   // sliding: its place in the hull from the middle toward the low side's float
         k->shift = fminf(k->shift + dt / US_SHIFT_S, 1.0f);
@@ -731,8 +738,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             k->body[4][j] = mid + 0.8f * k->shift * (to[j] - mid);
         }
     }
-    // the ballast: above the keel on the middle line, on its side half the beam up - less as it slid to the low side
-    below[4] = (1.0f - US_LOW) * k->keel * fmaxf(uz, 0.0f) + beam * side * (1.0f - 0.8f * k->shift);
+    us_below(k, below);   // (the ballast's as it slid)
     for (int round = 0; round < 4; round++) {
         for (int i = 0; i < k->n; i++)
             for (int j = i + 1; j < k->n; j++) {
@@ -853,6 +859,18 @@ internal void us_half_go(uc_corpse *k, const float *now, const float *was, float
     for (int i = 2; i < 4; i++)
         k->leak[i][0] = 0.2f + 0.4f * us_rnd(&s), k->leak[i][1] = at + 1.5f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 5.0f * us_rnd(&s);
     if (floor) {   // its broken end and one side deeper in the seabed (its leaks as a broken half's on the water)
+        // a point of it placed into the seabed counts as dug in as deep as it lies (the player, the same day: "the pice
+        // hitting the ground bounces/ fling up a bit sometimes": its new points - over its own stretch, each with its
+        // own dig - could start under their ground, and the push out of it went through the half as a fling)
+        const void *mesh = game_map() ? map_mesh_at(game_map()) : NULL;
+        float below[US_PTS];
+        us_below(k, below);
+        for (int i = 0; i < US_PTS && mesh; i++) {
+            const float *p = k->sp[i];
+            if (!mesh_has_tile(mesh, (int)floorf(p[0]), (int)floorf(p[1]))) continue;
+            float under = mesh_z(mesh, p[0], p[1]) + below[i] - k->dig[i] - p[2];
+            if (under > 0.0f) k->dig[i] += under;
+        }
         k->dig[cut] += US_FLOOR_SAG;
         k->dig[2 + (us_rnd(&s) < 0.5f)] += 0.4f * US_FLOOR_SAG * us_rnd(&s);
     }
