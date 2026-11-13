@@ -17,6 +17,9 @@
 //               meet, the place is a border when it is narrower than g_ter_ratio of the smaller one's widest place,
 //               else they are one (ter_shed: a pass, a ford, a gap between cliffs or woods, a strait);
 //   the small - a region under 1/8 of the size joins the neighbour it shares the longest border with (ter_join);
+//   the mines - (after the large) a mine and the open land within TER_GROUND steps of it are one territory's, mines
+//               side by side one field in the territory most of them stand in (ter_mines); what that parts from
+//               its territory joins a neighbour (ter_whole);
 //   the large - one of more than size x size open tiles (water: g_ter_water times as far across), or longer than
 //               TER_LONG sizes from end to end (a strip of coast, a long valley), is split in halves
 //               until none is, each cut the shortest one near the middle between the region's two ends (ter_split:
@@ -43,11 +46,15 @@
 #define TER_FACTS_MS 5000
 #define TER_LINES 30000           // border lines drawn at most
 #define TER_FAR 0x3FFFFFFF        // a way not found
+#define TER_GROUND 5              // a mine's ground: the open land within this many steps of it (ter_mines)
+#define TER_MINE 6                // a cut keeps this many tiles from a mine (stone, gold, iron) where it can
+#define TER_MINE_COST 15          // ... a mine nearer counts as so many tiles of the cut's length
 #define TER_LONG 3                // a territory whose two ends lie more than this many sizes apart (the way between them) is split too
 internal int g_ter_size = 40;     // tiles across: more than size x size open tiles and it is split
 internal int g_ter_ratio = 70;    // percent: a narrow place parts two regions when narrower than this share of the smaller one's widest place
 internal int g_ter_trees = 1;     // trees are walls for the split
 internal int g_ter_water = 2;     // water: this many times as far across before it is split
+internal int g_ter_field = 8;     // mines this many steps apart at most are one field (ter_mines)
 struct ter_terr {
     uint8_t water;                // 0 land, 1 water
     int area, trees;              // its open tiles; its tiles under trees
@@ -71,8 +78,9 @@ internal struct {
     struct ter_terr *t; int n, n_land, n_water;
     struct ter_nb *nb; int nnb;
     struct ter_site *site; int nsite;
-    int p_size, p_ratio, p_trees, p_water;   // what it was built with
+    int p_size, p_ratio, p_trees, p_water, p_field;   // what it was built with
     int tiles[3], tree_tiles;     // tiles by kind
+    int moved, mended, pieces;    // the log's: tiles the mines' ground moved to another territory, parted pieces given to a neighbour, territories still in more than one piece
     int shed, joined, split, lost, dropped;   // the log's: regions the narrow places made, small ones joined, parts the size added, regions past TER_MAX, tiles of regions too small to be one
     unsigned build_ms;
     uint32_t facts_t, log_t, built_at;   // built_at: the game time of the build
@@ -81,6 +89,7 @@ internal struct {
 struct ter_work {
     int size, n;
     uint8_t *cls; uint16_t *d;
+    uint8_t *mine;                // per tile: a mine stands there (stone, gold, iron)
     int *tl;                      // per tile: its region while they form, -1 none
     int *ord;                     // tiles in an order (ter_shed: the widest first; ter_split: by region)
     int *up, *peak, *rsz;         // per region (ter_shed): the one it joined, its widest place, its tiles
@@ -127,6 +136,7 @@ internal void ter_tiles(ee_map *map, struct ter_work *w) {
                     if (!ns) continue;
                     g_ter.site = ns;
                 }
+                if (r >= 4) w->mine[i] = 1;
                 g_ter.site[g_ter.nsite].x = (short)x; g_ter.site[g_ter.nsite].y = (short)y; g_ter.site[g_ter.nsite++].res = (uint8_t)r;
             }
         }
@@ -336,11 +346,15 @@ internal int ter_ways_from(struct ter_work *w, int r, int k, const int *t, int m
 // (the player: "when a teretory is larger ... it gets split in half, continue untile evrething is under"). Its two
 // ends - the tile farthest from its first one, and the one farthest from that; every tile by how much nearer it is to
 // the one end than to the other; the cut where the fewest tiles lie side by side across it, among the cuts that leave
-// each half 35 to 65 in a hundred of the tiles: the narrowest place near the middle. What a cut parts from its own
+// each half 35 to 65 in a hundred of the tiles: the narrowest place near the middle - a mine within TER_MINE tiles of
+// a cut counting TER_MINE_COST tiles of its length (the player 2026-11-13, of the first pictures: "mines end up on
+// borders sometimes" - a mine on a border is its miners 3 tiles from ground nobody guards, and a territory's worth
+// that needs the neighbour held too; of 56 mines of a huge Continental 26 lay within 3 tiles of another territory,
+// about what chance gives). A mine in a pass stays on its border: there the map says so. What a cut parts from its own
 // end's half goes to the other. The second half is a new region; t is put in order, the first half's tiles first.
 internal void ter_split(struct ter_work *w, int r, int k, int *t, int m, int max, int way) {
-    enum { CUTS = 7 };
-    int size = w->size, th[CUTS], cut[CUTS] = { 0 };
+    enum { CUTS = 13 };
+    int size = w->size, th[CUTS], cut[CUTS] = { 0 }, mines[CUTS] = { 0 };
     if (m < 2 || w->nreg >= w->cap) return;
     int a = ter_ways_from(w, r, k, t, m, t[0], w->dist);
     int b = ter_ways_from(w, r, k, t, m, a, w->dist);
@@ -354,10 +368,12 @@ internal void ter_split(struct ter_work *w, int r, int k, int *t, int m, int max
         v[q] = w->dist[i];
     }
     qsort(v, (size_t)m, sizeof *v, ter_int_cmp);
-    for (int c = 0; c < CUTS; c++) th[c] = v[(long long)m * (35 + 5 * c) / 100];
+    for (int c = 0; c < CUTS; c++) th[c] = v[(long long)m * (70 + 5 * c) / 200];
     free(v);
     for (int q = 0; q < m; q++) {
         int i = t[q], x = i % size, y = i / size;
+        // a step towards the other end is 10 less of the one way and more of the other: TER_MINE tiles from the cut
+        for (int c = 0; c < CUTS && w->mine[i] && w->dist[i] != TER_FAR; c++) mines[c] += abs(w->dist[i] - th[c]) < 10 * TER_MINE;
         for (int s = 0; s < 2; s++) {
             int j = ter_step(w, x, y, s ? 2 : 0, k);
             if (j < 0 || w->tl[j] != r) continue;
@@ -366,6 +382,7 @@ internal void ter_split(struct ter_work *w, int r, int k, int *t, int m, int max
         }
     }
     int best = CUTS / 2;   // the middle one unless another is shorter
+    for (int c = 0; c < CUTS; c++) cut[c] += TER_MINE_COST * mines[c];
     for (int c = 0; c < CUTS; c++) if (cut[c] < cut[best] || (cut[c] == cut[best] && abs(c - CUTS / 2) < abs(best - CUTS / 2))) best = c;
     // a's half: what its end reaches below the cut (the rest is b's)
     int nb = w->nreg++, h = 0, n = 0, ma = 0;
@@ -404,6 +421,138 @@ internal void ter_split_all(struct ter_work *w) {
     }
     free(area); free(start); free(kind);
 }
+// the mines' ground: a mine and the ground round it are one territory's (the player 2026-11-13, of the first pictures:
+// "mines end up on borders sometimes" - with territories some 30 tiles across a fifth to a third of all ground lies
+// within 3 tiles of a border, and so did the mines: 8-21 of 50-56 a map, on foot; its miners and its drop site would
+// stand beside ground nobody of theirs guards, and its worth would need the neighbour held too). The open land within
+// TER_GROUND steps of a mine (stone, gold, iron) is the ground of the mine nearest to it; mines within g_ter_field steps
+// of each other are one field (the gold and the iron of one site), and a field's ground all goes to the territory
+// most of its mines stand in - the border moves round the field. Measured on five random maps (116 to 320 tiles,
+// 37-56 mines each; mines with another territory within 3 steps on foot): without this step 5-21 a map; fields of
+// mines 4 steps apart 6, 6, 1, 0, 4; 6 apart 1, 0, 1, 0, 0; 8 apart none, 211-530 tiles moved a map; all whose grounds
+// touch (11) none either, but on a 116-tile map with 50 mines the fields chained across it and one territory took
+// 1597 of 3979 land tiles. So 8 (the pipe: territories field n).
+internal void ter_mines(struct ter_work *w) {
+    int size = w->size, nm = 0, h = 0, t = 0;
+    for (int i = 0; i < w->n; i++) { w->sub[i] = -1; nm += w->mine[i] && w->cls[i] == TER_LAND && w->tl[i] >= 0; }
+    int *up = malloc((size_t)(nm + 1) * sizeof *up), *terr = malloc((size_t)(nm + 1) * sizeof *terr), *to = malloc((size_t)(nm + 1) * sizeof *to);
+    if (!nm || !up || !terr || !to) { free(up); free(terr); free(to); return; }
+    for (int i = 0, k = 0; i < w->n; i++)
+        if (w->mine[i] && w->cls[i] == TER_LAND && w->tl[i] >= 0) { up[k] = k; terr[k] = w->tl[i]; w->sub[i] = k++; w->dist[i] = 0; w->ord[t++] = i; }
+    while (h < t) {
+        int i = w->ord[h++];
+        for (int dd = 0; dd < 8; dd++) {
+            int j = ter_step(w, i % size, i / size, dd, TER_LAND);
+            if (j < 0 || w->tl[j] < 0) continue;
+            if (w->sub[j] >= 0) {   // two mines' grounds meet: one field when the mines are g_ter_field steps apart at most
+                int a = rm_find(up, w->sub[i]), b = rm_find(up, w->sub[j]);
+                if (a != b && w->dist[i] + w->dist[j] + 1 <= g_ter_field) up[a] = b;
+                continue;
+            }
+            if (w->dist[i] >= TER_GROUND) continue;
+            w->sub[j] = w->sub[i]; w->dist[j] = w->dist[i] + 1; w->ord[t++] = j;
+        }
+    }
+    for (int k = 0; k < nm; k++) to[k] = -1;
+    for (int k = 0; k < nm; k++) {   // each field's territory: where most of its mines stand (the first of those that tie)
+        int c = rm_find(up, k), most = 0;
+        if (to[c] >= 0) continue;
+        for (int a = 0; a < nm; a++) {
+            int cnt = 0;
+            if (rm_find(up, a) != c) continue;
+            for (int b = 0; b < nm; b++) cnt += rm_find(up, b) == c && terr[b] == terr[a];
+            if (cnt > most) { most = cnt; to[c] = terr[a]; }
+        }
+    }
+    for (int q = 0; q < t; q++) {
+        int i = w->ord[q], want = to[rm_find(up, w->sub[i])];
+        if (want >= 0 && w->tl[i] != want) { w->tl[i] = want; g_ter.moved++; }
+    }
+    free(up); free(terr); free(to);
+}
+// a territory is one piece: what a cut or a mine's ground parted from a region's largest piece joins the neighbour of
+// its kind it shares the longest border with (seen: 1-4 territories a map in two pieces after ter_mines - a neck the
+// ground was taken through); a piece with no neighbour is a region of its own, one under TER_TINY tiles none. Twice:
+// a piece may have joined another's lesser piece.
+struct ter_piece { int size, terr, nb[6], len[6]; };
+internal void ter_whole(struct ter_work *w) {
+    int size = w->size;
+    for (int pass = 0; pass < 2; pass++) {
+        struct ter_piece *pc = NULL;
+        int np = 0, cap = 0, fixed = 0;
+        int *big = malloc((size_t)(w->nreg + 1) * sizeof *big);
+        if (!big) return;
+        for (int r = 0; r < w->nreg; r++) big[r] = -1;
+        for (int i = 0; i < w->n; i++) w->sub[i] = -1;
+        for (int i = 0; i < w->n; i++) {
+            if (w->tl[i] < 0 || w->sub[i] >= 0 || (w->cls[i] & TER_TREE)) continue;
+            if (np == cap) {
+                struct ter_piece *npc = realloc(pc, (size_t)(cap = cap ? cap * 2 : 256) * sizeof *pc);
+                if (!npc) { free(pc); free(big); return; }
+                pc = npc;
+            }
+            int h = 0, t = 0;
+            memset(&pc[np], 0, sizeof pc[np]);
+            pc[np].terr = w->tl[i];
+            w->sub[i] = np; w->ord[t++] = i;
+            while (h < t) {
+                int c = w->ord[h++];
+                for (int dd = 0; dd < 8; dd++) {
+                    int j = ter_step(w, c % size, c / size, dd, w->cls[i]);
+                    if (j < 0 || w->sub[j] >= 0 || w->tl[j] != w->tl[i]) continue;
+                    w->sub[j] = np; w->ord[t++] = j;
+                }
+            }
+            pc[np].size = t;
+            if (big[w->tl[i]] < 0 || t > pc[big[w->tl[i]]].size) big[w->tl[i]] = np;
+            np++;
+        }
+        for (int i = 0; i < w->n; i++) {   // the lesser pieces' borders
+            int c = w->tl[i] >= 0 && !(w->cls[i] & TER_TREE) ? w->sub[i] : -1;
+            if (c < 0 || big[pc[c].terr] == c) continue;
+            for (int dd = 0; dd < 8; dd += 2) {
+                int j = ter_step(w, i % size, i / size, dd, w->cls[i]), k = 0;
+                if (j < 0 || w->tl[j] < 0 || w->tl[j] == w->tl[i]) continue;
+                while (k < 6 && pc[c].len[k] && pc[c].nb[k] != w->tl[j]) k++;
+                if (k < 6) { pc[c].nb[k] = w->tl[j]; pc[c].len[k]++; }
+            }
+        }
+        for (int c = 0; c < np; c++) {   // where each goes: terr from here on
+            if (big[pc[c].terr] == c) continue;
+            int best = -1;
+            for (int k = 0; k < 6; k++) if (pc[c].len[k] && (best < 0 || pc[c].len[k] > pc[c].len[best])) best = k;
+            pc[c].terr = best >= 0 ? pc[c].nb[best] : pc[c].size < TER_TINY || w->nreg >= w->cap ? -1 : w->nreg++;
+            fixed++;
+        }
+        for (int i = 0; i < w->n && fixed; i++) if (w->tl[i] >= 0 && !(w->cls[i] & TER_TREE)) w->tl[i] = pc[w->sub[i]].terr;
+        free(pc); free(big);
+        g_ter.mended += fixed;
+        if (!fixed) break;
+    }
+}
+// territories still in more than one piece after that (none seen): counted for the log
+internal int ter_pieces(struct ter_work *w, int nt) {
+    int size = w->size, more = 0;
+    int *cnt = calloc((size_t)nt + 1, sizeof *cnt);
+    if (!cnt) return 0;
+    for (int i = 0; i < w->n; i++) w->sub[i] = 0;
+    for (int i = 0; i < w->n; i++) {
+        if (w->tl[i] < 0 || w->sub[i] || (w->cls[i] & TER_TREE)) continue;
+        int h = 0, t = 0;
+        w->sub[i] = 1; w->ord[t++] = i;
+        while (h < t) {
+            int c = w->ord[h++];
+            for (int dd = 0; dd < 8; dd++) {
+                int j = ter_step(w, c % size, c / size, dd, w->cls[i]);
+                if (j < 0 || w->sub[j] || w->tl[j] != w->tl[i]) continue;
+                w->sub[j] = 1; w->ord[t++] = j;
+            }
+        }
+        if (cnt[w->tl[i]]++ == 1) more++;
+    }
+    free(cnt);
+    return more;
+}
 // the trees' tiles: each the territory of the labelled land tile it is reached from first, a wood from its edges in
 internal void ter_trees(struct ter_work *w) {
     int size = w->size, h = 0, t = 0;
@@ -433,12 +582,12 @@ internal int ter_build(ee_map *map) {
     struct ter_work w = { 0 };
     w.size = size; w.n = n;
     w.cap = n / 2 + TER_MAX;
-    w.cls = calloc((size_t)n, 1); w.d = calloc((size_t)n, sizeof *w.d);
+    w.cls = calloc((size_t)n, 1); w.d = calloc((size_t)n, sizeof *w.d); w.mine = calloc((size_t)n, 1);
     w.tl = malloc((size_t)n * sizeof *w.tl); w.ord = malloc((size_t)n * sizeof *w.ord);
     w.dist = malloc((size_t)n * sizeof *w.dist); w.sub = malloc((size_t)n * sizeof *w.sub);
     w.up = malloc((size_t)w.cap * sizeof *w.up); w.peak = malloc((size_t)w.cap * sizeof *w.peak); w.rsz = malloc((size_t)w.cap * sizeof *w.rsz);
     uint16_t *lab = malloc((size_t)n * sizeof *lab);
-    int *ids = NULL, ok = w.cls && w.d && w.tl && w.ord && w.dist && w.sub && w.up && w.peak && w.rsz && lab;
+    int *ids = NULL, ok = w.cls && w.d && w.mine && w.tl && w.ord && w.dist && w.sub && w.up && w.peak && w.rsz && lab;
     if (ok) {
         ter_tiles(map, &w);
         for (int i = 0; i < n; i++) { w.tl[i] = -1; g_ter.tiles[w.cls[i] & 3]++; g_ter.tree_tiles += (w.cls[i] & TER_TREE) != 0; }
@@ -459,6 +608,8 @@ internal int ter_build(ee_map *map) {
         g_ter.shed = w.nreg = nr;
         ter_join(&w);
         ter_split_all(&w);
+        ter_mines(&w);
+        ter_whole(&w);
         ter_trees(&w);
         // the territories: the regions with tiles, in the order the map's rows meet them
         free(ids);
@@ -509,15 +660,16 @@ internal int ter_build(ee_map *map) {
                     if (t->water == o->water) t->border += e[q].len; else t->coast += e[q].len;
                 }
             g_ter.nnb = 2 * ne; g_ter.n = nt;
+            g_ter.pieces = ter_pieces(&w, nt);
             for (int r = 0; r < nt; r++) { if (g_ter.t[r].water) g_ter.n_water++; else g_ter.n_land++; }
         }
         free(sx); free(sy); free(bd); free(e);
     }
-    free(w.tl); free(w.ord); free(w.dist); free(w.sub); free(w.up); free(w.peak); free(w.rsz); free(w.heap); free(ids);
+    free(w.tl); free(w.ord); free(w.dist); free(w.sub); free(w.up); free(w.peak); free(w.rsz); free(w.heap); free(w.mine); free(ids);
     if (!ok) { free(w.cls); free(w.d); free(lab); ter_free(); return 0; }
     g_ter.cls = w.cls; g_ter.clr = w.d; g_ter.lab = lab;
     g_ter.map = map; g_ter.size = size;
-    g_ter.p_size = g_ter_size; g_ter.p_ratio = g_ter_ratio; g_ter.p_trees = g_ter_trees; g_ter.p_water = g_ter_water;
+    g_ter.p_size = g_ter_size; g_ter.p_ratio = g_ter_ratio; g_ter.p_trees = g_ter_trees; g_ter.p_water = g_ter_water; g_ter.p_field = g_ter_field;
     g_ter.version++;
     g_ter.built_at = game_time();
     QueryPerformanceCounter(&t1);
@@ -540,8 +692,8 @@ internal void ter_summary(char *out, size_t cap) {
         out_printf(out, cap, " | %s %d: tiles %d / %d / %d (least, middle, most), border %d a territory, the widest place %d",
                    k ? "water" : "land", m, a[0], a[m / 2], a[m - 1], border / m, wide);
     }
-    out_printf(out, cap, " | %d regions by the narrow places, %d small ones joined (%d tiles in none: too few), %d parts by size%s, %d resource sites, built in %u ms",
-               g_ter.shed, g_ter.joined, g_ter.dropped, g_ter.split, g_ter.lost ? " (MORE THAN KEPT)" : "", g_ter.nsite, g_ter.build_ms);
+    out_printf(out, cap, " | %d regions by the narrow places, %d small ones joined (%d tiles in none: too few), %d parts by size%s, %d tiles moved with the mines' ground, %d parted pieces mended, %d territories in more than one piece, %d resource sites, built in %u ms",
+               g_ter.shed, g_ter.joined, g_ter.dropped, g_ter.split, g_ter.lost ? " (MORE THAN KEPT)" : "", g_ter.moved, g_ter.mended, g_ter.pieces, g_ter.nsite, g_ter.build_ms);
     free(a);
 }
 // the territories of the map as it stands: built for it, and again when a setting of the split changed; 0: no map.
@@ -552,7 +704,7 @@ internal int ter_ready(void) {
     ee_map *map = game_map();
     if (!map) return 0;
     if (g_ter.map == map && g_ter.size == (int)map_get_size(map) && g_ter.p_size == g_ter_size && g_ter.p_ratio == g_ter_ratio &&
-        g_ter.p_trees == g_ter_trees && g_ter.p_water == g_ter_water &&
+        g_ter.p_trees == g_ter_trees && g_ter.p_water == g_ter_water && g_ter.p_field == g_ter_field &&
         (g_ter.nsite || g_ter.tree_tiles || game_time() == g_ter.built_at || g_ter.built_at >= 60000)) return 1;
     if (!ter_build(map)) return 0;
     if (g_log) {
@@ -692,7 +844,7 @@ internal void territory_tick(uint32_t now, int list) {
     int show = overlay_on(layer), logs = g_log && list;
     if (!show && !logs) { g_ter.shown = 0; return; }
     if (g_ter.facts_t && now >= g_ter.facts_t && now - g_ter.facts_t < TER_FACTS_MS && show == g_ter.shown && g_ter.map == game_map() &&
-        g_ter.p_size == g_ter_size && g_ter.p_ratio == g_ter_ratio && g_ter.p_trees == g_ter_trees && g_ter.p_water == g_ter_water) return;
+        g_ter.p_size == g_ter_size && g_ter.p_ratio == g_ter_ratio && g_ter.p_trees == g_ter_trees && g_ter.p_water == g_ter_water && g_ter.p_field == g_ter_field) return;
     if (!ter_ready()) return;
     g_ter.facts_t = now ? now : 1;
     ter_facts();
@@ -706,7 +858,7 @@ internal void territory_tick(uint32_t now, int list) {
         LeaveCriticalSection(&g_lock);
     }
 }
-// the pipe's territories [size n] [ratio n] [trees 0|1] [water n] [list] [at x y] [dump <file>]: the split's settings
+// the pipe's territories [size n] [ratio n] [trees 0|1] [water n] [field n] [list] [at x y] [dump <file>]: the split's settings
 // (a change builds it anew), what it made; list: every territory; at: a tile's; dump: the tiles' territories and
 // kinds into a file (a line "TER <size> <territories>", then a uint16 and then a byte a tile) for a picture of it
 internal void cmd_territories(char *out, const char *args) {
@@ -724,6 +876,7 @@ internal void cmd_territories(char *out, const char *args) {
         else if (!strcmp(word, "ratio") && v >= 0 && v <= 100) g_ter_ratio = v;
         else if (!strcmp(word, "trees")) g_ter_trees = v != 0;
         else if (!strcmp(word, "water") && v >= 1 && v <= 16) g_ter_water = v;
+        else if (!strcmp(word, "field") && v >= 0 && v <= 64) g_ter_field = v;
         else { REPLY("error: %s %d - size 8..512, ratio 0..100, trees 0|1, water 1..16\n", word, v); return; }
     }
     if (!ter_ready()) { REPLY("error: no map\n"); return; }

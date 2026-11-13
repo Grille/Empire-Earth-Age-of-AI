@@ -255,7 +255,8 @@ and flies a wave every 1.5 minutes. Against ships only, from the Atomic Age - Mo
 Territories (game/territory.c, 2026-11-13, read only so far - the player: "its hard to make the ai decide based on the
 whole map ... what about spliting the map into teretories?"): land and water split at their narrow places (passes, fords,
 gaps between cliffs or woods, straits), what is still larger than 40 x 40 tiles halved at the shortest cut near its
-middle; each territory knows its tiles, neighbours, the length of every border, its coast, its resource sites and who
+middle; a mine and the ground 5 steps round it stay in one territory (the player: "mines end up on borders sometimes" -
+5-21 of some 50 a map lay within 3 steps of a border, none after); each territory knows its tiles, neighbours, the length of every border, its coast, its resource sites and who
 has built there. Nothing of the AI asks it yet: `overlay territories` draws it, the pipe's `territories` lists and
 resizes it (docs/testing.md). Meant to replace the separate map scans of expand.c (islands), fronts.c (cells) and the
 garrisons, one user at a time.
