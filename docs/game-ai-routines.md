@@ -240,6 +240,11 @@ standard map (soldiers +2, -11, +7 in three runs), behind on the large one (-10,
 gatherers on other islands there, the outposts 7-9; an outpost that stands is worth 10-25 soldiers, one lost costs as
 much, and half are lost. The transports stay the game's.
 
+Outposts that hold (2026-11-13, `expand_islands` now outposts, extra_citizens, more_islands, fort): what kills an outpost
+is enemy land soldiers, 5-11 near each citizen killed against its own 1-3. With the game's ferrying kept and the
+fortified outpost on top (its transport paid as the economy's) soldiers +9 to +19 from epoch 9 on both island maps, two
+seed sets, and 44 of 61 outposts stood at minute 55. Citizens still die there in numbers (57-347 a 12 games).
+
 Air transport (`air_transport`, landing.c AIR TRANSPORT, 2026-11-13, on): a landing and an outpost use transport
 helicopters before ships where an Airport stands, and want one otherwise. A landing by helicopter is ashore in seconds
 and flies a wave every 1.5 minutes. Against ships only, from the Atomic Age - Modern: level on Small Islands, soldiers

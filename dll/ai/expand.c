@@ -203,7 +203,23 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
 }
 
 
-// ---- THE OUTPOST ([ai_base] expand_islands, bits, default 0; [autotest] v_expand_islands for the variant players) ----
+// ---- THE OUTPOST ([ai_base] expand_islands, bits, default 305 = SETTLE | EXTRA | MORE | FORT since 2026-11-13;
+// [autotest] v_expand_islands for the variant players) ----
+// ON (the player 2026-11-13, of the outposts that were lost: "yes, make them hold"). What kills them, read from the
+// games: enemy land soldiers - a rival's guard or a landing, 5-11 of them near each citizen killed against the
+// outpost's own 1-3; a quarter of the deaths within a minute of the landing (two AIs unloading on one island), the
+// rest 13-26 minutes after it. FORT (four corner towers, walls, a garrison of 8-12 once enemies are seen) halved the
+// deaths while the mod's outposts stood in for the game's ferrying, but the outcome stayed level; FIRST COME (ex_pick)
+// hardly ever sees the rival in time (1 ferry called off in 24 games: honest vision). What works is both together -
+// the game's citizen ferrying kept (econ.c THE TRANSPORTS THE MOD'S stays a test level) and the fortified outpost on
+// top, its transport paid as the economy's: the game brings its citizens to an island that has towers and a garrison.
+// Head-to-head, mirrored, 12 games a cell, 60 min, Small Islands, 4 AIs, 305 against none (with - without per game):
+// from epoch 9 the standard map soldiers +16 (se 8) and +11 (10), kills +8 (5) and -3 (4), workers -12 (5) and +3
+// (11); map_scale=large soldiers +9 (10) and +19 (6), kills +11 (5) and +4 (6), workers -3 (6) and -6 (5) (seeds
+// 1-6, 7-12) - 44 of 61 outposts ashore stood at minute 55 (about half before), 8-25 gatherers on other islands
+// against 5-16. From the start soldiers +1 (6), workers +6 (4); from the Atomic Age - Modern soldiers +6 (13), razed
+// -4.4 (1.9), workers -14 (6); Continental level (no island to take). The price is citizens: 57-347 killed at the
+// outposts a 12 games - the next thing to mend (they keep working beside 5-9 enemy soldiers).
 // Measured first (# isl, base AI at hard, 60 min, 20 seeds x both seats; docs/economy.md "Other islands"): on the
 // test maps only Small Islands has a free island (7 mines, 42 slots, more than the home's 30); the base AI settles it in
 // 97-100% of the games (minute 31 without the cheat, 23 with it), the mod's AI never on its own.
@@ -262,7 +278,7 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
 //   and Small Islands Small, both cheats): miners on other islands +1 to +4 at minute 30, enemy soldiers on the home
 //   island -2 to -5 without the cheat, but the other islands' miners at 60 back to even or below (-7 (3) on Small
 //   Islands Large) and kills - losses -13 .. +15, all within the noise; off.
-internal int g_expand = 0, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_ex_min = 8, g_ex_trips = 4, g_ex_max = 3;
+internal int g_expand = 305, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_ex_min = 8, g_ex_trips = 4, g_ex_max = 3;
 #define EXPAND(idx) PV(idx, g_v_expand, g_expand)
 #define EX_GUARD(idx) (EXPAND(idx) & 128 && g_ex_guard < 4 ? 4 : g_ex_guard)   // FOLLOW: a guard of 4 at least
 // FORT (the player 2026-11-08: "the ai must invest in keeping what it claims, building an outpost just to lose it again is
@@ -306,6 +322,7 @@ internal struct ex_st {
     unsigned scouted, scouts, scout_bad;  // the island the ferry's transport has looked at (phase 4)
     uint32_t scout_at;                    // the scouting transport at the island's shore since
     uint32_t air_wait_t;                  // AIR: a transport helicopter ordered while a ship stood free
+    unsigned taken;                       // FIRST COME: ferries called off or turned back for an island someone else had settled meanwhile
     struct sfort fort; int fort_set;      // FORT: its square (defence.c), walls ordered every wall_t
     int guard_only; uint32_t wall_t;      // FORT: this boat takes soldiers only
     int gun_trip;                         // FORT'S GUNS: and the battery's guns first
@@ -483,7 +500,11 @@ internal unsigned ex_pick(ee_player *pl, unsigned idx, struct ex_st *x, unsigned
         // from looking: an island with fewer than half its mines looked at (intel.c - the sites' explored flag is set
         // for everyone from the start) is scouted first by the ferry's transport (ex_ferry_scout), and an enemy town
         // seen there before the ferry sails or once ashore ends the outpost (that island never again; ex_enemy_home).
-        if (town || (ally && !(EXPAND(idx) & 4)) || c->etow[idx] || c->eseen[idx] > 3 || ex_gone(x, c->id, now)) continue;
+        // FIRST COME (2026-11-13): any enemy building it knows there and the island is taken - until then 3 were let
+        // pass, and two AIs unloaded on one island minutes apart: a quarter of the citizens killed at the outposts died
+        // within a minute of their landing, by the other one's guard (64-198 citizens a 12 games, the killer's land
+        // soldiers 5-11 near, the outpost's own 1-3)
+        if (town || (ally && !(EXPAND(idx) & 4)) || c->etow[idx] || c->eseen[idx] > 0 || ex_gone(x, c->id, now)) continue;
         int mx = c->msx / c->mn, my = c->msy / c->mn, n = 0;
         float hp = 0, att = 0;
         intel_soldiers(pl, mx, my, 20, &hp, &att, NULL, &n);
@@ -602,16 +623,17 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
             int req[4] = { tt, 1, 0, 0 };
             unsigned got = 0;
             g_priority_mil = 1; g_landing_order = 1; g_expand_order = (EXPAND(idx) & 8) != 0 || g_spend_tiers;   // the top tier: the whole stock
-            // THE TRANSPORTS THE MOD'S (econ.c): no transport of the game's stands about to borrow, and behind every wood
-            // saving its own never came (311 "can't train" and 24 "no transport - given up" in 12 games without EARLY)
-            // - paid as the economy's transports: above the epoch's reserve and urgent anti-air only
-            g_expand_econ = OWN_TRANSPORTS(idx) && !g_expand_order;
+            // Behind every wood saving its own transport never came (311 "can't train" and 24 "no transport - given
+            // up" in 12 games without EARLY and without the game's transports to borrow; with them 21-25 given up and
+            // 1-3 outposts ashore in 12 games - the game's are busy with its own crossings) - paid as the economy's
+            // transports: above the epoch's reserve and urgent anti-air only
+            g_expand_econ = !g_expand_order;
             hook_train_units(um, req, (uintptr_t)&got);
             g_priority_mil = 0; g_landing_order = 0; g_expand_order = 0; g_expand_econ = 0;
             if (got) { x->trained++; x->ftrain_t = now + 90000; x->ftrained_t = now ? now : 1; }
             // EARLY: tried again at every tick (2 s) while it can't pay - the wood for it (250) is spent by the buildings
             // within seconds of coming in (6 minutes of "can't train" at minute 15-21 with 150-257 wood passing through)
-            else if ((EXPAND(idx) & 8) || g_spend_tiers || OWN_TRANSPORTS(idx)) { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }
+            else { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }   // not paid now: again at the next tick (the wood is spent within seconds of coming in)
             x->fsay_t = now;
             int *st = player_stock_at(pl);
             ex_say(idx, now, "%s a transport (type %d) - transports %d (landing's %d, loaded %d, other sea %d), landing phase %d, stock %d,%d,%d,%d,%d",
@@ -704,7 +726,7 @@ internal void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     // what stands by it - the mines often lie beyond its sight)
     if (ivec2_dist2(unit_get_tile(sh), ex_tp_isle(x)) <= 36) { if (!x->scout_at) x->scout_at = now ? now : 1; } else x->scout_at = 0;
     int seen = (c && c->mexp[idx] * 2 >= c->mn) || (x->scout_at && now - x->scout_at >= 10000);
-    if (c && (c->etown[idx] || c->etow[idx] || c->eseen[idx] > 3)) {
+    if (c && (c->etown[idx] || c->etow[idx] || c->eseen[idx] > 0)) {   // FIRST COME (ex_pick)
         while (ex_mark_lost(x, x->cont, now) < 3 && x->ngone < 8) ;
         x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         ex_say(idx, now, "scouted the island %u: %s (%d known enemy buildings) - never again", x->cont, c->etown[idx] ? "an enemy town" : c->etow[idx] ?
@@ -746,6 +768,16 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     int all = aboard == x->npass && x->npass;
     if (all || (x->load_t && now - x->load_t >= 90000 && aboard * 10 >= x->npass * 7) || (now - x->fsince >= 240000 && (cits >= 3 || (x->guard_only && aboard)))) {
         if (cits < 3 && !x->guard_only) { ex_ferry_end(pl, idx, x, now, "boarding failed"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return; }
+        if (!x->ever_ashore) {   // FIRST COME (ex_pick): someone settled there while it boarded - unloaded at home
+            ex_scan(pl, now, 0);
+            struct ex_cont *tc = ex_cont_of(x->cont, 0);
+            if (tc && (tc->etown[idx] || tc->etow[idx] || tc->eseen[idx] > 0)) {
+                ex_mark_lost(x, x->cont, now);
+                ex_ferry_end(pl, idx, x, now, "the island is taken (an enemy building seen there) - called off, unloaded at home");
+                x->next_try = now + 60000; x->active = 0; x->taken++;
+                return;
+            }
+        }
         ee_unit_type *td = unit_get_type_data(sh);
         float risk = ex_sea_risk(pl, x, td, (float)unit_get_hp(sh));
         if (risk > 0.4f) {   // the sea held: unloaded at home at once (waiting loaded at the shore, 9 of 10 such transports were sunk with everyone aboard)
@@ -824,6 +856,17 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0;
         ex_say(idx, now, "ashore on the island %u - %d landed", x->cont, ashore);
         return;
+    }
+    if (!x->ever_ashore) {   // FIRST COME (ex_pick): someone settled there while it was under way - back, unloaded at home
+        ex_scan(pl, now, 0);
+        struct ex_cont *tc = ex_cont_of(x->cont, 0);
+        if (tc && (tc->etown[idx] || tc->etow[idx] || tc->eseen[idx] > 0)) {
+            ex_mark_lost(x, x->cont, now);
+            x->fphase = 2;   // at the home shore, not there
+            ex_ferry_end(pl, idx, x, now, "the island is taken (an enemy building seen there) - turned back, unloaded at home");
+            x->next_try = now + 60000; x->active = 0; x->taken++;
+            return;
+        }
     }
     if (now - x->fsince >= 360000) { ex_ferry_end(pl, idx, x, now, "no landing within 6 minutes - unloaded where it is"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return; }
     if (cur && goal_is_unload(cur)) return;
