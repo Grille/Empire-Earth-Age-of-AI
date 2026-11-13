@@ -124,7 +124,7 @@ class display
             bool ai;
         }
         /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - or all; empty = none. The control
-        /// pipe switches them while playing: overlay routes (overlay off: none):
+        /// pipe switches them while playing: overlay routes turns that one on or off (overlay off: none):
         overlay_fields overlay;
         enum shadows_choice
         {

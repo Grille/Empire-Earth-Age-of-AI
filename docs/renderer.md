@@ -1282,7 +1282,7 @@ text's smoothed edges).
 ## The debug overlay
 
 2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`
-(or `all`; the pipe: `overlay <layers | off>`) draws the AI's own data into the map's view: base/overlay.c keeps the
+(or `all`; the pipe: `overlay <layer>` turns that one on or off, the others as they are; `overlay <a,b>` those alone, `overlay off` none) draws the AI's own data into the map's view: base/overlay.c keeps the
 shapes (lines, circles, runs of tiles, in tiles; per layer and key, replaced when their producer draws again or
 dropped after a time to live in game time) - the AI may use base/ only, not engine/ -, engine/render_overlay.c draws
 them once a frame where the game turns from the map to the interface (its first draw without the depth test after a

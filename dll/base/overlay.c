@@ -43,17 +43,21 @@ internal void ov_init(void) {
     InitializeCriticalSection(&g_ov.cs);
     g_ov.ready = 1;
 }
-internal int ov_wanted(const char *name) {   // name in the comma list g_ov.want ("all": every one)
+// name in the comma list w ("all": every one; "-name": not that one whatever else the list says - overlay_toggle's)
+internal int ov_wanted_in(const char *w, const char *name) {
     size_t n = strlen(name);
-    for (const char *p = g_ov.want; *p; ) {
+    int hit = 0;
+    for (const char *p = w; *p; ) {
         while (*p == ',' || *p == ' ') p++;
         const char *e = p;
         while (*e && *e != ',' && *e != ' ') e++;
-        if (((size_t)(e - p) == n && !strncmp(p, name, n)) || (e - p == 3 && !strncmp(p, "all", 3))) return 1;
+        if (*p == '-' && (size_t)(e - p - 1) == n && !strncmp(p + 1, name, n)) return 0;
+        if (((size_t)(e - p) == n && !strncmp(p, name, n)) || (e - p == 3 && !strncmp(p, "all", 3))) hit = 1;
         p = e;
     }
-    return 0;
+    return hit;
 }
+internal int ov_wanted(const char *name) { return ov_wanted_in(g_ov.want, name); }
 // the layer's number (made on its first use), -1 when all 16 are taken
 internal int overlay_layer(const char *name) {
     ov_init();
@@ -79,6 +83,30 @@ internal void overlay_show(const char *names) {
     g_ov.on = g_ov.kept;
     for (int i = 0; i < g_ov.n_layers; i++) if (ov_wanted(g_ov.names[i])) g_ov.on |= 1u << i;
     LeaveCriticalSection(&g_ov.cs);
+}
+// one layer on or off, the others as they are (the pipe's overlay <name> - the player, 2026-11-13: "overlay ai, should
+// be a toggle for that flag only"); 1 it is on now. The list loses the name and its "-name", then gets the name (on and
+// not asked for otherwise) or "-name" (off but still asked for by "all") - a layer that hasn't drawn yet stays in "all".
+internal int overlay_toggle(const char *name) {
+    ov_init();
+    EnterCriticalSection(&g_ov.cs);
+    int on = !ov_wanted(name);
+    char w[sizeof g_ov.want] = "";
+    size_t n = 0, len = strlen(name);
+    for (const char *p = g_ov.want; *p; ) {
+        while (*p == ',' || *p == ' ') p++;
+        const char *e = p;
+        while (*e && *e != ',' && *e != ' ') e++;
+        const char *q = *p == '-' ? p + 1 : p;
+        if (e > p && !((size_t)(e - q) == len && !strncmp(q, name, len)) && n < sizeof w)
+            n += (size_t)snprintf(w + n, sizeof w - n, "%s%.*s", n ? "," : "", (int)(e - p), p);
+        p = e;
+    }
+    if (n < sizeof w && on != ov_wanted_in(w, name))
+        snprintf(w + n, sizeof w - n, "%s%s%s", n ? "," : "", on ? "" : "-", name);
+    LeaveCriticalSection(&g_ov.cs);
+    overlay_show(w);
+    return on;
 }
 // a layer shown (or not) whatever the setting asks for: the scenario editor's orders (engine/editor_orders.c)
 internal void overlay_keep(int layer, int on) {
