@@ -122,8 +122,8 @@ internal void ud_gate(ee_model *m, float open) {
 // which change with its neighbours under the same transformation: its copy is made again when walls.c's count of the
 // cuts' changes moved on.
 #define UB_SLOTS 8192
-typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; LONG gen; } ub_entry;   // v NULL: drawn as it is; gen: a wall's cuts' count
-internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale, starts; } g_ub;
+typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; LONG gen; uint32_t nv; } ub_entry;   // v NULL: drawn as it is; gen: a wall's cuts' count; nv: v's vertices
+internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale, starts, remade; } g_ub;
 internal void mo_forget(void);   // render_morph.c
 internal void ub_clear(void *map) {
     for (int i = 0; i < UB_SLOTS; i++) free(g_ub.e[i].v);
@@ -143,10 +143,19 @@ internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
         ub_entry *e = &g_ub.e[h];
         if (!e->m) break;
         if (e->m != m || e->f != f || memcmp(e->t, t, sizeof e->t)) continue;
+        uint32_t now = vertices_get_count(model_get_vertices(m)[f]);
+        if (e->v && e->nv != now) {   // another model at this one's address (a game gone): its copy made anew, or none
+            float *v = now ? realloc(e->v, (size_t)now * 8 * sizeof(float)) : NULL;
+            if (!v) free(e->v);
+            e->v = v; e->nv = v ? now : 0;
+            if (v && !bl_bend_at(m, f, t, v)) { free(v); e->v = NULL; e->nv = 0; }
+            InterlockedIncrement(&g_ub.remade);
+            return e;
+        }
         LONG gen = ws_cut_gen();
         if (e->gen != gen && bl_noted_wall(m)) {   // (its copy in place: kept parts point at it)
             uint32_t nv = vertices_get_count(model_get_vertices(m)[f]);
-            if (!e->v && nv) e->v = malloc((size_t)nv * 8 * sizeof(float));
+            if (!e->v && nv) e->v = malloc((size_t)nv * 8 * sizeof(float)), e->nv = e->v ? nv : 0;
             if (e->v && !bl_bend_at(m, f, t, e->v)) {
                 ee_vertex *data = vertices_get_data(model_get_vertices(m)[f]);
                 for (uint32_t k = 0; k < nv; k++) memcpy(e->v + k * 8, vertex_at(data, k), 8 * sizeof(float));
@@ -162,7 +171,7 @@ internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     float *v = decal >= 0 && nv ? malloc((size_t)nv * 8 * sizeof(float)) : NULL;
     if (v && !bl_bend_at(m, f, t, v)) { free(v); v = NULL; }   // (not standing on the ground: drawn as it is)
     LONG gen = ws_cut_gen();
-    e->m = m; e->f = f; memcpy(e->t, t, sizeof e->t); e->v = v; e->decal = decal > 0; e->gen = gen;
+    e->m = m; e->f = f; memcpy(e->t, t, sizeof e->t); e->v = v; e->nv = v ? nv : 0; e->decal = decal > 0; e->gen = gen;
     g_ub.n++;
     InterlockedIncrement(&g_ub.made);
     return e;
@@ -1279,7 +1288,7 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
     for (int k = 0; k < UD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_reason[k], (long)g_ud.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_ud.recs, (long)g_ud.differ);
     for (int k = 0; k < UD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_kind[k], (long)g_ud.kind[k]);
-    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld\n",
-          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale);
+    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld, made again for another model %ld\n",
+          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale, (long)g_ub.remade);
     return 1;
 }

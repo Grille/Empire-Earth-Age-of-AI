@@ -384,6 +384,11 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .ageofai file
     char r = game_state_start(state, setup, p2);
+    // counted again once the new world is there: the render thread can draw the old one between the load's steps and
+    // keep what it made then (the bent objects, the kept records) under the count from above - and the new map often
+    // takes the old one's address, so that check passes too (the player's game of 2026-11-13: a save loaded from
+    // inside another game, bent copies of the last game's models drawn with the new ones' vertex counts)
+    InterlockedIncrement(&g_game_starts);
     log_line("# game start returned %d\n", r);
     return r;
 }
