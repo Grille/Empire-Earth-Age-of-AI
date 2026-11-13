@@ -207,6 +207,11 @@ internal void cmd_overlay(char *out, const char *args) {
     int vn, vcap, vcut;
     ro_counts(&vn, &vcap, &vcut);
     while (*args == ' ') args++;
+    if (!strcmp(args, "ground on") || !strcmp(args, "ground off")) {   // the shapes on the map in the ground's picture or as ribbons (render_overlay.c)
+        g_ov.flat = !strcmp(args, "ground off");
+        REPLY("overlay ground %s\n", g_ov.flat ? "off: ribbons on the ground's heights" : "on: in the ground's picture");
+        return;
+    }
     // one name: that layer on or off, the others as they are; a comma list: those layers alone; off: none
     if (*args && strcmp(args, "off") && strcmp(args, "all") && !strpbrk(args, ", ")) REPLY("%s %s - ", args, overlay_toggle(args) ? "on" : "off");
     else if (*args) overlay_show(strcmp(args, "off") ? args : "");

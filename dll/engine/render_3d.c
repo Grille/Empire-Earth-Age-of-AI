@@ -169,9 +169,10 @@ internal const char k_rd3_shader[] =
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; float4 cau; float4 cat; };\n"
-    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
+    "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gov; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
+    "Texture2D gom : register(t15);\n"   // the overlay's picture of the ground (premultiplied; render_ground.c, gov: its tiles' origin, its share a tile)
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher (render_frame.c rf_water_part)
@@ -367,6 +368,14 @@ internal const char k_rd3_shader[] =
     "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
     " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = misc.y > 0.5 ? saturate(i.f) : 1; }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
+    // the overlay laid on the ground and the water's surface by their place on the map (render_ground.c gov) - their own
+    // vertices' (gw: the map's tiles, the level at 0; w goes through the shadows' constants, set only with them on); the ground
+    // under the water's level none - the line is the surface's. Over the water its alpha joins the surface's: the line as
+    // strong over the seabed behind it as on land
+    " if (gnd.x > 0 && gov.z > 0 && (gnd.x > 1.5 || i.gw.z >= -0.02)) { float2 ou = (i.gw.xy - gov.xy) * gov.zw;"
+    "  if (all(ou >= 0) && all(ou <= 1)) { float4 o = gom.SampleLevel(s, ou, 0);"
+    "   if (gnd.x > 1.5) { float a = 1 - (1 - c.a) * (1 - o.a); if (a > 0) c.rgb = (c.rgb * c.a * (1 - o.a) + o.rgb) / a; c.a = a; }"
+    "   else c.rgb = c.rgb * (1 - o.a) + o.rgb; } }"
     " return c; }\n"
     // the water's step over the picture (render_water.c rd3_water_pass): a pixel of the surface, what was drawn behind it
     // from the copy toward the water's colour by the way from the surface to it (views' depths: the ratio of the two along

@@ -414,35 +414,24 @@ internal void ro_glide(ov_shape *sh, int n) {
     }
 }
 
-// the overlay into the target (the map's view of this frame), once
-internal void rd3_overlay(rd_device *d) {
-    g_rd3.overlay_done = 1;
-    ee_map *map = game_map();
-    if (!g_ov.on || !g_rd3.scene_seen || !map || !d->target || !d->target->rtv) return;
-    int n = overlay_copy(g_ro.shapes, OV_SHAPES, game_time());
-    if (!n || !ro_init()) return;
-    ro_glide(g_ro.shapes, n);
-    g_ro.tiles = map_get_tiles(map);
-    g_ro.size = (int)map_get_size(map);
-    if (!g_ro.tiles || g_ro.size <= 0) return;
-    // the camera now, as the map's own draws have it (render_frame.c rf_shift: this frame's depths, then V_now V^-1 before
-    // view x projection) - with the map's view alone, the last camera step's, the lines lagged up to a step's scrolling
-    // behind the ground under them and jumped back at each step (the player, 2026-11-11: "the line jitter when i move the
-    // camera")
-    struct { float vp[16], px[4]; } c;
-    memcpy(c.vp, g_rd3.scene_vp, sizeof c.vp);
+// the camera now, as the map's own draws have it (render_frame.c rf_shift: this frame's depths, then V_now V^-1 before
+// view x projection) - with the map's view alone, the last camera step's, the lines lagged up to a step's scrolling
+// behind the ground under them and jumped back at each step (the player, 2026-11-11: "the line jitter when i move the
+// camera")
+internal void ro_camera_vp(float *out) {
+    memcpy(out, g_rd3.scene_vp, 16 * sizeof *out);
     if (g_cam_now_ok) {
         float inv[16], to_now[16], vp[16];
-        rf_depth_vpm(c.vp);
+        rf_depth_vpm(out);
         rd3_rigid_inverse(inv, g_rd3.scene_view);
         rd3_mul(to_now, g_cam_view_now, inv);
-        rd3_mul(vp, to_now, c.vp);
-        memcpy(c.vp, vp, sizeof vp);
+        rd3_mul(vp, to_now, out);
+        memcpy(out, vp, sizeof vp);
     }
-    // the rings' texture: the own renderer's surface of the game's (rd_is_surface: not another renderer's)
-    void *dds = circle_texture_dds();
-    ID3D11ShaderResourceView *ring = rd_is_surface(dds) ? rd_gpu_texture((rd_surface *)dds, 0) : NULL;
-    g_ro.n = 0;
+}
+// the shapes on the map into g_ro.v: lines, circles, tiles (plain), then the rings (with the game's texture); *plain the
+// end of the first
+internal void ro_map_shapes(const float *vp, int n, ID3D11ShaderResourceView *ring, int *plain) {
     for (int i = 0; i < n; i++) {
         const ov_shape *s = &g_ro.shapes[i];
         if (s->kind == OV_LINE) ro_ribbon(s->a[0], s->a[1], s->a[2], s->a[3], s->width, s->argb);
@@ -456,10 +445,134 @@ internal void rd3_overlay(rd_device *d) {
             }
         }
     }
-    int plain = g_ro.n;
+    *plain = g_ro.n;
     if (ring)
         for (int i = 0; i < n; i++)
-            if (g_ro.shapes[i].kind == OV_RING) ro_ring(c.vp, g_ro.shapes[i].a[0], g_ro.shapes[i].a[1], g_ro.shapes[i].a[2], g_ro.shapes[i].argb);
+            if (g_ro.shapes[i].kind == OV_RING) ro_ring(vp, g_ro.shapes[i].a[0], g_ro.shapes[i].a[1], g_ro.shapes[i].a[2], g_ro.shapes[i].argb);
+}
+// the vertex buffer as large as the room grew; the vertices into it (0: failed)
+internal int ro_upload(ID3D11DeviceContext *x) {
+    if (g_ro.n > g_ro.vb_cap) {
+        ID3D11Buffer *nb = NULL;
+        D3D11_BUFFER_DESC ud = { (UINT)g_ro.cap * sizeof(ro_vertex), D3D11_USAGE_DYNAMIC, D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0 };
+        HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &nb);
+        if (FAILED(hr)) { g_ro.cut += g_ro.n - g_ro.vb_cap; g_ro.n = g_ro.vb_cap; }
+        else { D3D_RELEASE(g_ro.vb); g_ro.vb = nb; g_ro.vb_cap = g_ro.cap; }
+    }
+    D3D11_MAPPED_SUBRESOURCE ms;
+    if (FAILED(ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_ro.vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return 0;
+    memcpy(ms.pData, g_ro.v, (size_t)g_ro.n * sizeof *g_ro.v);
+    ID3D11DeviceContext_Unmap(x, (ID3D11Resource *)g_ro.vb, 0);
+    return 1;
+}
+// the inputs, the vertex shader and its constants for a draw of g_ro.vb
+internal void ro_bind(ID3D11DeviceContext *x) {
+    ID3D11DeviceContext_IASetInputLayout(x, g_ro.inputs);
+    UINT stride = sizeof(ro_vertex), off = 0;
+    ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_ro.vb, &stride, &off);
+    ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ID3D11DeviceContext_VSSetShader(x, g_ro.vs, NULL, 0);
+    ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_ro.cb);
+}
+// THE PICTURE OF THE GROUND (render_ground.c "the overlay on the ground"): the shapes on the map drawn from above into the
+// picture of the ground's visible chunks - its tiles as rg_draw_now found them this frame -, once a frame, before the
+// list's first ground batch reads it. Premultiplied: each shape's colour times its alpha over what lies under it, the
+// alpha joined (one, 1 - its alpha), on a clear picture.
+internal struct { ID3D11Texture2D *t; ID3D11RenderTargetView *rtv; ID3D11BlendState *blend; LONG frame; int fail, drawn; } g_rgm;
+internal void ro_ground_map(ID3D11DeviceContext *x) {
+    g_rgm.drawn = 0;
+    if (!g_ov.on || g_ov.flat || !g_rg.ov_on || g_rgm.fail || !ro_init()) return;
+    if (g_rgm.frame == g_rd_frames && g_rgm.t) { g_rgm.drawn = 1; return; }
+    ee_map *map = game_map();
+    if (!map) return;
+    if (!g_rgm.t) {
+        D3D11_TEXTURE2D_DESC td = { RG_OV_SIDE, RG_OV_SIDE, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT,
+                                    D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+        D3D11_BLEND_DESC bd;
+        memset(&bd, 0, sizeof bd);
+        bd.RenderTarget[0].BlendEnable = TRUE;
+        bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA; bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA; bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE; bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA; bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        HRESULT hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rgm.t);
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRenderTargetView(g_d3d.dev, (ID3D11Resource *)g_rgm.t, NULL, &g_rgm.rtv);
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rgm.t, NULL, &g_rg_ov_srv);
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(g_d3d.dev, &bd, &g_rgm.blend);
+        if (FAILED(hr)) {
+            D3D_RELEASE(g_rg_ov_srv); D3D_RELEASE(g_rgm.rtv); D3D_RELEASE(g_rgm.t);
+            g_rgm.fail = 1;
+            rd_fail("the overlay's picture of the ground", hr);
+            return;
+        }
+    }
+    g_rgm.frame = g_rd_frames;
+    g_rgm.drawn = 1;
+    static const float none[4] = { 0, 0, 0, 0 };
+    ID3D11DeviceContext_ClearRenderTargetView(x, g_rgm.rtv, none);
+    int n = overlay_copy(g_ro.shapes, OV_SHAPES, game_time());
+    g_ro.tiles = map_get_tiles(map);
+    g_ro.size = (int)map_get_size(map);
+    if (!n || !g_ro.tiles || g_ro.size <= 0) return;
+    float vp[16];
+    ro_camera_vp(vp);
+    void *dds = circle_texture_dds();
+    ID3D11ShaderResourceView *ring = rd_is_surface(dds) ? rd_gpu_texture((rd_surface *)dds, 0) : NULL;
+    g_ro.n = 0;
+    int plain = 0;
+    ro_map_shapes(vp, n, ring, &plain);
+    if (!g_ro.n || !ro_upload(x)) return;
+    if (plain > g_ro.n) plain = g_ro.n;
+    // from above: the map's x, y to the picture's (y down its rows), the region's tiles over its pixels
+    float w = g_rg.ov[2], h = g_rg.ov[3], ppt = g_rg.ov_ppt;
+    struct { float vp[16], px[4]; } c;
+    memset(&c, 0, sizeof c);
+    c.vp[0] = 2.0f * ppt / w; c.vp[12] = -1.0f - 2.0f * ppt * g_rg.ov[0] / w;
+    c.vp[5] = -2.0f * ppt / h; c.vp[13] = 1.0f + 2.0f * ppt * g_rg.ov[1] / h;
+    c.vp[14] = 0.5f; c.vp[15] = 1.0f;
+    ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_ro.cb, 0, NULL, &c, 0, 0);
+    D3D11_VIEWPORT port = { 0, 0, w, h, 0, 1 };
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_rgm.rtv, NULL);
+    ID3D11DeviceContext_RSSetViewports(x, 1, &port);
+    ID3D11DeviceContext_OMSetBlendState(x, g_rgm.blend, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_OMSetDepthStencilState(x, rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, 0, rd3_mk_depth), 0);
+    ID3D11DeviceContext_RSSetState(x, rd3_cache(g_rd3.rasters, &g_rd3.n_raster, 8, D3DCULL_NONE, rd3_mk_raster));
+    ro_bind(x);
+    if (plain) {
+        ID3D11DeviceContext_PSSetShader(x, g_ro.ps, NULL, 0);
+        ID3D11DeviceContext_Draw(x, (UINT)plain, 0);
+    }
+    if (g_ro.n > plain) {
+        ID3D11DeviceContext_PSSetShader(x, g_ro.pst, NULL, 0);
+        ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &ring);
+        ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_ro.samp);
+        ID3D11DeviceContext_Draw(x, (UINT)(g_ro.n - plain), (UINT)plain);
+    }
+    ID3D11RenderTargetView *nort = NULL;
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &nort, NULL);
+    g_rd3.bound = 0;
+}
+
+// the overlay into the target (the map's view of this frame), once: the shapes on the map in the ground's picture if it
+// was drawn this frame (ro_ground_map), else here as ribbons on the ground's heights; the screen's shapes over all
+internal void rd3_overlay(rd_device *d) {
+    g_rd3.overlay_done = 1;
+    ee_map *map = game_map();
+    if (!g_ov.on || !g_rd3.scene_seen || !map || !d->target || !d->target->rtv) return;
+    rd3_submit();   // the list first: its ground may draw the picture (ro_ground_map), which takes g_ro's shapes and vertices
+    int n = overlay_copy(g_ro.shapes, OV_SHAPES, game_time());
+    if (!n || !ro_init()) return;
+    ro_glide(g_ro.shapes, n);
+    g_ro.tiles = map_get_tiles(map);
+    g_ro.size = (int)map_get_size(map);
+    if (!g_ro.tiles || g_ro.size <= 0) return;
+    struct { float vp[16], px[4]; } c;
+    ro_camera_vp(c.vp);
+    // the rings' texture: the own renderer's surface of the game's (rd_is_surface: not another renderer's)
+    void *dds = circle_texture_dds();
+    ID3D11ShaderResourceView *ring = rd_is_surface(dds) ? rd_gpu_texture((rd_surface *)dds, 0) : NULL;
+    g_ro.n = 0;
+    int plain = 0;
+    if (!(g_rgm.drawn && g_rgm.frame == g_rd_frames)) ro_map_shapes(c.vp, n, ring, &plain);
     int rings = g_ro.n;
     // the screen's: arrows under marks, then the text over both
     D3D11_VIEWPORT port = rs_port(&g_rd3.scene_port, d->target->rtv);
@@ -473,22 +586,11 @@ internal void rd3_overlay(rd_device *d) {
         for (int i = 0; i < n; i++) if (g_ro.shapes[i].kind == OV_TEXT && ro_font()) ro_text(c.vp, &g_ro.shapes[i]);
     g_ro.last_n = g_ro.n;
     if (!g_ro.n) return;
-    if (g_ro.n > g_ro.vb_cap) {   // the buffer as large as the room grew
-        ID3D11Buffer *nb = NULL;
-        D3D11_BUFFER_DESC ud = { (UINT)g_ro.cap * sizeof(ro_vertex), D3D11_USAGE_DYNAMIC, D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0 };
-        HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &nb);
-        if (FAILED(hr)) { g_ro.cut += g_ro.n - g_ro.vb_cap; g_ro.n = g_ro.vb_cap; }
-        else { D3D_RELEASE(g_ro.vb); g_ro.vb = nb; g_ro.vb_cap = g_ro.cap; }
-    }
+    ID3D11DeviceContext *x = g_d3d.ctx;
+    if (!ro_upload(x)) return;
     if (plain > g_ro.n) plain = g_ro.n;
     if (rings > g_ro.n) rings = g_ro.n;
     if (screen > g_ro.n) screen = g_ro.n;
-    rd3_submit();
-    ID3D11DeviceContext *x = g_d3d.ctx;
-    D3D11_MAPPED_SUBRESOURCE ms;
-    if (FAILED(ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_ro.vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return;
-    memcpy(ms.pData, g_ro.v, (size_t)g_ro.n * sizeof *g_ro.v);
-    ID3D11DeviceContext_Unmap(x, (ID3D11Resource *)g_ro.vb, 0);
     c.px[0] = port.Width > 0 ? 1.0f / port.Width : 0;   // Direct3D 7's pixel centres, as the map's
     c.px[1] = port.Height > 0 ? -1.0f / port.Height : 0;
     c.px[2] = c.px[3] = 0;
@@ -500,12 +602,7 @@ internal void rd3_overlay(rd_device *d) {
     ID3D11DeviceContext_OMSetBlendState(x, rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, 1 | D3DBLEND_SRCALPHA << 1 | D3DBLEND_INVSRCALPHA << 5, rd3_mk_blend), NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, 1 | D3DCMP_LESSEQUAL << 2, rd3_mk_depth), 0);
     ID3D11DeviceContext_RSSetState(x, rd3_cache(g_rd3.rasters, &g_rd3.n_raster, 8, D3DCULL_NONE, rd3_mk_raster));
-    ID3D11DeviceContext_IASetInputLayout(x, g_ro.inputs);
-    UINT stride = sizeof(ro_vertex), off = 0;
-    ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_ro.vb, &stride, &off);
-    ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    ID3D11DeviceContext_VSSetShader(x, g_ro.vs, NULL, 0);
-    ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_ro.cb);
+    ro_bind(x);
     if (plain) {
         ID3D11DeviceContext_PSSetShader(x, g_ro.ps, NULL, 0);
         ID3D11DeviceContext_Draw(x, (UINT)plain, 0);

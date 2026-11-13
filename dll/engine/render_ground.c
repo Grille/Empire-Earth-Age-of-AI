@@ -69,9 +69,20 @@ typedef struct {
     float proj[16];
     float revealed;   // no fog of war, as the last frame that could ask the game
 } rg_states;
+// THE OVERLAY ON THE GROUND (the player, 2026-11-13: "right now our overlay lines all fail when the terrain isnt level, could
+// the be projected on the terrain (and waterline) ?"): the overlay's shapes on the map (render_overlay.c ro_ground_map) are
+// drawn from above into a picture of the ground's visible chunks, RG_OV_PPT pixels a tile at most (the picture
+// RG_OV_SIDE across), and the ground's and the water's pixels lay it over their colour by their own place on the map (the
+// shader's gom, gov) - on every slope, on the water's moving surface, under the buildings and units. The ground under the
+// water's level takes none (the line is the surface's, not the seabed's seen through it).
+#define RG_OV_SIDE 4096
+#define RG_OV_PPT 32.0f
+internal ID3D11ShaderResourceView *g_rg_ov_srv;   // the picture (render_overlay.c); NULL none
 internal struct {
     int on, api, built, dll, flag;
     int space;   // the map was made as Art of Conquest's space map (rg_space_quad)
+    int ov_on;   // the overlay's picture this frame: its tiles from (ov[0], ov[1]), ov[2] x ov[3] pixels, ov_ppt a tile
+    float ov[4], ov_ppt;
     rg_states st[2];
     int size, across;
     ee_map *map;
@@ -663,7 +674,7 @@ internal int rg_build(void) {
     if (!g_rg.fow_was || !g_rg.fow_now || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rg.fow))
         || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.fow, NULL, &g_rg.fow_srv))) { rg_free(); return 0; }
     if (!g_rg.cb) {
-        D3D11_BUFFER_DESC bd = { 76 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { 80 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb)) || FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cbw))) { rg_free(); return 0; }
     }
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 1;   // differs: the first frame sends it
@@ -885,6 +896,32 @@ internal void rg_draw_now(int water, int again) {
         vis[k] = c->vb && rg_visible(c, vpm);
         if (vis[k]) for (int r = 0; r < c->nr; r++) want[c->r[r].m] = 1;
     }
+    if (!water) {   // the overlay's picture: the visible chunks' tiles (render_overlay.c ro_ground_map draws it)
+        int across = g_rg.across, x0 = across, y0 = across, x1 = -1, y1 = -1;
+        for (int k = 0; k < nc; k++)
+            if (vis[k]) {
+                int cx = k % across, cy = k / across;
+                if (cx < x0) x0 = cx;
+                if (cy < y0) y0 = cy;
+                if (cx > x1) x1 = cx;
+                if (cy > y1) y1 = cy;
+            }
+        g_rg.ov_on = 0;
+        if (g_ov.on && !g_ov.flat && x1 >= 0) {
+            int tx0 = x0 * RG_CHUNK, ty0 = y0 * RG_CHUNK, tx1 = (x1 + 1) * RG_CHUNK, ty1 = (y1 + 1) * RG_CHUNK;
+            if (tx1 > g_rg.size) tx1 = g_rg.size;
+            if (ty1 > g_rg.size) ty1 = g_rg.size;
+            int ex = tx1 - tx0, ey = ty1 - ty0, e = ex > ey ? ex : ey;
+            if (e > 0) {
+                float ppt = RG_OV_PPT;
+                if ((float)e * ppt > (float)RG_OV_SIDE) ppt = (float)RG_OV_SIDE / (float)e;
+                g_rg.ov[0] = (float)tx0; g_rg.ov[1] = (float)ty0;
+                g_rg.ov[2] = floorf((float)ex * ppt); g_rg.ov[3] = floorf((float)ey * ppt);
+                g_rg.ov_ppt = ppt;
+                g_rg.ov_on = 1;
+            }
+        }
+    }
     int nmat = again == 2 ? 0 : water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
     if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
@@ -950,10 +987,14 @@ internal void rg_draw_now(int water, int again) {
     // the wobble's strength: the surface's, the seabed's - none with [display] seabed_wobble off (the player, 2026-11-10:
     // "add an option to disable the terrain wobble underwater that tries to fake refraction")
     float wstr = g_rw_still ? 0.0f : ws[1];   // the surface's movement (the pipe's water still: none)
-    float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? wstr : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
+    float cb[80] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? wstr : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
     if (water) cb[73] = wblend;   // the water's: its frames' blend (gbl.y; its borders' gbl.x stays 0)
+    if (g_rg.ov_on) {   // the overlay's picture (gov): the map's place -> its texture's
+        cb[76] = g_rg.ov[0]; cb[77] = g_rg.ov[1];
+        cb[78] = cb[79] = g_rg.ov_ppt / (float)RG_OV_SIDE;
+    }
     memcpy(cb + 4, g_rg.lights.amb, sizeof g_rg.lights.amb);
     cb[7] = (float)g_rg.lights.n;
     for (int l = 0; l < g_rg.lights.n; l++) { memcpy(cb + 8 + l * 4, g_rg.lights.dir[l], 12); memcpy(cb + 40 + l * 4, g_rg.lights.col[l], 12); }
@@ -1000,6 +1041,7 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &c->ghs);
     ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &c->gwn);
+    ID3D11DeviceContext_PSSetShaderResources(x, 15, 1, &g_rg_ov_srv);
     ID3D11DeviceContext_Draw(x, c->n, c->at);
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &st, &off);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, &none);
@@ -1007,6 +1049,7 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, &none);
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &nos);
     ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &nos);
+    ID3D11DeviceContext_PSSetShaderResources(x, 15, 1, &nos);
 }
 internal int g_rw_fx_only;   // a frame during a step: the water's draw for its effects alone (render_3d.c rd_hook_ro_water)
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {

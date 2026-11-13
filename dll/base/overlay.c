@@ -42,6 +42,7 @@ internal struct {
     uint32_t open_until;
     uint32_t open_id;
     unsigned dropped;   // shapes refused, the store full
+    int flat;           // the pipe's overlay ground off: the shapes on the map as ribbons on the ground's heights, not in the ground's picture (engine/render_overlay.c)
 } g_ov;
 
 internal void ov_init(void) {

@@ -1155,11 +1155,13 @@ internal int rf_water_place(const rf_cmd *c, int lastw, int i) {
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
 // before (the 2D path, the present, the overlay set their own). At the first of the interface's draws after the 3D
 // scene the scene is smoothed (rf_scene_done).
+internal void ro_ground_map(ID3D11DeviceContext *x);   // render_overlay.c
 internal void rf_replay(void) {
     if (!g_rf.n || g_rf.in_submit) return;
     g_rf.in_submit = 1;
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
+    for (int i = 0; i < g_rf.n; i++) if (g_rf.cmd[i].gvb) { ro_ground_map(x); break; }   // the overlay's picture before the ground reads it
     int edges = rf_edges(x), laste = -1, lastu = -1;
     if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft) laste = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
