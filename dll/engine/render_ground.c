@@ -815,6 +815,7 @@ internal double rg_water_ms(double real_ms) {
 // the group whose texture the water's group 0 is drawn with now (+ j for group j, round the groups)
 internal unsigned rg_water_frame(void) {
     unsigned n = mesh_water_groups(g_rg.mesh), per = n ? mesh_water_frame_ms(g_rg.mesh) : 0;
+    if (g_rw_still && n) return (n - mesh_water_frame(g_rg.mesh) % n) % n;   // the pipe's water still: group j frame j
     if (!g_set.water_game_time || !per) return 0;
     unsigned ours = (unsigned)fmod(floor(g_rg.wms / (double)per), (double)n);
     return (ours + n - mesh_water_frame(g_rg.mesh) % n) % n;
@@ -829,7 +830,7 @@ internal unsigned rg_water_frame(void) {
 // time with [display] water_game_time, else by the real time since the game's counter changed.
 internal float rg_water_blend(void) {
     unsigned per = mesh_water_frame_ms(g_rg.mesh), n = mesh_water_groups(g_rg.mesh);
-    if (!g_rw_blend || !per || n < 2) return 0;
+    if (!g_rw_blend || g_rw_still || !per || n < 2) return 0;
     double a;
     if (g_set.water_game_time) a = g_rg.wms / (double)per, a -= floor(a);
     else {
@@ -944,7 +945,8 @@ internal void rg_draw_now(int water, int again) {
     if (again != 2) st->revealed = rg_revealed() ? 1.0f : 0.0f;
     // the wobble's strength: the surface's, the seabed's - none with [display] seabed_wobble off (the player, 2026-11-10:
     // "add an option to disable the terrain wobble underwater that tries to fake refraction")
-    float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? ws[1] : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
+    float wstr = g_rw_still ? 0.0f : ws[1];   // the surface's movement (the pipe's water still: none)
+    float cb[76] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? wstr : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
     if (water) cb[73] = wblend;   // the water's: its frames' blend (gbl.y; its borders' gbl.x stays 0)
@@ -956,7 +958,7 @@ internal void rg_draw_now(int water, int again) {
     for (int k = 0; k < nc; k++) {
         if (!vis[k]) continue;
         const rg_part *c = &g_rg.c[k].p[water];
-        if (water) { g_sh.water_z -= g_rg.c[k].wshore * ws[1] * 0.5; g_sh.water_n += g_rg.c[k].wn; }   // the level, as the game's vertices give it (its mean: the sines cancel)
+        if (water) { g_sh.water_z -= g_rg.c[k].wshore * wstr * 0.5; g_sh.water_n += g_rg.c[k].wn; }   // the level, as the game's vertices give it (its mean: the sines cancel)
         for (int r = 0; r < c->nr; r++) {
             if (!srv[c->r[r].m]) continue;
             g_rd3.srv = srv[c->r[r].m];

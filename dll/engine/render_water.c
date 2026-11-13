@@ -464,8 +464,12 @@ internal void rd3_water_reflect(void) {
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
-// | haze on | off | late on | off | away on | off (what lies off the screen in the mirrored picture) | edges on | off (not the water's: the units' soft edges, render_frame.c rf_edges) | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | refract <0..4> | ripples <0..4> | blend on | off (the animation's frames)
+// | haze on | off | late on | off | away on | off (what lies off the screen in the mirrored picture) | edges on | off (not the water's: the units' soft edges, render_frame.c rf_edges) | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | refract <0..4> | ripples <0..4> | blend on | off (the animation's frames) | still on | off (no surface movement, no animation)
 internal int g_rw_blend = 1;   // the pipe's water blend on | off: the animation's frames blended (render_ground.c rg_water_blend)
+// the pipe's water still on | off (the player, 2026-11-13: "please add a command that completly disables the waters vertex
+// movement and texture animation"): the surface's vertices at the level, each water group one frame of the animation
+// (render_ground.c rg_water_frame, rg_draw_now); the caustics, the refraction and the reflections' ripples go on
+internal int g_rw_still;
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -498,14 +502,16 @@ internal void cmd_water(char *out, const char *args) {
     else if (!strcmp(mode, "late")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.late = 1; else if (!strcmp(a, "off")) g_wa.late = 0; }
     else if (!strcmp(mode, "away")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.away = 1; else if (!strcmp(a, "off")) g_wa.away = 0; }
     else if (!strcmp(mode, "edges")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_fe.force = 1; else if (!strcmp(a, "off")) g_fe.force = 0; }
+    else if (!strcmp(mode, "still")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_rw_still = 1; else if (!strcmp(a, "off")) g_rw_still = 0; }
     else if (!strcmp(mode, "blend")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_rw_blend = 1; else if (!strcmp(a, "off")) g_rw_blend = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..8> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | blend on | off\n"); return; }
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..8> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | blend on | off | still on | off\n"); return; }
     const float *wc = rw_colour();
-    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f; the animation's frames %s\n",
+    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f; the animation's frames %s%s\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth, g_wa.haze ? "on" : "off", (double)(g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque),
           g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, (double)(wc[0] * 255), (double)(wc[1] * 255), (double)(wc[2] * 255), g_wa.owned ? "the setting" : "the map's deepest", g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za,
           (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full,
-          (double)(g_rw_refract >= 0 ? g_rw_refract : g_set.water_refraction), (double)(g_rw_ripples >= 0 ? g_rw_ripples : g_set.water_reflection_ripples), g_rw_blend ? "blended" : "stepped");
+          (double)(g_rw_refract >= 0 ? g_rw_refract : g_set.water_refraction), (double)(g_rw_ripples >= 0 ? g_rw_ripples : g_set.water_reflection_ripples), g_rw_blend ? "blended" : "stepped",
+          g_rw_still ? "; still: no surface movement, no animation" : "");
 }
