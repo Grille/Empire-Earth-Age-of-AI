@@ -532,7 +532,42 @@ internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op,
     else if (mode) *bias = 1.0f;
     return 1;
 }
+// A BROKEN SHIP'S HALF's record (render_3d.c): its cut, set by the fill for this walk's records (collect_remains.c
+// us_clip_tag) and found again by the record at its draws - the walk's own number, the silhouettes' (every record's fill
+// tags it): one of an earlier walk at the same address is no longer a half
+#define UD_CLIPS 1024
+typedef struct { const void *rec; uint32_t gen; float pl[4]; int stern; float deck; } ud_clip;
+internal ud_clip g_ud_clip[UD_CLIPS];
+internal uint32_t ud_clip_hash(const void *rec) { return ((uint32_t)(uintptr_t)rec >> 3) * 2654435761u & (UD_CLIPS - 1); }
+internal void ud_clip_tag(const void *rec, uint32_t gen, const float *pl, int stern, float deck) {
+    uint32_t h = ud_clip_hash(rec);
+    for (int n = 0; n < 16; n++, h = (h + 1) & (UD_CLIPS - 1))
+        if (g_ud_clip[h].rec == rec || g_ud_clip[h].gen != gen) {
+            g_ud_clip[h].rec = rec, g_ud_clip[h].gen = gen, g_ud_clip[h].stern = stern, g_ud_clip[h].deck = deck;
+            memcpy(g_ud_clip[h].pl, pl, sizeof g_ud_clip[h].pl);
+            return;
+        }
+}
+internal const ud_clip *ud_clip_of(const void *rec) {
+    uint32_t h = ud_clip_hash(rec);
+    for (int n = 0; n < 16; n++, h = (h + 1) & (UD_CLIPS - 1)) {
+        if (g_ud_clip[h].gen != g_sil_gen) return NULL;
+        if (g_ud_clip[h].rec == rec) return &g_ud_clip[h];
+    }
+    return NULL;
+}
+internal int ud_draw_whole(void *rec);
+// a record's draw, a half's with its cut: one the mod can't draw is left out, not drawn whole by the game's draw
 internal int ud_draw(void *rec) {
+    const ud_clip *cl = ud_clip_of(rec);
+    if (!cl) return ud_draw_whole(rec);
+    memcpy(g_rd_clip, cl->pl, sizeof g_rd_clip);
+    g_rd_clip_stern = cl->stern, g_rd_clip_deck = cl->deck, g_rd_clip_on = 1;
+    ud_draw_whole(rec);
+    g_rd_clip_on = g_rd_clip_dark = 0;
+    return 1;
+}
+internal int ud_draw_whole(void *rec) {
     ee_dmg_model *g = draw_record_get_gfx(rec);
     if (!g) return 0;
     if (!*dmg_model_drawable_at(g) || !(draw_record_get_scale(rec) > *(const float *)engine_display_float_zero_at())) return 1;

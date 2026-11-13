@@ -44,6 +44,29 @@
 #define US_SHIFT_S 1.5f // ... over this long (s), 0.8 of the way to the low side
 #define US_SEESAW (1.0f / 6.0f)   // the ships that go down as a seesaw
 #define US_SEESAW_LIFT 3.0f        // its side floats' buoyancy, fully under (g's), until they leak
+// A SHIP BREAKING IN TWO (the player, 2026-11-13: "could ships split in halp on sink?", "short ones like fisihing boats
+// shouldnt snap"): a ship US_SNAP_LEN tiles long or more draws it, US_SNAP of them (the pipe's wreck snap all / none /
+// random), before the other plans. It settles a little, its floats leaking slowly only, and US_SNAP_AT .. + US_SNAP_AT_RND
+// s after its death it breaks at 0.45 .. 0.55 of its length: its entry the bow's half from then on and a new one the
+// stern's (twin), each with four floats and its ballast of its own over its own stretch of the hull - as far as its
+// hull's ends from its middle as a whole ship's - and all the rest the ship's, its pose and way at the break (both
+// halves' points from the frame's pose then and a step before). The broken end's float floods at once, its far end
+// holds longest, its sides between: each half stands up on its broken end and goes down by it; their broken ends drop
+// (US_SNAP_DROP) and they drift apart (US_SNAP_PART). Drawn as the whole model each, cut at the break's plane (render_3d.c's
+// A BROKEN SHIP'S HALF: us_clip_tag). Not a submarine's or an aircraft's; one met already sinking stays whole.
+#define US_SNAP 0.3f
+#define US_SNAP_LEN 1.5f
+#define US_SNAP_AT 1.5f
+#define US_SNAP_AT_RND 2.0f
+#define US_SNAP_DROP 0.3f   // tiles/s
+#define US_SNAP_PART 0.12f  // tiles/s, each away from the other
+// its inside, seen through the cut, drawn dark up to its hull's top: this share of its model's height over the water, at
+// most US_HULL_MAX (the models' own space: a sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55;
+// an Imperial battleship's lower sails hang to 0.2: at 0.28 of its height their backs stood dark over its deck) - above
+// it what the material hides stays hidden, a sail seen from behind (one-sided: drawn with its back it stood black in the air)
+#define US_HULL_TOP 0.3f
+#define US_HULL_MAX 0.15f
+internal int g_us_snap;     // the pipe's: 1 every ship long enough breaks, -1 none, 0 drawn (US_SNAP)
 // a ship's leaks a second on at its death (the player, 2026-11-12: "most shift take a second before they sink, makes
 // sence, looks good, but sadly reduces readabilithy... maybe skip a second of the flooding simulation so tzhat certan
 // point will drag down imediatly?"): its fast leak pulls at once, the slow ones a second sooner; an aircraft's clock
@@ -263,11 +286,23 @@ internal void us_wings(uc_corpse *k, int32_t serial) {
 }
 // the pipe: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] - a falling airplane's controls (degrees,
 // -45 .. 45) for every plane killed from then on, or drawn for each again; without more what they are
+// ...; wreck snap [all | none | random]: which ships long enough break in two (A SHIP BREAKING IN TWO)
 internal void cmd_wreck(char *out, const char *args) {
     char mode[16] = "", word[16] = "";
     float v[4];
     int n = sscanf(args, "%15s %f %f %f %f", mode, &v[0], &v[1], &v[2], &v[3]), nb = 0;
-    if (n < 1 || strcmp(mode, "plane")) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees)\n"); return; }
+    if (!strcmp(mode, "snap")) {
+        if (sscanf(args, "%*s %15s", word) == 1) {
+            if (!strcmp(word, "all")) g_us_snap = 1;
+            else if (!strcmp(word, "none")) g_us_snap = -1;
+            else if (!strcmp(word, "random")) g_us_snap = 0;
+            else { REPLY("error: usage: wreck snap [all | none | random]\n"); return; }
+        }
+        if (g_us_snap) REPLY("ok: ships of %.1f tiles or longer break in two: %s\n", US_SNAP_LEN, g_us_snap > 0 ? "all" : "none");
+        else REPLY("ok: ships of %.1f tiles or longer break in two: %.0f%% of them, drawn by their ids\n", US_SNAP_LEN, US_SNAP * 100.0f);
+        return;
+    }
+    if (n < 1 || strcmp(mode, "plane")) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees) | wreck snap [all | none | random]\n"); return; }
     int drawn = n == 1 && sscanf(args, "%*s %15s", word) == 1 && !strcmp(word, "random");
     if (drawn) nb = sscanf(args, "%*s %*s %f", &v[0]);
     else if (n != 1 && n != 5) { REPLY("error: usage: wreck plane [<base> <roll> <pitch> <yaw> | random [<base>]] (degrees)\n"); return; }
@@ -462,6 +497,22 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     us_leaks(k, o->serial, late, !air && !sub);
     for (int i = 0; i < 4 && k->heli; i++) k->leak[i][1] *= US_HELI_LEAK, k->leak[i][2] *= US_HELI_LEAK;
     for (int i = 0; i < US_PTS; i++) k->dig[i] *= (air ? US_DIG_AIR : US_DIG) * 2.5f * half_across;   // the beam: half_across is 0.4 of it
+    // breaking in two (A SHIP BREAKING IN TWO): long enough and drawn by its id (a stream of its own) - its leaks slow
+    // until then
+    float len = (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s;
+    k->ends[0] = (x_long ? lo[0] : lo[1]) * s, k->ends[1] = (x_long ? hi[0] : hi[1]) * s;
+    k->half = k->twin = 0, k->snap_t = -1.0f, k->deck = fminf(US_HULL_TOP * hi[2], US_HULL_MAX);
+    if (!air && !sub && !late && len >= US_SNAP_LEN) {
+        uint32_t ss = us_seed(o->serial, 0xC2B2AE3Du);
+        float drawn = us_rnd(&ss);
+        if (g_us_snap > 0 || (!g_us_snap && drawn < US_SNAP)) {
+            k->snap_t = US_SNAP_AT + US_SNAP_AT_RND * us_rnd(&ss);
+            k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&ss)) * (k->ends[1] - k->ends[0]);
+            for (int i = 0; i < 4; i++)
+                k->leak[i][0] = 0.6f + 0.25f * us_rnd(&ss), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&ss), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&ss),
+                k->leak[i][3] = k->lift;
+        }
+    }
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
     // in the sand and came up with its nose out: a point below its stop at the start digs in as deep as it was
     const void *mesh = game_map() ? map_mesh_at(game_map()) : NULL;
@@ -697,21 +748,26 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
     }
 }
-// simulated on to the walk's game time (at most 3 s at once: one long out of the view jumps there)
+internal void us_snap(uc_corpse *k, float t);   // below
+// simulated on to the walk's game time (at most 3 s at once: one long out of the view jumps there); a ship that breaks
+// in two broken as its time comes
 internal void us_run(uc_corpse *k) {
     if (g_uc_now < 0.0) return;
     if (g_uc_now - k->sim > 3000.0) k->sim = g_uc_now - 3000.0;
     const void *mesh = map_mesh_at(game_map());
     while (k->sim + US_DT * 1000.0 <= g_uc_now) {
         k->sim += US_DT * 1000.0;
-        us_step(k, (float)((k->sim - k->died) / 1000.0), mesh);
+        float t = (float)((k->sim - k->died) / 1000.0);
+        if (k->snap_t >= 0.0f && !k->half && t >= k->snap_t) us_snap(k, t);
+        us_step(k, t, mesh);
     }
 }
-// its pose into t (rows, the place in the fourth column) from its floats: bow-ward from the stern to the bow, port-ward
-// from starboard to port square to it, up square to both - the hull's own axes there
-internal void us_pose(const uc_corpse *k, float *t) {
+// its pose into t (rows, the place in the fourth column) from its floats p (its own, or where they were a step before):
+// bow-ward from the stern to the bow, port-ward from starboard to port square to it, up square to both - the hull's own
+// axes there
+internal void us_pose_at(const uc_corpse *k, const float (*p)[3], float *t) {
     float a[3], b[3], u[3], la = 0.0f, lb = 0.0f, ab = 0.0f, mean[3] = { 0, 0, 0 }, body[3] = { 0, 0, 0 };
-    for (int j = 0; j < 3; j++) a[j] = k->sp[0][j] - k->sp[1][j], b[j] = k->sp[2][j] - k->sp[3][j], la += a[j] * a[j];
+    for (int j = 0; j < 3; j++) a[j] = p[0][j] - p[1][j], b[j] = p[2][j] - p[3][j], la += a[j] * a[j];
     la = sqrtf(la);
     if (la < 1e-6f) return;
     for (int j = 0; j < 3; j++) a[j] /= la, ab += a[j] * b[j];
@@ -724,8 +780,82 @@ internal void us_pose(const uc_corpse *k, float *t) {
     for (int r = 0; r < 3; r++)   // the world's axes over the hull's: [a b u] times [along across up] turned
         for (int c = 0; c < 3; c++) t[r * 4 + c] = a[r] * k->along[c] + b[r] * k->across[c] + u[r] * up[c];
     for (int i = 0; i < 4; i++)
-        for (int j = 0; j < 3; j++) mean[j] += 0.25f * k->sp[i][j], body[j] += 0.25f * k->body[i][j];
+        for (int j = 0; j < 3; j++) mean[j] += 0.25f * p[i][j], body[j] += 0.25f * k->body[i][j];
     for (int r = 0; r < 3; r++) t[r * 4 + 3] = mean[r] - (t[r * 4] * body[0] + t[r * 4 + 1] * body[1] + t[r * 4 + 2] * body[2]);
+}
+internal void us_pose(const uc_corpse *k, float *t) { us_pose_at(k, (const float (*)[3])k->sp, t); }
+// a half's points in the hull's own space: four floats and the ballast over its stretch a .. b along its length, as a
+// whole ship's over its hull (the same beam, the ballast as deep)
+internal void us_body_half(uc_corpse *k, float a, float b) {
+    float c[3], ca = 0.0f, ha = 0.0f, z4 = k->body[4][2];
+    for (int j = 0; j < 3; j++) c[j] = 0.25f * (k->body[0][j] + k->body[1][j] + k->body[2][j] + k->body[3][j]);
+    for (int j = 0; j < 3; j++) ca += c[j] * k->along[j], ha += 0.5f * (k->body[2][j] - k->body[3][j]) * k->across[j];
+    float mid = 0.5f * (a + b), hl = 0.4f * (b - a);
+    for (int j = 0; j < 3; j++) {
+        float base = c[j] + (mid - ca) * k->along[j];
+        k->body[0][j] = base + hl * k->along[j], k->body[1][j] = base - hl * k->along[j];
+        k->body[2][j] = base + ha * k->across[j], k->body[3][j] = base - ha * k->across[j];
+        k->body[4][j] = base;
+    }
+    k->body[4][2] = z4;
+    k->shift = 0.0f, k->shift_to = 0;
+}
+// a half's points placed by the frame's pose now and a step before (now, was), its leaks from now (t s after the death)
+// by its own stream, starting from b - the ship's floats' mean buoyancy then -, its broken end dropping and the half
+// drifting away from the other (sign: + bow-ward)
+internal void us_half_go(uc_corpse *k, const float *now, const float *was, float t, float b, float sign) {
+    for (int i = 0; i < US_PTS; i++)
+        for (int r = 0; r < 3; r++) {
+            const float *p = k->body[i];
+            k->sp[i][r] = now[r * 4 + 3] + now[r * 4] * p[0] + now[r * 4 + 1] * p[1] + now[r * 4 + 2] * p[2];
+            k->sq[i][r] = was[r * 4 + 3] + was[r * 4] * p[0] + was[r * 4 + 1] * p[1] + was[r * 4 + 2] * p[2];
+        }
+    uint32_t s = us_seed(k->serial, 0x27220A95u + k->half);
+    int cut = k->half == 1 ? 1 : 0, end = 1 - cut;   // the bow's half's stern float lies at the break, the stern's half's bow float
+    float at = t + US_LEAK_HEAD - k->wet_at;   // the leaks' clock now (us_step's u)
+    for (int i = 0; i < 4; i++) k->leak[i][3] = b;
+    k->leak[cut][0] = -0.4f - 0.4f * us_rnd(&s), k->leak[cut][1] = at, k->leak[cut][2] = 0.6f + 0.8f * us_rnd(&s);
+    k->leak[end][0] = 0.3f + 0.4f * us_rnd(&s), k->leak[end][1] = at + 5.0f + 4.0f * us_rnd(&s), k->leak[end][2] = 10.0f + 6.0f * us_rnd(&s);
+    for (int i = 2; i < 4; i++)
+        k->leak[i][0] = 0.2f + 0.4f * us_rnd(&s), k->leak[i][1] = at + 1.5f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 5.0f * us_rnd(&s);
+    float al[3], dt = (float)US_DT;
+    for (int r = 0; r < 3; r++) al[r] = now[r * 4] * k->along[0] + now[r * 4 + 1] * k->along[1] + now[r * 4 + 2] * k->along[2];
+    for (int i = 0; i < US_PTS; i++)
+        for (int r = 0; r < 3; r++) k->sq[i][r] -= sign * US_SNAP_PART * dt * al[r];
+    k->sq[cut][2] += US_SNAP_DROP * dt;
+}
+// it breaks (A SHIP BREAKING IN TWO) t s after its death: this entry the bow's half, a new one the stern's; none when
+// the table is full (it goes down whole)
+internal void us_snap(uc_corpse *k, float t) {
+    k->snap_t = -1.0f;
+    if (g_kc_n >= UC_CORPSES) return;
+    float now[16], was[16], b = 0.0f;
+    us_pose_at(k, (const float (*)[3])k->sp, now), us_pose_at(k, (const float (*)[3])k->sq, was);
+    for (int i = 0; i < 4; i++) {   // the floats' buoyancy now (us_step's), their mean
+        float u = (t + US_LEAK_HEAD - k->wet_at - k->leak[i][1]) / k->leak[i][2];
+        u = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u * u * (3.0f - 2.0f * u);
+        b += 0.25f * (k->leak[i][3] + (k->leak[i][0] - k->leak[i][3]) * u);
+    }
+    uc_corpse *o = &g_kc[g_kc_n++];
+    *o = *k;
+    graphics_acquire(o->gfx);
+    o->twin = 1, o->gone = 1, o->in_game = 0, o->half = 2, k->half = 1;
+    us_body_half(k, k->cut, k->ends[1]);
+    us_body_half(o, k->ends[0], k->cut);
+    us_half_go(k, now, was, t, b, 1.0f);
+    us_half_go(o, now, was, t, b, -1.0f);
+}
+// a broken half's cut for its record (render_3d.c's A BROKEN SHIP'S HALF): the break's plane in the world by its pose t,
+// its normal toward the half kept
+internal void us_clip_tag(const void *rec, const uc_corpse *k, const float *t) {
+    if (!k->ship || !k->half) return;
+    float sg = k->half == 1 ? 1.0f : -1.0f, pl[4], nt = 0.0f;
+    for (int r = 0; r < 3; r++) {
+        pl[r] = sg * (t[r * 4] * k->along[0] + t[r * 4 + 1] * k->along[1] + t[r * 4 + 2] * k->along[2]);
+        nt += pl[r] * t[r * 4 + 3];
+    }
+    pl[3] = -nt - sg * k->cut;   // (the hull's place x: along . (x - its place) = cut, turned into the world)
+    ud_clip_tag(rec, g_uc_walk_gen, pl, k->half == 2, k->deck);
 }
 internal int us_burnt(const uc_corpse *k);   // below: a crashed aircraft drawn burnt out
 // a shattering flier's animation, frame, next frame and fraction now, and its pose t upright on the ground once it

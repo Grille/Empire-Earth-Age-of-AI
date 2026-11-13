@@ -482,11 +482,14 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
         g_mo_box = box;
         rd3_shadow_classify(d, &none, 0, n);
         g_mo_box = NULL;
-        if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) {
-            DWORD cn = ni;
-            const WORD *ci = g_sl.ship ? in_capped(idx, ni, pa, n, &cn) : idx;   // a ship's: its open bottom filled
-            in_append(d, a, b, frac, ci, cn, ni);
-        }
+        DWORD cn = ni, cull = d->rs[D3DRENDERSTATE_CULLMODE];
+        const WORD *ci = g_sl.ship && d->sh_role != SH_BLOB ? in_capped(idx, ni, pa, n, &cn) : idx;   // a ship's: its open bottom filled
+        // a broken ship's half (render_3d.c's A BROKEN SHIP'S HALF): a material that hides faces shows them, dark below
+        // the hull's top - its inside through the cut - and left out above it (a one-sided sail from behind, as the game)
+        g_rd_clip_dark = !g_rd_clip_on || cull == D3DCULL_NONE ? 0 : cull == D3DCULL_CCW ? 1 : 2;
+        if (g_rd_clip_dark) d->rs[D3DRENDERSTATE_CULLMODE] = D3DCULL_NONE;
+        if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) in_append(d, a, b, frac, ci, cn, ni);
+        d->rs[D3DRENDERSTATE_CULLMODE] = cull;
         if (d->sh_card && n <= SH_CARD_MAX) in_card_queue(d, pa, pb, frac, n, idx, ni);
         InterlockedIncrement(&g_in_parts);
     }

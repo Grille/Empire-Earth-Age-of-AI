@@ -111,6 +111,12 @@ typedef struct {
                              // the view by the game's copy, not removed (us_alive_known)
     float fx_at[2][3];       // where: the splash's (on the water), the crash's
     double sim;              // the game time it is simulated to (ms)
+    float snap_t;            // a ship that breaks in two (us_snap): when (s after its death; < 0 never)
+    float cut, ends[2];      // ... where, along its length (k->along, its own space times its scale), and its hull's ends
+                             //     there (the stern's, the bow's)
+    float deck;              // ... its hull's top in its model's own space: its inside drawn below it (US_HULL_TOP)
+    uint8_t half;            // ... broken: 1 the bow's half, 2 the stern's (drawn cut: us_clip_tag); 0 whole
+    uint8_t twin;            // ... the stern's half: an entry of its own, never the game's unit's
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
 internal uint32_t g_kc_n, g_kc_full, g_kc_drawn;
@@ -125,7 +131,7 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
     EnterCriticalSection(&g_kc_cs);
     uc_corpse *k = NULL;
     // by its object and id: one kept long after the game freed it must not be taken for a new one at the same address
-    for (uint32_t i = 0; i < g_kc_n && !k; i++) if (g_kc[i].u == o->u && g_kc[i].serial == o->serial) k = &g_kc[i];
+    for (uint32_t i = 0; i < g_kc_n && !k; i++) if (g_kc[i].u == o->u && g_kc[i].serial == o->serial && !g_kc[i].twin) k = &g_kc[i];
     if (!k && g_kc_n < UC_CORPSES) {
         k = &g_kc[g_kc_n++];
         memset(k, 0, sizeof *k);
@@ -165,7 +171,7 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
             // taking off to nothing in its last steps (opacity 0 for three frames before the walk no longer met it, then
             // whole again as a kept one: the player, 2026-11-12, "when an helicopter is falling there is a single fram when
             // the object gets deleted where the falling model flickers"; logged)
-            us_run(k), us_pose(k, t);
+            us_run(k), us_pose(k, t), us_clip_tag(rec, k, t);
             draw_record_set_opacity(rec, fmaxf(draw_record_get_opacity(rec), uc_dead_opacity(g_uc_now - k->died)));
             if (k->shatters) {
                 int32_t an = draw_record_get_anim(rec), fr = draw_record_get_frame(rec), nx = draw_record_get_next_frame(rec);
@@ -250,6 +256,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
     ee_unit_type *ty = k->ty;
     float op = uc_dead_opacity(d), pos[3], ground[3] = { 0, 0, 0 };
     sil_tag(rec, g_uc_walk_gen, us_burnt(k) ? SIL_WRECK : 0);
+    us_clip_tag(rec, k, pose);
     draw_record_set_type(rec, ty);
     draw_record_set_size(rec, unit_type_get_size(ty));
     memcpy(draw_record_color_at(rec), player_color_at(k->owner), 12);
