@@ -628,6 +628,17 @@ class ai_base
         /// once they are home again. Off: on island maps the game's commander keeps the land soldiers and the landing
         /// takes its groups. On by the player's call (2026-11-11), measured level or a little better (README)
         bool mod_armies_sea = true;
+        /// EVERY UNIT THE MOD'S (the player 2026-11-13: "i want every unit under our control ... its ok if things break at
+        /// first, at least we see the holes"; docs/game-ai-routines.md "Who decides in play"): the land soldiers in the
+        /// game's own attack groups taken into the force too, and the game's group requests train no land soldiers - the
+        /// force's own orders do. 0 = the force takes only free soldiers, the game's requests train for its groups
+        bool own_soldiers = true;
+        /// ... the warships on every map led by the fleet, a land map's too (else only where the water matters); 0 = the
+        /// game's groups lead them there
+        bool own_ships = true;
+        /// ... the citizens ordered by the mod: how many from citizen_plan (the game's share of the cap as its floor), the
+        /// orders its own, every 2 s, the game's citizen request left with nothing to ask for. 0 = the game's request
+        bool own_citizens = true;
         /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
         /// to spare; 100% = an even fight, as before)
         [range(1, 5), commented]

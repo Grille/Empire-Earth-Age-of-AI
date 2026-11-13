@@ -304,15 +304,57 @@ internal void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].extra = moved;
 }
 // the citizens wanted at the request (0x490BC2: call 0x48EDDB thiscall(um))
+// the citizens the mod wants: citizen_plan's goal, the game's share of the cap (n) as its floor, then the shelf, CAP and
+// MINE CAP
+internal int cz_wanted(ee_player *pl, unsigned idx, ee_unit_mgr *um, int n) {
+    int fresh = game_time() >= g_czp[idx].t && game_time() - g_czp[idx].t <= 15000;
+    int r = (CIT_PLAN(idx) & 1) && fresh && g_czp[idx].goal > n ? g_czp[idx].goal : n;
+    r = shelf_wanted(pl, r, unit_mgr_citizens(um));   // bunker.c: none while citizens go onto the shelf or wait there
+    return cz_mine_cap(pl, idx, wf_cap_wanted(idx, r));   // workforce_plan CAP: no more than the economy uses; MINE CAP
+}
 internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
     int n = unit_mgr_citizens_wanted(um);
     ee_player *pl = ((void *)unit_mgr_get_player(um));
     if (!pl || is_vanilla(pl)) return n;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
-    int fresh = game_time() >= g_czp[idx].t && game_time() - g_czp[idx].t <= 15000;
-    int r = (CIT_PLAN(idx) & 1) && fresh && g_czp[idx].goal > n ? g_czp[idx].goal : n;
-    r = shelf_wanted(pl, r, unit_mgr_citizens(um));   // bunker.c: none while citizens go onto the shelf or wait there
-    return cz_mine_cap(pl, idx, wf_cap_wanted(idx, r));   // workforce_plan CAP: no more than the economy uses; MINE CAP
+    if (OWN_CITIZENS(idx)) return unit_mgr_citizens(um);   // econ.c EVERY UNIT THE MOD'S: cz_own orders them
+    return cz_wanted(pl, idx, um, n);
+}
+// OWN CITIZENS (own_citizens, econ.c EVERY UNIT THE MOD'S): every 2 s the citizens wanted (cz_wanted) less those there
+// and those queued at the producers, at most 2 queued a producer and the room, ordered through hook_train_units (its
+// budget, the train gate) - the game's request (attention flag, one batch of at most 10 at a time) never asks
+internal struct { uint32_t t; unsigned orders, ordered; } g_czo[16];
+internal void cz_own(ee_player *pl, unsigned idx, uint32_t now) {
+    if (!pl || is_vanilla(pl) || !OWN_CITIZENS(idx)) return;
+    if (now < g_czo[idx].t) memset(&g_czo[idx], 0, sizeof g_czo[idx]);
+    if (g_czo[idx].t && now - g_czo[idx].t < 2000) return;
+    g_czo[idx].t = now ? now : 1;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    if (!um) return;
+    cz_types(pl);
+    int nprod = 0, queued = 0;
+    for (int k = 0; k < g_cz_np; k++) {
+        uint8_t *q = unit_mgr_type_list(um, g_cz_ptypes[k]);
+        for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 64; j++) {
+            ee_unit *b = deque_at(q, f + j);
+            if (!b || unit_get_hp(b) <= 0 || !cz_finished(b)) continue;
+            nprod++;
+            int *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b);
+            if (cz_is_cit_tech(unit_get_producing(b))) queued++;
+            for (int *p = qb; qb && qe > qb && qe - qb < 64 && p < qe; p++) if (cz_is_cit_tech(*p)) queued++;
+        }
+    }
+    if (!nprod) return;
+    int room = unit_limit(pl) - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
+    int n = cz_wanted(pl, idx, um, unit_mgr_citizens_wanted(um)) - unit_mgr_citizens(um) - queued;
+    if (n > 2 * nprod - queued) n = 2 * nprod - queued;
+    if (n > room) n = room;
+    if (n <= 0) return;
+    int req[4] = { UT(CITIZEN), n, 0, 0 };
+    unsigned got = 0;
+    hook_train_units(um, req, (uintptr_t)&got);
+    g_czo[idx].orders++; g_czo[idx].ordered += got;
 }
 // the food a minute that keeps every finished producer training citizens without a pause
 internal float cz_nonstop_food(ee_player *pl) { return (float)cz_producers(pl) * (float)unit_cost(pl, UT(CITIZEN), 2) * 60000.0f / (float)g_cit_train_ms; }

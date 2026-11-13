@@ -313,8 +313,12 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     if ((plan & 16) && (now < a->tb || now - a->tb >= 30000)) { a->tb = now ? now : 1; ap_upgrades(pl, idx); }   // UPGRADE
     // only with an enemy on its own continent (navy.c navy_detect, 10 s in): on the islands (every enemy across the water)
     // the money is the navy's and the landings' - the first plan there (all of it) cost soldiers on Small Islands
-    if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa)) return;
-    if ((plan & 32) && current_epoch(pl) < g_army_epoch) return;   // LATE
+    // own_soldiers (econ.c EVERY UNIT THE MOD'S): the game's requests no longer train the force's soldiers - FILL is
+    // their training wherever the force has them, every epoch from the Copper Age (before it the game's groups trained
+    // them all: none at all in the first smoke games, 2026-11-13)
+    int own = OWN_SOLDIERS(idx) && ar_on(pl, idx);
+    if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa && !own)) return;
+    if ((plan & 32) && current_epoch(pl) < g_army_epoch && !own) return;   // LATE
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;

@@ -121,6 +121,33 @@ internal int g_build_fix = 1;
 internal struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
 internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // below, with the farm fields
 
+// EVERY UNIT THE MOD'S ([ai_base] own_soldiers, own_ships, own_citizens; [autotest] v_own_soldiers, v_own_ships,
+// v_own_citizens; the player 2026-11-13: "i want every unit under our control, do also do the citecens, it ok if things
+// break at first, at least we see the holes"). WHO DECIDES above counted what the game still ordered: every citizen, a
+// third of the soldiers (its groups' requests), the warships of a land map. own_soldiers: the game's request sites train
+// no land soldier for its groups where the force has them (armies.c ar_on; the next epoch's required units still go)
+// and the force takes the soldiers in its groups too (armies.c armies_tick); own_ships: the fleet on every map
+// (fleet.c fleet_on); own_citizens: citizens.c cz_own orders them, the game's request finds none wanted. The first
+// games' holes: no soldiers before the Middle Ages (army.c FILL from then only - now from the Copper Age under
+// own_soldiers), the siege weapons in its groups (held out of them, their offers refused: armies.c). Measured
+// (head-to-head, mirrored, 12 games a cell, 60 min, Continental, 4 AIs; off - on per game): all three from the start
+// alive -0.08 (se 0.06), losses +18 (12), workers -7 (8); from epoch 9 soldiers +13 (9), kills +36 (23), razed +13 (7),
+// workers +18 (14) - but soldiers and ships alone there kills +21 (21), losses +18 (12), workers +4 (22), citizens alone
+// soldiers +4 (11), losses +21 (12), workers -10 (17). On by the player's call; the citizens' orders are the suspect.
+internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 1, g_v_own_ships = -1, g_own_citizens = 1, g_v_own_citizens = -1;
+#define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
+#define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
+#define OWN_CITIZENS(idx) PV(idx, g_v_own_citizens, g_own_citizens)
+internal int ar_on(ee_player *pl, unsigned idx);   // armies.c
+internal void cz_own(ee_player *pl, unsigned idx, uint32_t now);   // citizens.c
+internal int own_land_type(int type) {   // a land soldier's type (mass.c ms_land_soldier by the type alone)
+    ee_unit_type *td = type_data(type);
+    if (!td || !is_soldier(td)) return 0;
+    int fam = unit_type_get_class_id(td);
+    return fam != CLS_AIRPLANE && fam != CLS_NAVAL && fam != CLS_HELICOPTER && fam != CLS_SUBMERGED_NAVAL && fam != CLS_HELICOPTER_TRANSPORT &&
+           fam != CLS_NAVAL_TRANSPORT && fam != CLS_NAVAL_BUILDING && fam != CLS_NAVAL_CITIZEN;
+}
+
 // WHO DECIDES (tests only, the log; the player 2026-11-13: "where we replace the ai and where it still rains on our
 // parade" - docs/game-ai-routines.md read it from the code, this counts it in play): per mod player, what came from the
 // game's own routines and what from the mod's - units trained at the game's request sites (the unit manager's request
@@ -131,7 +158,7 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // game's subgroups ordered most, the soldier types its requests trained and how many at each of its train sites (spec's
 // calls_train_units order). Measured: docs/game-ai-routines.md "Who decides in play".
 #define CEN_TYPES 2048
-internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
+internal struct census { unsigned tr_game[3], tr_mod[3], pl_game, pl_mod, ord_land, ord_air, joins, refused; uint16_t asked[CEN_TYPES], by_game[CEN_TYPES], ord_type[CEN_TYPES], tr_type[CEN_TYPES]; unsigned tr_site[8]; uint32_t log_t; } g_cen[16];
 internal void census_build_ask(ee_build_mgr *bm, int type) {
     ee_player *pl = bm ? build_mgr_get_player(bm) : NULL;
     if (!g_autotest || !pl || is_vanilla(pl) || type <= 0 || type >= CEN_TYPES) return;
@@ -174,10 +201,10 @@ internal void census_log(unsigned idx, uint32_t now) {
         for (int k = 0; k < 5; k++)
             if (c->by_game[t] && (!top[k] || c->by_game[t] > c->by_game[top[k]])) { memmove(top + k + 1, top + k, (4 - k) * sizeof *top); top[k] = t; break; }
     log_locked("# who decides: P%u at %u min: trained at the game's requests citizens %u soldiers %u ships %u, by the mod's orders %u %u %u | "
-               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u\n",
+               "buildings placed for the game's entries %u, the mod's %u (the game's: %d x%u %d x%u %d x%u %d x%u %d x%u) | the game's subgroups' orders land %u air %u, units into its groups %u, its soldier requests refused %u\n",
                idx, now / 60000, c->tr_game[0], c->tr_game[1], c->tr_game[2], c->tr_mod[0], c->tr_mod[1], c->tr_mod[2], c->pl_game, c->pl_mod,
                top[0], top[0] ? c->by_game[top[0]] : 0, top[1], top[1] ? c->by_game[top[1]] : 0, top[2], top[2] ? c->by_game[top[2]] : 0,
-               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins);
+               top[3], top[3] ? c->by_game[top[3]] : 0, top[4], top[4] ? c->by_game[top[4]] : 0, c->ord_land, c->ord_air, c->joins, c->refused);
     int to[5], tt[5];
     census_top(c->ord_type, to); census_top(c->tr_type, tt);
     log_locked("# who decides: P%u at %u min: the game's orders to types %d x%u %d x%u %d x%u %d x%u %d x%u | its soldiers trained %d x%u %d x%u %d x%u %d x%u %d x%u, by site %u %u %u %u %u\n",
@@ -1013,6 +1040,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     gather_log(pl, ai, now);
     place_log(ai, now);
     census_log(ai, now);
+    cz_own(pl, ai, now);   // citizens.c OWN CITIZENS
     tb_layout(pl, ai, now);
     retry_dropped(pl, ai, now);
     prod_sync(pl, ai, now);
@@ -2427,6 +2455,10 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
     if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, ship, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
+    // own_soldiers: a land soldier for one of the game's groups is the force's to order (EVERY UNIT THE MOD'S)
+    if (pl && game_site && military && !ship && !req_unit && !g_priority_mil && !g_landing_order && OWN_SOLDIERS(idx) && own_land_type(req[0]) && ar_on(pl, idx)) {
+        blocked = 1; g_cen[idx].refused++;
+    }
     if (stock && !military && is_citizen_type(req[0])) cz_budget_note(pl, idx, req, stock, visibles, blocked, cfg->budget ? afford : req[1]);
     unsigned got_local = 0;
     if (!b) b = (uintptr_t)&got_local;   // train_call did the same; army.c reads the count
@@ -2475,6 +2507,12 @@ internal void econ_install(const char *autotest_ini) {
     g_special_orders = g_set_ai[1].special_orders;
     g_spend_tiers = g_set_ai[1].spend_tiers;
     g_tight_build = g_set_ai[1].tight_build;
+    g_own_soldiers = g_set_ai[1].own_soldiers; g_own_ships = g_set_ai[1].own_ships; g_own_citizens = g_set_ai[1].own_citizens;
+    if (autotest_ini) {
+        g_v_own_soldiers = ini_int("autotest", "v_own_soldiers", -1, autotest_ini);
+        g_v_own_ships = ini_int("autotest", "v_own_ships", -1, autotest_ini);
+        g_v_own_citizens = ini_int("autotest", "v_own_citizens", -1, autotest_ini);
+    }
     g_farm_first = g_set_ai[1].farm_first;
     g_prod_sync = g_set_ai[1].production_sync;
     g_train_queue = g_set_ai[1].train_queue;

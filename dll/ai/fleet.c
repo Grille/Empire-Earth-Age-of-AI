@@ -71,12 +71,15 @@ internal struct fleet {
 } g_fl[16];
 internal unsigned g_fl_refused;
 
+// own_ships (econ.c EVERY UNIT THE MOD'S): on every map, a land map's warships too - else the game's groups led them
+// there (160 orders a game on Continental, 2026-11-13); its size target and task forces still only where the water
+// matters (fleet_builds)
 internal int fleet_on(unsigned idx) {
     idx &= 15;
-    return PV(idx, g_v_navy_fleet, g_navy_fleet) && g_nv_map[idx].done && g_nv_map[idx].strength > 0;
+    return PV(idx, g_v_navy_fleet, g_navy_fleet) && g_nv_map[idx].done && (g_nv_map[idx].strength > 0 || OWN_SHIPS(idx));
 }
 // stage 4 (navy_fleet=big): the size target and the mod's own warship orders (navy.c), task forces (below)
-internal int fleet_builds(unsigned idx) { return fleet_on(idx) && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
+internal int fleet_builds(unsigned idx) { return fleet_on(idx) && g_nv_map[idx & 15].strength > 0 && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
 internal int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 internal int g_fl_mass = 1;   // navy_fleet_mass: stage 4 masses at the rally while weaker (fl_rally, below)
 internal int g_fl_s4;   // set while a stage-4 fleet is led (fl_orders' preferences, fl_safe_toward's margin)

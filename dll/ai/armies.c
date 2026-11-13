@@ -308,6 +308,10 @@ internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *u) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     if (af_takes(u)) return 1;   // airstrike.c: the air force's bomber
+    if (td && OWN_SOLDIERS(idx) && ar_on(pl, idx) && (is_siege(unit_type_get_id(td)) || is_ram(unit_type_get_id(td))) && !landing_has_unit(pl, u)) {
+        g_armies[idx].refused++;   // own_soldiers: siege and rams stay out of its groups (armies_tick holds them)
+        return 1;
+    }
     if (!td || !ar_on(pl, idx) || !ms_land_soldier(u, td)) return 0;
     g_armies[idx].refused++;
     return 1;
@@ -2215,9 +2219,16 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     int kept_group = 0, kept_landing = 0, kept_sortie = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && a->n < AR_HELD; ) {
         ee_unit *u = it.u;
+        // own_soldiers: siege weapons and rams out of the game's groups too - not the force's (attack.c siege_tick and
+        // ar_rams lead every one of them), only out of the commander's reach (its groups ordered them 70 - 200 times a
+        // game on land, 2026-11-13)
+        if (OWN_SOLDIERS(idx) && unit_get_owner(u) == pl && (is_siege(unit_type_get_id(it.td)) || is_ram(unit_type_get_id(it.td))) &&
+            !unit_get_ai_held(u) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && !landing_has_unit(pl, u)) { player_hold_unit(pl, u); continue; }
         if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td) || ar_held(a, u) || unit_get_ai_held(u) || ar_group_has(idx, u) || ar_det_has(idx, u) || ar_look_has(idx, u)) continue;   // the last two: the force took them in again though they are taken (the raiders marched off with it, in both lists)
         int is_free = combat_mgr_unit_free(cm, unit_get_physics(u)) != 0;
-        if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp)) { kept_group += is_free; continue; }
+        // own_soldiers (econ.c EVERY UNIT THE MOD'S): a member of the game's groups is taken too - the hold
+        // (unregister_unit) takes it out of them
+        if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp) && !OWN_SOLDIERS(idx)) { kept_group += is_free; continue; }
         if (!is_free) continue;
         if (landing_has_unit(pl, u)) { kept_landing++; continue; }
         if (ou_sortie(pl, u)) { kept_sortie++; continue; }
