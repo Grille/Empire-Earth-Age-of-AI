@@ -38,7 +38,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
 - A move that should change no code (files, functions between files): `scripts/build/code_same.py HEAD` must say "0 differ".
 - `sh scripts/build/install.sh` puts the committed build into the game: built from a clean `git archive HEAD` (never the
-  working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
+  working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first. Art of
+  Conquest's folder (EE_AOC_DIR, local/aoc_dir.txt, else beside the game's) gets the same build; its ageofai\ is a
+  junction to the game folder's on the player's PC (2026-11-13: one ini, log and personalities for both).
 - A release: `local/venv/Scripts/python.exe scripts/build/pack_release.py` - HEAD built from a clean archive, zipped
   as the game folder lays it out (ageofai.dll, ageofai_config.exe, ageofai/ with ageofai.ini and personalities/) into
   `local/work/release/`, ageofai_check.exe beside the zip (a download of its own).
