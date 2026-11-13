@@ -54,7 +54,8 @@
 // halves' points from the frame's pose then and a step before). The broken end's float floods at once, its far end
 // holds longest, its sides between: each half stands up on its broken end and goes down by it; their broken ends drop
 // (US_SNAP_DROP) and they drift apart (US_SNAP_PART). Each half drawn as a model of its own, made from the ship's when it is
-// first drawn broken (render_units.c A BROKEN SHIP'S HALF: us_clip_tag). Not a submarine's or an aircraft's; one met already sinking stays whole.
+// first drawn broken (render_units.c A BROKEN SHIP'S HALF: us_clip_tag). Not an aircraft's (a submarine's by its own shares: A SUBMARINE
+// BREAKING); one met already sinking stays whole.
 #define US_SNAP 0.3f
 #define US_SNAP_LEN 1.5f
 #define US_SNAP_AT 0.25f
@@ -68,6 +69,11 @@
 // flooded, their far ends holding: one may stand up again - flooded through at once they dropped, jarring: the player,
 // "dont do that ... them standing up etc based on their simulation isnt nercesarly a problem"), their broken ends sunk US_FLOOR_SAG deeper into the seabed, one side of each a little (a list), drifting apart
 #define US_SNAP_FLOOR 0.5f
+// A SUBMARINE BREAKING (the player, 2026-11-13: "next subs a 50% chance to break apart on death (a modifer not an extra
+// mode) and a 100% when they land on the floor"): as a ship's, by these shares, its own way down kept (its leaks; it
+// hangs at its depth until they take it down)
+#define US_SNAP_SUB 0.5f
+#define US_SNAP_FLOOR_SUB 1.0f
 #define US_FLOOR_V 0.05f    // tiles/s
 #define US_FLOOR_SAG 0.12f  // tiles
 #define US_FLOOR_STEPS 10  // the steps after its hit it breaks: the hit's change of its way and turn gone through all its
@@ -530,18 +536,18 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     float len = (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s;
     k->ends[0] = (x_long ? lo[0] : lo[1]) * s, k->ends[1] = (x_long ? hi[0] : hi[1]) * s;
     k->half = k->twin = k->floor_snap = k->floor_hit = 0, k->hit_v = 0.0f, k->snap_t = -1.0f, k->deck = fminf(US_HULL_TOP * hi[2], US_HULL_MAX);
-    if (!air && !sub && !late && len >= US_SNAP_LEN && ud_cuts()) {   // (its halves drawn: the mod's record draw)
+    if (!air && !late && len >= US_SNAP_LEN && ud_cuts()) {   // (its halves drawn: the mod's record draw)
         uint32_t ss = us_seed(o->serial, 0xC2B2AE3Du);
         float drawn = us_rnd(&ss);
-        if (g_us_snap > 0 || (!g_us_snap && drawn < US_SNAP)) {
+        if (g_us_snap > 0 || (!g_us_snap && drawn < (sub ? US_SNAP_SUB : US_SNAP))) {
             k->snap_t = US_SNAP_AT + US_SNAP_AT_RND * us_rnd(&ss);
             k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&ss)) * (k->ends[1] - k->ends[0]);
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4 && !sub; i++)   // (a submarine's own leaks kept: it hangs at its depth as it would)
                 k->leak[i][0] = 0.6f + 0.25f * us_rnd(&ss), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&ss), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&ss),
                 k->leak[i][3] = k->lift;
         } else {   // on the seabed, by a stream of its own (its leaks as any ship's)
             uint32_t sf = us_seed(o->serial, 0x165667B1u);
-            if (g_us_floor > 0 || (!g_us_floor && us_rnd(&sf) < US_SNAP_FLOOR))
+            if (g_us_floor > 0 || (!g_us_floor && us_rnd(&sf) < (sub ? US_SNAP_FLOOR_SUB : US_SNAP_FLOOR)))
                 k->floor_snap = 1, k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&sf)) * (k->ends[1] - k->ends[0]);
         }
     }

@@ -1068,6 +1068,10 @@ its radius half its side floats' spacing, short of its ends by it so they just t
 apart by half the overlap, most where they touch, and loses its way toward the other there - they come to rest against
 each other. Only the two halves of one ship. Measured: without it, up to 0.93 of the radii overlapped (a Middle Ages
 frigate broken on the water); with it, never more than 0.02.
+A submarine breaks too, by its own shares (A SUBMARINE BREAKING: 50% at its death, every one that doesn't on the
+seabed), its own way down kept (it hangs at its depth until its leaks take it down). The Nautilus's hull is rings: a
+piece under the hull's top across half the beam is cut too (UH_WIDE; its cut fell in one ring 0.04 of its length long,
+its halves parted at a seam, unfilled).
 
 ## The units' draw, the mod's own (2026-11-11 on)
 

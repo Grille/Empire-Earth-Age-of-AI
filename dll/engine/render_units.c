@@ -540,8 +540,8 @@ internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op,
 // break's plane in the world; its first draw walks the model taking its parts (uh_part: each material's vertices of
 // the frame and its full detail's triangles, the bottom filled - render_instance.c in_capped - and its place), and
 // uh_make cuts them in the root model's own space, where both halves agree whenever they are made: a piece of a part (its
-// triangles joined by their places) that reaches under the hull's top along much of the ship, or runs along most of it
-// wherever it lies, is cut - the hull, its deck, a stripe along it -, any other kept whole by the half its middle lies in (a mast, a sail, a turret: never cut). A triangle across
+// triangles joined by their places) that reaches under the hull's top along much of the ship or across half its beam,
+// or runs along most of it wherever it lies, is cut - the hull (a ring of it too), its deck, a stripe along it -, any other kept whole by the half its middle lies in (a mast, a sail, a turret: never cut). A triangle across
 // the plane keeps its side, the new corners on its edges blended from theirs (the place, the normal, the texture's), each
 // edge's corner one for both triangles beside it and moved along the edge by a noise of its place (UH_JAG): the break's
 // teeth, the same in both halves. The cut's edges are chained into outlines (an open one - a hull without a deck -
@@ -585,6 +585,8 @@ internal int ud_cuts(void) { return g_sil_hooked && ud_mode() == 1 && in_on() &&
 #define UH_LONG_ANY 0.6f   // ... or this share wherever it lies: over the hull's top too (the player, 2026-11-13, of an Atomic
                            // transport's stripe of its player's colour along its deck, whole on one half: "the colored strip
                            // along the cargo ship isnt broken up")
+#define UH_WIDE 0.5f       // ... or under the hull's top across this share of its beam: a hull of rings, the Nautilus's (cut in
+                           // one 0.04 of its length long, its halves parted at a seam, unfilled)
 #define UH_CAP_SHADE 0.8f  // the filling's colour over the death texture
 #define UH_CAP_UV 2.0f     // ... and its texture's repeats over the ship's length
 enum { UH_NEW, UH_OK, UH_NOT };
@@ -728,7 +730,8 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
             if (!cnt[k]) continue;
             const float *s = st + k * 6;
             float along = s[4] - s[3];
-            int across = s[3] < 0.0f && s[4] >= 0.0f && (along >= UH_LONG_ANY * f->len || (s[0] < f->deck && along >= UH_LONG * f->len));
+            int across = s[3] < 0.0f && s[4] >= 0.0f &&
+                         (along >= UH_LONG_ANY * f->len || (s[0] < f->deck && (along >= UH_LONG * f->len || s[2] - s[1] >= UH_WIDE * f->beam)));
             mode[k] = across ? 2 : (s[5] / (float)cnt[k] >= 0.0f) == f->bow;
         }
     }
