@@ -1931,9 +1931,38 @@ internal char __thiscall hook_goal_cast(ee_goal *goal, void *unit) {
                 unit && unit_get_type_data(unit) ? unit_type_get_id(unit_get_type_data(unit)) : -1, game_time() / 60000.0);
     return 0;
 }
+// A unit in the move state (8000) whose goal list is empty: EEUnitClass::vf29's case reads through its goal object
+// (+0x1F0) unchecked - a crash at 0x61B2E5 (the player's game of 2026-11-13, 227 minutes, 6 players). What empties it
+// under a moving unit is not known yet; the guard sends such a unit to the case's own end for goals run out: idle
+// (set_state 5000), as if its last goal were done.
+internal unsigned g_move_goal_null;
+__attribute__((used)) uintptr_t __stdcall move_goal_null(ee_unit *u) {
+    if (g_log && g_move_goal_null++ < 5)
+        fprintf(g_log, "# engine guard: P%d's unit (type %d) moving without a goal at %.1f min - set idle\n",
+                unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1, unit_get_type_data(u) ? unit_type_get_id(unit_get_type_data(u)) : -1,
+                game_time() / 60000.0);
+    return g_move_goal_idle;
+}
+// called in place of mov ecx, [esi+0x1F0] (hooks.c patch_move_goal): ecx the goal object; with none the return goes to
+// the case's idle branch instead (move_goal_null's answer, written over the return address above pushal's 32 bytes)
+__attribute__((naked, used)) void move_goal_thunk(void) {
+    __asm__ volatile (
+        "movl 0x1F0(%esi), %ecx\n\t"
+        "testl %ecx, %ecx\n\t"
+        "jz 1f\n\t"
+        "ret\n\t"
+        "1:\n\t"
+        "pushal\n\t"
+        "pushl %esi\n\t"
+        "call _move_goal_null@4\n\t"
+        "movl %eax, 32(%esp)\n\t"
+        "popal\n\t"
+        "ret\n\t");
+}
 internal void attack_install(void) {
     BOOL cast_guard = patch_goal_fits(hook_goal_cast);
     if (g_log) fprintf(g_log, "# engine guard: goal 0xFBA without its object %s\n", cast_guard ? "ok" : "FAILED");
+    if (g_log) fprintf(g_log, "# engine guard: a moving unit without a goal %s\n", patch_move_goal(move_goal_thunk) ? "ok" : "FAILED");
     g_op_delete = game_op_delete();
     BOOL sort_guard = patch_range_sort(hook_range_sort);
     if (g_log) fprintf(g_log, "# engine guard: the range sort %s\n", sort_guard ? "ok" : "FAILED");

@@ -228,6 +228,18 @@ internal inline int patch_tcp_ports(HMODULE m, int add, int add_connect) {
 // the exit dialog's confirmation (a code pointer in the menu's table)
 internal inline int patch_exit_confirm(void (__cdecl *h)(void)) { return patch_code32(data_hooks_exit_confirm_at, (uintptr_t)fn_exit_confirm, (uint32_t)(uintptr_t)h); }
 
+// the move state's load of the goal object (spec hooks.move_goal_load) a call of thunk: the unit in esi; the thunk loads
+// ecx itself and, for an empty goal object, returns to g_move_goal_idle, the case's idle branch (the ja's target, read
+// from the code)
+internal uintptr_t g_move_goal_idle;
+internal int patch_move_goal(void (*thunk)(void)) {
+    static const uint8_t mov[6] = { 0x8B, 0x8E, 0xF0, 0x01, 0x00, 0x00 };
+    const uint8_t *ja = (const uint8_t *)data_hooks_move_goal_load + 0x10;
+    if (!data_hooks_move_goal_load || ja[0] != 0x77) return 0;
+    g_move_goal_idle = (uintptr_t)(ja + 2 + (int8_t)ja[1]);
+    return patch_insn6_call(data_hooks_move_goal_load, mov, (void *)thunk);
+}
+
 // the 2017 update's four reload stores (hooks.reload_tick_cmp, reload_fire_store) sent to a thunk: unit esi, reload
 // eax; it must store the reload and return with ZF set (the ticks' je then skips their own store). 0..4 patched
 internal int patch_reload_stores(void (*thunk)(void)) {

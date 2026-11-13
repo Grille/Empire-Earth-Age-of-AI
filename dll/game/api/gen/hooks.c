@@ -219,6 +219,10 @@ internal inline uint8_t *draw_small_record_flag_at(const void *o) { return (uint
 // static class hooks
 // hooks's data of the game, places in its code and numbers
 internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_attack_alert; }
+// EEUnitClass::vf29 (0x61AD41, a unit's next behaviour by its state), the move state 8000's case: mov ecx, [esi+0x1F0]
+// - the unit's goal object, read through unchecked (8B 01 next); a ja to the case's idle branch (set_state 5000, vf29
+// again) at +0x10. A unit moving with its goal list empty died there (the player's game of 2026-11-13, 227 minutes)
+internal inline uint8_t *hooks_move_goal_load_at(void) { return (uint8_t *)(uintptr_t)data_hooks_move_goal_load; }
 // the 2017 update sets a unit's reload inline where AoC calls unit.reload_wait (its random wait): the attack ticks'
 // cmp [esi+0x2A0], eax before their store of the type's reload (EEUGAttackGround 0x60ABC0, EEUGAttackUnit
 // 0x60B34C; a je over the store follows) ...
@@ -355,6 +359,7 @@ internal int spec_hooks_select(int build) {
         of_draw_small_record_next_frame = 0x34;
         of_draw_small_record_flag = 0x38;
         data_hooks_call_attack_alert = 0x006177CF;
+        data_hooks_move_goal_load = 0x0061B2DF;
         data_hooks_reload_tick_cmp[0] = 0x0060ABC0;
         data_hooks_reload_tick_cmp[1] = 0x0060B34C;
         data_hooks_reload_fire_store[0] = 0x0061E18E;
@@ -485,6 +490,7 @@ internal int spec_hooks_select(int build) {
         of_draw_small_record_next_frame = 0x34;
         of_draw_small_record_flag = 0x38;
         data_hooks_call_attack_alert = 0x0062A366;
+        data_hooks_move_goal_load = 0x0062E15E;
         data_hooks_reload_tick_cmp[0] = 0;
         data_hooks_reload_tick_cmp[1] = 0;
         data_hooks_reload_fire_store[0] = 0;
@@ -569,6 +575,7 @@ internal int spec_hooks_check(void) {
     bad += spec_code((uintptr_t)fn_draw_record_init, "ee_draw_record.init");
     bad += spec_code((uintptr_t)fn_draw_record_destroy, "ee_draw_record.destroy");
     bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
+    bad += spec_code(data_hooks_move_goal_load, "hooks.move_goal_load");
     bad += spec_code(data_hooks_reload_tick_cmp[0], "hooks.reload_tick_cmp 0");
     bad += spec_code(data_hooks_reload_tick_cmp[1], "hooks.reload_tick_cmp 1");
     bad += spec_code(data_hooks_reload_fire_store[0], "hooks.reload_fire_store 0");

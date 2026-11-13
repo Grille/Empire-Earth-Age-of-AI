@@ -230,6 +230,12 @@ static unsafe class hooks
     [address((ee)0x006177CF, (aoc)0x0062A366)]
     static code call_attack_alert;
 
+    /// EEUnitClass::vf29 (0x61AD41, a unit's next behaviour by its state), the move state 8000's case: mov ecx, [esi+0x1F0]
+    /// - the unit's goal object, read through unchecked (8B 01 next); a ja to the case's idle branch (set_state 5000, vf29
+    /// again) at +0x10. A unit moving with its goal list empty died there (the player's game of 2026-11-13, 227 minutes)
+    [address((ee)0x0061B2DF, (aoc)0x0062E15E)]
+    static code move_goal_load;
+
     /// the 2017 update sets a unit's reload inline where AoC calls unit.reload_wait (its random wait): the attack ticks'
     /// cmp [esi+0x2A0], eax before their store of the type's reload (EEUGAttackGround 0x60ABC0, EEUGAttackUnit
     /// 0x60B34C; a je over the store follows) ...
