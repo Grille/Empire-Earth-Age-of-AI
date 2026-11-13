@@ -363,6 +363,15 @@ internal inline int patch_citizens_wanted(unit_mgr_citizens_wanted_fn h) { retur
 typedef char (__thiscall *unit_mgr_pending_fn)(ee_unit_mgr *, int);
 internal unit_mgr_pending_fn fn_unit_mgr_pending;
 internal inline char unit_mgr_pending(ee_unit_mgr *unit_mgr, int type) { return fn_unit_mgr_pending(unit_mgr, type); }
+// thiscall(unit manager, type, count, zone, area): a request for count units of type - what the game's own orders
+// go through before the request walk (update 0x490AD6) trains them: the request list of the type's epoch (+0x1C +
+// epoch x 0x14; an entry of the same type there gets the count added), the type's cost x count onto the resource
+// manager's demand (0x48B9E9, which its gatherer targets follow) and requested (+0x138). zone: only a producer in
+// that town (its +0x74), area: one on that continent (the low 16 bits; 0 for both: any) - train's req[2], req[3].
+// The citizen request (0x490B60: count, 0, 0), the requirements' and the groups' requests call it
+typedef void (__thiscall *unit_mgr_request_fn)(ee_unit_mgr *, int, int, int, int);
+internal unit_mgr_request_fn fn_unit_mgr_request;
+internal inline void unit_mgr_request(ee_unit_mgr *unit_mgr, int type, int count, int zone, int area) { fn_unit_mgr_request(unit_mgr, type, count, zone, area); }
 // thiscall(unit manager, type): its units and buildings of that type
 typedef uint8_t *(__thiscall *unit_mgr_type_list_fn)(ee_unit_mgr *, int);
 internal unit_mgr_type_list_fn fn_unit_mgr_type_list;
@@ -571,6 +580,7 @@ internal int spec_ai_managers_select(int build) {
         fn_unit_mgr_citizens_wanted = (unit_mgr_citizens_wanted_fn)0x0048EDDB;
         call_citizens_wanted = 0x00490BC2;
         fn_unit_mgr_pending = (unit_mgr_pending_fn)0x0048E9D8;
+        fn_unit_mgr_request = (unit_mgr_request_fn)0x0048FB70;
         fn_unit_mgr_type_list = (unit_mgr_type_list_fn)0x0048F8AF;
         fn_unit_mgr_in_production_of = (unit_mgr_in_production_of_fn)0x0048EA2E;
         vt_eecp_wall_manager = 0x00827AE4;
@@ -716,6 +726,7 @@ internal int spec_ai_managers_select(int build) {
         fn_unit_mgr_citizens_wanted = (unit_mgr_citizens_wanted_fn)0x00493AEE;
         call_citizens_wanted = 0x00495A15;
         fn_unit_mgr_pending = (unit_mgr_pending_fn)0x00493696;
+        fn_unit_mgr_request = (unit_mgr_request_fn)0x004948E6;
         fn_unit_mgr_type_list = (unit_mgr_type_list_fn)0x00494608;
         fn_unit_mgr_in_production_of = (unit_mgr_in_production_of_fn)0x004936EC;
         vt_eecp_wall_manager = 0x0083C2C8;
@@ -806,6 +817,7 @@ internal int spec_ai_managers_check(void) {
     bad += spec_code((uintptr_t)fn_unit_mgr_citizens_wanted, "ee_unit_mgr.citizens_wanted");
     bad += spec_call(call_citizens_wanted, (uintptr_t)fn_unit_mgr_citizens_wanted, "ee_unit_mgr.citizens_wanted [call_site citizens_wanted]");
     bad += spec_code((uintptr_t)fn_unit_mgr_pending, "ee_unit_mgr.pending");
+    bad += spec_code((uintptr_t)fn_unit_mgr_request, "ee_unit_mgr.request");
     bad += spec_code((uintptr_t)fn_unit_mgr_type_list, "ee_unit_mgr.type_list");
     bad += spec_code((uintptr_t)fn_unit_mgr_in_production_of, "ee_unit_mgr.in_production_of");
     bad += spec_vtable(vt_eecp_wall_manager, ".?AVEECPWallManager@@", "EECPWallManager [vtable]");

@@ -418,6 +418,15 @@ unsafe struct ee_unit_mgr
     [address((ee)0x0048E9D8, (aoc)0x00493696)]
     extern char8 pending(int32 type);
 
+    /// thiscall(unit manager, type, count, zone, area): a request for count units of type - what the game's own orders
+    /// go through before the request walk (update 0x490AD6) trains them: the request list of the type's epoch (+0x1C +
+    /// epoch x 0x14; an entry of the same type there gets the count added), the type's cost x count onto the resource
+    /// manager's demand (0x48B9E9, which its gatherer targets follow) and requested (+0x138). zone: only a producer in
+    /// that town (its +0x74), area: one on that continent (the low 16 bits; 0 for both: any) - train's req[2], req[3].
+    /// The citizen request (0x490B60: count, 0, 0), the requirements' and the groups' requests call it
+    [address((ee)0x0048FB70, (aoc)0x004948E6)]
+    extern void request(int32 type, int32 count, int32 zone, int32 area);
+
     /// thiscall(unit manager, type): its units and buildings of that type
     [address((ee)0x0048F8AF, (aoc)0x00494608)]
     extern uint8* type_list(int32 type);
