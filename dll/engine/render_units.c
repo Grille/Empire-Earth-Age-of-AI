@@ -556,6 +556,9 @@ internal const ud_clip *ud_clip_of(const void *rec) {
     }
     return NULL;
 }
+// whether a half's cut can be drawn at all: the records drawn by the mod, instanced, their frames on the GPU (else the
+// game's draw has them, and drew each half whole) - collect_remains_physics.c breaks no ship otherwise
+internal int ud_cuts(void) { return g_sil_hooked && ud_mode() == 1 && in_on() && g_mo.on && !g_mo_off; }
 internal int ud_draw_whole(void *rec);
 // a record's draw, a half's with its cut: one the mod can't draw is left out, not drawn whole by the game's draw
 internal int ud_draw(void *rec) {

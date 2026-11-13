@@ -502,7 +502,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     float len = (x_long ? hi[0] - lo[0] : hi[1] - lo[1]) * s;
     k->ends[0] = (x_long ? lo[0] : lo[1]) * s, k->ends[1] = (x_long ? hi[0] : hi[1]) * s;
     k->half = k->twin = 0, k->snap_t = -1.0f, k->deck = fminf(US_HULL_TOP * hi[2], US_HULL_MAX);
-    if (!air && !sub && !late && len >= US_SNAP_LEN) {
+    if (!air && !sub && !late && len >= US_SNAP_LEN && ud_cuts()) {   // (drawn cut: the mod's record draw)
         uint32_t ss = us_seed(o->serial, 0xC2B2AE3Du);
         float drawn = us_rnd(&ss);
         if (g_us_snap > 0 || (!g_us_snap && drawn < US_SNAP)) {

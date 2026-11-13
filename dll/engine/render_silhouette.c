@@ -79,10 +79,11 @@ internal void __thiscall sil_hook_tree(ee_ro_units *ro, void *at, void *rec) {
     tl_after(ro, at, rec);
     g_sl.in = 0;
 }
+internal int g_sil_hooked;   // the record draw hooked (render_units.c ud_cuts)
 internal int sil_install(void) {
     static int done;
     if (done || (!g_set.unit_silhouettes && !g_set.unit_instancing && g_set.shadows != 1)) return done;   // (render_instance.c: a unit's record; render_shadows.c: a cloaked one's)
-    return done = patch_units_draw_record(sil_hook_draw, NULL) + patch_units_draw_tree(sil_hook_tree);
+    return done = g_sil_hooked = patch_units_draw_record(sil_hook_draw, NULL) + patch_units_draw_tree(sil_hook_tree);
 }
 // a draw's batch holds one kind: the batch so far ended when the kind changes
 internal void rd3_flush(void);
