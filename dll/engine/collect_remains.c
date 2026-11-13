@@ -118,7 +118,7 @@ typedef struct {
     uint8_t half;            // ... broken: 1 the bow's half, 2 the stern's (each a model of its own: us_clip_tag); 0 whole
     uint8_t twin;            // ... the stern's half: an entry of its own, never the game's unit's
     uint8_t floor_snap;      // ... one that breaks on the seabed instead (US_SNAP_FLOOR), once it hit it (floor_hit)
-    uint8_t floor_hit;
+    uint8_t floor_hit;       // ... and the steps since (it breaks US_FLOOR_STEPS on)
     float hit_v;             // ... how fast it went down then (tiles/s)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];

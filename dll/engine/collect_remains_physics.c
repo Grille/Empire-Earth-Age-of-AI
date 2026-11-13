@@ -70,9 +70,12 @@
 #define US_SNAP_FLOOR 0.5f
 #define US_FLOOR_V 0.05f    // tiles/s
 #define US_FLOOR_SAG 0.12f  // tiles
-#define US_FLOOR_KEEP 0.3f  // the share of its way along the bottom each half keeps (the second report, the same day: "the
-                            // part hitting the floor overreacts and the other continues its part usualy sliding into the
-                            // other piece": broken after the step that hit, and with all its way)
+#define US_FLOOR_STEPS 10  // the steps after its hit it breaks: the hit's change of its way and turn gone through all its
+                           // points (the player, the same day, the halves broken at the hit: "the part hitting the floor
+                           // overreacts and the other continues its part usualy sliding into the other piece" - "break
+                           // the ship apart a few steps after the sea floor hit, than the new speed rotation etc could
+                           // travel trough all points": the hit stopped the one float that touched, and the halves'
+                           // poses made of that turned that one too hard while the other kept all its way)
 internal int g_us_floor;   // the pipe's: 1 every ship long enough that doesn't break at its death breaks on the seabed, -1 none, 0 drawn
 // its hull's top: this share of its model's height over the water, at most US_HULL_MAX (the models' own space: a
 // sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55; an Imperial battleship's lower sails hang
@@ -789,15 +792,8 @@ internal void us_run(uc_corpse *k) {
         k->sim += US_DT * 1000.0;
         float t = (float)((k->sim - k->died) / 1000.0);
         if (k->snap_t >= 0.0f && !k->half && t >= k->snap_t) us_snap(k, t, 0);
-        if (k->floor_snap && !k->half) {   // (BREAKING ON THE SEABED: the step that hits the bottom taken back, it breaks
-            uc_corpse was = *k;            // before it and each half meets the bottom itself - the hit stopped the one float
-            us_step(k, t, mesh);           // that touched, and the halves' poses made of that turned the one too hard)
-            if (!k->floor_hit) continue;
-            float v = k->hit_v;
-            *k = was, k->hit_v = v;
-            us_snap(k, t, 1);
-        }
         us_step(k, t, mesh);
+        if (k->floor_snap && k->floor_hit && !k->half && ++k->floor_hit > US_FLOOR_STEPS) us_snap(k, t, 1);   // (BREAKING ON THE SEABED)
     }
 }
 // its pose into t (rows, the place in the fourth column) from its floats p (its own, or where they were a step before):
@@ -856,10 +852,7 @@ internal void us_half_go(uc_corpse *k, const float *now, const float *was, float
     k->leak[end][0] = 0.3f + 0.4f * us_rnd(&s), k->leak[end][1] = at + 5.0f + 4.0f * us_rnd(&s), k->leak[end][2] = 10.0f + 6.0f * us_rnd(&s);
     for (int i = 2; i < 4; i++)
         k->leak[i][0] = 0.2f + 0.4f * us_rnd(&s), k->leak[i][1] = at + 1.5f + 2.0f * us_rnd(&s), k->leak[i][2] = 6.0f + 5.0f * us_rnd(&s);
-    if (floor) {   // its broken end and one side deeper in the seabed (its leaks as a broken half's on the water); the
-                   // hit spent its way along the bottom - the half not touching slid on into the other (the player)
-        for (int i = 0; i < US_PTS; i++)
-            for (int r = 0; r < 2; r++) k->sq[i][r] = k->sp[i][r] - US_FLOOR_KEEP * (k->sp[i][r] - k->sq[i][r]);
+    if (floor) {   // its broken end and one side deeper in the seabed (its leaks as a broken half's on the water)
         k->dig[cut] += US_FLOOR_SAG;
         k->dig[2 + (us_rnd(&s) < 0.5f)] += 0.4f * US_FLOOR_SAG * us_rnd(&s);
     }
@@ -888,7 +881,7 @@ internal void us_snap(uc_corpse *k, float t, int floor) {
     *o = *k;
     graphics_acquire(o->gfx);
     o->twin = 1, o->gone = 1, o->in_game = 0, o->half = 2, k->half = 1;
-    o->sim -= US_DT * 1000.0;   // (the step at t is still to come for both: us_run takes this one's next)
+    if (!floor) o->sim -= US_DT * 1000.0;   // (on the water the step at t is still to come for both: us_run takes this one's next)
     us_body_half(k, k->cut, k->ends[1]);
     us_body_half(o, k->ends[0], k->cut);
     us_half_go(k, now, was, t, b, 1.0f, floor);
