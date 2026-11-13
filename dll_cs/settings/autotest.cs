@@ -10,6 +10,8 @@ class autotest
     bool order_log = false;
     /// the AI's fronts (ai/fronts.c: territory, border, each front's width, threat, value, share) every 5 minutes
     bool fronts_log = false;
+    /// the map's territories (game/territory.c): each one's tiles, borders, neighbours and what stands there, every 5 minutes
+    bool territories_log = false;
     [range(100, 300)]
     int route_weight = 100;
     [range(-1, 7)]

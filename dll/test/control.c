@@ -7,6 +7,7 @@
 
 internal void watch_set(uintptr_t addr, int len);
 internal void cmd_threat(char *out, const char *args);
+internal void cmd_territories(char *out, const char *args);   // game/territory.c
 internal void cmd_nullmember(char *out, const char *args);
 internal void cmd_attacknow(char *out, const char *args);
 internal void cmd_attacks(char *out, const char *args);
@@ -414,6 +415,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "give")) cmd_give(out, args);
     else if (!strcmp(verb, "playas")) cmd_playas(out, args);
     else if (!strcmp(verb, "continent")) cmd_continent(out, args);
+    else if (!strcmp(verb, "territories")) cmd_territories(out, args);
     else if (!strcmp(verb, "aigroup")) cmd_aigroup(out, args);
     else if (!strcmp(verb, "landing")) cmd_landing(out, args);
     else if (!strcmp(verb, "vis")) cmd_vis(out, args);

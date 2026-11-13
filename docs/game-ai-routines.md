@@ -249,3 +249,13 @@ Air transport (`air_transport`, landing.c AIR TRANSPORT, 2026-11-13, on): a land
 helicopters before ships where an Airport stands, and want one otherwise. A landing by helicopter is ashore in seconds
 and flies a wave every 1.5 minutes. Against ships only, from the Atomic Age - Modern: level on Small Islands, soldiers
 +18 on a large one.
+
+## The mod's own picture of the map
+
+Territories (game/territory.c, 2026-11-13, read only so far - the player: "its hard to make the ai decide based on the
+whole map ... what about spliting the map into teretories?"): land and water split at their narrow places (passes, fords,
+gaps between cliffs or woods, straits), what is still larger than 40 x 40 tiles halved at the shortest cut near its
+middle; each territory knows its tiles, neighbours, the length of every border, its coast, its resource sites and who
+has built there. Nothing of the AI asks it yet: `overlay territories` draws it, the pipe's `territories` lists and
+resizes it (docs/testing.md). Meant to replace the separate map scans of expand.c (islands), fronts.c (cells) and the
+garrisons, one user at a time.

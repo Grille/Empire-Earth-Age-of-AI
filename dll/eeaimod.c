@@ -63,6 +63,7 @@ internal void editor_undo_new_game(void);  // engine/editor_undo.c
 internal void editor_orders_hide(void);    // engine/editor_orders.c
 internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
+internal void territory_tick(uint32_t now, int list);   // game/territory.c
 internal void persist_load(const char *name);
 internal void editor_test_saved(const char *folder, const char *file);   // engine/editor_orders.c
 internal void econ_targets(ee_resource_mgr *rm);
@@ -242,6 +243,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
+    if (pl) territory_tick(now, g_set.territories_log);
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -400,6 +402,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "test/control.c"
 #include "game/grid.c"
 #include "game/reachmap.c"   // the terrain as a coarse graph: who can walk from where to where (fronts)
+#include "game/territory.c"  // the map split into territories: the ground an AI reasons on (read only so far)
 #include "game/danger.c"     // each player's map of enemy reach (danger_routes): the AI fills it, the route search reads it
 #include "base/watch.c"
 #include "test/trace.c"

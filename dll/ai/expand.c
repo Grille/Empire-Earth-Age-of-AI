@@ -1574,6 +1574,7 @@ internal void fronts_new_game(void);
 internal void expand_new_game(void) {
     towns_new_game();
     fronts_new_game();
+    territory_new_game();
     memset(&g_exs, 0, sizeof g_exs);
     memset(g_rs, 0, sizeof g_rs);
     memset(g_ex_log_t, 0, sizeof g_ex_log_t);

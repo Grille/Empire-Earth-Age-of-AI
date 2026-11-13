@@ -1294,7 +1294,9 @@ defences, a ring at the goal; 3 game minutes) and `danger` (attack.c danger_over
 where enemies reach, stronger where its fight is lost, the zones' edges strong - a fill alone tinted half the map;
 every 5 game seconds), `fronts` (fronts.c) and `ai` (ai/ai_overlay.c, 2026-11-13 - the player: "mostly for when
 zoomed far out, draw symbols for the ais towns and armies, draw line to where they are moving, a few stats as text":
-each AI's base, force, other armies and towns, each second). The screen's shapes (`overlay_mark`, `overlay_arrow`,
+each AI's base, force, other armies and towns, each second) and `territories` (game/territory.c, 2026-11-13: the map
+split into territories - the borders on land white, on water blue, each one's middle with its number, tiles, border,
+coast and mines, the held ones faintly in their holder's colour; every 5 game seconds). The screen's shapes (`overlay_mark`, `overlay_arrow`,
 `overlay_text`) have a place on the map but their size in pixels: projected with the same camera, drawn after the
 map's shapes without the depth test (over everything of the map); the text from a font atlas made once with GDI
 (Tahoma bold 20 px, the code page's 256 characters), each line on a dark plate, edged in black. Shapes under an anchor (`overlay_anchor`: a unit's serial, an army's number) glide between their producer's updates (render_overlay.c ro_glide: from the place drawn to the new one at the speed that arrives as the next update comes; the anchor's text and arrows with it). A layer off costs its producer one test. A new layer: its name a bool field of `overlay_fields` in
