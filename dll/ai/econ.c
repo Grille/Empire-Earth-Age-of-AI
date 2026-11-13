@@ -135,9 +135,15 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // workers +18 (14) - but soldiers and ships alone there kills +21 (21), losses +18 (12), workers +4 (22), citizens alone
 // soldiers +4 (11), losses +21 (12), workers -10 (17). Again on seeds 7-12 from epoch 9: soldiers +26 (10), razed +19
 // (9), alive +0.25 (0.13); with the citizens' orders leaving the army 300 food: soldiers +29 (10), workers +64 (14) -
-// worse, not kept (the food alone is not it: the cause not found yet). own_soldiers and own_ships on by the player's
-// call, own_citizens off until the loss together is understood.
-internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 1, g_v_own_ships = -1, g_own_citizens = 0, g_v_own_citizens = -1;
+// worse, not kept. The cause, read from those games' logs: the game counted citizens "in production" that it never
+// queued (train_call THE COUNTER'S LEAK - the orders every 2 s ran it to 200-258 while the wood stood below zero, 6 of
+// 24 AIs with over 30, and the army's orders found no room), and the garrison's spare check read the request's hook
+// (garrison.c: every idle citizen spare, about 27 inside the towns by minute 50 against none). With both mended and
+// the mod's own placements no longer paying wood they lack (can_pay), citizens on - off per game: from epoch 9
+// soldiers +4 (12) and +4 (8), workers +8 (15) and +5 (15), alive +0.08 (0.12) twice (seeds 1-6, 7-12); from the
+// start workers +19 (12), razed +8 (4), soldiers +6 (10), then level on seeds 7-12 (soldiers -6 (14), workers -1
+// (14)). All three on (2026-11-13).
+internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 1, g_v_own_ships = -1, g_own_citizens = 1, g_v_own_citizens = -1;
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
 #define OWN_CITIZENS(idx) PV(idx, g_v_own_citizens, g_own_citizens)
@@ -738,13 +744,24 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
 
 internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
 internal void mt_income(ee_player *pl, int type, int amount);
+internal unsigned g_pays;   // the computer players' payments so far (train_call: the units a training really queued)
+internal int g_pay_hooked;  // hook_pay sees them
 internal void __thiscall hook_pay(ee_player *pl, void *what, int b, int c) {
     int *stock = player_stock_at(pl), before[7];
     memcpy(before, stock, sizeof before);
     player_pay(pl, what, b, c);
+    g_pays++;
     uintptr_t site = (uintptr_t)__builtin_return_address(0);
-    for (int r = 2; r < 7; r++)
+    for (int r = 2; r < 7; r++) {
         if (before[r] > stock[r]) spend_note((unsigned)player_get_index(pl) & 15, r, before[r] - stock[r], site);
+        // DIAG: a payment that takes a stock below zero - with one the game queues no unit and no research (its
+        // check, 0x556FAA, wants cost <= stock of every resource: 0 <= -58 fails)
+        if (g_autotest && g_log && stock[r] < 0 && before[r] > stock[r]) {
+            char at[96];
+            crash_addr(at, sizeof at, site - 5);
+            log_locked("# overdraft: P%d at %.1f min: %c from %d to %d, paid from %s\n", player_get_index(pl), game_time() / 60000.0, "..FWSGI"[r], before[r], stock[r], at);
+        }
+    }
     mt_paid(pl, what, before, stock);
 }
 // navy.c (docs/navy.md stage 1): the navy account on water maps
@@ -997,6 +1014,16 @@ internal void early_requirements(ee_player *pl, unsigned ai, uint32_t now, int p
 
 // Per AI tick (from hook_rm_update): pull the epoch attempt forward in the pre-farm epochs once affordable.
 internal int unit_cost(ee_player *pl, int type, int r);   // below
+// the stock pays one of type: a foundation laid out (0x62EF8A) and the build manager's placement take the cost
+// whatever the stock holds, and with a stock below zero the game queues no unit and no research (0x556FAA: cost <=
+// stock of every resource) - the mod's own granary spot and its fields laid out again took the wood to -55..-130
+// (34 of 55 overdrafts in 24 games, 60 min, Continental; 81 of 2700 player-minutes with the wood below zero, one AI
+// for 8 minutes under siege with no wood cutter out)
+internal int can_pay(ee_player *pl, int type) {
+    const int *stock = player_stock_at(pl);
+    for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) return 0;
+    return 1;
+}
 internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
     if (!g_build_fix) return;
     if (now < 30000) { memset(g_retry[idx], 0, sizeof g_retry[idx]); return; }   // new game
@@ -1574,7 +1601,7 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
             granary = g && unit_get_hp(g) > 0 && abs(unit_get_x(g) - x) <= 4 && abs(unit_get_y(g) - y) <= 4;
         }
         if (!granary) continue;
-        if (raiders_near(pl, iv2(x, y), 8) || prio_refuses(pl, UT(B_FARM))) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
+        if (raiders_near(pl, iv2(x, y), 8) || prio_refuses(pl, UT(B_FARM)) || !can_pay(pl, UT(B_FARM))) continue;   // raided: later (builders: 8 tiles, as citizens_safety); no wood: at the next look
         g_field_at[idx][j].queued = now;
         if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) continue;
         place_foundation(pl, UT(B_FARM), x, y);
@@ -1693,7 +1720,7 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     static struct { uint32_t t; int n; } req[16];
     int x, y;
     if (now < req[idx].t) req[idx].t = 0;   // a new game
-    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && !prio_refuses(pl, UT(B_GRANARY)) && granary_spot(pl, um, &x, &y)) {
+    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && can_pay(pl, UT(B_GRANARY)) && !prio_refuses(pl, UT(B_GRANARY)) && granary_spot(pl, um, &x, &y)) {
         char ok = build_mgr_place(bm, UT(B_GRANARY), x, y);
         if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
                            idx, now / 60000.0, x, y, ok ? "placed" : "refused");
@@ -1722,7 +1749,7 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
         ee_unit *f = deque_at(dq, first + k);
         if (f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y) return 1;
     }
-    if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) return 0;
+    if (!lay_out || !ut_has(UT(B_FARM)) || !can_pay(pl, UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) return 0;
     place_foundation(pl, UT(B_FARM), x, y);
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", player_get_index(pl), x, y);
     return 1;
@@ -2325,6 +2352,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
 internal int g_train_queue = 3, g_v_train_queue = -1;
 #define TRAIN_QUEUE(idx) PV(idx, g_v_train_queue, g_train_queue)
 internal unsigned g_queue_cut[16];   // units cut off requests by it
+internal unsigned g_train_leak[16];  // units a training counted and never queued (train_call THE COUNTER'S LEAK)
 // the units pl's finished producers of type take before each holds depth; -1: none known (the game decides)
 internal int queue_room(ee_player *pl, void *um, int type, int depth) {
     ee_unit_type *td = type_data(type);
@@ -2380,7 +2408,23 @@ internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, u
             if (qroom <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
             req[1] = qroom;
         }
+        unsigned pays0 = g_pays;
         res = unit_mgr_train(um, req, b);
+        // THE COUNTER'S LEAK: the game's training (0x49014F) hands each unit to a producer (0x5E8908), which queues
+        // and pays it only if the player can pay - cost <= stock of every resource (0x556FAA), so with any stock
+        // below zero none at all - and then adds the whole count to "in production" (+0x13C) whatever was queued.
+        // Only a new unit takes one off again. The game's own request asks once per batch; the mod's citizen orders
+        // (own_citizens: every 2 s) ran it to 200-258 with a population of 51 while the wood stood at -58, and the
+        // room the army's orders count (cap - in production - population) was 0 for 20 minutes (head-to-head from
+        // epoch 9, 12 games: 69 of 1338 player-minutes with over 30 "in production", 6 of 24 AIs; none of 1384 with
+        // the game's request). The count is what was paid (hook_pay: one payment a unit queued), the rest taken off.
+        unsigned queued = g_pays - pays0, got = *(unsigned *)b;
+        if (g_pay_hooked && queued < got) {
+            int ip = unit_mgr_get_in_production(um) - (int)(got - queued);
+            unit_mgr_set_in_production(um, ip > 0 ? ip : 0);
+            g_train_leak[idx] += got - queued;
+            *(unsigned *)b = queued;
+        }
         if (room0 <= 0 && !*(unsigned *)b) g_am_noroom = 1;   // the game's own call at the cap
         if (room0 <= 0 && *(unsigned *)b) {
             int site = train_site(ra) >= 0 ? train_site(ra) : 5;
@@ -2568,7 +2612,7 @@ internal void econ_install(const char *autotest_ini) {
                     g_hoard_cap_mineral, g_v_sub_wait >= 0 ? g_v_sub_wait : g_sub_wait, g_late_targets, g_hoard_cap_mineral,
                     g_sub_wait);
     }
-    patch_cp_pay(hook_pay);
+    g_pay_hooked = patch_cp_pay(hook_pay);
     int ok = patch_cp_add_resource(hook_add_resource), of = 1;
     patch_place(hook_place);
     int up_ok = patch_epoch_upgrades(hook_epoch_upgrades, hook_epoch_upgrades_aoc);
@@ -2620,4 +2664,5 @@ internal void econ_new_game(void) {
     memset(g_cand, 0, sizeof g_cand);
     memset(g_noroom, 0, sizeof g_noroom);
     memset(g_queue_cut, 0, sizeof g_queue_cut);
+    memset(g_train_leak, 0, sizeof g_train_leak);
 }

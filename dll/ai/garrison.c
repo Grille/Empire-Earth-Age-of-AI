@@ -84,7 +84,11 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     g->t = now ? now : 1;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
-    int idle_spare = um && (unit_mgr_citizens(um) >= hook_cit_wanted(um) || g_rate[idx].rate[2] >= cz_nonstop_food(pl));
+    // the citizens wanted are cz_wanted's, not the request's hook: with own_citizens the hook answers "those there" (so
+    // the game's request asks for none) and every idle citizen read as spare from the first minute - one into the
+    // Capitol at minute 4.8, the game's two rounds never held (head-to-head from epoch 9, 12 games: 24.8 citizens sent
+    // by minute 50 against 15.9, about 27 inside the towns against none, 80 at work against 94)
+    int idle_spare = um && (unit_mgr_citizens(um) >= cz_wanted(pl, idx, um, unit_mgr_citizens_wanted(um)) || g_rate[idx].rate[2] >= cz_nonstop_food(pl));
     for (int k = 3; cm && !idle_spare && k <= 4; k++) {
         uint32_t t = civ_mgr_get_timer(cm, k);
         if (t && (int)(t - now) < GU_HOLD) civ_mgr_set_timer(cm, k, now + GU_HOLD);   // 0: the game hasn't set it yet

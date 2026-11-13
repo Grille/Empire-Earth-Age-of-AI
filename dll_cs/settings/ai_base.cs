@@ -637,10 +637,9 @@ class ai_base
         /// game's groups lead them there
         bool own_ships = true;
         /// ... the citizens ordered by the mod: how many from citizen_plan (the game's share of the cap as its floor), the
-        /// orders its own, every 2 s, the game's citizen request left with nothing to ask for. Off until the loss with
-        /// own_soldiers is understood: from epoch 9 both together lost 26-29 soldiers and 15-19 buildings razed against
-        /// both off, each alone level (econ.c EVERY UNIT THE MOD'S). 1 = on
-        bool own_citizens = false;
+        /// orders its own, every 2 s, the game's citizen request left with nothing to ask for. Against the game's
+        /// request: level, from epoch 9 and from the start (econ.c EVERY UNIT THE MOD'S). 1 = on
+        bool own_citizens = true;
         /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
         /// to spare; 100% = an even fight, as before)
         [range(1, 5), commented]
