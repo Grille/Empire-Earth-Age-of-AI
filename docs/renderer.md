@@ -1063,6 +1063,11 @@ A long ship that doesn't break at its death draws again, 50% (BREAKING ON THE SE
 none | random`): it breaks at its first touch of the bottom going down faster than 0.05 tiles/s, its halves going on
 as broken halves on the water do (flooded through at once they dropped, jarring - the player: "dont do that"), their broken ends sunk deeper into the seabed, drifting apart. Checked headless: an Imperial battleship
 broke on the bottom 11 s after its death (0.24 tiles/s), an Atomic transport, capsized, 14 s after it (0.30).
+The two halves of a ship keep apart (THE HALVES KEPT APART: they slid into each other): each a capsule along its length,
+its radius half its side floats' spacing, short of its ends by it so they just touch at the break; closer, each is moved
+apart by half the overlap, most where they touch, and loses its way toward the other there - they come to rest against
+each other. Only the two halves of one ship. Measured: without it, up to 0.93 of the radii overlapped (a Middle Ages
+frigate broken on the water); with it, never more than 0.02.
 
 ## The units' draw, the mod's own (2026-11-11 on)
 

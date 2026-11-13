@@ -788,18 +788,95 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     }
 }
 internal void us_snap(uc_corpse *k, float t, int floor);   // below
+// THE HALVES KEPT APART (the player, 2026-11-13: "one remaining problem is them sliding into each other, maybe a simple
+// sphere collison betwen the two pieces ... the "collison" is only betwen the two halfes"; a capsule each instead of a
+// sphere - one big enough to keep them apart at the break held their middles apart too, and a V or the two on end side
+// by side, the broken ends together, couldn't be): each half is a line along its length with a radius (US_HALF_R of its
+// side floats' spacing), the line short of its ends by it, so at the break the two just touch. Closer than their radii,
+// each half is moved apart by half the overlap, most where they touch (its points by how near they lie along it), and
+// loses its way toward the other there - its places moved with it, its step before too, so the push adds no way: they
+// come to rest against each other, not bounce. The bow's half does it after each of its steps against the stern's as it
+// lies (stepped in its own run, a step apart at most); nothing else touches them.
+#define US_HALF_R 0.5f
+// a half's line a .. b (along its length u, bow-ward), its radius, its length, its middle
+internal int us_capsule(const uc_corpse *k, float *a, float *b, float *u, float *r, float *len, float *mid) {
+    float ll = 0.0f, w = 0.0f;
+    for (int j = 0; j < 3; j++) {
+        u[j] = k->sp[0][j] - k->sp[1][j], ll += u[j] * u[j];
+        w += (k->sp[2][j] - k->sp[3][j]) * (k->sp[2][j] - k->sp[3][j]);
+        mid[j] = 0.5f * (k->sp[0][j] + k->sp[1][j]);
+    }
+    ll = sqrtf(ll);
+    if (ll < 1e-6f) return 0;
+    *len = ll / 0.8f, *r = US_HALF_R * sqrtf(w);   // (the floats lie 0.4 of its length from its middle: us_body_half)
+    float h = fmaxf(0.5f * *len - *r, 0.0f);
+    for (int j = 0; j < 3; j++) u[j] /= ll, a[j] = mid[j] + h * u[j], b[j] = mid[j] - h * u[j];
+    return 1;
+}
+internal float us_clamp01(float x) { return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
+// the closest points c1 on p1 .. q1 and c2 on p2 .. q2 (Ericson, Real-Time Collision Detection 5.1.9)
+internal void us_closest(const float *p1, const float *q1, const float *p2, const float *q2, float *c1, float *c2) {
+    float d1[3], d2[3], rr[3], a = 0, e = 0, f = 0, c = 0, b = 0, s = 0.0f, t = 0.0f;
+    for (int j = 0; j < 3; j++) d1[j] = q1[j] - p1[j], d2[j] = q2[j] - p2[j], rr[j] = p1[j] - p2[j];
+    for (int j = 0; j < 3; j++) a += d1[j] * d1[j], e += d2[j] * d2[j], f += d2[j] * rr[j], c += d1[j] * rr[j], b += d1[j] * d2[j];
+    if (a < 1e-9f && e < 1e-9f) s = t = 0.0f;
+    else if (a < 1e-9f) s = 0.0f, t = us_clamp01(f / e);
+    else if (e < 1e-9f) t = 0.0f, s = us_clamp01(-c / a);
+    else {
+        float den = a * e - b * b;
+        s = den > 1e-12f ? us_clamp01((b * f - c * e) / den) : 0.0f;
+        t = (b * s + f) / e;
+        if (t < 0.0f) t = 0.0f, s = us_clamp01(-c / a);
+        else if (t > 1.0f) t = 1.0f, s = us_clamp01((b - c) / a);
+    }
+    for (int j = 0; j < 3; j++) c1[j] = p1[j] + s * d1[j], c2[j] = p2[j] + t * d2[j];
+}
+// one half moved by push along n (most at its contact c) and its way toward the other there taken (n: away from it)
+internal void us_half_push(uc_corpse *k, const float *n, float push, const float *c, const float *u, float len, const float *mid) {
+    float at = 0.0f;
+    for (int j = 0; j < 3; j++) at += (c[j] - mid[j]) * u[j];
+    for (int i = 0; i < k->n; i++) {
+        float al = 0.0f, vn = 0.0f;
+        for (int j = 0; j < 3; j++) al += (k->sp[i][j] - mid[j]) * u[j];
+        float f = us_clamp01(1.0f - fabsf(al - at) / len);
+        for (int j = 0; j < 3; j++) vn += (k->sp[i][j] - k->sq[i][j]) * n[j];
+        for (int j = 0; j < 3; j++) {
+            k->sp[i][j] += f * push * n[j], k->sq[i][j] += f * push * n[j];
+            if (vn < 0.0f) k->sq[i][j] += f * vn * n[j];   // (its way toward the other gone)
+        }
+    }
+}
+internal void us_halves_apart(uc_corpse *k, uc_corpse *o) {
+    float a1[3], b1[3], u1[3], m1[3], r1, l1, a2[3], b2[3], u2[3], m2[3], r2, l2, c1[3], c2[3], n[3], d = 0.0f;
+    if (!us_capsule(k, a1, b1, u1, &r1, &l1, m1) || !us_capsule(o, a2, b2, u2, &r2, &l2, m2)) return;
+    us_closest(a1, b1, a2, b2, c1, c2);
+    for (int j = 0; j < 3; j++) n[j] = c1[j] - c2[j], d += n[j] * n[j];
+    d = sqrtf(d);
+    if (d >= r1 + r2) return;
+    if (d > 1e-6f) for (int j = 0; j < 3; j++) n[j] /= d;
+    else {   // (their lines cross: apart along the bow's half's length)
+        for (int j = 0; j < 3; j++) n[j] = u1[j];
+    }
+    float push = 0.5f * (r1 + r2 - d), m[3] = { -n[0], -n[1], -n[2] };
+    us_half_push(k, n, push, c1, u1, l1, m1);
+    us_half_push(o, m, push, c2, u2, l2, m2);
+}
 // simulated on to the walk's game time (at most 3 s at once: one long out of the view jumps there); a ship that breaks
 // in two broken as its time comes
 internal void us_run(uc_corpse *k) {
     if (g_uc_now < 0.0) return;
     if (g_uc_now - k->sim > 3000.0) k->sim = g_uc_now - 3000.0;
     const void *mesh = map_mesh_at(game_map());
+    uc_corpse *other = NULL;   // the bow's half: the stern's (THE HALVES KEPT APART)
+    for (uint32_t i = 0; i < g_kc_n && k->half == 1 && !other; i++)
+        if (g_kc[i].twin && g_kc[i].half == 2 && g_kc[i].serial == k->serial) other = &g_kc[i];
     while (k->sim + US_DT * 1000.0 <= g_uc_now) {
         k->sim += US_DT * 1000.0;
         float t = (float)((k->sim - k->died) / 1000.0);
         if (k->snap_t >= 0.0f && !k->half && t >= k->snap_t) us_snap(k, t, 0);
         us_step(k, t, mesh);
         if (k->floor_snap && k->floor_hit && !k->half && ++k->floor_hit > US_FLOOR_STEPS) us_snap(k, t, 1);   // (BREAKING ON THE SEABED)
+        if (other) us_halves_apart(k, other);
     }
 }
 // its pose into t (rows, the place in the fourth column) from its floats p (its own, or where they were a step before):
