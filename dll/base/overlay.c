@@ -6,7 +6,10 @@
 // The shapes are kept here, not in the renderer: the AI may use base/ and game/ only.
 
 // The screen's own (OV_MARK, OV_ARROW, OV_TEXT): at a place on the map, but their size in the screen's pixels and over
-// everything of the map - read at any zoom (the AI's tactical map, ai/ai_overlay.c).
+// everything of the map - read at any zoom (the AI's tactical map, ai/ai_overlay.c). Those drawn under an anchor
+// (overlay_anchor: a unit's serial, an army's own number) move smoothly between their producer's updates: the renderer
+// glides the anchor's mark from where it was drawn to its new place over the time the updates come apart, and moves the
+// anchor's text and arrows' starts with it (render_overlay.c ro_glide).
 #define OV_LAYERS 16
 #define OV_SHAPES 16384
 #define OV_TEXT_MAX 47
@@ -21,6 +24,7 @@ typedef struct {
                       // x0 y0 x1 y1; text x y row
     float width;      // a line's or circle's width in tiles, an arrow's in pixels
     char t[OV_TEXT_MAX + 1];   // a text's
+    uint32_t id;      // its anchor (overlay_anchor; 0: none)
 } ov_shape;
 internal struct {
     CRITICAL_SECTION cs;
@@ -36,6 +40,7 @@ internal struct {
     int open_layer;
     uintptr_t open_key;
     uint32_t open_until;
+    uint32_t open_id;
 } g_ov;
 
 internal void ov_init(void) {
@@ -131,7 +136,11 @@ internal void overlay_begin(int layer, uintptr_t key, uint32_t now, uint32_t ttl
     g_ov.open_layer = layer;
     g_ov.open_key = key;
     g_ov.open_until = ttl ? now + ttl : 0;
+    g_ov.open_id = 0;
 }
+// the screen's shapes from here on are id's (its mark first: the place they glide by), 0 none - an id unique across
+// layers and keys (a unit's serial; an army's own number with a high bit of its own)
+internal void overlay_anchor(uint32_t id) { g_ov.open_id = id; }
 internal void overlay_end(void) { LeaveCriticalSection(&g_ov.cs); }
 internal ov_shape *ov_add(int kind, uint32_t argb, float width) {
     if (g_ov.n == OV_SHAPES) return NULL;   // full: the rest of this plan isn't shown
@@ -139,6 +148,7 @@ internal ov_shape *ov_add(int kind, uint32_t argb, float width) {
     s->kind = (uint8_t)kind;
     s->sub = 0;
     s->t[0] = 0;
+    s->id = g_ov.open_id;
     s->layer = (uint8_t)g_ov.open_layer;
     s->key = g_ov.open_key;
     s->until = g_ov.open_until;

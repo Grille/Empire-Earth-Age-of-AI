@@ -341,6 +341,63 @@ internal void ro_text(const float *vp, const ov_shape *s) {
     ro_glyphs(s->t, x, y, s->argb);
 }
 
+// THE GLIDE (the player, 2026-11-13: "the positions snap to the tiles grid now i think, wich make sthem jump around, make
+// them follow smoth"): an anchor's mark (base/overlay.c overlay_anchor) comes anew with each update of its producer - the
+// AI's once a second of game time. Each anchor keeps the place it is drawn at; a new place starts it towards it at the
+// speed that arrives there as the next update comes (the time since the last new place, RO_GLIDE_MIN .. RO_GLIDE_MAX s),
+// a jump of more than RO_GLIDE_SNAP tiles is taken at once. The anchor's texts and its arrows' starts move with it. A
+// table by id, emptied when three quarters full (each anchor then starts where it is).
+#define RO_GLIDES 8192
+#define RO_GLIDE_MIN 0.1f
+#define RO_GLIDE_MAX 1.5f
+#define RO_GLIDE_SNAP 24.0f
+typedef struct { uint32_t id; float tx, ty, sx, sy, vx, vy; LONGLONG at, seen; } ro_glide_e;
+internal ro_glide_e g_rgl[RO_GLIDES];
+internal int g_rgl_n;
+internal LONGLONG g_rgl_t;
+internal ro_glide_e *ro_glide_at(uint32_t id) {
+    uint32_t h = id * 2654435761u & (RO_GLIDES - 1);
+    while (g_rgl[h].id && g_rgl[h].id != id) h = (h + 1) & (RO_GLIDES - 1);
+    return &g_rgl[h];
+}
+internal void ro_glide(ov_shape *sh, int n) {
+    LONGLONG now = rd_qpc(), sec = rd_qpc_ms(1000);
+    float dt = g_rgl_t && sec > 0 ? (float)(now - g_rgl_t) / (float)sec : 0.0f;
+    g_rgl_t = now;
+    dt = dt < 0 ? 0 : dt > 0.25f ? 0.25f : dt;
+    if (g_rgl_n > RO_GLIDES * 3 / 4) { memset(g_rgl, 0, sizeof g_rgl); g_rgl_n = 0; }
+    for (int i = 0; i < n; i++) {   // each anchor's mark: its place now
+        ov_shape *s = &sh[i];
+        if (!s->id || s->kind != OV_MARK) continue;
+        ro_glide_e *e = ro_glide_at(s->id);
+        if (!e->id) {
+            memset(e, 0, sizeof *e);
+            e->id = s->id; e->tx = e->sx = s->a[0]; e->ty = e->sy = s->a[1]; e->at = now;
+            g_rgl_n++;
+        }
+        if (e->seen == now) continue;   // its first mark this frame only
+        e->seen = now;
+        if (e->tx != s->a[0] || e->ty != s->a[1]) {   // a new place
+            float T = sec > 0 ? (float)(now - e->at) / (float)sec : RO_GLIDE_MAX;
+            T = T < RO_GLIDE_MIN ? RO_GLIDE_MIN : T > RO_GLIDE_MAX ? RO_GLIDE_MAX : T;
+            float dx = s->a[0] - e->sx, dy = s->a[1] - e->sy;
+            if (dx * dx + dy * dy > RO_GLIDE_SNAP * RO_GLIDE_SNAP) e->sx = s->a[0], e->sy = s->a[1], e->vx = e->vy = 0;
+            else e->vx = dx / T, e->vy = dy / T;
+            e->tx = s->a[0]; e->ty = s->a[1]; e->at = now;
+        }
+        float ox = e->tx - e->sx, oy = e->ty - e->sy;
+        e->sx += e->vx * dt; e->sy += e->vy * dt;
+        if ((e->tx - e->sx) * ox + (e->ty - e->sy) * oy <= 0) e->sx = e->tx, e->sy = e->ty, e->vx = e->vy = 0;   // arrived
+    }
+    for (int i = 0; i < n; i++) {   // everything of the anchor by its way left to go
+        ov_shape *s = &sh[i];
+        if (!s->id || (s->kind != OV_MARK && s->kind != OV_TEXT && s->kind != OV_ARROW)) continue;
+        ro_glide_e *e = ro_glide_at(s->id);
+        if (e->id != s->id || e->seen != now) continue;
+        s->a[0] += e->sx - e->tx; s->a[1] += e->sy - e->ty;
+    }
+}
+
 // the overlay into the target (the map's view of this frame), once
 internal void rd3_overlay(rd_device *d) {
     g_rd3.overlay_done = 1;
@@ -348,6 +405,7 @@ internal void rd3_overlay(rd_device *d) {
     if (!g_ov.on || !g_rd3.scene_seen || !map || !d->target || !d->target->rtv) return;
     int n = overlay_copy(g_ro.shapes, OV_SHAPES, game_time());
     if (!n || !ro_init()) return;
+    ro_glide(g_ro.shapes, n);
     g_ro.tiles = map_get_tiles(map);
     g_ro.size = (int)map_get_size(map);
     if (!g_ro.tiles || g_ro.size <= 0) return;

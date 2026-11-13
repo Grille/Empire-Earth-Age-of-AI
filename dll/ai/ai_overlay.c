@@ -30,6 +30,11 @@ internal uint32_t ao_colour(ee_player *pl, unsigned idx, unsigned alpha) {
 }
 internal vec2 ao_at(ivec2 p) { return v2((float)p.x + 0.5f, (float)p.y + 0.5f); }
 internal int ao_has(ivec2 p) { return p.x > 0 || p.y > 0; }
+internal vec2 ao_pos(ee_unit *u) { vec3 p = unit_get_pos(u); return v2(p.x, p.y); }   // where it is, not its tile: no jumps from tile to tile
+// the anchors (base/overlay.c overlay_anchor: their marks glide between the updates): a unit's its serial, an army's
+// AO_ARMY with the player and the army's own number (0 the force)
+#define AO_ARMY 0x80000000u
+internal uint32_t ao_army_id(unsigned idx, int army) { return AO_ARMY | (uint32_t)idx << 24 | ((uint32_t)army & 0xFFFFFF); }
 internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
     static int layer = -2;
     static uint32_t last[16];
@@ -73,34 +78,45 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
         // take (armies.c ar_side: the plain mean of the members' tiles, out only those out) - between its groups when
         // it is strung out (the player, 2026-11-13: "the marker and where the units are is very off, is that what the
         // ai think their force is?")
-        long sx = 0, sy = 0;
-        int nm = 0;
+        // Out, those it left home (and those trained since, held but not sent) are a group of their own: a hollow
+        // diamond at their middle, "held back" (the player, 2026-11-13: "reds main force is wholy unacounted for" - 19
+        // of 333 out for half an hour, the 314 at home as faint dots only)
+        double sx = 0, sy = 0, bx = 0, by = 0;
+        int nm = 0, nb = 0;
         for (int k = 0; k < a->n; k++) {
             ee_unit *u = a->held[k].u;
             if (!cv_alive(u)) continue;
-            ivec2 p = unit_get_tile(u);
+            vec2 p = ao_pos(u);
             int in = !a->out || a->held[k].out;
-            overlay_mark(ao_at(p), OVM_SQUARE, 7, in ? col : (col & 0xFFFFFF) | 0x60000000u);
+            overlay_anchor((uint32_t)a->held[k].id);
+            overlay_mark(p, OVM_SQUARE, 7, in ? col : (col & 0xFFFFFF) | 0xA0000000u);
             if (in) sx += p.x, sy += p.y, nm++;
+            else bx += p.x, by += p.y, nb++;
         }
-        vec2 mid = nm ? ao_at(iv2((int)(sx / nm), (int)(sy / nm))) : ao_at(a->home);
+        vec2 mid = nm ? v2((float)(sx / nm), (float)(sy / nm)) : ao_at(a->home);
+        if (a->out && nb) {
+            vec2 back = v2((float)(bx / nb), (float)(by / nb));
+            overlay_anchor(ao_army_id(idx, 0xFFFFFF));
+            overlay_mark(back, OVM_DIAMOND | OVM_HOLLOW, 24, col);
+            overlay_text(back, 0, col, "%d of the force held back", nb);
+            overlay_text(back, 1, 0xFFE0E0E0, "(not in the push)");
+        }
+        overlay_anchor(0);
         int hp = sum.hp_full > 0 ? (int)(100.0f * sum.hp / sum.hp_full + 0.5f) : 0;
-        if (a->out) {
-            vec2 dest = ao_at(a->dest);
-            if (a->stage == 1 && ao_has(a->approach)) {
-                overlay_arrow(mid, ao_at(a->approach), 4, col);
-                overlay_arrow(ao_at(a->approach), dest, 2, dim);
-            } else if (a->stage == 2 && a->nway > 0 && a->way_i < a->nway) {   // the way round: its corners still ahead
-                vec2 p = mid;
-                for (int k = a->way_i; k < a->nway; k++) { overlay_arrow(p, ao_at(a->way[k]), k == a->way_i ? 4 : 2, k == a->way_i ? col : dim); p = ao_at(a->way[k]); }
-                overlay_arrow(p, dest, 2, dim);
-            } else overlay_arrow(mid, dest, 4, col);
-            overlay_mark(dest, OVM_DIAMOND | OVM_HOLLOW, 18, col);
-        } else if (ao_has(a->home) && nm && ivec2_dist2(iv2((int)(sx / nm), (int)(sy / nm)), a->home) > 12 * 12) {
-            overlay_arrow(mid, ao_at(a->home), 2, dim);
-            overlay_mark(ao_at(a->home), OVM_TRIANGLE | OVM_HOLLOW, 14, col);
+        int away = !a->out && ao_has(a->home) && nm && (mid.x - a->home.x) * (mid.x - a->home.x) + (mid.y - a->home.y) * (mid.y - a->home.y) > 12.0f * 12.0f;
+        int way = a->out && a->stage == 2 && a->nway > 0 && a->way_i < a->nway;   // the way round: its corners still ahead
+        vec2 dest = ao_at(a->dest);
+        if (a->out) overlay_mark(dest, OVM_DIAMOND | OVM_HOLLOW, 18, col);   // the places it goes to stand still
+        else if (away) overlay_mark(ao_at(a->home), OVM_TRIANGLE | OVM_HOLLOW, 14, col);
+        if (a->out && a->stage == 1 && ao_has(a->approach)) overlay_arrow(ao_at(a->approach), dest, 2, dim);
+        if (way) {
+            for (int k = a->way_i; k + 1 < a->nway; k++) overlay_arrow(ao_at(a->way[k]), ao_at(a->way[k + 1]), 2, dim);
+            overlay_arrow(ao_at(a->way[a->nway - 1]), dest, 2, dim);
         }
+        overlay_anchor(ao_army_id(idx, 0));   // the diamond first (the place its anchor glides by), its text and the arrow from it
         overlay_mark(mid, OVM_DIAMOND, 26, col);
+        if (a->out) overlay_arrow(mid, a->stage == 1 && ao_has(a->approach) ? ao_at(a->approach) : way ? ao_at(a->way[a->way_i]) : dest, 4, col);
+        else if (away) overlay_arrow(mid, ao_at(a->home), 2, dim);
         if (a->out && nm < sum.n - sum.aboard) overlay_text(mid, 0, col, "force %d of %d out, health %d%%%s", nm, sum.n, hp, sum.siege ? ", siege" : "");
         else overlay_text(mid, 0, col, "force %d, health %d%%%s", sum.n, hp, sum.siege ? ", siege" : "");
         if (a->out == 1)
@@ -109,23 +125,33 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
         else if (a->out == 2) overlay_text(mid, 1, 0xFFFFFFFF, "answering a raid at %d,%d", a->dest.x, a->dest.y);
         else overlay_text(mid, 1, 0xFFE0E0E0, "at home");
         if (sum.aboard) overlay_text(mid, 2, 0xFFE0E0E0, "%d aboard", sum.aboard);
+        overlay_anchor(0);
     }
     // the other armies
     for (int j = 0; j < g_av[idx].n; j++) {
         struct av_army *o = &g_av[idx].a[j];
         av_clear(&sum);
+        double mx = 0, my = 0;
+        int na = 0;
         for (int k = 0; k < o->n; k++)
             if (av_live(&o->m[k], pl)) {
                 av_add(&sum, o->m[k].u);
-                if (unit_get_x(o->m[k].u) >= 0) overlay_mark(ao_at(unit_get_tile(o->m[k].u)), OVM_SQUARE, 7, col);
+                if (unit_get_x(o->m[k].u) < 0) continue;   // aboard
+                vec2 p = ao_pos(o->m[k].u);
+                overlay_anchor((uint32_t)o->m[k].id);
+                overlay_mark(p, OVM_SQUARE, 7, col);
+                mx += p.x, my += p.y, na++;
             }
         av_done(&sum);
-        if (!sum.n || sum.n == sum.aboard) continue;
-        vec2 mid = ao_at(sum.mid);
-        if (ao_has(o->dest)) overlay_arrow(mid, ao_at(o->dest), 3, dim);
+        overlay_anchor(0);
+        if (!na) continue;
+        vec2 mid = v2((float)(mx / na), (float)(my / na));
+        overlay_anchor(ao_army_id(idx, o->id));
         overlay_mark(mid, o->field == AVF_SEA ? OVM_CIRCLE : OVM_TRIANGLE, 22, col);
+        if (ao_has(o->dest)) overlay_arrow(mid, ao_at(o->dest), 3, dim);
         overlay_text(mid, 0, col, "%s %d", o->what ? o->what : k_av_kind[o->kind], sum.n);
         if (o->task) overlay_text(mid, 1, 0xFFE0E0E0, "%.40s", o->task);
+        overlay_anchor(0);
     }
     // the towns
     struct tn_st *tn = &g_tn[idx];

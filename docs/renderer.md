@@ -1297,7 +1297,7 @@ zoomed far out, draw symbols for the ais towns and armies, draw line to where th
 each AI's base, force, other armies and towns, each second). The screen's shapes (`overlay_mark`, `overlay_arrow`,
 `overlay_text`) have a place on the map but their size in pixels: projected with the same camera, drawn after the
 map's shapes without the depth test (over everything of the map); the text from a font atlas made once with GDI
-(Tahoma bold 20 px, the code page's 256 characters), each line on a dark plate, edged in black. A layer off costs its producer one test. A new layer: its name a bool field of `overlay_fields` in
+(Tahoma bold 20 px, the code page's 256 characters), each line on a dark plate, edged in black. Shapes under an anchor (`overlay_anchor`: a unit's serial, an army's number) glide between their producer's updates (render_overlay.c ro_glide: from the place drawn to the new one at the speed that arrives as the next update comes; the anchor's text and arrows with it). A layer off costs its producer one test. A new layer: its name a bool field of `overlay_fields` in
 `dll_cs/settings/display.cs` (rows.h's `OVERLAY_FIELDS` is made of it) (the setting is a FLAGS row since caa7ea7: a name not there is a mistake in the ini), `overlay_layer("name")` once,
 `overlay_on(layer)` before the work, `overlay_begin(layer, key, now, ttl)` ... `overlay_line / overlay_circle /
 overlay_tiles` ... `overlay_end()`.
