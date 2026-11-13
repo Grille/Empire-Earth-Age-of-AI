@@ -39,6 +39,7 @@ typedef struct {
     int32_t was2_anim, was2_frame, was2_next;
     float was2_fraction;
     float ms[3];                // the game times of its pose now, was and was2
+    uint32_t was_npv, was_pv_at, was2_npv, was2_pv_at;   // its parts' turns at was and was2 (the pool's, cp_pose_pv)
     __attribute__((aligned(8))) uint8_t pm[UC_PM];   // its complex unit's physical model (its pose, model, scale, frame)
 } uc_obj;
 typedef struct {
@@ -146,7 +147,14 @@ internal ee_tile *uc_tile(ee_map *map, int x, int y) {
 // picture's steps counted, nothing moved.
 internal volatile int g_cp_smooth;
 internal volatile int g_uc_during_on;   // the pipe's picture collect during: the units' update run during a step (collect.c)
-typedef struct { float t[12]; int32_t anim, frame, next; float fraction, ms; } cp_pose_p;   // a pose and its game time
+// A building's turning parts - a windmill's sails, a farm's crop rows swaying - are turned by the simulation once a step:
+// the part values (a yaw each) and the two lists' first numbers (a yaw, a pitch), which the record draw turns their
+// models by. Drawn as the step left them they stood between steps while the unit itself was drawn between them (the
+// player, 2026-11-13: "fields are the last piece that dosnt animate smothly" - a recording at 0.25 speed: the wheat
+// and the sails changed only at the steps). So a pose keeps them too (up to CP_PV), blended as the pose is (collect.c
+// uc_turns_between).
+#define CP_PV 16
+typedef struct { float t[12]; int32_t anim, frame, next; float fraction, ms; uint32_t npv, pv[CP_PV]; } cp_pose_p;   // a pose, its game time and its parts' turns
 typedef struct { ee_unit *u; uint32_t gen; int n; cp_pose_p p[3]; } cp_pose_e;   // its last n poses, the newest first
 internal cp_pose_e *g_cp_pose;
 internal uint32_t g_cp_pose_cap, g_cp_pose_n, g_cp_pose_gen;
@@ -169,16 +177,30 @@ internal void cp_pose_turn(uint32_t want) {
     free(o);
     g_cp_pose = q, g_cp_pose_cap = cap, g_cp_pose_n = n;
 }
-// the object's poses before its own of the game time now_ms: the two newest of the entry's older than it
-internal void cp_pose_give(uc_obj *o, const cp_pose_e *e, float now_ms) {
+// the object's poses before its own of the game time now_ms: the two newest of the entry's older than it (their parts'
+// turns into the copy's pool)
+internal void cp_pose_give(uc_copy *c, uc_obj *o, const cp_pose_e *e, float now_ms) {
     o->ms[0] = now_ms;
     for (int i = 0, k = 0; i < e->n && k < 2; i++) {
         const cp_pose_p *p = &e->p[i];
         if (p->ms >= now_ms) continue;
-        if (!k) memcpy(o->was, p->t, sizeof p->t), o->was_anim = p->anim, o->was_frame = p->frame, o->was_next = p->next, o->was_fraction = p->fraction, o->has_was = 1;
-        else memcpy(o->was2, p->t, sizeof p->t), o->was2_anim = p->anim, o->was2_frame = p->frame, o->was2_next = p->next, o->was2_fraction = p->fraction, o->has_was2 = 1;
+        uint32_t at = p->npv ? cp_pool_add(c, p->pv, p->npv) : 0;
+        if (!k) memcpy(o->was, p->t, sizeof p->t), o->was_anim = p->anim, o->was_frame = p->frame, o->was_next = p->next, o->was_fraction = p->fraction, o->has_was = 1,
+                o->was_npv = p->npv, o->was_pv_at = at;
+        else memcpy(o->was2, p->t, sizeof p->t), o->was2_anim = p->anim, o->was2_frame = p->frame, o->was2_next = p->next, o->was2_fraction = p->fraction, o->has_was2 = 1,
+             o->was2_npv = p->npv, o->was2_pv_at = at;
         o->ms[++k] = p->ms;
     }
+}
+// the object's parts' turns now (copied into the pool already): the part values, the lists' first numbers; 0 when there
+// are more than a pose keeps
+internal uint32_t cp_pose_pv(const uc_copy *c, const uc_obj *o, uint32_t *v) {
+    uint32_t n = o->n_parts + o->n_a + o->n_b;
+    if (o->foundation || n > CP_PV) return 0;
+    for (uint32_t i = 0; i < o->n_parts; i++) v[i] = c->pool[o->parts_at + i];
+    for (uint32_t i = 0; i < o->n_a; i++) v[o->n_parts + i] = c->pool[o->a_at + 2 * i];
+    for (uint32_t i = 0; i < o->n_b; i++) v[o->n_parts + o->n_a + i] = c->pool[o->b_at + 2 * i];
+    return n;
 }
 internal cp_pose_e *cp_pose_find(ee_unit *u) {
     uint32_t h = ((uint32_t)(uintptr_t)u >> 3) * 2654435761u & (g_cp_pose_cap - 1);
@@ -188,7 +210,7 @@ internal cp_pose_e *cp_pose_find(ee_unit *u) {
 // the simulation's copy (game time ms): the object's pose and animation now into its entry, the poses before out. A copy
 // of the same game time as the last (Art of Conquest writes the world with the step's return now and then without a step)
 // replaces the newest instead of pushing the others out.
-internal void cp_pose_swap(ee_unit *u, uc_obj *o, float ms) {
+internal void cp_pose_swap(uc_copy *c, ee_unit *u, uc_obj *o, float ms) {
     if (!g_cp_pose_cap || g_cp_pose_n * 4 >= g_cp_pose_cap * 3) return;
     cp_pose_e *e = cp_pose_find(u);
     if (!e->u) e->u = u, g_cp_pose_n++;
@@ -196,6 +218,7 @@ internal void cp_pose_swap(ee_unit *u, uc_obj *o, float ms) {
     cp_pose_p now;
     memcpy(now.t, o->pm, sizeof now.t);
     now.anim = o->anim, now.frame = o->anim_frame, now.next = o->next_frame, now.fraction = o->fraction, now.ms = ms;
+    now.npv = cp_pose_pv(c, o, now.pv);
     if (e->n && e->p[0].ms == ms) e->p[0] = now;
     else {
         memmove(e->p + 1, e->p, 2 * sizeof *e->p);
@@ -203,14 +226,14 @@ internal void cp_pose_swap(ee_unit *u, uc_obj *o, float ms) {
         if (e->n < 3) e->n++;
     }
     e->gen = g_cp_pose_gen;
-    cp_pose_give(o, e, ms);
+    cp_pose_give(c, o, e, ms);
 }
 // a frame's own copy (a writer other than the steps came): the poses of the steps' last copy, read only - else such
 // frames drew the units as they stood, a step and a half ahead of the others
-internal void cp_pose_peek(ee_unit *u, uc_obj *o, float ms) {
+internal void cp_pose_peek(uc_copy *c, ee_unit *u, uc_obj *o, float ms) {
     if (!g_cp_pose_cap) return;
     cp_pose_e *e = cp_pose_find(u);
-    if (e->u == u && e->gen == g_cp_pose_gen) cp_pose_give(o, e, ms);
+    if (e->u == u && e->gen == g_cp_pose_gen) cp_pose_give(c, o, e, ms);
 }
 
 // an object's values as the fills read them (the expressions theirs, in their order where a call may write)
@@ -271,8 +294,6 @@ internal void cp_obj(uc_copy *c, uc_obj *o, ee_unit *u, ee_player *me, ee_map *m
     o->anim_frame = unit_get_anim_frame(cu);
     o->next_frame = unit_get_next_frame(cu);
     o->fraction = unit_get_fraction(cu);
-    if (g_cp_smooth && c->made_by == 1) cp_pose_swap(u, o, c->clock);
-    else if (g_cp_smooth) cp_pose_peek(u, o, c->clock);
     o->dead = (uint8_t)unit_dead(cu);
     o->foundation = unit_is_foundation(cu) != 0;
     o->finished = unit_get_finished(cu) != 0;
@@ -319,6 +340,9 @@ internal void cp_obj(uc_copy *c, uc_obj *o, ee_unit *u, ee_player *me, ee_map *m
             cp_pool_add(c, pair, 2);
         }
     }
+    // after the parts' turns: a pose keeps them (cp_pose_pv)
+    if (g_cp_smooth && c->made_by == 1) cp_pose_swap(c, u, o, c->clock);
+    else if (g_cp_smooth) cp_pose_peek(c, u, o, c->clock);
     o->bars_friend = (uint8_t)uc_shows_bars(cu, me);
     if (o->bars_friend) {
         o->n_inside = (uint32_t)unit_count_inside(cu);
@@ -760,6 +784,7 @@ internal void cp_check(const uc_copy *c) {
         a.was_anim = b.was_anim, a.was_frame = b.was_frame, a.was_next = b.was_next, a.was_fraction = b.was_fraction;
         a.has_was2 = b.has_was2, memcpy(a.was2, b.was2, sizeof a.was2), memcpy(a.ms, b.ms, sizeof a.ms);
         a.was2_anim = b.was2_anim, a.was2_frame = b.was2_frame, a.was2_next = b.was2_next, a.was2_fraction = b.was2_fraction;
+        a.was_npv = b.was_npv, a.was_pv_at = b.was_pv_at, a.was2_npv = b.was2_npv, a.was2_pv_at = b.was2_pv_at;
         a.walked = b.walked;   // the frame's
         if (memcmp(&a, &b, sizeof a)) {
             what = "object", at = i;

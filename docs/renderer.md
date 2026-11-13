@@ -637,6 +637,7 @@ object, nothing moved: the frames where it didn't move and how even its steps ar
 unit's step per frame on Continental at speed 1 (about 8 frames a step), probe -> on: EE 88-93% of the frames without
 a move -> under 1%, unevenness 3.1-4.1 -> 1.3-1.7; AoC 87-90% -> 0, 3.1-3.6 -> 1.6-1.9. Paused (time up), the game's
 walk and the mod's alike in the objects' records with it off, probed and on.
+The turning parts go the same way (2026-11-13, the player: "fields are the last piece that dosnt animate smothly"; with `picture collect anim`): a building's turned parts - a windmill's sails, the part values (a yaw each) and the two lists' first numbers the record draw turns their models by - are moved by the simulation once a step and were drawn as the step left them. A pose now keeps them too (collect_copy.c CP_PV, up to 16, the older poses' in the copy's pool) and the fill blends them by the pose's alpha, each the shorter way round, none that turned more than 1.5 radians in a step (collect.c uc_turns_between). Recorded at 0.25 speed over worked farms and a windmill, blend off -> on in one game: the sails still in 62 of 119 frames -> 0. The wheat is not that: its stalks slide in the texture, set once a step (a field without farmers every 440 ms), still in 76 of 119 frames either way - open.
 
 Step 4, the units' update during a step (collect.c collect_during_begin, render_3d.c rd_hook_ro_units_update,
 2026-11-08; the pipe: `picture collect during off | on [hand-off ms]`; `[display] units_smooth` turns it on, hand-off

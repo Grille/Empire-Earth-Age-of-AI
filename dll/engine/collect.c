@@ -34,14 +34,14 @@ internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's
 // step load of 30 ms (the player: "on heigh stepload its stuttering").
 #define UC_SMOOTH_FAR 16.0f   // tiles, squared
 internal double g_uc_show = -1.0;   // the walk's game time (< 0: drawn as the game has them)
-typedef struct { const float *t; int32_t anim, frame, next; float fraction; } uc_pose_v;   // a pose and its animation
+typedef struct { const float *t; int32_t anim, frame, next; float fraction; int which; } uc_pose_v;   // a pose and its animation; which: 0 now, 1 was, 2 was2
 // the two poses of an object round g_uc_show and the way between them: 0 none to blend (drawn as it is)
 internal int uc_between(const uc_obj *o, uc_pose_v *f, uc_pose_v *to, float *a) {
     double d = g_uc_show;
     if (!o->has_was || g_cp_smooth != 1 || d < 0.0 || d >= o->ms[0]) return 0;
-    uc_pose_v now = { (const float *)o->pm, o->anim, o->anim_frame, o->next_frame, o->fraction },
-              was = { o->was, o->was_anim, o->was_frame, o->was_next, o->was_fraction },
-              was2 = { o->was2, o->was2_anim, o->was2_frame, o->was2_next, o->was2_fraction };
+    uc_pose_v now = { (const float *)o->pm, o->anim, o->anim_frame, o->next_frame, o->fraction, 0 },
+              was = { o->was, o->was_anim, o->was_frame, o->was_next, o->was_fraction, 1 },
+              was2 = { o->was2, o->was2_anim, o->was2_frame, o->was2_next, o->was2_fraction, 2 };
     if (d >= o->ms[1]) *f = was, *to = now, *a = (float)((d - o->ms[1]) / (o->ms[0] - o->ms[1]));
     else if (o->has_was2 && d >= o->ms[2]) *f = was2, *to = was, *a = (float)((d - o->ms[2]) / (o->ms[1] - o->ms[2]));
     else *f = *to = o->has_was2 ? was2 : was, *a = 0.0f;   // further back than its poses: its oldest
@@ -208,6 +208,38 @@ internal void uc_anim_between(const uc_obj *o, int32_t *frame, int32_t *next, fl
     // past the last frame: as the game's own next frame there says - the first in a loop, itself where the animation ends and
     // stays (a death's: blended toward its first frame it went back to its beginning for a moment and came back)
     *next = f + s <= last ? f + s : k == pose ? to.next : first;
+}
+// THE TURNING PARTS BETWEEN STEPS (collect_copy.c CP_PV, the player 2026-11-13: "fields are the last piece that dosnt
+// animate smothly"): the parts' turns of the pose before and after the walk's game time, blended by the same alpha -
+// each by the shorter way round (a sail's yaw going on past a full turn), none that turned further than UC_TURN_JUMP
+// in a step (set, not turned: as the record has it, the newest)
+#define UC_TURN_JUMP 1.5f
+internal uint32_t uc_turns_of(const uc_copy *c, const uc_obj *o, int which, uint32_t *v) {
+    if (which == 1) { if (o->was_npv) memcpy(v, c->pool + o->was_pv_at, (size_t)o->was_npv * 4); return o->was_npv; }
+    if (which == 2) { if (o->was2_npv) memcpy(v, c->pool + o->was2_pv_at, (size_t)o->was2_npv * 4); return o->was2_npv; }
+    return cp_pose_pv(c, o, v);
+}
+internal void uc_turns_between(const uc_copy *c, const uc_obj *o, uint8_t *rec) {
+    uint32_t n = o->n_parts + o->n_a + o->n_b, fv[CP_PV], tv[CP_PV];
+    uc_pose_v from, to;
+    float alpha;
+    if (!g_uc_anim_smooth || !n || n > CP_PV || o->foundation || !uc_between(o, &from, &to, &alpha) || from.which == to.which) return;
+    if (uc_turns_of(c, o, from.which, fv) != n || uc_turns_of(c, o, to.which, tv) != n) return;
+    float *pv = (float *)vector_first(draw_record_part_values_at(rec)), *av = (float *)vector_first(draw_record_list_a_c_at(rec)),
+          *bv = (float *)vector_first(draw_record_list_b_c_at(rec));
+    for (uint32_t i = 0; i < n; i++) {
+        float a, b;
+        memcpy(&a, &fv[i], 4);
+        memcpy(&b, &tv[i], 4);
+        float d = b - a;
+        if (d > 3.14159265f) d -= 6.28318531f;
+        else if (d < -3.14159265f) d += 6.28318531f;
+        if (!(fabsf(d) <= UC_TURN_JUMP)) continue;
+        float r = a + d * alpha;
+        if (i < o->n_parts) pv[i] = r;
+        else if (i < o->n_parts + o->n_a) av[i - o->n_parts] = r;
+        else bv[i - o->n_parts - o->n_a] = r;
+    }
 }
 // THE FLYING PIECES, THE FLAMES AND THE SMOKE BETWEEN STEPS (with the animation's: picture collect anim): what a dying mech
 // throws - a Minotaur's three pieces, the shards - is no part of its model but an effect (EEE3DParticle), in no copy of
@@ -708,6 +740,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
                 ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = c->pool[o->b_at + 2 * i];
                 ((uint32_t *)vector_first(draw_record_list_b_4_at(rec)))[i] = c->pool[o->b_at + 2 * i + 1];
             }
+            uc_turns_between(c, o, rec);
         }
         int bars = !free_cam ? uc_in_group(o, me, cu) || player_get_ui_unit(me) == u : o->selected;
         if (!bars) bars = uc_in_bar_ids(o->serial);
