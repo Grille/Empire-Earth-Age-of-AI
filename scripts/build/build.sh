@@ -44,7 +44,7 @@ rm -f ageofai_config_res.o
 # image above the game's addresses, fixed (no ASLR): a stray read of the game's memory fails instead of reading its own.
 # Then the shipped personalities and every test script through it: a mistake in them stops the build
 "$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -static -I. -o ageofai_check.exe check/ageofai_check.c -lgdi32 -ldxguid -lwinmm -lwinhttp -lcomctl32 -luxtheme -ldwmapi -lmsimg32 -Wl,--image-base,0x10000000 -Wl,--disable-dynamicbase || exit 1
-./ageofai_check.exe ../config/personalities ../config/texfix.eeai ../tests/scenarios ../tests/probes > ageofai_check.log || { grep -v "^ageofai_check: [0-9]* unit" ageofai_check.log; exit 1; }
+./ageofai_check.exe ../config/personalities ../config/texfix.eeai ../config/setup.eeai ../tests/scenarios ../tests/probes > ageofai_check.log || { grep -v "^ageofai_check: [0-9]* unit" ageofai_check.log; exit 1; }
 rm -f ageofai_check.log
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
     REPO="$(cd .. && pwd)"; . ../scripts/game_dir.sh   # GAME

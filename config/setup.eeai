@@ -1,0 +1,28 @@
+// setup.eeai - your own script for every game started on this PC. Age of AI reads it at each game's start and calls
+// its hooks from 2 s game time on:
+//
+//   on_game()       every new game, before the game type's own hook
+//   on_skirmish()   a random-map game
+//   on_scenario()   a scenario (the scenario editor's test play too)
+//   on_campaign()   a campaign's scenario
+//
+// A hook is a script: let, if, for, wait(10s), triggers and timers, the players (player(2).gold += 500) and the
+// control pipe's commands as functions (spawn(2, unit.inf02_spearman, 70, 50, 10)). What is written outside the
+// hooks runs first, in every game: a let there is a name all hooks share. A hook that isn't needed may be deleted.
+//
+// Not run: a saved game that is loaded (its hooks ran when the game began - what they started, a timer or a trigger,
+// ends with the session), a multiplayer game, the scenario editor itself.
+// A mistake is told in the game and in ageofai_log.csv, with its line; ageofai_check.exe checks the file without the
+// game.
+
+on_game() {
+}
+
+on_skirmish() {
+}
+
+on_scenario() {
+}
+
+on_campaign() {
+}

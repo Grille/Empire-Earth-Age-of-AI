@@ -106,6 +106,9 @@ internal void chk_game(void) {
     lstrcpyA(dir, g_ai_dir);
     printf("ageofai_check: %s\n", dir);
     chk_folder(dir);
+    char own[MAX_PATH];   // the player's script of every game, beside ageofai.ini (test/scripts.c SETUP.EEAI)
+    script_own_path(own);
+    if (GetFileAttributesA(own) != INVALID_FILE_ATTRIBUTES) { printf("ageofai_check: %s\n", own); chk_script(own, NULL); }
 }
 int main(int argc, char **argv) {
     const char *ai = NULL;

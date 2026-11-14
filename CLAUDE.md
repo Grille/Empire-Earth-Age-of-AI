@@ -140,6 +140,10 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   `eectl.py --folder` the folder of its files while it plays. `DLL=<path>` plays your own build
   without installing it. Tests use the shipped `config/ageofai.ini` and `config/personalities/`, never the user's own.
 - Setup scripts (`tests/scenarios/*.eeai`, `tests/probes/*.eeai`): docs/scripts.md. The control pipe: `scripts/test/eectl.py`.
+- `setup.eeai` beside ageofai.ini (`config/setup.eeai` ships, installed once: the player's own stays) is a script of
+  every game, a test's or not (the player 2026-11-14): its hooks `on_game()`, then `on_skirmish()` / `on_scenario()` /
+  `on_campaign()` by the game start's mode, from 2 s at the safe point (test/scripts.c SETUP.EEAI; docs/scripts.md).
+  Not in a loaded save, a multiplayer game, the editor. A test reads the one beside its ini (`CONFIG=`).
 - A run's log is `local/work/autotest_*.csv.gz` (gzipped: `zgrep`, `zcat`; a script reads it through `scripts/results/logs.py`);
   logs older than 7 days, or over 10 GB, are deleted (`scripts/test/work_prune.ps1`) - one to keep goes into `local/work/keep/`.
 - Without `game_seed` a random map is a different game every run. A/B results need many seeds (docs/testing.md).

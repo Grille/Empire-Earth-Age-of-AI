@@ -44,6 +44,7 @@ install_to() {   # <game folder>: the programs, and the mod folder's shipped fil
     # the .eeai checker (the player 2026-11-02: in the game folder - for modders, not in the release zip: a download of its own)
     replace "$B/dll/ageofai_check.exe" ageofai_check.exe || { echo "ageofai_check.exe NOT replaced in $G" >&2; return 1; }
     [ -e "$G/ageofai/texfix.eeai" ] || cp "$B/config/texfix.eeai" "$G/ageofai/texfix.eeai"   # once: the player's own list stays
+    [ -e "$G/ageofai/setup.eeai" ] || cp "$B/config/setup.eeai" "$G/ageofai/setup.eeai"   # once: the player's own script of every game stays
     replace "$B/config/language.eeai" ageofai/language.eeai || { echo "language.eeai NOT replaced in $G" >&2; return 1; }   # every time: a new word comes with the DLL that asks for it
     return 0
 }

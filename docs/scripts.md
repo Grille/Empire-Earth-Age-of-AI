@@ -297,6 +297,45 @@ A mistake there (a human's personality, a vanilla player's, a scenario game - pe
 games) ends that script before the game starts: `# setup: <file>: game.setup stopped - ...`. Test runs read their
 scripts at the game's start now (setup=...); a dry run leaves the setup out.
 
+## setup.eeai: every game's script
+
+`setup.eeai` beside `ageofai.ini` (`<game>\ageofai\setup.eeai`; the shipped one is `config/setup.eeai`, installed once
+and then the player's own) is a script of every game started on that PC - not a test's only. The mod reads it anew at
+each game's start and calls its hooks, functions declared by these names:
+
+```
+let waves = 0                        // outside the hooks: runs first, in every game - a name all hooks share
+
+on_game() {                          // every new game, before the game type's own
+    player(2).gold += 500
+}
+on_skirmish() {                      // a random-map game
+    game.timer(5min, () => {
+        waves += 1
+        spawn(2, unit.inf02_spearman, 70, 50, waves * 5)
+    })
+}
+on_scenario() { }                    // a scenario (the scenario editor's test play too)
+on_campaign() { }                    // a campaign's scenario
+```
+
+A hook takes nothing and runs statements (`on_game() { ... }`); one that isn't needed is left out. Another `on_...`
+name at the file's top is a mistake - a hook's name mistyped would never run. The file's top runs first, then
+`on_game()`, then the game type's hook when `on_game()` has ended (its waits too) - from 2 s game time, as a script:
+waits, triggers, timers, the players' members, the pipe's commands. Its `game.setup` blocks run before the game starts
+as any script's, in every kind of game - and the slots' personalities and colours are a random-map game's, so one
+there ends the script in a scenario.
+
+Its turns come between the simulation's steps (where the pipe's commands run), several a game second, in games without
+a computer player too; a test's `setup=` scripts run beside it and keep their own turns.
+
+Not run: a saved game that is loaded (its hooks ran when the game began; a timer, a trigger or a waiting hook isn't
+saved and ends with the session), a multiplayer game (each PC would run its own file - a desync), the scenario editor
+itself. A mistake is told on the screen and in the log (`# setup: <file>:<line>: ...`, `# texts: setup.eeai:<line>:
+...`); `ageofai_check.exe` checks the file without the game (in the game folder without arguments: the personalities
+and `setup.eeai`). Test runs read the `setup.eeai` beside their `ageofai.ini` - the shipped one, whose hooks are
+empty, unless `CONFIG=` names another folder's.
+
 ## Several scripts side by side
 
 `setup=a.eeai;b.eeai` (`;` - `run_test.py` splits its ini arguments at commas): each runs on its own, in turn, always
