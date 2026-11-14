@@ -11,7 +11,9 @@
 //   RANK 1  - what a Town Center, Capitol, University, Hospital or granary researches that is no unit's upgrade: the
 //             gathering techs (first: they pay back), the hospital's and the university's, the granary's (the same kind
 //             of thing, left out of his list only by its building), and the walls' and towers' line upgrades (a Town
-//             Center's too). The cheapest first.
+//             Center's too). The cheapest first. And the temple's range techs (an effect on the Temple itself; the
+//             player the same day: "the temple range upgrade is quite important to prevent enemy prophets
+//             disasters, thats goe sinto rank 1").
 //   RANK 2  - a line upgrade (category 7, an effect of kind 0x13: type -> new type) of a line it fields: RS_FIELDED
 //             units of the line's types or more, or one of them on order with none there yet (a new unit comes out
 //             as the old type until the upgrade is in). The line with the most units first.
@@ -21,10 +23,11 @@
 //             while follow holds it, never with fewer citizens than min_workforce (the economy first: nothing is
 //             saved for it then either) - and when its "new things" are there (the 2 requirements an epoch asks for:
 //             while they are missing the cheapest tech that counts is bought in its place).
-//   RANK 4  - every other line upgrade (a line it doesn't field), the cheapest first, with what no row of the
-//             priority list holds back.
-// Never: a hero's upgrade (his list; the AI uses no heroes), a temple's techs (no priests or prophets yet), the
-// units' improvements (attack, hit points ... per type: not in the tech tree, not found yet).
+//   RANK 4  - every other line upgrade (a line it doesn't field) and the temple's other techs (its priests' and
+//             prophets': "other temple techs should go in rank 4 since at some point the ai should lern how to use
+//             temple units aynways"), the cheapest first, with what no row of the priority list holds back.
+// Never: a hero's upgrade (his list; the AI uses no heroes), the units' improvements (attack, hit points ... per
+// type: not in the tech tree, not found yet).
 // A rank buys only with what the ranks above it don't still wait for: the price of the next RS_HOLD1 of rank 1 and
 // RS_HOLD2 of rank 2 it could not buy this look (no money, no free building) is held back - from its own lower
 // ranks here, from everybody else by the row "research" of the priority list (priority.c; the epoch has its own
@@ -93,6 +96,16 @@ internal int rs_has_maker(ee_tech_data *d, const struct rs_bld *bl, int nb) {
 internal int rs_made_by(ee_tech_data *d, int type) {
     int *mb = tech_data_get_makers_begin(d), *me = tech_data_get_makers_end(d);
     for (int *m = mb; mb && me > mb && me - mb < 64 && m < me; m++) if (*m == type) return 1;
+    return 0;
+}
+// one of the tech's effects is on that type itself (a temple's range tech: on the Temple)
+internal int rs_effect_on(ee_tech_data *d, int type) {
+    int ei = tech_data_get_effects(d);
+    if (ei < 0 || ei > 0x5DC || type < 0) return 0;
+    ee_epoch_techs *list = epoch_tech_list(ei);
+    unsigned n = epoch_techs_get_count(list), *ids = epoch_techs_get_ids(list);
+    for (unsigned k = 0; ids && k < n && k < 64; k++)
+        if (ids[k] < 2000 && effect_get_type(tech_effect(ids[k])) == type) return 1;
     return 0;
 }
 internal int rs_pays(const int *stock, const int *hold, const int *cost) {
@@ -182,8 +195,8 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         int home = rs_made_by(d, UT(B_TOWN_CENTER)) || rs_made_by(d, UT(B_CAPITOL)) || rs_made_by(d, UT(B_UNIVERSITY)) || rs_made_by(d, UT(B_HOSPITAL)) ||
                    rs_made_by(d, UT(B_GRANARY)) || rs_made_by(d, UT(B_GRANARY_IMPROVED));
         if (cat == 0) {
-            if (!home) continue;   // a temple's
-            c.rank = RS_ECON; c.score = (is_gather_tech(t) ? 0 : 100000) + sum;
+            if (home || rs_effect_on(d, UT(B_TEMPLE))) { c.rank = RS_ECON; c.score = (is_gather_tech(t) ? 0 : 100000) + sum; }
+            else { c.rank = RS_REST; c.score = sum; }   // a temple's other techs
         } else {
             int line = rs_line(idx, d, cnt, &units, &ordered);
             if (line == 3) continue;   // a hero's

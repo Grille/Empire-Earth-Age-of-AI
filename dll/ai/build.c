@@ -15,8 +15,9 @@
 //                 citizens wanted on food found no site (work.c food_short). By a Town Center, Capitol or Settlement
 //                 in the territory work.c likes best - backland first, his "farming ... reserved for save backside
 //                 territories" -, 4 to 12 tiles out with room for 6 of its 8 fields; BD_GRANARIES at most.
-//   THE RESEARCH BUILDINGS - one University and one Hospital (research.c's rank 1 is researched there; the Hospital
-//                 holds the population techs too), each as soon as the game offers it: by a Town Center or Capitol
+//   THE RESEARCH BUILDINGS - one University, one Hospital and one Temple (research.c's rank 1 is researched there;
+//                 the Hospital holds the population techs too, the Temple keeps the enemy's prophets' disasters
+//                 off the town and its range techs are of rank 1), each as soon as the game offers it: by a Town Center or Capitol
 //                 in the territory work.c likes best, 4 to 10 tiles out. Before the mines' buildings; one it can't
 //                 pay is what the row "research" of the priority list saves for (g_rs_want: Settlements and
 //                 towers wait, the granary and the fields go on).
@@ -91,8 +92,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
-    int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, count = 0, have_rb[2] = { 0, 0 };
-    const int rb[2] = { UT(B_UNIVERSITY), UT(B_HOSPITAL) };
+    int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, count = 0, have_rb[3] = { 0, 0, 0 };
+    const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // what it has: citizens, foundations, granaries, fields, defences, centres
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -111,7 +112,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (t == UT(B_FARM)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; }
         else if (t == UT(B_SETTLEMENT)) open_settle += !done;
-        for (int k = 0; k < 2; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
+        for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
         if (is_tower_type(t)) open_tower += !done;
         if ((is_tower_type(t) || defence_stats(u, &rng, &att)) && ndef < 512) def[ndef++] = p;
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && ncen < 64) {
@@ -145,7 +146,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // the builder arrived - it came 5 to 8 minutes later, with every AI)
     int wait[4], shown[4] = { open_gran, open_settle, open_tower, 0 }, com[7] = { 0 };
     for (int k = 0; k < 4; k++) wait[k] = b->laid_t[k] && now >= b->laid_t[k] && now - b->laid_t[k] < BD_WAIT;
-    for (int k = 0; k < 2; k++) if (b->laid_type[3] == rb[k]) shown[3] = have_rb[k];
+    for (int k = 0; k < 3; k++) if (b->laid_type[3] == rb[k]) shown[3] = have_rb[k];
     for (int k = 0; k < 4; k++)
         if (wait[k] && !shown[k] && b->laid_type[k] > 0) for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, b->laid_type[k], r);
     for (int r = 2; r < 7 && ut_has(UT(B_FARM)); r++) com[r] += open_fields * unit_cost(pl, UT(B_FARM), r);
@@ -197,12 +198,12 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!type) b->no_spot++;
     }
     g_rs_want[idx] = 0;
-    for (int k = 0; k < 2 && !type && !placed && !wait[3]; k++) {   // THE RESEARCH BUILDINGS
+    for (int k = 0; k < 3 && !type && !placed && !wait[3]; k++) {   // THE RESEARCH BUILDINGS
         if (have_rb[k] || !ut_has(rb[k]) || !prio_buildable(pl, rb[k])) continue;
         if (!bd_pays(pl, rb[k], com)) { g_rs_want[idx] = rb[k] + 1; break; }   // saved for: the row "research"
         for (int pass = 1; pass <= 3 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++)
-                if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, rb[k], centre[c].p, 4, 10, &at)) { type = rb[k]; what = k ? "a Hospital" : "a University"; }
+                if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, rb[k], centre[c].p, 4, 10, &at)) { type = rb[k]; what = k == 2 ? "a Temple" : k ? "a Hospital" : "a University"; }
         if (!type) b->no_spot++;
     }
     b->mines = b->mines_drop = b->mines_guard = 0;
@@ -238,7 +239,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         ok = hook_place(bm, type, at.x, at.y);
         if (!ok) b->refused++;
         else {
-            int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] ? 3 : 2;
+            int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : 2;
             if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else b->towers++;
             b->laid_t[k] = now ? now : 1; b->laid_type[k] = type;
             for (int r = 2; r < 7; r++) g_bd_com[idx][r] += unit_cost(pl, type, r);

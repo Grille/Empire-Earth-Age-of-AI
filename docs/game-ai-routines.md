@@ -345,9 +345,9 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
   granary researches that is no unit's upgrade (the walls' and towers' line upgrades among it), 2 the line upgrades of
   the lines it fields (5 units or more), 3 the next epoch when its time has come (the civilization manager's time,
   drawn anew by the mod at each epoch; epoch_pacing as before) and its 2 requirements are there, 4 every other line
-  upgrade; no hero's upgrade, no temple's tech. A rank buys with what the ranks above it don't wait for; the row
+  upgrade and the temple's other techs; the temple's range techs are of rank 1 (they keep prophets' disasters off); no hero's upgrade. A rank buys with what the ranks above it don't wait for; the row
   "research" of the priority list holds that from everybody else. Handed to a building's own queue (0x5E8908), paid as
-  a player's. build.c lays one University and one Hospital for it. The units' improvements (attack, hit points ... per
+  a player's. build.c lays one University, one Hospital and one Temple for it. The units' improvements (attack, hit points ... per
   type) are not in the tech tree and not bought yet.
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
   sites, fields (done); (2) building - what, where, which citizen builds (done for the food base, the mines and the

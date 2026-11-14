@@ -19,7 +19,7 @@
 #define S_WANTED     256u   // ... that is the wanted entry itself
 #define S_AIR        512u   // anti-air while its air threat is real: an AA building or unit, the building that makes its AA units
 #define S_FOOD       1024u  // ... that is its food base: a silo or a field (the row "air" leaves it alone)
-#define S_RESEARCH   2048u  // ... that is a research building the row "research" itself asks for: a University, a Hospital
+#define S_RESEARCH   2048u  // ... that is a research building the row "research" itself asks for: a University, a Hospital, a Temple
 #define S_CIT        4096u  // a citizen (the row "research" leaves its food alone: the economy first)
 
 // THE ROW "air" (defence.c STRONG ANTI-AIR, aa_strong; the player 2026-11-11: AA far too weak - in the test the AA
@@ -48,7 +48,7 @@ internal int prio_air_type(unsigned idx, int type) {
 
 // THE ROW "research" (research.c, the mod's own research while the game's computer player is off - the player 2026-11-14:
 // "research first"): what its ranks 1 and 2 still wait for - the next techs of the Town Center, University and Hospital,
-// the line upgrades of the units it fields - and the research building build.c wants next (a University, a Hospital).
+// the line upgrades of the units it fields - and the research building build.c wants next (a University, a Hospital, a Temple).
 // Above the epoch, as his ranks have it; the food base and the research buildings pass - a Settlement or a tower waits
 // (the first look: the University laid at 0.3 min came 8 minutes later, its wood gone into Settlements meanwhile).
 internal int g_rs_hold[16][7];      // research.c: the price of what ranks 1 and 2 could not buy at its last look
@@ -165,7 +165,7 @@ internal int prio_refuses(ee_player *pl, int type) {
     // or AA neither. Measured (air_raid.eeai, 8 games, the fortress alone): citizens at minute 30 / 40 / 50 30 / 25 / 25
     // against 17 / 14 / 15 before; the nuclear bombers' 6 / 3 / 0 as before
     if (UT_IN(type, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM)) s |= S_FOOD;
-    if (UT_IN(type, UT_B_UNIVERSITY, UT_B_HOSPITAL)) s |= S_RESEARCH;
+    if (UT_IN(type, UT_B_UNIVERSITY, UT_B_HOSPITAL, UT_B_TEMPLE)) s |= S_RESEARCH;
     int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1, row = 0;
     for (; row < PRIO_N && held < 0; row++) {
         if (!prio_applies(idx, row, s)) continue;
