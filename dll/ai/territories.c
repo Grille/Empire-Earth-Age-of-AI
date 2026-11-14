@@ -369,8 +369,9 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
 //   both, per 300 tiles, without the island rule (v_sea_island=0), islands: fleets 17 afloat against 28, sunk 52
 //     against 80, kills -30 (13), losses +20 (12), seas held 0.88 against 1.50 - the rule is what keeps an island's fleet;
 //   both, per 600 tiles, Continental: 4.79 -> 4.92, soldiers -22 (11), citizens killed 823 -> 1132, 8 warships afloat.
-// So: sea_fishing ON (no cost, Continental's sea used); sea_fleet built and OFF - 300 plays level in what is held, but
-// its 10 warships cost 40 units a game on Continental and nothing comes by sea there for them to stop: his call
+// So: sea_fishing ON (no cost, Continental's sea used); sea_fleet built off - 300 plays level in what is held, but
+// its 10 warships cost 40 units a game on Continental and nothing comes by sea there for them to stop: his call -
+// and ON at 300 by it the same day, with the border walls ("enable the fleet and the border walls")
 // (as he said of the border towers, "stuff like that wont pay in the tests").
 internal void tv_seas(unsigned idx) {
     struct tv_st *s = &g_tv[idx];

@@ -293,7 +293,7 @@ harbours, the army level; harbours and border towers are on for what the AI agai
 from behind). ai/territories.c THE SYSTEM has the numbers. Also: `idle_transports` (no game order for a transport
 while 2 stand idle - an AI had 40).
 
-Border walls (2026-11-14, `border_walls`, off until watched in a real game): with 1500 stone in the bank the AI walls the
+Border walls (2026-11-14, `border_walls`, on by the player's call the same day): with 1500 stone in the bank the AI walls the
 border between a territory it holds and land nobody of its side holds, the shortest border first - the territories
 meet at the land's necks, so that is the shortest wall that closes a side -, a gate in the middle (two on a long one),
 from the stone above 1000. The laying is the town ring's (ai/defence.c encl_lay, with its guard against shutting
@@ -308,7 +308,7 @@ player's call), `front_guards` lean against it on islands, the other four are no
 
 The seas by territory (2026-11-14, ai/territories.c THE SEAS): each AI's waters are the sea territories along land it
 holds. `sea_fishing` (on): a fishing boat while its food workers are short and it knows fish in its waters, trained at
-a dock on the sea with the most - on any map, not only where the game calls it a water map. `sea_fleet` (off, a
+a dock on the sea with the most - on any map, not only where the game calls it a water map. `sea_fleet` (300, on by the player's call; a
 warship per that many tiles of its waters that lead somewhere, all of the navy's share while its land has no border
 with land of others): the fleet's size and the navy's share of the income by its waters instead of by navy_detect's
 map kind; measured at 300 - level on islands, 10 warships a player on Continental for 40 more units lost. The game's
