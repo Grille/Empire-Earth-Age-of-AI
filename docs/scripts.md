@@ -329,12 +329,29 @@ there ends the script in a scenario.
 Its turns come between the simulation's steps (where the pipe's commands run), several a game second, in games without
 a computer player too; a test's `setup=` scripts run beside it and keep their own turns.
 
-Not run: a saved game that is loaded (its hooks ran when the game began; a timer, a trigger or a waiting hook isn't
-saved and ends with the session), a multiplayer game (each PC would run its own file - a desync), the scenario editor
-itself. A mistake is told on the screen and in the log (`# setup: <file>:<line>: ...`, `# texts: setup.eeai:<line>:
+Not run: a multiplayer game (each PC would run its own file - a desync), the scenario editor itself. In a saved game
+that is loaded the hooks aren't called again - they ran when the game began, and the save carries on what they
+started ("Saved games" below). A mistake is told on the screen and in the log (`# setup: <file>:<line>: ...`, `# texts: setup.eeai:<line>:
 ...`); `ageofai_check.exe` checks the file without the game (in the game folder without arguments: the personalities
 and `setup.eeai`). Test runs read the `setup.eeai` beside their `ageofai.ini` - the shipped one, whose hooks are
 empty, unless `CONFIG=` names another folder's.
+
+## Saved games
+
+A save carries its scripts (the block `scripts` of the save's `.ageofai` file, dll/test/scripts.c): each one's source
+as it was read - a save doesn't depend on what `setup.eeai` says later -, its variables (numbers, texts, lists,
+vectors, records, players, units by their ids, dicts, functions), the triggers with their conditions' state, the
+timers at their times, the `after`'s still to come, the spawned units' handles. The loaded game goes on with them as
+they were: `# persist: scripts restored: 1 (0 were waiting), 3 triggers and timers, 1 after's ...`.
+
+Not yet: a script that waits (`wait`, `wait_until`, `every`) as the game is saved - where it stands in its statements
+isn't saved, so it doesn't go on after the load (told in the log, `setup.eeai`'s on the screen too); what it started
+before does. A script that sets up triggers and timers and ends is saved whole. A function made in a text's
+`{placeholder}` isn't saved (told in the log). A test with its own `setup=` scripts keeps to them - the save's are
+left out there.
+
+`script state` (a pipe command) saves the scripts and reads them back at once, as a save and its load do; `script
+state save <file>` / `script state load <file>` (a path without spaces) carry them from one game to another.
 
 ## Several scripts side by side
 

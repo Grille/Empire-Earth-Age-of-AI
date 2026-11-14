@@ -27,12 +27,15 @@ struct script {
     uint32_t wake;          // game ms it waits for
     int done;
     int hooks;              // setup.eeai: the hooks called after its top, a bit each (SETUP.EEAI below)
+    int safe;               // its turns are the safe point's (safe_turn): setup.eeai, a saved game's scripts
+    struct xframe *top;     // its top frame once it runs: the file's own names (script_run)
     struct xregion reg;     // its values
 };
 internal struct script g_scripts[SCRIPTS_MAX];
 internal int g_nscripts = -1;
 internal struct script g_own;   // setup.eeai of this game (SETUP.EEAI below; no text: none)
-internal int g_own_fresh;       // this game's clock seen before 2 s (own_turn)
+internal int g_own_fresh;       // this game's clock seen before 2 s (safe_turns)
+internal int g_scripts_restored;   // g_scripts are a saved game's (THE SCRIPTS IN A SAVED GAME), not a test's setup=
 internal LPVOID g_main_fiber;
 internal struct script *g_cur_script;
 internal uint32_t g_script_now;
@@ -98,12 +101,10 @@ internal int setup_hooks(const struct xunit *u, int *have, const char **why, int
     }
     return 1;
 }
-// read and check a script: 0 and *why / *line - not run
-internal int script_load(const char *path, char **text, struct xunit *u, const char **why, int *line) {
+// a script's text compiled and checked (path: its file, for the messages and setup.eeai's rules): 0 and *why / *line
+internal int script_compile(const char *path, const char *text, struct xunit *u, const char **why, int *line) {
     static char msg[200];
-    *text = script_read(path);
-    if (!*text) { *why = "can't be read"; *line = 0; return 0; }
-    *u = x_parse(*text, 1);
+    *u = x_parse(text, 1);
     if (!u->ok) { *why = u->why ? u->why : "not a script (a statement that is none, or nested too deep)"; *line = u->line; return 0; }
     struct xctx c = { 0 };
     c.found = 1;
@@ -119,17 +120,24 @@ internal int script_load(const char *path, char **text, struct xunit *u, const c
     if (!lstrcmpiA(base, "setup.eeai") && !setup_hooks(u, &have, why, line)) return 0;   // (the checker reads it so too)
     return 1;
 }
+// read and check a script: 0 and *why / *line - not run
+internal int script_load(const char *path, char **text, struct xunit *u, const char **why, int *line) {
+    *text = script_read(path);
+    if (!*text) { *why = "can't be read"; *line = 0; return 0; }
+    return script_compile(path, *text, u, why, line);
+}
 // a script's statements, top to bottom (its top frame: the file's own names); a mistake ends it. The top frame stays
 // (keep): its triggers' and after's functions read its names as they are when they run, also after it ended.
 // hooks: setup.eeai's to call then (bits of k_setup_hooks), each as a last statement of the file would - in its top frame,
-// a mistake in one ends the script at the hook's own line
-internal int script_run(const char *path, const struct xunit *u, int hooks) {
+// a mistake in one ends the script at the hook's own line. *keep: the top frame, for the saved games (NULL: not kept)
+internal int script_run(const char *path, const struct xunit *u, int hooks, struct xframe **keep) {
     struct xctx c = { 0 };
     c.found = 1;
     c.script = 1;
     struct xframe *top = calloc(1, sizeof *top);
     if (!top) return 0;
     top->keep = 1;
+    if (keep) *keep = top;
     struct xval rv;
     struct xe e = { &c, 0, NULL, top, 0, &rv, NULL, 0, 0, 0 };
     c.fpn = top->name; c.fpv = top->val; c.fnp = 0;
@@ -156,7 +164,7 @@ internal int script_run(const char *path, const struct xunit *u, int hooks) {
 }
 internal void WINAPI script_fiber(void *arg) {
     struct script *s = arg;
-    script_run(s->path, &s->u, s->hooks);
+    script_run(s->path, &s->u, s->hooks, &s->top);
     log_line("# setup: %s: done\n", s->path);
     s->done = 1;
     for (;;) SwitchToFiber(g_main_fiber);
@@ -212,25 +220,37 @@ internal void script_setup_blocks(struct script *s) {
 // script's), then the hooks - in its fiber from 2 s game time. Its turns are the safe point's (script_triggers, every
 // pass of the simulation's loop): a game without a computer player has them too, and its commands run where the
 // pipe's do; a test's scripts keep the AI update's.
-// None in a saved game that is loaded (its hooks ran when the game began; what they started - timers, triggers, a
-// waiting hook - isn't saved yet and ends with the session), none in a multiplayer game (each PC would run its own
+// No hook is called in a saved game that is loaded (they ran when the game began; the save carries on what they
+// started: THE SCRIPTS IN A SAVED GAME), none in a multiplayer game (each PC would run its own
 // file: a desync, as a console command there), no turn while the scenario editor is on. No file, no script.
 internal void script_own_path(char path[MAX_PATH]) {
     lstrcpynA(path, g_aimod_ini, MAX_PATH - 16);
     char *slash = strrchr(path, '\\');
     lstrcpyA(slash ? slash + 1 : path, "setup.eeai");
 }
+// a script over where it is - its fiber (but the one whose turn it is: it can't end itself), its values, its text and
+// top frame (the triggers that read them are reset with it); its tree stays, as every compiled source
+internal void script_end(struct script *s) {
+    if (s->fiber && s != g_cur_script) DeleteFiber(s->fiber);
+    x_region_free(&s->reg);
+    free(s->text);
+    free(s->top);
+    memset(s, 0, sizeof *s);
+}
+internal void scripts_restored_end(void) {   // a saved game's scripts (THE SCRIPTS IN A SAVED GAME): over with their game
+    if (!g_scripts_restored) return;
+    for (int i = 0; i < SCRIPTS_MAX; i++) script_end(&g_scripts[i]);
+    g_nscripts = -1;
+    g_scripts_restored = 0;
+}
 internal void own_new_game(ee_setup *setup) {
     // started by a command of its own (a load from a hook: this is its fiber), or beside a test's scripts in a later
     // game of their process (they go on over a load, their triggers with them): it goes on as it is
     if (g_cur_script == &g_own || (g_own.text && g_nscripts > 0)) return;
-    if (g_own.fiber) DeleteFiber(g_own.fiber);   // the last game's: over where it waited (its tree stays, as every compiled source)
-    x_region_free(&g_own.reg);
-    free(g_own.text);
-    memset(&g_own, 0, sizeof g_own);
+    script_end(&g_own);   // the last game's: over where it waited
     g_script_now = 0;
     g_own_fresh = 0;
-    if (g_nscripts <= 0) x_triggers_reset();   // its triggers and timers
+    if (g_nscripts <= 0) { x_triggers_reset(); x_units_reset(); }   // its triggers and timers, the units it spawned
     int mode = setup_get_mode(setup), humans = 0, have = 0, line;
     if (mode == 2) return;
     script_own_path(g_own.path);
@@ -249,10 +269,12 @@ internal void own_new_game(ee_setup *setup) {
     setup_hooks(&g_own.u, &have, &why, &line);
     g_own.hooks = have & (1 << HOOK_GAME | 1 << type);
     g_own.reg.busy = 1;   // its evaluations never start its region afresh
+    g_own.safe = 1;
     log_line("# setup: %s (%s: the setup's mode %d)\n", g_own.path, k_setup_hooks[type], mode);
 }
 internal void scripts_new_game(ee_setup *setup) {
     persona_setup_clear();
+    if (g_cur_script != &g_own) scripts_restored_end();
     if (g_autotest && g_setup_path[0]) scripts_load();
     own_new_game(setup);
     if (setup_get_mode(setup) == 2) return;
@@ -261,15 +283,13 @@ internal void scripts_new_game(ee_setup *setup) {
     for (int i = 0; i < g_nscripts; i++) script_setup_blocks(&g_scripts[i]);
     g_x_setup = NULL;
 }
-// setup.eeai's turn (script_triggers, the safe point): from 2 s on it goes on until it waits again, as a test's script
-// in run_setup. Only once this game's clock was seen before 2 s (a later game of the session: while it loads the last
-// game's time may still stand there). The thread's fiber anew each turn: the simulation's thread of a later game may
-// be another
-internal void own_turn(uint32_t now) {
-    struct script *s = &g_own;
-    if (!s->text || s->done) return;
-    if (now < 2000) { g_own_fresh = 1; return; }
-    if (!g_own_fresh || now < s->wake || !game_map() || editor_is_on()) return;
+// The safe point's turns (script_triggers): setup.eeai's, and a saved game's scripts' (restored: whoever ran them when
+// it was saved) - from 2 s on each goes on until it waits again, as a test's script in run_setup. Only once this
+// game's clock was seen before 2 s (a later game of the session: while it loads the last game's time may still stand
+// there; a loaded game's scripts are fresh as they are restored). The thread's fiber anew each turn: the simulation's
+// thread of a later game may be another
+internal void safe_turn(struct script *s, uint32_t now) {
+    if (!s->text || s->done || !s->safe || now < s->wake) return;
     g_main_fiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(NULL);
     if (!s->fiber && g_main_fiber) s->fiber = CreateFiber(1 << 20, script_fiber, s);
     if (!s->fiber) { s->done = 1; log_line("# setup: %s: no fiber - not run\n", s->path); return; }
@@ -285,20 +305,26 @@ internal void own_turn(uint32_t now) {
     memset(&g_x_hooks, 0, sizeof g_x_hooks);
     g_xr = r0;
 }
+internal void safe_turns(uint32_t now) {
+    if (now < 2000) { g_own_fresh = 1; return; }
+    if (!g_own_fresh || !game_map() || editor_is_on()) return;
+    safe_turn(&g_own, now);
+    for (int i = 0; i < g_nscripts; i++) safe_turn(&g_scripts[i], now);
+}
 // every game tick from 2 s on (autotest_tick): each script that waits no longer goes on until it waits again
 internal void run_setup(uint32_t now) {
     scripts_load();
     g_script_now = now;
     for (int i = 0; i < g_nscripts; i++) {   // their fibers on this thread (the game's start may be another's)
         struct script *s = &g_scripts[i];
-        if (s->done || s->fiber) continue;
+        if (s->done || s->fiber || s->safe) continue;
         if (!g_main_fiber) g_main_fiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(NULL);
         s->fiber = g_main_fiber ? CreateFiber(1 << 20, script_fiber, s) : NULL;
         if (!s->fiber) { s->done = 1; log_line("# setup: %s: no fiber - not run\n", s->path); }
     }
     for (int i = 0; i < g_nscripts; i++) {
         struct script *s = &g_scripts[i];
-        if (s->done || !s->fiber || now < s->wake) continue;
+        if (s->done || !s->fiber || s->safe || now < s->wake) continue;
         struct xregion *r0 = g_xr;
         g_xr = &s->reg;
         g_x_hooks.now = script_now; g_x_hooks.wait = script_wait; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
@@ -316,7 +342,7 @@ internal void run_setup(uint32_t now) {
 // their spawned units made
 internal void script_triggers(uint32_t now) {
     x_effects_flush();
-    own_turn(now);
+    safe_turns(now);
     if ((g_nscripts <= 0 && !g_own.text) || now < 2000) return;
     if (now > g_script_now) g_script_now = now;
     g_x_hooks.now = script_now; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
@@ -324,6 +350,121 @@ internal void script_triggers(uint32_t now) {
     x_triggers_tick(g_script_now / 1000.0);
     g_x_safe = 0;
     memset(&g_x_hooks, 0, sizeof g_x_hooks);
+}
+// THE SCRIPTS IN A SAVED GAME (persist.c's block "scripts", in the save's .ageofai file): a save carries its scripts -
+// each one's source as it was read (a save doesn't depend on what setup.eeai or a scenario's file say later), whether
+// it has run, and what its functions go on with: its top frame's names, the triggers, timers and after's with the
+// frames they keep, the dicts (expr.c SAVED STATE), the spawned units' handles (game_script/units.c). A loaded game
+// (hook_game_start's persist_load, after scripts_new_game) has them as they were - the timers at their times, the
+// triggers with their conditions' state, the variables' values - compiled anew from the saved source.
+// Not yet: a script that waits (wait, wait_until, every) as the game is saved - where it stands in its statements
+// isn't saved, so it doesn't go on after the load (told in the log and, setup.eeai's, on the screen); what it
+// started before does. One that hasn't begun (a save in the first 2 s) starts at its top.
+// A test that runs its own scripts (setup=) keeps to them: the save's are left out there. Elsewhere the save's test
+// scripts come back beside its setup.eeai, their turns the safe point's (safe_turns).
+#define SCRIPT_STATE_FORMAT 1
+enum { SS_NEW, SS_WAITING, SS_DONE };
+internal uint8_t *scripts_state_save(uint32_t *size) {
+    struct script *sc[1 + SCRIPTS_MAX];
+    const struct xnode *roots[1 + SCRIPTS_MAX];
+    struct xframe *tops[1 + SCRIPTS_MAX];
+    int n = 0, lost = 0, waiting = 0;
+    *size = 0;
+    if (g_own.text) sc[n++] = &g_own;
+    for (int i = 0; i < g_nscripts; i++) sc[n++] = &g_scripts[i];
+    if (!n) return NULL;
+    struct pbuf o = { 0 };
+    pb_int(&o, SCRIPT_STATE_FORMAT);
+    pb_int(&o, (int32_t)g_script_now);
+    pb_int(&o, n);
+    for (int i = 0; i < n; i++) {
+        struct script *s = sc[i];
+        uint8_t kind = s != &g_own, state = s->done ? SS_DONE : s->fiber ? SS_WAITING : SS_NEW;
+        pb_put(&o, &kind, 1);
+        pb_put(&o, &state, 1);
+        pb_str(&o, s->path);
+        pb_text(&o, s->text);
+        pb_int(&o, (int32_t)s->wake);
+        pb_int(&o, s->hooks);
+        roots[i] = s->u.root;
+        tops[i] = s->top;
+        if (state != SS_WAITING) continue;
+        waiting++;
+        log_line("# setup: %s: waits (until %.1f s) as the game is saved - a waiting script doesn't go on after a load, what it started does\n", s->path, s->wake / 1000.0);
+    }
+    x_state_save(&o, roots, tops, n, &lost);
+    x_units_state_save(&o);
+    log_line("# persist: scripts: %d (%d waiting), %d triggers and timers, %d after's, %d spawned units' handles, %u bytes%s\n", n, waiting,
+             g_xt_n, g_xa_n, g_xslot_n, o.n, lost ? " - a function of a text's placeholder left out" : "");
+    if (o.bad) { free(o.b); return NULL; }
+    *size = o.n;
+    return o.b;
+}
+internal void scripts_state_drop(const char *why) {   // what was read so far undone: the game goes on without scripts
+    script_end(&g_own);
+    for (int i = 0; i < SCRIPTS_MAX; i++) script_end(&g_scripts[i]);
+    g_nscripts = -1;
+    g_scripts_restored = 0;
+    x_triggers_reset();
+    x_units_reset();
+    log_line("# persist: the save's scripts can't be read (%s) - none restored\n", why);
+}
+internal void scripts_state_load(const uint8_t *p, uint32_t size) {
+    struct pread r = { p, size, 0, 0 };
+    if (g_nscripts > 0 || g_own.text || g_cur_script) {
+        log_line("# persist: the save's scripts left out - %s\n", g_nscripts > 0 ? "this test runs its own (setup=)" : "a script of this session goes on");
+        return;
+    }
+    if (pr_int(&r) != SCRIPT_STATE_FORMAT) { log_line("# persist: the save's scripts are of another format - none restored\n"); return; }
+    uint32_t now = (uint32_t)pr_int(&r);
+    int n = pr_int(&r), nt = 0, waiting = 0;
+    if (r.bad || n < 1 || n > 1 + SCRIPTS_MAX) { log_line("# persist: the save's scripts are broken - none restored\n"); return; }
+    struct script *sc[1 + SCRIPTS_MAX];
+    const struct xnode *roots[1 + SCRIPTS_MAX];
+    struct xframe *tops[1 + SCRIPTS_MAX] = { 0 };
+    struct xregion *regs[1 + SCRIPTS_MAX];
+    x_triggers_reset();
+    x_units_reset();
+    for (int i = 0; i < n; i++) {
+        uint8_t kind = 0, state = 0;
+        pr_get(&r, &kind, 1);
+        pr_get(&r, &state, 1);
+        char *path = pr_str(&r), *text = pr_text(&r);
+        uint32_t wake = (uint32_t)pr_int(&r);
+        int hooks = pr_int(&r), line = 0;
+        struct script *s = !kind && !g_own.text ? &g_own : nt < SCRIPTS_MAX ? &g_scripts[nt] : NULL;
+        const char *why = "";
+        if (r.bad || !s || !path || !text) { free(path); free(text); scripts_state_drop("broken"); return; }
+        if (s != &g_own) nt++;
+        memset(s, 0, sizeof *s);
+        lstrcpynA(s->path, path, MAX_PATH);
+        free(path);
+        s->text = text;
+        if (!script_compile(s->path, text, &s->u, &why, &line)) {
+            log_line("# persist: %s:%d: %s\n", s->path, line, why);
+            scripts_state_drop("a script this version of the mod doesn't read");
+            return;
+        }
+        s->done = state != SS_NEW;
+        s->wake = wake;
+        s->hooks = hooks;
+        s->safe = 1;
+        s->reg.busy = 1;
+        sc[i] = s; roots[i] = s->u.root; regs[i] = &s->reg;
+        if (state != SS_WAITING) continue;
+        waiting++;
+        log_line("# setup: %s: was waiting as this game was saved - it doesn't go on, what it started does\n", s->path);
+        if (s == &g_own) x_error("setup.eeai: was waiting as this game was saved - it doesn't go on (its timers and triggers do)");
+    }
+    if (nt) { g_nscripts = nt; g_scripts_restored = 1; }
+    if (!x_state_load(&r, roots, tops, regs, n)) { scripts_state_drop("broken, or another version's"); return; }
+    for (int i = 0; i < n; i++) sc[i]->top = tops[i];
+    x_units_state_load(&r);
+    if (r.bad) { scripts_state_drop("broken"); return; }
+    g_script_now = now;
+    g_own_fresh = 1;
+    log_line("# persist: scripts restored: %d (%d were waiting), %d triggers and timers, %d after's, %d spawned units' handles\n", n, waiting,
+             g_xt_n, g_xa_n, g_xslot_n);
 }
 // THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 2 s), the
 // commands are written to <out> ("<ms> <command>") and answered "ok" (tests: a converted scenario issues the same
@@ -346,7 +487,30 @@ internal int dry_did(const char *what) {   // an effect: written as a command is
 }
 internal void cmd_script(char *out, const char *args) {
     char file[MAX_PATH], dst[MAX_PATH];
-    if (sscanf(args, "dryrun %259s %259s", file, dst) != 2) { REPLY("error: usage: script dryrun <file> <out>\n"); return; }
+    if (!strncmp(args, "state", 5)) {   // the scripts saved and read back at once, as a save and its load do (a test) -
+        // or into a file (state save <file>) and out of one (state load <file>: another game's, another process's)
+        uint32_t n = 0;
+        int to = sscanf(args, "state save %259s", file) == 1, from = !to && sscanf(args, "state load %259s", file) == 1;
+        if (g_cur_script) { REPLY("error: script state: not from a script (its own turn can't end)\n"); return; }
+        uint8_t *b = from ? (uint8_t *)script_read(file) : scripts_state_save(&n);
+        if (!b) { REPLY(from ? "error: %s can't be read\n" : "error: no script to save\n", file); return; }
+        if (to || from) {
+            FILE *f = fopen(file, to ? "wb" : "rb");
+            if (f && to) fwrite(b, 1, n, f);
+            if (f && from) { fseek(f, 0, SEEK_END); n = (uint32_t)ftell(f); }
+            if (f) fclose(f);
+            if (to) { free(b); REPLY(f ? "ok: %u bytes written to %s\n" : "error: %u bytes, but can't write %s\n", n, file); return; }
+        }
+        script_end(&g_own);
+        for (int i = 0; i < SCRIPTS_MAX; i++) script_end(&g_scripts[i]);
+        if (g_nscripts > 0) g_nscripts = 0;
+        g_scripts_restored = 0;
+        scripts_state_load(b, n);
+        free(b);
+        REPLY("ok: %u bytes saved and read back - %d triggers and timers, %d after's (the log has the rest)\n", n, g_xt_n, g_xa_n);
+        return;
+    }
+    if (sscanf(args, "dryrun %259s %259s", file, dst) != 2) { REPLY("error: usage: script dryrun <file> <out> | script state\n"); return; }
     char *text;
     struct xunit u;
     const char *why;
@@ -368,7 +532,7 @@ internal void cmd_script(char *out, const char *args) {
     memcpy(keep_a, g_xa, sizeof g_xa);
     g_xt_n = g_xa_n = 0;
     g_xt_next = 0;
-    int ok = script_run(file, &u, 0);   // (setup.eeai run dry: its top, no hook - there is no game to tell its kind)
+    int ok = script_run(file, &u, 0, NULL);   // (setup.eeai run dry: its top, no hook - there is no game to tell its kind)
     memcpy(g_xt, keep_t, sizeof g_xt);
     memcpy(g_xa, keep_a, sizeof g_xa);
     g_xt_n = nt; g_xa_n = na; g_xt_next = next;

@@ -1167,20 +1167,7 @@ internal struct pinst *pinst_of(ee_player *pl) {   // AI pl's fields (made now i
 // Read back by name when the AI's fields are made after the load (the players don't exist yet when the file is read):
 // a field the file no longer has is dropped, a new one starts as written, another type or another personality start
 // afresh - each told in the log. A record not yet applied when the game is saved again is saved as it was.
-struct pbuf { uint8_t *b; uint32_t n, cap; int bad; };
-internal void pb_put(struct pbuf *o, const void *p, uint32_t n) {
-    if (o->n + n > o->cap) {
-        uint32_t cap = (o->n + n) * 2 + 256;
-        uint8_t *m = realloc(o->b, cap);
-        if (!m) { o->bad = 1; return; }
-        o->b = m;
-        o->cap = cap;
-    }
-    memcpy(o->b + o->n, p, n);
-    o->n += n;
-}
-internal void pb_str(struct pbuf *o, const char *s) { uint16_t n = (uint16_t)(strlen(s) < 65535 ? strlen(s) : 65535); pb_put(o, &n, 2); pb_put(o, s, n); }
-internal void pb_num(struct pbuf *o, double x) { pb_put(o, &x, 8); }
+// (the bytes' writer and reader: script/expr.c SAVED STATE - pbuf, pread)
 internal void pinst_record(struct pbuf *o, const struct pinst *in) {
     uint16_t nf = (uint16_t)in->n;
     pb_str(o, in->p->file);
@@ -1237,22 +1224,6 @@ internal void persona_state_load(const uint8_t *b, uint32_t size) {   // (after 
         o += n;
     }
 }
-struct pread { const uint8_t *b; uint32_t n, o; int bad; };
-internal void pr_get(struct pread *r, void *p, uint32_t n) {
-    if (r->bad || n > r->n - r->o) { r->bad = 1; memset(p, 0, n); return; }
-    memcpy(p, r->b + r->o, n);
-    r->o += n;
-}
-internal char *pr_str(struct pread *r) {   // malloc'd
-    uint16_t n = 0;
-    pr_get(r, &n, 2);
-    char *s = malloc((size_t)n + 1);
-    if (!s) { r->bad = 1; return NULL; }
-    pr_get(r, s, n);
-    s[n] = 0;
-    return s;
-}
-internal double pr_num(struct pread *r) { double x = 0; pr_get(r, &x, 8); return x; }
 internal void pinst_restore(struct pinst *in, unsigned idx) {   // the saved record of AI idx, by the fields' names
     struct pread r = { g_pinst_saved[idx].b, g_pinst_saved[idx].n, 0, 0 };
     char *file = pr_str(&r);

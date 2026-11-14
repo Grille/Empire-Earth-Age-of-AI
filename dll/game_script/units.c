@@ -271,3 +271,40 @@ internal void x_units_spawn(struct xctx *c, int pl, const struct xval *a, int na
     v->it = it;
     v->ln = v->w = n;
 }
+// THE SPAWNED UNITS IN A SAVED GAME (test/scripts.c's block; expr.c SAVED STATE): the slots of the handles to come or
+// come (a script's variable may hold one), the ids of the units given away, the effects still to be done - as they
+// are (their sizes first: another build's are left out). A new game has none (x_units_reset)
+internal void x_units_reset(void) { g_xslot_n = g_xjob_n = g_xmoved_n = 0; }
+internal void x_units_state_save(struct pbuf *o) {
+    pb_int(o, (int32_t)sizeof *g_xslot); pb_int(o, g_xslot_n);
+    pb_put(o, g_xslot, (uint32_t)g_xslot_n * sizeof *g_xslot);
+    pb_int(o, (int32_t)sizeof *g_xmoved); pb_int(o, g_xmoved_n);
+    if (g_xmoved_n) pb_put(o, g_xmoved, (uint32_t)g_xmoved_n * sizeof *g_xmoved);
+    pb_int(o, (int32_t)sizeof *g_xjob); pb_int(o, g_xjob_n);
+    if (g_xjob_n) pb_put(o, g_xjob, (uint32_t)g_xjob_n * sizeof *g_xjob);
+}
+internal void x_units_state_load(struct pread *r) {
+    x_units_reset();
+    int size = pr_int(r), n = pr_int(r);
+    if (size != (int)sizeof *g_xslot || n < 0 || n > X_SPAWN_SLOTS) { r->bad = 1; return; }
+    pr_get(r, g_xslot, (uint32_t)n * sizeof *g_xslot);
+    if (!r->bad) g_xslot_n = n;
+    size = pr_int(r), n = pr_int(r);
+    if (size != (int)sizeof *g_xmoved || n < 0 || (uint32_t)n > (r->n - r->o) / sizeof *g_xmoved) { r->bad = 1; return; }
+    if (n > g_xmoved_cap) {
+        void *m = realloc(g_xmoved, (size_t)n * sizeof *g_xmoved);
+        if (!m) { r->bad = 1; return; }
+        g_xmoved = m; g_xmoved_cap = n;
+    }
+    if (n) pr_get(r, g_xmoved, (uint32_t)n * sizeof *g_xmoved);
+    if (!r->bad) g_xmoved_n = n;
+    size = pr_int(r), n = pr_int(r);
+    if (size != (int)sizeof *g_xjob || n < 0 || (uint32_t)n > (r->n - r->o) / sizeof *g_xjob) { r->bad = 1; return; }
+    if (n > g_xjob_cap) {
+        void *m = realloc(g_xjob, (size_t)n * sizeof *g_xjob);
+        if (!m) { r->bad = 1; return; }
+        g_xjob = m; g_xjob_cap = n;
+    }
+    if (n) pr_get(r, g_xjob, (uint32_t)n * sizeof *g_xjob);
+    if (!r->bad) g_xjob_n = n;
+}

@@ -2956,6 +2956,328 @@ internal void x_triggers_tick(double now) {
     x_region_reset(&g_xt_tmp);
     g_xr = r0;
 }
+// ===== SAVED STATE: the language's side of the scripts in a saved game (test/scripts.c writes the block: THE SCRIPTS IN
+// A SAVED GAME) - what a script's functions, its triggers, timers and after's need to go on after a load: the frames
+// their names live in (a script's top, the copies the triggers keep), the triggers, the after's, the dicts. A value is
+// written by what it is: a number, a text, a list, a vector, a record; an object by its number (a player's, a unit's
+// id: handles, no pointers of the game's); a trigger by its place in the table, a dict by its place among the dicts;
+// a function by its definition's place in its script's tree - the tree is made anew from the saved source, the same
+// text the same tree - and the frame it was made in. A function defined outside the scripts' sources (in a text's
+// {placeholder}) can't be found again: nothing is saved in its place, counted (lost).
+struct pbuf { uint8_t *b; uint32_t n, cap; int bad; };   // bytes written (the personalities' fields too: voice/persona.c)
+internal void pb_put(struct pbuf *o, const void *p, uint32_t n) {
+    if (o->n + n > o->cap) {
+        uint32_t cap = (o->n + n) * 2 + 256;
+        uint8_t *m = realloc(o->b, cap);
+        if (!m) { o->bad = 1; return; }
+        o->b = m;
+        o->cap = cap;
+    }
+    memcpy(o->b + o->n, p, n);
+    o->n += n;
+}
+internal void pb_str(struct pbuf *o, const char *s) { uint16_t n = (uint16_t)(strlen(s) < 65535 ? strlen(s) : 65535); pb_put(o, &n, 2); pb_put(o, s, n); }
+internal void pb_num(struct pbuf *o, double x) { pb_put(o, &x, 8); }
+internal void pb_int(struct pbuf *o, int32_t x) { pb_put(o, &x, 4); }
+internal void pb_text(struct pbuf *o, const char *s) { uint32_t n = (uint32_t)strlen(s); pb_put(o, &n, 4); pb_put(o, s, n); }   // a long one
+struct pread { const uint8_t *b; uint32_t n, o; int bad; };   // and read: past the end is bad, zeros from then on
+internal void pr_get(struct pread *r, void *p, uint32_t n) {
+    if (r->bad || n > r->n - r->o) { r->bad = 1; memset(p, 0, n); return; }
+    memcpy(p, r->b + r->o, n);
+    r->o += n;
+}
+internal char *pr_str(struct pread *r) {   // malloc'd
+    uint16_t n = 0;
+    pr_get(r, &n, 2);
+    char *s = malloc((size_t)n + 1);
+    if (!s) { r->bad = 1; return NULL; }
+    pr_get(r, s, n);
+    s[n] = 0;
+    return s;
+}
+internal double pr_num(struct pread *r) { double x = 0; pr_get(r, &x, 8); return x; }
+internal int32_t pr_int(struct pread *r) { int32_t x = 0; pr_get(r, &x, 4); return x; }
+internal char *pr_text(struct pread *r) {   // malloc'd
+    uint32_t n = 0;
+    pr_get(r, &n, 4);
+    if (r->bad || n > r->n - r->o) { r->bad = 1; n = 0; }
+    char *s = malloc((size_t)n + 1);
+    if (!s) { r->bad = 1; return NULL; }
+    pr_get(r, s, n);
+    s[n] = 0;
+    return s;
+}
+// a node's place in its tree, walked in the order it was built (the node, a, b, c, its items): *at counts up to it
+internal int xn_place(const struct xnode *n, const struct xnode *want, int *at) {
+    if (!n) return 0;
+    if (n == want) return 1;
+    ++*at;
+    if (xn_place(n->a, want, at) || xn_place(n->b, want, at) || xn_place(n->c, want, at)) return 1;
+    for (int i = 0; i < n->n_items; i++) if (xn_place(n->items[i], want, at)) return 1;
+    return 0;
+}
+internal const struct xnode *xn_at_place(const struct xnode *n, int *left) {   // the node at that place, NULL none
+    const struct xnode *r;
+    if (!n) return NULL;
+    if (!*left) return n;
+    --*left;
+    if ((r = xn_at_place(n->a, left)) || (r = xn_at_place(n->b, left)) || (r = xn_at_place(n->c, left))) return r;
+    for (int i = 0; i < n->n_items; i++) if ((r = xn_at_place(n->items[i], left))) return r;
+    return NULL;
+}
+#define XS_FRAMES 1024
+#define XS_DICTS 256
+struct xsave {
+    struct pbuf *o;
+    const struct xnode *const *roots;   // the scripts' trees
+    int nroots;
+    struct xframe *fr[XS_FRAMES];       // the frames to save: a frame's number is its place + 1 (0 none)
+    int nfr;
+    struct xdict *di[XS_DICTS];         // the dicts, numbered so
+    int ndi;
+    int lost;                           // values that couldn't be saved
+};
+internal int xs_frame(struct xsave *s, struct xframe *f) {   // its number - a new one noted
+    if (!f) return 0;
+    for (int i = 0; i < s->nfr; i++) if (s->fr[i] == f) return i + 1;
+    if (s->nfr == XS_FRAMES) { s->lost++; return 0; }
+    s->fr[s->nfr++] = f;
+    return s->nfr;
+}
+internal int xs_dict(struct xsave *s, struct xdict *d) {
+    if (!d) return 0;
+    for (int i = 0; i < s->ndi; i++) if (s->di[i] == d) return i + 1;
+    if (s->ndi == XS_DICTS) { s->lost++; return 0; }
+    s->di[s->ndi++] = d;
+    return s->ndi;
+}
+internal void xs_note(struct xsave *s, const struct xval *v) {   // the frames and dicts a value leads to
+    if (v->kind == XV_FN && v->fn) xs_frame(s, v->fn->env);
+    if (v->kind == XV_DICT) xs_dict(s, v->dict);
+    for (int i = 0; i < v->ln; i++) xs_note(s, &v->it[i]);
+    for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) xs_note(s, &v->rec->val[i]);
+}
+internal void xs_put(struct xsave *s, const struct xval *v) {
+    struct pbuf *o = s->o;
+    int unit = -1, place = 0;
+    struct xval none;
+    if (v->kind == XV_FN) {   // its definition: in which script's tree, where
+        for (int i = 0; v->fn && i < s->nroots && unit < 0; i++) { place = 0; if (xn_place(s->roots[i], v->fn->lam, &place)) unit = i; }
+        if (unit < 0) { s->lost++; xnothing(&none); v = &none; }
+    }
+    uint8_t h[3] = { (uint8_t)v->kind, (uint8_t)(v->has_n != 0), (uint8_t)(v->has_s != 0) };
+    pb_put(o, h, 3);
+    pb_int(o, v->w); pb_int(o, v->obj); pb_int(o, v->okind); pb_int(o, v->ln);
+    pb_num(o, v->n);
+    pb_text(o, v->s ? v->s : "");
+    for (int i = 0; i < v->ln; i++) xs_put(s, &v->it[i]);
+    if (v->kind == XV_VEC) { pb_int(o, v->vn); pb_put(o, v->vc, (uint32_t)v->vn * 8); }
+    else if (v->kind == XV_REC) {
+        pb_int(o, v->rec->n);
+        for (int i = 0; i < v->rec->n; i++) { pb_str(o, v->rec->key[i]); xs_put(s, &v->rec->val[i]); }
+    } else if (v->kind == XV_FN) { pb_int(o, unit); pb_int(o, place); pb_int(o, xs_frame(s, v->fn->env)); }
+    else if (v->kind == XV_DICT) pb_int(o, xs_dict(s, v->dict));
+}
+internal void xs_put_dent(struct pbuf *o, const struct xdent *x) {
+    pb_int(o, x->kobj); pb_num(o, x->kn); pb_num(o, x->vn); pb_int(o, (x->ks != NULL) | (x->vs != NULL) << 1 | (x->vhas_s != 0) << 2);
+    if (x->ks) pb_text(o, x->ks);
+    if (x->vs) pb_text(o, x->vs);
+}
+// the state written: tops[i] script i's top frame (NULL: it hasn't run yet), roots[i] its tree
+internal void x_state_save(struct pbuf *o, const struct xnode *const *roots, struct xframe *const *tops, int n, int *lost) {
+    struct xsave *s = calloc(1, sizeof *s);
+    if (!s) { o->bad = 1; return; }
+    s->o = o; s->roots = roots; s->nroots = n;
+    pb_int(o, n);
+    for (int i = 0; i < n; i++) pb_int(o, xs_frame(s, tops[i]));
+    for (int i = 0; i < g_xt_n; i++) { xs_note(s, &g_xt[i].when); xs_note(s, &g_xt[i].run); }
+    for (int i = 0; i < g_xa_n; i++) xs_note(s, &g_xa[i].fn);
+    for (int i = 0; i < s->nfr; i++) {   // (the list grows as it is walked)
+        struct xframe *f = s->fr[i];
+        xs_frame(s, f->up);
+        for (int j = 0; j < f->n; j++) if (f->own[j]) xs_note(s, &f->val[j]);
+    }
+    pb_int(o, s->ndi);
+    for (int i = 0; i < s->ndi; i++) {
+        const struct xdict *d = s->di[i];
+        pb_int(o, d->kt); pb_int(o, d->vt); pb_int(o, d->n);
+        xs_put_dent(o, &d->def);
+        for (int j = 0; j < d->n; j++) xs_put_dent(o, &d->e[j]);
+    }
+    pb_int(o, s->nfr);
+    for (int i = 0; i < s->nfr; i++) {   // a name of the code around (own 0) is read in its own frame: no value here
+        const struct xframe *f = s->fr[i];
+        struct xval none;
+        xnothing(&none);
+        pb_int(o, xs_frame(s, f->up)); pb_int(o, f->n);
+        for (int j = 0; j < f->n; j++) { uint8_t own = f->own[j]; pb_str(o, f->name[j]); pb_put(o, &own, 1); xs_put(s, own ? &f->val[j] : &none); }
+    }
+    pb_int(o, g_xt_n);
+    for (int i = 0; i < g_xt_n; i++) {
+        const struct xtrig *t = &g_xt[i];
+        xs_put(s, &t->when); xs_put(s, &t->run);
+        pb_int(o, t->on); pb_int(o, t->fired); pb_int(o, t->loop);
+        pb_num(o, t->hold); pb_num(o, t->since); pb_num(o, t->period); pb_num(o, t->next);
+        pb_str(o, t->name);
+    }
+    pb_int(o, g_xa_n);
+    for (int i = 0; i < g_xa_n; i++) { pb_num(o, g_xa[i].at); xs_put(s, &g_xa[i].fn); pb_str(o, g_xa[i].name); }
+    pb_num(o, g_xt_next);
+    *lost = s->lost;
+    free(s);
+}
+struct xload {
+    struct pread *r;
+    const struct xnode *const *roots;
+    int nroots;
+    struct xframe *fr[XS_FRAMES];
+    int nfr;
+    struct xdict *di[XS_DICTS];
+    int ndi;
+};
+internal void xs_get(struct xload *l, struct xval *v) {   // a value read, its texts and items into the region now
+    struct pread *r = l->r;
+    uint8_t h[3];
+    xnothing(v);
+    pr_get(r, h, 3);
+    int w = pr_int(r), obj = pr_int(r), okind = pr_int(r), ln = pr_int(r);
+    double n = pr_num(r);
+    char *t = pr_text(r);
+    if (r->bad || h[0] > XV_DICT || ln < 0 || (uint32_t)ln > r->n - r->o) { r->bad = 1; free(t); return; }
+    v->kind = h[0]; v->has_n = h[1]; v->has_s = h[2]; v->w = w; v->obj = obj; v->okind = okind; v->n = n;
+    if (t && t[0]) v->s = x_strdup(t, strlen(t));
+    free(t);
+    if (ln) {
+        struct xval *it = x_alloc((size_t)ln * sizeof *it);
+        if (!it) { r->bad = 1; xnothing(v); return; }
+        for (int i = 0; i < ln; i++) xs_get(l, &it[i]);
+        v->it = it; v->ln = ln;
+    }
+    if (v->kind == XV_VEC) {
+        double c[4] = { 0 };
+        int vn = pr_int(r);
+        if (vn < 2 || vn > 4) { r->bad = 1; xnothing(v); return; }
+        pr_get(r, c, (uint32_t)vn * 8);
+        double *m = x_alloc((size_t)vn * sizeof *m);
+        if (!m) { r->bad = 1; xnothing(v); return; }
+        memcpy(m, c, (size_t)vn * sizeof *m);
+        v->vn = vn; v->vc = m;
+    } else if (v->kind == XV_REC) {
+        int rn = pr_int(r);
+        if (rn < 0 || (uint32_t)rn > r->n - r->o) { r->bad = 1; xnothing(v); return; }
+        struct xrec *rec = x_alloc(sizeof *rec);
+        const char **key = x_alloc((size_t)rn * sizeof *key + 1);
+        struct xval *val = x_alloc((size_t)rn * sizeof *val + 1);
+        if (!rec || !key || !val) { r->bad = 1; xnothing(v); return; }
+        rec->n = rn; rec->key = key; rec->val = val;
+        for (int i = 0; i < rn; i++) { char *k = pr_str(r); key[i] = x_strdup(k ? k : "", k ? strlen(k) : 0); free(k); xs_get(l, &val[i]); }
+        v->rec = rec;
+    } else if (v->kind == XV_FN) {
+        int unit = pr_int(r), place = pr_int(r), env = pr_int(r);
+        const struct xnode *lam = unit >= 0 && unit < l->nroots && place >= 0 ? xn_at_place(l->roots[unit], &place) : NULL;
+        struct xfn *fn = x_alloc(sizeof *fn);
+        if (!lam || lam->k != XN_LAMBDA || env < 0 || env > l->nfr || !fn) { r->bad = 1; xnothing(v); return; }   // (another tree: another version's)
+        fn->lam = lam;
+        fn->env = env ? l->fr[env - 1] : NULL;
+        v->fn = fn;
+    } else if (v->kind == XV_DICT) {
+        int d = pr_int(r);
+        if (d < 1 || d > l->ndi) { r->bad = 1; xnothing(v); return; }
+        v->dict = l->di[d - 1];
+    }
+}
+internal void xs_get_dent(struct pread *r, struct xdent *x) {   // its texts malloc'd (the dict's)
+    memset(x, 0, sizeof *x);
+    x->kobj = pr_int(r); x->kn = pr_num(r); x->vn = pr_num(r);
+    int has = pr_int(r);
+    if (has & 1) x->ks = pr_text(r);
+    if (has & 2) x->vs = pr_text(r);
+    x->vhas_s = (has & 4) != 0;
+}
+// the state read back, after x_triggers_reset: tops[i] script i's top frame made (NULL: none saved), its values in
+// regs[i]; the triggers' and after's frames and functions in their own region. 0: not what was written (r->bad) -
+// the caller starts afresh (x_triggers_reset, the scripts dropped: what was made so far is theirs)
+internal int x_state_load(struct pread *r, const struct xnode *const *roots, struct xframe **tops, struct xregion *const *regs, int n) {
+    struct xload *l = calloc(1, sizeof *l);
+    struct xregion *r0 = g_xr;
+    int top_of[8] = { 0 };
+    if (!l) return 0;
+    l->r = r; l->roots = roots; l->nroots = n;
+    if (pr_int(r) != n || n > 8) r->bad = 1;
+    for (int i = 0; i < n && !r->bad; i++) { top_of[i] = pr_int(r); tops[i] = NULL; }
+    l->ndi = pr_int(r);
+    if (l->ndi < 0 || l->ndi > XS_DICTS) { r->bad = 1; l->ndi = 0; }
+    for (int i = 0; i < l->ndi && !r->bad; i++) {
+        struct xdict *d = calloc(1, sizeof *d);
+        if (!d) { r->bad = 1; l->ndi = i; break; }
+        d->kt = pr_int(r); d->vt = pr_int(r);
+        int dn = pr_int(r);
+        xs_get_dent(r, &d->def);
+        for (int j = 0; j < dn && !r->bad; j++) { struct xdent x; xs_get_dent(r, &x); if (r->bad) { free(x.ks); free(x.vs); } else xdict_put(d, &x); }
+        d->next = g_xdicts; g_xdicts = d;   // the language's list: freed with the game's
+        l->di[i] = d;
+    }
+    l->nfr = pr_int(r);
+    if (l->nfr < 0 || l->nfr > XS_FRAMES) { r->bad = 1; l->nfr = 0; }
+    g_xr = &g_xt_keep;
+    for (int i = 0; i < l->nfr && !r->bad; i++) {   // all made first: a function's frame may come after it
+        int top = -1;
+        for (int k = 0; k < n; k++) if (top_of[k] == i + 1) top = k;
+        l->fr[i] = top >= 0 ? calloc(1, sizeof **tops) : x_alloc(sizeof **tops);
+        if (!l->fr[i]) { r->bad = 1; break; }
+        memset(l->fr[i], 0, sizeof **tops);
+        l->fr[i]->keep = 1;
+        if (top >= 0) tops[top] = l->fr[i];
+    }
+    for (int i = 0; i < l->nfr && !r->bad; i++) {
+        struct xframe *f = l->fr[i];
+        int up = pr_int(r), fn = pr_int(r);
+        if (up < 0 || up > l->nfr || fn < 0 || fn > XF_MAX) { r->bad = 1; break; }
+        g_xr = &g_xt_keep;
+        for (int k = 0; k < n; k++) if (tops[k] == f) g_xr = regs[k];
+        f->up = up ? l->fr[up - 1] : NULL;
+        for (int j = 0; j < fn && !r->bad; j++) {
+            char *name = pr_str(r);
+            uint8_t own = 0;
+            pr_get(r, &own, 1);
+            f->name[j] = x_strdup(name ? name : "", name ? strlen(name) : 0);
+            free(name);
+            f->own[j] = own != 0;
+            xs_get(l, &f->val[j]);
+            f->n = j + 1;
+        }
+    }
+    g_xr = &g_xt_keep;
+    int nt = pr_int(r);
+    if (nt < 0 || nt > XT_MAX) { r->bad = 1; nt = 0; }
+    for (int i = 0; i < nt && !r->bad; i++) {
+        struct xtrig *t = &g_xt[i];
+        memset(t, 0, sizeof *t);
+        xs_get(l, &t->when); xs_get(l, &t->run);
+        t->on = pr_int(r); t->fired = pr_int(r); t->loop = pr_int(r);
+        t->hold = pr_num(r); t->since = pr_num(r); t->period = pr_num(r); t->next = pr_num(r);
+        char *name = pr_str(r);
+        lstrcpynA(t->name, name ? name : "", sizeof t->name);
+        free(name);
+        g_xt_n = i + 1;
+    }
+    int na = pr_int(r);
+    if (na < 0 || na > XA_MAX) { r->bad = 1; na = 0; }
+    for (int i = 0; i < na && !r->bad; i++) {
+        struct xafter *a = &g_xa[i];
+        memset(a, 0, sizeof *a);
+        a->at = pr_num(r);
+        xs_get(l, &a->fn);
+        char *name = pr_str(r);
+        lstrcpynA(a->name, name ? name : "", sizeof a->name);
+        free(name);
+        g_xa_n = i + 1;
+    }
+    g_xt_next = pr_num(r);
+    g_xr = r0;
+    free(l);
+    return !r->bad;
+}
 internal void xe_script(struct xe *e, const char *name, const struct xval *a, int na, struct xval *v) {
     if (!strcmp(name, "trigger")) { xt_make(e, &a[0], v); return; }
     if (!strcmp(name, "enable") || !strcmp(name, "disable")) {

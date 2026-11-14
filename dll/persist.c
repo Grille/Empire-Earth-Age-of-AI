@@ -6,7 +6,8 @@
 // "already said" flags of the situations, the army accounts of the budget, the language model's memories (what it
 // and you, and the AIs among themselves, said - block llm_memory), who killed which types of whose and when (kill_log),
 // what each AI's personality remembers (its fields, let at a file's top - persona_state, matched by name on load), the
-// mod's armies (who is in the force, whether it is out - the game saves only the members' ai_held).
+// mod's armies (who is in the force, whether it is out - the game saves only the members' ai_held), the scripts
+// (setup.eeai, a test's: their sources, variables, triggers and timers - block scripts, test/scripts.c).
 //
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
@@ -41,6 +42,7 @@ internal const struct { const char *tag; uint8_t *(*save)(uint32_t *size); void 
     { "llm_memory", llm_mem_save, llm_mem_load },
     { "kill_log", kill_log_save, kill_log_load },   // diplo.c
     { "persona_state", persona_state_save, persona_state_load },   // persona.c
+    { "scripts", scripts_state_save, scripts_state_load },   // test/scripts.c: the scripts, their variables, triggers and timers
 };
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };
 #define PERSIST_FORMAT 2   // 1: blocks {tag[32], size, bytes}; 2: {tag[32], size, layout, bytes}
