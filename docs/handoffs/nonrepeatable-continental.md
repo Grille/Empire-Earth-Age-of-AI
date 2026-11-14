@@ -36,18 +36,18 @@ data rows - worth redoing with the row comparison before trusting it fully.
 
 Later the same day the island test drifted too, in a telling way. It has exactly two games: the usual one (157 death
 and outpost lines) and a second one (142 lines, apart from minute 19.8 on: one AI's transport sails 6 seconds later).
-Five pairs were played, two games started together each time, the unchanged build beside a changed or unchanged one:
+Four pairs were played, two games started together each time (the first in slot 1, the second in slot 2):
 
-| Pair | Unchanged build | The other build |
+| Pair | First game | Second game |
 |---|---|---|
-| 1 | usual | second |
-| 2 (both unchanged) | usual | usual, and in a third run second |
-| 3 | usual | usual |
-| 4 | second | second |
+| 1 | unchanged build: usual | a build with read-only changes: second |
+| 2 | unchanged build: usual | unchanged build: second |
+| 3 | unchanged build: usual | the changed build: usual |
+| 4 | unchanged build: second | the changed build: second |
 
 The second game is byte-identical every time it appears, whichever build plays it. So this is not a random race
-with many outcomes; something with two states decides, and it is not the build. In pairs 3 and 4 both games of a pair
-agreed, in pair 1 they did not.
+with many outcomes; something with two states decides, and it is not the build (pair 2). In pairs 3 and 4 both games
+of a pair agreed, in pairs 1 and 2 they did not.
 
 ## How to redo it
 

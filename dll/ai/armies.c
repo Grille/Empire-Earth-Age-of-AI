@@ -701,6 +701,8 @@ internal int ar_route(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 fr
     return 1;
 }
 // the force (out: the members out with it, else all) as a side, its middle and count
+internal unsigned tv_terr_of(ivec2 p);            // territories.c: the territory of a tile, TER_NONE none
+internal int tv_foes(unsigned idx, unsigned terr);   // ... the enemy soldiers the AI counts in or by it, -1 not known
 internal int ar_side(struct armies_st *a, int out, ivec2 *mid) {
     long sx = 0, sy = 0;
     int n = 0;
@@ -2258,6 +2260,20 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), judgements in contact %u, homes by the trade %u, pushes routed %u (a way round %u), breaches %u (pushed %u, home %u, stand-offs back %u, looks %u), fire marks %u, next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
+        {   // the territory it is in and the one it is bound for (territories.c; read only so far)
+            ivec2 tmid = a->home;   // its members' middle (not ar_side: that fills the judgements' side)
+            int tn = 0;
+            long tsx = 0, tsy = 0;
+            for (int k = 0; k < a->n; k++) {
+                if ((a->out && !a->held[k].out) || !cv_alive(a->held[k].u)) continue;
+                tsx += unit_get_x(a->held[k].u); tsy += unit_get_y(a->held[k].u); tn++;
+            }
+            if (tn) tmid = iv2((int)(tsx / tn), (int)(tsy / tn));
+            unsigned tin = tv_terr_of(tmid), tto = tv_terr_of(a->out ? a->dest : a->home);
+            if (tn && tin != TER_NONE)
+                ar_log(idx, now, "territory: the force of %d in %u, %s %u (%d enemy soldiers it knows there)", tn, tin, a->out == 1 ? "pushing into" : a->out == 2 ? "answering a raid in" : "its home in",
+                       tto, tv_foes(idx, tto));
+        }
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
             ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, av_of(idx, AV_LANDING) ? av_of(idx, AV_LANDING)->n : 0);
         if (g_ar_aid > 0) ar_log(idx, now, "ally aid: raids on an ally answered %u", g_ar_aids[idx]);

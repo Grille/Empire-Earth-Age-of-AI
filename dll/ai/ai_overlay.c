@@ -124,6 +124,11 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
                          a->dest.x, a->dest.y, a->ratio > 99.0f ? 99.0 : (double)a->ratio);
         else if (a->out == 2) overlay_text(mid, 1, 0xFFFFFFFF, "answering a raid at %d,%d", a->dest.x, a->dest.y);
         else overlay_text(mid, 1, 0xFFE0E0E0, "at home");
+        {   // the territory it is in and the one it is bound for (territories.c)
+            unsigned in = tv_terr_of(iv2((int)mid.x, (int)mid.y)), to = tv_terr_of(a->out ? a->dest : a->home);
+            if (in != TER_NONE && to != TER_NONE && in != to) overlay_text(mid, sum.aboard ? 3 : 2, 0xFFE0E0E0, "territory %u -> %u", in, to);
+            else if (in != TER_NONE) overlay_text(mid, sum.aboard ? 3 : 2, 0xFFE0E0E0, "territory %u", in);
+        }
         if (sum.aboard) overlay_text(mid, 2, 0xFFE0E0E0, "%d aboard", sum.aboard);
         overlay_anchor(0);
     }
@@ -151,6 +156,11 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
         if (ao_has(o->dest)) overlay_arrow(mid, ao_at(o->dest), 3, dim);
         overlay_text(mid, 0, col, "%s %d", o->what ? o->what : k_av_kind[o->kind], sum.n);
         if (o->task) overlay_text(mid, 1, 0xFFE0E0E0, "%.40s", o->task);
+        {
+            unsigned in = tv_terr_of(iv2((int)mid.x, (int)mid.y)), to = ao_has(o->dest) ? tv_terr_of(o->dest) : TER_NONE;
+            if (in != TER_NONE && to != TER_NONE && in != to) overlay_text(mid, 2, 0xFFE0E0E0, "territory %u -> %u", in, to);
+            else if (in != TER_NONE) overlay_text(mid, 2, 0xFFE0E0E0, "territory %u", in);
+        }
         overlay_anchor(0);
     }
     // the towns
