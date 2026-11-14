@@ -173,6 +173,27 @@ internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own
 // Age - Modern (standard) soldiers -2 (11), kills -9 (10). So the transports stay the game's: its ferrying is the
 // better island expansion until the outposts hold what they take (level 3 and expand_islands for the tests).
 #define OWN_TRANSPORTS(idx) (OWN_SHIPS(idx) >= 3)
+// IDLE TRANSPORTS ([ai_base] idle_transports, default 2; 0 = off): the game's own order for one more transport trains
+// none while that many of the player's transports stand empty with nothing to do. The player, 2026-11-14, of his
+// game at minute 176: "purple blows all its wood into transport ships... why??" - purple had 40 transports of one
+// type, every one of them empty with no goal, parked by one shore (the other AIs 3 each); the mod's outposts and
+// landings had planned nothing for it: the game's own unit manager kept asking (its transport manager does not take
+// the ones it has - why is not known), 250 wood and a place under the population cap each. The mod's own orders (a
+// landing's, an outpost's) are not touched: they take an idle one first anyway.
+internal int g_idle_transports = 2;
+internal unsigned g_tr_idle_refused[16];
+internal int tr_idle_empty(ee_player *pl, unsigned idx) {   // its transports on the map with nobody aboard and no goal (looked at every 2 s)
+    static struct { uint32_t t; int n; ee_player *pl; } c[16];
+    uint32_t now = game_time();
+    if (c[idx].pl == pl && c[idx].t && now >= c[idx].t && now - c[idx].t < 2000) return c[idx].n;
+    int n = 0;
+    for (ee_unit *u = player_get_units(pl); u; u = unit_get_next(u)) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (td && is_transport(unit_type_get_id(td)) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && !unit_get_goal(u) && unit_count_inside(u) <= 0) n++;
+    }
+    c[idx].pl = pl; c[idx].t = now ? now : 1; c[idx].n = n;
+    return n;
+}
 internal int own_transport(ee_unit *u) {   // a transport ship of a player whose transports are the mod's
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit_type *td = pl ? unit_get_type_data(u) : NULL;
@@ -2557,6 +2578,10 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
         blocked = 1; g_cen[idx].refused++;
     }
     if (own_ship) { blocked = 1; g_cen[idx].refused_ships++; }
+    if (pl && game_site && !blocked && g_idle_transports > 0 && !g_priority_mil && !g_landing_order && !g_expand_order && is_transport(req[0]) && tr_idle_empty(pl, idx) >= g_idle_transports) {   // IDLE TRANSPORTS
+        blocked = 1;
+        if (!(g_tr_idle_refused[idx]++ % 200) && g_log) fprintf(g_log, "# transports: P%u at %.1f min: no transport for the game's order - %d of its transports stand empty with nothing to do (refused %u times so far)\n", idx, game_time() / 60000.0, tr_idle_empty(pl, idx), g_tr_idle_refused[idx]);
+    }
     if (pl && game_site && !g_priority_mil && !g_landing_order && !g_expand_order && OWN_TRANSPORTS(idx) && is_transport(req[0])) { blocked = 1; g_cen[idx].refused_tr++; }   // THE TRANSPORTS THE MOD'S
     if (stock && !military && is_citizen_type(req[0])) cz_budget_note(pl, idx, req, stock, visibles, blocked, cfg->budget ? afford : req[1]);
     unsigned got_local = 0;
@@ -2606,6 +2631,7 @@ internal void econ_install(const char *autotest_ini) {
     g_special_orders = g_set_ai[1].special_orders;
     g_spend_tiers = g_set_ai[1].spend_tiers;
     g_tight_build = g_set_ai[1].tight_build;
+    g_idle_transports = g_set_ai[1].idle_transports;
     g_own_soldiers = g_set_ai[1].own_soldiers; g_own_ships = g_set_ai[1].own_ships ? 2 : 0; g_own_citizens = g_set_ai[1].own_citizens ? 2 : 0;
     if (autotest_ini) {
         g_v_own_soldiers = ini_int("autotest", "v_own_soldiers", -1, autotest_ini);

@@ -297,6 +297,11 @@ class ai_base
         /// working: into a Fortress on that land within 30 tiles, else to a drop site in a territory that is safe; no
         /// citizen is sent to a site there until it is safe again. 1 = on. Off (2026-11-14, 192 games on island maps: a
         /// fifth fewer citizens killed, the army at 60 minutes no larger - a few soldiers fewer, within the noise)
+        /// Idle transports: the game's own order for one more transport ship trains none while this many of the AI's
+        /// transports stand empty with nothing to do (seen: an AI with 40 idle transports at minute 176, 250 wood and a
+        /// place under the population cap each). The mod's landings and outposts order their own as before. 0 = off
+        [range(0, 50)]
+        int idle_transports = 2;
         bool territory_shelter = false;
         /// Held ground (ai/armies.c HELD GROUND): the army answers a raid wherever it stands in a territory the AI holds
         /// on the army's land, not only within 60 tiles of where the army stands - a town far out has no guard, so the
@@ -317,10 +322,10 @@ class ai_base
         /// longest shore along land the AI holds, the more so where enemy warships were seen - holding that sea is what
         /// turns an island into backland. 1 = on. Off until the territory system is measured as a whole
         bool fleet_station = false;
-        /// Harbours (ai/fleet.c HARBOURS): every territory the AI holds that has a shore and 3 or more of its citizens gets
-        /// a small defended harbour - a dock by the shore and 2 towers by it, 8 docks at most - and the fleet masses and
-        /// falls back to the harbour in its station's sea instead of to the home base (with fleet_station). 1 = on. Off
-        /// until the territory system is measured as a whole
+        /// Harbours (ai/fleet.c HARBOURS): every sea territory that borders land the AI holds gets one harbour - a dock from
+        /// the held territory with the longest shore there, a tower by it, a second where enemy warships were seen on that
+        /// sea - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
+        /// of map. 1 = on. Off until the territory system is measured as a whole
         bool harbours = false;
     }
 
