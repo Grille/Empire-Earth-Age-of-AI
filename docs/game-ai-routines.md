@@ -341,7 +341,17 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
   Settlement and a tower by every mine of a worked territory or a neighbour; and the shares by what it needs (work.c WHAT IT
   NEEDS: the last 10 minutes' income, spending and a citizen's yield). 16-22 Settlements and 14-21 towers an AI in 45 minutes,
   populations 70-116; nothing spends the bank yet (no production building, no research).
+  Research by rank (ai/research.c, the same day, the player's ranks): 1 what a Town Center, Capitol, University, Hospital or
+  granary researches that is no unit's upgrade (the walls' and towers' line upgrades among it), 2 the line upgrades of
+  the lines it fields (5 units or more), 3 the next epoch when its time has come (the civilization manager's time,
+  drawn anew by the mod at each epoch; epoch_pacing as before) and its 2 requirements are there, 4 every other line
+  upgrade; no hero's upgrade, no temple's tech. A rank buys with what the ranks above it don't wait for; the row
+  "research" of the priority list holds that from everybody else. Handed to a building's own queue (0x5E8908), paid as
+  a player's. build.c lays one University and one Hospital for it. The units' improvements (attack, hit points ... per
+  type) are not in the tech tree and not bought yet.
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
-  sites, fields; (2) building - what, where, which citizen builds, repairs; (3) research and the epochs; (4) the armies as
+  sites, fields (done); (2) building - what, where, which citizen builds (done for the food base, the mines and the
+  research buildings; open: houses, production buildings, docks, repairs); (3) research and the epochs (done but the
+  units' improvements); (4) the armies as
   several forces (the player the same day: the force's point gets stuck on itself, "the single main force isnt the way
   anymore"); (5) crossings and landings without the game's groups; (6) scouting, the rest.

@@ -19,6 +19,8 @@
 #define S_WANTED     256u   // ... that is the wanted entry itself
 #define S_AIR        512u   // anti-air while its air threat is real: an AA building or unit, the building that makes its AA units
 #define S_FOOD       1024u  // ... that is its food base: a silo or a field (the row "air" leaves it alone)
+#define S_RESEARCH   2048u  // ... that is a research building the row "research" itself asks for: a University, a Hospital
+#define S_CIT        4096u  // a citizen (the row "research" leaves its food alone: the economy first)
 
 // THE ROW "air" (defence.c STRONG ANTI-AIR, aa_strong; the player 2026-11-11: AA far too weak - in the test the AA
 // buildings waited for the farms while the town was bombed, "27 buildings held back ... type 145 for the farms"): while
@@ -44,6 +46,18 @@ internal int prio_air_type(unsigned idx, int type) {
     return f == KIND_LAND_AA || f == KIND_AA_BUILDING || type == g_aa_maker[idx];
 }
 
+// THE ROW "research" (research.c, the mod's own research while the game's computer player is off - the player 2026-11-14:
+// "research first"): what its ranks 1 and 2 still wait for - the next techs of the Town Center, University and Hospital,
+// the line upgrades of the units it fields - and the research building build.c wants next (a University, a Hospital).
+// Above the epoch, as his ranks have it; the food base and the research buildings pass - a Settlement or a tower waits
+// (the first look: the University laid at 0.3 min came 8 minutes later, its wood gone into Settlements meanwhile).
+internal int g_rs_hold[16][7];      // research.c: the price of what ranks 1 and 2 could not buy at its last look
+internal int g_rs_want[16];         // build.c: the research building it wants now and can't pay (its type + 1, 0 none)
+internal int g_rs_econ_first[16];   // research.c: fewer citizens than min_workforce - no epoch is due or saved for (econ.c follow_held)
+// THE ROW "laid" (build.c LAID, NOT PAID): the price of the buildings its own building code has laid whose foundation
+// has not shown yet - taken when the builder gets there; nobody spends it meanwhile.
+internal int g_bd_com[16][7];
+internal int g_rs_epoch[16];        // research.c: the epoch it would buy now (due, its requirements there), 0 none - work.c's needs
 internal int g_spend_tiers = 0;     // [ai_base] spend_tiers: buildings wait for an outpost too (expand_hold)
 internal int g_farm_hold[16];       // the wood the next silo and its fields still need (econ.c farm_plan)
 #define PRIO_WANTS 12
@@ -72,6 +86,16 @@ internal void prio_air(ee_player *pl, unsigned s, int r[7]) {
     if (g_aa_urgent[PRIO_IDX]) for (int k = 2; k < 7; k++) r[k] += g_aa_hold[PRIO_IDX][k];
     if (g_shelter_urgent[PRIO_IDX]) r[3] += g_shelter_wood[PRIO_IDX];
 }
+internal void prio_laid(ee_player *pl, unsigned s, int r[7]) { (void)s; for (int k = 2; k < 7; k++) r[k] += g_bd_com[PRIO_IDX][k]; }
+internal void prio_research(ee_player *pl, unsigned s, int r[7]) {
+    (void)s;
+    int t = g_rs_want[PRIO_IDX] - 1;
+    for (int k = 2; k < 7; k++) r[k] += g_rs_hold[PRIO_IDX][k] + (t >= 0 ? unit_cost(pl, t, k) : 0);
+}
+internal int prio_research_any(unsigned idx) {
+    for (int k = 2; k < 7; k++) if (g_rs_hold[idx][k] || g_bd_com[idx][k]) return 1;
+    return g_rs_want[idx] != 0;
+}
 internal void prio_epoch(ee_player *pl, unsigned s, int r[7]) { (void)s; spend_reserve(pl, PRIO_IDX, r, NULL); }
 // units: the next fields' wood, or the silo's whole sum while it has its turn; a building only yields to the silo
 internal void prio_farms(ee_player *pl, unsigned s, int r[7]) { r[3] += s & S_BUILD ? g_farm_hold[PRIO_IDX] : field_wood(PRIO_IDX); }
@@ -98,6 +122,8 @@ internal const struct prio_row {
     int apart;             // a warship with a target sees the stock but this (train_budget)
 } g_prio[] = {
     { "air",       prio_air,      S_AIR | S_FOOD,                                0,              0 },
+    { "laid",      prio_laid,     S_AIR,                                         0,              0 },
+    { "research",  prio_research, S_TR_ECON | S_FOOD | S_RESEARCH | S_CIT,       0,              0 },
     { "epoch",     prio_epoch,    S_BUILD,                                       0,              0 },
     { "farms",     prio_farms,    S_TR_ECON | S_BUILD_ECON,                      0,              0 },
     { "wants",     prio_wants,    S_TR_ECON | S_BUILD_ECON | S_WANTED,           0,              0 },
@@ -129,7 +155,7 @@ internal int prio_refuses(ee_player *pl, int type) {
     static unsigned refused[16];
     static uint32_t log_t[16];
     unsigned idx = PRIO_IDX, s = S_BUILD;
-    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx] && !g_shelter_urgent[idx]) return 0;
+    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx] && !g_shelter_urgent[idx] && !prio_research_any(idx)) return 0;
     if (type == g_prio_cur[idx] - 1) s |= S_WANTED;
     if (prio_air_type(idx, type)) s |= S_AIR;
     if (UT_IN(type, UT_TOWNS, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM, UT_B_HOUSE, UT_B_DOCK)) s |= S_BUILD_ECON;
@@ -139,6 +165,7 @@ internal int prio_refuses(ee_player *pl, int type) {
     // or AA neither. Measured (air_raid.eeai, 8 games, the fortress alone): citizens at minute 30 / 40 / 50 30 / 25 / 25
     // against 17 / 14 / 15 before; the nuclear bombers' 6 / 3 / 0 as before
     if (UT_IN(type, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM)) s |= S_FOOD;
+    if (UT_IN(type, UT_B_UNIVERSITY, UT_B_HOSPITAL)) s |= S_RESEARCH;
     int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1, row = 0;
     for (; row < PRIO_N && held < 0; row++) {
         if (!prio_applies(idx, row, s)) continue;
@@ -220,4 +247,9 @@ internal void prio_new_game(void) {
     memset(g_prio_cur, 0, sizeof g_prio_cur);
     memset(g_prio_off, 0, sizeof g_prio_off);
     memset(g_prio_nwant, 0, sizeof g_prio_nwant);
+    memset(g_rs_hold, 0, sizeof g_rs_hold);
+    memset(g_rs_want, 0, sizeof g_rs_want);
+    memset(g_rs_epoch, 0, sizeof g_rs_epoch);
+    memset(g_rs_econ_first, 0, sizeof g_rs_econ_first);
+    memset(g_bd_com, 0, sizeof g_bd_com);
 }

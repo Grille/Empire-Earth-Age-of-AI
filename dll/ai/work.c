@@ -119,6 +119,9 @@ internal int wk_needs(ee_player *pl, unsigned idx, struct wk_st *w, uint32_t now
     if (q->n < 3) return 0;
     int reserve[7];
     budget_reserve(pl, reserve);
+    if (g_rs_epoch[idx])   // research.c: the epoch it would buy now - budget_reserve knows it only by the game's time for it (epoch_pacing = rush: Bronze 26 minutes after it was due, 3 citizens on gold and iron)
+        for (int r = 2; r < 7; r++) if (epoch_cost(pl, g_rs_epoch[idx], r) > reserve[r]) reserve[r] = epoch_cost(pl, g_rs_epoch[idx], r);
+    prio_research(pl, 0, reserve);   // priority.c: what the research's ranks 1 and 2 wait for, the research building it saves for
     float total = 0;
     for (int r = 2; r < 7; r++) {
         float cm = 0;

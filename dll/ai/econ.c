@@ -408,6 +408,7 @@ internal int is_gather_tech(ee_tech *tech) {
 }
 internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
+    if (!GAME_AI(idx)) return;   // the game's research manager doesn't run: research.c buys them
     if (!g_gather_research || (now >= last[idx] && now - last[idx] < 15000)) return;
     last[idx] = now;
     void *cm = player_get_civ_mgr(pl);
@@ -647,6 +648,7 @@ internal void upgrades_retry(ee_player *pl, unsigned idx, uint32_t now) {
     if (now < last[idx]) { last[idx] = 0; g_upg_retry[idx] = g_upg_stuck[idx] = 0; memset(g_upg_told[idx], 0, sizeof g_upg_told[idx]); }   // a new game
     if (!g_paid_upgrades || is_vanilla(pl) || (last[idx] && now - last[idx] < 30000)) return;
     last[idx] = now ? now : 1;
+    if (!GAME_AI(idx)) { memset(g_upg_hold[idx], 0, sizeof g_upg_hold[idx]); return; }   // the game's research manager doesn't run: research.c buys them and holds their price (the row "research")
     void *cm = player_get_civ_mgr(pl);
     ee_research_mgr *rs = cm ? civ_mgr_get_research_mgr(cm) : NULL;
     ee_tech_tree *tt = player_get_tech_tree(pl);
@@ -936,6 +938,10 @@ internal int copper_mode(ee_player *pl) {
 // Without a human in the game: the timer alone. 1 = the next epoch held now.
 internal int follow_held(ee_player *pl) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
+    // ... and with the mod's own research (research.c, the game's computer player off): the economy first - no epoch
+    // is due, none saved for, with fewer citizens than min_workforce (an epoch due at minute 13 held its 1650 food back
+    // from the citizens: 12 of them from minute 3 to minute 25, the epoch 21 minutes late all the same)
+    if (g_rs_econ_first[(unsigned)player_get_index(pl) & 15]) return 1;
     if (cfg_of(pl)->pacing != PACE_FOLLOW || !tt || !human_count()) return 0;
     return highest_human_epoch() <= tech_tree_get_epoch(tt);
 }
@@ -2314,7 +2320,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |
-                  (tr_econ ? S_TR_ECON : 0) | (prio_air_type(idx, req[0]) ? S_AIR : 0), reserve, sp);   // what's above this order (priority.c)
+                  (tr_econ ? S_TR_ECON : 0) | (prio_air_type(idx, req[0]) ? S_AIR : 0) | (!military && is_citizen_type(req[0]) ? S_CIT : 0), reserve, sp);   // what's above this order (priority.c)
     for (int r = 2; r < 7; r++) reserve[r] += sp[r];
     int t3[7] = { 0 };   // spend_tiers: the top tier's, held from the warships that see the whole stock too
     if (g_spend_tiers && !g_landing_order) expand_hold(pl, t3);
