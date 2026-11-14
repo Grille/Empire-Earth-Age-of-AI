@@ -192,27 +192,31 @@ internal void cmd_godmode(char *out, const char *args) {
           local_player_index(), g_god_asked, g_god_told);
 }
 
-// a save while switched: written as this PC's own player - the msg_ids as they were (a load finds this PC's player by
-// its msg_id), then the switch's again. Only those: the local index stays - the render thread draws on during a save and
-// reads the local player all over its frame (until 2026-11-14 the save switched it back and forth as well; the player's
-// game died that day in the frame's recording, rf_record's realloc reading freed memory, three switches after an
-// autosave made while switched - not reproduced: 1600 switches by click and playas, on that game's save with his ini too)
-internal int g_god_saving;
+// a save while switched: written as this PC's own player (the msg_ids and the local index as they were), then switched
+// again - only those, the sight and the screens stay the switched player's. Both are needed: the local index is the game
+// state's +0xB84, saved with it - a save that gave back only the msg_ids loaded as the switched player (2026-11-14). The
+// render thread draws on during a save and sees the index changed meanwhile, as at any switch (the game's own one too).
+// The player's game died that day in the frame's recording (rf_record's realloc reading freed memory) after 8 switches
+// in 10 minutes; not reproduced: 1600 switches by click and playas, on that game's save with his ini too
+internal int g_god_save_p = -1;
 internal int8_t g_god_save_ids[16];
 internal void god_save_begin(void) {
-    g_god_saving = playas_switched();
-    if (!g_god_saving) return;
-    unsigned n = game_player_count();
+    g_god_save_p = -1;
+    if (!playas_switched()) return;
+    unsigned n = game_player_count(), *me = (unsigned *)local_player_index_at();
+    g_god_save_p = (int)*me;
     for (unsigned i = 0; i < n; i++) if (game_players()[i]) {
         g_god_save_ids[i] = player_get_msg_id(game_players()[i]);
         player_set_msg_id(game_players()[i], g_playas_ids[i]);
     }
+    *me = (unsigned)g_playas_was;
 }
 internal void god_save_end(void) {
-    if (!g_god_saving) return;
+    if (g_god_save_p < 0) return;
     unsigned n = game_player_count();
     for (unsigned i = 0; i < n && i < 16; i++) if (game_players()[i]) player_set_msg_id(game_players()[i], g_god_save_ids[i]);
-    g_god_saving = 0;
+    *(unsigned *)local_player_index_at() = (unsigned)g_god_save_p;
+    g_god_save_p = -1;
 }
 
 internal void godmode_install(void) {
