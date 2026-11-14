@@ -52,7 +52,7 @@ internal int prio_air_type(unsigned idx, int type) {
 // Above the epoch, as his ranks have it; the food base and the research buildings pass - a Settlement or a tower waits
 // (the first look: the University laid at 0.3 min came 8 minutes later, its wood gone into Settlements meanwhile).
 internal int g_rs_hold[16][7];      // research.c: the price of what ranks 1 and 2 could not buy at its last look
-internal int g_rs_want[16];         // build.c: the research building it wants now and can't pay (its type + 1, 0 none)
+internal int g_rs_want[16];         // build.c: the research building - or its first production building - it wants now and can't pay (its type + 1, 0 none)
 internal int g_rs_econ_first[16];   // research.c: fewer citizens than min_workforce - no epoch is due or saved for (econ.c follow_held)
 // THE ROW "laid" (build.c LAID, NOT PAID): the price of the buildings its own building code has laid whose foundation
 // has not shown yet - taken when the builder gets there; nobody spends it meanwhile.
@@ -165,7 +165,7 @@ internal int prio_refuses(ee_player *pl, int type) {
     // or AA neither. Measured (air_raid.eeai, 8 games, the fortress alone): citizens at minute 30 / 40 / 50 30 / 25 / 25
     // against 17 / 14 / 15 before; the nuclear bombers' 6 / 3 / 0 as before
     if (UT_IN(type, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM)) s |= S_FOOD;
-    if (UT_IN(type, UT_B_UNIVERSITY, UT_B_HOSPITAL, UT_B_TEMPLE)) s |= S_RESEARCH;
+    if (UT_IN(type, UT_B_UNIVERSITY, UT_B_HOSPITAL, UT_B_TEMPLE) || type == g_rs_want[idx] - 1) s |= S_RESEARCH;   // ... or the building the row saves for itself (build.c: its first production building)
     int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1, row = 0;
     for (; row < PRIO_N && held < 0; row++) {
         if (!prio_applies(idx, row, s)) continue;

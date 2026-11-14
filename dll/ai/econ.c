@@ -149,6 +149,7 @@ internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own
 // THE GAME'S COMPUTER PLAYER ([ai_base] game_ai, [autotest] v_game_ai; eeaimod.c cp_update_own reads the setting): 0 = it
 // does not run for this AI after its first update
 internal int g_game_ai = 0, g_v_game_ai = -1;
+internal int g_pr_more[16];   // army.c BUILD -> produce.c: one more production building of this type, with the game's computer player off (its build manager's queue is worked by nobody)
 #define GAME_AI(idx) PV(idx, g_v_game_ai, g_game_ai)
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)

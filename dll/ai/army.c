@@ -385,8 +385,9 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
                 !build_mgr_queued(bm, bt) &&
                 can_build(pl, bt)) {
-                int fwd = towns_production(pl, idx, bt);   // towns.c FORWARD: in the town nearest the enemy
-                if (!fwd) build_mgr_request_one(bm, bt);
+                int fwd = GAME_AI(idx) ? towns_production(pl, idx, bt) : 0;   // towns.c FORWARD: in the town nearest the enemy
+                if (!GAME_AI(idx)) g_pr_more[idx] = bt;   // produce.c: in the hub that wants the most (the build manager's queue is worked by nobody then)
+                else if (!fwd) build_mgr_request_one(bm, bt);
                 a->bld++;
                 if (g_log) fprintf(g_log, "# army: P%u at %.1f min: production busy %u/%u, %d buildings, account %.0f - one more %d (for type %d)%s\n",
                                    idx, now / 60000.0, busy, kh, nb, acc, bt, a->last_type, fwd ? " in a town" : "");

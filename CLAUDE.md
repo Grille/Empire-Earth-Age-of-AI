@@ -177,7 +177,8 @@ and the C tables, the README's tables and the editor's names are made of them (g
 - The game's own computer player is OFF for the mod's AIs since 2026-11-14 (`[ai_base] game_ai = 0`, the player: "i wnat a
   clean slate ... we have neough systems in place to rebuild now"): they play what the mod's own code has rebuilt so
   far (ai/work.c the citizens' work, ai/build.c the food base, the mines' and the research buildings, ai/research.c
-  research and the epochs - no production buildings, so no soldiers yet). A test or measurement that needs a playing AI passes `game_ai=1` (the AI as it
+  research and the epochs, ai/produce.c the production buildings by what its territories want - the soldiers
+  still one force of the old code). A test or measurement that needs a playing AI passes `game_ai=1` (the AI as it
   was); what is rebuilt is measured with it off. docs/game-ai-routines.md "The game's computer player off".
 - The shipped defaults are the AI at its strongest without cheating; easing off only for the easy difficulty.
 - Behaviour changes are measured before they are switched on (default off until a test shows the gain).

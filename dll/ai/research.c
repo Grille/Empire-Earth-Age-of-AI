@@ -208,7 +208,9 @@ internal void research_tick(ee_player *pl, uint32_t now) {
     }
     qsort(cand, (size_t)nc, sizeof *cand, rs_cmp);
     int hold[7] = { 0 }, waits[5] = { 0 }, buys = 0;
-    for (int r = 2; r < 7; r++) hold[r] = g_bd_com[idx][r] + (g_rs_want[idx] ? unit_cost(pl, g_rs_want[idx] - 1, r) : 0);   // build.c: what it has laid and not paid; the University or Hospital it saves for - the techs are researched there
+    int bw = g_rs_want[idx] - 1;   // build.c: the University, Hospital or Temple it saves for comes first - the techs are researched there (not its first production building: research does not wait for that)
+    if (bw >= 0 && pr_kind(bw) >= 0) bw = -1;
+    for (int r = 2; r < 7; r++) hold[r] = g_bd_com[idx][r] + (bw >= 0 ? unit_cost(pl, bw, r) : 0);   // ... and what build.c has laid and not paid
     memset(z->left, 0, sizeof z->left);
     for (int k = 1; k < 5; k++) z->next[k] = -1;
     char told[200] = "";
@@ -226,7 +228,7 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         }
         if (waits[c->rank]++ < (c->rank == RS_ECON ? RS_HOLD1 : RS_HOLD2)) for (int r = 2; r < 7; r++) hold[r] += c->cost[r];
     }
-    for (int r = 2; r < 7; r++) g_rs_hold[idx][r] = hold[r] - g_bd_com[idx][r] - (g_rs_want[idx] ? unit_cost(pl, g_rs_want[idx] - 1, r) : 0);   // the rows add those themselves
+    for (int r = 2; r < 7; r++) g_rs_hold[idx][r] = hold[r] - g_bd_com[idx][r] - (bw >= 0 ? unit_cost(pl, bw, r) : 0);   // the rows add those themselves
     g_rs_epoch[idx] = due && miss <= 0 ? next : 0;
     // rank 3: the epoch - or, while a requirement is missing, the cheapest tech that counts for it
     ee_tech *et = ed ? tech_tree_lookup(tt, tech_data_get_id(ed)) : NULL;
