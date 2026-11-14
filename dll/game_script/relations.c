@@ -160,10 +160,14 @@ internal void *x_path(struct xctx *c, const char *s, int len, int *ok, char *who
     else if (n == 4 && !strncmp(s, "lord", 4)) p = x_lord(c->pl);
     else {   // a function's parameter that is a player: by.kills(of)
         int i = 0;
+        const struct xval *lv = NULL;   // a compiled script's variable (expr.c THE VIEW)
         while (i < c->fnp && ((int)strlen(c->fpn[i]) != n || strncmp(c->fpn[i], s, (size_t)n))) i++;
         if (i < c->fnp) {
             p = x_player_of(&c->fpv[i]);
             if (!p && !c->fpv[i].miss[0]) { *ok = 0; return NULL; }   // no player
+        } else if ((lv = x_view_find(c, s, (size_t)n))) {
+            p = x_player_of(lv);
+            if (!p && !lv->miss[0]) { *ok = 0; return NULL; }
         } else if (x_check_par_has(s, n)) p = NULL;   // its definition read: the syntax only
         else { *ok = 0; return NULL; }
     }

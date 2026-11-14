@@ -76,6 +76,7 @@
 #define XVARS_HASH 64
 struct xvars { int n, dotted; char *key[XVARS_MAX], *val[XVARS_MAX]; unsigned char first[XVARS_HASH], next[XVARS_MAX]; };
 struct xval;
+struct xview;
 struct xctx {
     void *pl, *other, *third;               // the host's: the speaker, them, a third - them NULL: the local player
     const char *const *fpn;                 // a function's parameters while its body is worked out (x_call)
@@ -94,6 +95,7 @@ struct xctx {
     int missed;                             // x_missing from the game's values (diplo.c): the primary fails
     int script;                             // a script (scenarios): its functions (wait, wait_until, every, for ...) and commands
     int calls;                              // functions called inside each other now
+    const struct xview *view;               // a compiled function's names (THE VIEW), NULL: none runs
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
 // a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
@@ -106,7 +108,7 @@ struct xctx {
 // .x .y .z .w; in the region like a text), a record (rec: its members by name) or a trigger (n: its index -
 // TRIGGERS below) - neither number nor text - or a dict (dict: its entries, DICTS below; one table, shared by every
 // value that holds it: d[k] = v is seen through all of them)
-enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG, XV_DICT };
+enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG, XV_DICT, XV_UNSET };   // XV_UNSET: a compiled function's slot before its let
 struct xfn;
 struct xrec;
 struct xdict;
@@ -2236,6 +2238,16 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
 // keep: a frame that outlives its functions (a script's top, a trigger's copy - TRIGGERS) - taken as it is, not copied.
 // up: the frame its function was made in, where the names it copied (own 0) belong - read there when used, set there
 struct xframe { int n, keep; const char *name[XF_MAX]; struct xval val[XF_MAX]; unsigned char own[XF_MAX]; struct xframe *up; };
+// THE VIEW (SCRIPTS COMPILED): a compiled function's variables are slots, read and set by their numbers - but a name
+// is still looked up by its letters where the language does that (a text's {placeholder}, p.gold of a variable p, the
+// host's p.opinion(q)): each running function's names and slots, then those of the code around where it was made
+struct xview { const char *const *name; const struct xval *val; int n; const struct xview *up; };
+internal const struct xval *x_view_find(const struct xctx *c, const char *name, size_t len) {   // a name's slot, NULL none (or not set yet)
+    for (const struct xview *w = c->view; w; w = w->up)
+        for (int i = 0; i < w->n; i++)
+            if (w->val[i].kind != XV_UNSET && !strncmp(w->name[i], name, len) && !w->name[i][len]) return &w->val[i];
+    return NULL;
+}
 internal struct xframe *x_frame_owner(struct xframe *f, const char *name, int *idx) {   // the frame name is its own in
     for (; f; f = f->up)
         for (int i = 0; i < f->n; i++) if (f->own[i] && !strcmp(f->name[i], name)) { *idx = i; return f; }
@@ -2536,6 +2548,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         lstrcpynA(head, name, (int)(dot - name) + 1);
         int own = 0, exact = 0;
         for (int i = 0; i < c->fnp && !own; i++) own = !strcmp(c->fpn[i], head);
+        if (!own) own = x_view_find(c, head, strlen(head)) != NULL;
         for (int k = 0; k < 3 && !own; k++) exact |= c->vars[k] && c->vars[k]->dotted && xvars_get(c->vars[k], name);   // a file record's member itself
         for (int k = 0; k < 3 && !own && !exact; k++) own = xvars_get(c->vars[k], head) != NULL;
         if (!own && !exact) own = x_field_known(head);   // a personality's field: rival.alive
@@ -2568,6 +2581,10 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
             *v = c->fpv[i];
             return;
         }
+    {
+        const struct xval *lv = x_view_find(c, name, strlen(name));   // (the VM's: SCRIPTS COMPILED)
+        if (lv) { *v = *lv; return; }
+    }
     for (int i = 0; i < c->np; i++)
         if (!strcmp(c->pn[i], name)) { xstr_or_num(v, c->pv[i]); return; }
     if (g_x_host.field_get(c, name, v)) return;   // a field of the speaker's personality (let at a file's top)
@@ -3506,6 +3523,7 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
     if (!(a[0].n > 0)) { x_fail(e, "every(%g, ...): the step must be above 0", a[0].n); return; }
     xe_every(e, a[0].n, a[1].n, a[2].n, &a[3], direct, NULL);
 }
+internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, int direct, struct xval *v);
 internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     const char *name = n->s;
     struct xval a[32];   // the arguments in order: a command, a script's function all (up to 32); the others the first 8
@@ -3518,8 +3536,14 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) return;
     }
     if (n->n_items > 32) { x_fail(e, "%s(...): more than 32 arguments", name); return; }
+    x_call_apply(e, name, a, nall, direct, v);
+}
+// name(a ...) with its arguments worked out (nall of them, at most 32): a function in a variable, one of the
+// language's, a vars file's, a script's, a command, a relation or method of the host's
+internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, int direct, struct xval *v) {
     int na = nall < 8 ? nall : 8;
-    if (!strchr(name, '.'))   // a function in a variable or parameter
+    if (!strchr(name, '.')) {   // a function in a variable or parameter
+        const struct xval *lv = x_view_find(e->c, name, strlen(name));
         for (int i = 0; i < e->c->fnp; i++)
             if (!strcmp(e->c->fpn[i], name)) {
                 if (e->c->fpv[i].kind != XV_FN) { x_fail(e, "%s is no function", name); return; }
@@ -3528,6 +3552,13 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
                 x_call_value(e, &fv, a, nall, v);
                 return;
             }
+        if (lv) {   // (the VM's: SCRIPTS COMPILED)
+            if (lv->kind != XV_FN) { x_fail(e, "%s is no function", name); return; }
+            struct xval fv = *lv;
+            x_call_value(e, &fv, a, nall, v);
+            return;
+        }
+    }
     int f = x_fn_id(name, na);
     for (int i = 0; f && i < na; i++) if (a[i].miss[0]) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
     if (e->err) return;
@@ -3612,6 +3643,7 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
         size_t hn = strcspn(name, ".");
         int own = 0;
         for (int i = 0; dot && i < e->c->fnp && !own; i++) own = strlen(e->c->fpn[i]) == hn && !strncmp(e->c->fpn[i], name, hn);
+        if (dot && !own) own = x_view_find(e->c, name, hn) != NULL;
         if (own && dot - name < 120) {
             char path[128];
             struct xval o;
@@ -3754,6 +3786,8 @@ internal int x_loop_round(struct xe *e, const struct xnode *s) {   // a loop's n
     return 1;
 }
 internal void x_exec(struct xe *e, const struct xnode *blk);
+internal void xop_seti(struct xe *e, int op, const struct xval *d, const struct xval *key, struct xval *v);   // (THE OPERATIONS)
+internal void xop_setm(struct xe *e, const char *name, int op, const struct xval *o, struct xval *v);
 // for's rounds from i on, with its place (WHERE A SCRIPT STANDS; found: on in a saved script - its body first, where
 // it stood, the loop's variable as it was)
 internal void x_for_num(struct xe *e, const struct xnode *s, double i, double to, int found) {
@@ -3854,16 +3888,7 @@ internal void x_stmt(struct xe *e, const struct xnode *s) {
         if (!e->err) xe(e, s->c, &v);
         if (!e->err) x_use(e, &v);
         if (e->err) return;
-        if (d.kind != XV_DICT) { x_fail(e, "[...] = ...: %.40s is no dict - a list's items are not set", xtext_of(&d)); return; }
-        if (s->op) {   // d[k] += 1: what it holds now (or the default), op the value
-            struct xval cur;
-            xdict_get(e, d.dict, &key, &cur);
-            if (e->err || !x_numeric_ok(e, &cur) || !x_numeric_ok(e, &v)) return;
-            double x = xto_num(&cur), y = xto_num(&v);
-            if (s->op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
-            xnum(&v, s->op == '+' ? x + y : s->op == '-' ? x - y : s->op == '*' ? x * y : x / y);
-        }
-        xdict_set(e, d.dict, &key, &v);
+        xop_seti(e, s->op, &d, &key, &v);
         break;
     }
     case XN_SETM: {   // o.name = value: a member its kind lets be set, by the host
@@ -3872,20 +3897,7 @@ internal void x_stmt(struct xe *e, const struct xnode *s) {
         if (!e->err) x_use(e, &o);
         if (!e->err) xe(e, s->b, &v);
         if (e->err) return;
-        if (!o.obj || !o.w) { x_fail(e, ".%s = ...: %.40s is no object", s->s, xtext_of(&o)); return; }
-        const struct x_kmember *m = x_kind_member(o.okind, s->s);
-        if (!m || !m->set) { x_fail(e, ".%s = ...: a %s's %s can't be set", s->s, x_kind_name(o.okind), s->s); return; }
-        if (s->op) {   // l[1].hp -= 50: what it is now, op the value
-            struct xval cur;
-            char whole[60];
-            snprintf(whole, sizeof whole, ".%s %c= ...", s->s, s->op);
-            x_obj_member(e, &o, s->s, NULL, 0, 0, &cur, whole);
-            if (e->err || !x_numeric_ok(e, &cur) || !x_numeric_ok(e, &v)) return;
-            double x = xto_num(&cur), y = xto_num(&v);
-            if (s->op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
-            xnum(&v, s->op == '+' ? x + y : s->op == '-' ? x - y : s->op == '*' ? x * y : x / y);
-        }
-        if (!g_x_host.set(e->c, &o, s->s, &v)) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // (told)
+        xop_setm(e, s->s, s->op, &o, &v);
         break;
     }
     case XN_IF:
@@ -3992,6 +4004,140 @@ internal void xe_vec_op(struct xe *e, int op, struct xval *a, const struct xval 
     for (int i = 0; i < vv->vn; i++) c[i] = op == '*' ? vv->vc[i] * y : vv->vc[i] / y;
     xvec(a, c, vv->vn);
 }
+// THE OPERATIONS on values already worked out - what a node does with its operands, apart from how they came to be:
+// the tree's walk (xe) and the compiled scripts' machine (SCRIPTS COMPILED) both work them out through these, so one
+// can't come to mean another thing than the other. Each takes its operands as xe had them and leaves its value in v
+internal void xop_name(struct xe *e, const char *name, double *kn, const char **kcs, struct xval *v) {   // a name's value
+    struct xctx *c = e->c;
+    if (*kcs) { xdual_kept(v, *kn, *kcs); return; }   // a constant that stays, looked up before
+    int kept = e->kept;   // a name in a name (a vars entry's): its own
+    e->kept = 0;
+    xe_ident(e, name, v);
+    // a constant the host says stays the same (kind.tank, unit.citizen): kept where it is named (filters must be quick)
+    if (!e->err && e->kept && v->has_s && v->has_n && v->n >= 0) { *kn = v->n; *kcs = v->s; }
+    e->kept = kept;
+    if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
+}
+internal void xop_index(struct xe *e, const struct xval *l, const struct xval *ix, struct xval *v) {   // l[i], d[k] (l used)
+    struct xval i = *ix;
+    if (l->kind == XV_DICT) {   // d[k]: its entry, else the default
+        x_use(e, &i);
+        if (!e->err) xdict_get(e, l->dict, &i, v);
+        return;
+    }
+    if (l->w && !l->ln) { x_fail(e, "[...]: %.40s is no list", l->kind == XV_REC ? "a record" : l->kind == XV_VEC ? "a vector" : xtext_of(l)); return; }
+    if (!x_numeric_ok(e, &i)) return;
+    int k = (int)i.n;
+    if (!i.w || (double)k != i.n || k < 1 || k > xl_n(l)) { x_fail(e, "[%s]: no such item - the list has %d (the first is [1])", xtext_of(&i), xl_n(l)); return; }
+    *v = *xl_at(l, k - 1);
+    v->w = 1; v->ln = 0; v->it = NULL;
+}
+internal void xop_mcall(struct xe *e, const char *name, const struct xval *o, const struct xval *a, int na, struct xval *v) {   // o.name(a ...)
+    char whole[48];
+    snprintf(whole, sizeof whole, ".%s", name);
+    if (!o->obj || !o->w) { x_fail(e, "%s(...): %.40s is no object - a method is a player's, the game's ...", whole, xtext_of(o)); return; }
+    x_obj_member(e, o, name, a, na, 1, v, whole);
+}
+internal void xop_dict(struct xe *e, int types, const struct xval *d, struct xval *v) {   // dict<K, V>(default): a new one (d used)
+    struct xdict *t = calloc(1, sizeof *t);
+    if (!t) { e->err = 1; return; }
+    t->kt = types / 4096;
+    t->vt = types % 4096;
+    if (!g_xdict_keep) { t->next = g_xdicts; g_xdicts = t; }
+    if (!xdict_fit(e, t->vt, d, &t->def, 0, "dict<K, V>(default)")) { if (g_xdict_keep) x_dict_free(t); return; }
+    xnothing(v);
+    v->w = 1; v->kind = XV_DICT; v->dict = t; v->s = "a dict";
+}
+internal void xop_neg(struct xe *e, struct xval *v) {   // -v
+    x_use(e, v);
+    if (e->err) return;
+    if (v->kind == XV_VEC) { double neg[4]; for (int i = 0; i < v->vn; i++) neg[i] = -v->vc[i]; xvec(v, neg, v->vn); return; }
+    if (!x_numeric_ok(e, v)) return;
+    xnum(v, -xto_num(v));
+}
+internal void xe_vec_op(struct xe *e, int op, struct xval *a, const struct xval *b);
+internal void xop_arith(struct xe *e, int mul, int op, struct xval *v, struct xval *b) {   // v op b: * / (mul), + -
+    x_use(e, v);
+    if (!e->err) x_use(e, b);
+    if (e->err) return;
+    if (v->kind == XV_VEC || b->kind == XV_VEC) { xe_vec_op(e, op, v, b); return; }
+    double x, y;
+    if (mul || op == '-') {
+        if (!x_numeric_ok(e, v) || !x_numeric_ok(e, b)) return;
+        x = xto_num(v); y = xto_num(b);
+        if (op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+        xnum(v, op == '*' ? x * y : op == '/' ? x / y : x - y);
+    }
+    // + adds numbers only: a text is built in its string ("Age: {epoch}", "{a}{b}") - "a" + b could mean b
+    // added to the text or the text to b's items; nothing counts as 0
+    else if ((v->has_s && !v->has_n) || (b->has_s && !b->has_n))
+        x_fail(e, "a text (\"%.40s\") added - + adds numbers, a text is built in its string: \"Age: {epoch}\", \"{a}{b}\"", xtext_of(v->has_s && !v->has_n ? v : b));
+    else if (!x_numeric_ok(e, v) || !x_numeric_ok(e, b)) return;
+    else xnum(v, xto_num(v) + xto_num(b));   // an epoch is a number too: epoch + 1
+}
+// v op b compared (an: a is the null literal, bn: b is)
+internal void xop_cmp(struct xe *e, int op, int an, int bn, struct xval *v, struct xval *b) {
+    if (an || bn) {   // x == null, x != null: whether something is there (lord without one: none)
+        const struct xval *x = an ? b : v;
+        int there = x->w > 0 || x->ln;
+        if (op != '=' && op != '!') { x_fail(e, "null has no order - x == null or x != null"); return; }
+        xnum(v, there == (op == '!'));
+        return;
+    }
+    if (v->ln || b->ln) {   // [1, 2] == 1: no one of them - contains(l, x)
+        x_fail(e, "a list (%.40s) compared - contains(l, x) for one of its items", xtext_of(v->ln ? v : b));
+        return;
+    }
+    if ((v->kind == XV_REC && v->w) || (b->kind == XV_REC && b->w)) {   // no order, no whole equality: its members
+        x_fail(e, "a record (%.40s) compared - compare its members (r.name == ...)", xtext_of(v->kind == XV_REC ? v : b));
+        return;
+    }
+    if (!v->w || !b->w) { xnum(v, 0); return; }   // nothing compares with nothing: false
+    if (v->kind == XV_VEC || b->kind == XV_VEC) {   // vectors: equal or not - no order, nothing else alike
+        if (v->kind != b->kind || (op != '=' && op != '!')) {
+            x_fail(e, "%.40s %s %.40s: a vector is only == or != another vector", xtext_of(v), op == 'l' ? "<=" : op == 'g' ? ">=" : op == '=' ? "==" : op == '!' ? "!=" : op == '<' ? "<" : ">", xtext_of(b));
+            return;
+        }
+        xnum(v, xvec_eq(v, b) == (op == '='));
+        return;
+    }
+    if (!(v->obj && b->obj) && xmismatch(v, b)) {
+        x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : b));
+        return;
+    }
+    int d = xcmp(v, b);
+    xnum(v, op == '<' ? d < 0 : op == '>' ? d > 0 : op == 'l' ? d <= 0 : op == 'g' ? d >= 0 : op == '=' ? d == 0 : d != 0);
+}
+// d[k] = val, d[k] op= val (d, k and val used)
+internal void xop_seti(struct xe *e, int op, const struct xval *d, const struct xval *key, struct xval *v) {
+    if (d->kind != XV_DICT) { x_fail(e, "[...] = ...: %.40s is no dict - a list's items are not set", xtext_of(d)); return; }
+    if (op) {   // d[k] += 1: what it holds now (or the default), op the value
+        struct xval cur;
+        xdict_get(e, d->dict, key, &cur);
+        if (e->err || !x_numeric_ok(e, &cur) || !x_numeric_ok(e, v)) return;
+        double x = xto_num(&cur), y = xto_num(v);
+        if (op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+        xnum(v, op == '+' ? x + y : op == '-' ? x - y : op == '*' ? x * y : x / y);
+    }
+    xdict_set(e, d->dict, key, v);
+}
+// o.name = val, o.name op= val: a member its kind lets be set, by the host (o used)
+internal void xop_setm(struct xe *e, const char *name, int op, const struct xval *o, struct xval *v) {
+    if (!o->obj || !o->w) { x_fail(e, ".%s = ...: %.40s is no object", name, xtext_of(o)); return; }
+    const struct x_kmember *m = x_kind_member(o->okind, name);
+    if (!m || !m->set) { x_fail(e, ".%s = ...: a %s's %s can't be set", name, x_kind_name(o->okind), name); return; }
+    if (op) {   // l[1].hp -= 50: what it is now, op the value
+        struct xval cur;
+        char whole[60];
+        snprintf(whole, sizeof whole, ".%s %c= ...", name, op);
+        x_obj_member(e, o, name, NULL, 0, 0, &cur, whole);
+        if (e->err || !x_numeric_ok(e, &cur) || !x_numeric_ok(e, v)) return;
+        double x = xto_num(&cur), y = xto_num(v);
+        if (op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+        xnum(v, op == '+' ? x + y : op == '-' ? x - y : op == '*' ? x * y : x / y);
+    }
+    if (!g_x_host.set(e->c, o, name, v)) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // (told)
+}
 internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     struct xctx *c = e->c;
     xnothing(v);
@@ -3999,20 +4145,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     switch (n->k) {
     case XN_NUM: if (n->op == 'n') xnothing(v); else xnum(v, n->n); break;
     case XN_STR: xe_str(e, n, v); break;
-    case XN_NAME: {
-        if (n->cs) { xdual_kept(v, n->n, n->cs); break; }   // a constant that stays, looked up before
-        int kept = e->kept;   // a name in a name (a vars entry's): its own
-        e->kept = 0;
-        xe_ident(e, n->s, v);
-        // a constant the host says stays the same (kind.tank, unit.citizen): kept in the node (filters must be quick)
-        if (!e->err && e->kept && v->has_s && v->has_n && v->n >= 0) {
-            ((struct xnode *)n)->n = v->n;
-            ((struct xnode *)n)->cs = v->s;
-        }
-        e->kept = kept;
-        if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
-        break;
-    }
+    case XN_NAME: xop_name(e, n->s, &((struct xnode *)n)->n, &((struct xnode *)n)->cs, v); break;
     case XN_CALL:
         xe_call(e, n, v);
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
@@ -4030,17 +4163,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (!e->err) x_use(e, &l);
         if (!e->err) xe(e, n->b, &i);
         if (e->err) break;
-        if (l.kind == XV_DICT) {   // d[k]: its entry, else the default
-            x_use(e, &i);
-            if (!e->err) xdict_get(e, l.dict, &i, v);
-            break;
-        }
-        if (l.w && !l.ln) { x_fail(e, "[...]: %.40s is no list", l.kind == XV_REC ? "a record" : l.kind == XV_VEC ? "a vector" : xtext_of(&l)); break; }
-        if (!x_numeric_ok(e, &i)) break;
-        int k = (int)i.n;
-        if (!i.w || (double)k != i.n || k < 1 || k > xl_n(&l)) { x_fail(e, "[%s]: no such item - the list has %d (the first is [1])", xtext_of(&i), xl_n(&l)); break; }
-        *v = *xl_at(&l, k - 1);
-        v->w = 1; v->ln = 0; v->it = NULL;
+        xop_index(e, &l, &i, v);
         break;
     }
     case XN_MCALL: {   // f(a).name(...), l[1].name(...): an object's method
@@ -4053,8 +4176,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (n->n_items > 8) { x_fail(e, "%s(...): more than 8 arguments", whole); break; }
         for (int i = 0; i < n->n_items && !e->err; i++) xe(e, n->items[i], &a[i]);
         if (e->err) break;
-        if (!o.obj || !o.w) { x_fail(e, "%s(...): %.40s is no object - a method is a player's, the game's ...", whole, xtext_of(&o)); break; }
-        x_obj_member(e, &o, n->s, a, n->n_items, 1, v, whole);
+        xop_mcall(e, n->s, &o, a, n->n_items, v);
         break;
     }
     case XN_DICT: {   // dict<K, V>(default): a new dict, empty (DICTS)
@@ -4062,14 +4184,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         xe(e, n->a, &d);
         if (!e->err) x_use(e, &d);
         if (e->err) break;
-        struct xdict *t = calloc(1, sizeof *t);
-        if (!t) { e->err = 1; break; }
-        t->kt = (int)n->n / 4096;
-        t->vt = (int)n->n % 4096;
-        if (!g_xdict_keep) { t->next = g_xdicts; g_xdicts = t; }
-        if (!xdict_fit(e, t->vt, &d, &t->def, 0, "dict<K, V>(default)")) { if (g_xdict_keep) x_dict_free(t); break; }
-        xnothing(v);
-        v->w = 1; v->kind = XV_DICT; v->dict = t; v->s = "a dict";
+        xop_dict(e, (int)n->n, &d, v);
         break;
     }
     case XN_REC: {   // a record: each member worked out now, in order - a mistake in one fails it whole
@@ -4101,13 +4216,8 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     case XN_NEG: case XN_NOT:
         xe(e, n->a, v);
         if (e->err) break;
-        if (n->k == XN_NEG) {
-            x_use(e, v);
-            if (e->err) break;
-            if (v->kind == XV_VEC) { double neg[4]; for (int i = 0; i < v->vn; i++) neg[i] = -v->vc[i]; xvec(v, neg, v->vn); break; }
-            if (!x_numeric_ok(e, v)) break;
-            xnum(v, -xto_num(v));
-        } else xnum(v, !xtrue(v));
+        if (n->k == XN_NEG) xop_neg(e, v);
+        else xnum(v, !xtrue(v));
         break;
     case XN_MUL: case XN_ADD: {
         struct xval b;
@@ -4115,23 +4225,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) break;
         xe(e, n->b, &b);
         if (e->err) break;
-        x_use(e, v);
-        if (!e->err) x_use(e, &b);
-        if (e->err) break;
-        if (v->kind == XV_VEC || b.kind == XV_VEC) { xe_vec_op(e, n->op, v, &b); break; }
-        double x, y;
-        if (n->k == XN_MUL || n->op == '-') {
-            if (!x_numeric_ok(e, v) || !x_numeric_ok(e, &b)) break;
-            x = xto_num(v); y = xto_num(&b);
-            if (n->op == '/' && y == 0) { x_fail(e, "a division by 0"); break; }
-            xnum(v, n->op == '*' ? x * y : n->op == '/' ? x / y : x - y);
-        }
-        // + adds numbers only: a text is built in its string ("Age: {epoch}", "{a}{b}") - "a" + b could mean b
-        // added to the text or the text to b's items; nothing counts as 0
-        else if ((v->has_s && !v->has_n) || (b.has_s && !b.has_n))
-            x_fail(e, "a text (\"%.40s\") added - + adds numbers, a text is built in its string: \"Age: {epoch}\", \"{a}{b}\"", xtext_of(v->has_s && !v->has_n ? v : &b));
-        else if (!x_numeric_ok(e, v) || !x_numeric_ok(e, &b)) break;
-        else xnum(v, xto_num(v) + xto_num(&b));   // an epoch is a number too: epoch + 1
+        xop_arith(e, n->k == XN_MUL, n->op, v, &b);
         break;
     }
     case XN_CMP: {
@@ -4140,36 +4234,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) break;
         xe(e, n->b, &b);
         if (e->err) break;
-        if (xn_null(n->a) || xn_null(n->b)) {   // x == null, x != null: whether something is there (lord without one: none)
-            const struct xval *x = xn_null(n->a) ? &b : v;
-            int there = x->w > 0 || x->ln;
-            if (n->op != '=' && n->op != '!') { x_fail(e, "null has no order - x == null or x != null"); break; }
-            xnum(v, there == (n->op == '!'));
-            break;
-        }
-        if (v->ln || b.ln) {   // [1, 2] == 1: no one of them - contains(l, x)
-            x_fail(e, "a list (%.40s) compared - contains(l, x) for one of its items", xtext_of(v->ln ? v : &b));
-            break;
-        }
-        if ((v->kind == XV_REC && v->w) || (b.kind == XV_REC && b.w)) {   // no order, no whole equality: its members
-            x_fail(e, "a record (%.40s) compared - compare its members (r.name == ...)", xtext_of(v->kind == XV_REC ? v : &b));
-            break;
-        }
-        if (!v->w || !b.w) { xnum(v, 0); break; }   // nothing compares with nothing: false
-        if (v->kind == XV_VEC || b.kind == XV_VEC) {   // vectors: equal or not - no order, nothing else alike
-            if (v->kind != b.kind || (n->op != '=' && n->op != '!')) {
-                x_fail(e, "%.40s %s %.40s: a vector is only == or != another vector", xtext_of(v), n->op == 'l' ? "<=" : n->op == 'g' ? ">=" : n->op == '=' ? "==" : n->op == '!' ? "!=" : n->op == '<' ? "<" : ">", xtext_of(&b));
-                break;
-            }
-            xnum(v, xvec_eq(v, &b) == (n->op == '='));
-            break;
-        }
-        if (!(v->obj && b.obj) && xmismatch(v, &b)) {
-            x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : &b));
-            break;
-        }
-        int d = xcmp(v, &b), op = n->op;
-        xnum(v, op == '<' ? d < 0 : op == '>' ? d > 0 : op == 'l' ? d <= 0 : op == 'g' ? d >= 0 : op == '=' ? d == 0 : d != 0);
+        xop_cmp(e, n->op, xn_null(n->a), xn_null(n->b), v, &b);
         break;
     }
     case XN_AND: case XN_OR: {
