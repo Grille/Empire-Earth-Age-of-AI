@@ -295,44 +295,43 @@ class ai_base
         /// Territory shelter (ai/territories.c): the map is split into territories, and where 2 or more enemy land soldiers
         /// stand in or by one and the AI's soldiers and towers there lose against them, all its citizens in that territory stop
         /// working: into a Fortress on that land within 30 tiles, else to a drop site in a territory that is safe; no
-        /// citizen is sent to a site there until it is safe again. 1 = on. Off (2026-11-14, 192 games on island maps: a
-        /// fifth fewer citizens killed, the army at 60 minutes no larger - a few soldiers fewer, within the noise)
+        /// citizen is sent to a site there until it is safe again. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers");
+        /// alone (192 games on island maps): a fifth fewer citizens killed, the army at 60 minutes no larger
         /// Idle transports: the game's own order for one more transport ship trains none while this many of the AI's
         /// transports stand empty with nothing to do (seen: an AI with 40 idle transports at minute 176, 250 wood and a
         /// place under the population cap each). The mod's landings and outposts order their own as before. 0 = off
         [range(0, 50)]
         int idle_transports = 2;
-        bool territory_shelter = false;
+        bool territory_shelter = true;
         /// Held ground (ai/armies.c HELD GROUND): the army answers a raid wherever it stands in a territory the AI holds
         /// on the army's land, not only within 60 tiles of where the army stands - a town far out has no guard, so the
-        /// army (or a part of it that wins two to one) comes. 1 = on. Off until the territory system is measured as a whole
-        bool raid_held_ground = false;
+        /// army (or a part of it that wins two to one) comes. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
+        bool raid_held_ground = true;
         /// The army at the front (ai/armies.c FRONT STATION): between attacks the army stands in the territory it holds
         /// whose border with ground nobody of its side holds is the heaviest (its length, the enemy soldiers known
         /// beyond it, its buildings there), on the side of that border; on an island with no such border as before.
-        /// 1 = on. Off until the territory system is measured as a whole
-        bool force_at_front = false;
+        /// 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
+        bool force_at_front = true;
         /// Front guards (ai/expand.c FRONT GUARDS): an island the AI holds whose territory is a front - ground or water by
         /// it that nobody of its side holds - gets a boat of soldiers when it has fewer than its guard wanted (a third of
         /// its citizens there, 3 to 12, 8 with enemies seen), also after the outpost was handed back; an island that has
-        /// become backland gets none; the army leaves the soldiers standing on such an island alone. 1 = on. Off until
-        /// the territory system is measured as a whole
-        bool front_guards = false;
+        /// become backland gets none; the army leaves the soldiers standing on such an island alone. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
+        bool front_guards = true;
         /// The fleet's station (ai/fleet.c FLEET STATION): the fleet's guard point lies in the water territory with the
         /// longest shore along land the AI holds, the more so where enemy warships were seen - holding that sea is what
-        /// turns an island into backland. 1 = on. Off until the territory system is measured as a whole
-        bool fleet_station = false;
+        /// turns an island into backland. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
+        bool fleet_station = true;
         /// Harbours (ai/fleet.c HARBOURS): every sea territory that borders land the AI holds gets one harbour - a dock from
         /// the held territory with the longest shore there, a tower by it, a second where enemy warships were seen on that
         /// sea or with 600 stone in the bank - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
-        /// of map. 1 = on. Off until the territory system is measured as a whole
-        bool harbours = false;
+        /// of map. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
+        bool harbours = true;
         /// Border towers (ai/territories.c BORDER TOWERS): while 1500 stone and 1500 wood lie in the bank, one tower every
         /// 20 seconds on the outside border of a territory the AI holds - by the water or by land nobody of its side
         /// holds - where none of its towers stands within 12 tiles; from each territory's middle outwards, until its
         /// shores and open borders are covered. Peace of mind against a landing from behind; not something the AI
-        /// against AI games can show. 1 = on. Off with the rest of the territory system
-        bool border_towers = false;
+        /// against AI games can show. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
+        bool border_towers = true;
     }
 
     class SiegeAndTowerRouting

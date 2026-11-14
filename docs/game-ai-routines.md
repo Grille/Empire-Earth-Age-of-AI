@@ -280,3 +280,15 @@ tower first where they cross into the site's territory, the escort on to the sit
 site; home again when enemies by them win before a tower stands. 24 games on Continental maps: as many towns standing
 (15 against 17 on a huge map), 3 lost against 2, the drop site 1.5 minutes later - AI towns are hardly ever lost while
 founded, so there was nothing for it to save.
+
+The territory system (2026-11-14, all on by the player's call): `territory_shelter` (citizens leave a territory whose
+guard loses), `raid_held_ground` (the force answers a raid in any territory it holds on its land), `force_at_front` (its
+station is the land front with the heaviest open border), `front_guards` (a held island that is a front gets soldiers
+by boat), `fleet_station` (the fleet stands in the sea with the longest shore along held land), `harbours` (a dock and
+towers on every sea territory by held land) and `border_towers` (towers along the outside borders from idle stone and
+wood). A territory is a front when it borders ground or water nobody of its side holds, backland otherwise; a sea is
+held with 2 warships there and more than twice the enemy's seen. Built whole before it was measured, then all on
+against all off over 90 minutes: more ground held on islands and a fifth to a half fewer citizens killed without the
+harbours, the army level; harbours and border towers are on for what the AI against AI games cannot show (a landing
+from behind). ai/territories.c THE SYSTEM has the numbers. Also: `idle_transports` (no game order for a transport
+while 2 stand idle - an AI had 40).

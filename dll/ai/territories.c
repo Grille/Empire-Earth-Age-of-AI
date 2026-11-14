@@ -38,6 +38,21 @@
 // stood, a quarter within a minute or two of the landing (soldiers already on the island: nothing is built yet).
 // The holding-on saved no more citizens. So: OFF; the setting means level 1 with the first bars, level 2 for the tests
 // (v_territory_shelter=2). What the shelter can't mend is the landing itself - where to land and with what guard.
+// THE SYSTEM, ON (2026-11-14, the player: "switch evrething on, including harbours and towers"): the shelter here,
+// armies.c HELD GROUND and FRONT STATION, expand.c FRONT GUARDS, fleet.c FLEET STATION and HARBOURS, BORDER TOWERS
+// below. He had asked of my part-by-part runs: "does it make sence to fully messure the single components before the
+// full system is built? i wonder if our test run into evolutionary dead ends" - so it was built whole and measured as
+// one (all on against all off, head-to-head, mirrored, 12 games a map, 90 min, 4 AIs; land territories held a player
+// off -> on, citizens killed off -> on, the army):
+//   the five without harbours and border towers: Small Islands from epoch 9 1.46 -> 1.75, 615 -> 473, soldiers -7 (se
+//     9); map_scale=large 2.79 -> 3.08, 901 -> 711, soldiers -3 (14); Continental huge from epoch 5 6.29 -> 5.54, 1532
+//     -> 733, kills +39 (28), losses -28 (16);
+//   with harbours on the fleet's station sea only: 1.67 -> 1.58, 553 -> 440, soldiers +7 (10); 2.71 -> 2.71, 944 ->
+//     837, soldiers +14 (11); 6.04 -> 6.21, 1678 -> 984, losses -39 (14);
+//   with a harbour a sea territory (his rule, as shipped): 1.75 -> 1.46, 522 -> 326, losses -19 (13); 3.08 -> 2.58, 814
+//     -> 1224, soldiers -13 (14), kills -28 (19); 6.25 -> 6.29, 1613 -> 960, kills +21 (20).
+// Harbours and border towers are on by his call and not by these numbers: "stuff like that wont pay in the tests,
+// since sneak attacks from behind arent really in the ai yet". Still owed: one part out at a time.
 // THE VIEW ALWAYS RUNS (2026-11-14, the armies next - the player: "turn it on ... than continue with armies"): the
 // counting and the judging above for every AI whatever the shelter's setting (tv_unsafe alone asks that), so that
 // what comes next can read it. Read only so far: each territory it HOLDS (TV_HELD or more of its buildings) with the
