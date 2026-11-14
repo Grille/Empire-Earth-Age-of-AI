@@ -45,6 +45,16 @@
 // at least, 8 when enemy soldiers were seen there in the last TV_FOE_MEMORY, TV_GUARD at most) - in the log
 // (# tview: ... holds) and on the overlay; armies.c and ai_overlay.c name the territory each army is in and bound
 // for.
+// FRONT AND BACKLAND (2026-11-14, read only so far). The player, asked how he splits his army between holding ground
+// and the main force: "the backland is nerly undefended in my case, my focus is on not letting anething go so far in,
+// that includes islands too, piece by piece they become backland too as i gain more map control, water for the ai:
+// terretories can also be held and guarded". So each AI's territories get a ROLE: a land territory it holds, or a
+// water territory it holds (TV_SHIPS of its warships there and no enemy warship seen there in TV_FOE_MEMORY), is a
+// FRONT when it borders ground or water that neither it nor an ally holds - the open border (its own kind) and the
+// shore (the other kind) counted in tiles - and BACKLAND when everything round it is held. An island is a front
+// until the water round it is held; a sea is a front until the shores and seas beyond are.
+#define TV_SHIPS 2
+enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 #define TV_HELD 3
 #define TV_GUARD 12
 #define TV_FOE_MEMORY 300000
@@ -57,7 +67,7 @@
 #define TV_CALM 20000
 #define TV_HOT 8                  // territories looked at closer a pass
 enum { TV_QUIET, TV_FOES, TV_UNSAFE };
-struct tv_terr { uint8_t state; short foe, sold, def, cit, bld, want; float ratio; uint32_t unsafe_t, foe_t; };   // bld: its buildings there; want: the guard a held one would want; foe_t: enemy soldiers seen there last
+struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, cit, bld, want, ships, eships, abld, open, shore; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; want: the guard a held one would want; foe_t: enemy soldiers seen there last
 internal struct tv_st {
     unsigned version; int n; struct tv_terr *t;
     uint32_t tick, log_t;
@@ -91,6 +101,10 @@ internal int tv_reaches(int x, int y, unsigned terr) {
     for (int j = 0; j < n; j++) if (r[j] == terr) return 1;
     return 0;
 }
+internal int tv_warship(ee_unit_type *td) {
+    int fam = unit_type_get_class_id(td), ty = unit_type_get_id(td);
+    return (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && unit_type_get_attack(td) > 0 && !is_transport(ty) && !is_fishing_boat(ty);
+}
 internal int tv_own_soldier(ee_unit_type *td) { return is_soldier(td) && !is_ship_or_air(td) && !is_transport(unit_type_get_id(td)); }
 internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct tv_st *s = &g_tv[idx];
@@ -104,7 +118,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         s->version = g_ter.version; s->n = s->t ? g_ter.n : 0;
     }
     if (!s->n) return;
-    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = 0; s->t[r].ratio = 0; }
+    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = 0; s->t[r].ratio = 0; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -113,6 +127,13 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             unsigned reach[9];
             int nn = tv_foe_unit(pl, u, it.td) ? tv_reach(unit_get_x(u), unit_get_y(u), reach) : 0;
             for (int j = 0; j < nn; j++) if (reach[j] < (unsigned)s->n) s->t[reach[j]].foe++;
+            ee_player *o = unit_get_owner(u);   // the enemy's warships it sees, an ally's buildings
+            unsigned ro = o && player_get_index(o) > 0 ? ter_near(unit_get_x(u), unit_get_y(u)) : TER_NONE;
+            if (ro < (unsigned)s->n) {
+                int ofam = unit_type_get_class_id(it.td);
+                if (is_enemy(pl, o)) { if (tv_warship(it.td) && seen_by(u, pl)) { s->t[ro].eships++; s->t[ro].eship_t = now ? now : 1; } }
+                else if (ofam == CLS_BUILDING || ofam == CLS_FORTRESS) s->t[ro].abld++;
+            }
             continue;
         }
         unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
@@ -122,6 +143,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (is_citizen_type(unit_type_get_id(it.td))) s->t[r].cit++;
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { s->t[r].bld++; s->t[r].def += defence_stats(u, &rng, &att) != 0; }
             else if (tv_own_soldier(it.td)) s->t[r].sold++;
+            else if (tv_warship(it.td)) s->t[r].ships++;
         }
     }
     struct intel *in = &g_intel[idx];
@@ -181,15 +203,37 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (t->foe) t->foe_t = now ? now : 1;
         int w = t->cit / 3 > 3 ? t->cit / 3 : 3;
         if (t->foe_t && now >= t->foe_t && now - t->foe_t < TV_FOE_MEMORY && w < 8) w = 8;
-        t->want = (short)(t->bld >= TV_HELD ? (w < TV_GUARD ? w : TV_GUARD) : 0);
+        t->want = (short)(!g_ter.t[r].water && t->bld >= TV_HELD ? (w < TV_GUARD ? w : TV_GUARD) : 0);   // land: a sea is held by ships (below)
+    }
+    for (int r = 0; r < s->n; r++) {   // FRONT AND BACKLAND: what it or an ally holds ...
+        struct tv_terr *t = &s->t[r];
+        int quiet = !(t->eship_t && now >= t->eship_t && now - t->eship_t < TV_FOE_MEMORY);
+        t->role = (uint8_t)(g_ter.t[r].water ? t->ships >= TV_SHIPS && quiet : t->bld >= TV_HELD);   // its own (the role below)
+        t->friendly = (uint8_t)(t->role || (!g_ter.t[r].water && t->abld >= TV_HELD));
+    }
+    for (int r = 0; r < s->n; r++) {   // ... and of its own, which border what nobody of its side holds
+        struct tv_terr *t = &s->t[r];
+        t->open = t->shore = 0;
+        if (!t->role) continue;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[r].nb0 + k];
+            if (nb->to >= (unsigned)s->n || s->t[nb->to].friendly) continue;
+            if (g_ter.t[nb->to].water == g_ter.t[r].water) t->open = (short)(t->open + nb->len); else t->shore = (short)(t->shore + nb->len);
+        }
+        t->role = (uint8_t)(t->open || t->shore ? TVR_FRONT : TVR_BACK);
     }
     static int layer = -2;
     if (layer == -2) layer = overlay_layer("territories");
     if (overlay_on(layer)) {   // the unsafe ones marked in the AI's colour, the held ones short of their guard named
         overlay_begin(layer, 0x100 + idx, now, 3 * TV_EVERY);
         for (int r = 0; r < s->n; r++) {
-            if (s->t[r].state != TV_UNSAFE && s->t[r].want > s->t[r].sold)
-                overlay_text(v2((float)g_ter.t[r].c.x + 0.5f, (float)g_ter.t[r].c.y + 0.5f), -1 - (int)(idx & 3), overlay_player_argb((int)idx, 255), "P%u guard %d of %d", idx, s->t[r].sold, s->t[r].want);
+            if (s->t[r].state != TV_UNSAFE && s->t[r].role) {   // its role, its guard
+                vec2 rc = v2((float)g_ter.t[r].c.x + 0.5f, (float)g_ter.t[r].c.y + 0.5f);
+                uint32_t col = overlay_player_argb((int)idx, 255);
+                if (s->t[r].role == TVR_BACK) overlay_text(rc, -1 - (int)(idx & 3), col, "P%u backland", idx);
+                else if (g_ter.t[r].water) overlay_text(rc, -1 - (int)(idx & 3), col, "P%u sea front %d+%d, %d ships", idx, s->t[r].open, s->t[r].shore, s->t[r].ships);
+                else overlay_text(rc, -1 - (int)(idx & 3), col, "P%u front %d+%d, guard %d of %d", idx, s->t[r].open, s->t[r].shore, s->t[r].sold, s->t[r].want);
+            }
             if (s->t[r].state != TV_UNSAFE) continue;
             vec2 c = v2((float)g_ter.t[r].c.x + 0.5f, (float)g_ter.t[r].c.y + 0.5f);
             overlay_mark(c, OVM_TRIANGLE, 14.0f, overlay_player_argb((int)idx, 255));
@@ -209,8 +253,14 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         for (int r = 0; r < s->n; r++) {
             if (!s->t[r].want) continue;
             held++; short_of += s->t[r].want > s->t[r].sold ? s->t[r].want - s->t[r].sold : 0;
-            if (held <= 16) fprintf(g_log, " | territory %d: %d buildings, %d citizens, guard %d of %d%s", r, s->t[r].bld, s->t[r].cit, s->t[r].sold, s->t[r].want, s->t[r].foe ? ", enemies there" : "");
+            if (held <= 16) {
+                fprintf(g_log, " | territory %d: %d buildings, %d citizens, guard %d of %d%s", r, s->t[r].bld, s->t[r].cit, s->t[r].sold, s->t[r].want, s->t[r].foe ? ", enemies there" : "");
+                if (s->t[r].role == TVR_FRONT) fprintf(g_log, ", a front (open border %d, shore %d)", s->t[r].open, s->t[r].shore); else fprintf(g_log, ", backland");
+            }
         }
+        int seas = 0, sea_fronts = 0, lfronts = 0;
+        for (int r = 0; r < s->n; r++) { lfronts += !g_ter.t[r].water && s->t[r].role == TVR_FRONT; if (g_ter.t[r].water && s->t[r].role) { seas++; sea_fronts += s->t[r].role == TVR_FRONT; } }
+        fprintf(g_log, " | %d of them fronts; seas held %d (%d fronts)", lfronts, seas, sea_fronts);
         fprintf(g_log, " | %d territories held, %d soldiers short of the guards wanted\n", held, short_of);
         LeaveCriticalSection(&g_lock);
     }

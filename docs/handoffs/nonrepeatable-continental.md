@@ -49,6 +49,9 @@ The second game is byte-identical every time it appears, whichever build plays i
 with many outcomes; something with two states decides, and it is not the build (pair 2). In pairs 3 and 4 both games
 of a pair agreed, in pairs 1 and 2 they did not.
 
+Two more pairs an hour later (another read-only change): second / usual, then usual / second - so which game is
+played does not go by the slot or by the pair either.
+
 ## How to redo it
 
 - `NEW=<a dll> sh local/scratch/pt_same.sh` plays the setup above once on `local/work/tvbase.dll` and once on `NEW`
