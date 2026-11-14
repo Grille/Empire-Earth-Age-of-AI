@@ -31,6 +31,9 @@ struct script {
     struct xframe *top;     // its top frame once it runs: the file's own names (script_run)
     struct xposs *plan;     // a saved game's that waited: where it stood, to go on there (expr.c WHERE A SCRIPT STANDS)
     struct xposs pos;       // where it stands now (g_xp while it runs)
+    struct xcode *code;     // compiled (script_vm): its instructions, and the machine that runs them (expr.c SCRIPTS COMPILED)
+    struct xvm *vm;
+    size_t gc_at;           // its region's size at which what it dropped is cleared out (script_vm_turn)
     struct xregion reg;     // its values
 };
 internal struct script g_scripts[SCRIPTS_MAX];
@@ -38,6 +41,13 @@ internal int g_nscripts = -1;
 internal struct script g_own;   // setup.eeai of this game (SETUP.EEAI below; no text: none)
 internal int g_own_fresh;       // this game's clock seen before 2 s (safe_turns)
 internal int g_scripts_restored;   // g_scripts are a saved game's (THE SCRIPTS IN A SAVED GAME), not a test's setup=
+// [autotest] script_vm=1 (or the pipe's `script vm 1`): the scripts compiled and run by the machine instead of the tree's
+// walk in a fiber - beside it until the two are shown to do the same, then the only way
+internal int g_script_vm = -1;
+internal int script_vm_on(void) {
+    if (g_script_vm < 0) g_script_vm = g_autotest ? ini_int("autotest", "script_vm", 0, g_ini) : 0;
+    return g_script_vm;
+}
 internal LPVOID g_main_fiber;
 internal struct script *g_cur_script;
 internal uint32_t g_script_now;
@@ -186,6 +196,52 @@ internal int script_run(const char *path, const struct xunit *u, int hooks, stru
         x_error("setup.eeai:%d: stopped - %s", e.err_at ? e.err_at->line : 0, g_x_last_fail[0] ? g_x_last_fail : e.why ? e.why : "not worked out");
     return !e.err;
 }
+// a script compiled for the machine (script_vm): 1 done or not wanted, 0 a mistake (told) - not run
+internal int script_vm_compile(struct script *s) {
+    const char *base = strrchr(s->path, '\\') ? strrchr(s->path, '\\') + 1 : strrchr(s->path, '/') ? strrchr(s->path, '/') + 1 : s->path;
+    int own = !lstrcmpiA(base, "setup.eeai");
+    if (!script_vm_on()) return 1;
+    s->code = xc_compile(s->u.root, s->text, own ? k_setup_hooks : NULL, own ? HOOK_N : 0);
+    if (s->code && s->code->ok) { s->safe = 1; return 1; }
+    log_line("# setup: %s:%d: %s - not run\n", s->path, s->code ? s->code->why_line : 0, s->code ? s->code->why : "no memory");
+    s->code = NULL;
+    return 0;
+}
+internal void script_note(const char *what) { if (g_cur_script) log_line("# setup: %s: %s()\n", g_cur_script->path, what); }
+// a compiled script's turn: its machine goes on until it waits, ends or stops on a mistake; then what it worked out
+// and dropped is cleared out of its region when that has grown (the values it holds copied into a new one)
+internal void script_vm_turn(struct script *s, uint32_t now) {
+    if (!s->vm && !(s->vm = xvm_new(s->code, s->hooks))) { s->done = 1; log_line("# setup: %s: no memory - not run\n", s->path); return; }
+    struct xregion *r0 = g_xr;
+    const char *why = "";
+    g_xr = &s->reg;
+    g_script_now = now;
+    g_x_hooks.now = script_now; g_x_hooks.wait = NULL; g_x_hooks.command = script_command; g_x_hooks.did = script_did; g_x_hooks.note = script_note;
+    g_x_safe = 1;   // (its spawns made at once, as a trigger's: units.c)
+    g_cur_script = s;
+    int r = xvm_turn(s->vm, &why);
+    if (r == XVM_YIELD) s->wake = (uint32_t)(s->vm->wake * 1000.0 + 0.5);
+    else {
+        if (r == XVM_FAIL) {
+            log_line("# setup: %s:%d: stopped - %s\n", s->path, s->vm->line, why);
+            if (s == &g_own) x_error("setup.eeai:%d: stopped - %s", s->vm->line, why);   // the player's own file: on the screen too
+        }
+        log_line("# setup: %s: done\n", s->path);
+        s->done = 1;
+    }
+    if (x_region_bytes(&s->reg) > (s->gc_at ? s->gc_at : (size_t)1 << 20)) {
+        struct xregion old = s->reg;
+        memset(&s->reg, 0, sizeof s->reg);
+        s->reg.busy = 1;
+        xvm_collect(s->vm);
+        x_region_free(&old);
+        s->gc_at = x_region_bytes(&s->reg) * 2 + ((size_t)1 << 20);
+    }
+    g_cur_script = NULL;
+    g_x_safe = 0;
+    memset(&g_x_hooks, 0, sizeof g_x_hooks);
+    g_xr = r0;
+}
 internal void WINAPI script_fiber(void *arg) {
     struct script *s = arg;
     script_run(s->path, &s->u, s->hooks, s);
@@ -211,6 +267,7 @@ internal void scripts_load(void) {   // setup=a.eeai;b.eeai: each read and check
             }
             log_line("# setup: %s\n", s->path);
             s->reg.busy = 1;   // its evaluations never start its region afresh
+            if (!script_vm_compile(s)) continue;
             g_nscripts++;
         }
     }
@@ -260,6 +317,7 @@ internal void script_end(struct script *s) {
     free(s->text);
     free(s->top);
     free(s->plan);
+    free(s->vm);   // (its code stays, as its tree)
     memset(s, 0, sizeof *s);
 }
 internal void scripts_restored_end(void) {   // a saved game's scripts (THE SCRIPTS IN A SAVED GAME): over with their game
@@ -295,6 +353,7 @@ internal void own_new_game(ee_setup *setup) {
     g_own.hooks = have & (1 << HOOK_GAME | 1 << type);
     g_own.reg.busy = 1;   // its evaluations never start its region afresh
     g_own.safe = 1;
+    if (!script_vm_compile(&g_own)) { free(g_own.text); g_own.text = NULL; return; }
     log_line("# setup: %s (%s: the setup's mode %d)\n", g_own.path, k_setup_hooks[type], mode);
 }
 internal void scripts_new_game(ee_setup *setup) {
@@ -315,6 +374,7 @@ internal void scripts_new_game(ee_setup *setup) {
 // thread of a later game may be another
 internal void safe_turn(struct script *s, uint32_t now) {
     if (!s->text || s->done || !s->safe || now < s->wake) return;
+    if (s->code) { script_vm_turn(s, now); return; }
     g_main_fiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(NULL);
     if (!s->fiber && g_main_fiber) s->fiber = CreateFiber(1 << 20, script_fiber, s);
     if (!s->fiber) { s->done = 1; log_line("# setup: %s: no fiber - not run\n", s->path); return; }
@@ -402,6 +462,7 @@ internal uint8_t *scripts_state_save(uint32_t *size) {
     const struct xposs *stacks[1 + SCRIPTS_MAX];
     int n = 0, lost = 0, waiting = 0, stuck = 0;
     *size = 0;
+    if (script_vm_on()) { log_line("# persist: scripts: compiled ones (script_vm) aren't saved yet\n"); return NULL; }
     if (g_own.text) sc[n++] = &g_own;
     for (int i = 0; i < g_nscripts; i++) sc[n++] = &g_scripts[i];
     if (!n) return NULL;
@@ -536,6 +597,12 @@ internal int dry_did(const char *what) {   // an effect: written as a command is
 }
 internal void cmd_script(char *out, const char *args) {
     char file[MAX_PATH], dst[MAX_PATH];
+    if (!strncmp(args, "vm", 2)) {   // the scripts read from now on (a dry run's too): compiled or the tree's
+        script_vm_on();
+        sscanf(args, "vm %d", &g_script_vm);
+        REPLY("script_vm=%d\n", g_script_vm);
+        return;
+    }
     if (!strncmp(args, "state", 5)) {   // the scripts saved and read back at once, as a save and its load do (a test) -
         // or into a file (state save <file>) and out of one (state load <file>: another game's, another process's)
         uint32_t n = 0;
@@ -581,7 +648,17 @@ internal void cmd_script(char *out, const char *args) {
     memcpy(keep_a, g_xa, sizeof g_xa);
     g_xt_n = g_xa_n = 0;
     g_xt_next = 0;
-    int ok = script_run(file, &u, 0, NULL);   // (setup.eeai run dry: its top, no hook - there is no game to tell its kind)
+    int ok;   // (setup.eeai run dry: its top, no hook - there is no game to tell its kind)
+    if (script_vm_on()) {   // compiled: the machine's turns, the clock moved where it waits
+        struct xcode *code = xc_compile(u.root, text, NULL, 0);
+        struct xvm *m = code && code->ok ? xvm_new(code, 0) : NULL;
+        const char *stop = code && !code->ok ? code->why : "no memory";
+        int r = m ? xvm_turn(m, &stop) : XVM_FAIL;
+        while (r == XVM_YIELD) { dry_wait(m->wake); r = xvm_turn(m, &stop); }
+        ok = r == XVM_DONE;
+        if (!ok) log_line("# setup: %s:%d: stopped - %s\n", file, m ? m->line : code ? code->why_line : 0, stop);
+        free(m);
+    } else ok = script_run(file, &u, 0, NULL);
     memcpy(g_xt, keep_t, sizeof g_xt);
     memcpy(g_xa, keep_a, sizeof g_xa);
     g_xt_n = nt; g_xa_n = na; g_xt_next = next;

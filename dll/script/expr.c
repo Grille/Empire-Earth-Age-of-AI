@@ -125,6 +125,7 @@ internal int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 internal struct {
     double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap);
     int (*did)(const char *what);
+    void (*note)(const char *what);   // what a compiled script tells its runner (a hook of its top called)
 } g_x_hooks;
 
 // THE VALUES' REGIONS: their texts and lists, in chunks. The shared one (the lines, prompts, settings) starts afresh
@@ -2241,7 +2242,8 @@ struct xframe { int n, keep; const char *name[XF_MAX]; struct xval val[XF_MAX]; 
 // THE VIEW (SCRIPTS COMPILED): a compiled function's variables are slots, read and set by their numbers - but a name
 // is still looked up by its letters where the language does that (a text's {placeholder}, p.gold of a variable p, the
 // host's p.opinion(q)): each running function's names and slots, then those of the code around where it was made
-struct xview { const char *const *name; const struct xval *val; int n; const struct xview *up; };
+// keep: one that outlives its function (a script's top, a trigger's copy) - taken as it is, not copied
+struct xview { const char *const *name; struct xval *val; int n; struct xview *up; int keep; };
 internal const struct xval *x_view_find(const struct xctx *c, const char *name, size_t len) {   // a name's slot, NULL none (or not set yet)
     for (const struct xview *w = c->view; w; w = w->up)
         for (int i = 0; i < w->n; i++)
@@ -2259,7 +2261,14 @@ internal struct xframe *x_frame_owner(struct xframe *f, const char *name, int *i
 #define XDIRTY_MAX 256
 internal struct { struct xframe *f; int i; } g_xdirty[XDIRTY_MAX];
 internal int g_xdirty_n, g_xdirty_base;
-struct xfn { const struct xnode *lam; struct xframe *env; };   // a function value: its definition and where it was made
+// a function value: its definition and where it was made - the tree's (lam, env: its frame), or a compiled one's
+// (lam NULL - SCRIPTS COMPILED: function fi of code on the machine vm, venv: the view of the function it was made in)
+struct xcode;
+struct xvm;
+struct xe;
+struct xfn { const struct xnode *lam; struct xframe *env; struct xcode *code; int fi; struct xview *venv; struct xvm *vm; };
+internal void xvm_call(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v);
+internal int xfn_nparams(const struct xfn *fn);
 // err: what is being worked out failed (its mistake told, or none: not an expression); why: what it was; f: the
 // frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
 // failed in; brk: a break (1) or continue (2) given, for the loop around; steps: loop rounds since it last waited
@@ -2738,6 +2747,7 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
     const struct xnode *lam = fv->fn->lam;
     int direct = g_xp_call_direct;
     g_xp_call_direct = 0;
+    if (!lam) { xvm_call(e, fv, a, na, v); return; }   // a compiled one: on its machine
     if (na != lam->n_items) { x_fail(e, "a function of %d argument%s called with %d", lam->n_items, lam->n_items == 1 ? "" : "s", na); return; }
     if (c->calls >= X_CALLS) { x_fail(e, "functions called inside each other %d deep - one that calls itself without end?", X_CALLS); return; }
     struct xframe *nf = malloc(sizeof *nf);
@@ -2887,7 +2897,7 @@ internal void x_triggers_reset(void) {   // a new game: none (nor dicts)
 }
 // a function value kept for later (in g_xt_keep, which x_alloc uses meanwhile): the frame it was made in copied
 // unless it stays (keep), each frame once (memo: a function in it made there too)
-struct xt_memo { const struct xframe *from[16]; struct xframe *to[16]; int n; };
+struct xt_memo { const struct xframe *from[16]; struct xframe *to[16]; int n; const struct xview *vfrom[16]; struct xview *vto[16]; int vn; };
 internal void xt_keep_val(struct xval *dst, const struct xval *src, struct xt_memo *m);
 internal struct xframe *xt_keep_frame(struct xframe *f, struct xt_memo *m) {
     if (!f || f->keep) return f;
@@ -2901,18 +2911,32 @@ internal struct xframe *xt_keep_frame(struct xframe *f, struct xt_memo *m) {
     c->up = xt_keep_frame(f->up, m);   // (where its copied names belong: kept too, or the script's top)
     return c;
 }
+// a compiled function's view kept the same way: its slots copied unless it stays, each view once
+internal struct xview *xt_keep_view(struct xview *w, struct xt_memo *m) {
+    if (!w || w->keep) return w;
+    for (int i = 0; i < m->vn; i++) if (m->vfrom[i] == w) return m->vto[i];
+    struct xview *c = x_alloc(sizeof *c);
+    struct xval *val = x_alloc((size_t)w->n * sizeof *val + 1);
+    if (!c || !val) return NULL;
+    if (m->vn < 16) { m->vfrom[m->vn] = w; m->vto[m->vn++] = c; }
+    c->name = w->name; c->val = val; c->n = w->n; c->keep = 1;
+    for (int i = 0; i < w->n; i++) xt_keep_val(&val[i], &w->val[i], m);
+    c->up = xt_keep_view(w->up, m);
+    return c;
+}
 internal void xt_keep_val(struct xval *dst, const struct xval *src, struct xt_memo *m) {
     xv_copy(dst, src);
     if (src->kind != XV_FN) return;
     struct xfn *fn = x_alloc(sizeof *fn);
     if (!fn) { xnothing(dst); return; }
-    fn->lam = src->fn->lam;
+    *fn = *src->fn;
     fn->env = xt_keep_frame(src->fn->env, m);
+    fn->venv = xt_keep_view(src->fn->venv, m);
     dst->fn = fn;
 }
 internal void xt_keep(struct xval *dst, const struct xval *src) {
     struct xregion *r0 = g_xr;
-    struct xt_memo m = { { 0 }, { 0 }, 0 };
+    struct xt_memo m = { { 0 }, { 0 }, 0, { 0 }, { 0 }, 0 };
     g_xr = &g_xt_keep;
     xt_keep_val(dst, src, &m);
     g_xr = r0;
@@ -2923,7 +2947,7 @@ internal void xt_name(char *out, const char *given, const struct xctx *c) {   //
     int n = (int)strcspn(s, "\r\n");
     lstrcpynA(out, s, (n < 47 ? n : 47) + 1);
 }
-internal int xt_fn0(const struct xval *f) { return f && f->kind == XV_FN && f->w && f->fn->lam->n_items == 0; }   // () => ...
+internal int xt_fn0(const struct xval *f) { return f && f->kind == XV_FN && f->w && xfn_nparams(f->fn) == 0; }   // () => ...
 internal void xt_make(struct xe *e, const struct xval *r, struct xval *v) {   // trigger({ ... })
     static const char *const keys[] = { "when", "run", "loop", "for", "name" };
     if (r->kind != XV_REC || !r->w) { x_fail(e, "trigger(%.40s): a record - trigger({ when = () => ..., run = () => ... })", xtext_of(r)); return; }
@@ -3729,16 +3753,17 @@ internal void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
     }
     free(items);
 }
-internal void xe_str(struct xe *e, const struct xnode *n, struct xval *v) {   // a string: its placeholders filled
+internal void x_str_fill(struct xe *e, const char *tmpl, struct xval *v) {   // a string: its placeholders filled
     int f0 = e->c->failed;
-    size_t cap = strlen(n->s) * 2 + 4096;
+    size_t cap = strlen(tmpl) * 2 + 4096;
     char *f = malloc(cap);
     if (!f) { e->err = 1; return; }
-    x_fill(f, (int)cap, n->s, e->c);
+    x_fill(f, (int)cap, tmpl, e->c);
     if (e->c->failed > f0) { free(f); e->err = 1; e->why = "a mistake while working it out"; return; }   // told in x_fill
     xstr(v, f);
     free(f);
 }
+internal void xe_str(struct xe *e, const struct xnode *n, struct xval *v) { x_str_fill(e, n->s, v); }
 // a variable set: the running function's own (new, or again), or one of the code around it in the frame it is its
 // own in - kept there (a frame that stays: in g_xt_keep; one that goes on: moved below when this function returns)
 internal void x_assign(struct xe *e, const char *name, const struct xval *v) {
@@ -4994,3 +5019,777 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
         }
     }
 }
+
+// ===== SCRIPTS COMPILED: a script's tree made into instructions and run by a loop of its own (the VM) - its whole state
+// plain data: where each function it is in stands (a number into the instructions), their variables (slots of one stack),
+// the half-worked-out values above them. A wait is that loop stopping where it is, anywhere in an expression too; no
+// fiber, nothing of the program's own stack belongs to a script. What an instruction does with its operands is the
+// tree's walk's own code (THE OPERATIONS, x_call_apply, x_member_of, x_fill): one meaning for both. Variables are slots
+// read by their numbers; where the language looks a name up by its letters it finds them through THE VIEW.
+//   the compiler: xc_compile - a function per lambda (the script's top is function 0), its names made slots: its
+//     parameters, every let and for of its body (known before the body is compiled: a function made earlier may use a
+//     let further down), hidden ones for a loop's own state. A name of a function around is (depth, slot).
+//   the machine: xvm_run - until a wait (XVM_YIELD), the script's end (XVM_DONE), a mistake no list caught (XVM_FAIL),
+//     or, called for one function by the program (a trigger's, a {placeholder}'s: xvm_call), that function's return.
+// Not compiled yet: the texts (personalities, prompts: the tree's walk).
+enum { XI_STMT, XI_CONST, XI_NIL, XI_LOADL, XI_LOADU, XI_STOREL, XI_STOREU, XI_NAME, XI_STR, XI_USE, XI_POP, XI_NEG, XI_NOT,
+       XI_ARITH, XI_CMP, XI_JMP, XI_JMPF, XI_AND, XI_OR, XI_COAL, XI_BOOL, XI_MEMBER, XI_INDEX, XI_MCALL, XI_DICT, XI_REC,
+       XI_KEY, XI_LIST, XI_TRY, XI_ITEM, XI_LIST_END, XI_CLOSURE, XI_CALLV, XI_CALLN, XI_RET, XI_LOOP, XI_SETI, XI_SETM,
+       XI_FORN, XI_FORN_NEXT, XI_FORN_STEP, XI_FORL, XI_FORL_NEXT, XI_FORL_STEP, XI_WAIT, XI_EVERY, XI_EVERY_NEXT,
+       XI_EVERY_CALL, XI_EVERY_DONE, XI_HOOK, XI_FAIL, XI_END, XI_COUNT };
+struct xins { unsigned char op, b; unsigned short c; int a; };   // what, and its numbers (each instruction's own use)
+struct xkonst { double n; const char *s; const char *cs; };     // a number; a text or a name (cs, n: a name's constant once looked up)
+struct xfunc { int entry, nparams, nslots, parent, line; const char **slot; };   // slot: its names ("" a hidden one)
+struct xcode {
+    struct xins *ins;
+    int *line;                // each instruction's line in the source
+    int n, cap;
+    struct xkonst *k;
+    int nk, ck;
+    struct xfunc *fn;
+    int nfn, cfn;
+    const char *src;          // the source (its statements' texts for the messages)
+    int ok;                   // compiled whole (else why, at why_line)
+    const char *why;
+    int why_line;
+};
+#define XC_LOOPS 256
+struct xcomp {
+    struct xcode *c;
+    int fi, line;                       // the function being compiled, the statement's line
+    int brk[XC_LOOPS], nbrk;            // jumps of break / continue waiting for their loop's end / next round
+    int cont[XC_LOOPS], ncont;
+    int in_loop;
+    int top_end[XC_LOOPS], ntop_end;    // a return at the script's top: to its end
+};
+internal void xcc_fail(struct xcomp *cc, const char *why) { if (cc->c->ok) { cc->c->ok = 0; cc->c->why = why; cc->c->why_line = cc->line; } }
+internal int xc_emit(struct xcomp *cc, int op, int a, int b, int c) {
+    struct xcode *k = cc->c;
+    if (k->n == k->cap) {
+        int cap = k->cap ? k->cap * 2 : 256;
+        struct xins *m = realloc(k->ins, (size_t)cap * sizeof *m);
+        int *l = m ? realloc(k->line, (size_t)cap * sizeof *l) : NULL;
+        if (m) k->ins = m;
+        if (!l) { xcc_fail(cc, "no memory for the script's instructions"); return 0; }
+        k->line = l; k->cap = cap;
+    }
+    if (c < 0 || c > 65535 || b < 0 || b > 255) { xcc_fail(cc, "a script too large for its instructions (65535 names, 255 arguments)"); c = b = 0; }
+    k->ins[k->n].op = (unsigned char)op; k->ins[k->n].b = (unsigned char)b; k->ins[k->n].c = (unsigned short)c; k->ins[k->n].a = a;
+    k->line[k->n] = cc->line;
+    return k->n++;
+}
+internal void xc_here(struct xcomp *cc, int at) { cc->c->ins[at].a = cc->c->n; }   // a jump's target: the next instruction
+internal int xc_konst(struct xcomp *cc, double n, const char *s) {   // a constant's place (a text or name as often as it is written: each keeps its own lookup)
+    struct xcode *k = cc->c;
+    if (!s) for (int i = 0; i < k->nk; i++) if (!k->k[i].s && k->k[i].n == n) return i;
+    if (k->nk == k->ck) {
+        int cap = k->ck ? k->ck * 2 : 64;
+        struct xkonst *m = realloc(k->k, (size_t)cap * sizeof *m);
+        if (!m) { xcc_fail(cc, "no memory for the script's constants"); return 0; }
+        k->k = m; k->ck = cap;
+    }
+    k->k[k->nk].n = n; k->k[k->nk].s = s; k->k[k->nk].cs = NULL;
+    return k->nk++;
+}
+internal int xc_func(struct xcomp *cc, int parent, int line) {
+    struct xcode *k = cc->c;
+    if (k->nfn == k->cfn) {
+        int cap = k->cfn ? k->cfn * 2 : 16;
+        struct xfunc *m = realloc(k->fn, (size_t)cap * sizeof *m);
+        if (!m) { xcc_fail(cc, "no memory for the script's functions"); return 0; }
+        k->fn = m; k->cfn = cap;
+    }
+    memset(&k->fn[k->nfn], 0, sizeof *k->fn);
+    k->fn[k->nfn].parent = parent; k->fn[k->nfn].line = line;
+    return k->nfn++;
+}
+internal int xc_slot(struct xcomp *cc, int fi, const char *name, int make) {   // a name's slot in function fi, -1 none; make: a new one (2: hidden, always new)
+    struct xfunc *f = &cc->c->fn[fi];
+    for (int i = 0; make != 2 && i < f->nslots; i++) if (!strcmp(f->slot[i], name)) return i;
+    if (!make) return -1;
+    const char **m = realloc((void *)f->slot, (size_t)(f->nslots + 1) * sizeof *m);
+    if (!m || f->nslots >= 250) { if (m) f->slot = m; xcc_fail(cc, "more than 250 names in a function"); return 0; }
+    f->slot = m;
+    f->slot[f->nslots] = make == 2 ? "" : name;
+    return f->nslots++;
+}
+// a name's variable seen from the function being compiled: its slot, *depth functions out (0 its own); -1 no variable
+internal int xc_resolve(struct xcomp *cc, const char *name, int *depth) {
+    *depth = 0;
+    if (strchr(name, '.')) return -1;
+    for (int fi = cc->fi; fi >= 0; fi = cc->c->fn[fi].parent, ++*depth) {
+        int sl = xc_slot(cc, fi, name, 0);
+        if (sl >= 0) return sl;
+    }
+    return -1;
+}
+internal void xc_load(struct xcomp *cc, const char *name) {
+    int depth, sl = xc_resolve(cc, name, &depth), k = xc_konst(cc, 0, name);
+    if (sl < 0) xc_emit(cc, XI_NAME, k, 0, 0);
+    else if (!depth) xc_emit(cc, XI_LOADL, sl, 0, k);
+    else xc_emit(cc, XI_LOADU, sl, depth, k);
+}
+internal void xc_store(struct xcomp *cc, const char *name) {   // the value on top into the name's variable (its own, a function's around - else a new own one)
+    int depth, sl = xc_resolve(cc, name, &depth), k = xc_konst(cc, 0, name);
+    if (sl < 0) { sl = xc_slot(cc, cc->fi, name, 1); depth = 0; }
+    if (!depth) xc_emit(cc, XI_STOREL, sl, 0, k);
+    else xc_emit(cc, XI_STOREU, sl, depth, k);
+}
+// a block's own names made slots before it is compiled (not a lambda's in it: its own function's)
+internal void xc_declare(struct xcomp *cc, const struct xnode *s) {
+    if (!s) return;
+    if (s->k == XN_BLOCK) { for (int i = 0; i < s->n_items; i++) xc_declare(cc, s->items[i]); return; }
+    if (s->k == XN_LET || s->k == XN_FOR) xc_slot(cc, cc->fi, s->s, 1);
+    if (s->k == XN_IF) { xc_declare(cc, s->a); xc_declare(cc, s->b); }
+    if (s->k == XN_WHILE) xc_declare(cc, s->a);
+    if (s->k == XN_FOR) xc_declare(cc, s->c);
+}
+internal void xc_expr(struct xcomp *cc, const struct xnode *n);
+internal void xc_block(struct xcomp *cc, const struct xnode *blk);
+internal void xc_lambda(struct xcomp *cc, const struct xnode *n) {   // its function, out of the way, and the value made of it here
+    int over = xc_emit(cc, XI_JMP, 0, 0, 0), fi = xc_func(cc, cc->fi, n->line), fi0 = cc->fi;
+    int nbrk = cc->nbrk, ncont = cc->ncont, in_loop = cc->in_loop;
+    cc->fi = fi;
+    cc->in_loop = 0;
+    for (int i = 0; i < n->n_items; i++) xc_slot(cc, fi, n->items[i]->s, 1);
+    cc->c->fn[fi].nparams = n->n_items;
+    cc->c->fn[fi].entry = cc->c->n;
+    if (n->a->k == XN_BLOCK) {
+        xc_declare(cc, n->a);
+        xc_block(cc, n->a);
+        xc_emit(cc, XI_NIL, 0, 0, 0);   // (no return: nothing)
+    } else xc_expr(cc, n->a);
+    xc_emit(cc, XI_RET, 0, 0, 0);
+    cc->fi = fi0;
+    cc->nbrk = nbrk; cc->ncont = ncont; cc->in_loop = in_loop;
+    xc_here(cc, over);
+    xc_emit(cc, XI_CLOSURE, fi, 0, 0);
+}
+internal void xc_call(struct xcomp *cc, const struct xnode *n) {
+    const char *name = n->s;
+    int depth, sl = xc_resolve(cc, name, &depth), k = xc_konst(cc, 0, name), nargs = n->n_items;
+    if (sl < 0 && !strcmp(name, "every") && nargs == 4) {   // every(step, from, until, f): a loop of its own, its state in five hidden slots
+        for (int i = 0; i < 4; i++) xc_expr(cc, n->items[i]);
+        int h = xc_slot(cc, cc->fi, "", 2);
+        for (int i = 0; i < 4; i++) xc_slot(cc, cc->fi, "", 2);
+        xc_emit(cc, XI_EVERY, 0, 0, h);
+        int next = xc_emit(cc, XI_EVERY_NEXT, 0, 0, h);
+        xc_emit(cc, XI_EVERY_CALL, 0, 0, h);
+        int done = xc_emit(cc, XI_EVERY_DONE, 0, 0, h);
+        xc_emit(cc, XI_JMP, next, 0, 0);
+        xc_here(cc, next); xc_here(cc, done);
+        xc_emit(cc, XI_NIL, 0, 0, 0);
+        return;
+    }
+    if (sl < 0 && nargs == 1 && (!strcmp(name, "wait") || !strcmp(name, "wait_until"))) {
+        xc_expr(cc, n->items[0]);
+        xc_emit(cc, XI_WAIT, 0, name[4] == '_', k);
+        return;
+    }
+    for (int i = 0; i < nargs; i++) xc_expr(cc, n->items[i]);
+    if (nargs > 32) {   // (as the tree's walk: its arguments worked out first)
+        char why[80];
+        snprintf(why, sizeof why, "%.40s(...): more than 32 arguments", name);
+        xc_emit(cc, XI_FAIL, xc_konst(cc, 0, _strdup(why)), 0, 0);
+        return;
+    }
+    if (sl >= 0) {   // a function in a variable: its value now, after the arguments
+        xc_load(cc, name);
+        xc_emit(cc, XI_CALLV, 0, nargs, k);
+    } else xc_emit(cc, XI_CALLN, k, nargs, 0);
+}
+internal void xc_expr(struct xcomp *cc, const struct xnode *n) {
+    int at, at2;
+    if (!n) { xc_emit(cc, XI_NIL, 0, 0, 0); return; }
+    switch (n->k) {
+    case XN_NUM: if (n->op == 'n') xc_emit(cc, XI_NIL, 0, 0, 0); else xc_emit(cc, XI_CONST, xc_konst(cc, n->n, NULL), 0, 0); break;
+    case XN_STR: xc_emit(cc, XI_STR, xc_konst(cc, 0, n->s), 0, 0); break;
+    case XN_NAME: xc_load(cc, n->s); break;
+    case XN_CALL: xc_call(cc, n); break;
+    case XN_LIST:
+        xc_emit(cc, XI_LIST, 0, 0, 0);
+        for (int i = 0; i < n->n_items; i++) {   // a mistake in an item leaves it out: caught at its XI_ITEM
+            at = xc_emit(cc, XI_TRY, 0, 0, 0);
+            xc_expr(cc, n->items[i]);
+            xc_emit(cc, XI_USE, 0, 0, 0);
+            xc_emit(cc, XI_ITEM, 0, 0, 0);
+            xc_here(cc, at);
+        }
+        xc_emit(cc, XI_LIST_END, 0, 0, 0);
+        break;
+    case XN_MEMBER:
+        xc_expr(cc, n->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_emit(cc, XI_MEMBER, xc_konst(cc, 0, n->s), 0, 0);
+        break;
+    case XN_INDEX:
+        xc_expr(cc, n->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_expr(cc, n->b);
+        xc_emit(cc, XI_INDEX, 0, 0, 0);
+        break;
+    case XN_MCALL:
+        xc_expr(cc, n->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        if (n->n_items > 8) {
+            char why[80];
+            snprintf(why, sizeof why, ".%.40s(...): more than 8 arguments", n->s);
+            xc_emit(cc, XI_FAIL, xc_konst(cc, 0, _strdup(why)), 0, 0);
+            break;
+        }
+        for (int i = 0; i < n->n_items; i++) xc_expr(cc, n->items[i]);
+        xc_emit(cc, XI_MCALL, xc_konst(cc, 0, n->s), n->n_items, 0);
+        break;
+    case XN_DICT:
+        xc_expr(cc, n->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_emit(cc, XI_DICT, (int)n->n, 0, 0);
+        break;
+    case XN_REC:
+        for (int i = 0; i < n->n_items; i++) { xc_expr(cc, n->items[i]->a); xc_emit(cc, XI_USE, 0, 0, 0); }
+        xc_emit(cc, XI_REC, n->n_items, 0, 0);
+        for (int i = 0; i < n->n_items; i++) xc_emit(cc, XI_KEY, xc_konst(cc, 0, n->items[i]->s), 0, 0);
+        break;
+    case XN_LAMBDA: xc_lambda(cc, n); break;
+    case XN_NEG: xc_expr(cc, n->a); xc_emit(cc, XI_NEG, 0, 0, 0); break;
+    case XN_NOT: xc_expr(cc, n->a); xc_emit(cc, XI_NOT, 0, 0, 0); break;
+    case XN_MUL: case XN_ADD:
+        xc_expr(cc, n->a);
+        xc_expr(cc, n->b);
+        xc_emit(cc, XI_ARITH, n->op, n->k == XN_MUL, 0);
+        break;
+    case XN_CMP:
+        xc_expr(cc, n->a);
+        xc_expr(cc, n->b);
+        xc_emit(cc, XI_CMP, n->op, xn_null(n->a) | xn_null(n->b) << 1, 0);
+        break;
+    case XN_AND: case XN_OR:
+        xc_expr(cc, n->a);
+        at = xc_emit(cc, n->k == XN_AND ? XI_AND : XI_OR, 0, 0, 0);
+        xc_expr(cc, n->b);
+        xc_emit(cc, XI_BOOL, 0, 0, 0);
+        xc_here(cc, at);
+        break;
+    case XN_COAL:
+        xc_expr(cc, n->a);
+        at = xc_emit(cc, XI_COAL, 0, 0, 0);
+        xc_expr(cc, n->b);
+        xc_here(cc, at);
+        break;
+    case XN_COND:
+        xc_expr(cc, n->c);
+        at = xc_emit(cc, XI_JMPF, 0, 0, 0);
+        xc_expr(cc, n->a);
+        at2 = xc_emit(cc, XI_JMP, 0, 0, 0);
+        xc_here(cc, at);
+        if (n->b) xc_expr(cc, n->b); else xc_emit(cc, XI_NIL, 0, 0, 0);
+        xc_here(cc, at2);
+        break;
+    default: xcc_fail(cc, "a statement where a value belongs"); break;
+    }
+}
+internal void xc_loop_end(struct xcomp *cc, int nbrk, int ncont, int next) {   // the loop's breaks to here, its continues to next
+    for (int i = ncont; i < cc->ncont; i++) cc->c->ins[cc->cont[i]].a = next;
+    for (int i = nbrk; i < cc->nbrk; i++) xc_here(cc, cc->brk[i]);
+    cc->nbrk = nbrk; cc->ncont = ncont;
+}
+internal void xc_stmt(struct xcomp *cc, const struct xnode *s) {
+    int at, top, next, nbrk = cc->nbrk, ncont = cc->ncont, in_loop = cc->in_loop, h;
+    cc->line = s->line;
+    xc_emit(cc, XI_STMT, (int)(s->at - cc->c->src), 0, 0);
+    switch (s->k) {
+    case XN_LET: case XN_ASSIGN:
+        xc_expr(cc, s->a);
+        if (s->k == XN_LET) { h = xc_slot(cc, cc->fi, s->s, 1); xc_emit(cc, XI_STOREL, h, 0, xc_konst(cc, 0, s->s)); }
+        else xc_store(cc, s->s);
+        break;
+    case XN_RETURN:
+        if (cc->fi) { xc_expr(cc, s->a); xc_emit(cc, XI_RET, 0, 0, 0); break; }
+        if (s->a) { xc_expr(cc, s->a); xc_emit(cc, XI_POP, 0, 0, 0); }   // at the script's top: its statements end there
+        if (cc->ntop_end < XC_LOOPS) cc->top_end[cc->ntop_end++] = xc_emit(cc, XI_JMP, 0, 0, 0);
+        break;
+    case XN_BREAK: case XN_CONTINUE:
+        if (!cc->in_loop) { xcc_fail(cc, "break / continue outside a loop"); break; }
+        at = xc_emit(cc, XI_JMP, 0, 0, 0);
+        if (s->k == XN_BREAK ? cc->nbrk == XC_LOOPS : cc->ncont == XC_LOOPS) { xcc_fail(cc, "more than 256 breaks waiting for their loops"); break; }
+        if (s->k == XN_BREAK) cc->brk[cc->nbrk++] = at; else cc->cont[cc->ncont++] = at;
+        break;
+    case XN_SETI:
+        xc_expr(cc, s->a); xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_expr(cc, s->b); xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_expr(cc, s->c); xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_emit(cc, XI_SETI, s->op, 0, 0);
+        break;
+    case XN_SETM:
+        xc_expr(cc, s->a); xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_expr(cc, s->b);
+        xc_emit(cc, XI_SETM, xc_konst(cc, 0, s->s), s->op, 0);
+        break;
+    case XN_IF: {
+        int end[64], nend = 0;
+        for (const struct xnode *i = s; i; i = i->b && i->b->k == XN_IF ? i->b : NULL) {   // else if ...: the next if
+            xc_expr(cc, i->c);
+            at = xc_emit(cc, XI_JMPF, 0, 0, 0);
+            xc_block(cc, i->a);
+            if (i->b && nend < 64) end[nend++] = xc_emit(cc, XI_JMP, 0, 0, 0);
+            else if (i->b) xcc_fail(cc, "more than 64 else if in a row");
+            xc_here(cc, at);
+            if (i->b && i->b->k != XN_IF) xc_block(cc, i->b);
+        }
+        for (int i = 0; i < nend; i++) xc_here(cc, end[i]);
+        break;
+    }
+    case XN_WHILE:
+        top = cc->c->n;
+        xc_expr(cc, s->c);
+        at = xc_emit(cc, XI_JMPF, 0, 0, 0);
+        cc->in_loop = 1;
+        xc_block(cc, s->a);
+        cc->line = s->line;
+        next = xc_emit(cc, XI_LOOP, top, 0, 0);
+        xc_here(cc, at);
+        xc_loop_end(cc, nbrk, ncont, next);
+        break;
+    case XN_FOR: {
+        int range = s->b != NULL, k = xc_konst(cc, 0, s->s);
+        xc_expr(cc, s->a);
+        if (range) xc_expr(cc, s->b);
+        h = xc_slot(cc, cc->fi, "", 2);
+        xc_slot(cc, cc->fi, "", 2);
+        xc_emit(cc, range ? XI_FORN : XI_FORL, k, 0, h);
+        top = xc_emit(cc, range ? XI_FORN_NEXT : XI_FORL_NEXT, 0, 0, h);
+        xc_emit(cc, XI_STOREL, xc_slot(cc, cc->fi, s->s, 1), 0, k);
+        cc->in_loop = 1;
+        xc_block(cc, s->c);
+        cc->line = s->line;
+        next = xc_emit(cc, range ? XI_FORN_STEP : XI_FORL_STEP, 0, 0, h);
+        xc_emit(cc, XI_LOOP, top, 0, 0);
+        xc_here(cc, top);
+        xc_loop_end(cc, nbrk, ncont, next);
+        break;
+    }
+    case XN_BLOCK: xc_block(cc, s); break;
+    default:
+        xc_expr(cc, s);
+        xc_emit(cc, XI_POP, 0, 0, 0);
+        break;
+    }
+    cc->in_loop = in_loop;
+}
+internal void xc_block(struct xcomp *cc, const struct xnode *blk) {
+    if (!blk) return;
+    if (blk->k != XN_BLOCK) { xc_stmt(cc, blk); return; }
+    for (int i = 0; i < blk->n_items; i++) xc_stmt(cc, blk->items[i]);
+}
+// a script's tree compiled (src: its text, the tree's; hooks: functions of its top called after it in this order, each
+// when the machine's hooks say so - setup.eeai's). The code stays (as the tree does); ok 0: why, why_line
+internal struct xcode *xc_compile(const struct xnode *root, const char *src, const char *const *hooks, int nhooks) {
+    struct xcode *k = calloc(1, sizeof *k);
+    struct xcomp *cc = calloc(1, sizeof *cc);
+    if (!k || !cc) { free(k); free(cc); return NULL; }
+    k->src = src; k->ok = 1;
+    cc->c = k;
+    cc->fi = xc_func(cc, -1, 1);
+    xc_declare(cc, root);
+    xc_block(cc, root);
+    for (int i = 0; i < cc->ntop_end; i++) xc_here(cc, cc->top_end[i]);
+    for (int i = 0; i < nhooks; i++) {
+        int sl = xc_slot(cc, 0, hooks[i], 0), name = xc_konst(cc, 0, hooks[i]);
+        if (sl < 0) continue;
+        int skip = xc_emit(cc, XI_HOOK, 0, i, name);
+        xc_emit(cc, XI_LOADL, sl, 0, name);
+        xc_emit(cc, XI_CALLV, 0, 0, name);
+        xc_emit(cc, XI_POP, 0, 0, 0);
+        xc_here(cc, skip);
+    }
+    xc_emit(cc, XI_END, 0, 0, 0);
+    free(cc);
+    return k;
+}
+
+// THE MACHINE: one script's - the calls in progress (frames: each its function, where its caller goes on, its slots'
+// place in the stack, its names as a view), the stack (slots, then the values being worked out), the lists' items
+// being tried, where it stands (pc)
+#define XVM_STACK 2048
+#define XVM_FRAMES (X_CALLS + 2)
+#define XVM_TRIES 64
+struct xvframe { struct xview view; int fn, ret_pc, base; };
+struct xvtry { int sp, nfr, pc, failed; };
+struct xvm {
+    struct xcode *code;
+    struct xctx c;                       // its context: a script's, its view the running function's
+    struct xvframe fr[XVM_FRAMES];
+    int nfr;
+    struct xval st[XVM_STACK];
+    int sp;
+    struct xvtry tr[XVM_TRIES];
+    int ntr;
+    int pc, hooks, line, done, started;
+    double wake;                         // the game second it waits for (XVM_YIELD)
+};
+enum { XVM_DONE, XVM_YIELD, XVM_FAIL, XVM_RET };
+internal int xvm_made_in(const struct xval *v, const struct xview *w) {   // a function made in the function of view w, in v or its items
+    if (v->kind == XV_FN && v->fn && v->fn->venv == w) return 1;
+    for (int i = 0; i < v->ln; i++) if (xvm_made_in(&v->it[i], w)) return 1;
+    for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) if (xvm_made_in(&v->rec->val[i], w)) return 1;
+    return 0;
+}
+internal void xvm_unset(struct xval *v) { xnothing(v); v->kind = XV_UNSET; }
+// a function entered: its frame on the arguments (argc values from base on); 0 a mistake told
+internal int xvm_enter(struct xvm *m, struct xe *e, const struct xfn *fn, int base, int argc) {
+    const struct xfunc *f = &m->code->fn[fn->fi];
+    if (argc != f->nparams) { x_fail(e, "a function of %d argument%s called with %d", f->nparams, f->nparams == 1 ? "" : "s", argc); return 0; }
+    if (e->c->calls >= X_CALLS || m->nfr >= XVM_FRAMES) { x_fail(e, "functions called inside each other %d deep - one that calls itself without end?", X_CALLS); return 0; }
+    if (base + f->nslots + 64 > XVM_STACK) { x_fail(e, "a script's values piled too high (functions called inside each other, long lists)"); return 0; }
+    struct xvframe *fr = &m->fr[m->nfr++];
+    fr->fn = fn->fi; fr->ret_pc = m->pc; fr->base = base;
+    fr->view.name = f->slot; fr->view.val = &m->st[base]; fr->view.n = f->nslots; fr->view.up = fn->venv; fr->view.keep = 0;
+    for (int i = argc; i < f->nslots; i++) xvm_unset(&m->st[base + i]);
+    m->sp = base + f->nslots;
+    m->pc = f->entry;
+    e->c->view = &fr->view;
+    e->c->calls++;
+    return 1;
+}
+internal struct xval *xvm_push(struct xvm *m, struct xe *e) {
+    if (m->sp < XVM_STACK - 1) return &m->st[m->sp++];
+    x_fail(e, "a script's values piled too high (a list of more than %d items?)", XVM_STACK);
+    return &m->st[XVM_STACK - 1];
+}
+// the function value on top called with the argc values below it (name: as written, for the messages): a compiled
+// one of this script entered, any other worked out at once
+internal void xvm_callv(struct xvm *m, struct xe *e, int argc, const char *name) {
+    struct xval fv = m->st[--m->sp], r, *args = &m->st[m->sp - argc];
+    int base = m->sp - argc;
+    xnothing(&r);
+    if (fv.kind == XV_UNSET) {   // its let not reached yet: whatever else has that name
+        x_call_apply(e, name, args, argc, 0, &r);
+        if (e->c->missed) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
+    } else if (fv.kind != XV_FN) x_fail(e, "%s is no function", name);
+    else if (!fv.fn->lam && fv.fn->vm == m) { xvm_enter(m, e, fv.fn, base, argc); return; }
+    else x_call_value(e, &fv, args, argc, &r);
+    m->sp = base;
+    *xvm_push(m, e) = r;
+}
+internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
+    struct xcode *code = m->code;
+    struct xctx *c = e->c;
+    int ntr0 = m->ntr;
+    for (;;) {
+        const struct xins *in = &code->ins[m->pc++];
+        struct xvframe *f = &m->fr[m->nfr - 1];
+        struct xkonst *k = &code->k[in->op == XI_LOADL || in->op == XI_LOADU || in->op == XI_STOREL || in->op == XI_STOREU || in->op == XI_CALLV
+                                    || in->op == XI_WAIT || in->op == XI_HOOK ? in->c : in->a < code->nk && in->a >= 0 ? in->a : 0];
+        struct xval r, *v, *top = &m->st[m->sp ? m->sp - 1 : 0];
+        struct xview *w;
+        switch (in->op) {
+        case XI_STMT: c->top = code->src + in->a; m->line = code->line[m->pc - 1]; break;
+        case XI_CONST: xnum(xvm_push(m, e), code->k[in->a].n); break;
+        case XI_NIL: xnothing(xvm_push(m, e)); break;
+        case XI_LOADL: case XI_LOADU:
+            w = &f->view;
+            for (int d = in->b; d > 0 && w; d--) w = w->up;
+            v = xvm_push(m, e);
+            if (!w || in->a >= w->n || w->val[in->a].kind == XV_UNSET) { xnothing(v); xop_name(e, k->s, &k->n, &k->cs, v); }   // not set yet: whatever else has that name
+            else *v = w->val[in->a];
+            break;
+        case XI_STOREL: m->st[f->base + in->a] = m->st[--m->sp]; break;
+        case XI_STOREU:
+            w = &f->view;
+            for (int d = in->b; d > 0 && w; d--) w = w->up;
+            v = &m->st[--m->sp];
+            if (!w || in->a >= w->n) { x_fail(e, "%s = ...: its frame is gone", k->s); break; }
+            if (xvm_made_in(v, &f->view)) { x_fail(e, "%s = ...: a function made inside a function can't be handed out of it", k->s); break; }
+            // a frame that stays set from a trigger's function (its values are the tick's): kept
+            if (w->keep && g_xt_in && (v->has_s || v->ln || v->kind || v->obj)) xt_keep(&w->val[in->a], v);
+            else w->val[in->a] = *v;
+            break;
+        case XI_NAME: v = xvm_push(m, e); xnothing(v); xop_name(e, k->s, &k->n, &k->cs, v); break;
+        case XI_STR: v = xvm_push(m, e); xnothing(v); x_str_fill(e, k->s, v); break;
+        case XI_USE: x_use(e, top); break;
+        case XI_POP: m->sp--; break;
+        case XI_NEG: xop_neg(e, top); break;
+        case XI_NOT: xnum(top, !xtrue(top)); break;
+        case XI_ARITH: m->sp--; xop_arith(e, in->b, in->a, &m->st[m->sp - 1], &m->st[m->sp]); break;
+        case XI_CMP: m->sp--; xop_cmp(e, in->a, in->b & 1, in->b >> 1, &m->st[m->sp - 1], &m->st[m->sp]); break;
+        case XI_JMP: m->pc = in->a; break;
+        case XI_JMPF: if (!xtrue(&m->st[--m->sp])) m->pc = in->a; break;
+        case XI_AND: case XI_OR: {
+            int t = xtrue(top);
+            if (in->op == XI_AND ? !t : t) { xnum(top, t); m->pc = in->a; }   // the right side not worked out
+            else m->sp--;
+            break;
+        }
+        case XI_BOOL: xnum(top, xtrue(top)); break;
+        case XI_COAL: if (top->w > 0) m->pc = in->a; else m->sp--; break;
+        case XI_MEMBER: x_member_of(e, k->s, top, NULL); break;
+        case XI_INDEX:
+            xnothing(&r);
+            xop_index(e, &m->st[m->sp - 2], &m->st[m->sp - 1], &r);
+            m->sp--;
+            m->st[m->sp - 1] = r;
+            break;
+        case XI_MCALL:
+            xnothing(&r);
+            xop_mcall(e, k->s, &m->st[m->sp - in->b - 1], &m->st[m->sp - in->b], in->b, &r);
+            m->sp -= in->b;
+            m->st[m->sp - 1] = r;
+            break;
+        case XI_DICT: r = *top; xnothing(top); xop_dict(e, in->a, &r, top); break;
+        case XI_REC: {   // its members' values below, their names in the XI_KEYs after
+            int n = in->a;
+            struct xrec *rec = x_alloc(sizeof *rec);
+            const char **key = x_alloc((size_t)n * sizeof *key + 1);
+            struct xval *val = x_alloc((size_t)n * sizeof *val + 1);
+            if (!rec || !key || !val) { e->err = 1; break; }
+            rec->n = n; rec->key = key; rec->val = val;
+            for (int i = 0; i < n; i++) { key[i] = code->k[code->ins[m->pc + i].a].s; val[i] = m->st[m->sp - n + i]; }
+            m->pc += n;
+            m->sp -= n;
+            v = xvm_push(m, e);
+            xnothing(v);
+            v->w = 1; v->kind = XV_REC; v->rec = rec;
+            break;
+        }
+        case XI_LIST:
+            if (c->fixed) { x_fail(e, "a list - a setting is one number"); break; }
+            xvm_unset(xvm_push(m, e));   // where its items begin
+            break;
+        case XI_TRY:
+            if (m->ntr == XVM_TRIES) { x_fail(e, "lists inside each other more than %d deep", XVM_TRIES); break; }
+            m->tr[m->ntr].sp = m->sp; m->tr[m->ntr].nfr = m->nfr; m->tr[m->ntr].pc = in->a; m->tr[m->ntr].failed = c->failed;
+            m->ntr++;
+            break;
+        case XI_ITEM:
+            if (m->ntr > ntr0) m->ntr--;
+            if (!top->w) m->sp--;   // nothing: left out
+            break;
+        case XI_LIST_END: {   // the items above the mark: a list in it its items in its place; none left: nothing
+            int mk = m->sp - 1, cnt = 0;
+            while (mk > 0 && m->st[mk].kind != XV_UNSET) mk--;
+            for (int i = mk + 1; i < m->sp; i++) cnt += m->st[i].ln ? m->st[i].ln : 1;
+            struct xval *keep = cnt ? x_alloc((size_t)cnt * sizeof *keep) : NULL;
+            if (cnt && !keep) { x_fail(e, "no memory for a list"); break; }
+            for (int i = mk + 1, o = 0; i < m->sp; i++) {
+                const struct xval *it = &m->st[i];
+                for (int j = 0; j < (it->ln ? it->ln : 1); j++) keep[o++] = it->ln ? it->it[j] : *it;
+            }
+            m->sp = mk + 1;
+            v = &m->st[mk];
+            xnothing(v);
+            if (cnt) { v->it = keep; v->ln = v->w = cnt; }
+            break;
+        }
+        case XI_CLOSURE: {
+            struct xfn *fn = x_alloc(sizeof *fn);
+            if (!fn) { e->err = 1; break; }
+            memset(fn, 0, sizeof *fn);
+            fn->code = code; fn->fi = in->a; fn->venv = &f->view; fn->vm = m;
+            v = xvm_push(m, e);
+            xnothing(v);
+            v->w = 1; v->kind = XV_FN; v->fn = fn;
+            break;
+        }
+        case XI_CALLV: xvm_callv(m, e, in->b, k->s); break;
+        case XI_CALLN:
+            xnothing(&r);
+            x_call_apply(e, k->s, &m->st[m->sp - in->b], in->b, 0, &r);
+            if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
+            m->sp -= in->b;
+            *xvm_push(m, e) = r;
+            break;
+        case XI_RET: {
+            r = m->st[--m->sp];
+            if (xvm_made_in(&r, &f->view)) { x_fail(e, "a function made inside a function can't be handed out of it"); break; }
+            m->sp = f->base;
+            m->st[m->sp++] = r;
+            m->pc = f->ret_pc;
+            m->nfr--;
+            c->calls--;
+            c->view = m->nfr ? &m->fr[m->nfr - 1].view : NULL;
+            if (m->nfr == until_nfr) return XVM_RET;
+            break;
+        }
+        case XI_LOOP:   // a loop's next round
+            if (++e->steps > X_LOOP_STEPS) { x_fail(e, "a loop (line %d) ran %d rounds without waiting - wait(...) lets the game go on", code->line[m->pc - 1], X_LOOP_STEPS); break; }
+            m->pc = in->a;
+            break;
+        case XI_SETI: m->sp -= 3; xop_seti(e, in->a, &m->st[m->sp], &m->st[m->sp + 1], &m->st[m->sp + 2]); break;
+        case XI_SETM: m->sp -= 2; xop_setm(e, k->s, in->b, &m->st[m->sp], &m->st[m->sp + 1]); break;
+        case XI_FORN: {   // for name in a..b: a and b below; its number and end into the hidden slots
+            struct xval *a = &m->st[m->sp - 2], *b = &m->st[m->sp - 1];
+            m->sp -= 2;
+            if (!x_numeric_ok(e, a) || !x_numeric_ok(e, b)) break;
+            if (!a->w || !b->w) { x_fail(e, "for %s in a..b: a number where nothing is", k->s); break; }
+            xnum(&m->st[f->base + in->c], a->n);
+            xnum(&m->st[f->base + in->c + 1], b->n);
+            break;
+        }
+        case XI_FORN_NEXT:
+            if (!(m->st[f->base + in->c].n <= m->st[f->base + in->c + 1].n + 1e-9)) m->pc = in->a;
+            else xnum(xvm_push(m, e), m->st[f->base + in->c].n);
+            break;
+        case XI_FORN_STEP: m->st[f->base + in->c].n += 1; break;
+        case XI_FORL: {   // for name in l: the list below, into the hidden slot, its place after it
+            struct xval *a = &m->st[--m->sp];
+            if (a->kind) { x_fail(e, "for %s in ...: %s - a list, or a..b", k->s, a->kind == XV_FN ? "a function" : a->kind == XV_REC ? "a record" : a->kind == XV_VEC ? "a vector" : "stop"); break; }
+            m->st[f->base + in->c] = *a;
+            xnum(&m->st[f->base + in->c + 1], 0);
+            break;
+        }
+        case XI_FORL_NEXT: {
+            const struct xval *l = &m->st[f->base + in->c];
+            int i = (int)m->st[f->base + in->c + 1].n;
+            if (i >= xl_n(l)) m->pc = in->a;
+            else *xvm_push(m, e) = *xl_at(l, i);
+            break;
+        }
+        case XI_FORL_STEP: m->st[f->base + in->c + 1].n += 1; break;
+        case XI_WAIT: {   // wait(seconds) / wait_until(time) (b): the machine stops here until then
+            struct xval a = m->st[--m->sp];
+            double now = g_x_hooks.now ? g_x_hooks.now() : 0;
+            xnothing(xvm_push(m, e));
+            if (!x_numeric_ok(e, &a) || !a.w) { if (!e->err) x_fail(e, "%s(...): a number where nothing is", k->s); break; }
+            if (in->b && !(a.n > now)) break;   // (past: no wait)
+            if (g_xt_in) { x_fail(e, "a trigger's run can't wait - after(5s, () => ...) does it later"); break; }
+            if (until_nfr > 0 || !g_x_hooks.now) { x_fail(e, "waiting only in a script"); break; }
+            m->wake = in->b ? a.n : now + a.n;
+            e->steps = 0;
+            return XVM_YIELD;
+        }
+        case XI_EVERY: {   // every(step, from, until, f): the four below into the hidden slots, its run 1
+            struct xval *a = &m->st[m->sp - 4];
+            m->sp -= 4;
+            for (int i = 0; i < 4 && !e->err; i++) {
+                if (i == 3) { if (a[i].kind != XV_FN) x_fail(e, "every(...): its last argument is a function - (i) => ..."); }
+                else if (!x_numeric_ok(e, &a[i]) || !a[i].w) { if (!e->err) x_fail(e, "every(...): a number where nothing is"); }
+            }
+            if (e->err) break;
+            if (!(a[0].n > 0)) { x_fail(e, "every(%g, ...): the step must be above 0", a[0].n); break; }
+            for (int i = 0; i < 4; i++) m->st[f->base + in->c + i] = a[i];
+            xnum(&m->st[f->base + in->c + 4], 1);
+            break;
+        }
+        case XI_EVERY_NEXT: {   // this run's time: past the end - out; still to come - the machine stops until then
+            const struct xval *h = &m->st[f->base + in->c];
+            double t = h[1].n + (h[4].n - 1) * h[0].n, now = g_x_hooks.now ? g_x_hooks.now() : 0;
+            if (t > h[2].n + 1e-9) { m->pc = in->a; break; }
+            if (!(t > now)) break;
+            if (g_xt_in) { x_fail(e, "a trigger's run can't wait - after(5s, () => ...) does it later"); break; }
+            if (until_nfr > 0 || !g_x_hooks.now) { x_fail(e, "waiting only in a script"); break; }
+            m->wake = t;
+            e->steps = 0;
+            return XVM_YIELD;
+        }
+        case XI_EVERY_CALL:   // f(run)
+            xnum(xvm_push(m, e), m->st[f->base + in->c + 4].n);
+            *xvm_push(m, e) = m->st[f->base + in->c + 3];
+            if (!e->err) xvm_callv(m, e, 1, "every's function");
+            break;
+        case XI_EVERY_DONE:   // its value: stop ends it, else the next run
+            if (m->st[--m->sp].kind == XV_STOP) m->pc = in->a;
+            else m->st[f->base + in->c + 4].n += 1;
+            break;
+        case XI_HOOK:   // a hook of the script's top: called when the machine's hooks say so
+            if (!((m->hooks >> in->b) & 1)) m->pc = in->a;
+            else if (g_x_hooks.note) g_x_hooks.note(k->s);
+            break;
+        case XI_FAIL: x_fail(e, "%s", k->s); break;
+        case XI_END: m->done = 1; return XVM_DONE;
+        default: x_fail(e, "the script's instructions are broken (%d)", in->op); break;
+        }
+        if (!e->err) continue;
+        int caught = 0;   // a mistake: a list's item being tried is left out (told) - else it ends what runs
+        while (m->ntr > ntr0 && !caught) {
+            const struct xvtry *t = &m->tr[--m->ntr];
+            if (!(c->failed > t->failed && !c->circle)) continue;
+            while (m->nfr > t->nfr) { m->nfr--; c->calls--; }
+            c->view = &m->fr[m->nfr - 1].view;
+            m->sp = t->sp;
+            m->pc = t->pc;
+            e->err = 0; e->why = NULL;
+            caught = 1;
+        }
+        if (!caught) return XVM_FAIL;
+    }
+}
+// a compiled function called by the program (a trigger's, an after's, one a {placeholder} names): worked out at once
+// on its script's machine, above what stands there - it can't wait
+internal void xvm_call(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) {
+    struct xvm *m = fv->fn->vm;
+    int pc = m->pc, nfr = m->nfr, sp = m->sp, ntr = m->ntr, calls = e->c->calls, line = m->line;
+    const struct xview *view = e->c->view;
+    const char *top = e->c->top;
+    xnothing(v);
+    if (sp + na + 8 > XVM_STACK) { x_fail(e, "a script's values piled too high"); return; }
+    for (int i = 0; i < na; i++) m->st[m->sp++] = a[i];
+    if (xvm_enter(m, e, fv->fn, sp, na) && xvm_run(m, e, nfr) == XVM_RET) *v = m->st[sp];
+    else if (!e->err) { e->err = 1; e->why = "a mistake while working it out"; }
+    m->pc = pc; m->nfr = nfr; m->sp = sp; m->ntr = ntr; m->line = line;
+    e->c->calls = calls; e->c->view = view; e->c->top = top;
+}
+// a machine for compiled code: its top function entered (hooks: which of the code's hooks it calls)
+internal struct xvm *xvm_new(struct xcode *code, int hooks) {
+    struct xvm *m = calloc(1, sizeof *m);
+    if (!m) return NULL;
+    m->code = code; m->hooks = hooks;
+    m->c.found = 1; m->c.script = 1;
+    struct xvframe *fr = &m->fr[m->nfr++];
+    const struct xfunc *f = &code->fn[0];
+    fr->fn = 0; fr->base = 0;
+    fr->view.name = f->slot; fr->view.val = m->st; fr->view.n = f->nslots; fr->view.up = NULL; fr->view.keep = 1;
+    for (int i = 0; i < f->nslots; i++) xvm_unset(&m->st[i]);
+    m->sp = f->nslots;
+    m->c.view = &fr->view;
+    return m;
+}
+// the machine's turn: on from where it stands until it waits, ends or stops on a mistake (*why, at m->line)
+internal int xvm_turn(struct xvm *m, const char **why) {
+    struct xe e = { &m->c, 0, NULL, NULL, 0, NULL, NULL, 0, 0, 0 };
+    if (m->done) return XVM_DONE;
+    if (!m->started) { m->started = 1; g_x_last_fail[0] = 0; }
+    m->c.view = &m->fr[m->nfr - 1].view;
+    int r = xvm_run(m, &e, 0);
+    if (r == XVM_FAIL) { m->done = 1; *why = g_x_last_fail[0] ? g_x_last_fail : e.why ? e.why : "not worked out"; }
+    return r;
+}
+// the values a machine holds copied into the region now (g_xr), each whole: what is left behind in the one before is
+// garbage then (the runner frees it) - a script's memory doesn't grow with what it worked out and dropped
+internal void xvm_copy(struct xval *dst, const struct xval *src) {
+    *dst = *src;
+    if (src->s && src->s[0]) dst->s = x_strdup(src->s, strlen(src->s));
+    if (src->kind == XV_VEC && src->vc) {
+        double *m = x_alloc((size_t)src->vn * sizeof *m);
+        if (m) memcpy(m, src->vc, (size_t)src->vn * sizeof *m);
+        dst->vc = m;
+    }
+    if (src->kind == XV_REC && src->rec) {
+        struct xrec *r = x_alloc(sizeof *r);
+        const char **key = x_alloc((size_t)src->rec->n * sizeof *key + 1);
+        struct xval *val = x_alloc((size_t)src->rec->n * sizeof *val + 1);
+        if (!r || !key || !val) { xnothing(dst); return; }
+        r->n = src->rec->n; r->key = key; r->val = val;
+        for (int i = 0; i < r->n; i++) { key[i] = x_strdup(src->rec->key[i], strlen(src->rec->key[i])); xvm_copy(&val[i], &src->rec->val[i]); }
+        dst->rec = r;
+    }
+    if (src->kind == XV_FN && src->fn) {
+        struct xfn *fn = x_alloc(sizeof *fn);
+        if (fn) *fn = *src->fn;
+        dst->fn = fn;
+    }
+    if (src->ln) {
+        struct xval *it = x_alloc((size_t)src->ln * sizeof *it);
+        if (!it) { dst->ln = 0; dst->it = NULL; return; }
+        for (int i = 0; i < src->ln; i++) xvm_copy(&it[i], &src->it[i]);
+        dst->it = it;
+    }
+}
+internal void xvm_collect(struct xvm *m) {
+    for (int i = 0; i < m->sp; i++) { struct xval t; xvm_copy(&t, &m->st[i]); m->st[i] = t; }
+}
+internal size_t x_region_bytes(const struct xregion *r) {
+    size_t n = 0;
+    for (const struct xchunk *k = r->first; k; k = k->next) n += k->cap;
+    return n;
+}
+internal int xfn_nparams(const struct xfn *fn) { return fn->lam ? fn->lam->n_items : fn->code->fn[fn->fi].nparams; }
