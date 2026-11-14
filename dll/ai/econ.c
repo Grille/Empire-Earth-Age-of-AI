@@ -146,6 +146,10 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 // own_ships: 2 = the warships' orders and requests too (fleet.c EVERY WARSHIP THE MOD'S), 1 = the fleet on every map
 // alone, 3 = the transports too (THE TRANSPORTS THE MOD'S, below) - 1 and 3: [autotest] v_own_ships only; own_citizens: 2 = the fishing boats too (fleet.c THE FISHING BOATS THE MOD'S)
 internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own_ships = -1, g_own_citizens = 2, g_v_own_citizens = -1;
+// THE GAME'S COMPUTER PLAYER ([ai_base] game_ai, [autotest] v_game_ai; eeaimod.c cp_update_own reads the setting): 0 = it
+// does not run for this AI after its first update
+internal int g_game_ai = 0, g_v_game_ai = -1;
+#define GAME_AI(idx) PV(idx, g_v_game_ai, g_game_ai)
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)
 #define OWN_SHIPS(idx) PV(idx, g_v_own_ships, g_own_ships)
 // THE TRANSPORTS THE MOD'S (own_ships' third level): the game trains none for its transport manager, its subgroups
@@ -1337,6 +1341,21 @@ internal int g_pull[16];
 internal uint32_t g_pull_t[16];
 internal unsigned g_pull_seen[16][7];
 internal unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
+// The game's own placement - its build manager's call (0x468629), where hook_place is patched in; the mod's code calls
+// hook_place itself. With the game's computer player off (game_ai = 0) it places nothing: its one update, the first,
+// kept for the setups the mod reads, placed the first entry of its build list all the same - a Barracks with every
+// AI (the player 2026-11-14, at his first look at the clean slate: "the ai's all build a single barracks at the
+// start ... where does that come from?" - "yes, close that leak now"). Told as placed: the entry leaves its queue.
+internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y);
+internal char __thiscall hook_place_game(ee_build_mgr *bm, int type, int x, int y) {
+    ee_player *owner = build_mgr_get_player(bm);
+    unsigned idx = owner ? (unsigned)player_get_index(owner) & 15 : 0;
+    if (owner && !is_vanilla(owner) && !GAME_AI(idx)) {
+        if (g_log) fprintf(g_log, "# game ai: P%u at %.1f min: the game's build list wants type %d placed - refused, its computer player is off for it\n", idx, game_time() / 60000.0, type);
+        return 1;
+    }
+    return hook_place(bm, type, x, y);
+}
 internal void budget_reserve(ee_player *pl, int reserve[7]);
 internal void special_reserve(ee_player *pl, int reserve[7]);   // below: SPECIAL ORDERS
 internal void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
@@ -2700,7 +2719,7 @@ internal void econ_install(const char *autotest_ini) {
     }
     g_pay_hooked = patch_cp_pay(hook_pay);
     int ok = patch_cp_add_resource(hook_add_resource), of = 1;
-    patch_place(hook_place);
+    patch_place(hook_place_game);
     int up_ok = patch_epoch_upgrades(hook_epoch_upgrades, hook_epoch_upgrades_aoc);
     if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
     int catch_ok = patch_epoch_catch_up(hook_epoch_catch_up);

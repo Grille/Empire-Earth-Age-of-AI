@@ -198,6 +198,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
     }
     if (type) {
+        census_build_ask(bm, type);   // the test log's count: the mod's, not the game's entry
         ok = hook_place(bm, type, at.x, at.y);
         if (!ok) b->refused++;
         else if (type == UT(B_GRANARY)) { b->granaries++; b->laid_t[0] = now ? now : 1; }

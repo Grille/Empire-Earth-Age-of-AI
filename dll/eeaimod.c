@@ -553,13 +553,12 @@ internal void game_path(const char *v, char *out, int cap) {   // absolute, or r
 // game's decisions (the hooks inside that update: targets, assignment, sites, placement, the request walk) is silent
 // with it; what it does by itself goes on - docs/game-ai-routines.md "The game's computer player off".
 // Not played either: the game's reload step (the zones rebuilt after a load), its list of units to delete, and an
-// out player's update (the game's then, as before).
+// out player's update (the game's then, as before). What that first update places of the game's build list is
+// refused (econ.c hook_place_game: a Barracks with every AI).
 // What it is today (2 games, 45 min, Continental from epoch 5, 2 of the 4 AIs with it off): the AIs without it stand
 // still - their citizens idle (2.8 working against 152), the stock as at the start, 3 soldiers trained from it, no
 // building, half of them dead by minute 45. The economy was the game's whole: who works where and what is built.
 // OFF by default all the same, by his call - the slate he asked for; game_ai=1 is the AI as it was.
-internal int g_game_ai = 0, g_v_game_ai = -1;
-#define GAME_AI(idx) PV(idx, g_v_game_ai, g_game_ai)
 internal int cp_update_own(ee_player *pl, uint32_t now) {
     static uint8_t told[16];
     static uint32_t seen[16];
