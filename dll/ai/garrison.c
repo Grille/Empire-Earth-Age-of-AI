@@ -28,6 +28,7 @@
 #define GU_WOOD 5000
 #define GU_BATCH 10
 #define GU_WAIT 60000
+#define GU_KICK 1.2f
 #define GU_HOLD (2 * GU_EVERY)     // how far ahead the game's rounds are kept: beyond the next pass here
 #define GU_REACH2 20.0f            // the bonus: a mine within this squared distance of the building (0x833AB4)
 #define GU_MINES_R 5
@@ -93,6 +94,13 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         uint32_t t = civ_mgr_get_timer(cm, k);
         if (t && (int)(t - now) < GU_HOLD) civ_mgr_set_timer(cm, k, now + GU_HOLD);   // 0: the game hasn't set it yet
     }
+    // A SECOND PRODUCER (the game's computer player off; the player 2026-11-14: "if it gets more food than a single capitol
+    // can produce citezens, it should upgrade one of its settlemst to a town center so it can produce with 2 in parralel,
+    // that should kickstart it"): the food income a minute over GU_KICK of what its producers turn into citizens
+    // without a pause, the Town Center open to it - a Settlement (the fullest, any: no mine needed) gets the citizens it
+    // lacks to 5, the nearest that work wood, then stone, gold or iron. With each Town Center the bar rises by one
+    // producer's food.
+    int kick = !GAME_AI(idx) && um && g_rate[idx].rate[2] >= GU_KICK * cz_nonstop_food(pl) && ut_has(UT(B_TOWN_CENTER)) && prio_buildable(pl, UT(B_TOWN_CENTER));
     // the holder: the most metal mines in reach, a Settlement first
     ee_unit *best = NULL;
     int best_score = 0, best_kind = 0, towns[4] = { 0 };
@@ -105,6 +113,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         ee_goal *hg = unit_get_goal(u);
         if (room <= 0 || (hg && goal_is_garrison(hg)) || gu_recent(g, gu_key(u), now)) continue;
         int score = gu_mines(u);
+        if (kick && kind == 1) score = 1000 + unit_get_garrisoned(u) * 10 + score;
         if (!score || raiders_near(pl, unit_get_tile(u), GU_SAFE_R)) continue;
         if (!best || (kind == 1) > (best_kind == 1) || ((kind == 1) == (best_kind == 1) && score > best_score)) { best = u; best_score = score; best_kind = kind; }
     }
@@ -116,11 +125,13 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     if (!best) return;
     ee_unit_type *btd = unit_get_type_data(best);
     int room = unit_type_get_garrison_capacity(btd) - unit_get_garrisoned(best), want = room < GU_BATCH ? room : GU_BATCH;
+    kick = kick && best_kind == 1;
+    if (kick) want = 5 - unit_get_garrisoned(best) > 0 ? 5 - unit_get_garrisoned(best) : 1;
     // the citizens: the nearest spare ones on its land
     ivec2 bp = unit_get_tile(best);
     unsigned land = map_area(bp, 2);
     int wood_spare = player_get_stock(pl, 3) > GU_WOOD;
-    if (!idle_spare && !wood_spare) return;
+    if (!idle_spare && !wood_spare && !kick) return;
     static ee_unit *cand[4096];
     static int cd[4096];
     int nc = 0;
@@ -128,14 +139,17 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || !is_citizen_type(unit_type_get_id(it.td))) continue;
         int idle = idle_spare && citizen_free(u, 1);
+        int other = 0;
         if (!idle) {
-            if (!wood_spare || !citizen_free(u, 0)) continue;
+            if ((!wood_spare && !kick) || !citizen_free(u, 0)) continue;
             ee_unit *site = goal_get_site(unit_get_goal(u));
-            if (!site || unit_get_resource(site) != 3) continue;
+            int res = site ? unit_get_resource(site) : 0;
+            if (res != 3 && !(kick && res >= 4 && res <= 6)) continue;
+            other = res != 3;
         }
         ivec2 p = unit_get_tile(u);
         if (map_area(p, 2) != land || landing_has_unit(pl, u) || expand_has(pl, u) || tn_has_cit(idx, u)) continue;
-        cand[nc] = u; cd[nc] = ivec2_dist2(p, bp) - (idle ? 1000000 : 0); nc++;   // the idle first
+        cand[nc] = u; cd[nc] = ivec2_dist2(p, bp) - (idle ? 1000000 : 0) + (other ? 500000 : 0); nc++;   // the idle first, the miners last
     }
     int n = 0;
     ee_unit *pick[GU_BATCH];

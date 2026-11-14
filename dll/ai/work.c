@@ -31,6 +31,8 @@
 #define WK_MINES 512
 #define WK_BUSHES 512
 internal const float WK_SHARE[7] = { 0, 0, 0.36f, 0.30f, 0.06f, 0.14f, 0.14f };   // food, wood, stone, gold, iron
+#define WK_PATCH 6   // citizens at a food patch (a bush)
+#define WK_PATCH_BANK 600
 struct wk_cit { ee_unit *u; ee_unit *site; uint8_t res; };   // res 0: idle
 struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost, cap; };   // n: its citizens there or on their way; cost: its territory's (wk_cost); cap: the food sites' places (a bush 3, a field 1)
 internal struct wk_st {
@@ -217,7 +219,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!u || !explored_by(u, pl) || wk_danger(idx, iv2(x, y))) continue;
         struct wk_site *e = r == 2 ? (nb < WK_BUSHES ? &bush[nb++] : NULL) : (nm < WK_MINES ? &mine[nm++] : NULL);
         if (!e) continue;
-        e->u = u; e->terr = (uint16_t)tr; e->res = (uint8_t)r; e->n = 0; e->cost = (uint8_t)c; e->cap = 3;
+        e->u = u; e->terr = (uint16_t)tr; e->res = (uint8_t)r; e->n = 0; e->cost = (uint8_t)c; e->cap = WK_PATCH;
         if (r >= 4) w->places[r] += (int)cap;
     }
     {   // its finished fields: a farmer each (build.c lays them; none under raiders, as the old field pass had it)
@@ -274,6 +276,23 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (left < 0) left = 0;
         w->want[2] = (int)((float)left * wt[2] / (wt[2] + wt[3]) + 0.5f);
         w->want[3] = left - w->want[2];
+        // THE PATCHES FIRST (the player 2026-11-14: "the ai has a very slow start right now - the ai should focus a bit more on
+        // the natural food resource patches early on, trying to fill them up with 6 citezens all time before anething
+        // else"): food wants at least the places of its fields and of the patches with something left, WK_PATCH each;
+        // what that takes comes off wood first, then the mines - but wood keeps a quarter of the citizens (3 at least:
+        // with all 15 on food at minute 5 the wood came in at 9 a minute, 935 food lay in the bank and the first Barracks
+        // stood at minute 18 to 28), and not while food piles up (WK_PATCH_BANK in the bank)
+        int fplaces = 0;
+        for (int k = 0; k < nb; k++) fplaces += bush[k].cap > 1 ? (unit_get_amount(bush[k].u) > 0 ? bush[k].cap : 0) : 1;
+        if (fplaces > nc) fplaces = nc;
+        if (stock[2] >= WK_PATCH_BANK) fplaces = 0;
+        int wood_keep = nc / 4 > 3 ? nc / 4 : 3;
+        for (int r = 3; r < 7 && w->want[2] < fplaces; r++) {
+            int spare = r == 3 ? w->want[r] - wood_keep : w->want[r];
+            int take = fplaces - w->want[2] < spare ? fplaces - w->want[2] : spare;
+            if (take <= 0) continue;
+            w->want[r] -= take; w->want[2] += take;
+        }
     }
     int moves = 0;
     for (int pass = 0; pass < 2; pass++)   // the idle ones first, then those of a resource over its share
@@ -304,7 +323,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 else {
                     float bd = 0;
                     int bk = -1;
-                    for (int k = 0; k < nb; k++) {   // a field (a farmer), a bush (3 of its citizens at most)
+                    for (int k = 0; k < nb; k++) {   // a field (a farmer), a bush (WK_PATCH of its citizens at most)
                         if (bush[k].n >= bush[k].cap || (bush[k].cap > 1 && unit_get_amount(bush[k].u) <= 0)) continue;
                         ivec2 q = unit_get_tile(bush[k].u);
                         if (land && area_id(q, 2) && area_id(q, 2) != land) continue;
