@@ -8,7 +8,11 @@ internal int g_fix_scenario_ai = 1;    // ageofai.ini [fixes] scenario_ai=0 turn
 internal uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
 
 internal int is_vanilla(const ee_player *pl);   // below
+// THE GAME'S COMPUTER PLAYER OFF ([ai_base] game_ai; eeaimod.c cp_update_own): the wiring's update in the place of the
+// game's for one of the mod's players - 1 when it played it, the game's is then not called at all
+internal int (*g_cp_update_own)(ee_player *pl, uint32_t now);
 internal void __thiscall hook_cp_update(ee_player *pl, uint32_t now) {
+    if (g_cp_update_own && !is_vanilla(pl) && g_cp_update_own(pl, now)) return;
     uint8_t *flag = scenario_flag_var();
     uint8_t saved = *flag;
     g_is_scenario = saved;

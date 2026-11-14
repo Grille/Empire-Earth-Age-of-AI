@@ -314,3 +314,27 @@ with land of others): the fleet's size and the navy's share of the income by its
 map kind; measured at 300 - level on islands, 10 warships a player on Continental for 40 more units lost. The game's
 training hands an order to the docks of one region only (the one with the most docks): both rules name the region
 (the request's fourth value; spec ee_region.number).
+
+## The game's computer player off (2026-11-14, `[ai_base] game_ai = 0`, the default)
+
+The player, 2026-11-14: "can we disabel the ingame ai flat now? even if many thing wont work directly, i wnat a clean slate, we
+have neough systems in place to rebuild now". With `game_ai = 0` EEComputerPlayer::update runs once for a mod player (the first
+update's setups: resource zones, the managers' own) and never again; the mod's ticks run from its place (eeaimod.c
+cp_update_own). `game_ai = 1` is everything above as it was; `[autotest] v_game_ai` sets it for the variant players.
+
+What that leaves, measured (2 games, 45 min, Continental from epoch 5, two of four AIs without it): citizens idle (2.8 working
+against 152), the stock as at the start, 3 soldiers, no building, half of them dead by minute 45. In the tables' terms:
+
+- **Gone with it** - every ALONE row, and every FILTERED row's decision with the mod's part of it (the mod's code sits in hooks
+  inside the game's routines): the gatherers' targets and who works where (compute_targets, assign_citizens, the site searches,
+  fields, safety, mine_crowds), the build manager (placing what is queued - the mod's own queue entries too: towers, docks,
+  outposts' buildings -, the building plan, repairs, blocked foundations), research and the epochs, the request walk, the
+  attack commander and its groups (landings and island crossings ride on them), the defence commander, explorers, garrison rounds.
+- **Still the mod's own** (needs no game routine to decide, only its functions as services): the orders for citizens, fishing
+  boats, soldiers and warships (hook_train_units called by the mod), the force and its marches (armies.c), the fleet (fleet.c),
+  air strikes, the territory view, intel, diplomacy and talk, walls laid through the wall manager's function, the budget
+  and the priority list. All of it waits on an economy that does not run.
+- **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
+  sites, fields; (2) building - what, where, which citizen builds, repairs; (3) research and the epochs; (4) the armies as
+  several forces (the player the same day: the force's point gets stuck on itself, "the single main force isnt the way
+  anymore"); (5) crossings and landings without the game's groups; (6) scouting, the rest.

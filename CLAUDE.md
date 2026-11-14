@@ -170,6 +170,10 @@ and the C tables, the README's tables and the editor's names are made of them (g
 
 ## Decisions that aren't visible in the code
 
+- The game's own computer player is OFF for the mod's AIs since 2026-11-14 (`[ai_base] game_ai = 0`, the player: "i wnat a
+  clean slate ... we have neough systems in place to rebuild now"): until the mod's own economy is written they stand
+  still (citizens idle, nothing built). A test or measurement that needs a playing AI passes `game_ai=1` (the AI as it
+  was); what is rebuilt is measured with it off. docs/game-ai-routines.md "The game's computer player off".
 - The shipped defaults are the AI at its strongest without cheating; easing off only for the easy difficulty.
 - Behaviour changes are measured before they are switched on (default off until a test shows the gain).
 - The user plays the game and reports; explain engine and reverse-engineering findings plainly.

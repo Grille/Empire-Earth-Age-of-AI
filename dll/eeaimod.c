@@ -182,8 +182,11 @@ internal char __thiscall hook_assign_citizens(ee_resource_mgr *rm) {
 // the player each AI's personality and settings were applied to (reset by hook_game_start: the next game's player
 // can sit at the same address - its settings were skipped, a hard AI kept the game's cheat)
 internal void *g_settings_done[16];
-// Called every AI tick; logs a heartbeat row per player every 10 s of game time.
-internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
+// Called every AI tick; logs a heartbeat row per player every 10 s of game time. game: the game's own resource
+// manager update in its middle (hook_rm_update) - 0 from cp_update_own, the game's computer player off
+internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game);
+internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) { rm_tick(rm, now, 1); }
+internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
     ee_player *pl = resource_mgr_player(rm);
@@ -227,7 +230,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
             log_state(rm, "tick", now);
         }
     }
-    resource_mgr_update(rm, now);
+    if (game) resource_mgr_update(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
     else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
                 wf_tick(pl, now); army_plan_tick(pl, (unsigned)player_get_index(pl) & 15, now); }
@@ -529,6 +532,38 @@ internal void game_path(const char *v, char *out, int cap) {   // absolute, or r
     else snprintf(out, cap, "%s%s", g_game_dir, v);
     for (char *c = out; *c; c++) if (*c == '/') *c = '\\';
 }
+// THE GAME'S COMPUTER PLAYER OFF ([ai_base] game_ai = 0; [autotest] v_game_ai for the variant players). The player,
+// 2026-11-14: "can we disabel the ingame ai flat now? even if many thing wont work directly, i wnat a clean slate, we
+// have neough systems in place to rebuild now". EEComputerPlayer::update (0x43F91A) is all the game's AI: its first
+// update's setups (the resource zones, the managers' own), the attention, the expansion, the civilization manager
+// with every manager under it (citizens' work, building, research and epochs, unit requests, walls), the combat
+// manager (attacks, defence, groups) and the explorers. With game_ai off it runs once for one of the mod's players -
+// the first update, for the setups the mod's code reads - and never again: the mod's own ticks (rm_tick, without the
+// game's resource manager update in their middle) are all that plays it. What the mod did by vetting or feeding the
+// game's decisions (the hooks inside that update: targets, assignment, sites, placement, the request walk) is silent
+// with it; what it does by itself goes on - docs/game-ai-routines.md "The game's computer player off".
+// Not played either: the game's reload step (the zones rebuilt after a load), its list of units to delete, and an
+// out player's update (the game's then, as before).
+// What it is today (2 games, 45 min, Continental from epoch 5, 2 of the 4 AIs with it off): the AIs without it stand
+// still - their citizens idle (2.8 working against 152), the stock as at the start, 3 soldiers trained from it, no
+// building, half of them dead by minute 45. The economy was the game's whole: who works where and what is built.
+// OFF by default all the same, by his call - the slate he asked for; game_ai=1 is the AI as it was.
+internal int g_game_ai = 0, g_v_game_ai = -1;
+#define GAME_AI(idx) PV(idx, g_v_game_ai, g_game_ai)
+internal int cp_update_own(ee_player *pl, uint32_t now) {
+    static uint8_t told[16];
+    static uint32_t seen[16];
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (now < seen[idx]) told[idx] = 0;   // a new game
+    seen[idx] = now;
+    if (GAME_AI(idx) || !player_get_first_update_done(pl) || is_out(pl)) return 0;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    if (!rm) return 0;
+    if (!told[idx] && g_log) { told[idx] = 1; log_locked("# game ai: P%u at %.1f min: the game's computer player is off for it (game_ai=0) - only the mod's own code plays it\n", idx, now / 60000.0); }
+    rm_tick(rm, now, 0);
+    return 1;
+}
 internal void config_paths(void) {
     char v[MAX_PATH];
     if (g_autotest) {
@@ -652,11 +687,15 @@ internal void install(HMODULE self) {
     BOOL b = patch_rm_assign_citizens(hook_assign_citizens);
     BOOL c = patch_rm_update(hook_rm_update);
     BOOL f = patch_cp_update(hook_cp_update);
+    g_game_ai = g_set_ai[1].game_ai;
+    if (g_autotest) g_v_game_ai = ini_int("autotest", "v_game_ai", -1, g_ini);
+    g_cp_update_own = cp_update_own;
     BOOL gs = patch_game_start(hook_game_start);   // also personalities: always
     if (g_log) {
         fprintf(g_log, "# eeaimod loaded: hook targets=%s assign=%s update=%s\n",
                 a ? "ok" : "FAILED", b ? "ok" : "FAILED", c ? "ok" : "FAILED");
         fprintf(g_log, "# fix scenario_ai: %s (hook %s)\n", g_fix_scenario_ai ? "on" : "off", f ? "ok" : "FAILED");
+        fprintf(g_log, "# game ai: the game's computer player %s for the mod's players (game_ai; v_game_ai %d for the variant players)\n", g_game_ai ? "runs" : "is OFF", g_v_game_ai);
         BOOL d = patch_parse_cmdline(hook_parse_cmdline);
         BOOL e = patch_load_saved(hook_load_saved);
         fprintf(g_log, "# game start hook: %s\n", gs ? "ok" : "FAILED");
