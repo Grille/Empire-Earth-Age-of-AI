@@ -317,10 +317,12 @@ internal void log_rotate(void) {
 }
 
 internal int unit_types_load(void);   // unitnames.c
+internal void crash_box_again(void);   // engine/crash_box.c
 internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, void *p2) {
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
     log_rotate();
+    crash_box_again();   // the crash box's filter in front again (a filter set since replaced)
     if (g_log) {
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# game start: mode=%d name=\"%s\" game_type=%d\n", mode, name ? name : "(null)", *game_type_var());
@@ -481,6 +483,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/godmode.c"   // godmode: the whole map, any player's units and buildings as this PC's own (playas)
 #include "base/headless_win.c"
 #include "engine/display.c"
+#include "engine/crash_box.c"   // [general] crash_dialog: a crash stays open in a box, a memory dump of it
 #include "engine/hold_profile.c"
 #include "engine/playername.c"
 #include "engine/sound.c"
@@ -802,6 +805,7 @@ internal void install(HMODULE self) {
         fprintf(g_log, "# autotest: game clock at [%08lx]+%lx\n", (unsigned long)game_clock_ptr_at(), (unsigned long)game_clock_offset());
     if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); mp_start(); dx_probe_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
+    crash_box_install();   // [general] crash_dialog (not in test runs)
 }
 
 

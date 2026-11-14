@@ -280,6 +280,10 @@ class general
         /// Memory dumps for debugging: 2 files per AI and game in ageofai_dumps (never deleted). 1 = on, 0 = off (default;
         /// test runs always write them)
         bool memory_dumps = false;
+        /// When the game crashes: 1 = a box with what happened stays open (the game with it - a debugger can attach), a
+        /// memory dump of the crash in ageofai_dumps; 0 = the game ends at once, as it always did (default; test runs
+        /// always 0)
+        bool crash_dialog = false;
     }
     /// The log ageofai_log.csv: over 20 MB at the start of a game it becomes ageofai_log.old.csv and a new one starts
 }
