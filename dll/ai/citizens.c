@@ -325,6 +325,7 @@ internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
 // budget, the train gate) - the game's request (attention flag, one batch of at most 10 at a time) never asks
 #define CZO_IDLE 5   // idle citizens the orders allow (and a tenth of the workforce)
 internal struct { uint32_t t; unsigned orders, ordered; } g_czo[16];
+internal int work_idle(unsigned idx);   // work.c: its idle citizens, -1 while it does not run
 internal void cz_own(ee_player *pl, unsigned idx, uint32_t now) {
     if (!pl || is_vanilla(pl) || !OWN_CITIZENS(idx)) return;
     if (now < g_czo[idx].t) memset(&g_czo[idx], 0, sizeof g_czo[idx]);
@@ -353,6 +354,7 @@ internal void cz_own(ee_player *pl, unsigned idx, uint32_t now) {
     // soldiers -20 (se 10), workers level)
     ee_resource_mgr *rm = civ_mgr_get_resource_mgr(cm);
     int idle = rm ? rm_count(rm, 0) : 0;
+    if (work_idle(idx) >= 0) idle = work_idle(idx);   // work.c, the game's computer player off: its own count (the game's idle list kept 19 of 19 working citizens - nobody takes them out of it then - and not one more was ordered)
     if (idle > CZO_IDLE && idle * 10 > workforce(pl)) return;
     int room = unit_limit(pl) - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
     int n = cz_wanted(pl, idx, um, unit_mgr_citizens_wanted(um)) - unit_mgr_citizens(um) - queued;

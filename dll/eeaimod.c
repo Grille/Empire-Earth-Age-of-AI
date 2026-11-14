@@ -106,6 +106,8 @@ internal void armies_new_game(int from_save);
 internal void garrison_tick(ee_player *pl, uint32_t now);   // garrison.c: settlement upgrades with spare citizens
 internal void garrison_new_game(void);
 internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now);   // territories.c: the territories as an AI sees them
+internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // work.c: the citizens' work by territory
+internal void work_new_game(void);
 internal void territories_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
@@ -246,6 +248,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl)) airstrike_tick(pl, now);
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
+    if (pl && !is_vanilla(pl) && !game) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
@@ -383,6 +386,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     armies_new_game(mode == 2);
     garrison_new_game();
     territories_new_game();
+    work_new_game();
     airstrike_new_game();
     skirmish_new_game();
     spoils_new_game();
@@ -456,6 +460,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/armies.c"
 #include "ai/garrison.c"
 #include "ai/territories.c"   // the territories as an AI sees them: the citizens of one being lost
+#include "ai/work.c"          // the citizens' work by territory: the mod's own, while the game's computer player is off
 #include "ai/airstrike.c"
 #include "ai/skirmish.c"
 #include "ai/spoils.c"

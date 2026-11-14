@@ -334,6 +334,9 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
   boats, soldiers and warships (hook_train_units called by the mod), the force and its marches (armies.c), the fleet (fleet.c),
   air strikes, the territory view, intel, diplomacy and talk, walls laid through the wall manager's function, the budget
   and the priority list. All of it waits on an economy that does not run.
+- **Written so far**: the citizens' work by territory (ai/work.c, 2026-11-14) - who works what, at which site, by the territory
+  view: worked where the AI has a building and is not being lost, backland first for wood and food, 6 a mine. With it an AI
+  without the game's stands at a population of about 100 with 35-48 soldiers at minute 40; food is its limit (no fields yet).
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
   sites, fields; (2) building - what, where, which citizen builds, repairs; (3) research and the epochs; (4) the armies as
   several forces (the player the same day: the force's point gets stuck on itself, "the single main force isnt the way
