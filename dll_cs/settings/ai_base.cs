@@ -313,6 +313,10 @@ class ai_base
         /// become backland gets none; the army leaves the soldiers standing on such an island alone. 1 = on. Off until
         /// the territory system is measured as a whole
         bool front_guards = false;
+        /// The fleet's station (ai/fleet.c FLEET STATION): the fleet's guard point lies in the water territory with the
+        /// longest shore along land the AI holds, the more so where enemy warships were seen - holding that sea is what
+        /// turns an island into backland. 1 = on. Off until the territory system is measured as a whole
+        bool fleet_station = false;
     }
 
     class SiegeAndTowerRouting

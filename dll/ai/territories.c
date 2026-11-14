@@ -343,6 +343,33 @@ internal int tv_front_guard(unsigned idx, ivec2 p, int *have, int *want) {
     *have = s->t[r].sold; *want = s->t[r].want;
     return 1;
 }
+// fleet.c FLEET STATION: the water territory of sea `ocean` the fleet stands in - the one with the longest shore along
+// land AI idx holds, x (1 + the enemy warships it sees there, + 2 when it saw any there in the last 5 minutes); its
+// middle into *out and its number into *terr; 0: no sea by held land. The one it stands in (*terr on entry, TER_NONE
+// none) stays unless another weighs a third more: 17 changes of station a player in a game without (a sighting here,
+// a sighting there)
+internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *terr) {
+    struct tv_st *s = &g_tv[idx & 15];
+    if (!s->n || s->version != g_ter.version || !ocean) return 0;
+    uint32_t now = game_time();
+    int best = -1;
+    float bw = 0;
+    for (int r = 0; r < s->n; r++) {
+        if (!g_ter.t[r].water || area_id(g_ter.t[r].c, 1) != ocean) continue;
+        int shore = 0;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[r].nb0 + k];
+            if (nb->to < (unsigned)s->n && !g_ter.t[nb->to].water && s->t[nb->to].role != TVR_NONE) shore += nb->len;
+        }
+        if (!shore) continue;
+        float w = (float)shore * (1.0f + (float)s->t[r].eships + (s->t[r].eship_t && now >= s->t[r].eship_t && now - s->t[r].eship_t < TV_FOE_MEMORY ? 2.0f : 0.0f));
+        if ((unsigned)r == *terr) w *= 1.34f;
+        if (w > bw) { bw = w; best = r; }
+    }
+    if (best < 0) return 0;
+    *out = g_ter.t[best].c; *terr = (unsigned)best;
+    return 1;
+}
 internal void tv_count(unsigned idx, int what) {   // the log's counters: 0 into a fortress, 1 to a refuge, 2 a site refused, 3 a fortress kept shut
     struct tv_st *s = &g_tv[idx & 15];
     if (what == 0) s->sheltered++; else if (what == 1) s->refuge++; else if (what == 2) s->refused++; else s->kept_in++;

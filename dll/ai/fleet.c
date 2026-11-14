@@ -364,6 +364,16 @@ internal float fl_hp_max(ee_unit *u) {
 }
 // the guard point: from the fishing boats' middle (the docks' with fewer than 2 boats) 5 tiles toward the nearest
 // known enemy building, on open water of the fleet's sea, out of danger (else nearer to the boats / docks)
+// FLEET STATION ([ai_base] fleet_station; [autotest] v_fleet_station): the fleet's guard point is in the water
+// territory with the longest shore along land the AI holds, the more so where enemy warships were seen (territories.c
+// tv_sea_station) - the player 2026-11-14: "water for the ai: terretories can also be held and guarded"; an island is
+// a front until the water round it is held. Until then (and where no sea lies by held land): 5 tiles from the
+// fishing boats towards the nearest enemy building. One fleet, one station so far; the massing, the rally, the
+// defence of boats and buildings and the hunt are as they were.
+internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *terr);   // territories.c
+internal int g_fl_station = 0, g_v_fl_station = -1;
+#define FL_STATION(idx) PV(idx, g_v_fl_station, g_fl_station)
+internal unsigned g_fl_station_t[16];   // the territory it stands in + 1 (the log, on a change)
 internal void fl_guard_point(struct fleet *f) {
     float bx = 0, by = 0; int n = 0;
     for (int k = 0; k < g_fs.nb; k++) {
@@ -379,6 +389,17 @@ internal void fl_guard_point(struct fleet *f) {
     if (g_fs.eb_known) {
         float dx = (float)(g_fs.eb.x - m.x), dy = (float)(g_fs.eb.y - m.y), len = sqrtf(dx * dx + dy * dy);
         if (len > 1) t = iv2(m.x + (int)(5.0f * dx / len), m.y + (int)(5.0f * dy / len));
+    }
+    if (f >= g_fl && f < g_fl + 16) {   // FLEET STATION
+        unsigned idx = (unsigned)(f - g_fl), terr = g_fl_station_t[idx] ? g_fl_station_t[idx] - 1 : 0xFFFF;
+        ivec2 st;
+        if (FL_STATION(idx) && tv_sea_station(idx, (unsigned)f->ocean, &st, &terr)) {
+            t = st;
+            if (g_fl_station_t[idx] != terr + 1) {
+                g_fl_station_t[idx] = terr + 1;
+                if (g_log && g_autotest) fprintf(g_log, "# navy: P%u at %.1f min: the fleet's station is the water territory %u (its middle %d,%d), %d ships\n", idx, game_time() / 60000.0, terr, st.x, st.y, f->n);
+            }
+        }
     }
     fl_safe_toward(m, t, (unsigned)f->ocean, &f->g);
 }
@@ -1418,6 +1439,8 @@ internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 
 internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
+    g_fl_station = g_set_ai[1].fleet_station;
+    if (autotest_ini) g_v_fl_station = ini_int("autotest", "v_fleet_station", -1, autotest_ini);
     g_fl_boats = g_set.navy_fleet_boats;
     g_fl_coast = g_set.navy_fleet_coast;
     g_fl_raid = g_set.navy_fleet_raid;
