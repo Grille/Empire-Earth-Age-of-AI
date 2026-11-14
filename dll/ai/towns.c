@@ -537,8 +537,9 @@ internal ivec2 forward_front;   // tn_plan: the front the forward base faces
 //     604; soldiers -9 (se 7), losses +15 (12), workers +3 (6);
 //   map_scale=large: too few towns to say (7 against 5 founded, 1 against 2 standing); soldiers -11 (9).
 // Nothing gained: a town of an AI is hardly ever lost while it is founded in these games (2-3 of some 30), so the
-// tower at the crossing has nothing to save and costs a minute and a half. Off - against a player who raids new
-// towns it may read differently.
+// tower at the crossing has nothing to save and costs a minute and a half - against a player who raids new towns it
+// may read differently. ON all the same, by the player's call (2026-11-14, told the above: "turn it on"): his
+// pattern, and the AIs of these games are not the opponent it is for.
 #define TN_ESCORT 3
 #define TN_ARRIVE_NEAR 10
 #define TN_SITE_WAIT 240000

@@ -857,12 +857,13 @@ class ai_base
             /// site's territory a tower first, every citizen on it, the escort on to the site; once that has been looked at
             /// and nobody is there a tower at the site, then the drop site; home again when enemies by them win before a tower
             /// of theirs stands (2026-11-14, 24 games on Continental maps: as many towns standing, none saved - AI towns
-            /// are hardly ever lost while founded - and the drop site a minute and a half later; off)
+            /// are hardly ever lost while founded - and the drop site a minute and a half later; on by the player's call,
+            /// his pattern)
             bool party;
         }
         /// Towns on the home continent, a list of parts (apart by commas or '|'), not before the Copper Age, not with
         /// enemies in its base; empty = none:
-        [on("resource_towns, spread")]
+        [on("resource_towns, spread, party")]
         towns_fields towns;
         [range(0, 6), commented]
         int towns_max = 3;

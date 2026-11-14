@@ -275,7 +275,7 @@ again when enemies there win before a tower stands. 24 games on island maps: lev
 (soldiers +5 and 0), 2 of 22 outposts lost against 5 of 23, 8 of 22 landings taken off again; as many islands held
 at minute 55. Expansion is judged by what is held and worked at the end first, the army at minute 60 last.
 
-The same on land (`towns` party, towns.c THE PARTY, 2026-11-14, off): a town's citizens walk with an escort of 3; a
+The same on land (`towns` party, towns.c THE PARTY, 2026-11-14, on by the player's call): a town's citizens walk with an escort of 3; a
 tower first where they cross into the site's territory, the escort on to the site, then the site's tower and the drop
 site; home again when enemies by them win before a tower stands. 24 games on Continental maps: as many towns standing
 (15 against 17 on a huge map), 3 lost against 2, the drop site 1.5 minutes later - AI towns are hardly ever lost while
