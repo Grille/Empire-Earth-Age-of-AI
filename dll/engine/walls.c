@@ -31,7 +31,7 @@
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
 internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_model;
-#define WS_GFX_MAX 32
+#define WS_GFX_MAX 256   // the walls' and their towers' of every era and player, with room
 internal ee_dmg_model *g_ws_gfx[WS_GFX_MAX];   // the graphics the fit took a user of this game (one each, kept)
 internal int g_ws_gfx_n;
 
@@ -97,7 +97,10 @@ internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
 internal int g_ws_draw_hooks;
 
 // the tower of a wall's era (UT_WALL_LINE's i-th is UT_TOWER_LINE's i+1-th: the towers start in the Stone Age), from
-// the wall's owner's graphics of it - loaded for the fit as the wall's are; NULL for barbed wire and any wall of no line
+// the wall's owner's graphics of it - held for the game as the wall's are, also when the models are there already: the
+// skirt reads it at the wall's next draw, and a graphics' last user going frees its models (dmg_model.release) - the
+// last tower of the era gone, or its last fog-of-war copy, and that draw called through a freed vertex array (the
+// player's game, 2026-11-15: a pure virtual call from ws_model_ok at 84.6 min); NULL for barbed wire and any wall of no line
 internal ee_model *ws_tower_model(int t, ee_player *pl) {
     static const enum ut_name walls[] = { UT_WALL_LINE }, towers[] = { UT_TOWER_LINE };
     for (int i = 0; i < (int)(sizeof walls / sizeof *walls); i++) {
@@ -107,11 +110,9 @@ internal ee_model *ws_tower_model(int t, ee_player *pl) {
         ee_unit_stats **sp = type_stats(pl, tt), *st = sp ? *sp : NULL;
         ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
         if (!gfx) return NULL;
+        ws_acquire(gfx);
         ee_model **am = (ee_model **)dmg_model_anim_model_at(gfx);
-        for (int k = 0; k < 2; k++) {
-            for (int a = 0; a < WS_TOWER_ANIMS; a++) if (am[a]) return am[a];
-            if (!k) ws_acquire(gfx);
-        }
+        for (int a = 0; a < WS_TOWER_ANIMS; a++) if (am[a]) return am[a];
         return NULL;
     }
     return NULL;
