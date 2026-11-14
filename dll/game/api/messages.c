@@ -99,6 +99,16 @@ internal inline ee_select_msg *select_msg_new(const float *rect, int type, int k
     return m;
 }
 
+// a click's selection of the unit id sent from this PC, as the UI's click does (EEMSelectUnit; godmode.c); 0 not sent
+internal inline int select_unit_msg_send(unsigned id) {
+    ee_server *net = game_server();
+    ee_select_unit_msg *m = net ? (ee_select_unit_msg *)game_new(size_eem_select_unit) : NULL;
+    if (!m) return 0;
+    select_unit_msg_construct(m, id);
+    server_send_all(net, m);
+    return 1;
+}
+
 // HOOKS
 // the selection's packing into a message (select.c)
 // the lockstep server's send (its vtable slot 6, on the live object: EEServer or EEClient) - the slot's previous

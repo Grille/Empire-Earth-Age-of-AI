@@ -3,6 +3,10 @@
 
 // static class game
 // game's data of the game, places in its code and numbers
+// a player's PC changed (its msg_id; cdecl(world player id, msg_id, player index, ?)): when it is this PC, this PC's
+// player set, the minimap's player and rebuild, its paint_done, the view table refilled (view_sight_copy), the tech
+// tree's ui_refresh(1), the window told (0x661B3F) - the steps godmode's switch takes (engine/godmode.c)
+internal inline uint8_t *game_local_player_switch_at(void) { return (uint8_t *)(uintptr_t)data_game_local_player_switch; }
 internal inline uint8_t *game_call_damage_points_at(void) { return (uint8_t *)(uintptr_t)data_game_call_damage_points; }
 // the unit behaviours (stances)
 internal inline uint8_t *game_behaviour_table_at(void) { return (uint8_t *)(uintptr_t)data_game_behaviour_table; }
@@ -287,6 +291,7 @@ internal inline int fs_file_set_position(ee_fs_file *fs_file, int offset, uint32
 internal int spec_game_select(int build) {
     switch (build) {
     case 0:   // ee
+        data_game_local_player_switch = 0x0053153E;
         data_game_call_damage_points = 0x004F80A4;
         data_game_behaviour_table = 0x008D2044;
         data_game_camera = 0x00918CD0;
@@ -415,6 +420,7 @@ internal int spec_game_select(int build) {
         slot_fs_file_set_position = 52;
         return 0;
     case 1:   // aoc
+        data_game_local_player_switch = 0x0053C5AD;
         data_game_call_damage_points = 0x0050232D;
         data_game_behaviour_table = 0x008E8744;
         data_game_camera = 0x00931710;
@@ -550,6 +556,7 @@ internal const char *const k_spec_game_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_game_check(void) {
     int bad = 0;
+    bad += spec_code(data_game_local_player_switch, "game.local_player_switch");
     bad += spec_code(data_game_call_damage_points, "game.call_damage_points");
     bad += spec_data(data_game_behaviour_table, "game.behaviour_table");
     bad += spec_data(data_game_camera, "game.camera");

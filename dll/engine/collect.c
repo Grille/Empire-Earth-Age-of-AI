@@ -621,7 +621,7 @@ internal int uc_cloak(const uc_obj *o, int see, float *out, const opacity_consts
         *out = o->rot_t ? (float)((long double)o->rot_ms / o->rot_t) : 0.0f;
         return see;
     }
-    if (!o->cloakable || *game_free_camera_at()) {
+    if (!o->cloakable || god_see_all()) {
         *out = 1.0f;
         return see;
     }
@@ -724,7 +724,7 @@ internal int uc_drawn(uc_obj *o, const uc_ctile *v, void *met, int dry) {
     opacity_consts c = opacity_consts_now();
     ee_unit_type *ty = o->ty;
     ee_player *me = game_players()[local_player_index()];
-    if (!v->seen_me && !o->food && !*game_free_camera_at()) return 0;
+    if (!v->seen_me && !o->food && !god_see_all()) return 0;
     float sc = o->height;
     if (!(sc < c.zero || sc > c.zero)) return 0;   // fcomp, je: 0 or not a number
     int size = unit_type_get_size(ty);
@@ -751,7 +751,7 @@ internal int uc_drawn(uc_obj *o, const uc_ctile *v, void *met, int dry) {
     ee_unit_type *cty = o->cty;
     if (unit_type_get_class_id(cty) != CLS_GATE && !units_view_call(0)(o->pm, opacity_viewport(), *game_camera_fixed_at()))
         return 0;
-    if (*game_free_camera_at()) return 1;
+    if (god_see_all()) return 1;
     if (type_is_path_point(cty)) return o->owner == me && o->pp_shown;
     if (o->foundation) return o->owner == me;
     return !unit_type_get_is_flare(cty);
@@ -798,7 +798,7 @@ internal int uc_in_bar_ids(int32_t serial) {
     return 0;
 }
 internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec, void *sort_map, uc_info *info) {
-    sil_tag(rec, g_uc_walk_gen, o->has_cu && o->cloakable && !o->rotting && o->cu_opacity < 1.0f && !*game_free_camera_at() ? SIL_CLOAKED :
+    sil_tag(rec, g_uc_walk_gen, o->has_cu && o->cloakable && !o->rotting && o->cu_opacity < 1.0f && !god_see_all() ? SIL_CLOAKED :
             unit_type_is_land_building(o->ty) ? SIL_BUILDING : o->has_cu && !o->tree && o->owner_index && !o->rotting ? SIL_UNIT : 0);
     // (a corpse no silhouette - the player, 2026-11-11: "dead units should no longer have silluetes")
     opacity_consts oc = opacity_consts_now();
@@ -809,7 +809,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
     int second_foundation = o->foundation;
     ee_player *me = game_players()[local_player_index()], *owner = o->owner;
     ee_unit_type *ty = o->ty;
-    int ux = o->x, uy = o->y, free_cam = *game_free_camera_at() != 0;
+    int ux = o->x, uy = o->y, free_cam = *game_free_camera_at() != 0, see_all = god_see_all();   // free_cam: the editor's marks
     float pos[3] = { 0, 0, 0 }, ground[3] = { 0, 0, 0 }, up[3] = { 0, 1, 0 }, tilt[3] = { 0, 0, 0 };
     int food = o->food;
     if (cu) { if (info->ambient) ambient_add(engine_display_ambient_sounds_at(), cu); }
@@ -834,7 +834,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
     *(uint32_t *)(label + 0xC) = 0;
     *(uint32_t *)(label + 8) = 0;
     draw_record_set_goal_value(rec, 0);
-    draw_record_set_fogged(rec, !free_cam && food ? !o->own_seen : 0);
+    draw_record_set_fogged(rec, !see_all && food ? !o->own_seen : 0);
     draw_record_set_gfx(rec, o->gfx);
     graphics_acquire(draw_record_get_gfx(rec));
     if (cu) {
@@ -1410,7 +1410,7 @@ internal int uc_opacity_of(ee_ro_units *ro, uc_obj *o, float *out) {
 internal void tl_begin(void) {
     tl_clear();
     g_tl.on = 0;
-    if (!tl_on() || ud_mode() == 0 || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || *game_free_camera_at()) return;
+    if (!tl_on() || ud_mode() == 0 || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || god_see_all()) return;
     if (g_shr.n <= 0 || !g_shr.on || g_shr.off || !g_sh.on || !draw_list_moved()) return;
     if (!g_tl.rec) {
         g_tl.rec = malloc((size_t)TL_MAX * DRAW_SMALL_REC);
@@ -1483,7 +1483,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     void *lock = *(void **)engine_display_picker_lock_at();
     ee_pick_list *picker = (ee_pick_list *)engine_display_pick_list_at();
     uint8_t *maps = engine_display_sort_maps_at();
-    int free_cam = *game_free_camera_at() != 0;
+    int free_cam = god_see_all();
     uint8_t *recs = draw_records(), *small = draw_small_records();
     uint32_t room = draw_room(), small_room = draw_small_room(), *n = draw_count_at(), *sn = draw_small_count_at();
     const void *mesh = map_mesh_at(map);
@@ -1602,7 +1602,7 @@ internal void picker_grow(void) {
 // a frame during a step (render_3d.c): 1 the units' update is to run, from the steps' newest copy (held till the end)
 internal int collect_during_begin(void) {
     if (!g_uc_during_on || !g_uc_own || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || !g_cp_on || !g_cp_view[4] ||
-        *game_free_camera_at())
+        god_see_all())
         return 0;
     InterlockedExchange(&g_uc_in_during, 1);
     if (g_rwl_nonstep > 0) { g_uc_in_during = 0; return 0; }

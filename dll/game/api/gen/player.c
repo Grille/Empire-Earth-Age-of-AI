@@ -293,6 +293,15 @@ internal inline void player_resign(ee_player *player, int how) { fn_player_resig
 typedef void (__thiscall *player_select_fn)(ee_player *, void *);
 internal player_select_fn fn_player_select;
 internal inline void player_select(ee_player *player, void *selection) { fn_player_select(player, selection); }
+// a click's selection carried out on the player: thiscall(player, unit id, fog_check, clear) - the selection
+// cleared (clear: the active group's too), then the unit selected when it is alive, selectable and the player's
+// (or nature's) - another's only shown (the single selected unit: the info panel, no buttons); one hidden
+// in the fog not even that (fog_check 1). select_unit: EEMSelectUnit's Execute (0x4BCF73: the sender's player, (id, 1, 1)) -
+// godmode's switch to the clicked unit's owner (engine/godmode.c)
+typedef void (__thiscall *player_select_unit_fn)(ee_player *, uint32_t, uint8_t, uint8_t);
+internal player_select_unit_fn fn_player_select_unit;
+internal inline void player_select_unit(ee_player *player, uint32_t id, uint8_t fog_check, uint8_t clear) { fn_player_select_unit(player, id, fog_check, clear); }
+internal inline int patch_select_unit(player_select_unit_fn h) { return patch_call(call_select_unit, (uintptr_t)fn_player_select_unit, (void *)h); }
 // EEMAddUnitsToSelectedGroup carried out on the player: thiscall(player, the message's ids +0x10) - the ids the
 // select would take added to the active group; the last one's selection sound (play_local) while the selection is
 // the local player's own (0x918E9E)
@@ -361,6 +370,15 @@ internal inline uint8_t *player_b98_att_at(const ee_player_b98 *o) { return (uin
 
 // class EEComputerPlayer (ee_player)
 // the computer's player (the AI's): an EEPlayer with the computer's managers - its own functions, the C's cp_
+// vf29 (+0x74): 1 when a human plays the player - the computer's 0 (0x4B129F, a "return 0" other classes share).
+// The command panel (EEUIFMGMainGroup 0x651A19) shows its buttons only for a selection of this PC's player that
+// answers 1; the simulation asks it too (a citizen's idling 0x5FEC13, 0x5EED30 ...). cp_is_human: a PC switched to
+// another player (godmode, playas) gets 1 for it, to the panel only (player.panel_is_human_ret; engine/godmode.c)
+typedef char (__thiscall *player_computer_is_human_fn)(ee_player *);
+internal inline char player_computer_is_human(ee_player *player) { return ((player_computer_is_human_fn)(*(void ***)player)[slot_player_computer_is_human])(player); }
+internal player_computer_is_human_fn fn_ee_computer_player_computer_is_human;
+internal inline char ee_computer_player_computer_is_human(ee_player *player) { return fn_ee_computer_player_computer_is_human(player); }
+internal inline int patch_cp_is_human(player_computer_is_human_fn h) { return patch_vtable(vt_ee_computer_player, (int)slot_player_computer_is_human, (uintptr_t)fn_ee_computer_player_computer_is_human, (void *)h); }
 // units it picked to delete: update deletes each one (its vf +0x60 (1, 0, 0)); delete_for_room passes over them
 internal inline ee_unit **player_get_doomed_begin(const ee_player *o) { return *(ee_unit ***)((uint8_t *)o + of_player_doomed_begin); }
 internal inline void player_set_doomed_begin(ee_player *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_player_doomed_begin) = v; }
@@ -1131,6 +1149,9 @@ internal inline void player_stats_add(ee_player_stats *player_stats, int n, int 
 
 // static class player
 // player's data of the game, places in its code and numbers
+// where the command panel's call of computer_is_human returns (EEUIFMGMainGroup 0x651A19: `call [eax+0x74]` at 0x651B6D on
+// this PC's player, its buttons only when it answers 1)
+internal inline uint8_t *player_panel_is_human_ret_at(void) { return (uint8_t *)(uintptr_t)data_player_panel_is_human_ret; }
 internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uintptr_t)data_player_call_kill_stat; }
 // EEComputerPlayer's vtable: player_add_resource (econ.c's hook; AoC as before)
 // EEComputerPlayer's vtable: player_pay (econ.c's hook; AoC as before)
@@ -1249,6 +1270,8 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF05;
         fn_player_resign = (player_resign_fn)0x0055BCEA;
         fn_player_select = (player_select_fn)0x0055B3FB;
+        fn_player_select_unit = (player_select_unit_fn)0x0055B2E2;
+        call_select_unit = 0x004BCF96;
         fn_player_add_selected = (player_add_selected_fn)0x00554887;
         fn_player_toggle_selected = (player_toggle_selected_fn)0x00554640;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0055BC4E;
@@ -1265,6 +1288,8 @@ internal int spec_player_select(int build) {
         fn_player_drop = (player_drop_fn)0x0055FD76;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
+        slot_player_computer_is_human = 29;
+        fn_ee_computer_player_computer_is_human = (player_computer_is_human_fn)0x004B129F;
         of_player_doomed_begin = 0xB80;
         of_player_doomed_end = 0xB84;
         of_player_favorite_land = 0xBA8;
@@ -1446,6 +1471,7 @@ internal int spec_player_select(int build) {
         fn_ee_computer_player_hold_unit = (player_hold_unit_fn)0x004301CD;
         of_player_stats_lists = 0x1C;
         fn_player_stats_add = (player_stats_add_fn)0x0055DBCF;
+        data_player_panel_is_human_ret = 0x00651B70;
         data_player_call_kill_stat = 0x00617780;
         value_player_slot_cp_add_resource = 18;
         value_player_slot_cp_pay = 45;
@@ -1539,6 +1565,8 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF55;
         fn_player_resign = (player_resign_fn)0x0056AF5C;
         fn_player_select = (player_select_fn)0x0056A658;
+        fn_player_select_unit = (player_select_unit_fn)0x0056A53B;
+        call_select_unit = 0x004C5CA3;
         fn_player_add_selected = (player_add_selected_fn)0x00562A5D;
         fn_player_toggle_selected = (player_toggle_selected_fn)0x00562816;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0056AEC0;
@@ -1555,6 +1583,8 @@ internal int spec_player_select(int build) {
         fn_player_drop = (player_drop_fn)0x0056F6AE;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
+        slot_player_computer_is_human = 29;
+        fn_ee_computer_player_computer_is_human = (player_computer_is_human_fn)0x004AC9F3;
         of_player_doomed_begin = 0xBB4;
         of_player_doomed_end = 0xBB8;
         of_player_favorite_land = 0xBDC;
@@ -1736,6 +1766,7 @@ internal int spec_player_select(int build) {
         fn_ee_computer_player_hold_unit = (player_hold_unit_fn)0x0042DB35;
         of_player_stats_lists = 0x1C;
         fn_player_stats_add = (player_stats_add_fn)0x0056D507;
+        data_player_panel_is_human_ret = 0x00668961;
         data_player_call_kill_stat = 0x0062A2DF;
         value_player_slot_cp_add_resource = 18;
         value_player_slot_cp_pay = 45;
@@ -1762,6 +1793,8 @@ internal int spec_player_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_player_resign, "EEPlayer.resign");
     bad += spec_code((uintptr_t)fn_player_select, "EEPlayer.select");
+    bad += spec_code((uintptr_t)fn_player_select_unit, "EEPlayer.select_unit");
+    bad += spec_call(call_select_unit, (uintptr_t)fn_player_select_unit, "EEPlayer.select_unit [call_site select_unit]");
     bad += spec_code((uintptr_t)fn_player_add_selected, "EEPlayer.add_selected");
     bad += spec_code((uintptr_t)fn_player_toggle_selected, "EEPlayer.toggle_selected");
     bad += spec_code((uintptr_t)fn_player_view_sight_copy, "EEPlayer.view_sight_copy");
@@ -1775,6 +1808,8 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_set_diplomacy, "EEPlayer.set_diplomacy");
     bad += spec_code((uintptr_t)fn_player_drop, "EEPlayer.drop");
     bad += spec_vtable(vt_ee_computer_player, ".?AVEEComputerPlayer@@", "EEComputerPlayer [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_computer_player_computer_is_human, "EEComputerPlayer.computer_is_human");
+    bad += spec_slot(vt_ee_computer_player, slot_player_computer_is_human, (uintptr_t)fn_ee_computer_player_computer_is_human, "EEComputerPlayer.computer_is_human [slot]");
     bad += spec_code((uintptr_t)fn_player_adjust_cost, "EEComputerPlayer.adjust_cost");
     bad += spec_code((uintptr_t)fn_player_add_resource, "EEComputerPlayer.add_resource");
     bad += spec_code((uintptr_t)fn_player_pay, "EEComputerPlayer.pay");
@@ -1790,6 +1825,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_ee_computer_player_hold_unit, "EEComputerPlayer.hold_unit");
     bad += spec_slot(vt_ee_computer_player, slot_player_hold_unit, (uintptr_t)fn_ee_computer_player_hold_unit, "EEComputerPlayer.hold_unit [slot]");
     bad += spec_code((uintptr_t)fn_player_stats_add, "EEPlayerStatistics.add");
+    bad += spec_code(data_player_panel_is_human_ret, "player.panel_is_human_ret");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");

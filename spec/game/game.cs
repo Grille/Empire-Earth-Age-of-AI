@@ -1,6 +1,12 @@
 /// game's data of the game, places in its code and numbers
 static unsafe class game
 {
+    /// a player's PC changed (its msg_id; cdecl(world player id, msg_id, player index, ?)): when it is this PC, this PC's
+    /// player set, the minimap's player and rebuild, its paint_done, the view table refilled (view_sight_copy), the tech
+    /// tree's ui_refresh(1), the window told (0x661B3F) - the steps godmode's switch takes (engine/godmode.c)
+    [address((ee)0x0053153E, (aoc)0x0053C5AD)]
+    static code local_player_switch;
+
     [address((ee)0x004F80A4, (aoc)0x0050232D)]
     static code call_damage_points;
 

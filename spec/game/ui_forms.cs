@@ -722,12 +722,18 @@ unsafe struct EEUIFMGGroup
     extern void* init(uint32 p1);
 }
 
-[@base(typeof(EEUIFMGGroup)), size((ee)0x24, (aoc)0x28), vtable((ee)0x00834BE4, (aoc)0x0084AC84)]
+[@base(typeof(EEUIFMGGroup)), size((ee)0x24, (aoc)0x28), vtable((ee)0x00834BE4, (aoc)0x0084AC84), c_type("ee_main_group")]
 unsafe struct EEUIFMGMainGroup
 {
     /// its constructor (1 argument, not typed yet)
     [address((ee)0x00651678, (aoc)0x00667EC8)]
     extern void* init(uint32 p1);
+
+    /// vf4: built again at its next update (+0x21, AoC +0x25, set) - its update (vf1 0x651709) builds the panel only when
+    /// the unit it shows changes (its id) or this is set: the buttons of a unit it showed as another player's come only
+    /// with it after this PC's player became the owner (godmode's switch, engine/godmode.c)
+    [slot(4), address((ee)0x006526B7, (aoc)0x00667F17)]
+    extern void again();
 }
 
 /// control type 1004 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
@@ -804,6 +810,11 @@ unsafe struct EEUIFMainGame
     /// the top bar's text: 0 the age, 1 the game clock, 2 "FPS: n" (votes 6/7)
     [offset((ee)0x5D8, (aoc)0x5E8), found(h, "votes 6/7")]
     int32 top_bar;
+
+    /// the bottom panel: the selection's buttons (the panel's events 0x658758 / 0x65876D: the event's form +0x12C,
+    /// its +0x4EC; AoC 0x66FA55 the same)
+    [offset(0x4EC), found(c)]
+    EEUIFMGMainGroup* main_group;
 
     /// its constructor (2 arguments, not typed yet: the form's row and the manager)
     [address((ee)0x0064C8B0, (aoc)0x00662E73)]

@@ -331,6 +331,10 @@ internal inline uint16_t continent_mgr_region(ee_continent_mgr *continent_mgr, i
 
 // class EEMiniMap (ee_minimap)
 // the minimap (EEMiniMap)
+// the player whose sight it shows (this PC's: the game's switch of this PC's player 0x53153E sets it, then rebuild)
+internal inline ee_player *minimap_get_player(const ee_minimap *o) { return *(ee_player **)((uint8_t *)o + of_minimap_player); }
+internal inline void minimap_set_player(ee_minimap *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_minimap_player) = v; }
+internal inline ee_player **minimap_player_at(const ee_minimap *o) { return (ee_player **)((uint8_t *)o + of_minimap_player); }
 // vf2: its picture of tiles x_lo .. x_hi, y_hi down to y_lo made anew (what the paints' vf1 call)
 typedef void (__thiscall *minimap_redraw_tiles_fn)(ee_minimap *, int, int, int, int);
 internal inline void minimap_redraw_tiles(ee_minimap *minimap, int x_lo, int x_hi, int y_hi, int y_lo) { ((minimap_redraw_tiles_fn)(*(void ***)minimap)[slot_minimap_redraw_tiles])(minimap, x_lo, x_hi, y_hi, y_lo); }
@@ -501,6 +505,7 @@ internal int spec_map_select(int build) {
         fn_continent_mgr_area_at = (continent_mgr_area_at_fn)0x00425F16;
         fn_continent_mgr_region = (continent_mgr_region_fn)0x00425F9F;
         vt_ee_mini_map = 0x0082C5A8;
+        of_minimap_player = 0x124;
         slot_minimap_redraw_tiles = 2;
         fn_ee_mini_map_redraw_tiles = (minimap_redraw_tiles_fn)0x00515AC4;
         fn_minimap_paint_done = (minimap_paint_done_fn)0x00515611;
@@ -609,6 +614,7 @@ internal int spec_map_select(int build) {
         fn_continent_mgr_area_at = (continent_mgr_area_at_fn)0x00422AD9;
         fn_continent_mgr_region = (continent_mgr_region_fn)0x00422B86;
         vt_ee_mini_map = 0x00841D44;
+        of_minimap_player = 0x124;
         slot_minimap_redraw_tiles = 2;
         fn_ee_mini_map_redraw_tiles = (minimap_redraw_tiles_fn)0x00520115;
         fn_minimap_paint_done = (minimap_paint_done_fn)0x0051FC62;

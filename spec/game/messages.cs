@@ -253,6 +253,22 @@ unsafe struct EEMRepairUnit
     extern void execute();
 }
 
+/// a click's selection of one unit (EEMSelectUnit, kind 0x48, 0x14 bytes): the UI's click (0x644xxx) makes it as
+/// construct does and sends it; its Execute (0x4BCF73) carries out EEPlayer.select_unit(id, 1, 1) for the sender's
+/// player, then the server's executor fills the selection panel from that player's selection. Godmode sends one after its
+/// switch, from the player switched to (engine/godmode.c)
+[@base(typeof(EEMessage)), c_type("ee_select_unit_msg"), size(0x14), vtable((ee)0x0082500C, (aoc)0x00838E78)]
+unsafe struct EEMSelectUnit
+{
+    /// the unit's id
+    [offset(0x10), found(c)]
+    uint32 id;
+
+    /// thiscall(msg, id): the whole message - EEMessage's fields (kind 0x48, sendable when out), its vtable, the id
+    [address((ee)0x00404C1F, (aoc)0x004032FF)]
+    extern void construct(uint32 id);
+}
+
 /// the move message (EEMPathTo)
 [@base(typeof(EEMessage)), c_type("ee_path_msg"), vtable((ee)0x00824D84, (aoc)0x00838D5C)]
 unsafe struct EEMPathTo

@@ -395,7 +395,7 @@ internal void cp_dopp(uc_dopp *o, ee_doppelganger *d, ee_player *pl, ee_map *map
 
 // the copy of the region [x0, x1] x [y0, y1] for player pl; 0 when out of memory
 internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int x1, int y1, int made_by) {
-    int mode = show_hidden_mode(), free_cam = *game_free_camera_at() != 0;
+    int mode = show_hidden_mode(), free_cam = god_see_all();
     c->x0 = x0, c->y0 = y0, c->w = x1 - x0 + 1, c->h = y1 - y0 + 1;
     c->map = map, c->pl = pl, c->free_cam = free_cam, c->hidden_mode = mode, c->made_by = made_by;
     c->at = c->dt = 0;
@@ -732,7 +732,7 @@ internal void collect_copy_written(uintptr_t ret) {
     LeaveCriticalSection(&g_cp_cs);
 }
 internal int cp_fits(const uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int x1, int y1) {
-    return c->ok && c->map == map && c->pl == pl && c->free_cam == (*game_free_camera_at() != 0) &&
+    return c->ok && c->map == map && c->pl == pl && c->free_cam == god_see_all() &&
            c->hidden_mode == show_hidden_mode() && x0 >= c->x0 && y0 >= c->y0 && x1 < c->x0 + c->w && y1 < c->y0 + c->h;
 }
 // the walk's copy of its view [x0, x1] x [y0, y1]: the newest when it fits (its view, player, free camera, show-hidden

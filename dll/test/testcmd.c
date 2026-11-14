@@ -260,47 +260,6 @@ internal void cmd_give(char *out, const char *args) {
     REPLY("P%d: stock %d/%d/%d/%d/%d\n", p, stock[2], stock[3], stock[4], stock[5], stock[6]);
 }
 
-// playas [P | back] (a debug tool, the player 2026-11-11: "make ai units and building controlable like my own"): this PC
-// plays as player P - its selection, orders, top bar and sight. A selection is one player's (EEMSelectUnits: the ids of
-// the sender's own), so another's units can't join it: the switch is the whole player. Two places say who this PC is:
-// the game's local player index (read where it is needed, no copies: the top bar, the sight, the buttons) and the
-// player its messages are carried out for - EEWorld::player(msg +0xA, the PC's slot: 0xFE in single player) is the first
-// player whose msg_id is that slot. So P takes the PC's msg_id and the player left behind one nobody sends (0xE0 + its
-// index; the computer players all have 0xFF, and the first of those answers a message of 0xFF: the one left behind must
-// not become it). P's computer player goes on deciding beside the orders given; the one left behind gets none. back:
-// the player this PC was, every msg_id as it was. Not in a multiplayer game: the others' PCs would go on with this one
-// as its own player. A game saved while switched keeps the switch's msg_ids.
-internal int g_playas_was = -1;   // the PC's own player while switched
-internal int8_t g_playas_ids[16];
-internal ee_player *g_playas_game;   // its player object: another game since, another load, forgets the switch
-internal void cmd_playas(char *out, const char *args) {
-    unsigned *me = (unsigned *)local_player_index_at(), n = game_player_count();
-    int p = -1;
-    if (g_playas_was >= 0 && (n > 16 || (unsigned)g_playas_was >= n || game_players()[g_playas_was] != g_playas_game)) g_playas_was = -1;
-    if (!strncmp(args, "back", 4)) p = g_playas_was >= 0 ? g_playas_was : (int)*me;
-    else if (sscanf(args, "%d", &p) != 1) {
-        REPLY("this PC plays as P%u%s (playas P | back)\n", *me, g_playas_was >= 0 ? " (switched)" : "");
-        return;
-    }
-    if (g_mp) { REPLY("error: playas: not in a multiplayer game\n"); return; }
-    if (p < 1 || (unsigned)p >= n || n > 16 || !game_players()[p]) { REPLY("error: playas: no player %d (1 .. %u)\n", p, n ? n - 1 : 0); return; }
-    if (g_playas_was < 0) {
-        g_playas_was = (int)*me;
-        g_playas_game = game_players()[*me];
-        for (unsigned i = 0; i < n; i++) g_playas_ids[i] = game_players()[i] ? player_get_msg_id(game_players()[i]) : 0;
-    }
-    for (unsigned i = 0; i < n; i++) if (game_players()[i]) player_set_msg_id(game_players()[i], g_playas_ids[i]);
-    unsigned was = *me;
-    *me = (unsigned)p;
-    if (p == g_playas_was) g_playas_was = -1;
-    else {
-        player_set_msg_id(game_players()[g_playas_was], (int8_t)(0xE0 + g_playas_was));
-        player_set_msg_id(game_players()[p], g_playas_ids[g_playas_was]);
-    }
-    if (g_log) log_locked("# playas: this PC was P%u, plays as P%d\n", was, p);
-    REPLY("this PC plays as P%d (was P%u)\n", p, was);
-}
-
 // train P type [count] (test): AI P orders count (default 1) units of a type through its own unit manager, as a
 // priority order (the stock above the epoch reserve) - unlike spawn, the units come from its factories and join its pool
 internal void cmd_train(char *out, const char *args) {

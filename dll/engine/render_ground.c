@@ -804,10 +804,10 @@ internal int rg_visible(const rg_part *c, const float *m) {
     for (int i = 0; i < 6; i++) if (all[i]) return 0;
     return 1;
 }
-// no fog of war on the ground (the game's call of UpdateFogOfWar, 0x503A7F's caller): the player sees all, the free camera
+// no fog of war on the ground (the game's call of UpdateFogOfWar, 0x503A7F's caller): the player sees all, the free camera, godmode (godmode.c god_see_all)
 internal int rg_revealed(void) {
     ee_player *p = game_players()[local_player_index()];
-    return *game_free_camera_at() || (p && player_get_explore_all(p));
+    return god_see_all() || (p && player_get_explore_all(p));
 }
 // THE WATER BY THE GAME TIME ([display] water_game_time, the player 2026-11-10: "water surface and caustics should probably
 // respect game time?", "add it as an option"). The game moves its water by the real time, paused or not: the wobble of the

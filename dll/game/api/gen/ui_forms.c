@@ -1106,12 +1106,19 @@ typedef void *(__thiscall *eeuifmg_group_init_fn)(eeuifmg_group *, uint32_t);
 internal eeuifmg_group_init_fn fn_eeuifmg_group_init;
 internal inline void *eeuifmg_group_init(eeuifmg_group *eeuifmg_group, uint32_t p1) { return fn_eeuifmg_group_init(eeuifmg_group, p1); }
 
-// class EEUIFMGMainGroup (eeuifmg_main_group)
+// class EEUIFMGMainGroup (ee_main_group)
 // EEUIFMGGroup's, the base's
 // its constructor (1 argument, not typed yet)
-typedef void *(__thiscall *eeuifmg_main_group_init_fn)(eeuifmg_main_group *, uint32_t);
-internal eeuifmg_main_group_init_fn fn_eeuifmg_main_group_init;
-internal inline void *eeuifmg_main_group_init(eeuifmg_main_group *eeuifmg_main_group, uint32_t p1) { return fn_eeuifmg_main_group_init(eeuifmg_main_group, p1); }
+typedef void *(__thiscall *main_group_init_fn)(ee_main_group *, uint32_t);
+internal main_group_init_fn fn_main_group_init;
+internal inline void *main_group_init(ee_main_group *main_group, uint32_t p1) { return fn_main_group_init(main_group, p1); }
+// vf4: built again at its next update (+0x21, AoC +0x25, set) - its update (vf1 0x651709) builds the panel only when
+// the unit it shows changes (its id) or this is set: the buttons of a unit it showed as another player's come only
+// with it after this PC's player became the owner (godmode's switch, engine/godmode.c)
+typedef void (__thiscall *main_group_again_fn)(ee_main_group *);
+internal inline void main_group_again(ee_main_group *main_group) { ((main_group_again_fn)(*(void ***)main_group)[slot_main_group_again])(main_group); }
+internal main_group_again_fn fn_eeuifmg_main_group_again;
+internal inline void eeuifmg_main_group_again(ee_main_group *main_group) { fn_eeuifmg_main_group_again(main_group); }
 
 // class EEUIFMGStatusBar (eeuifmg_status_bar)
 // control type 1004 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
@@ -1264,6 +1271,11 @@ internal inline enum ui_form_id *main_form_id_at(const ee_main_form *o) { return
 internal inline int main_form_get_top_bar(const ee_main_form *o) { return *(int *)((uint8_t *)o + of_main_form_top_bar); }
 internal inline void main_form_set_top_bar(ee_main_form *o, int v) { *(int *)((uint8_t *)o + of_main_form_top_bar) = v; }
 internal inline int *main_form_top_bar_at(const ee_main_form *o) { return (int *)((uint8_t *)o + of_main_form_top_bar); }
+// the bottom panel: the selection's buttons (the panel's events 0x658758 / 0x65876D: the event's form +0x12C,
+// its +0x4EC; AoC 0x66FA55 the same)
+internal inline ee_main_group *main_form_get_main_group(const ee_main_form *o) { return *(ee_main_group **)((uint8_t *)o + of_main_form_main_group); }
+internal inline void main_form_set_main_group(ee_main_form *o, ee_main_group *v) { *(ee_main_group **)((uint8_t *)o + of_main_form_main_group) = v; }
+internal inline ee_main_group **main_form_main_group_at(const ee_main_form *o) { return (ee_main_group **)((uint8_t *)o + of_main_form_main_group); }
 // its constructor (2 arguments, not typed yet: the form's row and the manager)
 typedef void *(__thiscall *main_form_init_fn)(ee_main_form *, uint32_t, uint32_t);
 internal main_form_init_fn fn_main_form_init;
@@ -2112,7 +2124,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuifmg_group_init = (eeuifmg_group_init_fn)0x00651423;
         vt_eeuifmg_main_group = 0x00834BE4;
         size_eeuifmg_main_group = 0x24;
-        fn_eeuifmg_main_group_init = (eeuifmg_main_group_init_fn)0x00651678;
+        fn_main_group_init = (main_group_init_fn)0x00651678;
+        slot_main_group_again = 4;
+        fn_eeuifmg_main_group_again = (main_group_again_fn)0x006526B7;
         vt_eeuifmg_status_bar = 0x00834C24;
         fn_eeuifmg_status_bar_copy_data = (eeuifmg_status_bar_copy_data_fn)0x00652DA4;
         fn_eeuifmg_status_bar_draw_polygons = (eeuifmg_status_bar_draw_polygons_fn)0x00652E4D;
@@ -2137,6 +2151,7 @@ internal int spec_ui_forms_select(int build) {
         vt_eeuif_main_game = 0x00834974;
         size_eeuif_main_game = 0x5E4;
         of_main_form_top_bar = 0x5D8;
+        of_main_form_main_group = 0x4EC;
         fn_main_form_init = (main_form_init_fn)0x0064C8B0;
         fn_main_form_activate = (main_form_activate_fn)0x0064DCBF;
         fn_main_form_deactivate = (main_form_deactivate_fn)0x0064E113;
@@ -2458,7 +2473,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuifmg_group_init = (eeuifmg_group_init_fn)0x00667C73;
         vt_eeuifmg_main_group = 0x0084AC84;
         size_eeuifmg_main_group = 0x28;
-        fn_eeuifmg_main_group_init = (eeuifmg_main_group_init_fn)0x00667EC8;
+        fn_main_group_init = (main_group_init_fn)0x00667EC8;
+        slot_main_group_again = 4;
+        fn_eeuifmg_main_group_again = (main_group_again_fn)0x00667F17;
         vt_eeuifmg_status_bar = 0x0084ACC4;
         fn_eeuifmg_status_bar_copy_data = (eeuifmg_status_bar_copy_data_fn)0x00669896;
         fn_eeuifmg_status_bar_draw_polygons = (eeuifmg_status_bar_draw_polygons_fn)0x0066993F;
@@ -2483,6 +2500,7 @@ internal int spec_ui_forms_select(int build) {
         vt_eeuif_main_game = 0x0084AA10;
         size_eeuif_main_game = 0x5F4;
         of_main_form_top_bar = 0x5E8;
+        of_main_form_main_group = 0x4EC;
         fn_main_form_init = (main_form_init_fn)0x00662E73;
         fn_main_form_activate = (main_form_activate_fn)0x006648D4;
         fn_main_form_deactivate = (main_form_deactivate_fn)0x00664D40;
@@ -2923,7 +2941,9 @@ internal int spec_ui_forms_check(void) {
     bad += spec_vtable(vt_eeuifmg_group, ".?AVEEUIFMGGroup@@", "EEUIFMGGroup [vtable]");
     bad += spec_code((uintptr_t)fn_eeuifmg_group_init, "EEUIFMGGroup.init");
     bad += spec_vtable(vt_eeuifmg_main_group, ".?AVEEUIFMGMainGroup@@", "EEUIFMGMainGroup [vtable]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_main_group_init, "EEUIFMGMainGroup.init");
+    bad += spec_code((uintptr_t)fn_main_group_init, "EEUIFMGMainGroup.init");
+    bad += spec_code((uintptr_t)fn_eeuifmg_main_group_again, "EEUIFMGMainGroup.again");
+    bad += spec_slot(vt_eeuifmg_main_group, slot_main_group_again, (uintptr_t)fn_eeuifmg_main_group_again, "EEUIFMGMainGroup.again [slot]");
     bad += spec_vtable(vt_eeuifmg_status_bar, ".?AVEEUIFMGStatusBar@@", "EEUIFMGStatusBar [vtable]");
     bad += spec_code((uintptr_t)fn_eeuifmg_status_bar_copy_data, "EEUIFMGStatusBar.copy_data");
     bad += spec_slot(vt_eeuifmg_status_bar, slot_ui_control_copy_data, (uintptr_t)fn_eeuifmg_status_bar_copy_data, "EEUIFMGStatusBar.copy_data [slot]");

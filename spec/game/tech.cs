@@ -198,6 +198,11 @@ unsafe struct EETechTree
 
     [address((ee)0x004019A1, (aoc)0x004018A4)]
     extern EETechTreeNode* lookup(int32 id);
+
+    /// thiscall(tech tree, timer): when it is this PC's player's, its screen marked to be drawn anew (timer: its epoch
+    /// timer +0x4F8 set again too) - the game's switch of this PC's player (0x53153E) calls it on the new one's
+    [address((ee)0x005BC95A, (aoc)0x005CD374)]
+    extern void ui_refresh(uint8 timer);
 }
 
 /// the tech tree's epoch records, TT + 8 + epoch * 0x54

@@ -358,6 +358,10 @@ unsafe struct EEAIContinentManager
 [c_type("ee_minimap"), vtable((ee)0x0082C5A8, (aoc)0x00841D44)]
 unsafe struct EEMiniMap
 {
+    /// the player whose sight it shows (this PC's: the game's switch of this PC's player 0x53153E sets it, then rebuild)
+    [offset(0x124), found(c)]
+    EEPlayer* player;
+
     /// vf2: its picture of tiles x_lo .. x_hi, y_hi down to y_lo made anew (what the paints' vf1 call)
     [slot(2), address((ee)0x00515AC4, (aoc)0x00520115)]
     [vtable_site("minimap_redraw")]

@@ -304,6 +304,15 @@ unsafe struct EEPlayer
     [address((ee)0x0055B3FB, (aoc)0x0056A658)]
     extern void select(void* selection);
 
+    /// a click's selection carried out on the player: thiscall(player, unit id, fog_check, clear) - the selection
+    /// cleared (clear: the active group's too), then the unit selected when it is alive, selectable and the player's
+    /// (or nature's) - another's only shown (the single selected unit: the info panel, no buttons); one hidden
+    /// in the fog not even that (fog_check 1). select_unit: EEMSelectUnit's Execute (0x4BCF73: the sender's player, (id, 1, 1)) -
+    /// godmode's switch to the clicked unit's owner (engine/godmode.c)
+    [address((ee)0x0055B2E2, (aoc)0x0056A53B)]
+    [call_site("select_unit", (ee)0x004BCF96, (aoc)0x004C5CA3)]
+    extern void select_unit(uint32 id, uint8 fog_check, uint8 clear);
+
     /// EEMAddUnitsToSelectedGroup carried out on the player: thiscall(player, the message's ids +0x10) - the ids the
     /// select would take added to the active group; the last one's selection sound (play_local) while the selection is
     /// the local player's own (0x918E9E)
@@ -375,6 +384,14 @@ unsafe struct ee_player_b98
 [@base(typeof(EEPlayer)), c_type("ee_player"), vtable((ee)0x008264C0, (aoc)0x0083A57C)]
 unsafe struct EEComputerPlayer
 {
+    /// vf29 (+0x74): 1 when a human plays the player - the computer's 0 (0x4B129F, a "return 0" other classes share).
+    /// The command panel (EEUIFMGMainGroup 0x651A19) shows its buttons only for a selection of this PC's player that
+    /// answers 1; the simulation asks it too (a citizen's idling 0x5FEC13, 0x5EED30 ...). cp_is_human: a PC switched to
+    /// another player (godmode, playas) gets 1 for it, to the panel only (player.panel_is_human_ret; engine/godmode.c)
+    [slot(29), address((ee)0x004B129F, (aoc)0x004AC9F3)]
+    [vtable_site("cp_is_human")]
+    extern char8 computer_is_human();
+
     /// units it picked to delete: update deletes each one (its vf +0x60 (1, 0, 0)); delete_for_room passes over them
     [offset((ee)0xB80, (aoc)0xBB4), found(c)]
     EEUnit** doomed_begin;
@@ -1137,6 +1154,11 @@ unsafe struct EEPlayerStatistics
 /// player's data of the game, places in its code and numbers
 static unsafe class player
 {
+    /// where the command panel's call of computer_is_human returns (EEUIFMGMainGroup 0x651A19: `call [eax+0x74]` at 0x651B6D on
+    /// this PC's player, its buttons only when it answers 1)
+    [address((ee)0x00651B70, (aoc)0x00668961)]
+    static code panel_is_human_ret;
+
     [address((ee)0x00617780, (aoc)0x0062A2DF)]
     static code call_kill_stat;
 

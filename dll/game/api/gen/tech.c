@@ -189,6 +189,11 @@ internal inline void tech_tree_epoch_next(ee_tech_tree *tech_tree) { fn_tech_tre
 typedef ee_tech *(__thiscall *tech_tree_lookup_fn)(ee_tech_tree *, int);
 internal tech_tree_lookup_fn fn_tech_tree_lookup;
 internal inline ee_tech *tech_tree_lookup(ee_tech_tree *tech_tree, int id) { return fn_tech_tree_lookup(tech_tree, id); }
+// thiscall(tech tree, timer): when it is this PC's player's, its screen marked to be drawn anew (timer: its epoch
+// timer +0x4F8 set again too) - the game's switch of this PC's player (0x53153E) calls it on the new one's
+typedef void (__thiscall *tech_tree_ui_refresh_fn)(ee_tech_tree *, uint8_t);
+internal tech_tree_ui_refresh_fn fn_tech_tree_ui_refresh;
+internal inline void tech_tree_ui_refresh(ee_tech_tree *tech_tree, uint8_t timer) { fn_tech_tree_ui_refresh(tech_tree, timer); }
 
 // class ee_tt_epoch (ee_tt_epoch)
 // the tech tree's epoch records, TT + 8 + epoch * 0x54
@@ -263,6 +268,7 @@ internal int spec_tech_select(int build) {
         of_tech_tree_epoch = 0x4E4;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005BC15D;
         fn_tech_tree_lookup = (tech_tree_lookup_fn)0x004019A1;
+        fn_tech_tree_ui_refresh = (tech_tree_ui_refresh_fn)0x005BC95A;
         of_tt_epoch_tech_data = 0x8;
         of_tt_epoch_needed = 0x40;
         of_tt_epoch_done = 0x48;
@@ -313,6 +319,7 @@ internal int spec_tech_select(int build) {
         of_tech_tree_epoch = 0x538;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005CCB34;
         fn_tech_tree_lookup = (tech_tree_lookup_fn)0x004018A4;
+        fn_tech_tree_ui_refresh = (tech_tree_ui_refresh_fn)0x005CD374;
         of_tt_epoch_tech_data = 0x8;
         of_tt_epoch_needed = 0x40;
         of_tt_epoch_done = 0x48;
@@ -332,6 +339,7 @@ internal int spec_tech_check(void) {
     bad += spec_code((uintptr_t)fn_tech_grant, "EETechTreeNode.grant");
     bad += spec_code((uintptr_t)fn_tech_tree_epoch_next, "EETechTree.epoch_next");
     bad += spec_code((uintptr_t)fn_tech_tree_lookup, "EETechTree.lookup");
+    bad += spec_code((uintptr_t)fn_tech_tree_ui_refresh, "EETechTree.ui_refresh");
     bad += spec_code(data_tech_call_epoch_upgrades, "tech.call_epoch_upgrades");
     bad += spec_code(data_tech_fn_epoch_upgrades, "tech.fn_epoch_upgrades");
     bad += spec_data(data_tech_vts_tech_researched, "tech.vts_tech_researched");

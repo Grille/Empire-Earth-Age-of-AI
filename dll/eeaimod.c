@@ -478,6 +478,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"
+#include "engine/godmode.c"   // godmode: the whole map, any player's units and buildings as this PC's own (playas)
 #include "base/headless_win.c"
 #include "engine/display.c"
 #include "engine/hold_profile.c"
@@ -764,6 +765,7 @@ internal void install(HMODULE self) {
     sound_install();
     stat_graphs_install();
     select_install();
+    godmode_install();
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     collide_install();
     groupmove_install();
