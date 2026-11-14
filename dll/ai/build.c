@@ -22,7 +22,8 @@
 //   A MINE'S TOWER - a mine with its drop site and no defence of its within BD_GUARD tiles gets the best tower it can
 //                 build, 2 to 5 tiles from it; one going up at a time.
 // One new building a look, through the mod's placement (econ.c hook_place: the priority list's savings, the price in
-// the bank, a builder, the foundation). None of them under raiders (12 tiles) or in a territory being lost.
+// the bank, a builder, the foundation). None of them under raiders (12 tiles), in the reach of an enemy tower it has
+// explored (work.c wk_danger), or in a territory being lost - nor a builder sent there.
 // Not here yet: houses, the production buildings, docks, research buildings, repairs - and the old economy's
 // placements (defence.c's towers, towns.c, expand.c's outposts) still go through the build manager's queue, which
 // nobody empties now.
@@ -54,7 +55,7 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = iv2(p.x + ax, p.y + ay);
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, type, q) || tv_unsafe(idx, q.x, q.y)) continue;
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, type, q) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                 *out = q;
                 return 1;
             }
@@ -111,7 +112,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int has = 0, bk = -1, bd = 0x7FFFFFFF;
         for (int k = 0; k < nbuilt && !has; k++) has = built[k] == site || built[k] == openb[i];
         ivec2 p = unit_get_tile(openb[i]);
-        if (has || raiders_near(pl, p, 8) || tv_unsafe(idx, p.x, p.y)) continue;
+        if (has || raiders_near(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;
         unsigned land = area_id(p, 2);
         for (int k = 0; k < nf; k++) {
             ivec2 q = unit_get_tile(freec[k]);
@@ -131,7 +132,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                     ivec2 q = iv2(gran[g].x + fx, gran[g].y + fy);
                     int there = !fx && !fy;
                     for (int k = 0; k < nfld && !there; k++) there = fld[k].x == q.x && fld[k].y == q.y;
-                    if (there || !can_place(pl, UT(B_FARM), q) || !can_pay(pl, UT(B_FARM)) || raiders_near(pl, q, 8) || tv_unsafe(idx, q.x, q.y)) continue;
+                    if (there || !can_place(pl, UT(B_FARM), q) || !can_pay(pl, UT(B_FARM)) || raiders_near(pl, q, 8) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                     if (!place_foundation(pl, UT(B_FARM), q.x, q.y)) continue;
                     if (nfld < 512) fld[nfld++] = q;
                     placed++; open_fields++; b->fields++;
@@ -159,7 +160,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                         for (int ay = -r; ay <= r && !type; ay++) {
                             ivec2 q = iv2(centre[c].p.x + ax, centre[c].p.y + ay);
                             int room = 0;
-                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_GRANARY), q) || raiders_near(pl, q, 12) || tv_unsafe(idx, q.x, q.y)) continue;
+                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_GRANARY), q) || raiders_near(pl, q, 12) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                             for (int fx = -2; fx <= 2; fx += 2)
                                 for (int fy = -2; fy <= 2; fy += 2)
                                     if ((fx || fy) && can_place(pl, UT(B_FARM), iv2(q.x + fx, q.y + fy))) room++;
@@ -186,7 +187,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             int has_drop = dk >= 0 && dd <= BD_DROP * BD_DROP;
             for (int j = 0; j < ndef && !guard; j++) guard = abs(def[j].x - p.x) <= BD_GUARD && abs(def[j].y - p.y) <= BD_GUARD;
             b->mines_drop += has_drop; b->mines_guard += guard;
-            if (raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y)) continue;
+            if (raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // not a mine under an enemy tower it has seen
             if (!has_drop) { if (score < sbest) { sbest = score; sp = p; } }
             else if (!guard && score < tbest) { tbest = score; tp = p; }
         }

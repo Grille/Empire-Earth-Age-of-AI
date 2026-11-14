@@ -5,7 +5,11 @@
 // the mines. farming and woodworks is reserved for save backside territories where possible".
 // So the territory view (territories.c) is the ground of it:
 //   WHERE  - a territory is worked when the AI has a building in it (its drop sites are there) and it is not being
-//            lost (TV_UNSAFE: nobody is sent in, as the shelter has it). Of those, BACKLAND first for wood and food
+//            lost (TV_UNSAFE: nobody is sent in, as the shelter has it); no site in the reach of an enemy tower it
+//            has explored (wk_danger - remembered, not only those in sight now: attack.c's threat_at forgets a
+//            tower nobody looks at, and on a small map the next woodcutter walked under it: 61 of one AI's
+//            citizens dead to a neighbour's towers in 40 minutes), and a citizen whose site lies under one is
+//            sent to another. Of those, BACKLAND first for wood and food
 //            (a site's distance counts double in a front, three times in a territory it only stands in), mines
 //            wherever they lie - a mine does not move. A territory next to one of its own is the last resort (a
 //            long walk: the drop site there is the building step's to bring).
@@ -32,15 +36,38 @@ struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost, cap; };   // n
 internal struct wk_st {
     uint32_t t, log_t;
     int have[7], want[7], places[7], idle, busy, n, food_short, by_need;   // food_short: citizens wanted on food that found no site at the last look
-    unsigned assigned, moved, none[7];   // none: no site found for a citizen wanted on that resource
+    unsigned assigned, moved, pulled, none[7];   // none: no site found for a citizen wanted on that resource; pulled: looks a citizen's site lay under an enemy tower
 } g_wk[16];
+// the enemy defences it has explored (buildings stay known once seen), every 5 s; wk_danger: a tile in the reach of one
+#define WK_DEFS 384
+internal struct { uint32_t t; int n; short x[WK_DEFS], y[WK_DEFS]; float r[WK_DEFS]; } g_wkd[16];
+internal void wk_defences(ee_player *pl, unsigned idx, uint32_t now) {
+    if (g_wkd[idx].t && now >= g_wkd[idx].t && now - g_wkd[idx].t < 5000) return;
+    g_wkd[idx].t = now ? now : 1;
+    int n = 0;
+    for (struct grid_it it = grid_it_all(1); n < WK_DEFS && grid_it_next(&it); ) {
+        float r, a;
+        if (unit_get_hp(it.u) <= 0 || !is_enemy(pl, unit_get_owner(it.u)) || !defence_stats(it.u, &r, &a) || !explored_by(it.u, pl)) continue;
+        g_wkd[idx].x[n] = (short)unit_get_x(it.u); g_wkd[idx].y[n] = (short)unit_get_y(it.u); g_wkd[idx].r[n++] = r + 2.0f;
+    }
+    g_wkd[idx].n = n;
+}
+internal int wk_danger(unsigned idx, ivec2 p) {
+    for (int k = 0; k < g_wkd[idx & 15].n; k++) {
+        float dx = (float)(p.x - g_wkd[idx & 15].x[k]), dy = (float)(p.y - g_wkd[idx & 15].y[k]), r = g_wkd[idx & 15].r[k];
+        if (dx * dx + dy * dy <= r * r) return 1;
+    }
+    return 0;
+}
 // what a site's distance is multiplied by, by its territory: 1 backland, 2 a front it holds, 3 one it only has a
-// building in, 6 one beside such a one; 0: not to be worked (water, being lost, far from everything of its)
+// building in, 6 one beside such a one that nobody else has a building in; 0: not to be worked (water, being lost,
+// another's, far from everything of its)
 internal int wk_cost(struct tv_st *s, unsigned r) {
     if (r >= (unsigned)s->n || g_ter.t[r].water || s->t[r].state == TV_UNSAFE) return 0;
     if (s->t[r].role == TVR_BACK) return 1;
     if (s->t[r].role == TVR_FRONT) return 2;
     if (s->t[r].bld >= 1) return 3;
+    if (s->t[r].ebld || s->t[r].abld) return 0;   // somebody lives there: no ground to walk into or settle (an AI's Settlement and tower by a mine in its neighbour's home shot that neighbour's citizens at their work: 34 to 52 of an AI's dead in 40 minutes)
     for (int k = 0; k < g_ter.t[r].nbn; k++) {
         unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
         if (o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].bld >= 1 && s->t[o].state != TV_UNSAFE) return 6;
@@ -153,7 +180,7 @@ internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach) {
                 ee_unit *u = wk_tile_site(map, size, x, y, 3);
                 if (!u) continue;
                 int c = wk_cost(s, ter_near(x, y));
-                if (!c || !explored_by(u, pl)) continue;
+                if (!c || !explored_by(u, pl) || wk_danger((unsigned)player_get_index(pl) & 15, iv2(x, y))) continue;   // not under an enemy tower it has seen
                 float dd = (float)((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y)) * (float)(c * c);
                 if (!best || dd < bd) { best = u; bd = dd; }
             }
@@ -169,6 +196,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (w->t && now - w->t < WK_EVERY) return;
     w->t = now ? now : 1;
     if (!s->n || s->version != g_ter.version) return;   // the view first
+    wk_defences(pl, idx, now);
     int nc = 0, nm = 0, nb = 0;
     ee_map *map = game_map();
     int size = map ? (int)map_get_size(map) : 0;
@@ -183,7 +211,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         unsigned tr = ter_near(x, y);
         int c = wk_cost(s, tr);
         ee_unit *u = c ? wk_tile_site(map, size, x, y, r) : NULL;
-        if (!u || !explored_by(u, pl)) continue;
+        if (!u || !explored_by(u, pl) || wk_danger(idx, iv2(x, y))) continue;
         struct wk_site *e = r == 2 ? (nb < WK_BUSHES ? &bush[nb++] : NULL) : (nm < WK_MINES ? &mine[nm++] : NULL);
         if (!e) continue;
         e->u = u; e->terr = (uint16_t)tr; e->res = (uint8_t)r; e->n = 0; e->cost = (uint8_t)c; e->cap = 3;
@@ -198,7 +226,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             if (!st || unit_get_hp(f) <= 0 || !unit_get_finished(st) || unit_get_x(f) < 0) continue;
             unsigned tr = ter_near(unit_get_x(f), unit_get_y(f));
             int c = wk_cost(s, tr);
-            if (!c || raiders_near(pl, unit_get_tile(f), 6)) continue;
+            if (!c || raiders_near(pl, unit_get_tile(f), 6) || wk_danger(idx, unit_get_tile(f))) continue;
             bush[nb].u = f; bush[nb].terr = (uint16_t)tr; bush[nb].res = 2; bush[nb].n = 0; bush[nb].cost = 0; bush[nb++].cap = 1;   // cost 0: a field before any bush
         }
     }
@@ -214,6 +242,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int field = site && unit_get_type_data(site) && unit_type_get_id(unit_get_type_data(site)) == UT(B_FARM) && unit_get_hp(site) > 0;
         int r = field ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
         if (r < 2 || r > 6) { r = 0; site = NULL; }
+        if (site && wk_danger(idx, unit_get_tile(site))) { r = 0; site = NULL; w->pulled++; }   // its site under an enemy tower it has seen: to another
         if (nc >= WK_CITS) { w->busy++; continue; }
         cit[nc].u = u; cit[nc].site = site; cit[nc++].res = (uint8_t)r;
         if (r) w->have[r]++; else w->idle++;
@@ -307,4 +336,4 @@ internal int work_idle(unsigned idx) {
     uint32_t now = game_time();
     return w->t && now >= w->t && now - w->t <= 4 * WK_EVERY ? w->idle : -1;
 }
-internal void work_new_game(void) { memset(g_wk, 0, sizeof g_wk); memset(g_wn, 0, sizeof g_wn); }
+internal void work_new_game(void) { memset(g_wk, 0, sizeof g_wk); memset(g_wn, 0, sizeof g_wn); memset(g_wkd, 0, sizeof g_wkd); }

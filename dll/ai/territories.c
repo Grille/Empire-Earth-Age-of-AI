@@ -98,7 +98,7 @@ enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 #define TV_CALM 20000
 #define TV_HOT 8                  // territories looked at closer a pass
 enum { TV_QUIET, TV_FOES, TV_UNSAFE };
-struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, cit, bld, want, ships, eships, abld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
+struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, cit, bld, want, ships, eships, abld, ebld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; ebld: an enemy's it has seen there (work.c: no ground to settle); coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
 internal struct tv_st {
     unsigned version; int n; struct tv_terr *t;
     uint32_t tick, log_t;
@@ -157,7 +157,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         s->version = g_ter.version; s->n = s->t ? g_ter.n : 0;
     }
     if (!s->n) return;
-    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = 0; s->t[r].fish = 0; s->t[r].ratio = 0; }
+    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = s->t[r].ebld = 0; s->t[r].fish = 0; s->t[r].ratio = 0; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -175,7 +175,10 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             unsigned ro = o && player_get_index(o) > 0 ? ter_near(unit_get_x(u), unit_get_y(u)) : TER_NONE;
             if (ro < (unsigned)s->n) {
                 int ofam = unit_type_get_class_id(it.td);
-                if (is_enemy(pl, o)) { if (tv_warship(it.td) && seen_by(u, pl)) { s->t[ro].eships++; s->t[ro].eship_t = now ? now : 1; } }
+                if (is_enemy(pl, o)) {
+                    if (tv_warship(it.td) && seen_by(u, pl)) { s->t[ro].eships++; s->t[ro].eship_t = now ? now : 1; }
+                    else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !is_wall(unit_type_get_id(it.td)) && explored_by(u, pl) && s->t[ro].ebld < 0x7FFF) s->t[ro].ebld++;
+                }
                 else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !is_wall(unit_type_get_id(it.td))) s->t[ro].abld++;   // not a wall's pieces: see bld
             }
             continue;
