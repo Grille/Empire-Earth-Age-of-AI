@@ -381,44 +381,50 @@ internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *
     *out = g_ter.t[best].c; *terr = (unsigned)best;
     return 1;
 }
-// fleet.c HARBOURS: the land territory AI idx holds that wants a harbour next - one with a shore, `cits` of its citizens
-// there, not being lost, and no dock of its own (docks[nd]) within near_tiles of its shore point; fronts before
-// backland, the longer shore first. The shore point (*shore): the last tile of the territory on the line from its
-// middle to the middle of the water territory it borders most. 0: none
-internal int tv_harbour_next(ee_player *pl, unsigned idx, const ivec2 *docks, int nd, int near_tiles, int cits, ivec2 *shore, unsigned *land) {
+// fleet.c HARBOURS: where the next harbour goes - a sea territory that borders land AI idx holds and has no dock of its
+// on it yet (dock_seas[nd]: the sea territory each of its docks stands on), and the held land territory with the
+// longest shore on that sea that has `cits` of its citizens and is not being lost. Of several such seas: the more so
+// with enemy warships seen there, by a front, with the longer shore. *shore: the last tile of that land territory on
+// the line from its middle to the sea's; 0: every sea by its land has a harbour
+internal int tv_harbour_next(unsigned idx, const unsigned *dock_seas, int nd, int cits, ivec2 *shore, unsigned *land, unsigned *sea) {
     struct tv_st *s = &g_tv[idx & 15];
-    (void)pl;
     if (!s->n || s->version != g_ter.version) return 0;
-    int best = -1;
+    uint32_t now = game_time();
+    int bl = -1, bs = -1;
     float bw = 0;
-    ivec2 bs = iv2(0, 0);
-    for (int r = 0; r < s->n; r++) {
-        if (g_ter.t[r].water || s->t[r].role == TVR_NONE || s->t[r].cit < cits || s->t[r].state == TV_UNSAFE) continue;
-        int to = -1, len = 0, coast = 0;
-        for (int k = 0; k < g_ter.t[r].nbn; k++) {
-            struct ter_nb *nb = &g_ter.nb[g_ter.t[r].nb0 + k];
-            if (nb->to >= (unsigned)s->n || !g_ter.t[nb->to].water) continue;
-            coast += nb->len;
-            if (nb->len > len) { len = nb->len; to = nb->to; }
+    for (int w = 0; w < s->n; w++) {
+        if (!g_ter.t[w].water) continue;
+        int has = 0, to = -1, len = 0;
+        for (int k = 0; k < nd && !has; k++) has = dock_seas[k] == (unsigned)w;
+        if (has) continue;
+        for (int k = 0; k < g_ter.t[w].nbn; k++) {   // the held land with the longest shore on it
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[w].nb0 + k];
+            if (nb->to >= (unsigned)s->n || g_ter.t[nb->to].water) continue;
+            struct tv_terr *t = &s->t[nb->to];
+            if (t->role == TVR_NONE || t->cit < cits || t->state == TV_UNSAFE || nb->len <= len) continue;
+            len = nb->len; to = nb->to;
         }
         if (to < 0) continue;
-        ivec2 c = g_ter.t[r].c, w = g_ter.t[to].c, sp = c;
-        float dx = (float)(w.x - c.x), dy = (float)(w.y - c.y), l = sqrtf(dx * dx + dy * dy);
-        for (int i = 1; i < (int)l; i++) {
-            ivec2 q = iv2(c.x + (int)(dx * (float)i / l), c.y + (int)(dy * (float)i / l));
-            unsigned tq = territory_at(q.x, q.y);
-            if (tq == (unsigned)r) sp = q;
-            else if (tq != TER_NONE && g_ter.t[tq].water) break;
-        }
-        int has = 0;
-        for (int k = 0; k < nd && !has; k++) has = ivec2_dist2(docks[k], sp) <= near_tiles * near_tiles;
-        if (has) continue;
-        float wt = (float)coast * (s->t[r].role == TVR_FRONT ? 2.0f : 1.0f);
-        if (wt > bw) { bw = wt; best = r; bs = sp; }
+        float wt = (float)len * (s->t[to].role == TVR_FRONT ? 2.0f : 1.0f) * (s->t[w].eship_t && now >= s->t[w].eship_t && now - s->t[w].eship_t < 2 * TV_FOE_MEMORY ? 3.0f : 1.0f);
+        if (wt > bw) { bw = wt; bl = to; bs = w; }
     }
-    if (best < 0) return 0;
-    *shore = bs; *land = (unsigned)best;
+    if (bl < 0) return 0;
+    ivec2 c = g_ter.t[bl].c, wc = g_ter.t[bs].c, sp = c;
+    float dx = (float)(wc.x - c.x), dy = (float)(wc.y - c.y), l = sqrtf(dx * dx + dy * dy);
+    for (int i = 1; i < (int)l; i++) {
+        ivec2 q = iv2(c.x + (int)(dx * (float)i / l), c.y + (int)(dy * (float)i / l));
+        unsigned tq = territory_at(q.x, q.y);
+        if (tq == (unsigned)bl) sp = q;
+        else if (tq != TER_NONE && g_ter.t[tq].water) break;
+    }
+    *shore = sp; *land = (unsigned)bl; *sea = (unsigned)bs;
     return 1;
+}
+// ... enemy warships seen on that sea in the last 10 minutes: its harbour gets its second tower
+internal int tv_sea_threat(unsigned idx, unsigned sea) {
+    struct tv_st *s = &g_tv[idx & 15];
+    uint32_t now = game_time();
+    return s->n && s->version == g_ter.version && sea < (unsigned)s->n && s->t[sea].eship_t && now >= s->t[sea].eship_t && now - s->t[sea].eship_t < 2 * TV_FOE_MEMORY;
 }
 internal void tv_count(unsigned idx, int what) {   // the log's counters: 0 into a fortress, 1 to a refuge, 2 a site refused, 3 a fortress kept shut
     struct tv_st *s = &g_tv[idx & 15];

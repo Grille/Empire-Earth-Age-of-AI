@@ -772,20 +772,26 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 // (0x555710); every 2 minutes while none is queued, 3 a game at most
 // ---- HARBOURS ([ai_base] harbours; [autotest] v_harbours) ----
 // The player, 2026-11-14, told that the fleet masses under its home towers while it is the weaker one and so stands at
-// no station (a sea held in 10 of 80 looks): "the answear to you limit is more fortefied habours, maybe each territory
-// bordering a sea should build a small devende habour the fleet can fallback to. its the point of map control after
-// all, being able to push further and extend own support infrastucture". So: each land territory the AI holds that has
-// a shore and at least HB_CITS of its citizens gets a harbour - a dock by the shore towards the sea it borders most
-// (territories.c tv_harbour_next: fronts first, the longest shore first; none within HB_NEAR tiles of that shore yet),
-// then HB_TOWERS towers by every dock that has fewer - one order a HB_EVERY, HB_DOCKS docks at most. And the fleet's
-// rally (fl_rally: where it masses and falls back to) counts a place in its station's sea as much as HB_RALLY towers
-// more, so that the harbour there is where it stands.
+// no station: "the answear to you limit is more fortefied habours, maybe each territory bordering a sea should build a
+// small devende habour the fleet can fallback to. its the point of map control after all, being able to push further
+// and extend own support infrastucture".
+// First built as a dock and two towers in every held territory with a shore: 65 docks and 212 towers in 12 Continental
+// games, and the whole system on lost to off there (soldiers -26, kills -100) where it had been ahead without the
+// harbours. Then only on the sea the fleet is stationed in. The player's rule instead: "dont fully ignore the sea on
+// continental, it can be important and is used by player, alone the fish can make a diffrence. for the habour rule: a
+// hold theretory builds a habour if the sea territory dosnt alredy has habour from another held territory. this
+// should gurante coverage witout wasting resources".
+// So: a harbour a SEA territory. Each sea that borders land the AI holds and has no dock of its on it gets one from the
+// held territory with the longest shore there (territories.c tv_harbour_next) - a dock, and a tower by every dock that
+// has none within HB_TOWER_R, a second one where enemy warships were seen on that sea in the last 10 minutes; one
+// order a HB_EVERY, HB_DOCKS docks at most. And the fleet's rally (fl_rally: where it masses and falls back to) counts
+// a place in its station's sea as much as HB_RALLY towers more (with FLEET STATION).
 #define HB_EVERY 45000
-#define HB_NEAR 24
 #define HB_CITS 3
-#define HB_TOWERS 2
+#define HB_TOWER_R 8
 #define HB_DOCKS 8
-internal int tv_harbour_next(ee_player *pl, unsigned idx, const ivec2 *docks, int nd, int near_tiles, int cits, ivec2 *shore, unsigned *land);   // territories.c
+internal int tv_harbour_next(unsigned idx, const unsigned *dock_seas, int nd, int cits, ivec2 *shore, unsigned *land, unsigned *sea);   // territories.c
+internal int tv_sea_threat(unsigned idx, unsigned sea);
 internal struct { uint32_t t; unsigned docks, towers; } g_hb[16];
 internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
@@ -794,12 +800,17 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int e = current_epoch(pl);
     if (!bm || e < 0 || e >= 14) return;
+    unsigned dock_seas[16];   // the sea territory each of its docks stands on
+    for (int k = 0; k < g_fs.nd && k < 16; k++) {
+        ivec2 dw = g_fs.dk[k];
+        dock_seas[k] = ocean_near(g_fs.dk[k], 4, &dw) ? territory_at(dw.x, dw.y) : TER_NONE;
+    }
     int ttype = tower_newest(pl);
-    for (int k = 0; ttype && k < g_fs.nd && !tower_queued(bm); k++) {   // its towers first: a dock without them is no harbour
+    for (int k = 0; ttype && k < g_fs.nd && k < 16 && !tower_queued(bm); k++) {   // its towers first: a dock without one is no harbour
         ivec2 dk = g_fs.dk[k];
-        int cov = 0, oc = (int)ocean_near(dk, 4, NULL);
-        for (int j = 0; j < g_fs.ntw; j++) cov += ivec2_dist2(g_fs.tw[j], dk) <= 8 * 8;
-        if (cov >= HB_TOWERS || !oc || raiders_near(pl, dk, 10)) continue;
+        int cov = 0, oc = (int)ocean_near(dk, 4, NULL), want = 1 + (dock_seas[k] != TER_NONE && tv_sea_threat(idx, dock_seas[k]));
+        for (int j = 0; j < g_fs.ntw; j++) cov += ivec2_dist2(g_fs.tw[j], dk) <= HB_TOWER_R * HB_TOWER_R;
+        if (cov >= want || !oc || raiders_near(pl, dk, 10)) continue;
         for (int r = 2; r <= 6; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
@@ -808,14 +819,14 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
                     int entry[3] = { ttype, q.x, q.y };
                     build_mgr_queue_add(bm, e, entry);
                     g_hb[idx].towers++;
-                    if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov);
+                    if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d of %d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov, want);
                     return;
                 }
     }
     ivec2 shore;
-    unsigned land = 0;
+    unsigned land = 0, sea = 0;
     if (!ut_has(UT(B_DOCK)) || g_fs.nd >= HB_DOCKS || build_mgr_queued(bm, UT(B_DOCK)) || !can_build(pl, UT(B_DOCK))) return;
-    if (!tv_harbour_next(pl, idx, g_fs.dk, g_fs.nd, HB_NEAR, HB_CITS, &shore, &land) || raiders_near(pl, shore, 12)) return;
+    if (!tv_harbour_next(idx, dock_seas, g_fs.nd < 16 ? g_fs.nd : 16, HB_CITS, &shore, &land, &sea) || raiders_near(pl, shore, 12)) return;
     for (int r = 0; r <= 8; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
@@ -824,7 +835,7 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
                 int entry[3] = { UT(B_DOCK), q.x, q.y };
                 build_mgr_queue_add(bm, e, entry);
                 g_hb[idx].docks++;
-                if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a dock queued at %d,%d for the territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, q.x, q.y, land, shore.x, shore.y, g_fs.nd);
+                if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a dock queued at %d,%d for the sea territory %u from the land territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, q.x, q.y, sea, land, shore.x, shore.y, g_fs.nd);
                 return;
             }
 }
