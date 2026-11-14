@@ -1,19 +1,20 @@
 // THE CRASH BOX ([general] crash_dialog; the player, 2026-11-14: "right now the game exits when crashing, makes sence for
 // nomral play. but for us it might be usefull if the process stays open and show an exception dialog?"). An exception
 // nothing handles ends at the top-level filter (kernel32's UnhandledExceptionFilter: the C runtime's frame round the
-// main thread and every thread's start ask it), and the process ended without a word. With the setting the mod's
-// filter comes first: a memory dump of the process at the crash (ageofai_dumps\crash_<date>_<time>.dmp, the crashing
-// thread's context in it - Visual Studio or WinDbg open it at the faulting instruction), a line in the log, and a box
-// with the exception: where (module + offset), what was read or written, the call chain by frame pointers. The process
-// stays as it is while the box is open - its other threads run on, a debugger can attach. OK: with a debugger attached
-// the faulting instruction runs again and the debugger stops at it; without one the process ends with the exception's
-// code, as a crash ended before. Not through the filter there was: Miles Sound's 3D module (Mssrsx.m3d) sets one at a
+// main thread and every thread's start ask it), and the process ended without a word. The mod's filter comes first
+// (on by default since the player, 2026-11-14: "the game just closing has no value to anybody"): a box with the
+// exception - where (module + offset), what was read or written, the call chain by frame pointers - and two buttons
+// ("it than should have clerly explained options: a "dump and close" and "close" button"): Dump and close writes a
+// memory dump of the process at the crash (ageofai_dumps\crash_<date>_<time>.dmp, the crashing thread's context in it -
+// Visual Studio or WinDbg open it at the faulting instruction), Close doesn't; a line in the log either way. The
+// process stays as it is while the box is open - its other threads run on, a debugger can attach. Then: with a debugger
+// attached the faulting instruction runs again and the debugger stops at it; without one the process ends with the
+// exception's code, as a crash ended before. Not through the filter there was: Miles Sound's 3D module (Mssrsx.m3d) sets one at a
 // game start, and called after the box it hung the game (a test game: killed at its time limit instead of ending). The
 // work is done on a thread of its own (a stack overflow leaves the crashing thread a few KB), the crashing one waits for
 // it; a second crash while the box is open waits for good. Ours is put in front again at each game start (Miles's set
-// since; the exe's import of SetUnhandledExceptionFilter, where a build has one, is hooked too). Off by default (a
-// player's game ends as it always did) and in test runs (headless: nobody to close the box - the test server would take
-// the stopped clock for a hang).
+// since; the exe's import of SetUnhandledExceptionFilter, where a build has one, is hooked too). Never in test runs
+// (headless: nobody to close the box - the test server would take the stopped clock for a hang).
 #include <dbghelp.h>
 
 internal LPTOP_LEVEL_EXCEPTION_FILTER g_cb_next;   // the filter ours replaced or kept out (returned to a SetUnhandledExceptionFilter call; never called)
@@ -69,6 +70,43 @@ internal int cb_write_dump(void) {
     snprintf(g_cb_why, sizeof g_cb_why, "MiniDumpWriteDump failed (error %08lx)", err);
     return 0;
 }
+// the box's buttons (the message box's Yes and No) named for what they do and wide enough for it, as it opens
+internal HHOOK g_cb_hook;
+internal LRESULT CALLBACK cb_cbt(int code, WPARAM wp, LPARAM lp) {
+    if (code == HCBT_ACTIVATE) {
+        HWND w = (HWND)wp, yes = GetDlgItem(w, IDYES), no = GetDlgItem(w, IDNO);
+        if (yes && no) {
+            static const char dump_text[] = "Dump and close";
+            SetWindowTextA(yes, dump_text);
+            SetWindowTextA(no, "Close");
+            RECT ry, rn, cr;
+            GetWindowRect(yes, &ry); GetWindowRect(no, &rn);
+            MapWindowPoints(NULL, w, (POINT *)&ry, 2); MapWindowPoints(NULL, w, (POINT *)&rn, 2);
+            HDC dc = GetDC(yes);
+            HFONT f = (HFONT)SendMessageA(yes, WM_GETFONT, 0, 0);
+            HGDIOBJ of = f ? SelectObject(dc, f) : NULL;
+            SIZE sz = { 0, 0 };
+            GetTextExtentPoint32A(dc, dump_text, (int)sizeof dump_text - 1, &sz);
+            if (of) SelectObject(dc, of);
+            ReleaseDC(yes, dc);
+            int bw = sz.cx + 28, bh = ry.bottom - ry.top, gap = rn.left - ry.right, margin = 12;
+            if (bw < ry.right - ry.left) bw = ry.right - ry.left;
+            if (gap < 6) gap = 6;
+            GetClientRect(w, &cr);
+            int need = 2 * bw + gap + 2 * margin;
+            if (need > cr.right) {   // the box wider for them
+                RECT wr;
+                GetWindowRect(w, &wr);
+                SetWindowPos(w, NULL, 0, 0, wr.right - wr.left + need - cr.right, wr.bottom - wr.top, SWP_NOMOVE | SWP_NOZORDER);
+                GetClientRect(w, &cr);
+            }
+            int x = cr.right - margin - (2 * bw + gap);   // at the right, as the box's own
+            MoveWindow(yes, x, ry.top, bw, bh, TRUE);
+            MoveWindow(no, x + bw + gap, rn.top, bw, bh, TRUE);
+        }
+    }
+    return CallNextHookEx(NULL, code, wp, lp);
+}
 internal DWORD WINAPI cb_box_thread(void *arg) {
     (void)arg;
     EXCEPTION_RECORD *er = g_cb_ep->ExceptionRecord;
@@ -92,20 +130,34 @@ internal DWORD WINAPI cb_box_thread(void *arg) {
         if (pair[0] <= (uintptr_t)fp) break;
         fp = (uintptr_t *)pair[0];
     }
-    int dumped = cb_write_dump();
-    n += snprintf(g_cb_text + n, sizeof g_cb_text - n, "\n\n%s%s%s%s%s\nThe log (ageofai_log.csv) has the exception's line with the stack's code addresses.",
-                  dumped ? "Memory dump (" : "No memory dump could be written: ", dumped ? g_cb_why : g_cb_why, dumped ? "): " : "",
-                  dumped ? g_cb_dump : "", dumped ? " - open it in Visual Studio or WinDbg, it shows the crash's place" : "");
+    snprintf(g_cb_text + n, sizeof g_cb_text - n, "\n\nThe log (ageofai\\ageofai_log.csv) has this with more of the stack.");
+    // the choice first, the details under it
+    static char box[4000];
+    snprintf(box, sizeof box,
+             "Empire Earth has crashed.\n\n"
+             "Dump and close: writes a memory dump of the game as it crashed (a few hundred MB, in %s) - with it the cause can "
+             "be found - then closes the game.\n"
+             "Close: closes the game.\n\n"
+             "Until you choose, the game stays as it is: a debugger can attach now (Visual Studio: Debug > Attach to Process; "
+             "x32dbg) and stops at the crash after either button.\n\n"
+             "----------\n%s", g_dump_dir[0] ? g_dump_dir : "ageofai\\ageofai_dumps", g_cb_text);
+    g_cb_hook = SetWindowsHookExA(WH_CBT, cb_cbt, NULL, GetCurrentThreadId());
+    int dump = MessageBoxA(NULL, box, "Empire Earth: Age of AI - the game crashed",
+                           MB_YESNO | MB_DEFBUTTON1 | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND) == IDYES;
+    if (g_cb_hook) { UnhookWindowsHookEx(g_cb_hook); g_cb_hook = NULL; }
+    int dumped = dump && cb_write_dump();
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# crash box: %s %08lx at eip %08lx thread %lu, dump %s%s%s%s\n", cb_code_name(er->ExceptionCode), er->ExceptionCode,
-                (unsigned long)c->Eip, g_cb_thread, dumped ? g_cb_dump : "", dumped ? " (" : "", g_cb_why, dumped ? ")" : "");
+        fprintf(g_log, "# crash box: %s %08lx at eip %08lx thread %lu - %s%s%s%s%s\n", cb_code_name(er->ExceptionCode), er->ExceptionCode,
+                (unsigned long)c->Eip, g_cb_thread, !dump ? "closed without a dump" : dumped ? "dump " : "no dump: ", dumped ? g_cb_dump : "",
+                dumped ? " (" : "", dump ? g_cb_why : "", dumped ? ")" : "");
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
-    snprintf(g_cb_text + n, sizeof g_cb_text - n, "\n\nThe game stays open while this box is: a debugger can attach now (Visual Studio: Debug > Attach to Process, x32dbg). "
-             "OK: with a debugger attached it stops at the crash; without one the game ends.");
-    MessageBoxA(NULL, g_cb_text, "Empire Earth: Age of AI - the game crashed", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
+    if (dump && !dumped) {
+        snprintf(box, sizeof box, "The memory dump could not be written: %s.\n\nThe game closes now.", g_cb_why);
+        MessageBoxA(NULL, box, "Empire Earth: Age of AI - the game crashed", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
+    }
     g_cb_debugger = IsDebuggerPresent();
     return 0;
 }
