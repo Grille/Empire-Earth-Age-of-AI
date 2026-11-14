@@ -80,11 +80,12 @@ internal void chk_script(const char *path, const char *ai) {   // a script, afte
     }
     if (p[0]) chk_folder(p);
     snprintf(g_chk_dir, sizeof g_chk_dir, "%s\\", dir);   // a script's mistakes name it without its folder
-    char *text;
+    char *text = script_read(path);   // read, checked and compiled as the game does it (test/scripts.c)
     struct xunit u;
-    const char *why;
-    int line;
-    if (!script_load(path, &text, &u, &why, &line)) { printf("%s:%d: %s\n", path, line > 0 ? line : 1, why); g_chk_n++; }
+    struct xcode *code;
+    const char *why = "can't be read";
+    int line = 0;
+    if (!text || !script_compile(path, text, &u, &code, &why, &line)) { printf("%s:%d: %s\n", path, line > 0 ? line : 1, why); g_chk_n++; }
 }
 // without arguments, in the game folder (installed beside the DLL): the folder the game reads - <game>\ageofai\
 // personalities\, or ageofai.ini's ai_dir as the DLL takes it (config_ai_dir); its window kept open when it is its own

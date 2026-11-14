@@ -4,6 +4,9 @@ A test run's `setup=<file>` (autotest, `run_test.py -IniExtra "setup=tests/scena
 the text language of the personalities ([config/personalities/README.md](../config/personalities/README.md)): the same
 expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
 bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
+A script is compiled to instructions when it is read and run by a machine of its own (`dll/script/expr.c` SCRIPTS
+COMPILED): its turns come between the simulation's steps, where the pipe's commands run - a spawned unit is there at
+once - and a wait is that machine stopping where it is.
 
 ```
 // Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town
@@ -327,7 +330,7 @@ as any script's, in every kind of game - and the slots' personalities and colour
 there ends the script in a scenario.
 
 Its turns come between the simulation's steps (where the pipe's commands run), several a game second, in games without
-a computer player too; a test's `setup=` scripts run beside it and keep their own turns.
+a computer player too - as every script's: a test's `setup=` scripts run beside it, after it in each turn.
 
 Not run: a multiplayer game (each PC would run its own file - a desync), the scenario editor itself. In a saved game
 that is loaded the hooks aren't called again - they ran when the game began, and the save carries on what they
@@ -338,28 +341,22 @@ empty, unless `CONFIG=` names another folder's.
 
 ## Saved games
 
-A save carries its scripts (the block `scripts` of the save's `.ageofai` file, dll/test/scripts.c): each one's source
-as it was read - a save doesn't depend on what `setup.eeai` says later -, its variables (numbers, texts, lists,
-vectors, records, players, units by their ids, dicts, functions), the triggers with their conditions' state, the
-timers at their times, the `after`'s still to come, the spawned units' handles. The loaded game goes on with them as
-they were: `# persist: scripts restored: 1 (0 were waiting), 3 triggers and timers, 1 after's ...`.
+A save carries its scripts whole (the block `scripts` of the save's `.ageofai` file, dll/test/scripts.c). A script is
+compiled to instructions and run by a machine of its own (dll/script/expr.c SCRIPTS COMPILED), whose state is plain
+data - and that is what the save holds: the instructions (a save runs its own: it depends neither on what `setup.eeai`
+says later nor on what a later version of the mod would compile of it), the functions the script is in with their
+parameters and `let`s, the values it was working out, where it stands; with them the triggers and their conditions'
+state, the timers at their times, the `after`'s still to come, the dicts, the spawned units' handles, and the source
+for the messages. The loaded game goes on with them as they were: `# persist: scripts restored: 1 (1 going on), 3
+triggers and timers, 1 after's ...`.
 
-A script that waits (`wait`, `wait_until`, `every`) as the game is saved is saved with where it stands - the blocks
-and their statements, the loops' counters, the functions it is in with their parameters and `let`s - and goes on there
-after the load, at the time it waited for: `# setup: <file>: goes on where it was saved (line 15)`. Nothing is worked
-out a second time.
+A script that waits (`wait`, `wait_until`, `every`) goes on where it stood, at the time it waited for - anywhere: in
+a statement of its own, in a loop, inside functions, in the middle of an expression (`let x = 9999 + f() + l[2]`
+where `f` waits). Nothing is worked out a second time.
 
-What can be found again is what stands at a statement's start: `wait(...)`, `wait_until(...)`, `every(...)` as
-statements, and a function that waits called as a statement - `f(...)`, `let x = f(...)`, `x = f(...)`,
-`return f(...)`, a function's `=> f(...)`. A function that waits called below an expression (`let x = f() + 1`, in a
-condition, as an argument) runs as always, but a game saved during that wait can't put the script back there: it
-doesn't go on after the load, what it started before (triggers, timers) does - told with its line as the game is saved
-and loaded, `setup.eeai`'s on the screen too. The same for the moment a script holds for a spawned unit (a test's
-scripts; `setup.eeai`'s units are made at once) and for a script that saves the game itself (`save(...)` in its own
-turn; from a trigger's or an after's function everything is saved but the rest of that function's run).
-
-A function made in a text's `{placeholder}` isn't saved (told in the log). A test with its own `setup=` scripts keeps
-to them - the save's are left out there.
+Not saved: a function of a text (a personality's) held in a script's variable (told in the log). A script that saves
+the game in the middle of its own turn (not the pipe's `save`, which is done after it) doesn't go on after the load -
+told; what it started does. A test with its own `setup=` scripts keeps to them - the save's are left out there.
 
 `script state` (a pipe command) saves the scripts and reads them back at once, as a save and its load do; `script
 state save <file>` / `script state load <file>` (a path without spaces) carry them from one game to another.
