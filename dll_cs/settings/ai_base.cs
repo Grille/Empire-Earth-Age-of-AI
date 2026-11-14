@@ -317,6 +317,11 @@ class ai_base
         /// longest shore along land the AI holds, the more so where enemy warships were seen - holding that sea is what
         /// turns an island into backland. 1 = on. Off until the territory system is measured as a whole
         bool fleet_station = false;
+        /// Harbours (ai/fleet.c HARBOURS): every territory the AI holds that has a shore and 3 or more of its citizens gets
+        /// a small defended harbour - a dock by the shore and 2 towers by it, 8 docks at most - and the fleet masses and
+        /// falls back to the harbour in its station's sea instead of to the home base (with fleet_station). 1 = on. Off
+        /// until the territory system is measured as a whole
+        bool harbours = false;
     }
 
     class SiegeAndTowerRouting

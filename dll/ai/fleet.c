@@ -373,6 +373,9 @@ internal float fl_hp_max(ee_unit *u) {
 internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *terr);   // territories.c
 internal int g_fl_station = 0, g_v_fl_station = -1;
 #define FL_STATION(idx) PV(idx, g_v_fl_station, g_fl_station)
+#define HB_RALLY 3                 // HARBOURS (below): a place in the station's sea counts as so many towers more for the rally
+internal int g_harbours = 0, g_v_harbours = -1;
+#define HARBOURS(idx) PV(idx, g_v_harbours, g_harbours)
 internal unsigned g_fl_station_t[16];   // the territory it stands in + 1 (the log, on a change)
 internal void fl_guard_point(struct fleet *f) {
     float bx = 0, by = 0; int n = 0;
@@ -738,6 +741,7 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
     m->rally_t = now ? now : 1;
     float best = -1e9f;
     int bc = 0, br = 0;
+    unsigned sidx = m >= g_fl && m < g_fl + 16 ? (unsigned)(m - g_fl) : 0, st = HARBOURS(sidx) && FL_STATION(sidx) && g_fl_station_t[sidx] ? g_fl_station_t[sidx] - 1 : TER_NONE;   // HARBOURS: its station's sea
     for (int k = 0; k < g_fs.ntw; k++) {
         int R = (int)g_fs.twr[k] - 1;
         if (R < 2) continue;
@@ -754,6 +758,7 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
                 for (int j = 0; j < g_fs.nd && !dock; j++) dock = ivec2_dist2(g_fs.dk[j], q) <= 64;
                 float away = g_fs.eb_known ? sqrtf((float)ivec2_dist2(q, g_fs.eb)) : 0.0f;
                 float sc = 1000.0f * (float)cov + 200.0f * (float)dock + 2.0f * away - 10.0f * sqrtf((float)(dx * dx + dy * dy));
+                if (st != TER_NONE && territory_at(q.x, q.y) == st) sc += 1000.0f * (float)HB_RALLY;
                 if (sc > best) { best = sc; m->rally = q; bc = cov; br = cr; }
             }
     }
@@ -765,6 +770,64 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 // within 5 tiles of it with the sea within 3, placeable - through the build manager's queue with its position (as
 // defence.c queues its towers: 0x468C37 on the epoch's queue), the best tower type it can build and pay now
 // (0x555710); every 2 minutes while none is queued, 3 a game at most
+// ---- HARBOURS ([ai_base] harbours; [autotest] v_harbours) ----
+// The player, 2026-11-14, told that the fleet masses under its home towers while it is the weaker one and so stands at
+// no station (a sea held in 10 of 80 looks): "the answear to you limit is more fortefied habours, maybe each territory
+// bordering a sea should build a small devende habour the fleet can fallback to. its the point of map control after
+// all, being able to push further and extend own support infrastucture". So: each land territory the AI holds that has
+// a shore and at least HB_CITS of its citizens gets a harbour - a dock by the shore towards the sea it borders most
+// (territories.c tv_harbour_next: fronts first, the longest shore first; none within HB_NEAR tiles of that shore yet),
+// then HB_TOWERS towers by every dock that has fewer - one order a HB_EVERY, HB_DOCKS docks at most. And the fleet's
+// rally (fl_rally: where it masses and falls back to) counts a place in its station's sea as much as HB_RALLY towers
+// more, so that the harbour there is where it stands.
+#define HB_EVERY 45000
+#define HB_NEAR 24
+#define HB_CITS 3
+#define HB_TOWERS 2
+#define HB_DOCKS 8
+internal int tv_harbour_next(ee_player *pl, unsigned idx, const ivec2 *docks, int nd, int near_tiles, int cits, ivec2 *shore, unsigned *land);   // territories.c
+internal struct { uint32_t t; unsigned docks, towers; } g_hb[16];
+internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
+    if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
+    g_hb[idx].t = now ? now : 1;
+    void *cm = player_get_civ_mgr(pl);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int e = current_epoch(pl);
+    if (!bm || e < 0 || e >= 14) return;
+    int ttype = tower_newest(pl);
+    for (int k = 0; ttype && k < g_fs.nd && !tower_queued(bm); k++) {   // its towers first: a dock without them is no harbour
+        ivec2 dk = g_fs.dk[k];
+        int cov = 0, oc = (int)ocean_near(dk, 4, NULL);
+        for (int j = 0; j < g_fs.ntw; j++) cov += ivec2_dist2(g_fs.tw[j], dk) <= 8 * 8;
+        if (cov >= HB_TOWERS || !oc || raiders_near(pl, dk, 10)) continue;
+        for (int r = 2; r <= 6; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    ivec2 q = ivec2_add(dk, iv2(ax, ay));
+                    if ((abs(ax) != r && abs(ay) != r) || !fl_coast(q, oc) || !can_place(pl, ttype, q)) continue;
+                    int entry[3] = { ttype, q.x, q.y };
+                    build_mgr_queue_add(bm, e, entry);
+                    g_hb[idx].towers++;
+                    if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov);
+                    return;
+                }
+    }
+    ivec2 shore;
+    unsigned land = 0;
+    if (!ut_has(UT(B_DOCK)) || g_fs.nd >= HB_DOCKS || build_mgr_queued(bm, UT(B_DOCK)) || !can_build(pl, UT(B_DOCK))) return;
+    if (!tv_harbour_next(pl, idx, g_fs.dk, g_fs.nd, HB_NEAR, HB_CITS, &shore, &land) || raiders_near(pl, shore, 12)) return;
+    for (int r = 0; r <= 8; r++)
+        for (int ax = -r; ax <= r; ax++)
+            for (int ay = -r; ay <= r; ay++) {
+                ivec2 q = ivec2_add(shore, iv2(ax, ay));
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q)) continue;
+                int entry[3] = { UT(B_DOCK), q.x, q.y };
+                build_mgr_queue_add(bm, e, entry);
+                g_hb[idx].docks++;
+                if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a dock queued at %d,%d for the territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, q.x, q.y, land, shore.x, shore.y, g_fs.nd);
+                return;
+            }
+}
 internal void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now) {
     if (m->rcover || m->rally_towers >= 3 || (m->tower_t && now >= m->tower_t && now - m->tower_t < 120000) || !g_fs.nd) return;
     m->tower_t = now ? now : 1;
@@ -1320,6 +1383,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     if (!f->ocean && f->n) f->ocean = fl_ship_ocean(f->u[0]);
     if (!f->ocean) return;
     fl_guard_point(f);
+    fl_harbours(pl, idx, now);
     if (!f->g.x && !f->g.y) return;
     // repaired at the dock: hit points regained by the ships sent there
     for (int j = 0; j < f->ndocked; j++) {
@@ -1440,6 +1504,8 @@ internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
     g_fl_station = g_set_ai[1].fleet_station;
+    g_harbours = g_set_ai[1].harbours;
+    if (autotest_ini) g_v_harbours = ini_int("autotest", "v_harbours", -1, autotest_ini);
     if (autotest_ini) g_v_fl_station = ini_int("autotest", "v_fleet_station", -1, autotest_ini);
     g_fl_boats = g_set.navy_fleet_boats;
     g_fl_coast = g_set.navy_fleet_coast;
