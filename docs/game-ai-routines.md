@@ -337,6 +337,10 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
 - **Written so far**: the citizens' work by territory (ai/work.c, 2026-11-14) - who works what, at which site, by the territory
   view: worked where the AI has a building and is not being lost, backland first for wood and food, 6 a mine. With it an AI
   without the game's stands at a population of about 100 with 35-48 soldiers at minute 40; food is its limit (no fields yet).
+  Building by territory (ai/build.c, the same day): builders for its foundations, a granary and its fields in backland first, a
+  Settlement and a tower by every mine of a worked territory or a neighbour; and the shares by what it needs (work.c WHAT IT
+  NEEDS: the last 10 minutes' income, spending and a citizen's yield). 16-22 Settlements and 14-21 towers an AI in 45 minutes,
+  populations 70-116; nothing spends the bank yet (no production building, no research).
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
   sites, fields; (2) building - what, where, which citizen builds, repairs; (3) research and the epochs; (4) the armies as
   several forces (the player the same day: the force's point gets stuck on itself, "the single main force isnt the way

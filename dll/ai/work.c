@@ -12,15 +12,15 @@
 //   WHAT   - each mine a territory offers takes the game's places for one (table value 0x16, 6) of its citizens,
 //            walking there counted; trees and bushes as many as come.
 //   HOW MANY - of its free citizens (those not building, not held for a landing or an outpost) a share per resource
-//            by a plain rule, WK_SHARE, pushed towards what the bank lacks (a stock under 200 doubles a resource's
-//            weight, one over 600 halves it at most); the mines' share is cut to the places the worked territories
-//            offer and what is cut goes to food and wood.
+//            by what it needs (WHAT IT NEEDS, below: what the last 10 minutes brought in and spent) - in a game's
+//            first minutes by a plain rule, WK_SHARE, pushed towards what the bank lacks; the mines' share is cut to
+//            the places the worked territories offer and what is cut goes to food and wood.
 //   WHO    - every WK_EVERY: an idle citizen (no goal, or a gather goal whose site is gone or empty) to the resource
 //            furthest under its share, at the nearest site that fits on its land (resource_mgr_assign, the game's
 //            executor); then up to WK_MOVES citizens from a resource 2 or more over its share to one 2 or more under.
-// Not here yet (the building step): fields - food is bushes and animals until then, which run out -, drop sites by
-// the mines, anything built at all. And nothing of the old economy's tuning (econ_targets, the food plan, the mine
-// slots): those vet the game's numbers and are silent with it - what proves itself here is brought over piece by piece.
+// Food: its finished fields first, a farmer each (build.c lays them), then the bushes, then animals. What is built
+// is build.c's. Nothing of the old economy's tuning is here (econ_targets, the food plan, the mine slots): those vet
+// the game's numbers and are silent with it - what proves itself here is brought over piece by piece.
 #define WK_EVERY 3000
 #define WK_MOVES 2
 #define WK_CITS 768
@@ -28,10 +28,10 @@
 #define WK_BUSHES 512
 internal const float WK_SHARE[7] = { 0, 0, 0.36f, 0.30f, 0.06f, 0.14f, 0.14f };   // food, wood, stone, gold, iron
 struct wk_cit { ee_unit *u; ee_unit *site; uint8_t res; };   // res 0: idle
-struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost; };   // n: its citizens there or on their way; cost: its territory's (wk_cost)
+struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost, cap; };   // n: its citizens there or on their way; cost: its territory's (wk_cost); cap: the food sites' places (a bush 3, a field 1)
 internal struct wk_st {
     uint32_t t, log_t;
-    int have[7], want[7], places[7], idle, busy, n;
+    int have[7], want[7], places[7], idle, busy, n, food_short, by_need;   // food_short: citizens wanted on food that found no site at the last look
     unsigned assigned, moved, none[7];   // none: no site found for a citizen wanted on that resource
 } g_wk[16];
 // what a site's distance is multiplied by, by its territory: 1 backland, 2 a front it holds, 3 one it only has a
@@ -46,6 +46,83 @@ internal int wk_cost(struct tv_st *s, unsigned r) {
         if (o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].bld >= 1 && s->t[o].state != TV_UNSAFE) return 6;
     }
     return 0;
+}
+// WHAT IT NEEDS (the player 2026-11-14: "we probably also record resource stats for the ai, how much as gatherd in the
+// last 10 minutes, how much spend, defrence etc, so where not stuck on hard numbers but what the ai actually needs").
+// A minute at a time, the last WK_WIN of them: what came in of each resource (the income the budget counts), what went
+// out (that less the bank's change) and how many of its citizens stood on it. From 3 minutes on the shares come of it:
+//   a citizen brings  - in / citizen-minutes (WK_PER_CIT until 3 citizen-minutes are there),
+//   needed a minute   - what was spent a minute, and what the priority list holds back and the bank has not got, over
+//                       5 minutes (budget_reserve: the epoch, what is saved for); food at least what keeps its citizen
+//                       producers training without a pause; half as much again while the bank has under 150 of it (it
+//                       would have spent more: spending follows income); half of it with more than 5 minutes of it and
+//                       1500 in the bank, a fifth with 15 minutes and 4000; and never under 4% of all that is needed
+//                       (what it never had it never spent),
+//   citizens          - needed / a citizen brings, scaled to the citizens there are.
+// "# needs:" every 5 minutes.
+#define WK_WIN 10
+internal const float WK_PER_CIT[7] = { 0, 0, 20, 20, 15, 15, 15 };
+internal struct wk_need {
+    uint32_t t, log_t;
+    int n, cur, samples;
+    int in[WK_WIN][7], out[WK_WIN][7], inc0[7], stock0[7], acc[7], sum_in[7], sum_out[7];
+    float cm[WK_WIN][7], per_cit[7], need[7];
+} g_wn[16];
+internal int wk_needs(ee_player *pl, unsigned idx, struct wk_st *w, uint32_t now, float cits[7]) {
+    struct wk_need *q = &g_wn[idx];
+    const int *stock = player_stock_at(pl);
+    if (!q->t || now < q->t) {
+        memset(q, 0, sizeof *q);
+        q->t = now ? now : 1;
+        for (int r = 2; r < 7; r++) { q->inc0[r] = g_bud[idx].income[r]; q->stock0[r] = stock[r]; }
+    }
+    for (int r = 2; r < 7; r++) q->acc[r] += w->have[r];
+    q->samples++;
+    if (now - q->t >= 60000) {   // the minute's bucket
+        int k = q->cur;
+        for (int r = 2; r < 7; r++) {
+            int in = g_bud[idx].income[r] - q->inc0[r], out = in - (stock[r] - q->stock0[r]);
+            q->in[k][r] = in > 0 ? in : 0; q->out[k][r] = out > 0 ? out : 0;
+            q->cm[k][r] = q->samples ? (float)q->acc[r] / (float)q->samples : 0;
+            q->inc0[r] = g_bud[idx].income[r]; q->stock0[r] = stock[r]; q->acc[r] = 0;
+        }
+        q->samples = 0; q->cur = (k + 1) % WK_WIN; q->t = now;
+        if (q->n < WK_WIN) q->n++;
+    }
+    if (q->n < 3) return 0;
+    int reserve[7];
+    budget_reserve(pl, reserve);
+    float total = 0;
+    for (int r = 2; r < 7; r++) {
+        float cm = 0;
+        q->sum_in[r] = q->sum_out[r] = 0;
+        for (int k = 0; k < q->n; k++) { q->sum_in[r] += q->in[k][r]; q->sum_out[r] += q->out[k][r]; cm += q->cm[k][r]; }
+        float pc = cm >= 3.0f && q->sum_in[r] > 0 ? (float)q->sum_in[r] / cm : WK_PER_CIT[r];
+        q->per_cit[r] = pc < 3.0f ? 3.0f : pc > 80.0f ? 80.0f : pc;
+        float spend = (float)q->sum_out[r] / (float)q->n, need = spend;
+        if (reserve[r] > stock[r]) need += (float)(reserve[r] - stock[r]) / 5.0f;
+        if (r == 2 && need < cz_nonstop_food(pl)) need = cz_nonstop_food(pl);
+        if (stock[r] < 150) need *= 1.5f;
+        if ((float)stock[r] > 4000.0f + 15.0f * spend) need *= 0.2f;
+        else if ((float)stock[r] > 1500.0f + 5.0f * spend) need *= 0.5f;
+        q->need[r] = need; total += need;
+    }
+    for (int r = 2; r < 7; r++) {
+        if (q->need[r] < 0.04f * total) q->need[r] = 0.04f * total;
+        cits[r] = q->need[r] / q->per_cit[r];
+    }
+    if (g_log && (!q->log_t || now - q->log_t >= 300000)) {
+        q->log_t = now ? now : 1;
+        static const char *nm[7] = { "", "", "food", "wood", "stone", "gold", "iron" };
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# needs: P%u at %.1f min: the last %d minutes", idx, now / 60000.0, q->n);
+        for (int r = 2; r < 7; r++)
+            fprintf(g_log, " | %s in %d out %d bank %d, a citizen brings %.0f a minute, needed %.0f a minute (held back %d)", nm[r], q->sum_in[r], q->sum_out[r], stock[r],
+                    (double)q->per_cit[r], (double)q->need[r], reserve[r]);
+        fprintf(g_log, "\n");
+        LeaveCriticalSection(&g_lock);
+    }
+    return total > 0;
 }
 // the map's site of resource res on a tile with something left (a tree, a mine, a bush): the tiles hold them, not the
 // unit grid (territory.c ter_tiles reads them the same way)
@@ -109,8 +186,21 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!u || !explored_by(u, pl)) continue;
         struct wk_site *e = r == 2 ? (nb < WK_BUSHES ? &bush[nb++] : NULL) : (nm < WK_MINES ? &mine[nm++] : NULL);
         if (!e) continue;
-        e->u = u; e->terr = (uint16_t)tr; e->res = (uint8_t)r; e->n = 0; e->cost = (uint8_t)c;
+        e->u = u; e->terr = (uint16_t)tr; e->res = (uint8_t)r; e->n = 0; e->cost = (uint8_t)c; e->cap = 3;
         if (r >= 4) w->places[r] += (int)cap;
+    }
+    {   // its finished fields: a farmer each (build.c lays them; none under raiders, as the old field pass had it)
+        ee_civ_mgr *cm = player_get_civ_mgr(pl);
+        ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+        uint8_t *dq = um && ut_has(UT(B_FARM)) ? unit_mgr_type_list(um, UT(B_FARM)) : NULL;
+        for (unsigned k = 0, first = dq ? deque_front(dq) : 0, cnt = dq ? deque_count(dq) : 0; k < cnt && nb < WK_BUSHES; k++) {
+            ee_unit *f = deque_at(dq, first + k), *st = f ? unit_get_physics(f) : NULL;
+            if (!st || unit_get_hp(f) <= 0 || !unit_get_finished(st) || unit_get_x(f) < 0) continue;
+            unsigned tr = ter_near(unit_get_x(f), unit_get_y(f));
+            int c = wk_cost(s, tr);
+            if (!c || raiders_near(pl, unit_get_tile(f), 6)) continue;
+            bush[nb].u = f; bush[nb].terr = (uint16_t)tr; bush[nb].res = 2; bush[nb].n = 0; bush[nb].cost = 0; bush[nb++].cap = 1;   // cost 0: a field before any bush
+        }
     }
     int count = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // its citizens: what each does
@@ -121,7 +211,8 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int gather = g && !strcmp(rtti_name(g), "EEUGGather@@");
         if (g && !gather) { w->busy++; continue; }   // building, repairing, walking on an order
         ee_unit *site = gather ? goal_get_site(g) : NULL;
-        int r = site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
+        int field = site && unit_get_type_data(site) && unit_type_get_id(unit_get_type_data(site)) == UT(B_FARM) && unit_get_hp(site) > 0;
+        int r = field ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
         if (r < 2 || r > 6) { r = 0; site = NULL; }
         if (nc >= WK_CITS) { w->busy++; continue; }
         cit[nc].u = u; cit[nc].site = site; cit[nc++].res = (uint8_t)r;
@@ -130,13 +221,15 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int k = 0; r == 2 && k < nb; k++) if (bush[k].u == site) { if (bush[k].n < 255) bush[k].n++; break; }
     }
     w->n = nc;
+    w->food_short = 0;
     if (!nc) return;
-    {   // the shares: the plain rule, pushed towards what the bank lacks, the mines' cut to their places
+    {   // the shares: by what it needs - at first the plain rule, pushed towards what the bank lacks -, the mines' cut to their places
         const int *stock = player_stock_at(pl);
         float wt[7] = { 0 }, sum = 0, cut = 0;
+        w->by_need = wk_needs(pl, idx, w, now, wt);
         for (int r = 2; r < 7; r++) {
             float k = 600.0f / ((float)(stock[r] > 0 ? stock[r] : 0) + 300.0f);
-            wt[r] = WK_SHARE[r] * (k < 0.5f ? 0.5f : k);
+            if (!w->by_need) wt[r] = WK_SHARE[r] * (k < 0.5f ? 0.5f : k);
             sum += wt[r];
         }
         int left = nc;
@@ -179,8 +272,8 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 else {
                     float bd = 0;
                     int bk = -1;
-                    for (int k = 0; k < nb; k++) {   // a bush: 3 of its citizens at most
-                        if (bush[k].n >= 3 || unit_get_amount(bush[k].u) <= 0) continue;
+                    for (int k = 0; k < nb; k++) {   // a field (a farmer), a bush (3 of its citizens at most)
+                        if (bush[k].n >= bush[k].cap || (bush[k].cap > 1 && unit_get_amount(bush[k].u) <= 0)) continue;
                         ivec2 q = unit_get_tile(bush[k].u);
                         if (land && area_id(q, 2) && area_id(q, 2) != land) continue;
                         float d = (float)ivec2_dist2(p, q) * (float)(bush[k].cost * bush[k].cost);
@@ -189,7 +282,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                     if (bk >= 0) { site = bush[bk].u; bush[bk].n++; }
                     else site = food_animal(pl, rm, c->u);   // food.c: an animal to hunt, by its own rules
                 }
-                if (!site) { w->none[r]++; continue; }
+                if (!site) { w->none[r]++; w->food_short += r == 2; continue; }
                 resource_mgr_assign(rm, c->u, site);
                 if (c->res) { w->have[c->res]--; w->moved++; moves++; } else { w->idle--; w->assigned++; }
                 w->have[r]++;
@@ -202,9 +295,9 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         w->log_t = now ? now : 1;
         int worked = 0;
         for (int r = 0; r < s->n; r++) worked += !g_ter.t[r].water && s->t[r].bld >= 1 && s->t[r].state != TV_UNSAFE;
-        log_locked("# work: P%u at %.1f min: %d citizens free for work (%d idle, %d more building or held) | at food %d wood %d stone %d gold %d iron %d | wanted %d %d %d %d %d | "
+        log_locked("# work: P%u at %.1f min: %d citizens free for work (%d idle, %d more building or held), shares %s | at food %d wood %d stone %d gold %d iron %d | wanted %d %d %d %d %d | "
                    "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, no site for food %u wood %u stone %u gold %u iron %u\n",
-                   idx, now / 60000.0, nc, w->idle, w->busy, w->have[2], w->have[3], w->have[4], w->have[5], w->have[6], w->want[2], w->want[3], w->want[4], w->want[5], w->want[6],
+                   idx, now / 60000.0, nc, w->idle, w->busy, w->by_need ? "by need" : "by the plain rule", w->have[2], w->have[3], w->have[4], w->have[5], w->have[6], w->want[2], w->want[3], w->want[4], w->want[5], w->want[6],
                    nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6]);
     }
 }
@@ -214,4 +307,4 @@ internal int work_idle(unsigned idx) {
     uint32_t now = game_time();
     return w->t && now >= w->t && now - w->t <= 4 * WK_EVERY ? w->idle : -1;
 }
-internal void work_new_game(void) { memset(g_wk, 0, sizeof g_wk); }
+internal void work_new_game(void) { memset(g_wk, 0, sizeof g_wk); memset(g_wn, 0, sizeof g_wn); }
