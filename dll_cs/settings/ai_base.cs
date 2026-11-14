@@ -307,6 +307,12 @@ class ai_base
         /// beyond it, its buildings there), on the side of that border; on an island with no such border as before.
         /// 1 = on. Off until the territory system is measured as a whole
         bool force_at_front = false;
+        /// Front guards (ai/expand.c FRONT GUARDS): an island the AI holds whose territory is a front - ground or water by
+        /// it that nobody of its side holds - gets a boat of soldiers when it has fewer than its guard wanted (a third of
+        /// its citizens there, 3 to 12, 8 with enemies seen), also after the outpost was handed back; an island that has
+        /// become backland gets none; the army leaves the soldiers standing on such an island alone. 1 = on. Off until
+        /// the territory system is measured as a whole
+        bool front_guards = false;
     }
 
     class SiegeAndTowerRouting

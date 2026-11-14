@@ -309,6 +309,8 @@ internal struct ex_st {
     uint32_t t, log_t, base_t, empty_t, trip_t, next_try, plan_t;
     int ever_ashore, trips, drop_ok, ncit, nsold;
     int fphase;                           // the ferry: 0 none, 1 a transport, 2 boarding, 3 at sea, 4 scouting (empty); BEACH: 5 waiting by the island, 6 taking them off again, 7 home with them
+    uint32_t fg_log_t;
+    int held_trip, hwant; unsigned fguards;   // FRONT GUARDS: this boat goes to a held island; the guard wanted there; such boats
     int site_ok; unsigned escapes;        // BEACH: the guard has looked at the mines and found nobody; landings taken off again
     struct ex_unit ship, pass[16], last; int npass;
     uint32_t fsince, freissue, sea_t, load_t;
@@ -482,7 +484,7 @@ internal void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_
             x->orders += unit_goal(sh, ld_unload(sh, t), 0, 0x1F40);
     }
     if (why) ex_say(idx, now, "%s", why);
-    x->guard_only = 0; x->gun_trip = 0;
+    x->guard_only = 0; x->gun_trip = 0; x->held_trip = 0;
     x->fphase = 0; x->npass = 0; x->ship.u = NULL;
 }
 
@@ -568,6 +570,7 @@ internal int ex_take(ee_unit **u, int *d, int n) {   // the nearest left (index)
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp);   // below
 // the soldiers it wants on the island
 internal int ex_guard_want(unsigned idx, const struct ex_st *x) {
+    if (x->held_trip) return x->hwant;   // FRONT GUARDS: a held island's (territories.c)
     int g = EX_GUARD(idx);
     if (!EX_FORT(idx)) return g;
     if (x->ncit / 3 > g) g = x->ncit / 3;
@@ -868,7 +871,7 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         }
         x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         x->last = x->ship;
-        x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0;
+        x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0; x->held_trip = 0;
         ex_say(idx, now, "ashore on the island %u - %d landed", x->cont, ashore);
         return;
     }
@@ -1381,6 +1384,73 @@ internal const char *ex_follow_no(ee_player *pl, unsigned idx, float mine, float
     if (mine < 1.5f * theirs) return "its army not 1.5 x the enemy's it knows (FOLLOW)";
     return NULL;
 }
+// the home shore a ferry boards at: near the base, towards the island's unload tile (x->unload) - into x->home and
+// x->home_w; 0 none
+internal int ex_home_shore(struct ex_st *x, unsigned hc, int bx, int by, int ocean) {
+    int best = 0x7FFFFFFF, found = 0;
+    for (int d = 0; d <= 40; d += 2)
+        for (int ddx = -d; ddx <= d; ddx += 2)
+            for (int ddy = -d; ddy <= d; ddy += (abs(ddx) == d || !d ? 2 : 2 * d)) {
+                int tx = bx + ddx, ty = by + ddy;
+                ivec2 w;
+                if (area_id(iv2(tx, ty), 2) != hc || area_id(iv2(tx, ty), 1) || (int)ocean_near(iv2(tx, ty), 2, &w) != ocean || !ld_tile_free(iv2(tx, ty))) continue;
+                int sc = (int)sqrtf((float)(ddx * ddx + ddy * ddy)) * 2 + (int)sqrtf((float)ivec2_dist2(iv2(tx, ty), x->unload));
+                if (sc < best) { best = sc; x->home = iv2(tx, ty); x->home_w = w; found = 1; }
+            }
+    return found;
+}
+// ---- FRONT GUARDS ([ai_base] front_guards; [autotest] v_front_guards) ----
+// The player, 2026-11-14: "the backland is nerly undefended in my case, my focus is on not letting anething go so far
+// in, that includes islands too, piece by piece they become backland too as i gain more map control". An island the
+// outposts have handed back ("left to the game", ex_holds) got no soldiers any more - the guard boat was the outpost's
+// in the making - and the force took those standing there for its own (armies.c: every free land soldier), to order
+// them home across the water. With this: a held island whose territory is a FRONT (territories.c: ground or water by
+// it that nobody of its side holds) and has fewer soldiers than its guard wanted gets a boat of soldiers as an outpost
+// does, while no outpost is in the making; a BACKLAND island gets none; and the force leaves alone the soldiers
+// standing in a front territory off its own land (expand_front_guard). They are held by nobody: they stand and fight
+// what comes.
+internal int g_ex_fguard = 0, g_v_ex_fguard = -1;
+#define EX_FGUARD(idx) PV(idx, g_v_ex_fguard, g_ex_fguard)
+internal int tv_front_guard(unsigned idx, ivec2 p, int *have, int *want);   // territories.c: a land front's guard, 0 no front
+internal int ex_dock_ocean(ee_player *pl) {   // its sea: its docks'
+    int ocean = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && !ocean; )
+        if (unit_get_owner(it.u) == pl && unit_type_get_id(it.td) == UT(B_DOCK) && unit_get_hp(it.u) > 0)
+            ocean = (int)ocean_near(unit_get_tile(it.u), 4, NULL);
+    return ocean;
+}
+// armies.c: a soldier standing in a front territory of AI idx off its base's land - that front's guard, not the force's
+internal int expand_front_guard(ee_player *pl, unsigned idx, ee_unit *u) {
+    ivec2 base;
+    int have, want;
+    if (!EX_FGUARD(idx) || unit_get_x(u) < 0 || !ms_base(pl, &base)) return 0;
+    ivec2 p = unit_get_tile(u);
+    return area_id(p, 2) && area_id(p, 2) != area_id(base, 2) && tv_front_guard(idx, p, &have, &want);
+}
+// a boat of soldiers for a held island that is a front and short of its guard (ex_plan, no outpost in the making); 1: under way
+internal int ex_front_trip(ee_player *pl, unsigned idx, struct ex_st *x, unsigned hc, int bx, int by, uint32_t now) {
+    if (!EX_FGUARD(idx) || x->active || !x->nheld || (x->trip_t && now - x->trip_t < 120000)) return 0;
+    // not held back for an enemy army stronger than its own, as a new outpost is (ex_outmatched): that is when a front
+    // wants its guard - and with 4 AIs each against all it said so in every one of 10 games, no boat ever sailed
+    int ocean = ex_dock_ocean(pl);
+    if (!ocean) return 0;
+    for (int k = 0; ocean && k < x->nheld; k++) {
+        int have, want;
+        ivec2 hp = x->held[k].p;
+        int front = tv_front_guard(idx, hp, &have, &want);
+        if (g_log && g_autotest && now - x->fg_log_t >= 300000) { x->fg_log_t = now; ex_say(idx, now, "the held island %u (drop site %d,%d): %s, %d soldiers there, %d wanted", x->held[k].cont, hp.x, hp.y, front ? "a front" : "no front of its own (backland, or not held by buildings there)", front ? have : 0, front ? want : 0); }
+        if (!front || have * 4 >= want * 3) continue;   // short by more than a quarter (a boat for 1 soldier of 8 sailed twice)
+        if (!ex_shore(x->held[k].cont, ocean, hp, 30, &x->unload, &x->unload_w) || !ex_home_shore(x, hc, bx, by, ocean)) continue;
+        x->cont = x->held[k].cont; x->ocean = ocean; x->mines = hp;
+        x->held_trip = 1; x->hwant = want; x->nsold = have; x->ncit = 0;
+        x->ever_ashore = 1;   // no outpost's first landing: not scouted, not called off for a rival seen there
+        x->guard_trip = 1; x->guard_only = 1;
+        x->fphase = 1; x->fsince = now; x->ftrain_t = 0; x->fguards++;
+        ex_say(idx, now, "soldiers for the held island %u, a front (%d there, %d wanted) - unload at %d,%d, board at %d,%d", x->cont, have, want, x->unload.x, x->unload.y, x->home.x, x->home.y);
+        return 1;
+    }
+    return 0;
+}
 // a new outpost (phase 0, every 30 s) or more citizens for it
 internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
@@ -1419,6 +1489,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
         return;
     }
     if (bx == -10000 || !hc) return;
+    if (ex_front_trip(pl, idx, x, hc, bx, by, now)) return;   // FRONT GUARDS
     if (EXPAND(idx) & 32) {   // MORE: a held island with nothing of it left is lost
         ex_scan(pl, now, 0);
         for (int k = 0; k < x->nheld; k++) {
@@ -1463,19 +1534,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
         mx = c->msx / c->mn; my = c->msy / c->mn;
         if (!ex_shore(cont, ocean, iv2(mx, my), 30, &x->unload, &x->unload_w)) why = "no shore of its sea on that island";
     }
-    if (!why) {   // the home shore: near the base, towards the island
-        int best = 0x7FFFFFFF, found = 0;
-        for (int d = 0; d <= 40; d += 2)
-            for (int ddx = -d; ddx <= d; ddx += 2)
-                for (int ddy = -d; ddy <= d; ddy += (abs(ddx) == d || !d ? 2 : 2 * d)) {
-                    int tx = bx + ddx, ty = by + ddy;
-                    ivec2 w;
-                    if (area_id(iv2(tx, ty), 2) != hc || area_id(iv2(tx, ty), 1) || (int)ocean_near(iv2(tx, ty), 2, &w) != ocean || !ld_tile_free(iv2(tx, ty))) continue;
-                    int sc = (int)sqrtf((float)(ddx * ddx + ddy * ddy)) * 2 + (int)sqrtf((float)ivec2_dist2(iv2(tx, ty), x->unload));
-                    if (sc < best) { best = sc; x->home = iv2(tx, ty); x->home_w = w; found = 1; }
-                }
-        if (!found) why = "no shore of its sea at home";
-    }
+    if (!why && !ex_home_shore(x, hc, bx, by, ocean)) why = "no shore of its sea at home";
     if (why) {
         if (g_log && (why != last_why[idx] || !x->log_t || now - x->log_t >= 300000)) { x->log_t = now ? now : 1; ex_say(idx, now, "none planned - %s", why); }
         last_why[idx] = why;
@@ -1483,6 +1542,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
     }
     last_why[idx] = NULL;
     x->active = 1; x->cont = cont; x->ocean = ocean; x->mines = iv2(mx, my);
+    x->held_trip = 0;
     x->ever_ashore = 0; x->trips = 1; x->drop_ok = 0; x->empty_t = 0; x->base_t = 0; x->plan_t = 0; x->ncit = x->nsold = 0;
     x->nguard = 0; x->forward = x->fwd_added = 0; x->sea_no = 0;
     x->fort_set = 0; x->guard_only = 0; x->wall_t = 0;
@@ -1787,10 +1847,12 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
 }
 internal void expand_install(const char *autotest_ini) {
     g_expand = SETTING_BITS(g_set_ai[1].expand_islands);
+    g_ex_fguard = g_set_ai[1].front_guards;
     g_rescue = g_set_ai[1].rescue_citizens;
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
+    if (autotest_ini) g_v_ex_fguard = ini_int("autotest", "v_front_guards", -1, autotest_ini);
     if (autotest_ini) g_v_air_tr = ini_int("autotest", "v_air_transport", -1, autotest_ini);   // landing.c AIR TRANSPORT (its install has no test ini)
     g_ex_cits = g_set_ai[1].expand_citizens;
     g_ex_guard = g_set_ai[1].expand_guard;

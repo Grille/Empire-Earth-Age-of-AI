@@ -335,6 +335,14 @@ internal int tv_front_station(ee_player *pl, unsigned idx, ivec2 *out) {
     }
     return 1;
 }
+// expand.c FRONT GUARDS: the land territory of tile p is a front of AI idx - its soldiers there and the guard wanted
+internal int tv_front_guard(unsigned idx, ivec2 p, int *have, int *want) {
+    struct tv_st *s = &g_tv[idx & 15];
+    unsigned r = g_ter.lab && s->n && s->version == g_ter.version ? ter_near(p.x, p.y) : TER_NONE;
+    if (r >= (unsigned)s->n || g_ter.t[r].water || s->t[r].role != TVR_FRONT) return 0;
+    *have = s->t[r].sold; *want = s->t[r].want;
+    return 1;
+}
 internal void tv_count(unsigned idx, int what) {   // the log's counters: 0 into a fortress, 1 to a refuge, 2 a site refused, 3 a fortress kept shut
     struct tv_st *s = &g_tv[idx & 15];
     if (what == 0) s->sheltered++; else if (what == 1) s->refuge++; else if (what == 2) s->refused++; else s->kept_in++;

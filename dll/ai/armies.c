@@ -2254,6 +2254,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         // (unregister_unit) takes it out of them
         if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp) && !OWN_SOLDIERS(idx)) { kept_group += is_free; continue; }
         if (!is_free) continue;
+        if (expand_front_guard(pl, idx, u)) continue;   // FRONT GUARDS (expand.c): a front island's guard is not the force's
         if (landing_has_unit(pl, u)) { kept_landing++; continue; }
         if (ou_sortie(pl, u)) { kept_sortie++; continue; }
         player_hold_unit(pl, u);
