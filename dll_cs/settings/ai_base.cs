@@ -853,6 +853,12 @@ class ai_base
             /// first, trained for it) at the least defended mine no tower it knows covers, no citizens along; they kill the citizens there and
             /// leave; a mine towers cover is asked of the main army
             bool mine_raids;
+            /// a new town founded as a player does it: its citizens walk with an escort of 3 soldiers; where they cross into the
+            /// site's territory a tower first, every citizen on it, the escort on to the site; once that has been looked at
+            /// and nobody is there a tower at the site, then the drop site; home again when enemies by them win before a tower
+            /// of theirs stands (2026-11-14, 24 games on Continental maps: as many towns standing, none saved - AI towns
+            /// are hardly ever lost while founded - and the drop site a minute and a half later; off)
+            bool party;
         }
         /// Towns on the home continent, a list of parts (apart by commas or '|'), not before the Copper Age, not with
         /// enemies in its base; empty = none:
