@@ -434,11 +434,12 @@ internal void ro_camera_vp(float *out) {
 internal void ro_map_shapes(const float *vp, int n, ID3D11ShaderResourceView *ring, int *plain) {
     for (int i = 0; i < n; i++) {
         const ov_shape *s = &g_ro.shapes[i];
-        if (s->kind == OV_LINE && s->sub) {   // dotted (overlay_line_dotted): dots and gaps of sub sixteenths of a tile, from its start
+        if (s->kind == OV_LINE && s->sub) {   // dashed (overlay_line_dashed): a dash of sub sixteenths in the middle of each tile's length
             float dx = s->a[2] - s->a[0], dy = s->a[3] - s->a[1], len = sqrtf(dx * dx + dy * dy), d = (float)s->sub / 16.0f;
-            for (float t = 0; t < len; t += 2 * d) {
-                float t1 = t + d < len ? t + d : len;
-                ro_ribbon(s->a[0] + dx * t / len, s->a[1] + dy * t / len, s->a[0] + dx * t1 / len, s->a[1] + dy * t1 / len, s->width, s->argb);
+            for (float t = 0; t < len; t += 1.0f) {
+                float t0 = t + (1.0f - d) * 0.5f, t1 = t + (1.0f + d) * 0.5f;
+                t1 = t1 < len ? t1 : len;
+                if (t0 < t1) ro_ribbon(s->a[0] + dx * t0 / len, s->a[1] + dy * t0 / len, s->a[0] + dx * t1 / len, s->a[1] + dy * t1 / len, s->width, s->argb);
             }
         }
         else if (s->kind == OV_LINE) ro_ribbon(s->a[0], s->a[1], s->a[2], s->a[3], s->width, s->argb);
