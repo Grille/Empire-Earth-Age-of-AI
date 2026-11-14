@@ -293,7 +293,7 @@ harbours, the army level; harbours and border towers are on for what the AI agai
 from behind). ai/territories.c THE SYSTEM has the numbers. Also: `idle_transports` (no game order for a transport
 while 2 stand idle - an AI had 40).
 
-Border walls (2026-11-14, `border_walls`, on by the player's call the same day): with 1500 stone in the bank the AI walls the
+Border walls (2026-11-14, `border_walls`, on by the player's call the same day): every walled border has an opening - its gate, or where none can be a gap of one tile with two towers beside it (THE GAP); with 1500 stone in the bank the AI walls the
 border between a territory it holds and land nobody of its side holds, the shortest border first - the territories
 meet at the land's necks, so that is the shortest wall that closes a side -, a gate in the middle (two on a long one),
 from the stone above 1000. The laying is the town ring's (ai/defence.c encl_lay, with its guard against shutting

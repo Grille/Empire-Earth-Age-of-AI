@@ -176,7 +176,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (ro < (unsigned)s->n) {
                 int ofam = unit_type_get_class_id(it.td);
                 if (is_enemy(pl, o)) { if (tv_warship(it.td) && seen_by(u, pl)) { s->t[ro].eships++; s->t[ro].eship_t = now ? now : 1; } }
-                else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !unit_type_get_is_wall(it.td)) s->t[ro].abld++;   // not a wall's pieces: see bld
+                else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !is_wall(unit_type_get_id(it.td))) s->t[ro].abld++;   // not a wall's pieces: see bld
             }
             continue;
         }
@@ -185,7 +185,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         {
             int fam = unit_type_get_class_id(it.td);
             if (is_citizen_type(unit_type_get_id(it.td))) s->t[r].cit++;
-            else if (unit_type_get_is_wall(it.td)) continue;   // a wall's pieces hold no territory (three of a front's wall across a border made the land behind "held")
+            else if (is_wall(unit_type_get_id(it.td))) continue;   // a wall's pieces hold no territory (three of a front's wall across a border made the land behind "held") - by the role (walls, gates): the game's wall flag is on the towers too, which from 219186e1 to here counted neither as buildings nor as defences
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { s->t[r].bld++; s->t[r].def += defence_stats(u, &rng, &att) != 0; }
             else if (tv_own_soldier(it.td)) s->t[r].sold++;
             else if (tv_warship(it.td)) s->t[r].ships++;
@@ -510,8 +510,8 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
 // other, a gate in the middle (two from BWL_GATE2 tiles: a third in from each end), its five pieces first; trees,
 // cliffs and water on the line close it where they stand. The laying is the town ring's (defence.c encl_lay): BWL_RUNS
 // runs of up to 12 pieces a BWL_EVERY while fewer than BWL_FLIGHT stand unfinished, the stone above BWL_KEEP only, and never a
-// piece that would shut something in - so without a gate (none it can build yet, no straight five tiles) one piece
-// stays open. A border nothing was laid on for BWL_STUCK (no stone, no room, enemies by it) waits 10 minutes and the
+// piece that would shut something in. Where no gate can be (none it can build yet, no straight five tiles, a border
+// shorter than five): THE GAP below. A border nothing was laid on for BWL_STUCK (no stone, no room, enemies by it) waits 10 minutes and the
 // next one has its turn. When the land behind becomes its own the wall stays as an inner one, its gate in it.
 // Shores: not here - [ai_base] enclose walls a coast (its docks left open), on its home island only so far.
 #define BWL_EVERY 20000
@@ -529,6 +529,8 @@ internal struct encl g_bwl_ring[16];   // the border being walled: its tiles, ga
 internal struct {
     uint32_t t, progress_t; unsigned version; int on, r, o; unsigned done, parked_n, dropped;
     struct { int r, o; uint32_t t; } parked[16]; int np;
+    struct { int16_t x, y; uint8_t tries; uint32_t q_t[2]; } gap[4]; int ngap, have_gates; unsigned gaps, gap_towers, no_opening;   // THE GAP: the openings of the border being walled where no gate can be (q_t: its towers queued); have_gates: gates standing on it already
+    struct { int16_t x, y; } hole[64]; int nhole;   // every gap it ever left: not an open tile of a border again (bwl_next), the same one when the border is taken up again
 } g_bwl[16];
 internal int bwl_gate_near(ee_player *pl, int x, int y) {   // a gate of pl's on the tile or beside it
     ee_map *map = game_map();
@@ -544,6 +546,10 @@ internal int bwl_gate_near(ee_player *pl, int x, int y) {   // a gate of pl's on
                 if (td && unit_get_owner(o) == pl && ut_role(unit_type_get_id(td), UTR_GATE)) return 1;
             }
         }
+    return 0;
+}
+internal int bwl_hole(unsigned idx, int x, int y) {   // THE GAP: a tile it left open on purpose
+    for (int i = 0; i < g_bwl[idx].nhole; i++) if (g_bwl[idx].hole[i].x == x && g_bwl[idx].hole[i].y == y) return 1;
     return 0;
 }
 // may AI idx wall territory r against o: r land it holds, o land nobody of its side holds; start: to begin one - its
@@ -591,7 +597,7 @@ internal int bwl_next(ee_player *pl, unsigned idx, int wtype, uint32_t now, int 
                 seen[ns++] = o;
                 for (int k = 0; k < g_ter.t[r].nbn; k++) {
                     if (g_ter.nb[g_ter.t[r].nb0 + k].to != o) continue;
-                    if (walled < 0) walled = encl_walled(x, y) || !can_place(pl, wtype, iv2(x, y));   // or nothing can stand there: a tree, a building
+                    if (walled < 0) walled = encl_walled(x, y) || bwl_hole(idx, x, y) || !can_place(pl, wtype, iv2(x, y));   // or nothing can stand there (a tree, a building), or its gap (THE GAP)
                     total[g_ter.t[r].nb0 + k]++;
                     open[g_ter.t[r].nb0 + k] += !walled;
                     break;
@@ -609,12 +615,10 @@ internal int bwl_next(ee_player *pl, unsigned idx, int wtype, uint32_t now, int 
     free(total); free(open);
     return best >= 0;
 }
-// the ring of the border r | o: its tiles along the line, the gates and their five pieces
-internal void bwl_ring(ee_player *pl, struct encl *e, int wtype, unsigned r, unsigned o) {
-    static int16_t cx[BWL_CHAIN], cy[BWL_CHAIN];
+// the border r | o as a line: the holder's tiles that touch the other's, sorted along it (by x where it runs more
+// along x, else by y) into cx, cy[BWL_CHAIN]; their number
+internal int bwl_line(unsigned r, unsigned o, int16_t *cx, int16_t *cy) {
     int n = bwl_chain(r, o, cx, cy, BWL_CHAIN);
-    memset(e, 0, sizeof *e);
-    e->pl = pl;
     if (n > BWL_CHAIN) n = BWL_CHAIN;
     int x0 = 0x7FFF, x1 = -1, y0 = 0x7FFF, y1 = -1;
     for (int i = 0; i < n; i++) {
@@ -630,13 +634,143 @@ internal void bwl_ring(ee_player *pl, struct encl *e, int wtype, unsigned r, uns
         while (j >= 0 && (along_x ? (cx[j] > kx || (cx[j] == kx && cy[j] > ky)) : (cy[j] > ky || (cy[j] == ky && cx[j] > kx)))) { cx[j + 1] = cx[j]; cy[j + 1] = cy[j]; j--; }
         cx[j + 1] = kx; cy[j + 1] = ky;
     }
+    return n;
+}
+// THE GAP (the player 2026-11-14, told that a walled border can end without a gate: "thats a problem, maybe an one
+// tile hole wint 2 towers as a fallback when no gate is possible?"). A border had no gate when it was shorter than a
+// gate's five tiles, when no five of its tiles lie in a straight line that can be built on, and before the AI can
+// build gates at all - the wall then closed wherever the land behind was reached another way. Now every border walled
+// has its opening: where the gate can't be, one tile of the line - the nearest to the gate's place with open ground
+// on both sides of it - is never walled (the ring's open list, as a piece taken down for a pocket), and two towers
+// go beside it on the holder's side, one a BWL_EVERY, the second across the hole from the first (BWL_GAP_TRIES looks
+// at most: then it is a hole without them, and the log says so). The wall is not called standing before. A border
+// where neither can be - no gate fits, no tile of the line has open ground on both sides - is not walled at all.
+// Its gaps are remembered: not an open tile of a border again, the same one when the border is taken up again.
+// And a gate that was planned and cannot be laid (the wall all there for BWL_GATE_WAIT, its five tiles settled - built
+// or blocked for good, bwl_gate_dead - and it does not fit: one of them taken since) gives its place to a gap, the
+// piece standing there taken down; pieces only not built yet are waited for (5 of 27 gates were given up too early).
+#define BWL_GAP_TRIES 15
+internal int g_v_bwl_nogate = -1;   // [autotest] v_border_nogate=1: as if no gate could be built - every opening a gap (the variant players)
+#define BWL_GATE_WAIT 120000       // a wall all laid whose planned gate is not there after this long: a gap instead
+// the opening of border r | o by its tile `mid` of the line: 1 when one was found
+internal int bwl_gap_pick(ee_player *pl, unsigned idx, struct encl *e, int wtype, unsigned r, unsigned o, const int16_t *cx, const int16_t *cy, int n, int mid) {
+    static const int8_t nx4[4] = { 1, -1, 0, 0 }, ny4[4] = { 0, 0, 1, -1 };
+    if (g_bwl[idx].ngap >= 4 || e->nopen >= 32) return 0;
+    int known = -1;   // a gap it left on this border before: that one again
+    for (int i = 0; i < n && known < 0; i++) {
+        int taken = 0;
+        for (int q = 0; q < g_bwl[idx].ngap && !taken; q++) taken = g_bwl[idx].gap[q].x == cx[i] && g_bwl[idx].gap[q].y == cy[i];
+        if (!taken && bwl_hole(idx, cx[i], cy[i]) && !encl_walled(cx[i], cy[i])) known = i;
+    }
+    if (known >= 0) {
+        e->open_x[e->nopen] = cx[known]; e->open_y[e->nopen++] = cy[known];
+        memset(&g_bwl[idx].gap[g_bwl[idx].ngap], 0, sizeof g_bwl[idx].gap[0]);
+        g_bwl[idx].gap[g_bwl[idx].ngap].x = cx[known]; g_bwl[idx].gap[g_bwl[idx].ngap++].y = cy[known];
+        return 1;
+    }
+    for (int off = 0; off < 2 * n; off++) {   // from the wanted place outwards
+        int i = mid + (off & 1 ? -(off + 1) / 2 : off / 2), inner = 0, outer = 0, close_by = 0;
+        if (i < 0 || i >= n) continue;
+        ee_unit *piece = encl_own_piece(pl, cx[i], cy[i]);
+        if (piece && !is_wall(unit_type_get_id(unit_get_type_data(piece)))) continue;   // a tower on the line (the wall flag is its too): not taken down
+        if (!piece && !can_place(pl, wtype, iv2(cx[i], cy[i]))) continue;
+        for (int d = 0; d < 4; d++) {   // open ground on both sides: the holder's that is not the line's, the other's
+            int x = cx[i] + nx4[d], y = cy[i] + ny4[d], line = 0;
+            unsigned t = territory_at(x, y);
+            if ((t != r && t != o) || !can_place(pl, wtype, iv2(x, y))) continue;
+            for (int q = 0; q < n && !line; q++) line = cx[q] == x && cy[q] == y;
+            if (t == o) outer = 1; else if (!line) inner = 1;
+        }
+        for (int q = 0; q < e->ngate && !close_by; q++) close_by = abs(e->gate[q].x - cx[i]) <= 8 && abs(e->gate[q].y - cy[i]) <= 8;
+        for (int q = 0; q < g_bwl[idx].ngap && !close_by; q++) close_by = abs(g_bwl[idx].gap[q].x - cx[i]) <= 8 && abs(g_bwl[idx].gap[q].y - cy[i]) <= 8;
+        if (!inner || !outer || close_by) continue;
+        if (piece) unit_destroy(piece, 0, 0, 0);   // a wall taken up again whose piece stands on it
+        e->open_x[e->nopen] = cx[i]; e->open_y[e->nopen++] = cy[i];
+        memset(&g_bwl[idx].gap[g_bwl[idx].ngap], 0, sizeof g_bwl[idx].gap[0]);
+        g_bwl[idx].gap[g_bwl[idx].ngap].x = cx[i]; g_bwl[idx].gap[g_bwl[idx].ngap++].y = cy[i];
+        if (g_bwl[idx].nhole < 64) { g_bwl[idx].hole[g_bwl[idx].nhole].x = cx[i]; g_bwl[idx].hole[g_bwl[idx].nhole++].y = cy[i]; }
+        g_bwl[idx].gaps++;
+        return 1;
+    }
+    return 0;
+}
+// its defences within 5 tiles of a gap; *first: one of them
+internal int bwl_gap_guard(ee_player *pl, int x, int y, ivec2 *first) {
+    int n = 0;
+    for (struct grid_it it = grid_it_box(x, y, 6, 1); grid_it_next(&it); ) {
+        float rng, att;
+        int fam = unit_type_get_class_id(it.td);
+        if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0 || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(it.td))) continue;   // by the role: the game's wall flag is on towers too
+        if (abs(unit_get_x(it.u) - x) > 5 || abs(unit_get_y(it.u) - y) > 5 || !defence_stats(it.u, &rng, &att)) continue;
+        if (!n++ && first) *first = unit_get_tile(it.u);
+    }
+    return n;
+}
+// a planned gate that will never be laid: each of its five tiles settled - a finished piece of its own, or nothing of
+// its and nothing can stand there any more - and the gate still does not fit (pieces not built yet: not settled, wait)
+internal int bwl_gate_dead(ee_player *pl, struct encl *e, int wtype, int g, uint32_t now) {
+    int dir = e->gate[g].dir;
+    if (dir < 1 || dir > 4) return 1;
+    for (int j = -2; j <= 2; j++) {
+        int x = e->gate[g].x + k_gate_step[dir][0] * j, y = e->gate[g].y + k_gate_step[dir][1] * j;
+        ee_unit *pc = encl_own_piece(pl, x, y), *bs = pc ? unit_get_physics(pc) : NULL;
+        if (pc ? !(bs && unit_get_finished(bs)) : (encl_pending(e, x, y, now) || can_place(pl, wtype, iv2(x, y)))) return 0;
+    }
+    return !gate_fits(pl, e->gate[g].x, e->gate[g].y, dir);
+}
+// the gaps' towers: one queued a look; 1 while a gap still waits for its towers
+internal int bwl_gap_towers(ee_player *pl, unsigned idx, struct encl *e, unsigned r, uint32_t now) {
+    void *cm = player_get_civ_mgr(pl);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int ep = current_epoch(pl), ttype = tower_newest(pl), waits = 0;
+    for (int g = 0; g < g_bwl[idx].ngap; g++) {
+        int gx = g_bwl[idx].gap[g].x, gy = g_bwl[idx].gap[g].y;
+        ivec2 first = iv2(gx, gy);
+        int have = bwl_gap_guard(pl, gx, gy, &first), coming = 0;
+        for (int q = 0; q < 2; q++) coming += g_bwl[idx].gap[g].q_t[q] && now >= g_bwl[idx].gap[g].q_t[q] && now - g_bwl[idx].gap[g].q_t[q] < 300000;   // queued, not standing yet: 6 were queued for one gap in 2 minutes
+        if (have >= 2 || g_bwl[idx].gap[g].tries >= BWL_GAP_TRIES) continue;
+        waits = 1;
+        if (have + coming >= 2) continue;
+        if (!bm || !ttype || ep < 0 || ep >= 14 || tower_queued(bm) || !can_build(pl, ttype) || raiders_near(pl, iv2(gx, gy), 10)) continue;
+        g_bwl[idx].gap[g].tries++;
+        ivec2 best = iv2(-1, -1);
+        int bd = 0x7FFFFFFF;
+        for (int ay = -4; ay <= 4; ay++)
+            for (int ax = -4; ax <= 4; ax++) {   // on its side, clear of the hole and of the line, across the hole from the first
+                ivec2 q = iv2(gx + ax, gy + ay);
+                int d = ax * ax + ay * ay;
+                if ((abs(ax) < 2 && abs(ay) < 2) || d >= bd || territory_at(q.x, q.y) != r || encl_ring_has(e, q.x, q.y)) continue;
+                if (have && (first.x - gx) * ax + (first.y - gy) * ay > 0) continue;
+                if (!can_place(pl, ttype, q)) continue;
+                bd = d; best = q;
+            }
+        if (best.x < 0) continue;
+        int entry[3] = { ttype, best.x, best.y };
+        build_mgr_queue_add(bm, ep, entry);
+        g_bwl[idx].gap_towers++;
+        g_bwl[idx].progress_t = now;
+        g_bwl[idx].gap[g].q_t[g_bwl[idx].gap[g].q_t[0] && now - g_bwl[idx].gap[g].q_t[0] < 300000 ? 1 : 0] = now ? now : 1;
+        if (g_log) fprintf(g_log, "# border: P%u at %.1f min: tower %d queued at %d,%d by the gap %d,%d of its wall (%d of 2 stand there, %d more queued; %u gap towers so far)\n",
+                           idx, now / 60000.0, ttype, best.x, best.y, gx, gy, have, coming, g_bwl[idx].gap_towers);
+        return 1;
+    }
+    return waits;
+}
+// the ring of the border r | o: its tiles along the line, the gates and their five pieces - or the gaps
+internal void bwl_ring(ee_player *pl, unsigned idx, struct encl *e, int wtype, unsigned r, unsigned o) {
+    static int16_t cx[BWL_CHAIN], cy[BWL_CHAIN];
+    int n = bwl_line(r, o, cx, cy);
+    memset(e, 0, sizeof *e);
+    e->pl = pl;
+    g_bwl[idx].ngap = g_bwl[idx].have_gates = 0;
     for (int i = 0; i < n; i++) { e->rx[i] = cx[i]; e->ry[i] = cy[i]; }
     e->nring = n;
-    int want = n < 5 ? 0 : n >= BWL_GATE2 ? 2 : 1;
+    int want = n < BWL_MIN ? 0 : n >= BWL_GATE2 ? 2 : 1, gates = n >= 5 && encl_gate_type(pl) && !PV(idx, g_v_bwl_nogate, 0);
     for (int g = 0; g < want; g++) {   // a gate: five tiles in a line through a tile of the border, as many of them on it as can be
         int mid = want == 1 ? n / 2 : g ? 2 * n / 3 : n / 3, placed = 0;
         for (int i = mid - 8; i <= mid + 8 && !placed; i++) placed = i >= 0 && i < n && bwl_gate_near(pl, cx[i], cy[i]);   // one stands there (a wall taken up again)
-        for (int off = 0; off < n && !placed; off++) {   // from the wanted place outwards
+        g_bwl[idx].have_gates += placed;
+        for (int off = 0; gates && off < n && !placed; off++) {   // from the wanted place outwards
             int i = mid + (off & 1 ? -(off + 1) / 2 : off / 2), bdir = 0, bon = -1;
             if (i < 0 || i >= n) continue;
             for (int dir = 1; dir <= 4; dir++) {
@@ -658,6 +792,7 @@ internal void bwl_ring(ee_player *pl, struct encl *e, int wtype, unsigned r, uns
             }
             placed = 1;
         }
+        if (!placed) bwl_gap_pick(pl, idx, e, wtype, r, o, cx, cy, n, mid);   // THE GAP: no gate can be there
     }
 }
 internal void tv_border_walls(ee_player *pl, unsigned idx, uint32_t now) {
@@ -675,8 +810,36 @@ internal void tv_border_walls(ee_player *pl, unsigned idx, uint32_t now) {
         int open = 0, gates = 0, why = 0;
         for (int i = 0; i < e->nring; i++) open += encl_free(pl, e, wtype, e->rx[i], e->ry[i], now);
         for (int g = 0; g < e->ngate; g++) gates += e->gate[g].tries < 20;
+        if (!open && gates && encl_gate_type(pl) && !encl_in_flight(e, now) && now - g_bwl[idx].progress_t >= BWL_GATE_WAIT && bwl_pair(s, r, o, 0)) {
+            // THE GAP: all of it laid and a planned gate not there (one of its five tiles taken since: 24 tiles closed, 11 pieces,
+            // the gate planned twice and never laid) - a gap by its place instead
+            static int16_t cx[BWL_CHAIN], cy[BWL_CHAIN];
+            int n = bwl_line(r, o, cx, cy);
+            for (int g = e->ngate - 1; g >= 0; g--) {
+                if (e->gate[g].tries >= 20 || bwl_gate_near(pl, e->gate[g].x, e->gate[g].y) || !bwl_gate_dead(pl, e, wtype, g, now)) continue;
+                int gx = e->gate[g].x, gy = e->gate[g].y, mid = 0, bd = 0x7FFFFFFF;
+                for (int i = 0; i < n; i++) { int d = (cx[i] - gx) * (cx[i] - gx) + (cy[i] - gy) * (cy[i] - gy); if (d < bd) { bd = d; mid = i; } }
+                e->gate[g] = e->gate[--e->ngate];   // given up
+                int got = bwl_gap_pick(pl, idx, e, wtype, r, o, cx, cy, n, mid);
+                if (!got && g_bwl[idx].ngap < 4 && e->nopen < 32) {   // no tile of the line with open ground on both sides: the gate's own place then, its piece taken down
+                    ee_unit *pc = encl_own_piece(pl, gx, gy);
+                    if (pc && is_wall(unit_type_get_id(unit_get_type_data(pc)))) unit_destroy(pc, 0, 0, 0);
+                    e->open_x[e->nopen] = (int16_t)gx; e->open_y[e->nopen++] = (int16_t)gy;
+                    memset(&g_bwl[idx].gap[g_bwl[idx].ngap], 0, sizeof g_bwl[idx].gap[0]);
+                    g_bwl[idx].gap[g_bwl[idx].ngap].x = (int16_t)gx; g_bwl[idx].gap[g_bwl[idx].ngap++].y = (int16_t)gy;
+                    if (g_bwl[idx].nhole < 64) { g_bwl[idx].hole[g_bwl[idx].nhole].x = (int16_t)gx; g_bwl[idx].hole[g_bwl[idx].nhole++].y = (int16_t)gy; }
+                    g_bwl[idx].gaps++;
+                }
+                g_bwl[idx].progress_t = now;
+                if (g_log) fprintf(g_log, "# border: P%u at %.1f min: the gate planned at %d,%d of its wall between %u and %u cannot be laid - %s\n", idx, now / 60000.0, gx, gy, r, o,
+                                   got ? "a gap of one tile with two towers instead" : "its own place left open instead (no tile of the line has open ground on both sides)");
+            }
+            gates = 0;
+            for (int g = 0; g < e->ngate; g++) gates += e->gate[g].tries < 20;
+        }
+        int gap_waits = bwl_pair(s, r, o, 0) && s->t[r].state != TV_UNSAFE ? bwl_gap_towers(pl, idx, e, r, now) : 0;   // THE GAP: its two towers
         if (!bwl_pair(s, r, o, 0)) why = 1;   // no longer an outside border: the land behind taken, this side lost
-        else if (!open && !encl_in_flight(e, now) && (!gates || !encl_gate_type(pl))) why = 2;   // it stands
+        else if (!open && !encl_in_flight(e, now) && (!gates || !encl_gate_type(pl)) && !gap_waits) why = 2;   // it stands
         else if (now - g_bwl[idx].progress_t >= BWL_STUCK) why = 3;
         if (why) {
             if (why == 2) g_bwl[idx].done++; else if (why == 1) g_bwl[idx].dropped++; else g_bwl[idx].parked_n++;
@@ -684,20 +847,39 @@ internal void tv_border_walls(ee_player *pl, unsigned idx, uint32_t now) {
                 int k = g_bwl[idx].np++ & 15;
                 g_bwl[idx].parked[k].r = (int)r; g_bwl[idx].parked[k].o = (int)o; g_bwl[idx].parked[k].t = now ? now : 1;
             }
-            if (g_log) fprintf(g_log, "# border: P%u at %.1f min: the wall between its territory %u and %u %s - %u runs (%u pieces), %u gates, %d of its %d tiles still open (stone %d; %u borders walled so far)\n",
+            int towerless = 0;
+            for (int g = 0; g < g_bwl[idx].ngap; g++) towerless += bwl_gap_guard(pl, g_bwl[idx].gap[g].x, g_bwl[idx].gap[g].y, NULL) < 2;
+            if (g_log) fprintf(g_log, "# border: P%u at %.1f min: the wall between its territory %u and %u %s - %u runs (%u pieces), %u gates, %d gaps (%d without their two towers), %d of its %d tiles still open (stone %d; %u borders walled so far)\n",
                                idx, now / 60000.0, r, o, why == 2 ? "stands" : why == 1 ? "left as it is (no outside border any more)" : "waits 10 minutes (nothing laid for 5)",
-                               e->runs, e->pieces, e->gates, open, e->nring, stock[4], g_bwl[idx].done);
+                               e->runs, e->pieces, e->gates, g_bwl[idx].ngap, towerless, open, e->nring, stock[4], g_bwl[idx].done);
+            if (g_log && g_autotest) {   // the line tile by tile: W a wall's piece or a gate, O its gap, T a building of its (a tower), . open ground, x nothing can stand there (trees, cliffs, water)
+                static int16_t lx[BWL_CHAIN], ly[BWL_CHAIN];
+                int ln = bwl_line(r, o, lx, ly);
+                fprintf(g_log, "# border: P%u line %d,%d-%d,%d ", idx, ln ? lx[0] : 0, ln ? ly[0] : 0, ln ? lx[ln - 1] : 0, ln ? ly[ln - 1] : 0);
+                for (int i = 0; i < ln && i < 200; i++) {
+                    ee_unit *pc = encl_own_piece(pl, lx[i], ly[i]);
+                    fputc(bwl_hole(idx, lx[i], ly[i]) ? 'O' : pc ? (is_wall(unit_type_get_id(unit_get_type_data(pc))) ? 'W' : 'T') : encl_walled(lx[i], ly[i]) ? 'W' : can_place(pl, wtype, iv2(lx[i], ly[i])) ? '.' : 'x', g_log);
+                }
+                fputc('\n', g_log);
+            }
             g_bwl[idx].on = 0;
         }
     }
     if (!g_bwl[idx].on) {
         int r = 0, o = 0;
         if (stock[4] < BWL_STONE || !bwl_next(pl, idx, wtype, now, &r, &o)) return;
-        bwl_ring(pl, e, wtype, (unsigned)r, (unsigned)o);
+        bwl_ring(pl, idx, e, wtype, (unsigned)r, (unsigned)o);
         if (!e->nring) return;
+        if (!(e->ngate + g_bwl[idx].ngap + g_bwl[idx].have_gates)) {   // THE GAP: no gate and no gap can be - not walled at all
+            int k = g_bwl[idx].np++ & 15;
+            g_bwl[idx].parked[k].r = r; g_bwl[idx].parked[k].o = o; g_bwl[idx].parked[k].t = now ? now : 1;
+            g_bwl[idx].no_opening++;
+            if (g_log) fprintf(g_log, "# border: P%u at %.1f min: the border of its territory %d with %d (%d tiles) is not walled - no gate fits and no tile of it has open ground on both sides for a gap (%u such so far)\n", idx, now / 60000.0, r, o, e->nring, g_bwl[idx].no_opening);
+            return;
+        }
         g_bwl[idx].on = 1; g_bwl[idx].r = r; g_bwl[idx].o = o; g_bwl[idx].version = g_ter.version; g_bwl[idx].progress_t = now;
-        if (g_log) fprintf(g_log, "# border: P%u at %.1f min: a wall along the border of its territory %d with %d - %d tiles from %d,%d to %d,%d, %d gates to lay (stone %d in the bank)\n",
-                           idx, now / 60000.0, r, o, e->nring, e->rx[0], e->ry[0], e->rx[e->nring - 1], e->ry[e->nring - 1], e->ngate, stock[4]);
+        if (g_log) fprintf(g_log, "# border: P%u at %.1f min: a wall along the border of its territory %d with %d - %d tiles from %d,%d to %d,%d, %d gates to lay (%d stand), %d gaps of one tile with two towers where no gate can be (stone %d in the bank)\n",
+                           idx, now / 60000.0, r, o, e->nring, e->rx[0], e->ry[0], e->rx[e->nring - 1], e->ry[e->nring - 1], e->ngate, g_bwl[idx].have_gates, g_bwl[idx].ngap, stock[4]);
     }
     if (s->t[g_bwl[idx].r].state == TV_UNSAFE) return;   // its builders stay away while the territory is being lost
     unsigned before = e->runs + e->gates;
@@ -866,6 +1048,7 @@ internal void territories_install(const char *autotest_ini) {
     g_border_walls = g_set_ai[1].border_walls;
     if (autotest_ini) g_v_border_walls = ini_int("autotest", "v_border_walls", -1, autotest_ini);
     if (autotest_ini) g_v_sea_island = ini_int("autotest", "v_sea_island", -1, autotest_ini);
+    if (autotest_ini) g_v_bwl_nogate = ini_int("autotest", "v_border_nogate", -1, autotest_ini);
     if (autotest_ini) g_v_border_towers = ini_int("autotest", "v_border_towers", -1, autotest_ini);
     if (autotest_ini) g_v_ter_shelter = ini_int("autotest", "v_territory_shelter", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# territories: territory_shelter %d (variant %d)\n", g_ter_shelter, g_v_ter_shelter);

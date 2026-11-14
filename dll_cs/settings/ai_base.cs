@@ -334,7 +334,8 @@ class ai_base
         bool border_towers = true;
         /// Border walls (ai/territories.c BORDER WALLS): while 1500 stone lie in the bank, a wall along the border between a
         /// territory the AI holds and land nobody of its side holds - the shortest such border first (the territories
-        /// meet where the land is narrowest), a gate in its middle, laid from the stone above 1000 and never so that
+        /// meet where the land is narrowest), a gate in its middle (where none can stand: one tile left open, two towers
+        /// beside it), laid from the stone above 1000 and never so that
         /// something is shut in. Like the border towers nothing the AI against AI games can show. 1 = on. On by
         /// the player's call 2026-11-14: "enable the fleet and the border walls"
         bool border_walls = true;
