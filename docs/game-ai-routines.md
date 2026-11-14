@@ -300,3 +300,8 @@ from the stone above 1000. The laying is the town ring's (ai/defence.c encl_lay,
 anything in); ai/territories.c BORDER WALLS. Seen in test games with stone given: 5 to 22 borders walled in an hour,
 gates in them. With it: a wall's pieces no longer count as a territory's buildings (three of a front wall across a
 border had made the land behind held), and a border tower is not queued for the same place again before it stands.
+
+The territory system one part out at a time (2026-11-14, 168 games; ai/territories.c ONE PART OUT has the numbers):
+`territory_shelter` earns its place (citizens killed on Continental more than halved), `harbours` cost on both maps
+(fewer territories held, the sea war lost on islands, docks without ships or fishing boats on Continental - on by the
+player's call), `front_guards` lean against it on islands, the other four are not told from noise at 12 games a map.

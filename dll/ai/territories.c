@@ -52,7 +52,23 @@
 //   with a harbour a sea territory (his rule, as shipped): 1.75 -> 1.46, 522 -> 326, losses -19 (13); 3.08 -> 2.58, 814
 //     -> 1224, soldiers -13 (14), kills -28 (19); 6.25 -> 6.29, 1613 -> 960, kills +21 (20).
 // Harbours and border towers are on by his call and not by these numbers: "stuff like that wont pay in the tests,
-// since sneak attacks from behind arent really in the ai yet". Still owed: one part out at a time.
+// since sneak attacks from behind arent really in the ai yet".
+// ONE PART OUT (2026-11-14: the shipped system against the same without one part, head-to-head, mirrored, 12 games a
+// map, 90 min; land territories held a player with -> without the part, Small Islands large from epoch 9 | Continental
+// huge from epoch 5). A part that cannot act on a map (front guards on Continental) still moved 0.8 there: differences
+// below that are noise at 12 games.
+//   territory_shelter 2.79 -> 2.50 | 6.38 -> 6.17, Continental citizens killed 746 with, 1789 without: earns its place;
+//   fleet_station 2.96 -> 2.58 | 6.17 -> 6.00, islands soldiers -17 (se 12) without; border_towers 2.75 -> 2.67 | 5.75
+//   -> 5.75; force_at_front 2.75 -> 2.83 | 5.71 -> 5.83; raid_held_ground 2.54 -> 2.75 | 5.62 -> 6.29, Continental
+//   citizens killed 1029 with, 669 without: none of the four told from noise;
+//   front_guards 2.33 -> 3.12 | 6.54 -> 5.71, islands without: soldiers +16 (12), kills +32 (14): leans against it there;
+//   harbours 2.50 -> 3.00 | 5.42 -> 6.12, islands without: soldiers +16 (9), kills +45 (15), Continental 4 of 24 AIs
+//   with harbours dead, none without: the one part that costs on both maps. Islands: 6 docks a player either way, the
+//   side with harbours lost 81 warships a player and sank 57 (without: 65 and 90). Continental: 4 docks a player
+//   instead of 1, no warship and no fishing boat from them, the harbours' towers out of the stone of the town's (as
+//   many towers in all). NOT the cause: the fleet's fallback bonus for its station's sea (fleet.c HB_RALLY) - cut to a
+//   tie-break against the shipped 3 towers' worth, 12 island games: warships lost 71 against 73, sunk 69 against 74,
+//   territories 2.42 against 2.62. Not looked into yet: warships trained at docks spread over several seas.
 // THE VIEW ALWAYS RUNS (2026-11-14, the armies next - the player: "turn it on ... than continue with armies"): the
 // counting and the judging above for every AI whatever the shelter's setting (tv_unsafe alone asks that), so that
 // what comes next can read it. Read only so far: each territory it HOLDS (TV_HELD or more of its buildings) with the
