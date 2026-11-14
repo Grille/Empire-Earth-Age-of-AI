@@ -85,6 +85,7 @@ internal struct {
     unsigned build_ms;
     uint32_t facts_t, log_t, built_at;   // built_at: the game time of the build
     int shown; unsigned drawn; int lines;
+    uint32_t drawn_owners;        // the holders the borders were drawn with (ter_owners)
 } g_ter;
 struct ter_work {
     int size, n;
@@ -789,31 +790,56 @@ internal void ter_line(char *out, size_t cap, int r, int full) {
     for (int p = 1; p < 16; p++) if (t->bld[p] || t->units[p]) out_printf(out, cap, ", P%d %d buildings %d units", p, t->bld[p], t->units[p]);
     if (t->owner) out_printf(out, cap, ", held by P%d%s", t->owner, t->contested ? " (contested)" : "");
 }
-// the overlay's layer "territories": the borders (land white, water blue; the coast is the map's own), each
-// territory's middle with its line, the held ones faintly in their holder's colour
+// a sum over the territories' holders: the borders drawn again when one changes hands
+internal uint32_t ter_owners(void) {
+    uint32_t h = 2166136261u;
+    for (int r = 0; r < g_ter.n; r++) h = (h ^ (uint32_t)(uint8_t)g_ter.t[r].owner) * 16777619u;
+    return h;
+}
+// a border's side: its territory's holder's colour, else land white, water blue
+internal uint32_t ter_side_argb(unsigned r) {
+    struct ter_terr *t = &g_ter.t[r];
+    return t->owner ? overlay_player_argb(t->owner, 230) : t->water ? 0xB050B0FFu : 0xD0FFFFFFu;
+}
+// the overlay's layer "territories": the borders as two dotted lines, one inside each side in the colour of the side's
+// holder (the player, 2026-11-14: "can you change the territory border to a double dotted line? with each side of the
+// line in the color of the owner"; the coast is the map's own), each territory's middle with its line, the held ones
+// faintly in their holder's colour
+#define TER_SIDE 0.17f   // a side's dots this far in from the border, in tiles
+#define TER_DOT 4        // dots and gaps a quarter tile (overlay_line_dotted's sixteenths)
 internal void ter_draw(int layer, uint32_t now, int borders) {
     int size = g_ter.size;
     const uint16_t *lab = g_ter.lab;
-    if (borders) {
+    uint32_t owners = ter_owners();
+    if (borders || owners != g_ter.drawn_owners) {
         int lines = 0;
+        g_ter.drawn_owners = owners;
         overlay_begin(layer, 0, now, 0);
-        // a border's kind between two tiles: 0 none (one territory, none, or coast), 1 land, 2 water
-        #define TER_B(i, j) (lab[i] == lab[j] || lab[i] == TER_NONE || lab[j] == TER_NONE || g_ter.t[lab[i]].water != g_ter.t[lab[j]].water ? 0 : 1 + g_ter.t[lab[i]].water)
-        for (int y = 1; y < size; y++)
+        // a border between two tiles: none (one territory, none, or coast), else both sides' territories, which make a run
+        #define TER_B(i, j) (lab[i] != lab[j] && lab[i] != TER_NONE && lab[j] != TER_NONE && g_ter.t[lab[i]].water == g_ter.t[lab[j]].water)
+        #define TER_K(i, j) ((uint32_t)lab[i] << 16 | lab[j])
+        for (int y = 1; y < size; y++)   // below (y) and above (y - 1)
             for (int x = 0; x < size; ) {
-                int b = TER_B(y * size + x, (y - 1) * size + x), x0 = x++;
-                if (!b) continue;
-                while (x < size && TER_B(y * size + x, (y - 1) * size + x) == b) x++;
-                if (lines++ < TER_LINES) overlay_line(v2((float)x0, (float)y), v2((float)x, (float)y), b == 1 ? 0xD0FFFFFFu : 0xB050B0FFu, 0.3f);
+                int i = y * size + x, j = (y - 1) * size + x, x0 = x++;
+                if (!TER_B(i, j)) continue;
+                uint32_t k = TER_K(i, j);
+                while (x < size && TER_B(y * size + x, (y - 1) * size + x) && TER_K(y * size + x, (y - 1) * size + x) == k) x++;
+                if ((lines += 2) > TER_LINES) continue;
+                overlay_line_dotted(v2((float)x0, (float)y + TER_SIDE), v2((float)x, (float)y + TER_SIDE), ter_side_argb(lab[i]), 0.14f, TER_DOT);
+                overlay_line_dotted(v2((float)x0, (float)y - TER_SIDE), v2((float)x, (float)y - TER_SIDE), ter_side_argb(lab[j]), 0.14f, TER_DOT);
             }
-        for (int x = 1; x < size; x++)
+        for (int x = 1; x < size; x++)   // right (x) and left (x - 1)
             for (int y = 0; y < size; ) {
-                int b = TER_B(y * size + x, y * size + x - 1), y0 = y++;
-                if (!b) continue;
-                while (y < size && TER_B(y * size + x, y * size + x - 1) == b) y++;
-                if (lines++ < TER_LINES) overlay_line(v2((float)x, (float)y0), v2((float)x, (float)y), b == 1 ? 0xD0FFFFFFu : 0xB050B0FFu, 0.3f);
+                int i = y * size + x, j = y * size + x - 1, y0 = y++;
+                if (!TER_B(i, j)) continue;
+                uint32_t k = TER_K(i, j);
+                while (y < size && TER_B(y * size + x, y * size + x - 1) && TER_K(y * size + x, y * size + x - 1) == k) y++;
+                if ((lines += 2) > TER_LINES) continue;
+                overlay_line_dotted(v2((float)x + TER_SIDE, (float)y0), v2((float)x + TER_SIDE, (float)y), ter_side_argb(lab[i]), 0.14f, TER_DOT);
+                overlay_line_dotted(v2((float)x - TER_SIDE, (float)y0), v2((float)x - TER_SIDE, (float)y), ter_side_argb(lab[j]), 0.14f, TER_DOT);
             }
         #undef TER_B
+        #undef TER_K
         overlay_end();
         g_ter.lines = lines;
     }

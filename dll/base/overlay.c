@@ -163,6 +163,11 @@ internal void overlay_line(vec2 a, vec2 b, uint32_t argb, float width) {
     ov_shape *s = ov_add(OV_LINE, argb, width);
     if (s) { s->a[0] = a.x; s->a[1] = a.y; s->a[2] = b.x; s->a[3] = b.y; }
 }
+// a dotted one: dots of dot sixteenths of a tile (1..255) and gaps as long, from a (the renderer's ro_map_shapes)
+internal void overlay_line_dotted(vec2 a, vec2 b, uint32_t argb, float width, int dot) {
+    ov_shape *s = ov_add(OV_LINE, argb, width);
+    if (s) { s->a[0] = a.x; s->a[1] = a.y; s->a[2] = b.x; s->a[3] = b.y; s->sub = (uint8_t)(dot < 1 ? 1 : dot > 255 ? 255 : dot); }
+}
 internal void overlay_circle(vec2 c, float r, uint32_t argb, float width) {
     ov_shape *s = ov_add(OV_CIRCLE, argb, width);
     if (s) { s->a[0] = c.x; s->a[1] = c.y; s->a[2] = r; }

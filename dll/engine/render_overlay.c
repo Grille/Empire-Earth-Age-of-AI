@@ -434,7 +434,14 @@ internal void ro_camera_vp(float *out) {
 internal void ro_map_shapes(const float *vp, int n, ID3D11ShaderResourceView *ring, int *plain) {
     for (int i = 0; i < n; i++) {
         const ov_shape *s = &g_ro.shapes[i];
-        if (s->kind == OV_LINE) ro_ribbon(s->a[0], s->a[1], s->a[2], s->a[3], s->width, s->argb);
+        if (s->kind == OV_LINE && s->sub) {   // dotted (overlay_line_dotted): dots and gaps of sub sixteenths of a tile, from its start
+            float dx = s->a[2] - s->a[0], dy = s->a[3] - s->a[1], len = sqrtf(dx * dx + dy * dy), d = (float)s->sub / 16.0f;
+            for (float t = 0; t < len; t += 2 * d) {
+                float t1 = t + d < len ? t + d : len;
+                ro_ribbon(s->a[0] + dx * t / len, s->a[1] + dy * t / len, s->a[0] + dx * t1 / len, s->a[1] + dy * t1 / len, s->width, s->argb);
+            }
+        }
+        else if (s->kind == OV_LINE) ro_ribbon(s->a[0], s->a[1], s->a[2], s->a[3], s->width, s->argb);
         else if (s->kind == OV_CIRCLE) ro_circle(s->a[0], s->a[1], s->a[2], s->width, s->argb);
         else if (s->kind == OV_RING) { if (!ring) ro_circle(s->a[0], s->a[1], s->a[2] * RO_RING_MID, RO_RING_WIDTH, s->argb); }
         else if (s->kind == OV_TILE) {   // a run of tiles: a quad per tile, on each one's own heights
