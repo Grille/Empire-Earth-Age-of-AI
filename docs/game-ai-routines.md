@@ -355,7 +355,15 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
   neighbour's share beyond its own counts for one that is short; the share still missing, times the way to its nearest
   production beyond the first step, makes a territory build its own (a hub next door is used); its very first
   production building right after the University, a kind it has nowhere and one more of a busy kind in the hub that
-  wants the most. The count only: who marches where is still the old force's.
+  wants the most. 
+  The force by territory (ai/stations.c, the same day; armies.c's one force does not run with the game's computer player
+  off): every land soldier has a station, a territory; a territory's share of the main force in soldiers (a share worth
+  fewer than 3 goes to the neighbour with the largest), siege among the territories planning an attack that have a
+  share of the main force; one short of its share is given soldiers of the nearest with more (those under attack
+  first); a territory with 6 or more, three quarters of them there, beside enemy buildings pushes on its own when the
+  comparison at the nearest building says 1.5 or better and comes back under 0.8 (no attack time); up to 3 of the
+  fastest scout the territories it never stood in and are the main force's again after. Open: anti-air, aircraft and
+  ships by role, siege on a shoreline.
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
   sites, fields (done); (2) building - what, where, which citizen builds (done for the food base, the mines and the
   research buildings and the land production; open: houses, docks, repairs); (3) research and the epochs (done but the

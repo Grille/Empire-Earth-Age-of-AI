@@ -2223,6 +2223,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (g_ar_load == 2) ar_found_again(a);
         ar_adopt(pl, idx, a, now);   // the held it doesn't know (a save without the force, or one whose members aren't found again)
     }
+    if (pl && !is_vanilla(pl) && !GAME_AI(idx)) return;   // the game's computer player off: the force by territory instead (stations.c)
     if (!ar_on(pl, idx) || (a->t && now - a->t < AR_TICK)) return;
     a->t = now ? now : 1;
     ee_combat_mgr *cm = player_get_combat_mgr(pl);

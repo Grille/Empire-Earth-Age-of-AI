@@ -1,0 +1,341 @@
+// THE FORCE BY TERRITORY - who stands where, played while the game's computer player is off ([ai_base] game_ai = 0);
+// the one force of armies.c does not run then. The player, 2026-11-14: "the single main force isnt the way anymore",
+// then the territories' shares (produce.c SHARES: "100% is the full military force and the terriotories distribute
+// that under each other"), then the pools: "we should also split the force into subcategories that are requested and
+// asigned semiindependently, 1. main-force: unit vs unit 2. siege: building killers, distributed betwen territoris
+// planing attacks ... 3. anti air ... 4, explorers a few fast moving units that scout unexplored lland", explorers
+// "a temporary role before they are disbaned into the main army share again", and of the attack: "make it push on
+// its own, no more attack timers, either its a good idea to attack or its not".
+// Every SN_EVERY per AI, on the territory view and produce.c's shares:
+//   STATIONS  - every land soldier of its has a station: a territory (where it stands, when it is new). THE MAIN
+//               FORCE (soldiers that are no siege, ram or anti-air): a territory's share of them in soldiers; a
+//               share worth fewer than SN_MIN goes to the neighbour with the largest (single soldiers hold nothing)
+//               unless it is under attack. SIEGE (siege weapons, rams): among the territories planning an attack
+//               (beside enemy buildings it knows, by their number) that have a share of the main force - never
+//               alone; with no attack planned they stay where they are.
+//   GIVING    - a territory with fewer stationed than its share (by a fifth, or by any under attack - those first)
+//               is given soldiers of the nearest territories with more than theirs, territory by territory over
+//               land: their station changes, they march. SN_MOVES a look.
+//   ORDERS    - a soldier away from its station's place goes there (attack-move: it fights what it meets): the
+//               middle of the enemy soldiers seen in the territory when there are any (an attack: its share is
+//               there to meet it), else a Town Center, Capitol, Settlement or other building of its there, else
+//               the territory's middle. Asked again when it stands idle elsewhere.
+//   A PUSH    - no attack time: a territory it holds with SN_PUSH_MIN of the main force stationed, three quarters
+//               of them there, beside a territory with enemy buildings: its soldiers and siege against what it
+//               knows of the enemy at the nearest of those buildings (stage.c stage_foe: soldiers seen, defences,
+//               the remembered) - from SN_PUSH they go, attack-move at the building, on to the next when it is
+//               down; under SN_BACK they come back to their station and SN_PUSH_WAIT passes before the next look.
+//               No building left there: the push is over, the shares say where they stand next.
+//   SCOUTS    - while it has land territories no unit of its ever stood in (on the land the scout stands on) up
+//               to SN_SCOUTS of the main force, the fastest, go to the nearest of them one after the other (one
+//               not reached in SN_SCOUT_GIVE_UP is given up); none left: they are the main force's again,
+//               stationed where they stand, and none is taken for SN_SCOUT_REST.
+// Not here yet: anti-air, aircraft and ships by role (the player: "do it by role"), siege on a shoreline.
+// "# stations:" a minute.
+#define SN_EVERY 5000
+#define SN_UNITS 1024
+#define SN_MIN 3
+#define SN_MOVES 16
+#define SN_NEAR 10
+#define SN_REORDER 30000
+#define SN_PUSH_MIN 6
+#define SN_PUSH 1.5f
+#define SN_BACK 0.8f
+#define SN_PUSH_WAIT 120000
+#define SN_PUSHES 6
+#define SN_SCOUTS 3
+#define SN_SCOUT_GIVE_UP 180000
+#define SN_SCOUT_REST 300000
+#define SN_EB 512
+enum { SNP_MAIN, SNP_SIEGE, SNP_N };
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since; ivec2 to; };   // since: a scout's territory is its goal since then
+struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; };
+internal struct sn_st {
+    uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
+    int n;
+    struct sn_unit m[SN_UNITS];
+    struct sn_push push[SN_PUSHES];
+    unsigned moved, orders, pushes, won, lost, scouted;
+} g_sn[16];
+internal uint8_t g_sn_seen[16][PR_T];
+internal struct st_side g_sn_own;
+internal int sn_cmp(const void *a, const void *b) { const struct sn_unit *x = a, *y = b; return x->u < y->u ? -1 : x->u > y->u; }
+internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fight, uint32_t now) {
+    ee_goal *g = ar_goal_at(d, k, fight);
+    if (!g || !unit_goal(m->u, g, 0, 0x1F40)) return 0;
+    m->order_t = now ? now : 1; m->to = d;
+    z->orders++;
+    return 1;
+}
+// the stationed of a pool counted by territory into ac; then the territories short of tc are given those of the
+// nearest with more: 1 where anything moved
+internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, const struct tv_st *s, int *budget) {
+    static uint8_t vis[PR_T], done[PR_T];
+    static short q[PR_T];
+    int any = 0;
+    memset(ac, 0, (size_t)n * sizeof *ac);
+    for (int i = 0; i < z->n; i++) if (z->m[i].pool == pool && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) ac[z->m[i].ter]++;
+    memset(done, 0, (size_t)n);
+    while (*budget > 0) {
+        int r = -1, best = 0;
+        for (int k = 0; k < n; k++) {
+            int df = tc[k] - ac[k], hard = s->t[k].foe > 0 && s->t[k].role != TVR_NONE;
+            if (done[k] || df <= 0 || (!hard && df < (tc[k] / 5 > 1 ? tc[k] / 5 : 1))) continue;
+            int pr = df + (hard ? 100000 : 0);
+            if (pr > best) { best = pr; r = k; }
+        }
+        if (r < 0) break;
+        done[r] = 1;
+        memset(vis, 0, (size_t)n);
+        int qh = 0, qt = 0;
+        q[qt++] = (short)r; vis[r] = 1;
+        while (qh < qt && tc[r] > ac[r] && *budget > 0) {
+            int o = q[qh++];
+            int give = o != r ? ac[o] - tc[o] : 0;
+            for (int i = 0; i < z->n && give > 0 && tc[r] > ac[r] && *budget > 0; i++) {
+                struct sn_unit *m = &z->m[i];
+                if (m->pool != pool || m->scout || m->ter != o) continue;
+                int pushing = 0;
+                for (int p = 0; p < SN_PUSHES; p++) pushing |= z->push[p].on && z->push[p].from == o;
+                if (pushing) break;   // a territory that is pushing gives none
+                m->ter = (short)r; m->order_t = 0;
+                ac[o]--; ac[r]++; give--; (*budget)--; z->moved++; any = 1;
+            }
+            for (int k = 0; k < g_ter.t[o].nbn; k++) {
+                unsigned w = g_ter.nb[g_ter.t[o].nb0 + k].to;
+                if (w < (unsigned)n && !vis[w] && !g_ter.t[w].water && qt < PR_T) { vis[w] = 1; q[qt++] = (short)w; }
+            }
+        }
+    }
+    return any;
+}
+internal void stations_tick(ee_player *pl, uint32_t now) {
+    static struct sn_unit old[SN_UNITS];
+    static int tc[PR_T], ac[PR_T], tcs[PR_T], acs[PR_T], fx[PR_T], fy[PR_T], fn[PR_T];
+    static ivec2 rally[PR_T];
+    static uint8_t anc[PR_T];
+    static struct { ivec2 p; short ter; } eb[SN_EB];
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct sn_st *z = &g_sn[idx];
+    struct tv_st *s = &g_tv[idx];
+    if (now < z->t) { memset(z, 0, sizeof *z); memset(g_sn_seen[idx], 0, sizeof g_sn_seen[idx]); }
+    if (z->t && now - z->t < SN_EVERY) return;
+    z->t = now ? now : 1;
+    int n = s->n < PR_T ? s->n : PR_T;
+    if (!n || s->version != g_ter.version) return;
+    // its units: the soldiers with their stations, a place to stand in each territory, the territories it has stood in
+    int on = z->n, nn = 0, count = 0, neb = 0;
+    memcpy(old, z->m, (size_t)on * sizeof *old);
+    memset(anc, 0, (size_t)n);
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+        int t = unit_type_get_id(td), fam = unit_type_get_class_id(td);
+        ivec2 p = unit_get_tile(u);
+        unsigned r = ter_near(p.x, p.y);
+        if (r >= (unsigned)n) continue;
+        g_sn_seen[idx][r] = 1;
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
+            ee_unit *st = unit_get_physics(u);
+            int town = is_wall(t) ? 0 : t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) ? 3 : t == UT(B_SETTLEMENT) ? 2 : 1;
+            if (st && unit_get_finished(st) && town > anc[r]) { anc[r] = (uint8_t)town; rally[r] = p; }
+            continue;
+        }
+        // the class Land only: a wall piece is of the army's families too (the first look: 252 "soldiers" with 131 there, the walls stationed with them)
+        int pool = fam != CLS_LAND ? -1 : is_siege(t) || is_ram(t) ? SNP_SIEGE : land_soldier(t) && !is_aa(u) ? SNP_MAIN : -1;
+        if (pool < 0 || nn >= SN_UNITS) continue;
+        struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
+        struct sn_unit *m = &z->m[nn++];
+        if (o && o->id == unit_get_id(u)) *m = *o;
+        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_id(u); m->ter = (short)r; }
+        m->pool = (uint8_t)pool;
+        if (!m->scout && (m->ter < 0 || m->ter >= n || g_ter.t[m->ter].water)) m->ter = (short)r;
+    }
+    z->n = nn;
+    qsort(z->m, (size_t)nn, sizeof *z->m, sn_cmp);
+    for (int r = 0; r < n; r++) if (!anc[r]) rally[r] = g_ter.t[r].c;
+    // the enemy it knows: the soldiers it sees by territory (their middle), the buildings to push at
+    memset(fn, 0, (size_t)n * sizeof *fn); memset(fx, 0, (size_t)n * sizeof *fx); memset(fy, 0, (size_t)n * sizeof *fy);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !seen_by(u, pl)) continue;
+        ivec2 p = unit_get_tile(u);
+        unsigned r = ter_near(p.x, p.y);
+        if (r >= (unsigned)n) continue;
+        if (fr_building(it.td)) { if (!is_wall(unit_type_get_id(it.td)) && neb < SN_EB) { eb[neb].p = p; eb[neb++].ter = (short)r; } }
+        else if (ms_land_soldier(u, it.td)) { fx[r] += p.x; fy[r] += p.y; fn[r]++; }
+    }
+    // STATIONS: the shares in soldiers
+    int np[SNP_N] = { 0, 0 }, scouts = 0, wsum = 0;
+    for (int i = 0; i < nn; i++) { if (z->m[i].scout) scouts++; else np[z->m[i].pool]++; }
+    for (int r = 0; r < n; r++) tc[r] = (g_pr_share[idx][r] * np[SNP_MAIN] + 500) / 1000;
+    for (int r = 0; r < n; r++) {
+        if (tc[r] <= 0 || tc[r] >= SN_MIN || (s->t[r].foe > 0 && s->t[r].role != TVR_NONE)) continue;
+        int b = -1;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            if (o < (unsigned)n && !g_ter.t[o].water && tc[o] >= SN_MIN && (b < 0 || tc[o] > tc[b])) b = (int)o;
+        }
+        if (b >= 0) { tc[b] += tc[r]; tc[r] = 0; }
+    }
+    for (int r = 0; r < n; r++) {   // siege: the territories planning an attack that have a share of the main force
+        int a = 0;
+        tcs[r] = 0;
+        if (g_ter.t[r].water || s->t[r].role == TVR_NONE || tc[r] <= 0) continue;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            if (o < (unsigned)n && !g_ter.t[o].water && s->t[o].ebld && PR_ATTACK + s->t[o].ebld > a) a = PR_ATTACK + s->t[o].ebld;
+        }
+        tcs[r] = a; wsum += a;
+    }
+    int budget = SN_MOVES;
+    sn_give(z, SNP_MAIN, n, tc, ac, s, &budget);
+    if (wsum > 0) {
+        for (int r = 0; r < n; r++) tcs[r] = (tcs[r] * np[SNP_SIEGE] + wsum / 2) / wsum;
+        sn_give(z, SNP_SIEGE, n, tcs, acs, s, &budget);
+    }
+    // A PUSH: those on, then a new one
+    for (int k = 0; k < SN_PUSHES; k++) {
+        struct sn_push *p = &z->push[k];
+        if (!p->on) continue;
+        long sx = 0, sy = 0;
+        int cn = 0, bi = -1, bd = 0;
+        st_side_clear(&g_sn_own);
+        for (int i = 0; i < nn; i++) {
+            if (z->m[i].ter != p->from || z->m[i].scout) continue;
+            ivec2 q = unit_get_tile(z->m[i].u);
+            sx += q.x; sy += q.y; cn++;
+            st_side_add(&g_sn_own, z->m[i].u);
+        }
+        ivec2 mid = cn ? iv2((int)(sx / cn), (int)(sy / cn)) : p->at;
+        for (int e = 0; e < neb; e++) {
+            if (eb[e].ter != p->into) continue;
+            int d = ivec2_dist2(eb[e].p, mid);
+            if (bi < 0 || d < bd) { bi = e; bd = d; }
+        }
+        const char *end = NULL;
+        float ratio = 0;
+        if (!cn) end = "nobody left";
+        else if (bi < 0) { end = "no building left there"; z->won++; }
+        else {
+            stage_foe(pl, eb[bi].p);
+            ratio = st_ratio(&g_sn_own, &g_sgs_foe);
+            if (ratio < SN_BACK) { end = "losing"; z->lost++; }
+            else p->at = eb[bi].p;
+        }
+        if (!end) continue;
+        p->on = 0; p->end_t = now ? now : 1;
+        for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
+        if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (%d soldiers, judged %.2f)\n", idx, now / 60000.0, p->from, p->into, end, cn, (double)ratio);
+    }
+    for (int r = 0; r < n; r++) {
+        struct tv_terr *t = &s->t[r];
+        if (g_ter.t[r].water || t->role == TVR_NONE || t->state != TV_QUIET || ac[r] < SN_PUSH_MIN) continue;
+        int slot = -1, busy = 0, into = -1, there = 0, cn = 0, bi = -1, bd = 0;
+        for (int k = 0; k < SN_PUSHES; k++) {
+            struct sn_push *p = &z->push[k];
+            if (p->on && p->from == r) busy = 1;
+            if (!p->on && p->from == r && p->end_t && now >= p->end_t && now - p->end_t < SN_PUSH_WAIT) busy = 1;
+            if (!p->on && (slot < 0 || p->end_t < z->push[slot].end_t)) slot = k;   // the one that ended longest ago
+        }
+        if (busy || slot < 0) continue;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            if (o < (unsigned)n && !g_ter.t[o].water && s->t[o].ebld && (into < 0 || s->t[o].ebld > s->t[into].ebld)) into = (int)o;
+        }
+        if (into < 0) continue;
+        for (int e = 0; e < neb; e++) {
+            if (eb[e].ter != into) continue;
+            int d = ivec2_dist2(eb[e].p, rally[r]);
+            if (bi < 0 || d < bd) { bi = e; bd = d; }
+        }
+        if (bi < 0) continue;   // none it sees or remembers now
+        st_side_clear(&g_sn_own);
+        for (int i = 0; i < nn; i++) {
+            if (z->m[i].ter != r || z->m[i].scout) continue;
+            ivec2 q = unit_get_tile(z->m[i].u);
+            cn++;
+            there += ter_near(q.x, q.y) == (unsigned)r || ivec2_dist2(q, rally[r]) <= 15 * 15;
+            st_side_add(&g_sn_own, z->m[i].u);
+        }
+        if (there * 4 < cn * 3) continue;   // still gathering
+        stage_foe(pl, eb[bi].p);
+        float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
+        if (ratio < SN_PUSH) continue;
+        struct sn_push *p = &z->push[slot];
+        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0;
+        z->pushes++;
+        if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the building at %d,%d, judged %.2f (enemy there: %d)\n",
+                              idx, now / 60000.0, r, into, cn, p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
+    }
+    // SCOUTS
+    int unseen = 0;
+    for (int r = 0; r < n; r++) unseen += !g_ter.t[r].water && !g_sn_seen[idx][r];
+    int want_sc = unseen && np[SNP_MAIN] + scouts >= 3 && now >= z->scout_off ? 1 + unseen / 8 : 0;
+    if (want_sc > SN_SCOUTS) want_sc = SN_SCOUTS;
+    while (scouts < want_sc) {
+        int b = -1, bf = -1;
+        for (int i = 0; i < nn; i++) {
+            struct sn_unit *m = &z->m[i];
+            int pushing = 0, f = ar_fast(unit_get_type_data(m->u));
+            for (int p = 0; p < SN_PUSHES; p++) pushing |= z->push[p].on && z->push[p].from == m->ter;
+            if (m->pool == SNP_MAIN && !m->scout && !pushing && f > bf) { bf = f; b = i; }
+        }
+        if (b < 0) break;
+        z->m[b].scout = 1; z->m[b].ter = -1; z->m[b].order_t = 0;
+        scouts++;
+    }
+    for (int i = 0; i < nn; i++) {
+        struct sn_unit *m = &z->m[i];
+        if (!m->scout) continue;
+        ivec2 p = unit_get_tile(m->u);
+        if (m->ter >= 0 && m->ter < n && !g_sn_seen[idx][m->ter] && m->since && now - m->since > SN_SCOUT_GIVE_UP) g_sn_seen[idx][m->ter] = 2;   // not reached in that time: given up (walled off, held against it)
+        if (m->ter < 0 || m->ter >= n || g_sn_seen[idx][m->ter]) {   // the next one: the nearest it has not stood in, on its land, no other scout's
+            unsigned land = area_id(p, 2);
+            int b = -1, bd = 0;
+            for (int r = 0; r < n; r++) {
+                if (g_ter.t[r].water || g_sn_seen[idx][r] || (land && area_id(g_ter.t[r].c, 2) != land)) continue;
+                int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p);
+                for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout && z->m[j].ter == r;
+                if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
+            }
+            if (b < 0) {   // none left: the main force's again
+                unsigned r = ter_near(p.x, p.y);
+                m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0;
+                z->scouted++;
+                z->scout_off = now + SN_SCOUT_REST;   // what is left lies on other land: no scout is taken for it again at once (372 taken and sent back in an hour for 2 territories across the water)
+                continue;
+            }
+            m->ter = (short)b; m->order_t = 0; m->since = now ? now : 1;
+        }
+        if (!m->order_t || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
+    }
+    // ORDERS
+    for (int i = 0; i < nn; i++) {
+        struct sn_unit *m = &z->m[i];
+        if (m->scout || m->ter < 0 || m->ter >= n) continue;
+        int r = m->ter, reach = SN_NEAR, fight = 1;
+        ivec2 d = rally[r], p = unit_get_tile(m->u);
+        struct sn_push *pu = NULL;
+        for (int k = 0; k < SN_PUSHES; k++) if (z->push[k].on && z->push[k].from == r) pu = &z->push[k];
+        if (pu) { d = pu->at; reach = 5; }
+        else if (fn[r] > 0 && s->t[r].role != TVR_NONE) { d = iv2(fx[r] / fn[r], fy[r] / fn[r]); reach = 5; }
+        else if (m->pool == SNP_SIEGE) fight = 0;
+        if (ivec2_dist2(p, d) <= reach * reach) continue;
+        int moved = m->order_t && ivec2_dist2(m->to, d) > 6 * 6;   // its place has moved: the enemy, the push's next building
+        if (!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, i, d, fight, now);
+    }
+    if (g_log && (!z->log_t || now - z->log_t >= 60000)) {
+        z->log_t = now ? now : 1;
+        char buf[400] = "";
+        int o = 0, pushing = 0;
+        for (int r = 0; r < n && o < 330; r++)
+            if (tc[r] || ac[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s", r, ac[r], tc[r], fn[r] && s->t[r].role != TVR_NONE ? "!" : "");
+        for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
+        log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, scouts %d (territories never stood in: %d) | pushes on %d, so far %u started, %u won, %u lost | "
+                   "so far %u changes of station, %u orders, %u scouts back | territory:stationed/share (! enemy soldiers there):%s\n",
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->scouted, buf);
+    }
+}
+internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); }

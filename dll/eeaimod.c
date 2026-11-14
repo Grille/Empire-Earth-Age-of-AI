@@ -112,6 +112,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   //
 internal void build_new_game(void);
 internal void research_tick(ee_player *pl, uint32_t now);   // research.c: research by rank
 internal void research_new_game(void);
+internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the force by territory
+internal void stations_new_game(void);
 internal void territories_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
@@ -255,6 +257,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && !game) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
     if (pl && !is_vanilla(pl) && !game) build_tick(pl, rm, now);   // build.c: nor builds anything
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch
+    if (pl && !is_vanilla(pl) && !game) stations_tick(pl, now);   // stations.c: the soldiers by territory, in place of the one force
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
@@ -397,6 +400,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     work_new_game();
     build_new_game();
     research_new_game();
+    stations_new_game();
     airstrike_new_game();
     skirmish_new_game();
     spoils_new_game();
@@ -474,6 +478,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/produce.c"       // production by territory: which production building, in which territory (build.c lays it)
 #include "ai/build.c"         // building by territory: fields, a Settlement and a tower by every mine - the same
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
+#include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/airstrike.c"
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
