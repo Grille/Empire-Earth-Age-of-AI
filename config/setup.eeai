@@ -10,8 +10,8 @@
 // control pipe's commands as functions (spawn(2, unit.inf02_spearman, 70, 50, 10)). What is written outside the
 // hooks runs first, in every game: a let there is a name all hooks share. A hook that isn't needed may be deleted.
 //
-// A saved game carries on what the hooks started (variables, timers, triggers) - but not a hook that still waits
-// (wait(...)) as the game is saved. Not run: a multiplayer game, the scenario editor itself.
+// A saved game carries on what the hooks started (variables, timers, triggers), a hook that still waits (wait(...))
+// where it stands. Not run: a multiplayer game, the scenario editor itself.
 // A mistake is told in the game and in ageofai_log.csv, with its line; ageofai_check.exe checks the file without the
 // game.
 

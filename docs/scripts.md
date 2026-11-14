@@ -344,11 +344,22 @@ vectors, records, players, units by their ids, dicts, functions), the triggers w
 timers at their times, the `after`'s still to come, the spawned units' handles. The loaded game goes on with them as
 they were: `# persist: scripts restored: 1 (0 were waiting), 3 triggers and timers, 1 after's ...`.
 
-Not yet: a script that waits (`wait`, `wait_until`, `every`) as the game is saved - where it stands in its statements
-isn't saved, so it doesn't go on after the load (told in the log, `setup.eeai`'s on the screen too); what it started
-before does. A script that sets up triggers and timers and ends is saved whole. A function made in a text's
-`{placeholder}` isn't saved (told in the log). A test with its own `setup=` scripts keeps to them - the save's are
-left out there.
+A script that waits (`wait`, `wait_until`, `every`) as the game is saved is saved with where it stands - the blocks
+and their statements, the loops' counters, the functions it is in with their parameters and `let`s - and goes on there
+after the load, at the time it waited for: `# setup: <file>: goes on where it was saved (line 15)`. Nothing is worked
+out a second time.
+
+What can be found again is what stands at a statement's start: `wait(...)`, `wait_until(...)`, `every(...)` as
+statements, and a function that waits called as a statement - `f(...)`, `let x = f(...)`, `x = f(...)`,
+`return f(...)`, a function's `=> f(...)`. A function that waits called below an expression (`let x = f() + 1`, in a
+condition, as an argument) runs as always, but a game saved during that wait can't put the script back there: it
+doesn't go on after the load, what it started before (triggers, timers) does - told with its line as the game is saved
+and loaded, `setup.eeai`'s on the screen too. The same for the moment a script holds for a spawned unit (a test's
+scripts; `setup.eeai`'s units are made at once) and for a script that saves the game itself (`save(...)` in its own
+turn; from a trigger's or an after's function everything is saved but the rest of that function's run).
+
+A function made in a text's `{placeholder}` isn't saved (told in the log). A test with its own `setup=` scripts keeps
+to them - the save's are left out there.
 
 `script state` (a pipe command) saves the scripts and reads them back at once, as a save and its load do; `script
 state save <file>` / `script state load <file>` (a path without spaces) carry them from one game to another.

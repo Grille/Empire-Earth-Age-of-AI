@@ -29,6 +29,8 @@ struct script {
     int hooks;              // setup.eeai: the hooks called after its top, a bit each (SETUP.EEAI below)
     int safe;               // its turns are the safe point's (safe_turn): setup.eeai, a saved game's scripts
     struct xframe *top;     // its top frame once it runs: the file's own names (script_run)
+    struct xposs *plan;     // a saved game's that waited: where it stood, to go on there (expr.c WHERE A SCRIPT STANDS)
+    struct xposs pos;       // where it stands now (g_xp while it runs)
     struct xregion reg;     // its values
 };
 internal struct script g_scripts[SCRIPTS_MAX];
@@ -82,7 +84,6 @@ internal char *script_read(const char *path) {
 // form too. 0 and *why / *line; *have: a bit for each the file has
 enum { HOOK_GAME, HOOK_SKIRMISH, HOOK_SCENARIO, HOOK_CAMPAIGN, HOOK_N };
 internal const char *const k_setup_hooks[HOOK_N] = { "on_game", "on_skirmish", "on_scenario", "on_campaign" };
-internal const char *const k_setup_hook_calls[HOOK_N] = { "on_game()", "on_skirmish()", "on_scenario()", "on_campaign()" };
 internal int setup_hooks(const struct xunit *u, int *have, const char **why, int *line) {
     static char msg[160];
     *have = 0;
@@ -128,29 +129,52 @@ internal int script_load(const char *path, char **text, struct xunit *u, const c
 }
 // a script's statements, top to bottom (its top frame: the file's own names); a mistake ends it. The top frame stays
 // (keep): its triggers' and after's functions read its names as they are when they run, also after it ended.
-// hooks: setup.eeai's to call then (bits of k_setup_hooks), each as a last statement of the file would - in its top frame,
-// a mistake in one ends the script at the hook's own line. *keep: the top frame, for the saved games (NULL: not kept)
-internal int script_run(const char *path, const struct xunit *u, int hooks, struct xframe **keep) {
+// hooks: setup.eeai's to call then (bits of k_setup_hooks), each a function of its top frame called as a statement of
+// the file would call it - a mistake in one ends the script at the hook's own line. s: the script (NULL: a dry run's) -
+// its top frame kept for the saved games, and a saved game's that waited goes on where it stood (its plan: the top
+// frame it had, then its statements or the hook it was in found again - expr.c WHERE A SCRIPT STANDS)
+internal int script_run(const char *path, const struct xunit *u, int hooks, struct script *s) {
     struct xctx c = { 0 };
     c.found = 1;
     c.script = 1;
-    struct xframe *top = calloc(1, sizeof *top);
+    struct xposs *plan = s && s->top ? s->plan : NULL;
+    struct xframe *top = plan ? s->top : calloc(1, sizeof *top);
     if (!top) return 0;
     top->keep = 1;
-    if (keep) *keep = top;
+    if (s) s->top = top;
     struct xval rv;
     struct xe e = { &c, 0, NULL, top, 0, &rv, NULL, 0, 0, 0 };
-    c.fpn = top->name; c.fpv = top->val; c.fnp = 0;
+    c.fpn = top->name; c.fpv = top->val; c.fnp = top->n;
     g_x_last_fail[0] = 0;
-    x_exec(&e, u->root);
-    for (int k = 0; k < HOOK_N && !e.err; k++) {
-        static struct xunit call[HOOK_N];   // "on_game()", compiled once
-        if (!((hooks >> k) & 1)) continue;
-        if (!call[k].ok) call[k] = x_parse(k_setup_hook_calls[k], 1);
-        if (!call[k].ok) break;
-        log_line("# setup: %s: %s\n", path, k_setup_hook_calls[k]);
-        x_exec(&e, call[k].root);
+    int k0 = 0, in_hook = plan && plan->n && plan->e[0].k == XP_HOOK;
+    if (plan) {
+        int line;
+        x_stack_resumable(plan, &line);
+        log_line("# setup: %s: goes on where it was saved (line %d)\n", path, line);
+        plan->at = 0;
+        g_xres = plan;
+        if (in_hook) k0 = plan->e[0].i;
     }
+    if (!in_hook) x_exec(&e, u->root);
+    for (int k = k0; k < HOOK_N && !e.err; k++) {
+        int j = 0;
+        if (!((hooks >> k) & 1)) continue;
+        while (j < top->n && strcmp(top->name[j], k_setup_hooks[k])) j++;
+        if (j == top->n || top->val[j].kind != XV_FN) continue;   // (setup_hooks saw it declared)
+        struct xval fv = top->val[j], r;
+        struct xpos *xp = xp_push(XP_HOOK, NULL);
+        if (xp) xp->i = k;
+        if (g_xres) {
+            if (xres_next(XP_HOOK)) xres_call(&e, &r);
+            else { g_xres = NULL; x_fail(&e, "the saved script's place can't be found again (a hook)"); }
+        } else {
+            log_line("# setup: %s: %s()\n", path, k_setup_hooks[k]);
+            g_xp_call_direct = 1;
+            x_call_value(&e, &fv, NULL, 0, &r);
+        }
+        xp_pop(xp);
+    }
+    g_xres = NULL;
     if (e.err && g_log) {
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# setup: %s:%d: stopped - %s\n", path, e.err_at ? e.err_at->line : 0,
@@ -164,7 +188,7 @@ internal int script_run(const char *path, const struct xunit *u, int hooks, stru
 }
 internal void WINAPI script_fiber(void *arg) {
     struct script *s = arg;
-    script_run(s->path, &s->u, s->hooks, &s->top);
+    script_run(s->path, &s->u, s->hooks, s);
     log_line("# setup: %s: done\n", s->path);
     s->done = 1;
     for (;;) SwitchToFiber(g_main_fiber);
@@ -235,6 +259,7 @@ internal void script_end(struct script *s) {
     x_region_free(&s->reg);
     free(s->text);
     free(s->top);
+    free(s->plan);
     memset(s, 0, sizeof *s);
 }
 internal void scripts_restored_end(void) {   // a saved game's scripts (THE SCRIPTS IN A SAVED GAME): over with their game
@@ -299,7 +324,9 @@ internal void safe_turn(struct script *s, uint32_t now) {
     g_x_hooks.now = script_now; g_x_hooks.wait = script_wait; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
     g_x_safe = 1;   // (its spawns made at once, as a trigger's: units.c)
     g_cur_script = s;
+    g_xp = &s->pos;
     SwitchToFiber(s->fiber);
+    g_xp = NULL;
     g_cur_script = NULL;
     g_x_safe = 0;
     memset(&g_x_hooks, 0, sizeof g_x_hooks);
@@ -329,7 +356,9 @@ internal void run_setup(uint32_t now) {
         g_xr = &s->reg;
         g_x_hooks.now = script_now; g_x_hooks.wait = script_wait; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
         g_cur_script = s;
+        g_xp = &s->pos;
         SwitchToFiber(s->fiber);
+        g_xp = NULL;
         g_cur_script = NULL;
         memset(&g_x_hooks, 0, sizeof g_x_hooks);
         g_xr = r0;
@@ -357,18 +386,21 @@ internal void script_triggers(uint32_t now) {
 // frames they keep, the dicts (expr.c SAVED STATE), the spawned units' handles (game_script/units.c). A loaded game
 // (hook_game_start's persist_load, after scripts_new_game) has them as they were - the timers at their times, the
 // triggers with their conditions' state, the variables' values - compiled anew from the saved source.
-// Not yet: a script that waits (wait, wait_until, every) as the game is saved - where it stands in its statements
-// isn't saved, so it doesn't go on after the load (told in the log and, setup.eeai's, on the screen); what it
-// started before does. One that hasn't begun (a save in the first 2 s) starts at its top.
+// A script that waits (wait, wait_until, every) as the game is saved is saved with where it stands - the blocks and
+// statements, the loops, the functions it is in with their names - and goes on there after the load (expr.c WHERE A
+// SCRIPT STANDS). One that can't be found again - it waits below an expression (g(f()) + 1 where f waits), or holds
+// the moment for a spawned unit - doesn't go on: told in the log as it is saved and loaded and, setup.eeai's, on the
+// screen; what it started before does. One that hasn't begun (a save in the first 2 s) starts at its top.
 // A test that runs its own scripts (setup=) keeps to them: the save's are left out there. Elsewhere the save's test
 // scripts come back beside its setup.eeai, their turns the safe point's (safe_turns).
-#define SCRIPT_STATE_FORMAT 1
+#define SCRIPT_STATE_FORMAT 2   // 2: with where a waiting script stands
 enum { SS_NEW, SS_WAITING, SS_DONE };
 internal uint8_t *scripts_state_save(uint32_t *size) {
     struct script *sc[1 + SCRIPTS_MAX];
     const struct xnode *roots[1 + SCRIPTS_MAX];
     struct xframe *tops[1 + SCRIPTS_MAX];
-    int n = 0, lost = 0, waiting = 0;
+    const struct xposs *stacks[1 + SCRIPTS_MAX];
+    int n = 0, lost = 0, waiting = 0, stuck = 0;
     *size = 0;
     if (g_own.text) sc[n++] = &g_own;
     for (int i = 0; i < g_nscripts; i++) sc[n++] = &g_scripts[i];
@@ -379,7 +411,8 @@ internal uint8_t *scripts_state_save(uint32_t *size) {
     pb_int(&o, n);
     for (int i = 0; i < n; i++) {
         struct script *s = sc[i];
-        uint8_t kind = s != &g_own, state = s->done ? SS_DONE : s->fiber ? SS_WAITING : SS_NEW;
+        uint8_t kind = s != &g_own, state = s->done ? SS_DONE : s->fiber || s->plan ? SS_WAITING : SS_NEW;
+        int line = 0;
         pb_put(&o, &kind, 1);
         pb_put(&o, &state, 1);
         pb_str(&o, s->path);
@@ -388,14 +421,20 @@ internal uint8_t *scripts_state_save(uint32_t *size) {
         pb_int(&o, s->hooks);
         roots[i] = s->u.root;
         tops[i] = s->top;
+        stacks[i] = NULL;
         if (state != SS_WAITING) continue;
         waiting++;
-        log_line("# setup: %s: waits (until %.1f s) as the game is saved - a waiting script doesn't go on after a load, what it started does\n", s->path, s->wake / 1000.0);
+        if (!s->fiber) stacks[i] = s->plan;   // a loaded game's, saved again before its turn came
+        else if (s != g_cur_script && x_stack_resumable(&s->pos, &line)) stacks[i] = &s->pos;
+        if (stacks[i]) continue;
+        stuck++;
+        log_line("# setup: %s:%d: can't be found again after a load as the game is saved now - %s; what it started goes on\n", s->path, line,
+                 s == g_cur_script ? "it is its own turn (a save of its own)" : "it waits below an expression (a waiting function is called as a statement of its own), or holds for a spawned unit");
     }
-    x_state_save(&o, roots, tops, n, &lost);
+    x_state_save(&o, roots, tops, stacks, n, &lost);
     x_units_state_save(&o);
-    log_line("# persist: scripts: %d (%d waiting), %d triggers and timers, %d after's, %d spawned units' handles, %u bytes%s\n", n, waiting,
-             g_xt_n, g_xa_n, g_xslot_n, o.n, lost ? " - a function of a text's placeholder left out" : "");
+    log_line("# persist: scripts: %d (%d waiting, %d of them not to be found again), %d triggers and timers, %d after's, %d spawned units' handles, %u bytes%s\n",
+             n, waiting, stuck, g_xt_n, g_xa_n, g_xslot_n, o.n, lost ? " - a function of a text's placeholder left out" : "");
     if (o.bad) { free(o.b); return NULL; }
     *size = o.n;
     return o.b;
@@ -417,12 +456,14 @@ internal void scripts_state_load(const uint8_t *p, uint32_t size) {
     }
     if (pr_int(&r) != SCRIPT_STATE_FORMAT) { log_line("# persist: the save's scripts are of another format - none restored\n"); return; }
     uint32_t now = (uint32_t)pr_int(&r);
-    int n = pr_int(&r), nt = 0, waiting = 0;
+    int n = pr_int(&r), nt = 0, waiting = 0, stuck = 0;
     if (r.bad || n < 1 || n > 1 + SCRIPTS_MAX) { log_line("# persist: the save's scripts are broken - none restored\n"); return; }
     struct script *sc[1 + SCRIPTS_MAX];
     const struct xnode *roots[1 + SCRIPTS_MAX];
     struct xframe *tops[1 + SCRIPTS_MAX] = { 0 };
     struct xregion *regs[1 + SCRIPTS_MAX];
+    struct xposs *plans[1 + SCRIPTS_MAX] = { 0 };
+    uint8_t states[1 + SCRIPTS_MAX] = { 0 };
     x_triggers_reset();
     x_units_reset();
     for (int i = 0; i < n; i++) {
@@ -445,26 +486,34 @@ internal void scripts_state_load(const uint8_t *p, uint32_t size) {
             scripts_state_drop("a script this version of the mod doesn't read");
             return;
         }
-        s->done = state != SS_NEW;
+        s->done = state == SS_DONE;
         s->wake = wake;
+        states[i] = state;
         s->hooks = hooks;
         s->safe = 1;
         s->reg.busy = 1;
         sc[i] = s; roots[i] = s->u.root; regs[i] = &s->reg;
-        if (state != SS_WAITING) continue;
-        waiting++;
-        log_line("# setup: %s: was waiting as this game was saved - it doesn't go on, what it started does\n", s->path);
-        if (s == &g_own) x_error("setup.eeai: was waiting as this game was saved - it doesn't go on (its timers and triggers do)");
     }
     if (nt) { g_nscripts = nt; g_scripts_restored = 1; }
-    if (!x_state_load(&r, roots, tops, regs, n)) { scripts_state_drop("broken, or another version's"); return; }
-    for (int i = 0; i < n; i++) sc[i]->top = tops[i];
+    if (!x_state_load(&r, roots, tops, regs, plans, n)) { scripts_state_drop("broken, or another version's"); return; }
+    for (int i = 0; i < n; i++) {
+        struct script *s = sc[i];
+        s->top = tops[i];
+        s->plan = plans[i];
+        if (states[i] != SS_WAITING) { free(s->plan); s->plan = NULL; continue; }
+        waiting++;
+        if (s->plan && s->top) continue;   // it goes on where it stood, at its time
+        stuck++;
+        s->done = 1;
+        log_line("# setup: %s: was waiting where it can't be found again as this game was saved - it doesn't go on, what it started does\n", s->path);
+        if (s == &g_own) x_error("setup.eeai: was waiting where it can't go on from as this game was saved (its timers and triggers do)");
+    }
     x_units_state_load(&r);
     if (r.bad) { scripts_state_drop("broken"); return; }
     g_script_now = now;
     g_own_fresh = 1;
-    log_line("# persist: scripts restored: %d (%d were waiting), %d triggers and timers, %d after's, %d spawned units' handles\n", n, waiting,
-             g_xt_n, g_xa_n, g_xslot_n);
+    log_line("# persist: scripts restored: %d (%d were waiting, %d of them not to be found again), %d triggers and timers, %d after's, %d spawned units' handles\n",
+             n, waiting, stuck, g_xt_n, g_xa_n, g_xslot_n);
 }
 // THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 2 s), the
 // commands are written to <out> ("<ms> <command>") and answered "ok" (tests: a converted scenario issues the same
