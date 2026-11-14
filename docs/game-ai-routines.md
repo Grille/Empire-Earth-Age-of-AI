@@ -349,11 +349,13 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
   "research" of the priority list holds that from everybody else. Handed to a building's own queue (0x5E8908), paid as
   a player's. build.c lays one University, one Hospital and one Temple for it. The units' improvements (attack, hit points ... per
   type) are not in the tech tree and not bought yet.
-  Production by territory (ai/produce.c, the same day, the player's design): every land territory it holds says how many
-  soldiers it wants (defence, a scout, attack), its neighbours' free soldiers count against that, and what is still
-  missing times the way to its nearest production beyond the first step makes a territory build its own (a hub next
-  door is used); its very first production building right after the University, a kind it has nowhere and one more of
-  a busy kind in the hub that wants the most. The count only: who marches where is still the old force's.
+  Production by territory (ai/produce.c, the same day, the player's design): the territories deal in shares of the whole
+  force, not in soldiers - an attack first (the enemy soldiers in a territory, converted into the share of the force
+  needed against them), the rest divided by weight (a front's guard, a scout, attack beside enemy buildings); a
+  neighbour's share beyond its own counts for one that is short; the share still missing, times the way to its nearest
+  production beyond the first step, makes a territory build its own (a hub next door is used); its very first
+  production building right after the University, a kind it has nowhere and one more of a busy kind in the hub that
+  wants the most. The count only: who marches where is still the old force's.
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
   sites, fields (done); (2) building - what, where, which citizen builds (done for the food base, the mines and the
   research buildings and the land production; open: houses, docks, repairs); (3) research and the epochs (done but the

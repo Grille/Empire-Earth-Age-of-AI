@@ -8,20 +8,28 @@
 // hub in a neigbor its fine to use it, if the next prodcution is many land and even sea territories away: lets build
 // up localy".
 // Every PR_EVERY per AI, on the territory view (territories.c):
-//   WANTED    - a land territory it holds says how many soldiers it wants: DEFENCE, a front's guard (the view's
-//               want: a third of its citizens, 3 to 12, 8 with enemy soldiers seen there in the last 5 minutes;
-//               backland none) and one for each enemy soldier there now; EXPLORATION, 1 with a land neighbour nobody
-//               is known to hold; ATTACK, beside a territory with enemy buildings it has seen PR_ATTACK and one for
-//               each of them, PR_ATTACK_MAX at most.
-//   GIVEN     - its soldiers standing in a territory beyond what that one wants are free: a neighbour short of
-//               soldiers counts them as its own (the count only, here: who marches where is the armies').
-//   SHORT     - what is still missing has to be produced. Its way to the nearest production building of its (a
-//               finished one, territory by territory: 1 a land territory, PR_SEA onto water, PR_FAR with none
-//               anywhere) beyond the first step, times the soldiers missing, is the territory's claim: from
-//               PR_LOCAL it builds its own - a hub next door serves whatever is missing ("if there is a production
-//               hub in a neigbor its fine to use it": the first look built a second hub beside the first for 16
-//               missing), two territories off 12 missing build, three off 6, across a sea 4. Only a territory that is established (PR_BLD of its buildings) and secured
-//               (no enemy soldier in it, not being lost) builds: the claim waits for the Settlement and the tower.
+//   SHARES    - the territories deal in shares of the whole force, not in soldiers (the player, the same day: "now
+//               that i think about it, territories probably shouldnt deal with real unit numbers but relations
+//               instead. 100% is the full military force and the terriotories distribute that under each other, with
+//               conversions into the system like how much % of all the force do i need to defend against the current
+//               attack, do i have that share alredy or could my friendly neighboars contribute"). The force: its land
+//               soldiers, wherever they stand. Of its 1000 thousandths
+//                 AN ATTACK comes first: a territory it holds with enemy soldiers in it needs PR_MARGIN times their
+//                 number - converted: that many of the force as a share of it (more than the whole force in all:
+//                 each its part of the whole, and the look says by how much the force is too small);
+//                 THE REST is divided by weight among the land territories it holds: DEFENCE, a front's guard (the
+//                 view's: a third of its citizens, 3 to 12, 8 with enemy soldiers seen there in the last 5 minutes;
+//                 backland none), EXPLORATION, 1 with a land neighbour nobody is known to hold, ATTACK, beside a
+//                 territory with enemy buildings it has seen PR_ATTACK and one for each of them, PR_ATTACK_MAX at most.
+//   HAS       - the share of the force standing in the territory. Beyond its own share it is free: a neighbour short
+//               of its share counts it as its own (the count only, here: who marches where is the armies').
+//   SHORT     - the share still missing is what production has to bring there. Times the way to its nearest
+//               production building (a finished one, territory by territory: 1 a land territory, PR_SEA onto water,
+//               PR_FAR with none anywhere) beyond the first step it is the territory's claim: from PR_LOCAL it builds
+//               its own - a hub next door serves whatever is missing ("if there is a production hub in a neigbor its
+//               fine to use it"), two territories off a quarter of the force missing builds, three off an eighth,
+//               across a sea a twelfth. Only a territory that is established (PR_BLD of its buildings) and secured
+//               (no enemy soldier in it, not being lost) builds, and none before it has 2 granaries.
 //   WHAT      - the first building of a hub: the first of PR_KINDS the game offers (a Barracks). A kind it has
 //               nowhere yet follows, in the hub that wants the most - but past its first production building
 //               nothing before it has 2 granaries (the player 2026-11-08: one production building until 2 farms).
@@ -34,7 +42,8 @@
 #define PR_T 4096
 #define PR_SEA 3
 #define PR_FAR 8
-#define PR_LOCAL 12
+#define PR_LOCAL 250      // thousandths of the force missing x steps beyond the first
+#define PR_MARGIN 5 / 4   // against an attack: this many times the enemy soldiers there
 #define PR_BLD 3
 #define PR_ATTACK 10
 #define PR_ATTACK_MAX 30
@@ -45,14 +54,16 @@ internal struct pr_st {
     int type, ter, first;    // what it asks build.c for: the building (0: nothing now), the territory; first: it has no production building yet
     ivec2 at;                // ... by this building of its there
     const char *why;
-    int hubs, buildings, want, have, shortn, claims;   // the last look: territories with production, production buildings, soldiers wanted / there / still missing, territories whose claim reaches PR_LOCAL
+    int hubs, buildings, force, attack, over, shortn, claims;   // the last look: territories with production, production buildings; its land soldiers; the share an attack takes, what the attacks ask beyond the whole force, the share missing where no neighbour gives (thousandths); territories whose claim reaches PR_LOCAL
 } g_pr[16];
+// the shares of the last look, by territory (thousandths of the force): what it should have, what stands there
+internal uint16_t g_pr_share[16][PR_T], g_pr_has[16][PR_T];
 internal int pr_kind(int type) {
     for (int k = 0; k < PR_NK; k++) if (g_ut[PR_KINDS[k]] >= 0 && g_ut[PR_KINDS[k]] == type) return k;
     return -1;
 }
 internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
-    static short want[PR_T], have[PR_T], fre[PR_T], sh[PR_T];
+    static int want[PR_T], have[PR_T], fre[PR_T], sh[PR_T], hard[PR_T], wgt[PR_T];
     static uint8_t dist[PR_T], np[PR_T][PR_NK], anc[PR_T];
     static ivec2 anchor[PR_T];
     struct pr_st *z = &g_pr[idx];
@@ -95,34 +106,44 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
             }
         }
     }
-    z->want = z->have = z->shortn = z->hubs = z->claims = 0; z->buildings = total;
-    for (int r = 0; r < n; r++) {   // WANTED
+    z->force = z->attack = z->over = z->shortn = z->hubs = z->claims = 0; z->buildings = total;
+    int force = 0, hsum = 0, wsum = 0;
+    for (int r = 0; r < n; r++) if (!g_ter.t[r].water) force += s->t[r].sold;
+    for (int r = 0; r < n; r++) {   // SHARES: an attack's as a share of the force, the weights of the rest
         struct tv_terr *t = &s->t[r];
         int d = 0, e = 0, a = 0;
-        want[r] = 0; have[r] = g_ter.t[r].water ? 0 : t->sold;
+        hard[r] = wgt[r] = 0;
         if (!g_ter.t[r].water && t->role != TVR_NONE) {
-            d = (t->role == TVR_FRONT || (t->foe_t && now >= t->foe_t && now - t->foe_t < TV_FOE_MEMORY) ? t->want : 0) + t->foe;
+            if (t->foe > 0) { int need = t->foe * PR_MARGIN + 1; hard[r] = force > 0 ? need * 1000 / force : 1000; }
+            d = t->role == TVR_FRONT || (t->foe_t && now >= t->foe_t && now - t->foe_t < TV_FOE_MEMORY) ? t->want : 0;
             for (int k = 0; k < g_ter.t[r].nbn; k++) {
                 unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
                 if (o >= (unsigned)n || g_ter.t[o].water) continue;
                 if (!s->t[o].friendly && !s->t[o].ebld) e = 1;
                 if (s->t[o].ebld) { int w = PR_ATTACK + s->t[o].ebld; if (w > PR_ATTACK_MAX) w = PR_ATTACK_MAX; if (w > a) a = w; }
             }
-            want[r] = (short)(d + e + a);
+            wgt[r] = d + e + a;
         }
-        fre[r] = (short)(have[r] > want[r] ? have[r] - want[r] : 0);
-        sh[r] = (short)(want[r] > have[r] ? want[r] - have[r] : 0);
-        z->want += want[r]; z->have += have[r];
+        hsum += hard[r]; wsum += wgt[r];
         int any = 0;
         for (int k = 0; k < PR_NK; k++) any += np[r][k];
         z->hubs += any > 0;
     }
-    for (int r = 0; r < n; r++)   // GIVEN
+    z->force = force; z->over = hsum > 1000 ? hsum - 1000 : 0; z->attack = hsum > 1000 ? 1000 : hsum;
+    for (int r = 0; r < n; r++) {   // ... the share each should have, the share that stands there
+        int h = hsum > 1000 ? hard[r] * 1000 / hsum : hard[r];
+        want[r] = h + (wsum > 0 ? (1000 - z->attack) * wgt[r] / wsum : 0);
+        have[r] = force > 0 && !g_ter.t[r].water ? s->t[r].sold * 1000 / force : 0;
+        fre[r] = have[r] > want[r] ? have[r] - want[r] : 0;
+        sh[r] = want[r] > have[r] ? want[r] - have[r] : 0;
+        g_pr_share[idx][r] = (uint16_t)want[r]; g_pr_has[idx][r] = (uint16_t)have[r];
+    }
+    for (int r = 0; r < n; r++)   // HAS: a neighbour's free share counts
         for (int k = 0; sh[r] > 0 && k < g_ter.t[r].nbn; k++) {
             unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
             if (o >= (unsigned)n || g_ter.t[o].water || !fre[o]) continue;
             int g = fre[o] < sh[r] ? fre[o] : sh[r];
-            fre[o] = (short)(fre[o] - g); sh[r] = (short)(sh[r] - g);
+            fre[o] -= g; sh[r] -= g;
         }
     int best = -1, bscore = 0, hub = -1, hwant = -1, first = -1, fscore = -1;
     for (int r = 0; r < n; r++) {   // SHORT: the claims
@@ -133,7 +154,7 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
         for (int k = 0; k < PR_NK; k++) any += np[r][k];
         if (any && want[r] > hwant) { hwant = want[r]; hub = r; }
         if (t->bld < PR_BLD || t->state != TV_QUIET || any) continue;   // established and secured, no hub yet
-        int fs = (t->role == TVR_FRONT ? 1000 : 0) + sh[r] * 10 + t->bld;   // with no production anywhere: a front first, the one missing the most
+        int fs = (t->role == TVR_FRONT ? 100000 : 0) + sh[r] * 10 + t->bld;   // with no production anywhere: a front first, the one missing the most
         if (fs > fscore) { fscore = fs; first = r; }
         int d = dist[r] > PR_FAR ? PR_FAR : dist[r], score = sh[r] * (d - 1);
         if (score < PR_LOCAL) continue;
@@ -143,7 +164,7 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
     int ter = -1, type = 0;
     const char *why = NULL;
     if (!total && first >= 0) { ter = first; why = "its first production"; }
-    else if (best >= 0 && done) { ter = best; why = "a territory builds its own: too far from the next production for what it misses"; }   // none while its first is still going up
+    else if (best >= 0 && done && granaries >= 2) { ter = best; why = "a territory builds its own: too far from the next production for what it misses"; }   // none while its first is still going up
     if (ter >= 0)
         for (int k = 0; k < PR_NK && !type; k++) if (ut_has(g_ut[PR_KINDS[k]]) && prio_buildable(pl, g_ut[PR_KINDS[k]])) type = g_ut[PR_KINDS[k]];
     if (!type && total && granaries >= 2 && hub >= 0 && s->t[hub].state == TV_QUIET) {   // a kind it has nowhere: in the hub that wants the most
@@ -164,9 +185,9 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
         char buf[400] = "";
         int o = 0;
         for (int r = 0; r < n && o < 330; r++)
-            if (want[r] || have[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s", r, have[r], want[r], dist[r] == 0 ? "*" : "");
-        log_locked("# produce: P%u at %.1f min: soldiers wanted %d, there %d, to produce %d | production buildings %d (%d finished) in %d territories, granaries %d | claims %d | asks for %d in territory %d (%s) | territory:there/wanted (* production):%s\n",
-                   idx, now / 60000.0, z->want, z->have, z->shortn, total, done, z->hubs, granaries, z->claims, z->type, z->type ? z->ter : -1, z->type ? z->why : "nothing", buf);
+            if (want[r] || have[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s%s", r, (have[r] + 5) / 10, (want[r] + 5) / 10, hard[r] ? "!" : "", dist[r] == 0 ? "*" : "");
+        log_locked("# produce: P%u at %.1f min: the force %d soldiers | an attack takes %d%% of it%s, missing where no neighbour gives %d%% | production buildings %d (%d finished) in %d territories, granaries %d | claims %d | asks for %d in territory %d (%s) | territory:has%%/share%% (! under attack, * production):%s\n",
+                   idx, now / 60000.0, z->force, (z->attack + 5) / 10, z->over ? " - the force is too small for it" : "", (z->shortn + 5) / 10, total, done, z->hubs, granaries, z->claims, z->type, z->type ? z->ter : -1, z->type ? z->why : "nothing", buf);
     }
 }
-internal void produce_new_game(void) { memset(g_pr, 0, sizeof g_pr); memset(g_pr_more, 0, sizeof g_pr_more); }
+internal void produce_new_game(void) { memset(g_pr, 0, sizeof g_pr); memset(g_pr_more, 0, sizeof g_pr_more); memset(g_pr_share, 0, sizeof g_pr_share); memset(g_pr_has, 0, sizeof g_pr_has); }
