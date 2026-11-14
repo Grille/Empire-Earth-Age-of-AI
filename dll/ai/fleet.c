@@ -783,12 +783,14 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 // should gurante coverage witout wasting resources".
 // So: a harbour a SEA territory. Each sea that borders land the AI holds and has no dock of its on it gets one from the
 // held territory with the longest shore there (territories.c tv_harbour_next) - a dock, and a tower by every dock that
-// has none within HB_TOWER_R, a second one where enemy warships were seen on that sea in the last 10 minutes; one
+// has none within HB_TOWER_R, a second one where enemy warships were seen on that sea in the last 10 minutes or with
+// HB_STONE of stone in the bank; one
 // order a HB_EVERY, HB_DOCKS docks at most. And the fleet's rally (fl_rally: where it masses and falls back to) counts
 // a place in its station's sea as much as HB_RALLY towers more (with FLEET STATION).
 #define HB_EVERY 45000
 #define HB_CITS 3
 #define HB_TOWER_R 8
+#define HB_STONE 600                // stone in the bank from which a harbour gets its second tower unasked
 #define HB_DOCKS 8
 internal int tv_harbour_next(unsigned idx, const unsigned *dock_seas, int nd, int cits, ivec2 *shore, unsigned *land, unsigned *sea);   // territories.c
 internal int tv_sea_threat(unsigned idx, unsigned sea);
@@ -808,7 +810,7 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     int ttype = tower_newest(pl);
     for (int k = 0; ttype && k < g_fs.nd && k < 16 && !tower_queued(bm); k++) {   // its towers first: a dock without one is no harbour
         ivec2 dk = g_fs.dk[k];
-        int cov = 0, oc = (int)ocean_near(dk, 4, NULL), want = 1 + (dock_seas[k] != TER_NONE && tv_sea_threat(idx, dock_seas[k]));
+        int cov = 0, oc = (int)ocean_near(dk, 4, NULL), want = 1 + ((dock_seas[k] != TER_NONE && tv_sea_threat(idx, dock_seas[k])) || player_stock_at(pl)[4] >= HB_STONE);   // the second: under threat, or with the stone there (the player: "just add the second tower if the stone is threr")
         for (int j = 0; j < g_fs.ntw; j++) cov += ivec2_dist2(g_fs.tw[j], dk) <= HB_TOWER_R * HB_TOWER_R;
         if (cov >= want || !oc || raiders_near(pl, dk, 10)) continue;
         for (int r = 2; r <= 6; r++)

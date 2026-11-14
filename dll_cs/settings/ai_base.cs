@@ -324,9 +324,15 @@ class ai_base
         bool fleet_station = false;
         /// Harbours (ai/fleet.c HARBOURS): every sea territory that borders land the AI holds gets one harbour - a dock from
         /// the held territory with the longest shore there, a tower by it, a second where enemy warships were seen on that
-        /// sea - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
+        /// sea or with 600 stone in the bank - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
         /// of map. 1 = on. Off until the territory system is measured as a whole
         bool harbours = false;
+        /// Border towers (ai/territories.c BORDER TOWERS): while 1500 stone and 1500 wood lie in the bank, one tower every
+        /// 20 seconds on the outside border of a territory the AI holds - by the water or by land nobody of its side
+        /// holds - where none of its towers stands within 12 tiles; from each territory's middle outwards, until its
+        /// shores and open borders are covered. Peace of mind against a landing from behind; not something the AI
+        /// against AI games can show. 1 = on. Off with the rest of the territory system
+        bool border_towers = false;
     }
 
     class SiegeAndTowerRouting

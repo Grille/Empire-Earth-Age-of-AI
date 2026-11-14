@@ -76,6 +76,7 @@ internal struct tv_st {
 internal int g_ter_shelter = 0, g_v_ter_shelter = -1;
 #define TER_SHELTER(idx) PV(idx, g_v_ter_shelter, g_ter_shelter)
 internal struct st_side g_tv_own, g_tv_foe;
+internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now);   // BORDER TOWERS (below)
 
 // an enemy land soldier of pl's that it sees
 internal int tv_foe_unit(ee_player *pl, ee_unit *u, ee_unit_type *td) {
@@ -224,6 +225,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         }
         t->role = (uint8_t)(t->open || t->shore ? TVR_FRONT : TVR_BACK);
     }
+    tv_border_towers(pl, idx, now);
     static int layer = -2;
     if (layer == -2) layer = overlay_layer("territories");
     if (overlay_on(layer)) {   // the unsafe ones marked in the AI's colour, the held ones short of their guard named
@@ -275,6 +277,76 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         fprintf(g_log, " | %d territories held, %d soldiers short of the guards wanted\n", held, short_of);
         LeaveCriticalSection(&g_lock);
     }
+}
+// ---- BORDER TOWERS ([ai_base] border_towers; [autotest] v_border_towers) ----
+// The player, 2026-11-14: "placing towers and walls along outside borders, tousends of stone or wood in the bank are
+// useless, player completly cover their shores with towers for example, a bit of peace of mind in case anyone tries to
+// sneak in from behind. stuff like that wont pay in the tests, since sneak attacks from behind arent really in the ai
+// yet". So this part is NOT judged by the AI-against-AI games.
+// While BW_STONE of stone and BW_WOOD of wood lie in the bank: every BW_EVERY one tower on the outside border of a
+// territory it holds (3 of its citizens there, not being lost) - a tile of it within 2 of water or of land nobody of
+// its side holds - where no tower of its stands within BW_SPACE tiles; the place nearest that territory's middle
+// first, so the cover grows from the core outwards and ends as a tower every BW_SPACE tiles of shore and open border.
+// Walls: not yet (the ring of defence.c THE TOWN RING is the place for them).
+#define BW_EVERY 20000
+#define BW_STONE 1500
+#define BW_WOOD 1500
+#define BW_SPACE 12
+#define BW_TOWERS 512
+internal int g_border_towers = 0, g_v_border_towers = -1;
+#define BORDER_TOWERS(idx) PV(idx, g_v_border_towers, g_border_towers)
+internal struct { uint32_t t; unsigned queued, no_place; int ntw; ivec2 tw[BW_TOWERS]; struct { ivec2 p; uint32_t t; } bad[32]; int nbad; } g_bw[16];   // bad: places no tower could be put by, not tried again for 5 minutes
+internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
+    struct tv_st *s = &g_tv[idx];
+    if (!BORDER_TOWERS(idx) || !s->n || (g_bw[idx].t && now >= g_bw[idx].t && now - g_bw[idx].t < BW_EVERY)) return;
+    g_bw[idx].t = now ? now : 1;
+    const int *stock = player_stock_at(pl);
+    void *cm = player_get_civ_mgr(pl);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int e = current_epoch(pl), ttype = tower_newest(pl), size = g_ter.size;
+    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < BW_STONE || stock[3] < BW_WOOD || tower_queued(bm)) return;
+    g_bw[idx].ntw = 0;   // its towers (and other defences) as they stand
+    for (ee_unit *u = player_get_units(pl); u && g_bw[idx].ntw < BW_TOWERS; u = unit_get_next(u)) {
+        float rng, att;
+        ee_unit_type *td = unit_get_type_data(u);
+        int fam = td ? unit_type_get_class_id(td) : 0;
+        if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && defence_stats(u, &rng, &att)) g_bw[idx].tw[g_bw[idx].ntw++] = unit_get_tile(u);
+    }
+    ivec2 best = iv2(-1, -1);
+    long bd = 0x7FFFFFFF;
+    for (int y = 3; y < size - 3; y += 3)
+        for (int x = 3; x < size - 3; x += 3) {
+            unsigned r = g_ter.lab[y * size + x];
+            if (r >= (unsigned)s->n || g_ter.t[r].water || s->t[r].role == TVR_NONE || s->t[r].cit < 3 || s->t[r].state == TV_UNSAFE) continue;
+            int edge = 0;
+            for (int d = 0; d < 8 && !edge; d += 2) {
+                unsigned o = g_ter.lab[(y + 2 * k_rm_dy[d]) * size + x + 2 * k_rm_dx[d]];
+                edge = o != r && o < (unsigned)s->n && (g_ter.t[o].water || !s->t[o].friendly);
+            }
+            if (!edge) continue;
+            long dc = ivec2_dist2(iv2(x, y), g_ter.t[r].c);
+            if (dc >= bd) continue;
+            int covered = 0;
+            for (int k = 0; k < g_bw[idx].ntw && !covered; k++) covered = ivec2_dist2(g_bw[idx].tw[k], iv2(x, y)) <= BW_SPACE * BW_SPACE;
+            for (int k = 0; k < 32 && !covered; k++) covered = g_bw[idx].bad[k].t && now - g_bw[idx].bad[k].t < 300000 && ivec2_dist2(g_bw[idx].bad[k].p, iv2(x, y)) <= 16;
+            if (!covered) { bd = dc; best = iv2(x, y); }
+        }
+    if (best.x < 0 || raiders_near(pl, best, 12)) return;
+    for (int r = 0; r <= 3; r++)
+        for (int ax = -r; ax <= r; ax++)
+            for (int ay = -r; ay <= r; ay++) {
+                ivec2 q = ivec2_add(best, iv2(ax, ay));
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, ttype, q)) continue;
+                int entry[3] = { ttype, q.x, q.y };
+                build_mgr_queue_add(bm, e, entry);
+                g_bw[idx].queued++;
+                if (g_log && (g_autotest || !(g_bw[idx].queued % 10))) fprintf(g_log, "# border: P%u at %.1f min: tower %d queued at %d,%d on the outside border of its territory %u (stone %d, wood %d in the bank; %d towers standing, %u queued so far)\n",
+                                                                                 idx, now / 60000.0, ttype, q.x, q.y, g_ter.lab[best.y * size + best.x], stock[4], stock[3], g_bw[idx].ntw, g_bw[idx].queued);
+                return;
+            }
+    g_bw[idx].bad[g_bw[idx].nbad++ & 31].p = best; g_bw[idx].bad[(g_bw[idx].nbad - 1) & 31].t = now ? now : 1;   // no place for a tower by it: the next one the next time
+    g_bw[idx].no_place++;
+    g_bw[idx].t = now - BW_EVERY + 2000;
 }
 // is the territory of tile (x, y) being lost for AI idx (0 too: the setting off, no look yet, no territory there)
 internal int tv_unsafe(unsigned idx, int x, int y) {
@@ -433,6 +505,8 @@ internal void tv_count(unsigned idx, int what) {   // the log's counters: 0 into
 internal int tv_outpost_fortress(unsigned idx) { return TER_SHELTER(idx & 15) >= 2; }   // expand.c: the outpost's Fortress
 internal void territories_install(const char *autotest_ini) {
     g_ter_shelter = g_set_ai[1].territory_shelter ? 1 : 0;
+    g_border_towers = g_set_ai[1].border_towers;
+    if (autotest_ini) g_v_border_towers = ini_int("autotest", "v_border_towers", -1, autotest_ini);
     if (autotest_ini) g_v_ter_shelter = ini_int("autotest", "v_territory_shelter", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# territories: territory_shelter %d (variant %d)\n", g_ter_shelter, g_v_ter_shelter);
 }
