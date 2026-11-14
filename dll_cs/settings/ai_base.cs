@@ -772,6 +772,12 @@ class ai_base
             /// and the guns, trained at home and brought by a boat of their own (the warships killed half the citizens lost at the
             /// outposts where the mod had no guns there)
             bool fort_guns;
+            /// the landing as a player does it: a tower by the landing first, every citizen on it, the guard on to the mines;
+            /// the site's tower and the Settlement once it has looked there and found nobody; the transport waits by the shore
+            /// and takes them off again when enemies there win before a tower stands (2026-11-14, 24 games on island maps:
+            /// level with the landing without it - soldiers +5 and 0, fewer outposts lost on a large map, 8 of 22 landings
+            /// taken off again; not in the default)
+            bool beachhead;
         }
         /// Outposts on other islands (docs/economy.md "Other islands"), water maps only (needs landing=1); the parts from
         /// early on are for the large maps (docs/economy.md "Large island maps").

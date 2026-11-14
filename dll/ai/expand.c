@@ -294,9 +294,10 @@ internal int g_expand = 305, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_e
 // of guns (ex_plan), and takes its post once ashore. A battery as soon as the drop site and two towers stand, without
 // waiting for the ships: ordered when the warships had come, 5 of 18 boats were called off for the sea they held.
 #define EX_GUNS(idx) (EXPAND(idx) & 512)
-enum { XK_TOWER, XK_DROP, XK_BARRACKS, XK_SHELTER };   // XK_SHELTER: a Fortress its citizens go into when the territory is being lost (territories.c)
-internal const char *const k_xk[4] = { "tower", "drop site", "barracks", "fortress" };
-struct ex_proj { ee_unit *b; int id, kind, type, state, tries; ivec2 p; int waits; };   // state 0 to come, 1 going up, 2 standing, 3 dropped
+#define EX_BEACH(idx) (EXPAND(idx) & 1024)   // THE LANDING AS THE PLAYER DOES IT (below)
+enum { XK_TOWER, XK_DROP, XK_BARRACKS, XK_SHELTER, XK_BEACH };   // XK_SHELTER: a Fortress its citizens go into when the territory is being lost (territories.c); XK_BEACH: the landing's tower
+internal const char *const k_xk[5] = { "tower", "drop site", "barracks", "fortress", "landing tower" };
+struct ex_proj { ee_unit *b; int id, kind, type, state, tries; ivec2 p; int waits, nowait; };   // state 0 to come, 1 going up, 2 standing, 3 dropped
 #define EX_PROJ 8
 struct ex_unit { ee_unit *u; int id; };
 internal struct ex_st {
@@ -306,7 +307,8 @@ internal struct ex_st {
     struct ex_proj proj[EX_PROJ]; int nproj;
     uint32_t t, log_t, base_t, empty_t, trip_t, next_try, plan_t;
     int ever_ashore, trips, drop_ok, ncit, nsold;
-    int fphase;                           // the ferry: 0 none, 1 a transport, 2 boarding, 3 at sea, 4 scouting (empty)
+    int fphase;                           // the ferry: 0 none, 1 a transport, 2 boarding, 3 at sea, 4 scouting (empty); BEACH: 5 waiting by the island, 6 taking them off again, 7 home with them
+    int site_ok; unsigned escapes;        // BEACH: the guard has looked at the mines and found nobody; landings taken off again
     struct ex_unit ship, pass[16], last; int npass;
     uint32_t fsince, freissue, sea_t, load_t;
     uint32_t ftrain_t; int guard_trip;
@@ -406,6 +408,8 @@ internal void expand_hold(ee_player *pl, int reserve[7]) {
     if (!x->res_t || game_time() - x->res_t > 180000) return;
     int tt = ld_kind_type(pl, LDB_TOWER);
     for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, UT(B_SETTLEMENT), r) + (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r));
+    for (int j = 0; j < x->nproj; j++)   // BEACH: the landing's tower too - the site's and the Settlement follow at once
+        if (x->proj[j].kind == XK_BEACH && !x->proj[j].state) for (int r = 2; r < 7; r++) reserve[r] += tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r);
     // ... and its Fortress (territories.c): without the reserve 2 and 4 were built at some 7 and 20 outposts in 12 games
     // each, 6 given up for the 350 wood after 4 minutes - 212 of 241 citizens killed at outposts died with none standing
     for (int j = 0; j < x->nproj; j++)
@@ -853,8 +857,14 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     if (n <= 0) {
         int ashore = 0;
         for (int k = 0; k < x->npass; k++) ashore += ex_alive(&x->pass[k], pl) && unit_get_x(x->pass[k].u) >= 0;
+        int stay = EX_BEACH(idx) && !x->ever_ashore && x->active;   // BEACH: the first landing's transport stays by the shore
         x->ashore++; x->ever_ashore = 1; x->empty_t = 0;
         if (x->nproj && !x->base_t) x->base_t = now;
+        if (stay) {
+            x->fphase = 5; x->fsince = now; x->npass = 0; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0;
+            ex_say(idx, now, "ashore on the island %u - %d landed, the transport waits by the shore", x->cont, ashore);
+            return;
+        }
         x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
         x->last = x->ship;
         x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0;
@@ -902,8 +912,142 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
     e->foe++;
     if (!e->fu || d < e->fd) { e->fu = u; e->fd = d; }
 }
+// ---- THE LANDING AS THE PLAYER DOES IT (expand_islands beachhead, 1024) ----
+// The player, 2026-11-14 (I had proposed the guard ashore first, the citizens once the land was looked at): "i usualy do
+// both togeter since speed matters, a few citezens atleast 6 and a few guards, they get dropped of by the transport the
+// guards scout a bit into the land and the citezens imediatly start building a tower, once a resource site is found they
+// imediatly go there and build a tower than a towncenter than continue to extend and fortify the base. the transport
+// stays close so escape is possible if the island turns out to unsafe and they cant get the tower up in time".
+// What it mends (territories.c MEASURED): a quarter of the citizens killed at outposts died within a minute or two of
+// the landing, half within 4-9 minutes - soldiers already on the island, nothing built yet; in one game two AIs landed
+// 8 citizens and 1 guard each beside a third's 3 soldiers, all 16 dead in two minutes.
+// With it: the projects are the landing's tower (XK_BEACH: by the unload tile, every citizen on it), then - once it
+// stands and the guard has looked at the mines and found nobody (or 4 minutes) - the site's tower, the Settlement, the
+// fort's other towers. The transport stays by the shore (phase 5) until a tower or the Settlement stands at the site,
+// EX_BEACH_WAIT at most. While no tower of theirs stands yet and enemies by them win (2 or more seen, cover.c
+// cv_local under 1): back aboard (phase 6: citizens first, as many as it holds), home (phase 7), the island marked
+// lost as an outpost lost is.
+// MEASURED 2026-11-14 (head-to-head, mirrored, 12 games a cell, 60 min, Small Islands from epoch 9, 4 AIs, 1329 = the
+// default 305 + beachhead against 305; with - without per game), the standard map and map_scale=large:
+//   the site's tower strictly before the Settlement: soldiers -8 (se 6) and -6 (6), workers -9 (5) and +1 (4) - the
+//     Settlement stood 5.4 and 7.5 minutes after the landing (the middle outpost; 5 of 13 never) against half a minute:
+//     the party waited to pay the second tower (stock 21-261 wood for minutes);
+//   with a second tower's cost in the reserve (expand_hold) and the Settlement laid at once when the site's tower
+//     can't be paid: it stands after 1.0 and 2.0 minutes; soldiers +5 (7) and 0 (11), kills -2 (5) and +6 (7), workers
+//     +3 (7) and -8 (8); outposts lost 1 of 6 and 1 of 16 (without: 0 of 8 and 5 of 15); taken off again 1 of 6 and 7
+//     of 16 landings; citizens killed 200 -> 237 and 389 -> 315.
+// Level: nothing beyond the noise either way, so off - the player's to switch on (his pattern).
+#define EX_BEACH_WAIT 720000
+internal float cv_local(ee_player *pl, ivec2 p, int r, int honest);   // cover.c
+// the passengers still ashore stopped where they stand: their parts of the transport's load goal go before the
+// transport gets another goal (ex_ferry_end: a part of a deleted goal called it - _purecall)
+internal void ex_beach_stop(ee_player *pl, struct ex_st *x) {
+    for (int k = 0; k < x->npass; k++) {
+        ee_unit *u = x->pass[k].u;
+        if (!ex_alive(&x->pass[k], pl) || unit_get_x(u) < 0) continue;
+        x->orders += unit_goal(u, goal_move((float)unit_get_x(u) + 0.5f, (float)unit_get_y(u) + 0.5f), 0, 0x1F40);
+    }
+}
+internal void ex_beach_wait(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {   // phase 5
+    ee_unit *sh = x->ship.u;
+    int up = 0, site = 0;
+    for (int j = 0; j < x->nproj; j++) {
+        if (x->proj[j].state != 2) continue;
+        up += x->proj[j].kind == XK_TOWER || x->proj[j].kind == XK_BEACH;
+        site |= x->proj[j].kind == XK_TOWER || x->proj[j].kind == XK_DROP;
+    }
+    const char *why = !x->active ? "no outpost there any more" : site ? "it stands at the site" : now - x->fsince >= EX_BEACH_WAIT ? "12 minutes" : NULL;
+    if (why) {
+        x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
+        x->last = x->ship;
+        x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1;
+        ex_say(idx, now, "the transport leaves the island %u (%s)", x->cont, why);
+        return;
+    }
+    ivec2 w = ex_tp_isle(x);
+    if (!unit_get_goal(sh) && ivec2_dist2(unit_get_tile(sh), w) > 64) x->orders += unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
+    if (up || ex_cargo(sh) > 0) return;   // a tower of theirs stands: they stay
+    static struct ex_isle e;
+    ivec2 c = x->unload;
+    for (int pass = 0; pass < 2; pass++) {   // its people, then the enemies seen round their middle
+        memset(&e, 0, sizeof e);
+        e.pl = pl; e.cont = x->cont; e.fx = c.x; e.fy = c.y;
+        for (struct grid_it it = grid_it_box(x->unload.x, x->unload.y, 40, 1); grid_it_next(&it); ) ex_isle_unit(it.u, &e);
+        if (!e.nc) break;
+        int sx = 0, sy = 0;
+        for (int k = 0; k < e.nc; k++) { sx += unit_get_x(e.c[k]); sy += unit_get_y(e.c[k]); }
+        c = iv2(sx / e.nc, sy / e.nc);
+    }
+    if (e.foe < 2 || !e.nc) return;
+    float ratio = cv_local(pl, c, 12, 1);
+    if (ratio >= 1.0f) return;
+    ee_unit_type *td = unit_get_type_data(sh);
+    int cap = td ? unit_type_get_transport_capacity(td) : 0;
+    if (cap <= 0 || cap > 16) cap = 16;
+    x->npass = 0;
+    for (int k = 0; k < e.nc && x->npass < cap; k++) { x->pass[x->npass].u = e.c[k]; x->pass[x->npass++].id = unit_get_id(e.c[k]); }
+    for (int k = 0; k < e.ns && x->npass < cap; k++) { x->pass[x->npass].u = e.s[k]; x->pass[x->npass++].id = unit_get_id(e.s[k]); }
+    x->fphase = 6; x->fsince = now; x->freissue = 0; x->escapes++;
+    ex_say(idx, now, "the island %u is not safe - %d enemies seen by its %d citizens and %d soldiers (ratio %.2f), no tower up: back aboard, %d of them",
+           x->cont, e.foe, e.nc, e.ns, (double)ratio, x->npass);
+}
+internal void ex_beach_gone(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {   // the outpost given up
+    (void)pl; (void)idx;
+    ex_mark_lost(x, x->cont, now);
+    x->active = 0; x->next_try = now + 60000;
+}
+internal void ex_beach_board(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {   // phase 6
+    ee_unit *sh = x->ship.u;
+    int n = 0, aboard = 0, cits = 0;
+    for (int k = 0; k < x->npass; k++) if (ex_alive(&x->pass[k], pl)) x->pass[n++] = x->pass[k];
+    x->npass = n;
+    for (int k = 0; k < n; k++) {
+        int ab = unit_get_x(x->pass[k].u) < 0;
+        aboard += ab; cits += ab && is_citizen_type(unit_type_get_id(unit_get_type_data(x->pass[k].u)));
+    }
+    if ((n && aboard == n) || (aboard && now - x->fsince >= 60000) || now - x->fsince >= 120000 || !n) {
+        ex_beach_stop(pl, x);
+        ex_beach_gone(pl, idx, x, now);
+        if (!aboard) {   // nobody made it: the transport home alone
+            x->orders += unit_goal(sh, goal_move((float)ex_tp_home(x).x + 0.5f, (float)ex_tp_home(x).y + 0.5f), 0, 0x1F40);
+            x->last = x->ship;
+            x->fphase = 0; x->npass = 0; x->ship.u = NULL;
+            ex_say(idx, now, "nobody reached the transport - it leaves the island %u alone", x->cont);
+            return;
+        }
+        x->orders += unit_goal(sh, ld_unload(sh, x->home), 0, 0x1F40);
+        x->fphase = 7; x->fsince = now;
+        ex_say(idx, now, "leaves the island %u with %d aboard (%d citizens), %d left behind", x->cont, aboard, cits, n - aboard);
+        return;
+    }
+    if (x->freissue && now - x->freissue < 10000) return;
+    x->freissue = now ? now : 1;
+    ee_unit *list[16];
+    int m = 0;
+    for (int k = 0; k < n; k++) if (unit_get_x(x->pass[k].u) >= 0) list[m++] = x->pass[k].u;
+    if (!m) return;
+    ee_goal *g = goal_load(sh, list, m);
+    if (!g || unit_get_goal(sh) != g) return;   // ex_ferry_board: a goal the transport didn't take is gone
+    x->orders++;
+    for (int k = 0; k < m; k++) x->orders += unit_goal(list[k], goal_load_part(g), 0, 0x1F40);
+}
+internal void ex_beach_home(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {   // phase 7
+    ee_unit *sh = x->ship.u;
+    ee_goal *cur = unit_get_goal(sh);
+    if (ex_cargo(sh) <= 0) {
+        x->last = x->ship;
+        x->fphase = 0; x->npass = 0; x->ship.u = NULL;
+        ex_say(idx, now, "back home from the island %u", x->cont);
+        return;
+    }
+    if (now - x->fsince >= 360000) { ex_ferry_end(pl, idx, x, now, "not home within 6 minutes - unloaded where it is"); return; }
+    if (cur && goal_is_unload(cur)) return;
+    ivec2 t = x->home;
+    ex_shore(area_id(x->home, 2), x->ocean, unit_get_tile(sh), 30, &t, NULL);
+    x->orders += unit_goal(sh, ld_unload(sh, t), 0, 0x1F40);
+}
 internal int ex_kind_type(ee_player *pl, int kind) {
-    if (kind == XK_TOWER) return ld_kind_type(pl, LDB_TOWER);
+    if (kind == XK_TOWER || kind == XK_BEACH) return ld_kind_type(pl, LDB_TOWER);
     if (kind == XK_BARRACKS) return ld_can_build(pl, UT(B_BARRACKS)) ? UT(B_BARRACKS) : 0;
     if (kind == XK_SHELTER) return ld_can_build(pl, UT(B_FORTRESS)) ? UT(B_FORTRESS) : 0;
     return ld_can_build(pl, UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : 0;   // a Settlement (a Town Center first took the stone of the towers)
@@ -1049,6 +1193,7 @@ internal void ex_fort_set(ee_player *pl, unsigned idx, struct ex_st *x, ivec2 mi
     ex_say(idx, now, "a fort round the mine at %d,%d, open on side %d (its drop site at %d,%d)", c.x, c.y, x->fort.open, mid.x, mid.y);
 }
 internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+    if (x->fphase >= 6) return;   // BEACH: they are being taken off
     ivec2 mid = x->mines;   // the outpost's middle: its drop site once laid
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].kind == XK_DROP && x->proj[j].state && x->proj[j].state != 3) mid = x->proj[j].p;
     static struct ex_isle e;
@@ -1101,16 +1246,22 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     if (drop_ok && (EXPAND(idx) & 32) && ex_holds(pl, idx, x, now)) return;
     {   int laid = 0;   // the drop site and the first tower laid: no more reserve for them
         int need = 2;   // with a Fortress in the plan: that too
-        for (int j = 0; j < x->nproj; j++) { laid += x->proj[j].state && x->proj[j].kind != XK_BARRACKS; need += x->proj[j].kind == XK_SHELTER; }
+        for (int j = 0; j < x->nproj; j++) { laid += x->proj[j].state && x->proj[j].kind != XK_BARRACKS; need += x->proj[j].kind == XK_SHELTER || x->proj[j].kind == XK_BEACH; }
         x->res_t = laid >= need ? 0 : now ? now : 1; }
     // the next project (every 8 s): in order, with its spot; one it can't pay waits (the drop site always)
     if (e.nc && (!x->plan_t || now - x->plan_t >= 8000)) {
         x->plan_t = now ? now : 1;
-        int going = 0;
-        for (int j = 0; j < x->nproj; j++) going += x->proj[j].state == 1;
+        int going = 0, beach_open = 0;
+        for (int j = 0; j < x->nproj; j++) { going += x->proj[j].state == 1; beach_open |= x->proj[j].kind == XK_BEACH && x->proj[j].state < 2; }
         for (int j = 0; j < x->nproj && going < 2; j++) {
             struct ex_proj *p = &x->proj[j];
             if (p->state) continue;
+            if (p->kind != XK_BEACH && beach_open) break;   // BEACH: the landing's tower alone first, every citizen on it
+            if (p->kind != XK_BEACH && EX_BEACH(idx) && !x->site_ok) {   // ... then the site, once the guard has looked at the mines and found nobody
+                x->site_ok = !e.foe && (intel_looked_ago(pl, x->mines.x, x->mines.y) < 120000 || now - x->base_t >= 240000);
+                if (!x->site_ok) break;
+                ex_say(idx, now, "the mines by %d,%d looked at, nobody there - the site next", x->mines.x, x->mines.y);
+            }
             int t = ex_kind_type(pl, p->kind);
             ivec2 at = iv2(0, 0);
             if (!t && p->kind == XK_SHELTER) {   // no Fortress yet (before the Copper Age): the towers don't wait for it
@@ -1118,6 +1269,8 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
                 continue;
             }
             if (!t) {
+                if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: none it can build and pay (stock %d,%d,%d,%d,%d)", k_xk[p->kind], player_stock_at(pl)[2], player_stock_at(pl)[3], player_stock_at(pl)[4], player_stock_at(pl)[5], player_stock_at(pl)[6]);
+                if (EX_BEACH(idx) && p->kind == XK_TOWER) continue;   // BEACH: a tower it can't pay yet doesn't hold up the Settlement (5-7 minutes from the landing to it, 5 of 13 never, against half a minute)
                 if (p->kind != XK_DROP && !EX_FORT(idx) && ++p->waits > 30) { p->state = 3; ex_say(idx, now, "no %s it can pay for 4 minutes - dropped", k_xk[p->kind]); }
                 break;
             }
@@ -1128,9 +1281,10 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
                 c = first ? iv2((x->mines.x + x->unload.x) / 2, (x->mines.y + x->unload.y) / 2) : mid;
                 if (EX_FORT(idx)) { ex_fort_set(pl, idx, x, mid, now); sf_corner(&x->fort, nth & 3, &c.x, &c.y); }   // the fort's corners
             } else if (p->kind == XK_BARRACKS || p->kind == XK_SHELTER) c = mid;
-            if (!ex_spot(pl, idx, x, t, c, &at)) { if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
+            else if (p->kind == XK_BEACH) c = x->unload;
+            if (!ex_spot(pl, idx, x, t, c, &at)) { if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: no spot for it by %d,%d", k_xk[p->kind], c.x, c.y); if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
             ee_unit *b = place_foundation(pl, t, at.x, at.y);
-            if (!b) { if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
+            if (!b) { if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: its foundation at %d,%d refused", k_xk[p->kind], at.x, at.y); if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
             p->b = b; p->id = unit_get_id(b); p->type = t; p->p = at; p->state = 1; p->tries++;
             ex_say(idx, now, "%s %d laid at %d,%d (%d citizens, %d soldiers on the island)", k_xk[p->kind], t, at.x, at.y, e.nc, e.ns);
             going++;
@@ -1145,7 +1299,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     }
     // builders: 3 on the drop site (all while it is not finished), 2 on another; the rest gather once the drop site stands
     int want[EX_PROJ] = { 0 }, have[EX_PROJ] = { 0 }, nb = 0;
-    for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1) want[j] = x->proj[j].kind == XK_DROP ? (drop_ok ? 3 : 64) : 2;
+    for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1) want[j] = x->proj[j].kind == XK_BEACH ? 64 : x->proj[j].kind == XK_DROP ? (drop_ok ? 3 : 64) : 2;
     ee_resource_mgr *rm = civ_mgr_get_resource_mgr(player_get_civ_mgr(pl));
     for (int k = 0; k < e.nc; k++) {
         ee_unit *u = e.c[k];
@@ -1327,11 +1481,14 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
     x->fort_set = 0; x->guard_only = 0; x->wall_t = 0;
     memset(x->proj, 0, sizeof x->proj);
     static const int plan[] = { XK_DROP, XK_TOWER, XK_TOWER, XK_BARRACKS }, ring[] = { XK_DROP, XK_TOWER, XK_TOWER, XK_TOWER, XK_TOWER, XK_BARRACKS },
-                     keep[] = { XK_DROP, XK_SHELTER, XK_TOWER, XK_TOWER, XK_TOWER, XK_TOWER, XK_BARRACKS };
+                     keep[] = { XK_DROP, XK_SHELTER, XK_TOWER, XK_TOWER, XK_TOWER, XK_TOWER, XK_BARRACKS },
+                     land[] = { XK_BEACH, XK_TOWER, XK_DROP, XK_TOWER, XK_TOWER, XK_TOWER, XK_BARRACKS }, land3[] = { XK_BEACH, XK_TOWER, XK_DROP, XK_BARRACKS };   // BEACH
     int fol = (EXPAND(idx) & (128 | 256)) != 0;   // FOLLOW, FORT: a ring of four towers
     int sh = EX_FORT(idx) && tv_outpost_fortress(idx);   // ... and a Fortress before them, for its citizens (territories.c)
-    x->nproj = (sh ? 6 : fol ? 5 : 3) + ((EXPAND(idx) & 2) != 0);
-    for (int j = 0; j < x->nproj; j++) x->proj[j].kind = sh ? keep[j] : fol ? ring[j] : plan[j];
+    int be = EX_BEACH(idx) != 0;
+    x->nproj = (be ? (fol ? 6 : 3) : sh ? 6 : fol ? 5 : 3) + ((EXPAND(idx) & 2) != 0);
+    for (int j = 0; j < x->nproj; j++) x->proj[j].kind = be ? (fol ? land[j] : land3[j]) : sh ? keep[j] : fol ? ring[j] : plan[j];
+    x->site_ok = 0;
     x->guard_trip = 1;
     x->fphase = 1; x->fsince = now; x->ftrain_t = 0; x->plans++; x->res_t = now ? now : 1;
     ex_say(idx, now, "plans an outpost on the island %u (%d mines explored, %d known enemy buildings, mines by %d,%d) - unload at %d,%d, board at %d,%d",
@@ -1360,6 +1517,9 @@ internal void expand_act(ee_player *pl, unsigned idx, uint32_t now) {
     else if (x->fphase == 2) { g_sg_order = x->gun_trip; ex_ferry_board(pl, idx, x, now); g_sg_order = 0; }   // the guns are held: only these orders reach them
     else if (x->fphase == 3) ex_ferry_sail(pl, idx, x, now);
     else if (x->fphase == 4) ex_ferry_scout(pl, idx, x, now);
+    else if (x->fphase == 5) ex_beach_wait(pl, idx, x, now);
+    else if (x->fphase == 6) ex_beach_board(pl, idx, x, now);
+    else if (x->fphase == 7) ex_beach_home(pl, idx, x, now);
     if (x->active && x->ever_ashore) ex_outpost(pl, idx, x, now);
     if (!x->fphase && now >= x->next_try && (!x->plan_t || x->active || now - x->plan_t >= 30000)) {
         if (!x->active) x->plan_t = now ? now : 1;

@@ -267,3 +267,9 @@ guard loses, the citizens there go into a Fortress on that land or to a drop sit
 there is given out. Measured over 192 games on island maps: citizens killed -19% (at the outposts up to -46%), the
 army at 60 minutes no larger (a few soldiers fewer, within the noise). A Fortress at the outposts (the test level 2)
 costs workers and comes too late: most outpost citizens die within minutes of the landing, before anything stands.
+
+The landing as the player does it (`expand_islands` beachhead, expand.c THE LANDING AS THE PLAYER DOES IT, 2026-11-14,
+not in the default): citizens and guard land together, a tower by the landing first with every citizen on it, the
+guard on to the mines, then the site's tower and the Settlement; the transport waits by the shore and takes them off
+again when enemies there win before a tower stands. 24 games on island maps: level with the landing without it
+(soldiers +5 and 0), 2 of 22 outposts lost against 5 of 23, 8 of 22 landings taken off again.
