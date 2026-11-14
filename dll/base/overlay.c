@@ -197,10 +197,14 @@ internal PRINTF_LIKE(4, 5) void overlay_text(vec2 c, int row, uint32_t argb, con
     vsnprintf(s->t, sizeof s->t, fmt, ap);
     va_end(ap);
 }
-// a player's colour for its shapes (index 1..8 as the game's slots; the game's own colours roughly)
+// the player's own colour as 0xRRGGBB, 0 when it has none (game/players.c player_rgb, set by the wiring: base knows no game)
+internal uint32_t (*g_ov_player_rgb)(int player);
+// a player's colour for its shapes: the one it plays in (the player, 2026-11-14: "the overlay for territoris dosnt use
+// the players color"), else by index 1..8 the game's first colours roughly
 internal uint32_t overlay_player_argb(int player, unsigned alpha) {
     static const uint32_t c[9] = { 0xFFFFFF, 0x3060FF, 0xFF3030, 0x30D040, 0xFFE040, 0x30E0E0, 0xE040E0, 0xFF9020, 0xC0C0C0 };
-    return (uint32_t)(alpha & 255) << 24 | c[player >= 1 && player <= 8 ? player : 0];
+    uint32_t rgb = g_ov_player_rgb ? g_ov_player_rgb(player) : 0;
+    return (uint32_t)(alpha & 255) << 24 | (rgb ? rgb : c[player >= 1 && player <= 8 ? player : 0]);
 }
 // the shapes of the layers shown and still due at now, copied out for drawing (the renderer's thread); their count
 internal int overlay_copy(ov_shape *out, int cap, uint32_t now) {

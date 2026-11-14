@@ -585,6 +585,7 @@ internal void x_host_install(void) {
 
 internal void install(HMODULE self) {
     x_host_install();
+    g_ov_player_rgb = player_rgb;   // the overlay's shapes in the players' own colours
     // The engine may FreeLibrary() DLLs that aren't render plugins; our hooks must outlive that.
     HMODULE pinned;
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,

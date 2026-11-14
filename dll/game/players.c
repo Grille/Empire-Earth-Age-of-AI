@@ -23,6 +23,20 @@ internal ee_player *player_at(int i) {
     return i > 0 && (unsigned)i < n && i < 16 ? game_players()[i] : NULL;
 }
 internal int nplayers(void) { unsigned n = game_player_count(); return n > 16 ? 16 : (int)n; }
+// the colour the player plays in (the game's: three floats 0..1, as its units are tinted - render_units.c) as 0xRRGGBB,
+// each part at least 40 (not black on the overlay's dark plates and edges); 0: no player, or no colour set yet
+internal uint32_t player_rgb(int i) {
+    ee_player *pl = player_at(i);
+    if (!pl) return 0;
+    const float *c = (const float *)player_color_at(pl);
+    uint32_t r = 0;
+    for (int k = 0; k < 3; k++) {
+        if (!(c[k] >= 0.0f && c[k] <= 1.0f)) return 0;
+        uint32_t v = (uint32_t)(c[k] * 255.0f + 0.5f);
+        r = r << 8 | (v < 40 ? 40 : v);
+    }
+    return r;
+}
 // the players the game counts as human (value_player_slot_player_human), as highest_human_epoch walks them: from index 1
 internal int human_count(void) {
     int n = 0;

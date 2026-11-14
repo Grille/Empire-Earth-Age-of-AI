@@ -16,18 +16,6 @@
 internal int ao_kfmt(char *o, int cap, int v) {   // 950, 9.7k, 14k
     return v < 1000 ? snprintf(o, (size_t)cap, "%d", v) : v < 10000 ? snprintf(o, (size_t)cap, "%.1fk", v / 1000.0) : snprintf(o, (size_t)cap, "%dk", v / 1000);
 }
-// the player's own colour (the game's: three floats 0..1, as the units are tinted - render_units.c), else the overlay's
-internal uint32_t ao_colour(ee_player *pl, unsigned idx, unsigned alpha) {
-    const float *c = (const float *)player_color_at(pl);
-    uint32_t r = 0;
-    for (int k = 0; k < 3; k++) {
-        if (!(c[k] >= 0.0f && c[k] <= 1.0f)) return overlay_player_argb((int)idx, alpha);
-        uint32_t v = (uint32_t)(c[k] * 255.0f + 0.5f);
-        v = v < 40 ? 40 : v;   // not black on the dark plates and edges
-        r = r << 8 | v;
-    }
-    return (uint32_t)(alpha & 255) << 24 | r;
-}
 internal vec2 ao_at(ivec2 p) { return v2((float)p.x + 0.5f, (float)p.y + 0.5f); }
 internal int ao_has(ivec2 p) { return p.x > 0 || p.y > 0; }
 internal vec2 ao_pos(ee_unit *u) { vec3 p = unit_get_pos(u); return v2(p.x, p.y); }   // where it is, not its tile: no jumps from tile to tile
@@ -43,7 +31,7 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (last[idx] && now >= last[idx] && now - last[idx] < AO_EVERY) return;
     last[idx] = now ? now : 1;
-    uint32_t col = ao_colour(pl, idx, 255), dim = ao_colour(pl, idx, 150);
+    uint32_t col = overlay_player_argb((int)idx, 255), dim = overlay_player_argb((int)idx, 150);   // its own colour (game/players.c player_rgb)
     static struct av_sum sum;
     char b[5][16];
     overlay_begin(layer, idx, now, AO_TTL);
