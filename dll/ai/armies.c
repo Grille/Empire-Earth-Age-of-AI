@@ -702,6 +702,15 @@ internal int ar_route(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 fr
 }
 // the force (out: the members out with it, else all) as a side, its middle and count
 internal unsigned tv_terr_of(ivec2 p);            // territories.c: the territory of a tile, TER_NONE none
+internal int tv_holds(unsigned idx, ivec2 p);     // ... AI idx holds the land territory of that tile
+// HELD GROUND ([ai_base] raid_held_ground; [autotest] v_raid_held_ground): a raid is answered wherever it stands in a
+// territory the AI holds on the force's land, not only within AR_RAID_REACH of where the force stands (the player
+// 2026-11-14: "the backland is nerly undefended in my case, my focus is on not letting anething go so far in" - no
+// guard out there, so the force has to come: towns 180-290 tiles out were raided with the force at its station).
+// The same judgement and the same parties as a raid near home (ar_at_home); a party looks as far.
+internal int g_ar_held_ground = 0, g_v_ar_held_ground = -1;
+#define AR_HELD_GROUND(idx) PV(idx, g_v_ar_held_ground, g_ar_held_ground)
+internal unsigned g_ar_far[16];   // the log's: raids answered beyond AR_RAID_REACH for it
 internal int tv_foes(unsigned idx, unsigned terr);   // ... the enemy soldiers the AI counts in or by it, -1 not known
 internal int ar_side(struct armies_st *a, int out, ivec2 *mid) {
     long sx = 0, sy = 0;
@@ -1396,7 +1405,7 @@ internal void ar_parts_tick(ee_player *pl, unsigned idx, struct armies_st *a, ui
                 if (!ow || player_get_index(ow) <= 0 || !is_enemy(pl, ow) || !ms_land_soldier(it.u, it.td) || !seen_by(it.u, pl)) continue;
                 ivec2 p = unit_get_tile(it.u);
                 long dd = ivec2_dist2(p, mid);
-                if (ivec2_dist2(p, c) > (long)AR_PART_LOOK * AR_PART_LOOK || ivec2_dist2(p, a->home) > (long)AR_RAID_REACH * AR_RAID_REACH || (best && dd >= bd)) continue;
+                if (ivec2_dist2(p, c) > (long)AR_PART_LOOK * AR_PART_LOOK || (ivec2_dist2(p, a->home) > (long)AR_RAID_REACH * AR_RAID_REACH && !(AR_HELD_GROUND(idx) && tv_holds(idx, p))) || (best && dd >= bd)) continue;
                 best = it.u; bd = dd;
             }
         }
@@ -1459,15 +1468,18 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         ee_player *raided = NULL;
         long bd = 0;
         int band = 0, reach = g_ar_aid > AR_RAID_REACH ? g_ar_aid : AR_RAID_REACH;
-        for (struct grid_it it = grid_it_box(a->home.x, a->home.y, reach, 1); grid_it_next(&it); ) {
+        int wide = AR_HELD_GROUND(idx) != 0, rfar = 0;   // HELD GROUND: the whole map looked at
+        unsigned hland = wide ? area_id(a->home, 2) : 0;
+        for (struct grid_it it = wide ? grid_it_all(1) : grid_it_box(a->home.x, a->home.y, reach, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
             ee_player *o = unit_get_owner(u);
             if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !ms_land_soldier(u, it.td) || !seen_by(u, pl)) continue;
             ivec2 p = unit_get_tile(u);
             long d = ivec2_dist2(p, a->home);
-            if (d > (long)reach * reach || (raider && d >= bd)) continue;
+            int ours = wide && d > (long)AR_RAID_REACH * AR_RAID_REACH && hland && area_id(p, 2) == hland && tv_holds(idx, p);   // out of reach, in ground it holds on its land
+            if ((d > (long)reach * reach && !ours) || (raider && d >= bd)) continue;
             if (AR_PARTS(idx) && ar_part_at(idx, p)) continue;   // RAID PARTIES: one is at it already
-            int far_out = d > (long)AR_RAID_REACH * AR_RAID_REACH;   // only an ally's buildings are answered out there
+            int far_out = d > (long)AR_RAID_REACH * AR_RAID_REACH && !ours;   // only an ally's buildings are answered out there
             // a raid, not a scout passing: the raider's band (enemy fighters seen within AR_RAID_R of it) is AR_RAID_BAND
             // strong, or one of them is attacking something of ours - the whole force went for every single scout before
             // (12-23 raids a game, 3000 orders, the force away when the real attack came)
@@ -1485,7 +1497,7 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
                 hitting = t && ar_answers_for(pl, unit_get_owner(t), far_out);
             }
             if (nb < PV(idx, g_v_ar_raid_band, AR_RAID_BAND) && !hitting) continue;
-            raider = u; bd = d; band = nb; raided = close;
+            raider = u; bd = d; band = nb; raided = close; rfar = ours;
         }
         ivec2 d = raider ? unit_get_tile(raider) : iv2(-1000, -1000);
         int again = raider && a->raid_c_t && now - a->raid_c_t <= 2 * AR_RAID_EVERY && ivec2_dist2(d, a->raid_c) <= AR_RAID_SAME * AR_RAID_SAME;   // seen there twice running
@@ -1495,6 +1507,7 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
             if (g_ar_raid_answer > need) need = g_ar_raid_answer;   // raid_answer: only with soldiers to spare
             if (r >= need) {
                 a->raids++;
+                g_ar_far[idx] += rfar != 0;
                 if (raided && raided != pl) g_ar_aids[idx]++;
                 if (AR_PARTS(idx) && ar_part_send(pl, idx, a, d, band, now)) return;   // RAID PARTIES: a part goes, the rest stays
                 ar_log(idx, now, "a raid of %d at %d,%d%s - the force of %d goes (%.2f: own %d, enemy %d)", band, d.x, d.y, raided && raided != pl ? " on an ally's" : "", n, r, g_ar_own.n, g_sgs_foe.n);
@@ -2271,8 +2284,8 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
             if (tn) tmid = iv2((int)(tsx / tn), (int)(tsy / tn));
             unsigned tin = tv_terr_of(tmid), tto = tv_terr_of(a->out ? a->dest : a->home);
             if (tn && tin != TER_NONE)
-                ar_log(idx, now, "territory: the force of %d in %u, %s %u (%d enemy soldiers it knows there)", tn, tin, a->out == 1 ? "pushing into" : a->out == 2 ? "answering a raid in" : "its home in",
-                       tto, tv_foes(idx, tto));
+                ar_log(idx, now, "territory: the force of %d in %u, %s %u (%d enemy soldiers it knows there); raids answered in held ground out of its reach %u", tn, tin, a->out == 1 ? "pushing into" : a->out == 2 ? "answering a raid in" : "its home in",
+                       tto, tv_foes(idx, tto), g_ar_far[idx]);
         }
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
             ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, av_of(idx, AV_LANDING) ? av_of(idx, AV_LANDING)->n : 0);
@@ -2433,6 +2446,7 @@ internal void armies_install(const char *autotest_ini) {
     g_mod_armies = g_set_ai[1].mod_armies;
     g_ar_sea = g_set_ai[1].mod_armies_sea;
     g_ar_raid_answer = g_set_ai[1].raid_answer;
+    g_ar_held_ground = g_set_ai[1].raid_held_ground;
     g_ar_leash = g_set_ai[1].raid_leash;
     g_ar_aid = g_set_ai[1].ally_aid;
     g_ar_parts = g_set_ai[1].raid_parties;
@@ -2448,6 +2462,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);
+        g_v_ar_held_ground = ini_int("autotest", "v_raid_held_ground", -1, autotest_ini);
         g_v_ar_need = ini_int("autotest", "v_train_by_need", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);

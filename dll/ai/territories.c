@@ -296,6 +296,11 @@ internal int tv_foes(unsigned idx, unsigned terr) {
     struct tv_st *s = &g_tv[idx & 15];
     return s->n && s->version == g_ter.version && terr < (unsigned)s->n ? s->t[terr].foe : -1;
 }
+internal int tv_holds(unsigned idx, ivec2 p) {   // armies.c HELD GROUND: AI idx holds the land territory of that tile
+    struct tv_st *s = &g_tv[idx & 15];
+    unsigned r = g_ter.lab && s->n && s->version == g_ter.version ? ter_near(p.x, p.y) : TER_NONE;
+    return r < (unsigned)s->n && !g_ter.t[r].water && s->t[r].role != TVR_NONE;
+}
 internal void tv_count(unsigned idx, int what) {   // the log's counters: 0 into a fortress, 1 to a refuge, 2 a site refused, 3 a fortress kept shut
     struct tv_st *s = &g_tv[idx & 15];
     if (what == 0) s->sheltered++; else if (what == 1) s->refuge++; else if (what == 2) s->refused++; else s->kept_in++;

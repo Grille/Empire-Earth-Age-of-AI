@@ -298,6 +298,10 @@ class ai_base
         /// citizen is sent to a site there until it is safe again. 1 = on. Off (2026-11-14, 192 games on island maps: a
         /// fifth fewer citizens killed, the army at 60 minutes no larger - a few soldiers fewer, within the noise)
         bool territory_shelter = false;
+        /// Held ground (ai/armies.c HELD GROUND): the army answers a raid wherever it stands in a territory the AI holds
+        /// on the army's land, not only within 60 tiles of where the army stands - a town far out has no guard, so the
+        /// army (or a part of it that wins two to one) comes. 1 = on. Off until measured
+        bool raid_held_ground = false;
     }
 
     class SiegeAndTowerRouting
