@@ -1090,6 +1090,7 @@ internal int rf_free_pocket(ee_player *pl, unsigned idx, struct encl *e, uint32_
     return 0;
 }
 // The ring's walls and gates (defence_tick): up to two runs a tick, the stone above a tower's 100 kept back.
+internal void encl_lay(ee_player *pl, unsigned idx, struct encl *e, ivec2 base, void *wm, int *stock, uint32_t now, int flight, int runs, const char *what);
 internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *wm, const int *have_stock, uint32_t now) {
     struct encl *e = &g_encs[idx];
     int stock[7];   // what this tick's runs leave (the game takes it as they are built)
@@ -1106,6 +1107,12 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
     for (int r = 0; rm && r < 7; r++) cit += (int)deque_count(resource_mgr_list_at(rm, r));
     e->ready = cit >= g_encl_from;
     if (!e->ready) { e->skip_econ++; return; }
+    encl_lay(pl, idx, e, iv2(p->bx, p->by), wm, stock, now, g_encl_flight, g_encl_runs, "enclose");
+}
+// A ring's gates and walls laid (the ring's own, and territories.c BORDER WALLS with a ring of its own round `base`):
+// a planned gate once its five pieces stand, else up to `runs` runs of wall - none while `flight` runs stand unfinished
+// (0 = no limit) -, nothing that would shut something in (NOTHING SHUT IN, above). stock: what it may spend, counted down.
+internal void encl_lay(ee_player *pl, unsigned idx, struct encl *e, ivec2 base, void *wm, int *stock, uint32_t now, int flight, int runs, const char *what) {
     for (int g = 0; g < e->ngate; g++) {   // a gate, once the side's middle stands finished: the newest it can build
         if (e->gate[g].tries >= 20 || !gate_fits(pl, e->gate[g].x, e->gate[g].y, e->gate[g].dir)) continue;
         int gtype = encl_gate_type(pl);
@@ -1115,7 +1122,7 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
         build_gate(tile, player_get_index(pl), unit_type_get_tech(type_data(gtype)), e->gate[g].dir);
         e->gate[g].tries = 20;
         e->gates++;
-        if (g_log) fprintf(g_log, "# enclose: P%u gate %d at %d,%d\n", idx, gtype, tile[0], tile[1]);
+        if (g_log) fprintf(g_log, "# %s: P%u gate %d at %d,%d\n", what, idx, gtype, tile[0], tile[1]);
         return;
     }
     static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
@@ -1129,11 +1136,11 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
     // skipped for the ships off the coast. enclose_in_flight: a new run only while fewer than that many stand unfinished
     // (a few builders at a time, from the start); enclose_under_ships: on an island only enemy land units near stop a run
     // (a piece that stands stops the ships' fire)
-    if (g_encl_flight > 0 && encl_in_flight(e, now) >= g_encl_flight) { e->skip_pend++; return; }
-    if (!rf_setup(e, iv2(p->bx, p->by), now)) { e->skip_shut++; return; }   // nothing ordered that can't be checked
+    if (flight > 0 && encl_in_flight(e, now) >= flight) { e->skip_pend++; return; }
+    if (!rf_setup(e, base, now)) { e->skip_shut++; return; }   // nothing ordered that can't be checked
     if (rf_free_pocket(pl, idx, e, now)) return;
     int gtype = encl_gate_type(pl);
-    for (int order = 0; order < g_encl_runs; order++) {
+    for (int order = 0; order < runs; order++) {
         int most = 12;   // the pieces the stock pays for
         for (int r = 2; r < 7; r++) {
             int c = unit_cost(pl, wtype, r), have = stock[r] - (r == 4 ? 100 : 0);
@@ -1152,7 +1159,7 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
                 l = i;
                 if (l - f + 1 >= most) break;
             }
-            if (f == -3 || route_covered(pl, p->bx, p->by, e->gate[g].x, e->gate[g].y) || raiders_near(pl, iv2(e->gate[g].x, e->gate[g].y), 10)) continue;
+            if (f == -3 || route_covered(pl, base.x, base.y, e->gate[g].x, e->gate[g].y) || raiders_near(pl, iv2(e->gate[g].x, e->gate[g].y), 10)) continue;
             ax = e->gate[g].x + ux * f; ay = e->gate[g].y + uy * f; bx = e->gate[g].x + ux * l; by = e->gate[g].y + uy * l;   // exempt: its gate opens it
         }
         static int16_t skip[64][2];
@@ -1162,7 +1169,7 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
             for (int k = 0; k < nskip && !skipped; k++) skipped = skip[k][0] == x && skip[k][1] == y;
             if (skipped) continue;
             if (!encl_free(pl, e, wtype, x, y, now)) { e->skip_pend += !encl_walled(x, y) && encl_pending(e, x, y, now); continue; }
-            if (route_covered(pl, p->bx, p->by, x, y)) { e->skip_fire++; continue; }   // the builders would walk into enemy fire
+            if (route_covered(pl, base.x, base.y, x, y)) { e->skip_fire++; continue; }   // the builders would walk into enemy fire
             int foes = 0;
             if (g_encl_ships && e->island ? (raiders_scan(pl, iv2(x, y), 10, &foes), foes & 1) : raiders_near(pl, iv2(x, y), 10)) {
                 e->skip_raid++;   // or an enemy army, ships off the coast (enclose_under_ships on an island: land units only)
@@ -1192,8 +1199,8 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
         e->pend[o].t = now ? now : 1;
         e->runs++; e->pieces += (unsigned)len + 1;
         for (int r = 2; r < 7; r++) stock[r] -= (len + 1) * unit_cost(pl, wtype, r);
-        if (g_log) fprintf(g_log, "# enclose: P%u wall %d from %d,%d to %d,%d (%d pieces; ring %d, %d walled)\n",
-                           idx, wtype, ax, ay, bx, by, len + 1, e->nring, e->walled);
+        if (g_log) fprintf(g_log, "# %s: P%u wall %d from %d,%d to %d,%d (%d pieces; ring %d, %d walled)\n",
+                           what, idx, wtype, ax, ay, bx, by, len + 1, e->nring, e->walled);
     }
 }
 

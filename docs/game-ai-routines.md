@@ -292,3 +292,11 @@ against all off over 90 minutes: more ground held on islands and a fifth to a ha
 harbours, the army level; harbours and border towers are on for what the AI against AI games cannot show (a landing
 from behind). ai/territories.c THE SYSTEM has the numbers. Also: `idle_transports` (no game order for a transport
 while 2 stand idle - an AI had 40).
+
+Border walls (2026-11-14, `border_walls`, off until watched in a real game): with 1500 stone in the bank the AI walls the
+border between a territory it holds and land nobody of its side holds, the shortest border first - the territories
+meet at the land's necks, so that is the shortest wall that closes a side -, a gate in the middle (two on a long one),
+from the stone above 1000. The laying is the town ring's (ai/defence.c encl_lay, with its guard against shutting
+anything in); ai/territories.c BORDER WALLS. Seen in test games with stone given: 5 to 22 borders walled in an hour,
+gates in them. With it: a wall's pieces no longer count as a territory's buildings (three of a front wall across a
+border had made the land behind held), and a border tower is not queued for the same place again before it stands.

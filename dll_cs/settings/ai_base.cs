@@ -332,6 +332,12 @@ class ai_base
         /// shores and open borders are covered. Peace of mind against a landing from behind; not something the AI
         /// against AI games can show. 1 = on. On since 2026-11-14 with the territory system (the player's call: "switch evrething on, including harbours and towers")
         bool border_towers = true;
+        /// Border walls (ai/territories.c BORDER WALLS): while 1500 stone lie in the bank, a wall along the border between a
+        /// territory the AI holds and land nobody of its side holds - the shortest such border first (the territories
+        /// meet where the land is narrowest), a gate in its middle, laid from the stone above 1000 and never so that
+        /// something is shut in. Like the border towers nothing the AI against AI games can show. 1 = on. Off until it
+        /// was watched in a real game
+        bool border_walls = false;
     }
 
     class SiegeAndTowerRouting
