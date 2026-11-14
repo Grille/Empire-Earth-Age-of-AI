@@ -269,7 +269,8 @@ army at 60 minutes no larger (a few soldiers fewer, within the noise). A Fortres
 costs workers and comes too late: most outpost citizens die within minutes of the landing, before anything stands.
 
 The landing as the player does it (`expand_islands` beachhead, expand.c THE LANDING AS THE PLAYER DOES IT, 2026-11-14,
-not in the default): citizens and guard land together, a tower by the landing first with every citizen on it, the
+in the default since then by the player's call): citizens and guard land together, a tower by the landing first with every citizen on it, the
 guard on to the mines, then the site's tower and the Settlement; the transport waits by the shore and takes them off
 again when enemies there win before a tower stands. 24 games on island maps: level with the landing without it
-(soldiers +5 and 0), 2 of 22 outposts lost against 5 of 23, 8 of 22 landings taken off again.
+(soldiers +5 and 0), 2 of 22 outposts lost against 5 of 23, 8 of 22 landings taken off again; as many islands held
+at minute 55. Expansion is judged by what is held and worked at the end first, the army at minute 60 last.

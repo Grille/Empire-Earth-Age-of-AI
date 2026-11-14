@@ -776,20 +776,20 @@ class ai_base
             /// the site's tower and the Settlement once it has looked there and found nobody; the transport waits by the shore
             /// and takes them off again when enemies there win before a tower stands (2026-11-14, 24 games on island maps:
             /// level with the landing without it - soldiers +5 and 0, fewer outposts lost on a large map, 8 of 22 landings
-            /// taken off again; not in the default)
+            /// taken off again; in the default by the player's call, his pattern)
             bool beachhead;
         }
         /// Outposts on other islands (docs/economy.md "Other islands"), water maps only (needs landing=1); the parts from
         /// early on are for the large maps (docs/economy.md "Large island maps").
         /// Islands it has hardly looked at are scouted first by the empty transport. Default outposts, extra_citizens,
-        /// more_islands, fort (2026-11-13: with the game's own ferrying of citizens kept, soldiers +9 to +19 from epoch 9 on
+        /// more_islands, fort, beachhead (beachhead since 2026-11-14; the others 2026-11-13: with the game's own ferrying of citizens kept, soldiers +9 to +19 from epoch 9 on
         /// Small Islands and a large one, level from the start; expand.c THE OUTPOST). Empty = off. Earlier, measured against the
         /// base AI (outposts|ally_islands|early|extra_citizens|more_islands and more on Large / Huge maps, unit limit 1500) the
         /// outposts went up from minute 25-30 and the enemy's soldiers on the home island fell, but wins, kills - losses and the
         /// miners at 60 minutes moved both ways between the maps. Against the game's own ferrying of citizens (2026-11-13, in its
         /// place: outposts|extra_citizens|more_islands) level on Small Islands and behind on a large one - an outpost that holds
         /// is worth 10-25 soldiers, one that is lost costs as much, and half are lost (econ.c THE TRANSPORTS THE MOD'S). Its parts:
-        [on("outposts, extra_citizens, more_islands, fort")]
+        [on("outposts, extra_citizens, more_islands, fort, beachhead")]
         expand_islands_fields expand_islands;
         [commented]
         int expand_citizens = 8;

@@ -203,7 +203,8 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
 }
 
 
-// ---- THE OUTPOST ([ai_base] expand_islands, bits, default 305 = SETTLE | EXTRA | MORE | FORT since 2026-11-13;
+// ---- THE OUTPOST ([ai_base] expand_islands, bits, default 1329 = SETTLE | EXTRA | MORE | FORT since 2026-11-13,
+// | BEACH since 2026-11-14 (THE LANDING AS THE PLAYER DOES IT);
 // [autotest] v_expand_islands for the variant players) ----
 // ON (the player 2026-11-13, of the outposts that were lost: "yes, make them hold"). What kills them, read from the
 // games: enemy land soldiers - a rival's guard or a landing, 5-11 of them near each citizen killed against the
@@ -278,7 +279,7 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
 //   and Small Islands Small, both cheats): miners on other islands +1 to +4 at minute 30, enemy soldiers on the home
 //   island -2 to -5 without the cheat, but the other islands' miners at 60 back to even or below (-7 (3) on Small
 //   Islands Large) and kills - losses -13 .. +15, all within the noise; off.
-internal int g_expand = 305, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_ex_min = 8, g_ex_trips = 4, g_ex_max = 3;
+internal int g_expand = 1329, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_ex_min = 8, g_ex_trips = 4, g_ex_max = 3;
 #define EXPAND(idx) PV(idx, g_v_expand, g_expand)
 #define EX_GUARD(idx) (EXPAND(idx) & 128 && g_ex_guard < 4 ? 4 : g_ex_guard)   // FOLLOW: a guard of 4 at least
 // FORT (the player 2026-11-08: "the ai must invest in keeping what it claims, building an outpost just to lose it again is
@@ -936,7 +937,13 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
 //     can't be paid: it stands after 1.0 and 2.0 minutes; soldiers +5 (7) and 0 (11), kills -2 (5) and +6 (7), workers
 //     +3 (7) and -8 (8); outposts lost 1 of 6 and 1 of 16 (without: 0 of 8 and 5 of 15); taken off again 1 of 6 and 7
 //     of 16 landings; citizens killed 200 -> 237 and 389 -> 315.
-// Level: nothing beyond the noise either way, so off - the player's to switch on (his pattern).
+// What each side held at minute 55, a player: islands 0.6 against 0.7 and 1.4 against 1.5, gatherers on them 6.4
+// against 4.0 and 16.2 against 19.9 - fewer outposts thrown away, as many standing: a landing taken off is an island
+// not gained, a party and a boat not lost.
+// I called that level by the soldiers at minute 60 and left it off; the player: "maybe our test criteria are a bit
+// fucked?! 'fewer outposts lost' how is that not a positive?" - and: "yes, put it as default". ON (2026-11-14). An
+// island held pays after the 60 minutes these games last: expansion is judged by what is held and worked at the end
+// first, its price second, the army last.
 #define EX_BEACH_WAIT 720000
 internal float cv_local(ee_player *pl, ivec2 p, int r, int honest);   // cover.c
 // the passengers still ashore stopped where they stand: their parts of the transport's load goal go before the
