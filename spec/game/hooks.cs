@@ -236,6 +236,20 @@ static unsafe class hooks
     [address((ee)0x0061B2DF, (aoc)0x0062E15E)]
     static code move_goal_load;
 
+    /// the statistics screen's epoch range, set as it opens (0x5D3D70, AoC 0x5E46B5): mov [eax+0x344], ecx -
+    /// the range's last epoch, the highest any player's statistics hold (stat 12, the epoch), its first at +0x340 the
+    /// lowest. The epoch rows (0x5D47BB) take their controls from the layout by epoch, 16 from 0x216 (AoC 0x226) for
+    /// each, unchecked: an epoch past the layout's rows read the controls after them as the rows' status bars - the
+    /// player's game of 2026-11-14 (153 minutes): P1's statistics at epoch 14 while the AIs' were 13 at most and the
+    /// game's end epoch 13, the copy of a UIBitmap's (758) "text" crashed (GEText::operator=, Low-Level Engine +0x77E7)
+    [address((ee)0x005D450E, (aoc)0x005E4E47)]
+    static code stats_epoch_end;
+
+    /// the last epoch the statistics screen's layout has a row for: EE's controls 0x216..0x2F5, AoC's 0x226..0x315 (the
+    /// graph code's own range check, 0x5D25C9 / AoC 0x5E2F0E)
+    [value((ee)13, (aoc)14)]
+    static int32 stats_epoch_last;
+
     /// the 2017 update sets a unit's reload inline where AoC calls unit.reload_wait (its random wait): the attack ticks'
     /// cmp [esi+0x2A0], eax before their store of the type's reload (EEUGAttackGround 0x60ABC0, EEUGAttackUnit
     /// 0x60B34C; a je over the store follows) ...

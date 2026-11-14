@@ -223,6 +223,15 @@ internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(u
 // - the unit's goal object, read through unchecked (8B 01 next); a ja to the case's idle branch (set_state 5000, vf29
 // again) at +0x10. A unit moving with its goal list empty died there (the player's game of 2026-11-13, 227 minutes)
 internal inline uint8_t *hooks_move_goal_load_at(void) { return (uint8_t *)(uintptr_t)data_hooks_move_goal_load; }
+// the statistics screen's epoch range, set as it opens (0x5D3D70, AoC 0x5E46B5): mov [eax+0x344], ecx -
+// the range's last epoch, the highest any player's statistics hold (stat 12, the epoch), its first at +0x340 the
+// lowest. The epoch rows (0x5D47BB) take their controls from the layout by epoch, 16 from 0x216 (AoC 0x226) for
+// each, unchecked: an epoch past the layout's rows read the controls after them as the rows' status bars - the
+// player's game of 2026-11-14 (153 minutes): P1's statistics at epoch 14 while the AIs' were 13 at most and the
+// game's end epoch 13, the copy of a UIBitmap's (758) "text" crashed (GEText::operator=, Low-Level Engine +0x77E7)
+internal inline uint8_t *hooks_stats_epoch_end_at(void) { return (uint8_t *)(uintptr_t)data_hooks_stats_epoch_end; }
+// the last epoch the statistics screen's layout has a row for: EE's controls 0x216..0x2F5, AoC's 0x226..0x315 (the
+// graph code's own range check, 0x5D25C9 / AoC 0x5E2F0E)
 // the 2017 update sets a unit's reload inline where AoC calls unit.reload_wait (its random wait): the attack ticks'
 // cmp [esi+0x2A0], eax before their store of the type's reload (EEUGAttackGround 0x60ABC0, EEUGAttackUnit
 // 0x60B34C; a je over the store follows) ...
@@ -360,6 +369,8 @@ internal int spec_hooks_select(int build) {
         of_draw_small_record_flag = 0x38;
         data_hooks_call_attack_alert = 0x006177CF;
         data_hooks_move_goal_load = 0x0061B2DF;
+        data_hooks_stats_epoch_end = 0x005D450E;
+        value_hooks_stats_epoch_last = 13;
         data_hooks_reload_tick_cmp[0] = 0x0060ABC0;
         data_hooks_reload_tick_cmp[1] = 0x0060B34C;
         data_hooks_reload_fire_store[0] = 0x0061E18E;
@@ -491,6 +502,8 @@ internal int spec_hooks_select(int build) {
         of_draw_small_record_flag = 0x38;
         data_hooks_call_attack_alert = 0x0062A366;
         data_hooks_move_goal_load = 0x0062E15E;
+        data_hooks_stats_epoch_end = 0x005E4E47;
+        value_hooks_stats_epoch_last = 14;
         data_hooks_reload_tick_cmp[0] = 0;
         data_hooks_reload_tick_cmp[1] = 0;
         data_hooks_reload_fire_store[0] = 0;
@@ -576,6 +589,7 @@ internal int spec_hooks_check(void) {
     bad += spec_code((uintptr_t)fn_draw_record_destroy, "ee_draw_record.destroy");
     bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
     bad += spec_code(data_hooks_move_goal_load, "hooks.move_goal_load");
+    bad += spec_code(data_hooks_stats_epoch_end, "hooks.stats_epoch_end");
     bad += spec_code(data_hooks_reload_tick_cmp[0], "hooks.reload_tick_cmp 0");
     bad += spec_code(data_hooks_reload_tick_cmp[1], "hooks.reload_tick_cmp 1");
     bad += spec_code(data_hooks_reload_fire_store[0], "hooks.reload_fire_store 0");

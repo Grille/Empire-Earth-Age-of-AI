@@ -1200,6 +1200,8 @@ internal uint32_t of_draw_small_record_next_frame;
 internal uint32_t of_draw_small_record_flag;
 internal uint32_t data_hooks_call_attack_alert;
 internal uint32_t data_hooks_move_goal_load;
+internal uint32_t data_hooks_stats_epoch_end;
+internal uint32_t value_hooks_stats_epoch_last;
 internal uint32_t data_hooks_reload_tick_cmp[2];
 internal uint32_t data_hooks_reload_fire_store[2];
 internal uint32_t data_hooks_code_splash_start_jne;

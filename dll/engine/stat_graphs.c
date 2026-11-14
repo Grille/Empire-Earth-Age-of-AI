@@ -125,8 +125,30 @@ internal void __thiscall hook_sg_combine(ee_graph *g, const ee_graph *other, ee_
     sg_graph_extremes(out);
 }
 
+// THE SCREEN'S EPOCH ROWS (always): the screen shows a row per epoch from the lowest to the highest its players'
+// statistics hold, each row the layout's controls for that epoch, unchecked - one past the layout's last row read the
+// controls after them as its status bars and crashed copying a picture's "text" (the player's game of 2026-11-14 at 153
+// minutes: his statistics at epoch 14, the AIs' at 13 at most, the game's end epoch 13; spec hooks.stats_epoch_end).
+// The range ends at the layout's last row: an epoch past it is not shown.
+__attribute__((used)) int __stdcall stats_epoch_fix(uint8_t *range, int end) {
+    int last = stats_epoch_last(), *first = (int *)(range + 0x340);
+    if (end <= last && *first <= end) return end;
+    int was_first = *first, was_end = end;
+    if (end > last) end = last;
+    if (*first > end) *first = end;
+    if (g_log) log_locked("# engine guard: the statistics screen's epochs %d..%d past its rows (the last %d) - shown %d..%d\n",
+                          was_first, was_end, last, *first, end);
+    return end;
+}
+__attribute__((naked, used)) void stats_epoch_thunk(void) {
+    __asm__ volatile ("pushal\n\t" "pushl %ecx\n\t" "pushl %eax\n\t"
+        "call _stats_epoch_fix@8\n\t" "movl %eax, 24(%esp)\n\t"   // pushal's ecx
+        "popal\n\t" "movl %ecx, 0x344(%eax)\n\t" "ret\n\t");
+}
+
 internal void stat_graphs_install(void) {
     int a = patch_graph_add_point(hook_sg_add_point, &g_sg_add_point), p = patch_graph_prune(hook_sg_prune, &g_sg_prune),
         c = patch_graph_combine(hook_sg_combine, &g_sg_combine);
     if (g_log && a + p + c != 3) fprintf(g_log, "# stat graphs: only %d of 3 imports hooked\n", a + p + c);
+    if (!patch_stats_epoch_end(stats_epoch_thunk) && g_log) fprintf(g_log, "# engine guard: the statistics screen's epoch rows FAILED\n");
 }

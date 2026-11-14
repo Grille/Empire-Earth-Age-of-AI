@@ -240,6 +240,15 @@ internal int patch_move_goal(void (*thunk)(void)) {
     return patch_insn6_call(data_hooks_move_goal_load, mov, (void *)thunk);
 }
 
+// the statistics screen's store of its epoch range's end (spec hooks.stats_epoch_end) a call of thunk: the range's object
+// in eax, the end in ecx; the thunk stores it itself (mov [eax+0x344], ecx)
+internal int patch_stats_epoch_end(void (*thunk)(void)) {
+    static const uint8_t mov[6] = { 0x89, 0x88, 0x44, 0x03, 0x00, 0x00 };
+    return patch_insn6_call(data_hooks_stats_epoch_end, mov, (void *)thunk);
+}
+// the last epoch the statistics screen has a row for (spec hooks.stats_epoch_last)
+internal inline int stats_epoch_last(void) { return (int)value_hooks_stats_epoch_last; }
+
 // the 2017 update's four reload stores (hooks.reload_tick_cmp, reload_fire_store) sent to a thunk: unit esi, reload
 // eax; it must store the reload and return with ZF set (the ticks' je then skips their own store). 0..4 patched
 internal int patch_reload_stores(void (*thunk)(void)) {
