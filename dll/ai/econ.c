@@ -2020,6 +2020,14 @@ internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *
     if (next > 13 || next > end_epoch() || !epoch_tech(pl, next)) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
     int remaining = (int)(civ_mgr_get_timer(cm, 0) - game_time());
+    // epoch_pacing=follow with a human ahead: the attempt is now (econ_tick pulls it up the moment the cost is in). The
+    // game's own attempt - 20-50 minutes after the last advance, redrawn only when someone reaches a new epoch - held
+    // nothing back meanwhile: the player's aitest6 of 2026-11-14 (he at Nano from the start), P3 at epoch 10 for the
+    // game's last 15 minutes with 34000 food and 71000 wood, its gold and iron spent on soldiers as they came in, the
+    // next epoch's 1175 of each never saved. His autosave of 152 minutes played on 20 minutes (2 games each): P3's iron
+    // 40 / 95 before, 796 / 390 with it (P4's 46 / 175 and 1216 / 57); no AI advanced in either - its iron comes in at
+    // 80 a minute (one mine it can work, 200 citizens on wood)
+    if (cfg_of(pl)->pacing == PACE_FOLLOW && human_count()) remaining = 0;
     if (remaining > 10 * 60000) return;
     float until = remaining > 0 ? (float)remaining / 60000.0f : 0;   // minutes until the attempt
     for (int r = 2; r < 7; r++) reserve[r] = epoch_cost(pl, next, r);
