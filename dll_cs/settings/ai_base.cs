@@ -300,8 +300,13 @@ class ai_base
         bool territory_shelter = false;
         /// Held ground (ai/armies.c HELD GROUND): the army answers a raid wherever it stands in a territory the AI holds
         /// on the army's land, not only within 60 tiles of where the army stands - a town far out has no guard, so the
-        /// army (or a part of it that wins two to one) comes. 1 = on. Off until measured
+        /// army (or a part of it that wins two to one) comes. 1 = on. Off until the territory system is measured as a whole
         bool raid_held_ground = false;
+        /// The army at the front (ai/armies.c FRONT STATION): between attacks the army stands in the territory it holds
+        /// whose border with ground nobody of its side holds is the heaviest (its length, the enemy soldiers known
+        /// beyond it, its buildings there), on the side of that border; on an island with no such border as before.
+        /// 1 = on. Off until the territory system is measured as a whole
+        bool force_at_front = false;
     }
 
     class SiegeAndTowerRouting

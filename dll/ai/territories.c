@@ -301,6 +301,40 @@ internal int tv_holds(unsigned idx, ivec2 p) {   // armies.c HELD GROUND: AI idx
     unsigned r = g_ter.lab && s->n && s->version == g_ter.version ? ter_near(p.x, p.y) : TER_NONE;
     return r < (unsigned)s->n && !g_ter.t[r].water && s->t[r].role != TVR_NONE;
 }
+// armies.c FRONT STATION: where the force stands - the land front on its base's land with the heaviest open border
+// (each border's tiles x (1 + the enemy soldiers it knows beyond it), the front's sum x (1 + its buildings there / 8)),
+// a third of the way from that territory's middle towards the neighbour the heaviest border is with; 0: no land front
+// there (an island: its fronts are shores - the ships' matter)
+internal int tv_front_station(ee_player *pl, unsigned idx, ivec2 *out) {
+    struct tv_st *s = &g_tv[idx & 15];
+    ivec2 base;
+    if (!s->n || s->version != g_ter.version || !ms_base(pl, &base)) return 0;
+    unsigned land = area_id(base, 2);
+    int best = -1, bto = -1;
+    float bw = 0;
+    for (int r = 0; r < s->n; r++) {
+        if (g_ter.t[r].water || s->t[r].role != TVR_FRONT || !s->t[r].open || area_id(g_ter.t[r].c, 2) != land) continue;
+        float sum = 0, most = 0;
+        int to = -1;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[r].nb0 + k];
+            if (nb->to >= (unsigned)s->n || g_ter.t[nb->to].water || s->t[nb->to].friendly) continue;
+            float w = (float)nb->len * (1.0f + (float)s->t[nb->to].foe);
+            sum += w;
+            if (w > most) { most = w; to = nb->to; }
+        }
+        sum *= 1.0f + (float)s->t[r].bld / 8.0f;
+        if (to >= 0 && sum > bw) { bw = sum; best = r; bto = to; }
+    }
+    if (best < 0) return 0;
+    ivec2 c = g_ter.t[best].c, n = g_ter.t[bto].c;
+    *out = c;
+    for (int f = 35; f > 0; f -= 7) {
+        ivec2 q = iv2(c.x + (n.x - c.x) * f / 100, c.y + (n.y - c.y) * f / 100);
+        if (territory_at(q.x, q.y) == (unsigned)best) { *out = q; break; }
+    }
+    return 1;
+}
 internal void tv_count(unsigned idx, int what) {   // the log's counters: 0 into a fortress, 1 to a refuge, 2 a site refused, 3 a fortress kept shut
     struct tv_st *s = &g_tv[idx & 15];
     if (what == 0) s->sheltered++; else if (what == 1) s->refuge++; else if (what == 2) s->refused++; else s->kept_in++;

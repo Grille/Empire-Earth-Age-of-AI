@@ -390,10 +390,19 @@ internal ivec2 ar_fort(ee_player *pl, unsigned idx, ivec2 at) {
     }
     return best >= 0 ? unit_get_tile(def[best]) : at;
 }
+// FRONT STATION ([ai_base] force_at_front; [autotest] v_force_at_front): the force's home is in the land front with
+// the heaviest open border (territories.c tv_front_station) - the player 2026-11-14: "my focus is on not letting
+// anething go so far in"; where there is none (an island) as before. Until then the heaviest front of fronts.c's
+// cells, a tower's place - the same idea on the older map.
+internal int tv_front_station(ee_player *pl, unsigned idx, ivec2 *out);   // territories.c
+internal int g_ar_front_ter = 0, g_v_ar_front_ter = -1;
+#define AR_FRONT_TER(idx) PV(idx, g_v_ar_front_ter, g_ar_front_ter)
+internal unsigned g_ar_front_n[16];   // the log's: looks its home came from a territory's front
 internal int ar_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     ivec2 at;
     struct stage *st = &g_stg[idx];
-    if (!(fronts_station(idx, 0, &at) && !stage_danger(idx, at)) && !(st->on && !stage_danger(idx, (at = st->s))) && !ms_base(pl, &at)) return 0;
+    if (AR_FRONT_TER(idx) && tv_front_station(pl, idx, &at) && !stage_danger(idx, at)) g_ar_front_n[idx]++;
+    else if (!(fronts_station(idx, 0, &at) && !stage_danger(idx, at)) && !(st->on && !stage_danger(idx, (at = st->s))) && !ms_base(pl, &at)) return 0;
     if (PV(idx, g_v_ar_fort, AR_FORT)) { ivec2 f = ar_fort(pl, idx, at); a->forted += f.x != at.x || f.y != at.y; at = f; }
     if (!a->home_t) { a->home = at; a->home_t = now ? now : 1; return 1; }
     if (ivec2_dist2(at, a->home) <= AR_HOME_MOVE * AR_HOME_MOVE) { a->cand_t = 0; return 1; }
@@ -2284,8 +2293,8 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
             if (tn) tmid = iv2((int)(tsx / tn), (int)(tsy / tn));
             unsigned tin = tv_terr_of(tmid), tto = tv_terr_of(a->out ? a->dest : a->home);
             if (tn && tin != TER_NONE)
-                ar_log(idx, now, "territory: the force of %d in %u, %s %u (%d enemy soldiers it knows there); raids answered in held ground out of its reach %u", tn, tin, a->out == 1 ? "pushing into" : a->out == 2 ? "answering a raid in" : "its home in",
-                       tto, tv_foes(idx, tto), g_ar_far[idx]);
+                ar_log(idx, now, "territory: the force of %d in %u, %s %u (%d enemy soldiers it knows there); raids answered in held ground out of its reach %u, looks its home was a territory's front %u", tn, tin, a->out == 1 ? "pushing into" : a->out == 2 ? "answering a raid in" : "its home in",
+                       tto, tv_foes(idx, tto), g_ar_far[idx], g_ar_front_n[idx]);
         }
         if (g_ar_lent[idx].lent || g_ar_lent[idx].asked)
             ar_log(idx, now, "over the sea: landings asked %u, soldiers lent %u, back %u, still away %d", g_ar_lent[idx].asked, g_ar_lent[idx].lent, g_ar_lent[idx].back, av_of(idx, AV_LANDING) ? av_of(idx, AV_LANDING)->n : 0);
@@ -2447,6 +2456,7 @@ internal void armies_install(const char *autotest_ini) {
     g_ar_sea = g_set_ai[1].mod_armies_sea;
     g_ar_raid_answer = g_set_ai[1].raid_answer;
     g_ar_held_ground = g_set_ai[1].raid_held_ground;
+    g_ar_front_ter = g_set_ai[1].force_at_front;
     g_ar_leash = g_set_ai[1].raid_leash;
     g_ar_aid = g_set_ai[1].ally_aid;
     g_ar_parts = g_set_ai[1].raid_parties;
@@ -2463,6 +2473,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_sea = ini_int("autotest", "v_mod_armies_sea", -1, autotest_ini);
         g_v_ar_parts = ini_int("autotest", "v_raid_parties", -1, autotest_ini);
         g_v_ar_held_ground = ini_int("autotest", "v_raid_held_ground", -1, autotest_ini);
+        g_v_ar_front_ter = ini_int("autotest", "v_force_at_front", -1, autotest_ini);
         g_v_ar_need = ini_int("autotest", "v_train_by_need", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
