@@ -138,8 +138,25 @@ internal char __thiscall hook_cp_is_human(ee_player *pl) {
     return (char)yes;
 }
 
+// godmode click P (tests): a click on one of P's units sent as the UI sends it (EEMSelectUnit) - the k-th alive one,
+// k going on from call to call, so that a loop clicks round P's units and buildings
+internal void god_click(char *out, int p) {
+    static unsigned k;
+    if (p < 0 || (unsigned)p >= game_player_count() || !game_players()[p]) { REPLY("error: godmode click P: no player %d\n", p); return; }
+    unsigned n = 0;
+    for (ee_unit *u = player_get_units(game_players()[p]); u; u = unit_get_next(u)) n++;
+    if (!n) { REPLY("error: godmode click: P%d has no units\n", p); return; }
+    unsigned want = k++ % n, i = 0;
+    ee_unit *u = player_get_units(game_players()[p]);
+    while (u && i < want) u = unit_get_next(u), i++;
+    if (!u || !select_unit_msg_send((unsigned)unit_get_serial(u))) { REPLY("error: godmode click: not sent\n"); return; }
+    REPLY("clicked unit %08X of P%d (%u of %u)\n", (unsigned)unit_get_serial(u), p, want + 1, n);
+}
+
 internal void cmd_godmode(char *out, const char *args) {
     char w[8] = "";
+    int cp = -1;
+    if (sscanf(args, "click %d", &cp) == 1) { god_click(out, cp); return; }
     sscanf(args, "%7s", w);
     int on = god_on();
     if (!w[0]) on = !on;
@@ -175,27 +192,27 @@ internal void cmd_godmode(char *out, const char *args) {
           local_player_index(), g_god_asked, g_god_told);
 }
 
-// a save while switched: written as this PC's own player (the msg_ids and the local index as they were), then switched
-// again - only those, the sight and the screens stay the switched player's
-internal int g_god_save_p = -1;
+// a save while switched: written as this PC's own player - the msg_ids as they were (a load finds this PC's player by
+// its msg_id), then the switch's again. Only those: the local index stays - the render thread draws on during a save and
+// reads the local player all over its frame (until 2026-11-14 the save switched it back and forth as well; the player's
+// game died that day in the frame's recording, rf_record's realloc reading freed memory, three switches after an
+// autosave made while switched - not reproduced: 1600 switches by click and playas, on that game's save with his ini too)
+internal int g_god_saving;
 internal int8_t g_god_save_ids[16];
 internal void god_save_begin(void) {
-    g_god_save_p = -1;
-    if (!playas_switched()) return;
-    unsigned n = game_player_count(), *me = (unsigned *)local_player_index_at();
-    g_god_save_p = (int)*me;
+    g_god_saving = playas_switched();
+    if (!g_god_saving) return;
+    unsigned n = game_player_count();
     for (unsigned i = 0; i < n; i++) if (game_players()[i]) {
         g_god_save_ids[i] = player_get_msg_id(game_players()[i]);
         player_set_msg_id(game_players()[i], g_playas_ids[i]);
     }
-    *me = (unsigned)g_playas_was;
 }
 internal void god_save_end(void) {
-    if (g_god_save_p < 0) return;
+    if (!g_god_saving) return;
     unsigned n = game_player_count();
     for (unsigned i = 0; i < n && i < 16; i++) if (game_players()[i]) player_set_msg_id(game_players()[i], g_god_save_ids[i]);
-    *(unsigned *)local_player_index_at() = (unsigned)g_god_save_p;
-    g_god_save_p = -1;
+    g_god_saving = 0;
 }
 
 internal void godmode_install(void) {
