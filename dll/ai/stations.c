@@ -56,9 +56,14 @@ internal struct sn_st {
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
     unsigned moved, orders, pushes, won, lost, scouted;
+    int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
 internal struct st_side g_sn_own;
+// TRAINING BY NEED's place with the game's computer player off (armies.c ar_need_pick: what to train is what adds most
+// against the enemy there): a push's building, else the middle of the enemy soldiers in the territory of its with the
+// most of them, else the enemy building it knows nearest the territory with the largest share. 0: none known.
+internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at; return g_sn[idx & 15].need_on; }
 internal int sn_cmp(const void *a, const void *b) { const struct sn_unit *x = a, *y = b; return x->u < y->u ? -1 : x->u > y->u; }
 internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fight, uint32_t now) {
     ee_goal *g = ar_goal_at(d, k, fight);
@@ -325,6 +330,20 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (ivec2_dist2(p, d) <= reach * reach) continue;
         int moved = m->order_t && ivec2_dist2(m->to, d) > 6 * 6;   // its place has moved: the enemy, the push's next building
         if (!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, i, d, fight, now);
+    }
+    z->need_on = 0;   // THE NEED'S PLACE
+    for (int k = 0; k < SN_PUSHES && !z->need_on; k++) if (z->push[k].on) { z->need_at = z->push[k].at; z->need_on = 1; }
+    if (!z->need_on) {
+        int b = -1, big = -1, bd = 0;
+        for (int r = 0; r < n; r++) {
+            if (fn[r] > 0 && s->t[r].role != TVR_NONE && (b < 0 || fn[r] > fn[b])) b = r;
+            if (tc[r] > 0 && (big < 0 || tc[r] > tc[big])) big = r;
+        }
+        if (b >= 0) { z->need_at = iv2(fx[b] / fn[b], fy[b] / fn[b]); z->need_on = 1; }
+        for (int e = 0; b < 0 && big >= 0 && e < neb; e++) {
+            int d = ivec2_dist2(eb[e].p, rally[big]);
+            if (!z->need_on || d < bd) { z->need_at = eb[e].p; z->need_on = 1; bd = d; }
+        }
     }
     if (g_log && (!z->log_t || now - z->log_t >= 60000)) {
         z->log_t = now ? now : 1;

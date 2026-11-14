@@ -364,6 +364,16 @@ against 152), the stock as at the start, 3 soldiers, no building, half of them d
   comparison at the nearest building says 1.5 or better and comes back under 0.8 (no attack time); up to 3 of the
   fastest scout the territories it never stood in and are the main force's again after. Open: anti-air, aircraft and
   ships by role, siege on a shoreline.
+  What rode on the one force is off with it (2026-11-15, armies.c ar_on): its landings, skirmish.c's parties,
+  airstrike.c's bombers; so is the home guard (defence.c: a count of soldiers near the base, which the stations
+  emptied - it trained without end). One trainer instead, army.c FILL from the first epoch: the type that adds most
+  against the enemy where the territories' force meets it next (armies.c ar_need_pick at stations.c sn_need_at: a
+  push's building, the enemy soldiers in a territory of its, the nearest enemy building), among the types an idle
+  building of its trains; nothing known there, the strongest such it pays, else the cheapest (refused and saved for).
+  One more production building of FILL's kind when that kind is busy (the build manager's queue is not asked: nobody
+  works it), and production past the first building once it is fed: 2 granaries, or the food income its citizen
+  producers use without a pause. Still running beside the stations: cover.c's falling back, counter-siege, muster
+  (a soldier idle 30 s away from its station is sent back), the siege and anti-air trainers.
 - **To write, in the order the rest depends on it**: (1) the citizens' work - how many on what, who goes to which site, drop
   sites, fields (done); (2) building - what, where, which citizen builds (done for the food base, the mines and the
   research buildings and the land production; open: houses, docks, repairs); (3) research and the epochs (done but the

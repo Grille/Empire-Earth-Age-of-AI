@@ -1815,6 +1815,9 @@ internal int home_soldiers_now(ee_player *pl) {
 internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_home_guard || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 10000)) return;
+    // the game's computer player off: no home to guard - the territories' shares say where soldiers stand (stations.c:
+    // they left, and it trained without end for a count that never filled), army.c FILL trains them
+    if (!GAME_AI(idx)) return;
     last[idx] = now;
     void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;

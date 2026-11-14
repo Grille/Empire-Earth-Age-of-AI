@@ -174,6 +174,43 @@ internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vi
     return substitute_soldier(pl, idx, vis, 1, &got);
 }
 internal int towns_production(ee_player *pl, unsigned idx, int type);   // towns.c
+// a finished building of its that stands idle trains the type (its tech's makers)
+internal int ap_trains_now(ee_player *pl, int type) {
+    ee_unit_type *td = type_data(type);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    ee_tech *t = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
+    ee_tech_data *d = t ? tech_get_data(t) : NULL;
+    int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    for (int *p = b; um && b && e > b && e - b < 16 && p < e; p++) {
+        int h = 0, busy = 0;
+        am_bld(um, *p, &h, &busy);
+        if (h > busy) return 1;
+    }
+    return 0;
+}
+// the game's computer player off - FILL's own type: the strongest land soldier vis pays that an idle building of its
+// trains (the strongest of all came from the Barracks every time: it trained without a pause, the Archery Range and
+// the Stable beside it stood idle and 3 of 4 orders trained nothing)
+internal int ap_idle_type(ee_player *pl, const int *vis) {
+    int best = 0;
+    for (int t = 0; t < 724; t++) {
+        if (!land_soldier(t) || soldier_score(t) <= 0 || (best && soldier_score(t) <= soldier_score(best)) || !can_build(pl, t)) continue;
+        int pays = 1, paid = 0;
+        for (int r = 2; r < 7; r++) { int c = unit_cost(pl, t, r); paid |= c > 0; if (vis[r] < c) pays = 0; }
+        if (pays && paid && ap_trains_now(pl, t)) best = t;
+    }
+    // nothing it pays (the citizens' orders take the food as it comes in): the cheapest all the same - the order is
+    // refused and saved for (econ.c train_budget), which is what gets the army its turn
+    int cheap = 0, cc = 0;
+    for (int t = 0; !best && t < 724; t++) {
+        if (!land_soldier(t) || soldier_score(t) <= 0 || !can_build(pl, t)) continue;
+        int c = 0;
+        for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
+        if (c > 0 && (!cheap || c < cc) && ap_trains_now(pl, t)) { cheap = t; cc = c; }
+    }
+    return best ? best : cheap;
+}
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
 internal int ap_producer(ee_player *pl, int type) {
     ee_unit_type *td = type_data(type);
@@ -316,8 +353,10 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     // own_soldiers (econ.c EVERY UNIT THE MOD'S): the game's requests no longer train the force's soldiers - FILL is
     // their training wherever the force has them, every epoch from the Copper Age (before it the game's groups trained
     // them all: none at all in the first smoke games, 2026-11-13)
-    int own = OWN_SOLDIERS(idx) && ar_on(pl, idx);
-    if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa && !own)) return;
+    // the game's computer player off: FILL is the one trainer of the land soldiers (no request of the game's, no home
+    // guard - defence.c), from the first epoch
+    int off = !GAME_AI(idx), own = off || (OWN_SOLDIERS(idx) && ar_on(pl, idx));
+    if ((current_epoch(pl) < FARM_EPOCH && !off) || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa && !own)) return;
     if ((plan & 32) && current_epoch(pl) < g_army_epoch && !own) return;   // LATE
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
@@ -341,6 +380,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     static const int big[7] = { 0, 0, 1 << 20, 1 << 20, 1 << 20, 1 << 20, 1 << 20 };
     int type = (plan & 4) ? ap_type(pl, idx, um, big) : 0;   // BUILD: what the game would train
     if (type) a->last_type = type;
+    int filled = 0;
     if (plan & 2) {   // FILL: what the account and the stock above the reserves pay
         int res[7] = { 0 }, vis[7] = { 0 };
         am_reserve(pl, idx, res);
@@ -353,8 +393,9 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int goal = g_czp[idx].goal ? g_czp[idx].goal : unit_mgr_citizens_wanted(um);
         int miss = goal - workforce(pl);
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
-        int ft = free > 0 ? ap_type(pl, idx, um, vis) : 0;
+        int ft = free <= 0 ? 0 : off ? ap_idle_type(pl, vis) : ap_type(pl, idx, um, vis);
         if (free > 0) ft = ar_fill_type(pl, idx, vis, ft, now);   // armies.c TRAINING BY NEED
+        filled = ft;
         if (ft) {
             int req[4] = { ft, free < 5 ? free : 5, 0, 0 };
             unsigned n = 0;
@@ -370,6 +411,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             a->have[k] += (unsigned)h; a->busy[k] += (unsigned)b; nb += h;
         }
         unsigned have = 0, busy = 0, kh = 0;
+        if (off && filled) a->last_type = filled;   // the game's computer player off: the kind FILL's type comes from
         int bt = a->last_type ? ap_producer(pl, a->last_type) : 0;
         for (int k = 0; k < 5; k++) if (bt && g_ut[k_ap_land[k]] == bt) kb = k;
         for (int k = 0; k < 5; k++) { have += a->have[k]; busy += a->busy[k]; }
@@ -383,7 +425,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             int lim = 2 + workforce(pl) / 15;
             if ((plan & 64) && shelf_rich(player_stock_at(pl), g_shelve_stock) && lim < 2 + unit_limit(pl) / 30) lim = 2 + unit_limit(pl) / 30;
             if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
-                !build_mgr_queued(bm, bt) &&
+                (off ? !g_pr_more[idx] : !build_mgr_queued(bm, bt)) &&   // off: what its build manager still lists nobody builds
                 can_build(pl, bt)) {
                 int fwd = GAME_AI(idx) ? towns_production(pl, idx, bt) : 0;   // towns.c FORWARD: in the town nearest the enemy
                 if (!GAME_AI(idx)) g_pr_more[idx] = bt;   // produce.c: in the hub that wants the most (the build manager's queue is worked by nobody then)

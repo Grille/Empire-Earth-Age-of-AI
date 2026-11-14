@@ -29,10 +29,10 @@
 //               its own - a hub next door serves whatever is missing ("if there is a production hub in a neigbor its
 //               fine to use it"), two territories off a quarter of the force missing builds, three off an eighth,
 //               across a sea a twelfth. Only a territory that is established (PR_BLD of its buildings) and secured
-//               (no enemy soldier in it, not being lost) builds, and none before it has 2 granaries.
+//               (no enemy soldier in it, not being lost) builds, and none before it is fed (below).
 //   WHAT      - the first building of a hub: the first of PR_KINDS the game offers (a Barracks). A kind it has
 //               nowhere yet follows, in the hub that wants the most - but past its first production building
-//               nothing before it has 2 granaries (the player 2026-11-08: one production building until 2 farms).
+//               nothing before it is FED (the player 2026-11-08: one production building until 2 farms).   
 //               And one more of a kind the army plan found busy (army.c BUILD, which asked the game's build manager
 //               for it): in the hub that wants the most too. So a far hub starts as one Barracks and grows by what
 //               is used (every hub with every kind at first: one AI at 10 production buildings in 4 territories
@@ -161,20 +161,23 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
         z->claims++;
         if (score > bscore) { bscore = score; best = r; }
     }
+    // FED: 2 granaries, or the food coming in is what its citizen producers use without a pause (the patches feed it:
+    // with them filled first the second granary came at minute 30, and one Barracks trained all its soldiers)
+    int fed = granaries >= 2 || g_rate[idx].rate[2] >= cz_nonstop_food(pl);
     int ter = -1, type = 0;
     const char *why = NULL;
     if (!total && first >= 0) { ter = first; why = "its first production"; }
-    else if (best >= 0 && done && granaries >= 2) { ter = best; why = "a territory builds its own: too far from the next production for what it misses"; }   // none while its first is still going up
+    else if (best >= 0 && done && fed) { ter = best; why = "a territory builds its own: too far from the next production for what it misses"; }   // none while its first is still going up
     if (ter >= 0)
         for (int k = 0; k < PR_NK && !type; k++) if (ut_has(g_ut[PR_KINDS[k]]) && prio_buildable(pl, g_ut[PR_KINDS[k]])) type = g_ut[PR_KINDS[k]];
-    if (!type && total && granaries >= 2 && hub >= 0 && s->t[hub].state == TV_QUIET) {   // a kind it has nowhere: in the hub that wants the most
+    if (!type && total && fed && hub >= 0 && s->t[hub].state == TV_QUIET) {   // a kind it has nowhere: in the hub that wants the most
         for (int k = 0; k < PR_NK && !type; k++) {
             int all = 0;
             for (int r = 0; r < n; r++) all += np[r][k];
             if (!all && ut_has(g_ut[PR_KINDS[k]]) && prio_buildable(pl, g_ut[PR_KINDS[k]])) { ter = hub; type = g_ut[PR_KINDS[k]]; why = "a kind it has nowhere yet"; }
         }
     }
-    if (!type && g_pr_more[idx] && hub >= 0 && granaries >= 2 && s->t[hub].state == TV_QUIET && prio_buildable(pl, g_pr_more[idx])) {
+    if (!type && g_pr_more[idx] && hub >= 0 && fed && s->t[hub].state == TV_QUIET && prio_buildable(pl, g_pr_more[idx])) {
         ter = hub; type = g_pr_more[idx]; why = "one more: the army plan found that kind busy";
     }
     if (g_pr_more[idx] && (!z->more_t || now < z->more_t)) z->more_t = now ? now : 1;

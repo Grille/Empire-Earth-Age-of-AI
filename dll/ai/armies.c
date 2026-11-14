@@ -292,7 +292,9 @@ internal int ar_det_out(unsigned idx);   // MINE RAIDS: a detachment is out (it 
 // both (mixed) the landing found the commander's groups empty and never went.
 internal int g_ar_sea = 0, g_v_ar_sea = -1;
 #define AR_SEA(idx) PV(idx, g_v_ar_sea, g_ar_sea)
-internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && MOD_ARMIES(idx) && (navy_land(idx) || (AR_SEA(idx) && navy_islands(idx))); }
+// not with the game's computer player off: the force by territory instead (stations.c) - and with it none of what
+// rides on the one force (its landings, skirmish.c's parties, airstrike.c's bombers)
+internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && GAME_AI(idx) && MOD_ARMIES(idx) && (navy_land(idx) || (AR_SEA(idx) && navy_islands(idx))); }
 internal struct { unsigned lent, back, asked; uint32_t look_t, ask_t; } g_ar_lent[16];   // OVER THE SEA: the landing's counts; the soldiers it has are an army of their own (army_view.c AV_LANDING)
 internal int ar_ptr_cmp(const void *x, const void *y) { ee_unit *a = *(ee_unit *const *)x, *b = *(ee_unit *const *)y; return a < b ? -1 : a > b; }
 internal int ou_members(ee_player *pl, ee_unit **out, int max);   // army.c: the units in pl's attack subgroups
@@ -2223,7 +2225,6 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (g_ar_load == 2) ar_found_again(a);
         ar_adopt(pl, idx, a, now);   // the held it doesn't know (a save without the force, or one whose members aren't found again)
     }
-    if (pl && !is_vanilla(pl) && !GAME_AI(idx)) return;   // the game's computer player off: the force by territory instead (stations.c)
     if (!ar_on(pl, idx) || (a->t && now - a->t < AR_TICK)) return;
     a->t = now ? now : 1;
     ee_combat_mgr *cm = player_get_combat_mgr(pl);
@@ -2370,13 +2371,28 @@ internal int g_ar_need_on = 1, g_v_ar_need = -1;
 #define AR_NEED(idx) PV(idx, g_v_ar_need, g_ar_need_on)
 internal struct { unsigned looks, same, other, none; } g_ar_need[16];
 // the pick (0: none - nothing known of the enemy, nothing payable); vis: what may be spent (NULL: anything)
+internal int sn_need_at(unsigned idx, ivec2 *at);   // stations.c
+// its side of the comparison: the force's members; the game's computer player off (no force) every land soldier of its
+internal void ar_need_own(ee_player *pl, struct armies_st *a, int off) {
+    if (!off) { ar_side(a, 0, NULL); return; }
+    st_side_clear(&g_ar_own);
+    int count = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (td && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && land_soldier(unit_type_get_id(td))) st_side_add(&g_ar_own, u);
+    }
+}
 internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int filled, uint32_t now, int log) {
     idx &= 15;
     struct armies_st *a = &g_armies[idx];
-    if (!ar_on(pl, idx)) return 0;
-    unsigned land = map_area(a->home, 2);
-    ee_unit *tg = land ? ar_target_on(pl, a->home, land) : NULL;
-    ivec2 at = tg ? unit_get_tile(tg) : a->home;
+    // the game's computer player off: no force, no home, no target of its - the place the territories' force meets the
+    // enemy next (stations.c sn_need_at), its side every land soldier, and only types an idle building of its trains (army.c ap_trains_now)
+    int off = pl && !is_vanilla(pl) && !GAME_AI(idx);
+    ivec2 home = a->home;
+    if (off ? !sn_need_at(idx, &home) : !ar_on(pl, idx)) return 0;
+    unsigned land = map_area(home, 2);
+    ee_unit *tg = land && !off ? ar_target_on(pl, home, land) : NULL;
+    ivec2 at = tg ? unit_get_tile(tg) : home;
     stage_foe(pl, at);
     // the enemies it will meet - the target's owner, those with a land army it knows of on its land or lost track of - as it
     // expects them (army_view.c WHAT THE ENEMY FIELDS): the land army each fields and its counters to what it saw of the
@@ -2403,22 +2419,23 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     }
     if (log) g_ar_need[idx].looks++;
     if (!g_sgs_foe.n) { if (log) g_ar_need[idx].none++; return 0; }
-    ar_side(a, 0, NULL);
+    ar_need_own(pl, a, off);
     float r0 = st_ratio(&g_ar_own, &g_sgs_foe);
     int best = 0, nbest = 0; float bg = 0, gfill = 0, rbest = r0;
     for (int ty = 0; ty < G_TYPES_N; ty++) {
         ee_unit_type *td = type_data(ty);
         if (!td || unit_type_get_id(td) != ty || unit_type_get_class_id(td) != CLS_LAND || unit_type_get_attack(td) <= 0) continue;
         if (ut_role(ty, UTR_CITIZEN) || ty == UT(PRIEST) || ty == UT(PROPHET) || !can_build(pl, ty)) continue;
+        if (off && !ap_trains_now(pl, ty)) continue;
         int cost = 0, pays = 1;
         for (int r = 2; r < 7; r++) { int c = unit_cost(pl, ty, r); cost += c; if (vis && vis[r] < c) pays = 0; }
         if (cost <= 0 || (!pays && ty != filled)) continue;
         int n = 1000 / cost > 1 ? 1000 / cost : 1;
         if (n > 40) n = 40;
-        ar_side(a, 0, NULL);
+        ar_need_own(pl, a, off);
         ee_unit_stats *st = st_rec(pl, ty);
         int hp = st_maxhp(td, st);
-        for (int k = 0; k < n; k++) st_side_put(&g_ar_own, NULL, td, st, (int)idx, hp, a->home.x, a->home.y);
+        for (int k = 0; k < n; k++) st_side_put(&g_ar_own, NULL, td, st, (int)idx, hp, home.x, home.y);
         float r = st_ratio(&g_ar_own, &g_sgs_foe), g = (r - r0) * 1000.0f / (float)(n * cost);
         if (ty == filled) gfill = g;
         if (pays && (!best || g > bg)) { best = ty; bg = g; nbest = n; rbest = r; }
