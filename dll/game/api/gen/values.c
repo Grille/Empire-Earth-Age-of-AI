@@ -1300,6 +1300,7 @@ internal uint32_t of_corner_color;
 internal uint32_t of_view_row_start;
 internal uint32_t of_view_row_len;
 internal uint32_t of_view_row_data;
+internal uint32_t of_region_number;
 internal uint32_t vt_eeai_continent_manager;
 internal uint32_t call_shore_to_unload;
 internal uint32_t vt_ee_mini_map;

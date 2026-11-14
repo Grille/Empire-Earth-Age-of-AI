@@ -69,6 +69,7 @@ internal struct fleet {
     int wp; uint32_t wp_t, build_t; unsigned built, build_refused;
     uint32_t bring_t[8]; int bring_i;   // the mod's warship orders of the last 90 s (not afloat yet)
     uint32_t pull_t;   // the last fishing boat pulled back from an enemy warship (fl_boats)
+    unsigned no_dock;   // sea_fleet: orders not given for want of a finished dock on its sea
     int need; uint32_t need_t; unsigned held;   // fleet_own without the navy account: the enemy warships known in its sea (the most, until 10 minutes after the last); ships held out of the game's groups
 } g_fl[16];
 internal unsigned g_fl_refused;
@@ -78,10 +79,15 @@ internal unsigned g_fl_refused;
 // matters (fleet_builds)
 internal int fleet_on(unsigned idx) {
     idx &= 15;
-    return PV(idx, g_v_navy_fleet, g_navy_fleet) && g_nv_map[idx].done && (g_nv_map[idx].strength > 0 || OWN_SHIPS(idx));
+    return PV(idx, g_v_navy_fleet, g_navy_fleet) && g_nv_map[idx].done && (navy_strength(idx) > 0 || OWN_SHIPS(idx));
 }
 // stage 4 (navy_fleet=big): the size target and the mod's own warship orders (navy.c), task forces (below)
-internal int fleet_builds(unsigned idx) { return fleet_on(idx) && g_nv_map[idx & 15].strength > 0 && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
+internal int fleet_builds(unsigned idx) { return fleet_on(idx) && navy_strength(idx) > 0 && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
+// sea_fleet (territories.c THE SEAS): the warships the fleet's sea wants - before it has a sea, the most any wants
+internal int tv_sea_need(unsigned idx, unsigned ocean);
+internal int tv_sea_best(unsigned idx, unsigned *ocean);
+internal int tv_sea_fish(unsigned idx, unsigned ocean);
+internal int fleet_sea_need(unsigned idx) { idx &= 15; return g_fl[idx].ocean ? tv_sea_need(idx, (unsigned)g_fl[idx].ocean) : tv_sea_best(idx, NULL); }
 internal int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 // EVERY WARSHIP THE MOD'S (own_ships, econ.c EVERY UNIT THE MOD'S; the player 2026-11-13: "go after the ships next").
 // With the fleet on every map the game still led and ordered them: a new warship was offered to its groups before the
@@ -98,7 +104,7 @@ internal int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 // own_ships' second level ([autotest] v_own_ships=1: the fleet on every map alone, as before).
 internal int fleet_own(unsigned idx) {
     idx &= 15;
-    return fleet_on(idx) && OWN_SHIPS(idx) >= 2 && (fleet_builds(idx) || g_nv_map[idx].strength <= 0);
+    return fleet_on(idx) && OWN_SHIPS(idx) >= 2 && (fleet_builds(idx) || navy_strength(idx) <= 0);
 }
 internal int fleet_need(unsigned idx) { return g_fl[idx & 15].need; }
 internal int fleet_own_ship(ee_player *pl, ee_unit *u) {   // one of them: a warship or submarine, not a landing's
@@ -1317,6 +1323,32 @@ internal void tf_log(unsigned idx, int k, struct fleet *f, uint32_t now) {
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }
+// THE DOCKS OF A SEA (sea_fishing, sea_fleet; territories.c THE SEAS). The game's training (ee_unit_mgr::train) hands
+// an order to the producers of one region only (the continent manager's, smaller than a sea) - the one named by the
+// request's fourth value, else the one with the most producers: with a dock on every sea (HARBOURS) the ships and
+// boats came from whichever group of docks was the largest. *area: the region most of its finished docks on that
+// sea stand in; returns those docks' number.
+internal int fl_sea_docks(ee_unit_mgr *um, unsigned ocean, unsigned *area, unsigned *seas, int *nseas) {
+    uint8_t *q = ut_has(UT(B_DOCK)) ? unit_mgr_type_list(um, UT(B_DOCK)) : NULL;
+    unsigned ar[16]; int cnt[16], na = 0, all = 0, best = 0;
+    if (nseas) *nseas = 0;
+    for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 64; j++) {
+        ee_unit *b = deque_at(q, f + j);
+        if (!b || unit_get_hp(b) <= 0 || !cz_finished(b)) continue;
+        ivec2 p = unit_get_tile(b);
+        unsigned oc = area_id(p, 1), a = unit_region(b);
+        if (!oc) oc = ocean_near(p, 4, NULL);
+        if (!oc) continue;
+        if (seas && nseas) { int k = 0; while (k < *nseas && seas[k] != oc) k++; if (k == *nseas && k < 8) seas[(*nseas)++] = oc; }
+        if (oc != ocean || !a) continue;
+        int k = 0;
+        while (k < na && ar[k] != a) k++;
+        if (k == na) { if (na >= 16) continue; ar[na] = a; cnt[na++] = 0; }
+        cnt[k]++; all++;
+    }
+    for (int k = 0; k < na; k++) if (cnt[k] > best) { best = cnt[k]; if (area) *area = ar[k]; }
+    return all;
+}
 // THE FLEET'S OWN ORDERS (stage 4): every 10 s, while the warships afloat and those ordered in the last 90 s are below
 // the target (navy.c g_nv_target) and the population has room, one warship of the type the mix wants (navy.c
 // navy_fleet_type: the role furthest below its share, payable now) through the game's training (econ.c
@@ -1333,7 +1365,9 @@ internal void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t no
     if (!type) return;
     int *stock = player_stock_at(pl), before[7];
     memcpy(before, stock, sizeof before);
-    int req[4] = { type, 1, 0, 0 };
+    unsigned area = 0;
+    if (SEA_FLEET(idx) && !fl_sea_docks(um, (unsigned)m->ocean, &area, NULL, NULL)) { m->no_dock++; return; }   // THE SEAS: at a dock on its sea, or not at all
+    int req[4] = { type, 1, 0, (int)area };
     unsigned got = 0;
     hook_train_units(um, req, (uintptr_t)&got);
     navy_pick_done(pl, idx, type, type, before, stock, !got);
@@ -1390,6 +1424,15 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     if (f->last && now - f->last < 2000) return;
     f->last = now ? now : 1;
     fl_scan(pl, idx);
+    if (SEA_FLEET(idx)) {   // THE SEAS: its sea the one whose waters want the most warships - changed only while none of its warships is afloat on the present one, or that one wants none
+        unsigned bo = 0;
+        int afloat = 0, want = tv_sea_best(idx, &bo);
+        for (int k = 0; k < f->n && !afloat; k++) afloat = fl_ship_ocean(f->u[k]) == f->ocean;
+        if (want > 0 && (int)bo != f->ocean && (!f->ocean || !afloat || !tv_sea_need(idx, (unsigned)f->ocean))) {
+            if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: the fleet's sea %d -> %u (its waters there want %d warships)\n", idx, now / 60000.0, f->ocean, bo, want);
+            f->ocean = (int)bo;
+        }
+    }
     // its sea: the docks' (the first one with a sea next to it), else the first ship's
     if (!f->ocean)
         for (int k = 0; k < g_fs.nd && !f->ocean; k++) f->ocean = (int)ocean_near(g_fs.dk[k], 4, NULL);
@@ -1489,7 +1532,17 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     if (now < g_fb[idx].t) memset(&g_fb[idx], 0, sizeof g_fb[idx]);
     if (g_fb[idx].t && now - g_fb[idx].t < FB_EVERY) return;
     g_fb[idx].t = now ? now : 1;
-    if (!player_get_boats_for_food(pl) || (int)resource_mgr_get_target(rm, 2) <= rm_count(rm, 2)) return;
+    // THE SEAS (sea_fishing): not the game's water map flag - a finished dock of its on a sea with fish it has seen in
+    // its waters, the one with the most; the boat is trained there (fl_sea_docks)
+    int by_sea = SEA_FISHING(idx), sea_food = 0, nseas = 0;
+    unsigned area = 0, seas[8], sea = 0;
+    if (by_sea) {
+        fl_sea_docks(um, 0, NULL, seas, &nseas);
+        for (int k = 0; k < nseas; k++) { int fd = tv_sea_fish(idx, seas[k]); if (fd > sea_food) { sea_food = fd; sea = seas[k]; } }
+        if (sea_food <= 0) { g_fb[idx].no_fish++; return; }
+        fl_sea_docks(um, sea, &area, NULL, NULL);
+    }
+    if ((!by_sea && !player_get_boats_for_food(pl)) || (int)resource_mgr_get_target(rm, 2) <= rm_count(rm, 2)) return;
     int type = hook_fish_type(cm);
     if (!type || !is_fishing_boat(type) || !ld_type_avail(pl, type)) return;
     if (unit_mgr_in_production_of(um, type) || unit_mgr_pending(um, type)) { g_fb[idx].making++; return; }
@@ -1502,15 +1555,15 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     int fish = 0;
     void **qb = resource_mgr_get_fish_begin(rm), **qe = resource_mgr_get_fish_end(rm);
     for (void **h = qb; qb && h < qe && h - qb < 4096 && !fish; h++) fish = *h && unit_get_amount(*h) > 0;
-    if (!fish) { g_fb[idx].no_fish++; return; }
+    if (!fish && !by_sea) { g_fb[idx].no_fish++; return; }
     if (g_fl[idx].pull_t && now >= g_fl[idx].pull_t && now - g_fl[idx].pull_t < FB_DANGER) { g_fb[idx].danger++; return; }
-    int req[4] = { type, 1, 0, 0 };
+    int req[4] = { type, 1, 0, (int)area };
     unsigned got = 0;
     hook_train_units(um, req, (uintptr_t)&got);
     g_fb[idx].orders++; g_fb[idx].ordered += got;
     if (!got) g_fb[idx].t = now - FB_EVERY + FB_AGAIN;   // not paid now (the reserves, the wood): soon again, as the game's standing request
-    if (g_log && g_autotest && got) log_locked("# fishing: P%u at %.1f min: the mod orders a boat (type %d) - %u ordered so far (%u asked; not: %u a boat idle, %u in the making, %u no fish, %u a boat pulled back)\n",
-                                              idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger);
+    if (g_log && g_autotest && got) log_locked("# fishing: P%u at %.1f min: the mod orders a boat (type %d) - %u ordered so far (%u asked; not: %u a boat idle, %u in the making, %u no fish, %u a boat pulled back); sea %u with %d food in fish, the game's list %s\n",
+                                              idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger, sea, sea_food, fish ? "has fish" : "has none");
 }
 internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
 internal void fleet_install(const char *autotest_ini) {

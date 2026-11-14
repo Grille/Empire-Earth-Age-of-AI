@@ -55,6 +55,11 @@ internal int fleet_need(unsigned idx);     // the enemy warships it knows in its
 // the 2-AI island tests: 26; cap 135: 20). Below it the account's share grows toward navy_share_max (50) with what is
 // missing, the room held for the fleet and the docks wanted follow it, and fleet.c trains the missing warships itself.
 internal int g_nv_target[16], g_navy_fleet_pop = 15, g_navy_share_max = 50;
+// THE SEAS (territories.c): fishing and the fleet's size by the AI's waters instead of by the map's kind
+internal int g_sea_fishing = 0, g_v_sea_fishing = -1, g_sea_fleet = 0, g_v_sea_fleet = -1;
+#define SEA_FISHING(idx) PV(idx, g_v_sea_fishing, g_sea_fishing)
+#define SEA_FLEET(idx) PV(idx, g_v_sea_fleet, g_sea_fleet)
+internal int fleet_sea_need(unsigned idx);   // fleet.c: the warships the fleet's sea wants (territories.c THE SEAS)
 // the resource nodes the AI knows (navy_nodes, below)
 struct nv_nodes { int n[7], worked[7], g[7], slots[7], near_slots[7], remote[7], other[7]; int fx[7], fy[7]; ee_unit *free_far[7]; uint32_t t; };
 internal struct nv_nodes g_nv_nodes[16];
@@ -270,12 +275,22 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
 #define NV_ACC_CAP 600
 internal int g_navy = 1, g_navy_share = 25;
 internal int g_v_navy = -1;   // head-to-head (autotest): [autotest] v_navy for the variant_players (econ.c PV)
+// how much the water matters to AI idx, 0..1: the share of its enemies across the water (navy_detect) - or, with
+// sea_fleet, the warships its waters want (territories.c THE SEAS) against a whole fleet's navy_fleet_pop of the
+// limit: no map kinds, a pond gives a little, the sea round an island all
+internal float navy_strength(unsigned idx) {
+    idx &= 15;
+    if (!SEA_FLEET(idx)) return g_nv_map[idx].strength;
+    ee_player *pl = player_at((int)idx);
+    int full = pl ? unit_limit(pl) * g_navy_fleet_pop / 100 : 0, need = fleet_sea_need(idx);
+    return full <= 0 || need <= 0 ? 0.0f : need >= full ? 1.0f : (float)need / (float)full;
+}
 internal float navy_share(unsigned idx) {
     if (!PV(idx, g_v_navy, g_navy) || !g_nv_map[idx & 15].done) return 0.0f;
     float sh = (float)g_navy_share;
     int t = g_nv_target[idx & 15], miss = t - g_nv_own[idx & 15].war;
     if (t > 0 && miss > 0 && g_navy_share_max > g_navy_share && fleet_builds(idx) && !fleet_sheltering(idx)) sh += (float)(g_navy_share_max - g_navy_share) * (float)miss / (float)t;
-    return sh / 100.0f * g_nv_map[idx & 15].strength;
+    return sh / 100.0f * navy_strength(idx);
 }
 // stage 4: the account is the navy's own money - a warship spends it even where the reserve (epochs, landing ...)
 // would hold the stock (econ.c train_budget); the others never saw it (navy_hold): Large Islands e9, 524 frigate
@@ -510,7 +525,7 @@ internal int navy_room_reserve(ee_player *pl) {
     struct nv_orders *o = &g_nv_ord[idx];
     float sh = navy_share(idx);
     int t = o->want ? o->want : o->last, total = 0;
-    int missing = (fleet_builds(idx) ? g_nv_target[idx] : (int)(4.0f * g_nv_map[idx].strength + 0.5f)) - g_nv_own[idx].war;   // stage 4: the fleet's target
+    int missing = (fleet_builds(idx) ? g_nv_target[idx] : (int)(4.0f * navy_strength(idx) + 0.5f)) - g_nv_own[idx].war;   // stage 4: the fleet's target
     if (sh <= 0 || !t || missing <= 0 || !g_nv_own[idx].docks_built) return (int)(o->held_room = 0);
     for (int r = 3; r < 7; r++) if (r != 4) total += unit_cost(pl, t, r);
     int n = total > 0 ? navy_account(idx, 3) / total : 0;
@@ -806,7 +821,7 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
     struct nv_own *w = &g_nv_own[idx];
     if (navy_share(idx) <= 0 || (now >= o->dock_t && now - o->dock_t < 60000)) return;
     o->dock_t = now;
-    int want = 2 + (g_nv_map[idx].kind == NV_ISLANDS && (w->fish >= 12 || (o->want && now - o->want_t < 120000)));
+    int want = 2 + ((SEA_FLEET(idx) ? navy_strength(idx) >= 1.0f : g_nv_map[idx].kind == NV_ISLANDS) && (w->fish >= 12 || (o->want && now - o->want_t < 120000)));
     if (fleet_builds(idx) && g_nv_target[idx] > 0) {   // stage 4: a dock per 8 warships of the target (training in parallel), at most 5
         int f = 2 + g_nv_target[idx] / 8;
         if (f > 5) f = 5;
@@ -859,6 +874,9 @@ internal void navy_install(const char *autotest_ini) {
     g_navy_share_max = setting_pct(g_set_ai[1].navy_share_max);
     if (g_navy_share_max > 80) g_navy_share_max = 80;
     if (autotest_ini) g_v_navy = ini_int("autotest", "v_navy", -1, autotest_ini);
+    g_sea_fishing = g_set_ai[1].sea_fishing;
+    g_sea_fleet = g_set_ai[1].sea_fleet;
+    if (autotest_ini) { g_v_sea_fishing = ini_int("autotest", "v_sea_fishing", -1, autotest_ini); g_v_sea_fleet = ini_int("autotest", "v_sea_fleet", -1, autotest_ini); }
     g_navy_mines = g_set_ai[1].navy_mines;
     if (autotest_ini) g_v_navy_mines = ini_int("autotest", "v_navy_mines", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands (v_navy %d for the variant players)\n",
@@ -875,7 +893,7 @@ internal void navy_tick(ee_player *pl, uint32_t now) {
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
     if (fleet_builds(idx)) {   // the fleet's size target (stage 4): navy_fleet_pop % of the population cap x the map strength
         int cap = unit_limit(pl);
-        g_nv_target[idx] = mt_fleet_target(pl, idx, (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f));   // metal.c FLEET
+        g_nv_target[idx] = mt_fleet_target(pl, idx, (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * navy_strength(idx) + 0.5f));   // metal.c FLEET
     } else if (fleet_own(idx)) {   // by need (fleet.c EVERY WARSHIP THE MOD'S): one more than the enemy's known in its sea
         int e = fleet_need(idx), most = unit_limit(pl) * g_navy_fleet_pop / 100;
         g_nv_target[idx] = !e ? 0 : e + 1 < most ? e + 1 : most;

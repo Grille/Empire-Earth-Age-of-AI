@@ -312,7 +312,7 @@ internal int mt_fleet_target(ee_player *pl, unsigned idx, int t) {
         int nk = td ? navy_kind(td) : NV_NONE;
         n += nk == NV_WAR || nk == NV_SUB;
     }
-    int need = (n * g_mt_fleet_pct + 99) / 100 + 6, floor_ = (int)((float)g_mt_fleet_min * g_nv_map[idx & 15].strength + 0.5f);
+    int need = (n * g_mt_fleet_pct + 99) / 100 + 6, floor_ = (int)((float)g_mt_fleet_min * navy_strength(idx) + 0.5f);
     if (need < floor_) need = floor_;
     return need < t ? need : t;
 }

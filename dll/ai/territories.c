@@ -98,7 +98,7 @@ enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 #define TV_CALM 20000
 #define TV_HOT 8                  // territories looked at closer a pass
 enum { TV_QUIET, TV_FOES, TV_UNSAFE };
-struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, cit, bld, want, ships, eships, abld, open, shore; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; want: the guard a held one would want; foe_t: enemy soldiers seen there last
+struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, cit, bld, want, ships, eships, abld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
 internal struct tv_st {
     unsigned version; int n; struct tv_terr *t;
     uint32_t tick, log_t;
@@ -108,6 +108,12 @@ internal int g_ter_shelter = 0, g_v_ter_shelter = -1;
 #define TER_SHELTER(idx) PV(idx, g_v_ter_shelter, g_ter_shelter)
 internal struct st_side g_tv_own, g_tv_foe;
 internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now);   // BORDER TOWERS (below)
+// THE SEAS (below): an AI's waters by sea
+#define TVS_N 8
+struct tv_sea { unsigned ocean; int waters, closed, area, shore, fish, need; };
+internal struct tv_seas { int n; struct tv_sea s[TVS_N]; unsigned version; int land_front, held; } g_tvs[16];   // land_front: tiles of its held land's border with land nobody of its side holds; held: land territories it holds
+internal int g_v_sea_island = -1;   // [autotest] v_sea_island=0: without THE SEAS' island rule (the variant players)
+internal void tv_seas(unsigned idx);   // THE SEAS (below)
 internal void tv_border_walls(ee_player *pl, unsigned idx, uint32_t now);   // BORDER WALLS (below)
 
 // an enemy land soldier of pl's that it sees
@@ -151,11 +157,16 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         s->version = g_ter.version; s->n = s->t ? g_ter.n : 0;
     }
     if (!s->n) return;
-    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = 0; s->t[r].ratio = 0; }
+    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = 0; s->t[r].fish = 0; s->t[r].ratio = 0; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
         float rng, att;
+        if (unit_type_get_id(it.td) == UT(RES_FISH)) {   // THE SEAS: the fish it has seen, by sea territory
+            unsigned rf = unit_get_amount(u) > 0 && explored_by(u, pl) ? ter_near(unit_get_x(u), unit_get_y(u)) : TER_NONE;
+            if (rf < (unsigned)s->n && g_ter.t[rf].water) s->t[rf].fish += unit_get_amount(u);
+            continue;
+        }
         if (unit_get_owner(u) != pl) {
             unsigned reach[9];
             int nn = tv_foe_unit(pl, u, it.td) ? tv_reach(unit_get_x(u), unit_get_y(u), reach) : 0;
@@ -258,6 +269,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         }
         t->role = (uint8_t)(t->open || t->shore ? TVR_FRONT : TVR_BACK);
     }
+    tv_seas(idx);
     tv_border_towers(pl, idx, now);
     tv_border_walls(pl, idx, now);
     static int layer = -2;
@@ -309,8 +321,112 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             fprintf(g_log, "; its %d warships stand in %d seas (most in one: %d), %d of those with 2 or more not held for the enemy warships there", wsum, wn, wmost, wfoe);
         }
         fprintf(g_log, " | %d territories held, %d soldiers short of the guards wanted\n", held, short_of);
+        fprintf(g_log, "# tview: P%u at %.1f min: waters", idx, now / 60000.0);
+        for (int k = 0; k < g_tvs[idx].n; k++) {
+            struct tv_sea *e = &g_tvs[idx].s[k];
+            fprintf(g_log, " | sea %u: %d sea territories along its land (%d closed), %d tiles open, shore %d, fish %d food, %d warships wanted", e->ocean, e->waters, e->closed, e->area, e->shore, e->fish, e->need);
+            if (k == g_tvs[idx].n - 1) fprintf(g_log, " | its land's border with land of others %d tiles (%d land territories held)", g_tvs[idx].land_front, g_tvs[idx].held);
+        }
+        fprintf(g_log, "%s\n", g_tvs[idx].n ? "" : " none");
         LeaveCriticalSection(&g_lock);
     }
+}
+// ---- THE SEAS ([ai_base] sea_fishing, sea_fleet; [autotest] v_sea_fishing, v_sea_fleet; navy.c, fleet.c read them) ----
+// The player, 2026-11-14, on the harbours whose docks trained no fishing boat and no warship on Continental: "yes, do
+// fishing, once again lets drop map specific rules. they should look at the sea territory: has it fish? does it hvae
+// wood but not enough food? build fishing boats. does it border other territories? unclaimed even? buidl a navy
+// relative to its size (no need to fill a isolated puddle with 100 ships)".
+// What was map specific: fishing boats only where the game calls the map a water map (its flag and 10 fish: player
+// boats_for_food), the fleet's size and the navy's share of the income by how many enemies live across the water
+// (navy.c navy_detect: 1 on islands, 0 on one continent - there no fleet but by need), and every ship order trained in
+// the area that has the most docks (ee_unit_mgr::train), wherever the fish or the fleet is.
+// Instead, each AI's WATERS: the sea territories along land it holds (a shore of a territory with TV_HELD of its
+// buildings), every TV_EVERY with the view, by sea (the game's connected water, area_id 1):
+//   fish  - the food in the fish it has seen in them: a sea with fish and a dock of its is fished (fleet.c boats_tick:
+//           while its food workers are short and the wood is there, at a dock on the sea with the most);
+//   open  - a water of its that borders land nobody of its side holds, or water that is not its waters: it leads
+//           somewhere, somebody can come. A lake inside its own land is closed and wants nothing;
+//   need  - a warship per sea_fleet tiles of its open waters there, 2 at least: a pond between it and a neighbour
+//           two, a long coast more - and more with every shore it takes. And while none of the land it holds borders
+//           land of others (the open border of FRONT AND BACKLAND: an island, a continent it has to itself) the sea
+//           is its only front and wants all of the navy's share - his army rule on the water ("an island is a
+//           front until the water round it is held"). The fleet stands in the sea that wants the most and is trained
+//           at docks there, its size that need up to navy_fleet_pop of the limit; the navy's share of the income and
+//           all that hung on navy_detect's strength follow it (navy.c navy_strength). One fleet, one sea so far:
+//           another sea's need is in the log only.
+// MEASURED 2026-11-14 (head-to-head, mirrored, 12 games a cell, 90 min, 4 AIs, the shipped system with - without per
+// game; Small Islands large from epoch 9 | Continental huge from epoch 5; land territories held a player without ->
+// with):
+//   sea_fishing alone: Continental 4.33 -> 5.08, soldiers +12 (se 12), kills +40 (28), razed +6.6 (4.1), 9.7 fishing
+//     boats a player where there were none, citizens killed 796 -> 801; islands 2.75 -> 2.50, soldiers -23 (12), kills
+//     -35 (15) in this cell, -2 (13) and -4 (12), -2 (14) and -8 (17) in the two below that fish the same way: noise;
+//   both, a warship per 120 tiles, no island rule yet (the fleet's whole share on both maps: 45 to 111 warships
+//     wanted): islands 2.62 -> 2.58, soldiers -2 (13); Continental 4.38 -> 3.62, soldiers -28 (10), 4 of 24 AIs dead
+//     against 1, citizens killed 1117 -> 1774, 24 warships afloat a player (55 built) against 5 - the fleet eats the army;
+//   both, per 300 tiles: islands 2.67 -> 2.42, soldiers -4 (12), kills -8 (17), fleets as before (23 afloat against
+//     27); Continental 4.33 -> 4.50, soldiers 0 (15), kills +25 (35), losses +41 (7), 10 warships afloat (31 built)
+//     against 4 (17 built - by need, once the others' ships show);
+//   both, per 300 tiles, without the island rule (v_sea_island=0), islands: fleets 17 afloat against 28, sunk 52
+//     against 80, kills -30 (13), losses +20 (12), seas held 0.88 against 1.50 - the rule is what keeps an island's fleet;
+//   both, per 600 tiles, Continental: 4.79 -> 4.92, soldiers -22 (11), citizens killed 823 -> 1132, 8 warships afloat.
+// So: sea_fishing ON (no cost, Continental's sea used); sea_fleet built and OFF - 300 plays level in what is held, but
+// its 10 warships cost 40 units a game on Continental and nothing comes by sea there for them to stop: his call
+// (as he said of the border towers, "stuff like that wont pay in the tests").
+internal void tv_seas(unsigned idx) {
+    struct tv_st *s = &g_tv[idx];
+    struct tv_seas *v = &g_tvs[idx];
+    v->n = 0; v->version = s->version; v->land_front = v->held = 0;
+    for (int r = 0; r < s->n; r++) if (!g_ter.t[r].water && s->t[r].role) { v->held++; v->land_front += s->t[r].open; }
+    for (int w = 0; w < s->n; w++) {   // its waters: the shore along land it holds
+        s->t[w].coast = 0;
+        if (!g_ter.t[w].water) continue;
+        int sh = 0;
+        for (int k = 0; k < g_ter.t[w].nbn; k++) {
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[w].nb0 + k];
+            if (nb->to < (unsigned)s->n && !g_ter.t[nb->to].water && s->t[nb->to].bld >= TV_HELD) sh += nb->len;
+        }
+        s->t[w].coast = (short)(sh > 0x7FFF ? 0x7FFF : sh);
+    }
+    for (int w = 0; w < s->n; w++) {
+        if (!s->t[w].coast) continue;
+        unsigned oc = area_id(g_ter.t[w].c, 1);
+        if (!oc) oc = ocean_near(g_ter.t[w].c, 6, NULL);
+        if (!oc) continue;
+        int open = 0, k = 0;
+        for (int j = 0; j < g_ter.t[w].nbn && !open; j++) {
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[w].nb0 + j];
+            if (nb->to >= (unsigned)s->n) continue;
+            open = g_ter.t[nb->to].water ? !s->t[nb->to].coast : !(s->t[nb->to].bld >= TV_HELD || s->t[nb->to].abld >= TV_HELD);
+        }
+        while (k < v->n && v->s[k].ocean != oc) k++;
+        if (k == v->n) { if (v->n >= TVS_N) continue; memset(&v->s[k], 0, sizeof v->s[k]); v->s[k].ocean = oc; v->n++; }
+        struct tv_sea *e = &v->s[k];
+        e->waters++; e->shore += s->t[w].coast; e->fish += s->t[w].fish;
+        if (open) e->area += g_ter.t[w].area; else e->closed++;
+    }
+    int tiles = SEA_FLEET(idx), island = v->held && !v->land_front && PV(idx, g_v_sea_island, 1);
+    for (int k = 0; k < v->n; k++) {
+        int n = tiles > 0 ? (v->s[k].area + tiles / 2) / tiles : 0;
+        v->s[k].need = !v->s[k].area || tiles <= 0 ? 0 : island ? 10000 : n < 2 ? 2 : n;   // an island's: all the navy's share (navy.c navy_strength cuts it to that)
+    }
+}
+internal struct tv_sea *tv_sea_of(unsigned idx, unsigned ocean) {
+    struct tv_seas *v = &g_tvs[idx & 15];
+    if (!g_tv[idx & 15].n || v->version != g_ter.version) return NULL;
+    for (int k = 0; k < v->n; k++) if (v->s[k].ocean == ocean) return &v->s[k];
+    return NULL;
+}
+// the warships AI idx's waters in that sea want (0: none of its waters there, or all of them closed)
+internal int tv_sea_need(unsigned idx, unsigned ocean) { struct tv_sea *e = tv_sea_of(idx, ocean); return e ? e->need : 0; }
+// the food in the fish it has seen in its waters in that sea
+internal int tv_sea_fish(unsigned idx, unsigned ocean) { struct tv_sea *e = tv_sea_of(idx, ocean); return e ? e->fish : 0; }
+// the sea whose waters want the most warships, and how many (0: none)
+internal int tv_sea_best(unsigned idx, unsigned *ocean) {
+    struct tv_seas *v = &g_tvs[idx & 15];
+    int best = 0;
+    if (!g_tv[idx & 15].n || v->version != g_ter.version) return 0;
+    for (int k = 0; k < v->n; k++) if (v->s[k].need > best) { best = v->s[k].need; if (ocean) *ocean = v->s[k].ocean; }
+    return best;
 }
 // ---- BORDER TOWERS ([ai_base] border_towers; [autotest] v_border_towers) ----
 // The player, 2026-11-14: "placing towers and walls along outside borders, tousends of stone or wood in the bank are
@@ -748,11 +864,12 @@ internal void territories_install(const char *autotest_ini) {
     g_border_towers = g_set_ai[1].border_towers;
     g_border_walls = g_set_ai[1].border_walls;
     if (autotest_ini) g_v_border_walls = ini_int("autotest", "v_border_walls", -1, autotest_ini);
+    if (autotest_ini) g_v_sea_island = ini_int("autotest", "v_sea_island", -1, autotest_ini);
     if (autotest_ini) g_v_border_towers = ini_int("autotest", "v_border_towers", -1, autotest_ini);
     if (autotest_ini) g_v_ter_shelter = ini_int("autotest", "v_territory_shelter", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# territories: territory_shelter %d (variant %d)\n", g_ter_shelter, g_v_ter_shelter);
 }
 internal void territories_new_game(void) {
     for (int i = 0; i < 16; i++) { free(g_tv[i].t); memset(&g_tv[i], 0, sizeof g_tv[i]); }
-    memset(g_bwl, 0, sizeof g_bwl); memset(g_bwl_ring, 0, sizeof g_bwl_ring); memset(g_bw, 0, sizeof g_bw);
+    memset(g_bwl, 0, sizeof g_bwl); memset(g_bwl_ring, 0, sizeof g_bwl_ring); memset(g_bw, 0, sizeof g_bw); memset(g_tvs, 0, sizeof g_tvs);
 }

@@ -106,6 +106,12 @@ internal inline unsigned short map_area(ivec2 p, int kind) {
 }
 // the map's area object at a tile (regions, continents)
 internal inline uint8_t *area_at(int *pt) { return fn_continent_mgr_area_at((void *)data_map_map_areas, pt); }
+// the number of the region a unit stands in (0: none) - what a training request's fourth value names to keep the
+// order to the producers standing there (ee_unit_mgr::train)
+internal inline unsigned unit_region(ee_unit *u) {
+    int r = continent_mgr_shore_to_unload((ee_continent_mgr *)data_map_map_areas, u);
+    return r ? region_get_number((void *)(intptr_t)r) : 0;
+}
 // the minimap (RTSMiniMap): a unit more sees the tile (x, y) - its pixel's own count of them +1
 
 // HOOKS

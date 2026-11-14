@@ -305,3 +305,12 @@ The territory system one part out at a time (2026-11-14, 168 games; ai/territori
 `territory_shelter` earns its place (citizens killed on Continental more than halved), `harbours` cost on both maps
 (fewer territories held, the sea war lost on islands, docks without ships or fishing boats on Continental - on by the
 player's call), `front_guards` lean against it on islands, the other four are not told from noise at 12 games a map.
+
+The seas by territory (2026-11-14, ai/territories.c THE SEAS): each AI's waters are the sea territories along land it
+holds. `sea_fishing` (on): a fishing boat while its food workers are short and it knows fish in its waters, trained at
+a dock on the sea with the most - on any map, not only where the game calls it a water map. `sea_fleet` (off, a
+warship per that many tiles of its waters that lead somewhere, all of the navy's share while its land has no border
+with land of others): the fleet's size and the navy's share of the income by its waters instead of by navy_detect's
+map kind; measured at 300 - level on islands, 10 warships a player on Continental for 40 more units lost. The game's
+training hands an order to the docks of one region only (the one with the most docks): both rules name the region
+(the request's fourth value; spec ee_region.number).

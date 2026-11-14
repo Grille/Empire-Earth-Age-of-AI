@@ -338,6 +338,22 @@ class ai_base
         /// something is shut in. Like the border towers nothing the AI against AI games can show. 1 = on. Off until it
         /// was watched in a real game
         bool border_walls = false;
+        /// Fishing by the sea territory (ai/territories.c THE SEAS): the AI orders a fishing boat on any map while its food
+        /// workers are short and it knows fish in its waters - the sea territories along land it holds - at a dock that
+        /// stands on the sea with the most of it, instead of only where the game calls the map a water map and at
+        /// whichever group of docks is the largest. 1 = on. On since 2026-11-14 (the player: "yes, do fishing, once again
+        /// lets drop map specific rules"; on Continental 10 boats a player where there were none, at no cost)
+        bool sea_fishing = true;
+        /// The fleet by the sea territory (ai/territories.c THE SEAS): the fleet's size comes from the AI's waters instead
+        /// of from how many enemies live across the water - a warship per this many tiles of every sea territory along
+        /// land it holds that borders land or water not its own (a lake inside its own land wants none, a pond two), up
+        /// to navy_fleet_pop of the population limit, and all of that share while no land it holds borders land of
+        /// others (an island: the sea is its only front); the navy's share of the income follows it, and the ships are
+        /// trained at docks on the fleet's sea. 0 = off (the fleet by the map's kind); 300 is the value measured: level
+        /// on islands, on Continental 10 warships a player for 40 more units lost in 90 minutes and nothing a game of
+        /// AIs can show for them (none of them comes by sea there). Off until the player's call
+        [range(0, 5000)]
+        int sea_fleet = 0;
     }
 
     class SiegeAndTowerRouting

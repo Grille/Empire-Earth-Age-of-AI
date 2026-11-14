@@ -322,6 +322,18 @@ unsafe struct ee_view_row
     uint8* data;
 }
 
+/// a region of the map: the continent manager's record of the tile a unit stands on (shore_to_unload returns it:
+/// its table +0x40 by the tile's region number) - not area_at's object
+[c_type("void")]
+unsafe struct ee_region
+{
+    /// its number: the unit manager's training (ee_unit_mgr::train 0x49014F, AoC 0x494F42) compares it with the
+    /// request's fourth value to keep the order to the producers standing in that region, and without one counts the
+    /// producers by it and trains in the region that has the most
+    [offset((ee)0xDA, (aoc)0x11C), found(h, "ee_unit_mgr::train reads it off shore_to_unload's record in both builds, the same three places")]
+    uint16 number;
+}
+
 /// the map's continents and areas, map.map_areas - a static object (EEAIContinentManager)
 [c_type("ee_continent_mgr"), vtable((ee)0x008261FC, (aoc)0x0083A210)]
 unsafe struct EEAIContinentManager

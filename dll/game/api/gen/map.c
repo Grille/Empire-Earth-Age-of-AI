@@ -302,6 +302,16 @@ internal inline uint8_t *view_row_get_data(const void *o) { return *(uint8_t **)
 internal inline void view_row_set_data(void *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_view_row_data) = v; }
 internal inline uint8_t **view_row_data_at(const void *o) { return (uint8_t **)((uint8_t *)o + of_view_row_data); }
 
+// class ee_region (void)
+// a region of the map: the continent manager's record of the tile a unit stands on (shore_to_unload returns it:
+// its table +0x40 by the tile's region number) - not area_at's object
+// its number: the unit manager's training (ee_unit_mgr::train 0x49014F, AoC 0x494F42) compares it with the
+// request's fourth value to keep the order to the producers standing in that region, and without one counts the
+// producers by it and trains in the region that has the most
+internal inline uint16_t region_get_number(const void *o) { return *(uint16_t *)((uint8_t *)o + of_region_number); }
+internal inline void region_set_number(void *o, uint16_t v) { *(uint16_t *)((uint8_t *)o + of_region_number) = v; }
+internal inline uint16_t *region_number_at(const void *o) { return (uint16_t *)((uint8_t *)o + of_region_number); }
+
 // class EEAIContinentManager (ee_continent_mgr)
 // the map's continents and areas, map.map_areas - a static object (EEAIContinentManager)
 // where an idle transport lands - the continent manager's (the doc said a transport manager until 2026-10-25:
@@ -484,6 +494,7 @@ internal int spec_map_select(int build) {
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
+        of_region_number = 0xDA;
         vt_eeai_continent_manager = 0x008261FC;
         fn_continent_mgr_shore_to_unload = (continent_mgr_shore_to_unload_fn)0x0042C49A;
         call_shore_to_unload = 0x00483E24;
@@ -591,6 +602,7 @@ internal int spec_map_select(int build) {
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
+        of_region_number = 0x11C;
         vt_eeai_continent_manager = 0x0083A210;
         fn_continent_mgr_shore_to_unload = (continent_mgr_shore_to_unload_fn)0x00422658;
         call_shore_to_unload = 0x00488490;
