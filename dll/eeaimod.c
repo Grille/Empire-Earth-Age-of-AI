@@ -806,7 +806,7 @@ internal void install(HMODULE self) {
         fprintf(g_log, "# autotest: game clock at [%08lx]+%lx\n", (unsigned long)game_clock_ptr_at(), (unsigned long)game_clock_offset());
     if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); mp_start(); dx_probe_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
-    crash_box_install();   // [general] crash_dialog (not in test runs)
+    crash_box_install(g_log_path);   // [general] crash_dialog (not in test runs)
 }
 
 
