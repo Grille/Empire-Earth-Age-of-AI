@@ -2624,46 +2624,6 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
 // game's values and the vars - a function calling itself ends at the nesting limit like vars in a circle
-// ===== WHERE A SCRIPT STANDS (for the saved games: SAVED STATE below, test/scripts.c): while a script runs, the blocks
-// it is in with the statement it is at, the loops' counters, the functions it has called and the wait at the end are
-// kept in a list of its own (g_xp: the running script's - none for a text, a trigger, a dry run). A script that waits
-// is saved by it and found again after a load: the same blocks entered at the same statements, nothing worked out a
-// second time (g_xres: the places still to find; the finding ends at the wait, and the script goes on from there).
-// Only what stands at a statement's start can be found again - a function that waits called as a statement (f(...),
-// let x = f(...), x = f(...), return f(...), a function's => f(...)), wait / wait_until / every themselves so:
-// direct. A wait below an expression (g(f()) + 1, a condition, an argument) or the short hold for a spawned unit
-// leaves the script not to be found while it lasts (a save made then says so).
-enum { XP_BLOCK, XP_FOR, XP_FORL, XP_CALL, XP_EVERY, XP_WAIT, XP_HOOK, XP_KINDS };
-// n: the block, the for, the function's definition; i: the statement, the list's item, every's run, the hook;
-// f: a called function's frame; a, b, c: for's number and end, every's step, from, until, the wait's time; v: for's
-// list, every's function
-struct xpos { int k, i, direct; const struct xnode *n; struct xframe *f; double a, b, c; struct xval v; };
-#define XP_MAX 96
-struct xposs { int n, over, at; struct xpos e[XP_MAX]; };   // over: deeper than the list holds; at: of a plan, the next to find
-internal struct xposs *g_xp, *g_xres;
-internal const struct xnode *g_xp_direct;   // the call that stands at a statement's start (x_stmt), for xe_call
-internal int g_xp_call_direct;              // the x_call_value / xe_script called next is that call
-internal struct xpos *xp_push(int k, const struct xnode *n) {
-    struct xposs *st = g_xp;
-    if (!st) return NULL;
-    if (st->n >= XP_MAX) { st->over++; return NULL; }
-    struct xpos *q = &st->e[st->n++];
-    memset(q, 0, sizeof *q);
-    q->k = k; q->n = n;
-    return q;
-}
-internal void xp_pop(struct xpos *q) {
-    struct xposs *st = g_xp;
-    if (!st) return;
-    if (q) st->n--;
-    else if (st->over) st->over--;
-}
-internal int xres_peek(void) { return g_xres && g_xres->at < g_xres->n ? g_xres->e[g_xres->at].k : -1; }   // the next place's kind
-internal struct xpos *xres_next(int k) {   // the next place, taken, if it is of that kind
-    return xres_peek() == k ? &g_xres->e[g_xres->at++] : NULL;
-}
-internal void x_call_frame(struct xe *e, const struct xnode *lam, struct xframe *nf, int direct, struct xval *v);
-internal void xres_call(struct xe *e, struct xval *v);
 internal void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v);
 internal void x_call(struct xe *e, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
@@ -2734,8 +2694,6 @@ internal int xv_made_in(const struct xval *v, const struct xframe *f) {   // a f
 internal void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
     const struct xnode *lam = fv->fn->lam;
-    int direct = g_xp_call_direct;
-    g_xp_call_direct = 0;
     if (!lam) { xvm_call(e, fv, a, na, v); return; }   // a compiled one: on its machine
     if (na != lam->n_items) { x_fail(e, "a function of %d argument%s called with %d", lam->n_items, lam->n_items == 1 ? "" : "s", na); return; }
     if (c->calls >= X_CALLS) { x_fail(e, "functions called inside each other %d deep - one that calls itself without end?", X_CALLS); return; }
@@ -2753,12 +2711,6 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
         if (j == nf->n) { if (nf->n == XF_MAX) { free(nf); x_fail(e, "more than %d names in a function", XF_MAX); return; } nf->n++; }
         nf->name[j] = pn; nf->val[j] = a[i]; nf->own[j] = 1;
     }
-    x_call_frame(e, lam, nf, direct, v);
-}
-// a function's body worked out in its frame nf (x_call_value's, or a saved script's found again: xres_call), the
-// frame freed
-internal void x_call_frame(struct xe *e, const struct xnode *lam, struct xframe *nf, int direct, struct xval *v) {
-    struct xctx *c = e->c;
     const char *const *fpn = c->fpn;
     const struct xval *fpv = c->fpv;
     int fnp = c->fnp, level = c->level, ret = e->ret;
@@ -2773,12 +2725,8 @@ internal void x_call_frame(struct xe *e, const struct xnode *lam, struct xframe 
     c->level = 0;
     c->calls++;
     e->f = nf;
-    struct xpos *xp = xp_push(XP_CALL, lam);
-    if (xp) { xp->f = nf; xp->direct = direct; }
     if (lam->a->k == XN_BLOCK) { e->retv = &rv; e->ret = 0; x_exec(e, lam->a); }
-    else if (g_xres) xres_call(e, &rv);   // found again: its value was a call that waits
-    else { if (lam->a->k == XN_CALL) g_xp_direct = lam->a; xe(e, lam->a, &rv); g_xp_direct = NULL; }
-    xp_pop(xp);
+    else xe(e, lam->a, &rv);
     c->calls--;
     c->fpn = fpn; c->fpv = fpv; c->fnp = fnp; c->level = level;
     e->f = f0; e->retv = retv0; e->ret = ret;
@@ -3094,67 +3042,7 @@ internal char *pr_text(struct pread *r) {   // malloc'd
     s[n] = 0;
     return s;
 }
-internal int x_wait_leaf(struct xe *e, double t, int direct) {   // a wait with its place (WHERE A SCRIPT STANDS)
-    struct xpos *xp = xp_push(XP_WAIT, NULL);
-    if (xp) { xp->a = t; xp->direct = direct; }
-    int ok = x_wait_until(e, t);
-    xp_pop(xp);
-    return ok;
-}
-internal struct xframe *xres_frame(struct xpos *q) {   // a saved call's frame: the names of the code around as they are now
-    struct xframe *nf = q->f;
-    for (int i = 0; nf && i < nf->n; i++) {
-        int j;
-        struct xframe *o = nf->own[i] ? NULL : x_frame_owner(nf->up, nf->name[i], &j);
-        if (o) nf->val[i] = o->val[j];
-    }
-    return nf;
-}
-// every(step, from, until, f): f(run) at from, from + step ... until (in); stop ends it. found: its place in a saved
-// script - on at that run, in its function or at its own wait
-internal void xe_every(struct xe *e, double step, double from, double until, const struct xval *fn, int direct, struct xpos *found) {
-    struct xpos *xp = xp_push(XP_EVERY, NULL), *q;
-    if (xp) { xp->a = step; xp->b = from; xp->c = until; xp->v = *fn; xp->direct = direct; }
-    for (int k = found ? found->i : 1; !e->err; k++) {
-        double t = from + (k - 1) * step;
-        struct xval kv, r;
-        if (t > until + 1e-9) break;
-        if (xp) xp->i = k;
-        xnothing(&r);
-        if (found && (q = xres_next(XP_CALL))) {
-            found = NULL;
-            if (q->f) x_call_frame(e, q->n, xres_frame(q), 1, &r);
-        } else {
-            if (found) {
-                q = xres_next(XP_WAIT);
-                found = NULL;
-                g_xres = NULL;   // found: from here it goes on
-                if (!q) { x_fail(e, "the saved script's place can't be found again (every)"); break; }
-                if (!x_wait_leaf(e, q->a, 1)) break;
-            } else if (t > (g_x_hooks.now ? g_x_hooks.now() : 0) && !x_wait_leaf(e, t, 1)) break;
-            xnum(&kv, k);
-            g_xp_call_direct = 1;
-            x_call_value(e, fn, &kv, 1, &r);
-        }
-        if (!e->err && r.kind == XV_STOP) break;
-    }
-    xp_pop(xp);
-}
-// a call that stood at a statement's start when its script was saved, found again: the function it was in, every at
-// its run, or the wait itself - where the finding ends
-internal void xres_call(struct xe *e, struct xval *v) {
-    struct xpos *q;
-    xnothing(v);
-    if ((q = xres_next(XP_CALL)) && q->f) x_call_frame(e, q->n, xres_frame(q), 1, v);
-    else if ((q = xres_next(XP_EVERY))) xe_every(e, q->a, q->b, q->c, &q->v, 1, q);
-    else if ((q = xres_next(XP_WAIT))) {
-        g_xres = NULL;
-        x_wait_leaf(e, q->a, 1);
-    } else { g_xres = NULL; x_fail(e, "the saved script's place can't be found again (a call)"); }
-}
 internal void xe_script(struct xe *e, const char *name, const struct xval *a, int na, struct xval *v) {
-    int direct = g_xp_call_direct;
-    g_xp_call_direct = 0;
     if (!strcmp(name, "trigger")) { xt_make(e, &a[0], v); return; }
     if (!strcmp(name, "enable") || !strcmp(name, "disable")) {
         struct xtrig *t = xt_of(e, name, &a[0]);
@@ -3190,17 +3078,27 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
         else if (!x_numeric_ok(e, &a[i]) || !a[i].w) { if (!e->err) x_fail(e, "%s(...): a number where nothing is", name); return; }
     }
     double now = g_x_hooks.now ? g_x_hooks.now() : 0;
-    if (!strcmp(name, "wait")) { x_wait_leaf(e, now + a[0].n, direct); return; }
-    if (!strcmp(name, "wait_until")) { if (a[0].n > now) x_wait_leaf(e, a[0].n, direct); return; }   // (past: no wait)
+    // (a compiled script's wait, wait_until and every are its machine's instructions: here they are a text's, or a
+    // game.setup block's - where there is nothing to wait in)
+    if (!strcmp(name, "wait")) { x_wait_until(e, now + a[0].n); return; }
+    if (!strcmp(name, "wait_until")) { if (a[0].n > now) x_wait_until(e, a[0].n); return; }   // (past: no wait)
+    // every(step, from, until, f): f(run) at from, from + step ... until (in); stop ends it
     if (!(a[0].n > 0)) { x_fail(e, "every(%g, ...): the step must be above 0", a[0].n); return; }
-    xe_every(e, a[0].n, a[1].n, a[2].n, &a[3], direct, NULL);
+    for (int k = 1; !e->err; k++) {
+        double t = a[1].n + (k - 1) * a[0].n;
+        if (t > a[2].n + 1e-9) break;
+        if (t > (g_x_hooks.now ? g_x_hooks.now() : 0) && !x_wait_until(e, t)) return;
+        struct xval kv, r;
+        xnum(&kv, k);
+        x_call_value(e, &a[3], &kv, 1, &r);
+        if (!e->err && r.kind == XV_STOP) break;
+    }
 }
-internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, int direct, struct xval *v);
+internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, struct xval *v);
 internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     const char *name = n->s;
     struct xval a[32];   // the arguments in order: a command, a script's function all (up to 32); the others the first 8
-    int nall = 0, direct = g_xp_direct == n;   // (WHERE A SCRIPT STANDS)
-    g_xp_direct = NULL;
+    int nall = 0;
     for (int i = 0; i < n->n_items; i++) {
         struct xval tmp;
         xe(e, n->items[i], nall < 32 ? &a[nall] : &tmp);
@@ -3208,11 +3106,11 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) return;
     }
     if (n->n_items > 32) { x_fail(e, "%s(...): more than 32 arguments", name); return; }
-    x_call_apply(e, name, a, nall, direct, v);
+    x_call_apply(e, name, a, nall, v);
 }
 // name(a ...) with its arguments worked out (nall of them, at most 32): a function in a variable, one of the
 // language's, a vars file's, a script's, a command, a relation or method of the host's
-internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, int direct, struct xval *v) {
+internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, struct xval *v) {
     int na = nall < 8 ? nall : 8;
     if (!strchr(name, '.')) {   // a function in a variable or parameter
         const struct xval *lv = x_view_find(e->c, name, strlen(name));
@@ -3220,7 +3118,6 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
             if (!strcmp(e->c->fpn[i], name)) {
                 if (e->c->fpv[i].kind != XV_FN) { x_fail(e, "%s is no function", name); return; }
                 struct xval fv = e->c->fpv[i];
-                g_xp_call_direct = direct;
                 x_call_value(e, &fv, a, nall, v);
                 return;
             }
@@ -3291,7 +3188,6 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
             int sf = x_script_fn(name);
             if (sf >= 0) {
                 if (sf != nall) { x_fail(e, "%s takes %d argument%s", name, sf, sf == 1 ? "" : "s"); return; }
-                g_xp_call_direct = direct;
                 xe_script(e, name, a, nall, v);
                 return;
             }
@@ -3461,92 +3357,12 @@ internal int x_loop_round(struct xe *e, const struct xnode *s) {   // a loop's n
 internal void x_exec(struct xe *e, const struct xnode *blk);
 internal void xop_seti(struct xe *e, int op, const struct xval *d, const struct xval *key, struct xval *v);   // (THE OPERATIONS)
 internal void xop_setm(struct xe *e, const char *name, int op, const struct xval *o, struct xval *v);
-// for's rounds from i on, with its place (WHERE A SCRIPT STANDS; found: on in a saved script - its body first, where
-// it stood, the loop's variable as it was)
-internal void x_for_num(struct xe *e, const struct xnode *s, double i, double to, int found) {
-    struct xval v;
-    struct xpos *xp = xp_push(XP_FOR, s);
-    if (xp) xp->b = to;
-    for (; i <= to + 1e-9; i += 1) {
-        if (xp) xp->a = i;
-        if (!found) { xnum(&v, i); x_assign(e, s->s, &v); }
-        found = 0;
-        if (!e->err) x_exec(e, s->c);
-        if (!x_loop_round(e, s)) break;
-    }
-    xp_pop(xp);
-}
-internal void x_for_list(struct xe *e, const struct xnode *s, const struct xval *l, int i, int found) {
-    struct xpos *xp = xp_push(XP_FORL, s);
-    if (xp) xp->v = *l;
-    for (; i < xl_n(l); i++) {
-        if (xp) xp->i = i;
-        if (!found) x_assign(e, s->s, xl_at(l, i));
-        found = 0;
-        if (!e->err) x_exec(e, s->c);
-        if (!x_loop_round(e, s)) break;
-    }
-    xp_pop(xp);
-}
-// a statement of a saved script found again (g_xres): into the block, the loop or the call it stood in - nothing
-// worked out again but what comes after
-internal void xres_stmt(struct xe *e, const struct xnode *s) {
-    struct xval v;
-    struct xpos *q;
-    const struct xnode *call = NULL;
-    int next = xres_peek();
-    switch (s->k) {
-    case XN_IF: {
-        const struct xnode *blk = next == XP_BLOCK ? g_xres->e[g_xres->at].n : NULL;
-        for (const struct xnode *i = s; i && blk; i = i->b && i->b->k == XN_IF ? i->b : NULL) {
-            if (i->a == blk) { x_exec(e, i->a); return; }
-            if (i->b && i->b->k != XN_IF && i->b == blk) { x_exec(e, i->b); return; }
-        }
-        break;
-    }
-    case XN_WHILE:
-        if (next != XP_BLOCK) break;
-        x_exec(e, s->a);
-        while (x_loop_round(e, s)) {
-            xe(e, s->c, &v);
-            if (e->err || !xtrue(&v)) break;
-            x_exec(e, s->a);
-        }
-        return;
-    case XN_FOR:
-        if ((q = xres_next(XP_FOR))) { x_for_num(e, s, q->a, q->b, 1); return; }
-        if ((q = xres_next(XP_FORL))) { x_for_list(e, s, &q->v, q->i, 1); return; }
-        break;
-    case XN_LET: case XN_ASSIGN: case XN_RETURN: call = s->a; break;
-    case XN_CALL: call = s; break;
-    default: break;
-    }
-    if (call && call->k == XN_CALL && (next == XP_CALL || next == XP_EVERY || next == XP_WAIT)) {
-        xres_call(e, &v);
-        if (e->err) return;
-        if (s->k == XN_LET || s->k == XN_ASSIGN) x_assign(e, s->s, &v);
-        else if (s->k == XN_RETURN) { if (e->retv) *e->retv = v; e->ret = 1; }
-        return;
-    }
-    g_xres = NULL;
-    x_fail(e, "the saved script's place can't be found again (line %d)", s->line);
-}
 internal void x_stmt(struct xe *e, const struct xnode *s) {
     struct xval v;
-    if (g_xres) { xres_stmt(e, s); return; }
     switch (s->k) {
-    case XN_LET: case XN_ASSIGN:
-        if (s->a && s->a->k == XN_CALL) g_xp_direct = s->a;
-        xe(e, s->a, &v);
-        g_xp_direct = NULL;
-        if (!e->err) x_assign(e, s->s, &v);
-        break;
+    case XN_LET: case XN_ASSIGN: xe(e, s->a, &v); if (!e->err) x_assign(e, s->s, &v); break;
     case XN_RETURN:
-        if (s->a) {
-            if (s->a->k == XN_CALL) g_xp_direct = s->a;
-            xe(e, s->a, e->retv ? e->retv : &v);
-            g_xp_direct = NULL;
-        }
+        if (s->a) xe(e, s->a, e->retv ? e->retv : &v);
         else if (e->retv) xnothing(e->retv);
         e->ret = 1;
         break;
@@ -3596,38 +3412,35 @@ internal void x_stmt(struct xe *e, const struct xnode *s) {
             xe(e, s->b, &b);
             if (e->err || !x_numeric_ok(e, &a) || !x_numeric_ok(e, &b)) return;
             if (!a.w || !b.w) { x_fail(e, "for %s in a..b: a number where nothing is", s->s); return; }
-            x_for_num(e, s, a.n, b.n, 0);
+            for (double i = a.n; i <= b.n + 1e-9; i += 1) {
+                xnum(&v, i);
+                x_assign(e, s->s, &v);
+                if (!e->err) x_exec(e, s->c);
+                if (!x_loop_round(e, s)) break;
+            }
             return;
         }
         if (a.kind) { x_fail(e, "for %s in ...: %s - a list, or a..b", s->s, a.kind == XV_FN ? "a function" : a.kind == XV_REC ? "a record" : a.kind == XV_VEC ? "a vector" : "stop"); return; }
-        x_for_list(e, s, &a, 0, 0);
+        for (int i = 0; i < xl_n(&a); i++) {
+            x_assign(e, s->s, xl_at(&a, i));
+            if (!e->err) x_exec(e, s->c);
+            if (!x_loop_round(e, s)) break;
+        }
         break;
     }
-    default:
-        if (s->k == XN_CALL) g_xp_direct = s;
-        xe(e, s, &v);
-        g_xp_direct = NULL;
-        break;
+    default: xe(e, s, &v); break;
     }
 }
 // a block's statements in order; a mistake ends it (err_at: the statement), a return, a break or continue too
 internal void x_exec(struct xe *e, const struct xnode *blk) {
     struct xctx *c = e->c;
     const char *top = c->top;
-    struct xpos *xp = xp_push(XP_BLOCK, blk), *q;
-    int i = 0;
-    if (g_xres) {   // a saved script found again: on at the statement it stood at
-        if ((q = xres_next(XP_BLOCK)) && q->n == blk && q->i >= 0 && q->i < blk->n_items) i = q->i;
-        else { g_xres = NULL; x_fail(e, "the saved script's place can't be found again (a block)"); }
-    }
-    for (; i < blk->n_items && !e->err && !e->ret && !e->brk; i++) {
+    for (int i = 0; i < blk->n_items && !e->err && !e->ret && !e->brk; i++) {
         const struct xnode *s = blk->items[i];
         c->top = s->at;   // the mistakes' messages show the statement
-        if (xp) xp->i = i;
         x_stmt(e, s);
         if (e->err && !e->err_at) e->err_at = s;
     }
-    xp_pop(xp);
     c->top = top;
 }
 // a script's game.setup blocks (x_is_setup), each worked out now in a frame of its own (test/scripts.c, at the game's
@@ -5111,7 +4924,7 @@ internal void xvm_callv(struct xvm *m, struct xe *e, int argc, const char *name)
     int base = m->sp - argc;
     xnothing(&r);
     if (fv.kind == XV_UNSET) {   // its let not reached yet: whatever else has that name
-        x_call_apply(e, name, args, argc, 0, &r);
+        x_call_apply(e, name, args, argc, &r);
         if (e->c->missed) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
     } else if (fv.kind != XV_FN) x_fail(e, "%s is no function", name);
     else if (!fv.fn->lam && fv.fn->vm == m) { xvm_enter(m, e, fv.fn, base, argc); return; }
@@ -5241,7 +5054,7 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
         case XI_CALLV: xvm_callv(m, e, in->b, k->s); break;
         case XI_CALLN:
             xnothing(&r);
-            x_call_apply(e, k->s, &m->st[m->sp - in->b], in->b, 0, &r);
+            x_call_apply(e, k->s, &m->st[m->sp - in->b], in->b, &r);
             if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
             m->sp -= in->b;
             *xvm_push(m, e) = r;
