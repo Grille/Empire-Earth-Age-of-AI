@@ -807,6 +807,21 @@ internal uint32_t ter_side_argb(unsigned r) {
 // territory's middle with its line, the held ones faintly in their holder's colour
 #define TER_SIDE 0.17f   // a side's dashes this far in from the border, in tiles
 #define TER_DASH 10      // a dash along each tile's side, 10 sixteenths of it (overlay_line_dashed)
+// a run of border from a to b between territories i (on the side off points to) and j: a dashed line inside each side in
+// its colour, one on the border itself when both sides are the same colour (the player, 2026-11-14: "when its the same
+// owner on both sides just draw one dash instead of double"); the lines drawn, none past TER_LINES
+internal int ter_border(vec2 a, vec2 b, vec2 off, unsigned i, unsigned j, int lines) {
+    uint32_t ci = ter_side_argb(i), cj = ter_side_argb(j);
+    if (ci == cj) {
+        if (lines + 1 > TER_LINES) return 0;
+        overlay_line_dashed(a, b, ci, 0.14f, TER_DASH);
+        return 1;
+    }
+    if (lines + 2 > TER_LINES) return 0;
+    overlay_line_dashed(v2(a.x + off.x, a.y + off.y), v2(b.x + off.x, b.y + off.y), ci, 0.14f, TER_DASH);
+    overlay_line_dashed(v2(a.x - off.x, a.y - off.y), v2(b.x - off.x, b.y - off.y), cj, 0.14f, TER_DASH);
+    return 2;
+}
 internal void ter_draw(int layer, uint32_t now, int borders) {
     int size = g_ter.size;
     const uint16_t *lab = g_ter.lab;
@@ -824,9 +839,7 @@ internal void ter_draw(int layer, uint32_t now, int borders) {
                 if (!TER_B(i, j)) continue;
                 uint32_t k = TER_K(i, j);
                 while (x < size && TER_B(y * size + x, (y - 1) * size + x) && TER_K(y * size + x, (y - 1) * size + x) == k) x++;
-                if ((lines += 2) > TER_LINES) continue;
-                overlay_line_dashed(v2((float)x0, (float)y + TER_SIDE), v2((float)x, (float)y + TER_SIDE), ter_side_argb(lab[i]), 0.14f, TER_DASH);
-                overlay_line_dashed(v2((float)x0, (float)y - TER_SIDE), v2((float)x, (float)y - TER_SIDE), ter_side_argb(lab[j]), 0.14f, TER_DASH);
+                lines += ter_border(v2((float)x0, (float)y), v2((float)x, (float)y), v2(0, TER_SIDE), lab[i], lab[j], lines);
             }
         for (int x = 1; x < size; x++)   // right (x) and left (x - 1)
             for (int y = 0; y < size; ) {
@@ -834,9 +847,7 @@ internal void ter_draw(int layer, uint32_t now, int borders) {
                 if (!TER_B(i, j)) continue;
                 uint32_t k = TER_K(i, j);
                 while (y < size && TER_B(y * size + x, y * size + x - 1) && TER_K(y * size + x, y * size + x - 1) == k) y++;
-                if ((lines += 2) > TER_LINES) continue;
-                overlay_line_dashed(v2((float)x + TER_SIDE, (float)y0), v2((float)x + TER_SIDE, (float)y), ter_side_argb(lab[i]), 0.14f, TER_DASH);
-                overlay_line_dashed(v2((float)x - TER_SIDE, (float)y0), v2((float)x - TER_SIDE, (float)y), ter_side_argb(lab[j]), 0.14f, TER_DASH);
+                lines += ter_border(v2((float)x, (float)y0), v2((float)x, (float)y), v2(TER_SIDE, 0), lab[i], lab[j], lines);
             }
         #undef TER_B
         #undef TER_K
