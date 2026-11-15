@@ -1,0 +1,74 @@
+// what a function gives back (docs/scripts.md "Functions and their names"): written after its parameters, or told
+// from its one value - what each line works out is in returns.expect (the build compares)
+struct point {
+    x: int
+    y: int
+
+    sum() => this.x + this.y
+    scaled(by: int): point {
+        return point(this.x * by, this.y * by)
+    }
+    longer(o: point): point {
+        if o.sum() > this.sum() {
+            return o
+        }
+        return this
+    }
+    name(): text => "({this.x}, {this.y})"
+}
+half(n: int): float {
+    return n / 2
+}
+twice(n: int) => n * 2
+make(n: int): point {
+    if n < 0 {
+        return point(0, 0)
+    } else {
+        return point(n, n)
+    }
+}
+first_big(l: list<int>, over: int): int? {
+    for v in l {
+        if v > over { return v }
+    }
+    return null
+}
+both(n: int) => make(n).scaled(2)
+fib(n: int): int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+label(n: int): text {
+    return "n{n}"
+}
+note(what: text) {
+    cmd("note {what}")
+}
+
+// a result's type is known without a let's: its fields set, its methods called
+let m = make(3)
+m.x = 10
+let s = m.scaled(2)
+s.y += 1
+let b = both(4)
+b.x += 1
+cmd("made {m} {s} {b} {m.longer(s).name()}")
+
+// numbers: an int for a float, the type of one value told from it
+let h: float = half(5)
+let t: int = twice(4)
+let f: int = fib(10)
+cmd("numbers {h} {t} {f} {label(t)}")
+
+// one or null
+let big = first_big([1, 5, 9], 4)
+let none = first_big([1, 5, 9], 40)
+cmd("big {big ?? 0} {none ?? 0} {none == null}")
+note("done")
+
+// a function as a value: its result's type written, or not
+let add = (a: int, c: int): int => a + c
+let pick = (a: int): point => { return make(a) }
+let p2 = pick(2)
+p2.x = add(p2.x, 5)
+cmd("values {p2}")

@@ -1240,11 +1240,18 @@ player, the game's values in fields, a method that waits half-way while a timer 
 mistakes told by the check and 4 more when they happen (a field's type, a set on a value that is no place, a
 ref where none belongs or seen in a function made there ...); the probe's lines the same in three games, one with `script state`
 (a save's scripts written and read back) called while a method waited and while refs were held; the text corpus
-(7275 rows) and the five older probes the same as the engine before - compared with that engine built with a padding
-variable: without it the corpus game itself differs between two builds of the same source (P4's citizens from
-minute 3 on, game_ai=1: the game depends on the DLL's layout somewhere - not the language's). `tests/bench/structs.eeai`:
+(7275 rows) and the five older probes the same as the engine before. The corpus game (seed 101, game_ai=1) has two
+outcomes now, whichever build plays it - P4's citizens go two ways from minute 3 on, its food at minute 5 is 288 or
+304 (27 rows' numbers, no text): in five runs the old engine gave both and the new one both, each outcome's file the
+same byte for byte. A corpus that differs in those 27 rows alone is the other outcome - play it again, or compare with
+the other file. `tests/bench/structs.eeai`:
 700000 struct operations (reads, sets, methods, ref calls, item sets) in 122 ms - a method call costs what a
 function's does, a field set makes its struct anew (three small allocations).
+
+What a function gives back (2026-11-15, docs/scripts.md "Functions and their names"): `tests/lang/returns.eeai` - the
+type written after the parameters (`name(a: int): float { ... }`: required of a declared function or a method with
+statements that hands a value back), told from the one value of `=> value`; 14 mistakes told by the check (no type
+written, a value of another type, a way through without a return, the result used as another type ...).
 
 ### Headless UI tests (menus, editor)
 

@@ -43,7 +43,7 @@ One a line; `//` starts a comment, as in the game's own scripts (.rmv, .tai) - a
 | `for i in 1..5 { ... }` | the block for every whole number from 1 to 5 (both in; none when the second is smaller); `for p in [2, 3, 5]`: for each item of a list |
 | `break`, `continue` | in a loop: out of it, or on to its next round |
 | `return value`, `return` | in a function's `{ }` body: what it hands back (nothing without one) |
-| `name(a: int) => value`, `name(a: int) { ... }` | a function declared, at the script's top only: known in the whole file (used above where it is written too), never set anew ("Functions and their names") |
+| `name(a: int) => value`, `name(a: int): float { ... }` | a function declared, at the script's top only: known in the whole file (used above where it is written too), never set anew; what it gives back written after its parameters ("Functions and their names") |
 
 A line may go on while a `(`, `[` or `{` is open; a block's `{` is on its statement's line. A condition is true as in
 an expression (a number not 0, a text not empty, a list, a player). A `let` in a block (an `if`'s, a loop's) is that
@@ -127,8 +127,8 @@ The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `c
 `record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `list<T>` a list of them, `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
 made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
 
-Where a type still can't be told (a record's member, what a function gives back), the value is checked when it is
-worked out, as before.
+Where a type still can't be told (a record's member, what a function held in a variable gives back when it wrote
+none), the value is checked when it is worked out, as before.
 
 ## Structs
 
@@ -178,8 +178,8 @@ let s = squad("north")          // pos point(0, 5), strength 1.5, no units, no t
 - A struct holds no struct of its own type directly (`next: node` would never end): `next: node?` or `kids:
   list<node>` does.
 - The check must know that a variable is a struct to set its fields or call its methods: it does from `let a =
-  point(...)`, a parameter's type, a field's, a list's (`let l: list<point> = [...]`), and from a function or method
-  written `name(...) => point(...)`. What any other function gives back has no type: `let a: point = make()`.
+  point(...)`, a parameter's type, a field's, a list's (`let l: list<point> = [...]`), and from what a function or
+  method gives back (`make(n: int): point { ... }` - "Functions and their names").
 - Functions set the variables around them, a timer's function too - no ref needed:
   `let total = point()` then `game.timer(20s, () => { total.add(1) })`.
 
@@ -304,6 +304,32 @@ twice(x: int) => x * 2
 spawn_row(y: int) {
     for i in 1..3 { spawn(3, unit.b_guard_tower_bronze, 51, y + i * 3) }
 }
+```
+
+**What a function gives back** has a type like any value. Of one value (`twice(x: int) => x * 2`) it is that
+value's - nothing to write. A declared function or a struct's method with statements that hands a value back writes
+it after its parameters: `name(a: int): float { ... }` (`return <value>` in one without is a mistake). Then every
+`return` hands back a value of that type, and no way through the function ends without one - unless the type is one
+or null (`int?`: ending without a `return`, or `return null`, is none). One that hands nothing back writes nothing.
+A function as a value may write it too (`(a: int): int => a + 1`, `(a: int): point => { ... }`); written for one
+value, the value must fit.
+
+```
+half(n: int): float {
+    return n / 2
+}
+first_over(l: list<int>, over: int): int? {
+    for v in l {
+        if v > over { return v }
+    }
+    return null
+}
+make(n: int): point {
+    if n < 0 { return point(0, 0) }
+    return point(n, n)
+}
+let m = make(3)                            // a point: m.x = 10, m.add(1) - no type written at the let
+let h: int = half(5)                       // a mistake: a float can't go in
 ```
 
 ## Triggers

@@ -766,8 +766,12 @@ internal int x_type_named(const char *t) {
     return -1;
 }
 // "(a, b) =>" at s: a function's head - its parameters' names (at most 8), each one's type as written after a ':'
-// ("" none), and where its body starts; NULL: none. brace: a declaration's - name(a, b) { ... } too (at its {)
+// ("" none), and where its body starts; NULL: none. brace: a declaration's - name(a, b) { ... } too (at its {).
+// (a: int): point => ..., name(a: int): point { ... }: what it gives back, written after the ) - into g_xps_ret ("" none),
+// which the head's xps_lambda reads before the body
+internal char g_xps_ret[32];
 internal const char *xps_lambda_head(const char *s, char names[8][24], char types[8][32], int *n, int brace) {
+    g_xps_ret[0] = 0;
     *n = 0;
     s++;
     while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
@@ -797,6 +801,14 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
     if (*s != ')') return NULL;
     s++;
     while (*s == ' ' || *s == '\t') s++;
+    if (*s == ':') {   // its result's type
+        int k = 0;
+        for (s++; *s == ' ' || *s == '\t'; s++) {}
+        while ((isalnum((unsigned char)*s) || strchr("_<>?", *s)) && *s && k < 31) g_xps_ret[k++] = *s++;
+        g_xps_ret[k] = 0;
+        if (!k) return NULL;
+        while (*s == ' ' || *s == '\t') s++;
+    }
     if (brace && *s == '{') return s;
     return s[0] == '=' && s[1] == '>' ? s + 2 : NULL;
 }
@@ -805,6 +817,8 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
 internal struct xnode *xps_lambda(struct xps *p, const char *s, char pn[8][24], char pt[8][32], int npn, const char *body, int method) {
     uintptr_t *it = NULL;
     int n = 0, cap = 0;
+    int ret = g_xps_ret[0] ? x_type_named(g_xps_ret) : X_ANY;   // (the head's, read before the body: a function in it has its own)
+    if (ret < 0) { p->err = 1; p->why = "a function's result: an unknown type - name(a: int): float { ... }, (a: int): text => ..."; return NULL; }
     for (int i = 0; i < npn; i++) {
         for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return NULL; }
         if (x_word_reserved(pn[i]) && !(method && !i)) { p->err = 1; p->why = "a word of the language is no name"; free(it); return NULL; }
@@ -838,6 +852,7 @@ internal struct xnode *xps_lambda(struct xps *p, const char *s, char pn[8][24], 
     o->n_items = n;
     o->items = (struct xnode **)it;
     o->a = b;
+    o->n = ret;   // what it gives back, as written (X_ANY: not written)
     return XOFF(p, o);
 }
 internal void xps_primary(struct xps *p, struct xnode **out) {
@@ -1909,11 +1924,33 @@ internal int xst_has_default(int t, int depth) {
         if (d->items[i]->op == 'F' && !d->items[i]->a && !xst_has_default((int)d->items[i]->n, depth + 1)) return 0;
     return d != NULL;
 }
-// what a function the check knows gives back, where its code says it plainly: name(a) => point(...) a point - else
-// not known (a function's result has no written type: the value is checked when it is used)
-internal int x_fn_result(const struct xnode *fd) {
-    const struct xnode *b = fd && fd->k == XN_LAMBDA ? fd->a : NULL;
-    return b && b->k == XN_CALL && !strchr(b->s, '.') && xst_find(b->s) >= 0 ? XT_STRUCT + xst_find(b->s) : X_ANY;
+// WHAT A FUNCTION GIVES BACK, for a call of one the check knows (fd: its function): the type written after its
+// parameters (name(a: int): float { ... }) - a declared function or a method with statements that hands back a value
+// has one (x_check) -, else for one of a single value (name(a: int) => a * 2) that value's type, worked out with its
+// parameters and the script's top as its names (sc: any scope of the script - a declared function's and a method's
+// code sees its top); a function that calls itself on the way: not known there. X_ANY: not known
+internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscope *sc);
+internal int x_fn_result(struct xcheck *k, const struct xnode *fd, const struct xscope *sc) {
+    if (!fd || fd->k != XN_LAMBDA) return X_ANY;
+    if ((int)fd->n) return (int)fd->n;
+    const struct xnode *b = fd->a;
+    if (!b || b->k == XN_BLOCK) return X_ANY;
+    if (b->k == XN_CALL && !strchr(b->s, '.') && xst_find(b->s) >= 0) return XT_STRUCT + xst_find(b->s);   // => point(...)
+    if ((fd->op != 'D' && fd->op != 'M') || fd->sk || !sc) return X_ANY;   // (a let's function: where it was made isn't known here)
+    struct xscope s = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
+    while (sc->up) sc = sc->up;
+    s.up = sc;
+    for (int i = 0; i < fd->n_items && s.n < 64; i++) {
+        s.name[s.n] = fd->items[i]->s; s.kind[s.n] = (short)(int)fd->items[i]->n; s.decl[s.n++] = (unsigned char)(fd->items[i]->op == 'r' ? 3 : 1);
+    }
+    int low = k->nn_low, line = k->line, r;
+    const char *why = k->why;
+    k->nn_low = k->n_nn;
+    ((struct xnode *)fd)->sk = 1;   // (being worked out: a call of itself in it is not known)
+    r = x_stype(k, b, &s);
+    ((struct xnode *)fd)->sk = 0;
+    k->nn_low = low; k->why = why; k->line = line;
+    return r;
 }
 internal int xt_own_member(int t, const char *m) {
     if (xst_is(t)) { const struct xnode *f = xst_member(t, m, 'F', NULL); return f ? (int)f->n : -1; }
@@ -2071,10 +2108,10 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
         int f = x_fn_id(n->s, n->n_items < 8 ? n->n_items : 8);
         if (k->script && !dot && xst_find(n->s) >= 0 && !xsc_find(sc, n->s, strlen(n->s), NULL)) return XT_STRUCT + xst_find(n->s);   // point(...)
         if (f && !xsc_find(sc, n->s, strlen(n->s), NULL)) return xt_builtin(k, n, f, sc);
-        if (!dot && k->script && xsc_find(sc, n->s, strlen(n->s), NULL)) return x_fn_result(xsc_fn(sc, n->s, strlen(n->s)));   // make() => point(...)
+        if (!dot && k->script && xsc_find(sc, n->s, strlen(n->s), NULL)) return x_fn_result(k, xsc_fn(sc, n->s, strlen(n->s)), sc);   // make(): point { ... }
         if (!dot) return x_script_fn(n->s) >= 0 ? g_x_host.fn_kind(n->s) : X_ANY;   // player(2)
         r = x_path_kind(k, n, n->s, (size_t)(dot - n->s), sc, &known);
-        if (r > 0 && xst_is(r)) return x_fn_result(xst_member(r, dot + 1, 'M', NULL));   // a.scaled(2): a struct's method
+        if (r > 0 && xst_is(r)) return x_fn_result(k, xst_member(r, dot + 1, 'M', NULL), sc);   // a.scaled(2): a struct's method
         m = r > 0 && r < XT_INT ? x_kind_member(r, dot + 1) : NULL;
         r = m && m->amin >= 0 ? m->result : X_ANY;
         return (r & X_NULLABLE) && xn_checked(k, n) ? r & ~X_NULLABLE : r;   // me.attack_minutes(them) != null ? ...
@@ -2082,7 +2119,7 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
     case XN_MEMBER: case XN_MCALL:
         a = x_stype(k, n->a, sc);
         if (n->k == XN_MEMBER && a >= XT_INT && xt_own_member(a, n->s) >= 0) return xt_own_member(a, n->s);   // v.x, t.on
-        if (n->k == XN_MCALL && xst_is(a)) return x_fn_result(xst_member(a, n->s, 'M', NULL));
+        if (n->k == XN_MCALL && xst_is(a)) return x_fn_result(k, xst_member(a, n->s, 'M', NULL), sc);
         m = a > 0 && a < XT_INT ? x_kind_member(a, n->s) : NULL;
         return m && (m->amin >= 0) == (n->k == XN_MCALL) ? m->result : X_ANY;
     case XN_INDEX: a = x_stype(k, n->a, sc); return a & X_LIST_OF ? X_TBASE(a) : X_ANY;
@@ -2137,6 +2174,15 @@ internal int x_check_new_name(struct xcheck *k, const struct xnode *n, const cha
 // none of the script's names is yet - its function sees none of them
 internal int x_is_setup(const struct xnode *s) {
     return s->k == XN_CALL && !strcmp(s->s, "game.setup") && s->n_items == 1 && s->items[0]->k == XN_LAMBDA && !s->items[0]->n_items;
+}
+internal const struct xnode *g_x_ret_fn;   // the function being checked (x_check XN_LAMBDA): whose a return is
+// statements that hand back on every way through them: the last a return, or an if with an else whose branches all do
+internal int x_returns(const struct xnode *b) {
+    if (b && b->k == XN_BLOCK) b = b->n_items ? b->items[b->n_items - 1] : NULL;
+    if (!b) return 0;
+    if (b->k == XN_RETURN) return 1;
+    if (b->k == XN_IF) return b->b && x_returns(b->a) && x_returns(b->b);
+    return 0;
 }
 internal int x_leaves(const struct xnode *b) {   // a block that always leaves where it is: its last a return, break, continue
     if (b && b->k == XN_BLOCK) b = b->n_items ? b->items[b->n_items - 1] : NULL;
@@ -2402,12 +2448,28 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         k->loops = k->ctx = 0;                                 // has no context; it runs later: a != null around it holds no
         k->nn_low = k->n_nn;                                   // more then)
         int blk = n->a && n->a->k == XN_BLOCK;
+        const struct xnode *fn0 = g_x_ret_fn;   // the function a return in it is of
+        g_x_ret_fn = n;
         k->body += blk;
         int ok = x_check_body(k, n->a, &s);
         k->body -= blk;
+        g_x_ret_fn = fn0;
         k->loops = loops;
         k->ctx = ctx;
         k->nn_low = low;
+        if (ok && k->script && (int)n->n) {   // its result's type written: what it gives back fits
+            int tw = (int)n->n, tv = X_ANY;
+            char a[40], b[40];
+            if (!blk && !xt_fits(tw, tv = x_stype(k, n->a, &s))) {
+                snprintf(k->whybuf, sizeof k->whybuf, "a function of a%s %s gives back a%s %s%s", xan(xty_name(tw, a, sizeof a)), a, xan(xty_name(tv, b, sizeof b)), b, xt_hint(tw, tv));
+                return xc_fail(k, n->a, k->whybuf);
+            }
+            if (blk && !(tw & X_NULLABLE) && !x_returns(n->a)) {
+                snprintf(k->whybuf, sizeof k->whybuf, "a function of a%s %s may end without a return - every way through it hands one back (or its type is %s?: none)",
+                         xan(xty_name(tw, a, sizeof a)), a, a);
+                return xc_fail(k, n, k->whybuf);
+            }
+        }
         return ok;
     }
     case XN_BLOCK: {   // a script's statements (its top)
@@ -2548,7 +2610,23 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         else return 1;
         return xc_fail(k, n, k->whybuf);
     }
-    case XN_RETURN: return x_check(k, n->a, sc);
+    case XN_RETURN: {   // what its function gives back: of the type written for it - a declared function or a method writes one
+        if (!x_check(k, n->a, sc)) return 0;
+        const struct xnode *fn = g_x_ret_fn;
+        int tw = fn ? (int)fn->n : X_ANY, tv = n->a ? x_stype(k, n->a, sc) : X_ANY;
+        char a[40], b[40];
+        if (!k->script || !fn) return 1;
+        if (!tw && n->a && (fn->op == 'D' || fn->op == 'M'))
+            return xc_fail(k, n, "return <value>: the function writes what it gives back after its parameters - name(a: int): float { ... }");
+        if (!tw) return 1;
+        if (!n->a && !(tw & X_NULLABLE)) {
+            snprintf(k->whybuf, sizeof k->whybuf, "return: a function of a%s %s hands one back", xan(xty_name(tw, a, sizeof a)), a);
+            return xc_fail(k, n, k->whybuf);
+        }
+        if (!n->a || xt_fits(tw, tv)) return 1;
+        snprintf(k->whybuf, sizeof k->whybuf, "return: a function of a%s %s - a%s %s can't go in%s", xan(xty_name(tw, a, sizeof a)), a, xan(xty_name(tv, b, sizeof b)), b, xt_hint(tw, tv));
+        return xc_fail(k, n, k->whybuf);
+    }
     case XN_SETI: {   // d[k] = v of a dict; l[i] = v of a list the check knows: its item, in a place (marked for the compiler)
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc) || !x_check(k, n->c, sc)) return 0;
         int a = x_stype(k, n->a, sc), ti = x_stype(k, n->b, sc), tv = x_stype(k, n->c, sc), it = X_TBASE(a);
