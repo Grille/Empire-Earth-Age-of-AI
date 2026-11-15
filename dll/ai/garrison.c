@@ -28,6 +28,7 @@
 #define GU_WOOD 5000
 #define GU_BATCH 10
 #define GU_WAIT 60000
+internal int wk_workable(unsigned idx, ivec2 p);   // work.c
 #define GU_KICK 1.2f
 #define GU_HOLD (2 * GU_EVERY)     // how far ahead the game's rounds are kept: beyond the next pass here
 #define GU_REACH2 20.0f            // the bonus: a mine within this squared distance of the building (0x833AB4)
@@ -115,6 +116,10 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         int score = gu_mines(u);
         if (kick && kind == 1) score = 1000 + unit_get_garrisoned(u) * 10 + score;
         if (!score || raiders_near(pl, unit_get_tile(u), GU_SAFE_R)) continue;
+        // the game's computer player off: only where the citizens work (work.c wk_cost: a territory it holds or one
+        // beside it, quiet, no enemy building) - the fullest Settlement was any, one under an enemy's towers too, and
+        // it sent five after five (139 times in the player's game of 2026-11-15)
+        if (!GAME_AI(idx) && !wk_workable(idx, unit_get_tile(u))) continue;
         if (!best || (kind == 1) > (best_kind == 1) || ((kind == 1) == (best_kind == 1) && score > best_score)) { best = u; best_score = score; best_kind = kind; }
     }
     if (g_log && g_autotest && (!g->log_t || now - g->log_t >= 60000)) {

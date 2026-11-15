@@ -61,21 +61,39 @@ internal int wk_danger(unsigned idx, ivec2 p) {
     }
     return 0;
 }
-// what a site's distance is multiplied by, by its territory: 1 backland, 2 a front it holds, 3 one it only has a
-// building in, 6 one beside such a one that nobody else has a building in; 0: not to be worked (water, being lost,
+// what a site's distance is multiplied by, by its territory: 1 backland, 2 a front it holds; beside one it holds
+// (WITHIN REASON, below) 3 one it has a building in, 6 one nobody has a building in; 0: not to be worked (water, being lost,
 // another's, far from everything of its)
 internal int wk_cost(struct tv_st *s, unsigned r) {
     if (r >= (unsigned)s->n || g_ter.t[r].water || s->t[r].state == TV_UNSAFE) return 0;
     if (s->t[r].role == TVR_BACK) return 1;
     if (s->t[r].role == TVR_FRONT) return 2;
+    // WITHIN REASON (the player 2026-11-15: "controlling the whole map is the endgoal, so mines further out fit into that,
+    // but within reason, right now yellow(p3) is on a giant death march into territory 46, a territory thats far beyond
+    // its border, its soilders disnt secure, with build order under an enemy towers" - a drop site laid there had made it
+    // a worked territory, and the wood cutters with no tree left at home went: 296 citizens down to 38): a territory it
+    // does not hold is worked only beside one it holds, with no enemy soldier seen in it and no building of another's -
+    // a building of its own there changes the price, not that.
+    if (s->t[r].ebld || s->t[r].state != TV_QUIET) return 0;
+    int held = 0;
+    for (int k = 0; k < g_ter.t[r].nbn && !held; k++) {
+        unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+        held = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE;
+    }
+    if (!held) {   // it holds nothing yet (the start: a Capitol is one building, TV_HELD make a territory its own): where it has a building, and beside
+        for (int o = 0; o < s->n; o++) if (!g_ter.t[o].water && s->t[o].role != TVR_NONE) return 0;
+        held = s->t[r].bld >= 1;
+        for (int k = 0; k < g_ter.t[r].nbn && !held; k++) {
+            unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            held = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].bld >= 1 && s->t[o].state != TV_UNSAFE;
+        }
+        if (!held) return 0;
+    }
     if (s->t[r].bld >= 1) return 3;
     if (s->t[r].ebld || s->t[r].abld) return 0;   // somebody lives there: no ground to walk into or settle (an AI's Settlement and tower by a mine in its neighbour's home shot that neighbour's citizens at their work: 34 to 52 of an AI's dead in 40 minutes)
-    for (int k = 0; k < g_ter.t[r].nbn; k++) {
-        unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
-        if (o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].bld >= 1 && s->t[o].state != TV_UNSAFE) return 6;
-    }
-    return 0;
+    return 6;
 }
+internal int wk_workable(unsigned idx, ivec2 p) { return wk_cost(&g_tv[idx & 15], ter_near(p.x, p.y)) > 0; }   // garrison.c: a place its citizens may go to
 // WHAT IT NEEDS (the player 2026-11-14: "we probably also record resource stats for the ai, how much as gatherd in the
 // last 10 minutes, how much spend, defrence etc, so where not stuck on hard numbers but what the ai actually needs").
 // A minute at a time, the last WK_WIN of them: what came in of each resource (the income the budget counts), what went

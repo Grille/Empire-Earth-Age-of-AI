@@ -1472,6 +1472,10 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
     if (!why) s->why = NULL;
 }
 internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
+    // the game's computer player off: no town of this plan - build.c lays the Settlements, by territory (a drop site and
+    // a tower laid 170 tiles from its ring under an enemy's towers, laid again each time they fell: the player's game of
+    // 2026-11-15)
+    if (!GAME_AI(idx)) return;
     struct tn_st *s = &g_tn[idx];
     if (now < s->t) memset(s, 0, sizeof *s);   // a new game
     if (s->t && now - s->t < 2000) return;
