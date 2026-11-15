@@ -65,7 +65,8 @@ struct ter_terr {
     // the facts (ter_facts)
     short res[7]; int amount[7];  // resource sites with something left by resource (2 food .. 6 iron), what they hold
     short bld[16], units[16];     // per player: buildings, other units
-    int8_t owner, contested;      // the player with the most buildings (0 none); an enemy of it has buildings there too
+    short hold[16];               // by player: its finished buildings there that hold ground (ter_holds)
+    int8_t owner, contested;      // the player with the most buildings that hold ground (0 none); an enemy of it has such there too
 };
 struct ter_nb { uint16_t to; int len; };
 struct ter_site { short x, y; uint8_t res; };
@@ -735,6 +736,21 @@ internal int ter_is_building(ee_unit_type *td) {
     int c = unit_type_get_class_id(td);
     return c == CLS_BUILDING || c == CLS_FORTRESS || c == CLS_NAVAL_BUILDING || c == CLS_GATE || is_tower_type(unit_type_get_id(td));
 }
+// a building that holds ground (the player 2026-11-15: "unfinished buildings shouldnt count, also only building that can
+// demage (tower) or prodcue, towncenter/capitol, barracks etc, just a settlemt or a stray house should not count as
+// holding an territory"; "carefull with the fortress, it only stores units" - and then: "in the overlay an territory is
+// painted as claimed with an single unfinished settlment"): finished, a tower or one that trains - the same rule as an
+// AI's own view has (ai/territories.c TV_HOLDS)
+internal int ter_holds(ee_unit *u, ee_unit_type *td) {
+    static const enum ut_name k[] = { UT_B_TOWN_CENTER, UT_B_CAPITOL, UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_SIEGE_FACTORY, UT_B_DOCK,
+                                      UT_B_NAVY_YARD, UT_B_AIRPORT, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY };
+    ee_unit *st = unit_get_physics(u);
+    int t = unit_type_get_id(td);
+    if (!st || !unit_get_finished(st)) return 0;
+    if (ut_role(t, UTR_TOWER)) return 1;   // not is_tower_type: a tank obstacle shoots nothing
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (g_ut[k[i]] >= 0 && g_ut[k[i]] == t) return 1;
+    return 0;
+}
 // the facts as they are: the sites left, who stands and has built where
 internal void ter_facts(void) {
     ee_map *map = g_ter.map;
@@ -742,7 +758,7 @@ internal void ter_facts(void) {
     for (int r = 0; r < g_ter.n; r++) {
         struct ter_terr *t = &g_ter.t[r];
         memset(t->res, 0, sizeof t->res); memset(t->amount, 0, sizeof t->amount);
-        memset(t->bld, 0, sizeof t->bld); memset(t->units, 0, sizeof t->units);
+        memset(t->bld, 0, sizeof t->bld); memset(t->units, 0, sizeof t->units); memset(t->hold, 0, sizeof t->hold);
         t->owner = t->contested = 0;
     }
     for (int k = 0; k < g_ter.nsite; k++) {
@@ -765,13 +781,13 @@ internal void ter_facts(void) {
         if (p <= 0 || p > 15 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
         unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
         if (r == TER_NONE) continue;
-        if (ter_is_building(it.td)) g_ter.t[r].bld[p]++; else g_ter.t[r].units[p]++;
+        if (ter_is_building(it.td)) { g_ter.t[r].bld[p]++; if (ter_holds(u, it.td) && g_ter.t[r].hold[p] < 0x7FFF) g_ter.t[r].hold[p]++; } else g_ter.t[r].units[p]++;
     }
     for (int r = 0; r < g_ter.n; r++) {
         struct ter_terr *t = &g_ter.t[r];
-        for (int p = 1; p < 16; p++) if (t->bld[p] > (t->owner ? t->bld[t->owner] : 0)) t->owner = (int8_t)p;
+        for (int p = 1; p < 16; p++) if (t->hold[p] > (t->owner ? t->hold[t->owner] : 0)) t->owner = (int8_t)p;
         ee_player *own = t->owner ? player_at(t->owner) : NULL;
-        for (int p = 1; p < 16 && own; p++) if (p != t->owner && t->bld[p] && player_at(p) && is_enemy(own, player_at(p))) t->contested = 1;
+        for (int p = 1; p < 16 && own; p++) if (p != t->owner && t->hold[p] && player_at(p) && is_enemy(own, player_at(p))) t->contested = 1;
     }
 }
 // a territory's line: its number, tiles, borders and what it holds
