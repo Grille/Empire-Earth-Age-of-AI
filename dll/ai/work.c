@@ -386,7 +386,9 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         unsigned tr = ter_near(x, y);
         int c = wk_cost(s, tr);
         ee_unit *u = c ? wk_tile_site(map, size, x, y, r) : NULL;
-        if (!u || !explored_by(u, pl) || wk_danger(idx, iv2(x, y))) continue;
+        // nor one citizens_safety would send them back from (raiders seen or remembered there, its citizens hurt there,
+        // enemy towers on the way from its drop site): sent there, sent back, sent there again
+        if (!u || !explored_by(u, pl) || wk_danger(idx, iv2(x, y)) || site_danger_res(pl, u, r == 2, r)) continue;
         struct wk_site *e = r == 2 ? (nb < WK_BUSHES ? &bush[nb++] : NULL) : (nm < WK_MINES ? &mine[nm++] : NULL);
         if (!e) continue;
         e->u = u; e->terr = (uint16_t)tr; e->res = (uint8_t)r; e->n = 0; e->cost = (uint8_t)c; e->cap = WK_PATCH;

@@ -80,7 +80,7 @@ internal void wf_targets(ee_resource_mgr *rm);   // citizens.c: workforce_plan
 internal void wf_tick(ee_player *pl, uint32_t now);
 internal void wf_new_game(void);
 internal void ap_targets(ee_resource_mgr *rm);   // army.c
-internal void citizens_safety(ee_resource_mgr *rm);
+internal void citizens_safety(ee_resource_mgr *rm, int game);
 internal void attack_tick(ee_player *pl, uint32_t now);
 internal void vanilla_tick(ee_player *pl, uint32_t now);
 internal void ecolog_tick(ee_player *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
@@ -177,7 +177,7 @@ internal char __thiscall hook_assign_citizens(ee_resource_mgr *rm) {
         return r;
     }
     econ_fields(rm);   // farm fields (econ.c)
-    citizens_safety(rm);   // away from known enemy towers (attack.c)
+    citizens_safety(rm, 1);   // away from known enemy towers (attack.c)
     food_hunt(rm);   // idle citizens to animals (food.c)
     char r = resource_mgr_assign_citizens(rm);
     econ_rebalance(rm);
@@ -259,6 +259,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
     if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
+    if (pl && !is_vanilla(pl) && !game) citizens_safety(rm, 0);   // attack.c: back from raiders, out of an overrun base (the game's citizen assignment called it)
     if (pl && !is_vanilla(pl) && !game) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
     if (pl && !is_vanilla(pl) && !game) build_tick(pl, rm, now);   // build.c: nor builds anything
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch

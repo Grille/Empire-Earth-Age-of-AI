@@ -175,7 +175,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int k = 0; k < nbuilt; k++) has += built[k] == site || built[k] == openb[i];
         ivec2 p = unit_get_tile(openb[i]);
         has = has >= (unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM) ? 1 : pile >= 2 * BD_PILE ? 3 : pile >= BD_PILE ? 2 : 1);
-        if (has || raiders_near(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;
+        if (has || raiders_known(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // remembered raiders too: the site may lie in the fog
         unsigned land = area_id(p, 2);
         for (int k = 0; k < nf; k++) {
             ivec2 q = unit_get_tile(freec[k]);
@@ -183,7 +183,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             if (d >= bd || (land && area_id(q, 2) && area_id(q, 2) != land)) continue;
             bd = d; bk = k;
         }
-        if (bk < 0 || !bd_send(pl, freec[bk], openb[i])) continue;
+        // nor along a way with enemy soldiers on it (P2's builders walked through P4's army to a foundation behind
+        // it, 36 dead: attack.c citizens_safety)
+        if (bk < 0 || path_raided(pl, unit_get_x(freec[bk]), unit_get_y(freec[bk]), p.x, p.y) || !bd_send(pl, freec[bk], openb[i])) continue;
         freec[bk] = freec[--nf];
         sends++; b->sent++;
     }

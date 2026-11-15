@@ -899,6 +899,15 @@ internal int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
         if (raiders_known(pl, iv2(x0 + (int)(dx / l * t), y0 + (int)(dy / l * t)), 4)) return 1;
     return raiders_known(pl, iv2(x1, y1), 6);
 }
+// path_raided on the next `ahead` tiles of the way only (a citizen on a long walk: what it walks into before the next
+// look, 4 s later; its end within reach)
+internal int way_raided(ee_player *pl, int x0, int y0, int x1, int y1, int ahead) {
+    float dx = (float)(x1 - x0), dy = (float)(y1 - y0), l = sqrtf(dx * dx + dy * dy);
+    if (l <= (float)ahead) return path_raided(pl, x0, y0, x1, y1);
+    for (float t = 5; t < (float)ahead; t += 4)
+        if (raiders_known(pl, iv2(x0 + (int)(dx / l * t), y0 + (int)(dy / l * t)), 4)) return 1;
+    return 0;
+}
 // where a citizen at x,y flees while the base is overrun: the rally point if the way is clear, else 12 tiles in the
 // clear direction (of 8) nearest the rally point; none clear: the rally point after all
 internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
@@ -1041,7 +1050,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
 internal ee_goal *goal_move(float x, float y);
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
-internal struct { unsigned sent, held, by_ship, by_land, by_both, by_other; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens); by_*: the sent back's raiders
+internal struct { unsigned sent, held, by_ship, by_land, by_both, by_other, way; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens); by_*: the sent back's raiders
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
 internal unsigned g_repair_walking[16], g_repair_unsafe[16];   // ... at buildings a citizen walks to already, by an unsafe way
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
@@ -1061,7 +1070,12 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
 internal void town_guards_install(void);
 internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now);   // bunker.c
 internal int g_bk_res;
-internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
+// game: 1 from the game's citizen assignment (its resource lists walked); 0 the game's computer player off (rm_tick,
+// eeaimod.c): nobody calls that assignment then - P2 in the player's game at 175 min had never sent a citizen back,
+// its builders walked to a Settlement's foundation behind P4's army in a column, 36 dead on the way. Then its
+// citizens on the map are walked (builders and walkers are in no list), the stray's recall (an attack's leftover
+// order - the mod's own walks are no such) and the fortresses' list and builds (bunker.c shelf_off_tick has them) left out.
+internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the citizen assignment
     ee_player *pl = resource_mgr_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
@@ -1076,11 +1090,33 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
     int doing[7][4] = { { 0 } };   // per list: gathering, building, walking, nothing (the minute's log)
     float rx, ry;
     int mus = muster_rally(idx, &rx, &ry), sheltered = 0;
-    if (g_bunkers || g_bk_res) bk_refresh(pl, idx);
-    for (int r = 0; r < 7; r++) {
-        uint8_t *list = resource_mgr_list_at(rm, r);
-        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
-            ee_unit *u = deque_at(list, first + k);
+    if (game && (g_bunkers || g_bk_res)) bk_refresh(pl, idx);
+    static struct { ee_unit *u; int r; } cits[4096];   // the citizens to look at, with their resource list (0: none)
+    int nc = 0;
+    if (game)
+        for (int r = 0; r < 7; r++) {
+            uint8_t *list = resource_mgr_list_at(rm, r);
+            for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt && nc < 4096; k++) {
+                ee_unit *u = deque_at(list, first + k);
+                if (u) { cits[nc].u = u; cits[nc++].r = r; }
+            }
+        }
+    else {   // its citizens on the map, the resource as work.c reads it; not those held for a landing or an outpost
+        int count = 0;
+        for (ee_unit *u = player_get_units(pl); u && count < 16384 && nc < 4096; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td)) || unit_get_frozen(u) || unit_get_ai_held(u)) continue;
+            ee_goal *g = unit_get_goal(u);
+            ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
+            ee_unit_type *sd = site ? unit_get_type_data(site) : NULL;
+            int r = sd && unit_type_get_id(sd) == UT(B_FARM) ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
+            cits[nc].u = u; cits[nc++].r = r >= 2 && r <= 6 ? r : 0;
+        }
+    }
+    for (int i = 0; i < nc; i++) {
+        {
+            ee_unit *u = cits[i].u;
+            int r = cits[i].r;
             ee_goal *goal = u ? unit_get_goal(u) : NULL;
             if (!u || unit_get_hp(u) <= 0) continue;
             {
@@ -1092,7 +1128,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                 ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
                 hurt_note(pl, idx, u, now, !(r == 2 && gs && unit_type_get_class_id(unit_get_type_data(gs)) != CLS_BUILDING));
             }
-            if (r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
+            if (game && r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
                 float gx = goal_get_dest_x(goal), gy = goal_get_dest_y(goal);
                 int dest[2] = { (int)gx, (int)gy };
                 ivec2 d;
@@ -1150,7 +1186,14 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             if (raided && raid_held(pl, unit_get_tile(site))) { held++; continue; }   // its soldiers and towers there win
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
-            if (build && !raided && unit_type_get_id(unit_get_type_data(site)) != UT(B_FARM)) continue;
+            if (build && !raided && unit_type_get_id(unit_get_type_data(site)) != UT(B_FARM)) {
+                // ON THE WAY: a builder still walking (8 tiles off) into enemy soldiers it sees or remembers on the
+                // next 24 tiles - the site in the fog looked safe, the way there was not (P2's column above)
+                ivec2 at = unit_get_tile(u), sp = unit_get_tile(site);
+                if (ivec2_dist2(at, sp) <= 64 || !(raiders_near(pl, at, 8) || way_raided(pl, at.x, at.y, sp.x, sp.y, 24))) continue;
+                raided = 1;
+                g_cit_stats[idx].way++;
+            }
             if (!build && !raided && hurt_danger(pl, unit_get_x(site), unit_get_y(site), r)) {   // hurt there
                 if (raid_held(pl, unit_get_tile(site))) { held++; continue; }
                 raided = 1;
@@ -1176,7 +1219,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
     g_cit_stats[idx].sent += sent + fled;
     g_cit_stats[idx].held += (unsigned)held;
     if (g_bunkers) bk_flush(pl, idx, now);
-    if (g_bunkers || g_bk_res) { bk_build(pl, idx, now); bk_reserve_tick(pl, idx, now); shelf_tick(pl, idx, now); }
+    if (game && (g_bunkers || g_bk_res)) { bk_build(pl, idx, now); bk_reserve_tick(pl, idx, now); shelf_tick(pl, idx, now); }
     (void)sheltered;
     static uint32_t doing_t[16];
     if (g_log && (now < doing_t[idx] || now - doing_t[idx] >= 60000)) {   // what the citizens do, per resource list
@@ -1220,10 +1263,10 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u; sent back for ships only %u, land units only %u, both %u, neither in sight %u)\n",
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u; sent back for ships only %u, land units only %u, both %u, neither in sight %u; builders sent back from the way %u)\n",
                 idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx],
                 g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held, g_bw_out[idx],
-                g_cit_stats[idx].by_ship, g_cit_stats[idx].by_land, g_cit_stats[idx].by_both, g_cit_stats[idx].by_other);
+                g_cit_stats[idx].by_ship, g_cit_stats[idx].by_land, g_cit_stats[idx].by_both, g_cit_stats[idx].by_other, g_cit_stats[idx].way);
     }
 }
 
