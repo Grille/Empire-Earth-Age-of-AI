@@ -93,8 +93,8 @@ enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 // control"
 // What holds, with the game's computer player off (the player, the same day: "unfinished buildings shouldnt count,
 // also only building that can demage (tower) or prodcue, towncenter/capitol, barracks etc, just a settlemt or a stray
-// house should not count as holding an territory"): one finished building of its that shoots (a tower, a fortress) or
-// trains (a Town Center, a Capitol, a Barracks and the other production buildings, a Dock) - tv_terr.hold counts
+// house should not count as holding an territory"): one finished building of its that shoots (a tower) or
+// trains (a Town Center, a Capitol, a Barracks and the other production buildings, a Dock; not a Fortress) - tv_terr.hold counts
 // them. With the game's computer player on as it was measured: TV_HELD of any.
 #define TV_HOLDS(idx, t) (GAME_AI(idx) ? (t)->bld >= TV_HELD : (t)->hold >= 1)
 internal int tv_holder(ee_unit *u, ee_unit_type *td) {
@@ -102,6 +102,7 @@ internal int tv_holder(ee_unit *u, ee_unit_type *td) {
     int t = unit_type_get_id(td);
     float rng, att;
     if (!st || !unit_get_finished(st)) return 0;
+    if (t == UT(B_FORTRESS)) return 0;   // the player, the same day: "carefull with the fortress, it only stores units, its not a devensive building"
     if (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || defence_stats(u, &rng, &att)) return 1;
     for (int k = 0; k < AM_NK; k++) if (g_ut[k_am_bld[k]] >= 0 && g_ut[k_am_bld[k]] == t) return 1;
     return 0;
