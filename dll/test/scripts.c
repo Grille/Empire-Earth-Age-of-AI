@@ -477,11 +477,15 @@ internal void cmd_script(char *out, const char *args) {
     memcpy(keep_a, g_xa, sizeof g_xa);
     g_xt_n = g_xa_n = 0;
     g_xt_next = 0;
+    LARGE_INTEGER qf, q0, q1;   // (the time it takes: what a game's objects cost a script - docs/testing.md "The engine's speed")
+    QueryPerformanceFrequency(&qf);
+    QueryPerformanceCounter(&q0);
     struct xvm *m = xvm_new(code, 0);   // (setup.eeai run dry: its top, no hook - there is no game to tell its kind)
     const char *stop = "no memory";
     int r = m ? xvm_turn(m, &stop) : XVM_FAIL;
     while (r == XVM_YIELD) { dry_wait(m->wake); r = xvm_turn(m, &stop); }   // the machine's turns, the clock moved where it waits
     int ok = r == XVM_DONE;
+    QueryPerformanceCounter(&q1);
     if (!ok) log_line("# setup: %s:%d: stopped - %s\n", file, m ? m->line : 0, stop);
     free(m);
     memcpy(g_xt, keep_t, sizeof g_xt);
@@ -493,5 +497,6 @@ internal void cmd_script(char *out, const char *args) {
     fclose(g_dry_out);
     g_dry_out = NULL;
     free(text);   // (its tree and code stay: a dry run is a test's)
-    REPLY(ok ? "ok: %s run dry to %s\n" : "error: %s stopped (the log has where) - what it did is in %s\n", file, dst);
+    if (ok) REPLY("ok: %s run dry to %s in %.2f ms\n", file, dst, (double)(q1.QuadPart - q0.QuadPart) * 1000.0 / (double)qf.QuadPart);
+    else REPLY("error: %s stopped (the log has where) - what it did is in %s\n", file, dst);
 }

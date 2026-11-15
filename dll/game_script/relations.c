@@ -31,7 +31,7 @@ internal void x_players(struct xctx *c) {   // who is who: the context's players
 internal int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
 internal void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pidx(p)]) : NULL; }
 internal void x_player(struct xval *v, void *p, const char *who) {   // a player as a value: its name, itself
-    if (!p) { xnothing(v); lstrcpynA(v->miss, who, sizeof v->miss); return; }   // who isn't there: to be checked
+    if (!p) { xnothing(v); v->miss = x_miss_name(who); return; }   // who isn't there: to be checked
     xstr(v, *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player");   // a test's idle human has no name
     v->obj = pidx(p) + 1;
     v->okind = XK_PLAYER;
@@ -164,10 +164,10 @@ internal void *x_path(struct xctx *c, const char *s, int len, int *ok, char *who
         while (i < c->fnp && ((int)strlen(c->fpn[i]) != n || strncmp(c->fpn[i], s, (size_t)n))) i++;
         if (i < c->fnp) {
             p = x_player_of(&c->fpv[i]);
-            if (!p && !c->fpv[i].miss[0]) { *ok = 0; return NULL; }   // no player
+            if (!p && !c->fpv[i].miss) { *ok = 0; return NULL; }   // no player
         } else if ((lv = x_view_find(c, s, (size_t)n))) {
             p = x_player_of(lv);
-            if (!p && !lv->miss[0]) { *ok = 0; return NULL; }
+            if (!p && !lv->miss) { *ok = 0; return NULL; }
         } else if (x_check_par_has(s, n)) p = NULL;   // its definition read: the syntax only
         else { *ok = 0; return NULL; }
     }
@@ -318,7 +318,7 @@ internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *
                          const struct xval *a, int na, struct xval *v) {
     int kr = !strcmp(m->name, "kills");
     void *pb = x_player_of(&a[0]);
-    if (!pa || a[0].miss[0]) {   // lord.opinion(them), opinion(lord) without a lord: a mistake (x_missing)
+    if (!pa || a[0].miss) {   // lord.opinion(them), opinion(lord) without a lord: a mistake (x_missing)
         x_missing(c, pa ? a[0].miss : who);
         xnothing(v);
         return 1;

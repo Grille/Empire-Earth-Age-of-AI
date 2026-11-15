@@ -1,0 +1,9 @@
+// bench, in a game: a relation and a count of a player
+let p = player(2)
+let q = player(3)
+let t = 0
+for i in 1..50000 {
+    if p.at_war(q) { t += 1 }
+    t += p.count(kind.towers)
+}
+cmd("player methods {t}")

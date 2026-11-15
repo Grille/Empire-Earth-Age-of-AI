@@ -1,0 +1,8 @@
+// bench, in a game: values that come with a text (an epoch), the game's own
+let p = player(2)
+let e = 0
+for i in 1..50000 {
+    if p.epoch >= epoch.copper { e += 1 }
+    if game.minutes < 100 and p.alive { e += 1 }
+}
+cmd("epoch {e}")

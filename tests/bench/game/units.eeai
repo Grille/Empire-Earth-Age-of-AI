@@ -1,0 +1,12 @@
+// bench, in a game: a player's units listed and their members read
+let p = player(2)
+let n = 0
+let hp = 0
+for i in 1..200 {
+    for u in p.units() {
+        n += 1
+        hp += u.hp + u.max_hp
+        if u.alive and u.owner == p { hp += 1 }
+    }
+}
+cmd("units {n} {hp}")

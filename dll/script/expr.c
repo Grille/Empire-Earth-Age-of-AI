@@ -100,9 +100,8 @@ struct xctx {
 };
 // a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
 // obj: an object of the host's, okind its kind (host.h; a player: its index + 1; its text is its name) - equal only to
-// itself; miss: one who
-// isn't there (lord
-// without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
+// itself; miss: one who isn't there (lord without one; who: x_miss_name, NULL none) - nothing, which may only be
+// checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
 // definition and where it was made), stop (a for / every body's "no more"), a vector (vc: its vn numbers, 2..4 -
 // .x .y .z .w; in the region like a text), a record (rec: its members by name) or a trigger (n: its index -
@@ -112,7 +111,11 @@ enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG, XV_DICT, XV_UNSET };  
 struct xfn;
 struct xrec;
 struct xdict;
-struct xval { int has_n, has_s, w, obj, okind, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; struct xdict *dict; char miss[24]; };
+// (56 bytes, its small numbers a byte each: every value worked out is written and copied whole - it was 88)
+struct xval {
+    double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; struct xdict *dict;
+    const char *miss; int w, obj, ln; unsigned char has_n, has_s, kind, vn, okind;
+};
 struct xrec { int n; const char **key; struct xval *val; };   // a record's members in the order written (in the region)
 internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
@@ -372,8 +375,27 @@ internal int xnumeric(const char *s, double *n) {   // the whole text a number (
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
-internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
+// who isn't there, as a value's miss: the name kept for good - a path of the files or a script's (few: each once), up
+// to 23 characters as the messages show it - so a value holds a word, not the text
+internal const char *x_miss_name(const char *who) {
+    static const char **names;
+    static int n, cap;
+    char t[24];
+    lstrcpynA(t, who, sizeof t);
+    if (!t[0]) return NULL;
+    for (int i = 0; i < n; i++) if (!strcmp(names[i], t)) return names[i];
+    if (n == cap) {
+        const char **m = realloc((void *)names, (size_t)(cap ? cap * 2 : 32) * sizeof *m);
+        if (!m) return "someone";
+        names = m;
+        cap = cap ? cap * 2 : 32;
+    }
+    char *d = _strdup(t);
+    if (!d) return "someone";
+    return names[n++] = d;
+}
+internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss = NULL; }
+internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss = NULL; }
 internal void xvec(struct xval *v, const double *c, int n) {   // a vector of n numbers (2..4), copied into the region
     double *m = x_alloc((size_t)n * sizeof *m);
     xnothing(v);
@@ -392,7 +414,7 @@ internal void xstr(struct xval *v, const char *s) {   // a text, only that: "12"
     v->fn = NULL;
     v->vc = NULL;
     v->rec = NULL;
-    v->miss[0] = 0;
+    v->miss = NULL;
 }
 // a placeholder the code fills ({tribute}, {minutes}): a text - and its number when it is one, the code's numbers
 // coming as texts
@@ -400,11 +422,11 @@ internal void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n 
 internal void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 internal void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
-    v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0;
+    v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss = NULL;
 }
 // a number and nothing else (no text with it, no list it was drawn from, nobody missing): the machine works + - * /
 // and the comparisons of two such out itself
-#define XV_IS_NUM(v) ((v)->has_n && (v)->w && !(v)->has_s && !(v)->ln && !(v)->kind && !(v)->obj && !(v)->miss[0])
+#define XV_IS_NUM(v) ((v)->has_n && (v)->w && !(v)->has_s && !(v)->ln && !(v)->kind && !(v)->obj && !(v)->miss)
 internal int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 internal double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
 internal int xtrue(const struct xval *v) { return v->w && (v->ln || v->obj || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
@@ -2268,7 +2290,7 @@ struct xe { struct xctx *c; int err; const char *why; int kept; int steps; };
 internal int xvm_eval(struct xcode *k, struct xe *e, struct xval *v, const struct xview *up);
 internal struct xcode *x_unit_code(const struct xunit *u);
 internal void x_use(struct xe *e, const struct xval *v) {
-    if (!v->miss[0]) return;
+    if (!v->miss) return;
     x_missing(e->c, v->miss);
     e->c->missed = 0;
     e->err = 1;
@@ -2485,7 +2507,7 @@ internal void x_obj_member(struct xe *e, const struct xval *o, const char *name,
 internal void x_member_of(struct xe *e, const char *name, struct xval *v, const char *whole) {
     char dn[44];
     if (!whole) { snprintf(dn, sizeof dn, ".%s", name); whole = dn; }   // after a call or ( ): .name
-    if (!v->w && v->miss[0]) { x_use(e, v); return; }   // lord.x without a lord: who isn't there, told
+    if (!v->w && v->miss) { x_use(e, v); return; }   // lord.x without a lord: who isn't there, told
     if (v->obj && v->w) { x_obj_member(e, v, name, NULL, 0, 0, v, whole); return; }
     if (v->kind == XV_REC && v->w) {
         const struct xval *m = xrec_get(v, name);
@@ -2758,7 +2780,7 @@ internal void x_command(struct xe *e, const char *cmd, struct xval *v) {
     size_t n = nl ? (size_t)(nl - reply) : strlen(reply);
     if (!strncmp(reply, "error", 5)) { x_fail(e, "%.60s -> %.*s", cmd, (int)(n < 120 ? n : 120), reply); return; }
     v->s = x_strdup(reply, n);
-    v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->okind = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
+    v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->okind = v->ln = 0; v->it = NULL; v->miss = NULL; v->kind = 0;
 }
 internal int g_xt_in;   // a trigger's when / run or an after's function is being worked out (TRIGGERS)
 internal int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
@@ -3058,7 +3080,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
         }
     }
     int f = x_fn_id(name, na);
-    for (int i = 0; f && i < na; i++) if (a[i].miss[0]) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
+    for (int i = 0; f && i < na; i++) if (a[i].miss) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
     if (e->err) return;
     if (e->c->fixed && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no vars functions
         x_fail(e, "%s(): a setting is a fixed number (no chance(), rnd() or names)", name);
@@ -3148,7 +3170,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
             xe_ident(e, path, &o);
             if (e->err) return;
             if (o.obj && o.w) { x_obj_member(e, &o, dot + 1, a, nall, 1, v, name); return; }
-            if (!o.w && o.miss[0]) { x_use(e, &o); return; }
+            if (!o.w && o.miss) { x_use(e, &o); return; }
             x_fail(e, "%s(...): %.40s is no object - a method is a player's, the game's ...", name, xtext_of(&o));
             return;
         }

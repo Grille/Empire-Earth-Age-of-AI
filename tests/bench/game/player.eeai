@@ -1,0 +1,6 @@
+// bench, in a game (a dry run there: script dryrun <this> <out> - docs/testing.md "The engine's speed"): a player's
+// members read
+let p = player(2)
+let s = 0
+for i in 1..100000 { s += p.gold + p.soldiers + p.towers }
+cmd("player members {s}")
