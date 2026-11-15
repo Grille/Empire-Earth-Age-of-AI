@@ -1139,7 +1139,14 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             }
             if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, CLS_BUILDING)
                 ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
-                hurt_note(pl, idx, u, now, !(r == 2 && gs && unit_type_get_class_id(unit_get_type_data(gs)) != CLS_BUILDING));
+                // nor one attacking a wild animal (nature's, player 0): the hunt's first half. With the game's computer
+                // player off its citizens are walked without the game's lists, a hunter at its kill in none - its wounds
+                // marked the spot, it was sent back and its carcass refused while it rotted (the player 2026-11-15: "its
+                // citecens in stoneage near its start capitol" kill animals and leave them)
+                ee_unit *prey = goal && goal_is_attack(goal) ? goal_get_target(goal) : NULL;
+                ee_player *po = prey ? unit_get_owner(prey) : NULL;
+                int hunting = (r == 2 && gs && unit_type_get_class_id(unit_get_type_data(gs)) != CLS_BUILDING) || (po && player_get_index(po) == 0);
+                hurt_note(pl, idx, u, now, !hunting);
             }
             if (game && r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
                 float gx = goal_get_dest_x(goal), gy = goal_get_dest_y(goal);
