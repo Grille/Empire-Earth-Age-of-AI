@@ -190,6 +190,15 @@ internal int ap_trains_now(ee_player *pl, int type) {
     }
     return 0;
 }
+// the bank above what is held back pays AP_MORE_UNITS of the type: its production, not its money, is what holds the army back
+#define AP_MORE_UNITS 10
+internal int ap_pays_more(ee_player *pl, unsigned idx, int type) {
+    int res[7] = { 0 };
+    const int *stock = player_stock_at(pl);
+    am_reserve(pl, idx, res);
+    for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - res[r] < c * AP_MORE_UNITS) return 0; }
+    return 1;
+}
 // the game's computer player off - FILL's own type: the strongest land soldier vis pays that an idle building of its
 // trains (the strongest of all came from the Barracks every time: it trained without a pause, the Archery Range and
 // the Stable beside it stood idle and 3 of 4 orders trained nothing)
@@ -429,6 +438,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             int lim = 2 + workforce(pl) / 15;
             if ((plan & 64) && shelf_rich(player_stock_at(pl), g_shelve_stock) && lim < 2 + unit_limit(pl) / 30) lim = 2 + unit_limit(pl) / 30;
             if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
+                (!off || ap_pays_more(pl, idx, a->last_type)) &&   // off: not when money is what its buildings wait for (the player's game of 2026-11-15: twenty Tank Factories in a row beside 650 gold and 137 iron - each "busy" with an order it could not pay)
                 (off ? !g_pr_more[idx] : !build_mgr_queued(bm, bt)) &&   // off: what its build manager still lists nobody builds
                 can_build(pl, bt)) {
                 int fwd = GAME_AI(idx) ? towns_production(pl, idx, bt) : 0;   // towns.c FORWARD: in the town nearest the enemy

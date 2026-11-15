@@ -105,13 +105,13 @@ internal void aim_add(unsigned pi, ee_unit *s) {
     if (k == a->n) { if (a->n == 512) return; a->s[k] = s; a->c[k] = 0; a->n++; }
     a->c[k]++;
 }
-internal struct { ee_player *pl; uint32_t t; int n; struct drop d[64]; } g_drops[16];
+internal struct { ee_player *pl; uint32_t t; int n; struct drop d[512]; } g_drops[16];
 internal void drops_cached(ee_player *pl) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
     if (g_drops[pi].pl != pl || now < g_drops[pi].t || now - g_drops[pi].t > 5000) {   // cached 5 s
         g_drops[pi].pl = pl; g_drops[pi].t = now;
-        g_drops[pi].n = drop_sites(pl, g_drops[pi].d, 64);
+        g_drops[pi].n = drop_sites(pl, g_drops[pi].d, 512);   // 64 until 2026-11-15: an AI with more had drop sites nobody knew of
     }
 }
 // the nearest of player pi's cached drop sites to p (food: granaries count too): its squared distance, 0x7FFFFFFF

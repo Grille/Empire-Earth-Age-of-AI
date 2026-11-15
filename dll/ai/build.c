@@ -41,8 +41,9 @@
 // nobody empties now.
 #define BD_EVERY 5000
 #define BD_SENDS 4
-#define BD_GRANARIES 8
+#define BD_GRANARIES 96   // no limit of its own (8 fed 64 farmers: the player's game of 2026-11-15, 55 citizens on food, 215 on wood with no field to go to, 25 food in the bank): one more whenever citizens wanted on food find no site
 #define BD_DROP 8
+#define BD_DSITES 2048
 #define BD_GUARD 7
 #define BD_CLAIM_EVERY 120000   // between two claims
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
@@ -92,7 +93,9 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static ee_unit *freec[384], *built[192], *openb[96];
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
-    static struct { ivec2 p; int cost, town; } centre[64];
+    static struct { ivec2 p; int cost, town; } centre[256];
+    static ivec2 dsite[BD_DSITES];   // every Settlement, Town Center and Capitol of its, going up too: a mine's drop site (below)
+    int nds = 0;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct bd_st *b = &g_bd[idx];
     struct tv_st *s = &g_tv[idx];
@@ -131,7 +134,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
         if (is_tower_type(t)) open_tower += !done;
         if ((is_tower_type(t) || defence_stats(u, &rng, &att)) && ndef < 512) def[ndef++] = p;
-        if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && ncen < 64) {
+        if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && nds < BD_DSITES) dsite[nds++] = p;
+        if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && ncen < 256) {
             centre[ncen].p = p; centre[ncen].town = t != UT(B_SETTLEMENT); centre[ncen++].cost = wk_cost(s, ter_near(p.x, p.y));
         }
         if (!done && st && no < 96) openb[no++] = u;
@@ -247,8 +251,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             ee_unit *m = c ? wk_tile_site(map, size, p.x, p.y, r) : NULL;
             if (!m || !explored_by(m, pl)) continue;
             b->mines++;
-            int dk = -1, dd = drop_nearest(idx, p, 0, &dk), guard = 0, score = c * 1000000 + ivec2_dist2(p, base);
-            int has_drop = dk >= 0 && dd <= BD_DROP * BD_DROP;
+            // its own count, not sites.c's cache of 64 drop sites (granaries among them): past 64 a Settlement just laid
+            // was never seen and the mine got the next one - twenty round one mine, 303 laid (the player's game of 2026-11-15)
+            int guard = 0, score = c * 1000000 + ivec2_dist2(p, base), has_drop = 0;
+            for (int j = 0; j < nds && !has_drop; j++) has_drop = ivec2_dist2(dsite[j], p) <= BD_DROP * BD_DROP;
             for (int j = 0; j < ndef && !guard; j++) guard = abs(def[j].x - p.x) <= BD_GUARD && abs(def[j].y - p.y) <= BD_GUARD;
             b->mines_drop += has_drop; b->mines_guard += guard;
             if (raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // not a mine under an enemy tower it has seen
