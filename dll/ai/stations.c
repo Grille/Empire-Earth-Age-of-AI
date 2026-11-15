@@ -13,7 +13,8 @@
 //               unless it is under attack. SIEGE (siege weapons, rams): among the territories planning an attack
 //               (beside enemy buildings it knows, by their number) that have a share of the main force - never
 //               alone; with no attack planned they stay where they are.
-//   GIVING    - a territory with fewer stationed than its share (by a fifth, or by any under attack - those first)
+//               A share holds until the new one is off by a quarter, 2 at least (STEADY).
+//   GIVING    - a territory with fewer stationed than its share (by a quarter, 2 at least, or by any under attack - those first)
 //               is given soldiers of the nearest territories with more than theirs, territory by territory over
 //               land: their station changes, they march. SN_MOVES a look.
 //   ORDERS    - a soldier away from its station's place goes there (attack-move: it fights what it meets): the
@@ -35,6 +36,8 @@
 #define SN_EVERY 5000
 #define SN_UNITS 1024
 #define SN_MIN 3
+#define SN_BAND 1 / 4             // STEADY: a share moves, a territory is short, from this much of it
+#define SN_BAND_MIN 2            // ... soldiers at least
 #define SN_MOVES 16
 #define SN_NEAR 10
 #define SN_REORDER 30000
@@ -64,6 +67,7 @@ internal struct sn_st {
     int n;
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
+    short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped;   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
 } g_sn[16];
@@ -162,7 +166,7 @@ internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, c
         int r = -1, best = 0;
         for (int k = 0; k < n; k++) {
             int df = tc[k] - ac[k], hard = s->t[k].foe > 0 && s->t[k].role != TVR_NONE;
-            if (done[k] || df <= 0 || (!hard && df < (tc[k] / 5 > 1 ? tc[k] / 5 : 1))) continue;
+            if (done[k] || df <= 0 || (!hard && df < (tc[k] * SN_BAND > SN_BAND_MIN ? tc[k] * SN_BAND : SN_BAND_MIN))) continue;
             int pr = df + (hard ? 100000 : 0);
             if (pr > best) { best = pr; r = k; }
         }
@@ -259,7 +263,16 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     // STATIONS: the shares in soldiers
     int np[SNP_N] = { 0, 0, 0 }, scouts = 0, wsum = 0;
     for (int i = 0; i < nn; i++) { if (z->m[i].scout) scouts++; else np[z->m[i].pool]++; }
-    for (int r = 0; r < n; r++) tc[r] = (g_pr_share[idx][r] * np[SNP_MAIN] + 500) / 1000;
+    // STEADY (the player 2026-11-15, on the soldiers reshuffled with every look: "yes, continue with steading the
+    // shares"): a territory's share in soldiers stays what it was until the new one is off by SN_BAND of it (SN_BAND_MIN
+    // soldiers at least) - a soldier trained or lost, a citizen more in a front's guard moved every share by one and a
+    // soldier with it, there and back (420 to 860 changes of station a player in 75 minutes). Not one under attack, not
+    // one that loses its share altogether: those at once.
+    for (int r = 0; r < n; r++) {
+        int v = (g_pr_share[idx][r] * np[SNP_MAIN] + 500) / 1000, was = z->tc[r], band = was * SN_BAND > SN_BAND_MIN ? was * SN_BAND : SN_BAND_MIN;
+        if (v && was && abs(v - was) < band && !(s->t[r].foe > 0 && s->t[r].role != TVR_NONE)) v = was;
+        tc[r] = v; z->tc[r] = (short)(v > 32767 ? 32767 : v);
+    }
     for (int r = 0; r < n; r++) {
         if (tc[r] <= 0 || tc[r] >= SN_MIN || (s->t[r].foe > 0 && s->t[r].role != TVR_NONE)) continue;
         int b = -1;

@@ -43,6 +43,7 @@
 #define PR_SEA 3
 #define PR_FAR 8
 #define PR_LOCAL 250      // thousandths of the force missing x steps beyond the first
+#define PR_HOLD 60000     // an attack's size holds this long
 #define PR_MARGIN 5 / 4   // against an attack: this many times the enemy soldiers there
 #define PR_BLD 3
 #define PR_ATTACK 10
@@ -58,6 +59,7 @@ internal struct pr_st {
 } g_pr[16];
 // the shares of the last look, by territory (thousandths of the force): what it should have, what stands there
 internal uint16_t g_pr_share[16][PR_T], g_pr_has[16][PR_T];
+internal uint16_t g_pr_foe[16][PR_T]; internal uint32_t g_pr_foe_t[16][PR_T];   // the attack's size that holds: enemy soldiers, seen when
 internal int pr_kind(int type) {
     for (int k = 0; k < PR_NK; k++) if (g_ut[PR_KINDS[k]] >= 0 && g_ut[PR_KINDS[k]] == type) return k;
     return -1;
@@ -114,7 +116,13 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
         int d = 0, e = 0, a = 0;
         hard[r] = wgt[r] = 0;
         if (!g_ter.t[r].water && t->role != TVR_NONE) {
-            if (t->foe > 0) { int need = t->foe * PR_MARGIN + 1; hard[r] = force > 0 ? need * 1000 / force : 1000; }
+            // the attack's size holds: the most enemy soldiers seen there in the last PR_HOLD (they step in and out of
+            // sight between two looks, and with every step the attacked territory's share halved and doubled and every
+            // other's with it - the whole force marching there and back)
+            int foe = t->foe;
+            if (foe >= g_pr_foe[idx][r] || now < g_pr_foe_t[idx][r] || now - g_pr_foe_t[idx][r] >= PR_HOLD) { g_pr_foe[idx][r] = (uint16_t)(foe > 65535 ? 65535 : foe); g_pr_foe_t[idx][r] = now; }
+            else foe = g_pr_foe[idx][r];
+            if (foe > 0) { int need = foe * PR_MARGIN + 1; hard[r] = force > 0 ? need * 1000 / force : 1000; }
             d = t->role == TVR_FRONT || (t->foe_t && now >= t->foe_t && now - t->foe_t < TV_FOE_MEMORY) ? t->want : 0;
             for (int k = 0; k < g_ter.t[r].nbn; k++) {
                 unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
@@ -193,4 +201,4 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
                    idx, now / 60000.0, z->force, (z->attack + 5) / 10, z->over ? " - the force is too small for it" : "", (z->shortn + 5) / 10, total, done, z->hubs, granaries, z->claims, z->type, z->type ? z->ter : -1, z->type ? z->why : "nothing", buf);
     }
 }
-internal void produce_new_game(void) { memset(g_pr, 0, sizeof g_pr); memset(g_pr_more, 0, sizeof g_pr_more); memset(g_pr_share, 0, sizeof g_pr_share); memset(g_pr_has, 0, sizeof g_pr_has); }
+internal void produce_new_game(void) { memset(g_pr, 0, sizeof g_pr); memset(g_pr_more, 0, sizeof g_pr_more); memset(g_pr_share, 0, sizeof g_pr_share); memset(g_pr_has, 0, sizeof g_pr_has); memset(g_pr_foe, 0, sizeof g_pr_foe); memset(g_pr_foe_t, 0, sizeof g_pr_foe_t); }
