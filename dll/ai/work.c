@@ -257,21 +257,57 @@ internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach, in
             }
     return best;
 }
-// food_animal for a citizen, once a look for each land of each player (the player's game at 94 min, 2026-11-15: half of
-// the simulation's work was food_animal - every citizen over its share asked for food first, at home and in each
-// territory near, and each ask scanned 31 x 31 tiles round every drop site for the same answer). Between two of the
-// look's assignments nothing it looks at changes, so the answer is kept until the next one - food_animal's own, the
-// game the same (kept past an assignment while the animal had under 3 hunters, it parted from minute 7: a citizen
-// taken off an animal gives a full one a place).
-internal struct { int n; short ur[8]; ee_unit *a[8]; } g_wka;
-internal ee_unit *wk_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *cu) {
+// THE ANIMALS BY TERRITORY, once a look (the player 2026-11-15, on food_animal being half of the simulation's work in
+// his game at 94 min: "shouldnt that value be cached per territory? a flag that says wether it has animals or berries
+// at all"). food_animal gives the one animal nearest to any of the player's drop sites - scanning 31 x 31 tiles round
+// every one of them, asked again by each citizen for each territory it tried, and its answer of no use but in the
+// territory it lay in: a citizen asking for B got nothing while B had animals, the nearest being in A. Now the scan
+// runs once, the first time a look asks: every animal food_animal would take (its rules: within food_hunt_range of a
+// drop site that takes hunters, food left, not fierce, explored, no enemy near, no known towers on the way) listed by
+// its territory, nearest to its drop site first. A territory's list empty: no animals there. The hunters are counted
+// at the ask (site_gatherers, under 3), the citizen's land too.
+#define WK_ANIMALS 2048
+struct wk_animal { ee_unit *u; int d2; uint16_t ter; short area; };
+internal struct { int n, built; struct wk_animal e[WK_ANIMALS]; } g_wka;
+internal int wk_animal_order(const void *a, const void *b) {
+    const struct wk_animal *x = a, *y = b;
+    return x->ter != y->ter ? (int)x->ter - (int)y->ter : x->d2 != y->d2 ? x->d2 - y->d2 : (x->u > y->u) - (x->u < y->u);
+}
+internal void wk_animals(ee_player *pl, ee_resource_mgr *rm) {
+    g_wka.built = 1; g_wka.n = 0;
+    ee_civ_mgr *cm = resource_mgr_get_owner(rm);
+    void *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm) return;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    drops_cached(pl);
+    int reach2 = g_hunt_range * g_hunt_range;
+    for (int i = 0; i < g_drops[pi].n; i++) {
+        const struct drop *d = &g_drops[pi].d[i];
+        if (d->food) continue;
+        for (struct grid_it it = grid_it_box(d->p.x, d->p.y, g_hunt_range, 1); grid_it_next(&it) && g_wka.n < WK_ANIMALS; ) {
+            ee_unit *a = it.u;
+            ee_unit_type *td = it.td;
+            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_family(td) != KIND_ANIMAL) continue;
+            if (food_fierce(unit_type_get_id(td))) continue;
+            ivec2 pos = unit_get_tile(a);
+            int d2 = ivec2_dist2(pos, d->p);
+            if (d2 > reach2) continue;
+            if (build_mgr_enemy_near(bm, pos.x, pos.y) || site_danger(pl, a, 1)) continue;
+            struct wk_animal *e = &g_wka.e[g_wka.n++];
+            e->u = a; e->d2 = d2; e->ter = (uint16_t)ter_near(pos.x, pos.y); e->area = (short)map_area(pos, 2);
+        }
+    }
+    qsort(g_wka.e, (size_t)g_wka.n, sizeof *g_wka.e, wk_animal_order);
+}
+// an animal in territory ter for the citizen cu: the nearest to its drop site with under 3 hunters, on the citizen's land
+internal ee_unit *wk_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *cu, int ter) {
+    if (!g_wka.built) wk_animals(pl, rm);
+    int lo = 0, hi = g_wka.n;
+    while (lo < hi) { int m = (lo + hi) / 2; if ((int)g_wka.e[m].ter < ter) lo = m + 1; else hi = m; }
     short ur = (short)map_area(unit_get_tile(cu), 2);
-    int k = 0;
-    while (k < g_wka.n && g_wka.ur[k] != ur) k++;
-    if (k < g_wka.n) return g_wka.a[k];
-    ee_unit *a = food_animal(pl, rm, cu);
-    if (k < 8) { g_wka.ur[k] = ur; g_wka.a[k] = a; g_wka.n++; }
-    return a;
+    for (int k = lo; k < g_wka.n && (int)g_wka.e[k].ter == ter; k++)
+        if (g_wka.e[k].area == ur && site_gatherers(g_wka.e[k].u) < 3) return g_wka.e[k].u;
+    return NULL;
 }
 // a site of resource r in territory ter for the citizen cu at p (land: its land): the nearest mine with a place, a
 // field or bush with one, a tree, an animal; *mk, *bk: the mine's, the bush's entry
@@ -299,11 +335,9 @@ internal ee_unit *wk_find(ee_player *pl, ee_resource_mgr *rm, struct tv_st *s, e
         if (*bk < 0 || d < bd) { *bk = k; bd = d; }
     }
     if (*bk >= 0) return g_wks.bush[*bk].u;
-    // food.c: an animal to hunt, by its own rules - in the territory asked for (from the Stone Age the hunt is most of
-    // the food: with the animals of its own territory only an AI had 43 citizens for 70 at minute 30)
-    ee_unit *a = wk_animal(pl, rm, cu);
-    if (a) { ivec2 q = unit_get_tile(a); if ((int)ter_near(q.x, q.y) != ter || !wk_cost(s, (unsigned)ter)) a = NULL; }
-    return a;
+    // an animal to hunt, by food_animal's rules - in the territory asked for (from the Stone Age the hunt is most of the
+    // food: with the animals of its own territory only an AI had 43 citizens for 70 at minute 30)
+    return wk_cost(s, (unsigned)ter) ? wk_animal(pl, rm, cu, ter) : NULL;
 }
 // the territories a citizen of territory home may be given, nearest first by the graph, over land its citizens may work in
 internal int wk_reach(struct tv_st *s, int home, short *out, int max) {
@@ -451,7 +485,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
     }
     int moves = 0, xfers = 0;
-    g_wka.n = 0;   // the look's animals anew
+    g_wka.built = 0;   // the look's animals anew
     for (int pass = 0; pass < 2; pass++)   // the idle ones first, then those of a resource over its share
         for (int i = 0; i < nc; i++) {
             struct wk_cit *c = &cit[i];
@@ -480,7 +514,6 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (site && bk >= 0) bush[bk].n++;
                 if (!site) { w->none[r]++; w->food_short += r == 2; continue; }
                 resource_mgr_assign(rm, c->u, site);
-                g_wka.n = 0;   // a hunter taken off an animal frees its place: the animals anew
                 if (c->res) { w->have[c->res]--; w->moved++; moves++; } else { w->idle--; w->assigned++; }
                 w->have[r]++;
                 if (mk >= 0 && mine[mk].n < 255) mine[mk].n++;
