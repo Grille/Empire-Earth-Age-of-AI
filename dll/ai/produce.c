@@ -160,7 +160,7 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
         if (g_ter.t[r].water || t->role == TVR_NONE || !anc[r]) continue;
         int any = 0;
         for (int k = 0; k < PR_NK; k++) any += np[r][k];
-        if (any && want[r] > hwant) { hwant = want[r]; hub = r; }
+        if (any && t->state == TV_QUIET && want[r] > hwant) { hwant = want[r]; hub = r; }   // a quiet one: the hub that wants the most is the one under attack, and nothing was built while it was
         if (t->bld < PR_BLD || t->state != TV_QUIET || any) continue;   // established and secured, no hub yet
         int fs = (t->role == TVR_FRONT ? 100000 : 0) + sh[r] * 10 + t->bld;   // with no production anywhere: a front first, the one missing the most
         if (fs > fscore) { fscore = fs; first = r; }

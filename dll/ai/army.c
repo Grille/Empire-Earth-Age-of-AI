@@ -143,7 +143,7 @@ internal const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, U
 internal struct ap_st {
     uint32_t t, tb, look;
     int fl[12][7], nf, kf;          // the last 12 samples of stock - reserve
-    unsigned busy[5], have[5];      // land production samples since the last BUILD look, per kind (k_ap_land)
+    unsigned busy[5], have[5]; int more_ok;      // land production samples since the last BUILD look, per kind (k_ap_land)
     unsigned added[7], fill, bld, mixed;   // since the last # mil line
     int last_type;
 } g_ap[16];
@@ -425,11 +425,29 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         }
         unsigned have = 0, busy = 0, kh = 0;
         if (off && filled) a->last_type = filled;   // the game's computer player off: the kind FILL's type comes from
+        // THE BANK'S KIND (the player's game of 2026-11-15, P4 at minute 140: "50k food, 1.5k gold, 22k iron, any no army
+        // for it???" - 100,000 wood too, 369 citizens, 160 soldiers and 7 land production buildings: its one Tank
+        // Factory and its 2 Barracks trained what food and iron pay (Gladiators, Sentinels: no gold) one order at a time,
+        // and one more was asked for the type FILL picked last - a mech, for gold it had none of - or not at all):
+        // with the game's computer player off the building asked for is the kind of the strongest soldier the bank
+        // pays AP_MORE_UNITS of, among the kinds that are busy.
+        if (off && now - a->look >= 30000) {
+            int bs = 0, mt = 0;
+            for (int t = 0; t < 724; t++) {
+                if (!land_soldier(t) || soldier_score(t) <= bs || !can_build(pl, t) || !ap_pays_more(pl, idx, t)) continue;
+                int pb = ap_producer(pl, t), k = 0;
+                while (k < 5 && g_ut[k_ap_land[k]] != pb) k++;
+                if (!pb || k == 5 || !a->have[k] || a->busy[k] * 10 < a->have[k] * 7) continue;
+                bs = soldier_score(t); mt = t;
+            }
+            a->last_type = mt ? mt : a->last_type;
+            a->more_ok = mt != 0;
+        }
         int bt = a->last_type ? ap_producer(pl, a->last_type) : 0;
         for (int k = 0; k < 5; k++) if (bt && g_ut[k_ap_land[k]] == bt) kb = k;
         for (int k = 0; k < 5; k++) { have += a->have[k]; busy += a->busy[k]; }
         kh = have;
-        if (plan & 64) { busy = kb >= 0 ? a->busy[kb] : 0; kh = kb >= 0 ? a->have[kb] : 0; }   // KIND: that kind's share
+        if ((plan & 64) || off) { busy = kb >= 0 ? a->busy[kb] : 0; kh = kb >= 0 ? a->have[kb] : 0; }   // KIND: that kind's share
         if (now < a->look) a->look = 0;
         if (now - a->look >= 30000 && have >= 3) {
             a->look = now ? now : 1;
@@ -438,7 +456,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             int lim = 2 + workforce(pl) / 15;
             if ((plan & 64) && shelf_rich(player_stock_at(pl), g_shelve_stock) && lim < 2 + unit_limit(pl) / 30) lim = 2 + unit_limit(pl) / 30;
             if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
-                (!off || ap_pays_more(pl, idx, a->last_type)) &&   // off: not when money is what its buildings wait for (the player's game of 2026-11-15: twenty Tank Factories in a row beside 650 gold and 137 iron - each "busy" with an order it could not pay)
+                (!off || (a->more_ok && ap_pays_more(pl, idx, a->last_type))) &&   // off: not when money is what its buildings wait for (the player's game of 2026-11-15: twenty Tank Factories in a row beside 650 gold and 137 iron - each "busy" with an order it could not pay)
                 (off ? !g_pr_more[idx] : !build_mgr_queued(bm, bt)) &&   // off: what its build manager still lists nobody builds
                 can_build(pl, bt)) {
                 int fwd = GAME_AI(idx) ? towns_production(pl, idx, bt) : 0;   // towns.c FORWARD: in the town nearest the enemy

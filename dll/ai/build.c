@@ -129,7 +129,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int nf = 0, nbuilt = 0, no = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
     int nairport = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
-    int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, count = 0, have_rb[3] = { 0, 0, 0 };
+    int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 };
     const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // what it has: citizens, foundations, granaries, fields, defences, centres
         ee_unit_type *td = unit_get_type_data(u);
@@ -150,6 +150,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
         else if (t == UT(B_SETTLEMENT)) open_settle += !done;
         else if (pr_kind(t) >= 0) open_prod += !done;
+        open_sink += !done && (pr_kind(t) >= 0 || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
         for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
         if (is_tower_type(t)) open_tower += !done;
@@ -354,7 +355,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // Hospital, a Temple or a production building in a quiet front territory of its, the kind that territory has the
     // fewest of (BD_SINK_MAX of a kind in one at most), one every BD_SINK_EVERY while fewer than BD_SINK_OPEN of its
     // buildings stand unfinished.
-    if (!type && !placed && player_stock_at(pl)[3] >= BD_SINK && no < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
+    if (!type && !placed && player_stock_at(pl)[3] >= BD_SINK && open_sink < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
         int kinds[3 + PR_NK], nk = 0;
         kinds[nk++] = rb[1]; kinds[nk++] = rb[2]; kinds[nk++] = UT(B_AIRPORT);   // an Airport near the front: the planes' reach
         for (int k = 0; k < PR_NK; k++) kinds[nk++] = g_ut[PR_KINDS[k]];
@@ -367,10 +368,13 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
             for (int k = 0; r < (unsigned)tn && k < nk; k++) if (kinds[k] >= 0 && unit_type_get_id(td) == kinds[k] && have[r][k] < 255) have[r][k]++;
         }
+        // no quiet front territory with room: a production building in a quiet backland (the fronts of the player's
+        // P4 were all under attack, 100,000 wood in the bank)
         int br = -1, bk = -1, bn = 0;
+        for (int back = 0; back < 2 && br < 0; back++)
         for (int r = 0; r < tn; r++) {
-            if (g_ter.t[r].water || s->t[r].role != TVR_FRONT || s->t[r].state != TV_QUIET) continue;
-            for (int k = 0; k < nk; k++) {
+            if (g_ter.t[r].water || s->t[r].role != (back ? TVR_BACK : TVR_FRONT) || s->t[r].state != TV_QUIET) continue;
+            for (int k = back ? 3 : 0; k < nk; k++) {
                 if (kinds[k] < 0 || have[r][k] >= BD_SINK_MAX || !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
                 if (br < 0 || have[r][k] < bn) { br = r; bk = k; bn = have[r][k]; }
             }
