@@ -1210,6 +1210,15 @@ Step 3: memory and texts.
 - A member path from a variable asks the host's `value()` only for the kind it reads (a player: `x_host.value_kind`) -
   a unit's member went there first for nothing. The game's epoch names are asked for once (`p.epoch` made the game
   look the string up every time).
+- What a trigger's, timer's or after's function sets in its script's names goes into the script's own region, cleared
+  after the triggers' turn too (it stayed in the triggers' region until the game's end): timers.eeai - a text, a list
+  and a record set every half second for an hour - 448 KB instead of 6 MB. `tests/probes/trigger_sets.eeai` plays it
+  in a game.
+
+Open: the game's objects' members by a number instead of their names (the host finds each by comparing names: a
+player's member about 80 ns, a unit's 150, a relation 300), strings with placeholders compiled, the texts of values
+that are a number and a text made only when asked for (an opinion's words: 4.6 us each time), a call's values freed
+when it returns. Plain statements take about 5 ns an instruction.
 
 ### Headless UI tests (menus, editor)
 
