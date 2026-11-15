@@ -92,7 +92,8 @@ internal void ud_turns(void *rec) {
 }
 // A BURNT WRECK (collect_remains.c us_burnt: a crashed aircraft from its hit on, tagged SIL_WRECK): drawn with the game's
 // generic death texture instead of its animation's, and the models of its list a - its rotors - shrunk to nothing
-// (their own transformations, which ud_turns sets for each record anew)
+// (their own transformations, which ud_turns sets for each record anew); a still machine's corpse burnt (collect_remains.c
+// A MACHINE THAT DIES STILL, SIL_BURNT) the same texture, its parts kept
 internal ee_texture *g_ud_death_tex;   // collect.c's, while it has it
 internal void ud_rotors_off(void *rec) {
     const float *a = vector_first(draw_record_list_a_c_at(rec)), *end = vector_end(draw_record_list_a_c_at(rec));
@@ -530,7 +531,11 @@ internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op,
     rasterizer_set_alpha_ref(ras, ref > op ? *(const float *)engine_display_alpha_ref_low_at() : ref, screen);
     rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
     if (!in_device(ras, screen)) return 0;
-    dmg_model_set_player_colour(g, draw_record_color_at(rec), anim);
+    // a burnt one's player colour soot (the game's dead tank shows none: its painted parts stood out bright on the burnt
+    // Hercules, 2026-11-15)
+    vec3 soot = { 0.12f, 0.11f, 0.10f };
+    int burnt = g_ud_death_tex && (sil_of(rec) == SIL_WRECK || sil_of(rec) == SIL_BURNT);
+    dmg_model_set_player_colour(g, burnt ? &soot : (vec3 *)draw_record_color_at(rec), anim);
     ud_turns(rec);
     if (g_ud_death_tex && sil_of(rec) == SIL_WRECK) ud_rotors_off(rec);
     if (draw_record_get_gated(rec)) ud_gate(m, draw_record_get_gate_open(rec));
@@ -1112,7 +1117,7 @@ internal int ud_draw_whole(void *rec) {
     int anim = draw_record_get_anim(rec);
     ee_model *m = graphics_anim_model(g, anim);
     float op = draw_record_get_opacity(rec), bias;
-    int burnt = g_ud_death_tex && sil_of(rec) == SIL_WRECK;
+    int burnt = g_ud_death_tex && (sil_of(rec) == SIL_WRECK || sil_of(rec) == SIL_BURNT);
     in_rec r = { draw_record_transform_at(rec), draw_record_get_scale(rec),
                  { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
                    *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },

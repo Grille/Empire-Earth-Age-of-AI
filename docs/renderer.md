@@ -992,6 +992,18 @@ without unit_instancing the game's draw draws it as it was. The texture is the f
 it, their models loaded for it once and held until the scene's release. Checked headless with the player's ini: the
 texture found (a type's animation 5), an Apache green with its rotors as it fell, charred and without them from its
 hit on, its player's colour kept as a tank wreck's is.
+A machine that dies still (collect_remains.c A MACHINE THAT DIES STILL; the player, 2026-11-15: "there a certain units
+like hercules PA that just frezze on death, they need a burnt death texture model. also tanks even with death texture
+just frezze, maybe a small random rotation and sink into ground"). A graphics' animation 4 is the dying, 5 the dead,
+each with its frames (anim_first, anim_last) and texture; logged over the retail types, a tank's dying has no frames and
+its dead is the standing model in gen_deathT, while the Hercules and Thor AT guns, the Cargo Truck and the Staff Car have
+neither - they stood as they lived, the names empty. A corpse of a machine's family (tanks, anti-tank, machines, land
+AA, siege, artillery, rams, field weapons, mechs) whose 4 and 5 have no frames is turned at its death by a yaw of up
+to 8 degrees and a lean of 2 - 6 degrees each way and let down by 4 - 9 % of its radius, at once, by its id (a look again
+the same); one whose 4 and 5 don't name the death texture is drawn burnt too (SIL_BURNT: the death texture, its parts
+kept). A burnt record's player colour is soot (both tags: the Hercules' painted panels stood bright blue on the charred
+hull; the game's dead tank shows none). Checked headless on Continental: the Hercules, Thor, Cargo Truck burnt, turned
+and dug in; the Panzer and Sherman turned and dug in, burnt by the game as before.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
 (US_LOW), three times a float's weight (US_BALLAST), no buoyancy of its own - the floats carry it, their lift times all the

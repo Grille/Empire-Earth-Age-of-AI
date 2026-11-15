@@ -124,6 +124,10 @@ typedef struct {
     uint8_t floor_snap;      // ... one that breaks on the seabed instead (US_SNAP_FLOOR), once it hit it (floor_hit)
     uint8_t floor_hit;       // ... and the steps since (it breaks US_FLOOR_STEPS on)
     float hit_v;             // ... how fast it went down then (tiles/s)
+    uint8_t settled;         // a machine that dies still (uc_settle): its turn and sink drawn (1), and burnt too (2);
+                             // 0 none, looked at once (settle_seen)
+    uint8_t settle_seen;
+    float settle_r[9], settle_z;   // ... the turn (world, about its place) and how far down (tiles)
 } uc_corpse;
 internal uc_corpse g_kc[UC_CORPSES];
 internal uint32_t g_kc_n, g_kc_full, g_kc_drawn;
@@ -131,6 +135,79 @@ internal CRITICAL_SECTION g_kc_cs;
 internal int g_kc_cs_ok;
 internal int32_t uc_kc_n(uint32_t n) { return (int32_t)(n < UC_KC_PARTS ? n : UC_KC_PARTS); }
 #include "collect_remains_physics.c"   // the wrecks' floats: a ship's sinking, an aircraft's fall
+// A MACHINE THAT DIES STILL (the player, 2026-11-15: "there a certain units like hercules PA that just frezze on death,
+// they need a burnt death texture model. also tanks even with death texture just frezze, maybe a small random rotation
+// and sink into ground (both instant) could make it look better?"). A graphics names per animation its frames and its
+// texture: 4 the dying, 5 the dead (logged over the retail types: a Howitzer's 6 - 9 and 9, an Ares' dead 0 - 15). A
+// tank's dying has no frames and its dead is the standing model in textures\gen_deathT (a Panzer, a Sherman, the AA
+// tank, the Colossus); the Hercules and Thor AT guns, the Cargo Truck and the Staff Car have neither frames nor that
+// texture - they stood as they lived. A machine whose dying and dead have no frames is turned a little and let down
+// into the ground at its death (UC_SETTLE_*: a yaw, a lean each way, sunk by a share of its radius, by its id so a look
+// again gives the same), one with no texture of its own for its death drawn burnt too (SIL_BURNT, render_units.c: the
+// death texture, its parts kept - a helicopter's wreck has its rotors shrunk, SIL_WRECK). The machines: by family.
+#define UC_SETTLE_YAW 0.14f     // radians either way (8 degrees)
+#define UC_SETTLE_LEAN 0.03f    // ... the least lean each way, and up to
+#define UC_SETTLE_LEAN_RND 0.07f   //  this more (2 - 6 degrees), either side
+#define UC_SETTLE_SINK 0.04f    // its radius' share down, and up to
+#define UC_SETTLE_SINK_RND 0.05f   //  this more
+internal int uc_machine(int f) {
+    return f == KIND_TANK || f == KIND_TANK_STRONG || f == KIND_ANTI_TANK || f == KIND_MACHINES || f == KIND_LAND_AA ||
+           f == KIND_SIEGE || f == KIND_ARTILLERY || f == KIND_RAM || f == KIND_MEDIEVAL_FIELD_WEAPON ||
+           f == KIND_MECH_MINOTAUR || f == KIND_MECH_MEDIUM || f == KIND_MECH_ZEUS || f == KIND_MECH_CYCLOPS ||
+           f == KIND_MECH_APOLLO;
+}
+internal float uc_settle_rnd(uint32_t *h) {   // 0 .. 1
+    *h = *h * 1664525u + 1013904223u;
+    return (float)(*h >> 8) * (1.0f / 16777216.0f);
+}
+// a texture's name is the game's death texture's (its file textures\gen_death*; the rest name the type's own or are empty)
+internal int uc_death_named(ee_ustring *n) {
+    const char *s = n ? ustring_get_text(n) : NULL, *f = s ? strrchr(s, '\\') : NULL;
+    f = f ? f + 1 : s;
+    return f && !_strnicmp(f, "gen_death", 9);
+}
+internal void uc_settle_look(uc_corpse *k) {
+    k->settle_seen = 1;
+    if (!k->ty || !k->gfx || !uc_machine(unit_type_get_family(k->ty)) || uc_game_sinks(k->ty)) return;
+    const int32_t *fa = (const int32_t *)dmg_model_anim_first_at(k->gfx), *la = (const int32_t *)dmg_model_anim_last_at(k->gfx);
+    if (fa[4] != la[4] || fa[5] != la[5]) return;   // it plays a death
+    ee_ustring *const *names = (ee_ustring *const *)dmg_model_anim_texture_names_at(k->gfx);
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[k->anim];
+    uint32_t h = (uint32_t)k->serial * 2654435761u + 0x9E3779B9u;
+    float yaw = (2.0f * uc_settle_rnd(&h) - 1.0f) * UC_SETTLE_YAW, lean[2];
+    for (int i = 0; i < 2; i++) lean[i] = (UC_SETTLE_LEAN + UC_SETTLE_LEAN_RND * uc_settle_rnd(&h)) * (uc_settle_rnd(&h) < 0.5f ? -1.0f : 1.0f);
+    float cy = cosf(yaw), sy = sinf(yaw), ca = cosf(lean[0]), sa = sinf(lean[0]), cb = cosf(lean[1]), sb = sinf(lean[1]);
+    // the turn: about z by the yaw, then about x and y by the leans (world): Rx(a) Ry(b) Rz(yaw)
+    float rz[9] = { cy, -sy, 0, sy, cy, 0, 0, 0, 1 }, rx[9] = { 1, 0, 0, 0, ca, -sa, 0, sa, ca },
+          ry[9] = { cb, 0, sb, 0, 1, 0, -sb, 0, cb }, q[9];
+    for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) {
+        q[i * 3 + j] = 0.0f;
+        for (int n = 0; n < 3; n++) q[i * 3 + j] += ry[i * 3 + n] * rz[n * 3 + j];
+    }
+    for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) {
+        k->settle_r[i * 3 + j] = 0.0f;
+        for (int n = 0; n < 3; n++) k->settle_r[i * 3 + j] += rx[i * 3 + n] * q[n * 3 + j];
+    }
+    float r = m ? model_get_radii(m)[k->frame] * k->scale : 0.0f;
+    k->settle_z = r * (UC_SETTLE_SINK + UC_SETTLE_SINK_RND * uc_settle_rnd(&h));
+    k->settled = uc_death_named(names[4]) || uc_death_named(names[5]) ? 1 : 2;
+}
+// its pose t turned and let down
+internal void uc_settle(const uc_corpse *k, float *t) {
+    if (!k->settled) return;
+    float r[9];
+    for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) {
+        r[i * 3 + j] = 0.0f;
+        for (int n = 0; n < 3; n++) r[i * 3 + j] += k->settle_r[i * 3 + n] * t[n * 4 + j];
+    }
+    for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) t[i * 4 + j] = r[i * 3 + j];
+    t[11] -= k->settle_z;
+}
+// its record's tag: a wreck burnt out, a still machine burnt
+internal int us_burnt(const uc_corpse *k);
+internal int uc_burn_tag(const uc_corpse *k) {
+    return us_burnt(k) ? SIL_WRECK : k->settled == 2 && us_death_texture(k->owner) ? SIL_BURNT : 0;
+}
 // a rotting object the walk met (or a dead ship, rotting or not yet), its record rec filled and its pose t not yet sunk:
 // its entry made or brought up to date, the record's turns its held ones, and a ship's pose its floats'
 internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, float *t, double d, int ship) {
@@ -153,6 +230,8 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
         k->ty = o->ty, k->owner = o->owner;
         memcpy(k->t, t, sizeof k->t);
         k->scale = o->cu_height, k->anim = o->anim, k->frame = o->anim_frame, k->rot = o->rot_ms;
+        if (!k->settle_seen && !ship) uc_settle_look(k);
+        uc_settle(k, t);
         int32_t np = o->foundation ? 0 : uc_kc_n(o->n_parts), na = o->foundation ? 0 : uc_kc_n(o->n_a),
                 nb = o->foundation ? 0 : uc_kc_n(o->n_b);
         if (!k->held || k->n_parts != np || k->n_la != na || k->n_lb != nb) {
@@ -187,7 +266,7 @@ internal void uc_corpse_saw(const uc_copy *c, const uc_obj *o, uint8_t *rec, flo
                 draw_record_set_anim(rec, an), draw_record_set_frame(rec, fr), draw_record_set_next_frame(rec, nx), draw_record_set_fraction(rec, fc);
             }
         }
-        if (us_burnt(k)) sil_tag(rec, g_uc_walk_gen, SIL_WRECK);
+        if (uc_burn_tag(k)) sil_tag(rec, g_uc_walk_gen, uc_burn_tag(k));
         k->gen = g_uc_walk_gen, k->gone = 0;
     }
     LeaveCriticalSection(&g_kc_cs);
@@ -215,12 +294,10 @@ internal ee_texture *us_death_texture(ee_player *pl) {
         if (!g) continue;
         ee_ustring *const *names = (ee_ustring *const *)dmg_model_anim_texture_names_at(g);
         for (int a = 0; a < US_ANIMS; a++) {
-            const char *s = names[a] ? ustring_get_text(names[a]) : NULL, *f = s ? strrchr(s, '\\') : NULL;
-            f = f ? f + 1 : s;   // (its folder before it, textures)
-            if (!f || _strnicmp(f, "gen_death", 9)) continue;
+            if (!uc_death_named(names[a])) continue;
             graphics_acquire(g);   // (its textures loaded by it)
             g_us_dgfx = g, g_ud_death_tex = graphics_anim_texture(g, a);
-            if (g_log) log_locked("# wrecks: the death texture from type %u's animation %d (%s): %p\n", t, a, s, (void *)g_ud_death_tex);
+            if (g_log) log_locked("# wrecks: the death texture from type %u's animation %d (%s): %p\n", t, a, ustring_get_text(names[a]), (void *)g_ud_death_tex);
             return g_ud_death_tex;
         }
     }
@@ -244,6 +321,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
     __attribute__((aligned(8))) float pose[16];   // where it lies: its last pose, a ship's by its floats on
     memcpy(pose, k->t, sizeof pose);
     if (k->ship) us_run(k), us_pose(k, pose);
+    uc_settle(k, pose);
     int32_t anim = k->anim, frame = k->frame, next = k->frame;
     float fraction = 0.0f;
     us_shatter(k, pose, &anim, &frame, &next, &fraction);
@@ -262,7 +340,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
     ee_map *map = game_map();
     ee_unit_type *ty = k->ty;
     float op = uc_dead_opacity(d), pos[3], ground[3] = { 0, 0, 0 };
-    sil_tag(rec, g_uc_walk_gen, us_burnt(k) ? SIL_WRECK : 0);
+    sil_tag(rec, g_uc_walk_gen, uc_burn_tag(k));
     us_clip_tag(rec, k, pose);
     draw_record_set_type(rec, ty);
     draw_record_set_size(rec, unit_type_get_size(ty));
