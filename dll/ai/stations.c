@@ -39,6 +39,13 @@
 #define SN_NEAR 10
 #define SN_REORDER 30000
 #define SN_PUSH_MIN 6
+#define SN_GIVE_STEPS 3          // territories a soldier is sent at most
+#define SN_GIVE_STEPS_ATTACK 5   // ... to one under attack
+#define SN_GROUP 4               // AS A GROUP: soldiers that march together at least
+#define SN_GROUP_WAIT 45000      // ... or the first of them has waited this long
+#define SN_GROUPS 64
+#define SN_STAY 180000           // a soldier given a station keeps it this long, but for an attack
+#define SN_GROUP_MAX 160
 #define SN_AA_BLD 20
 #define SN_AA_SEEN 30
 #define SN_PUSH 1.5f
@@ -50,14 +57,14 @@
 #define SN_SCOUT_REST 300000
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since; ivec2 to; };   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t; ivec2 to; };   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; };   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
     int n;
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
-    unsigned moved, orders, pushes, won, lost, scouted, breaches;
+    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped;   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
@@ -121,12 +128,33 @@ internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fi
     z->orders++;
     return 1;
 }
+// AS A GROUP (the player 2026-11-15: "also armies should properly form/muster in territories and move in a group in
+// formation attack move"): the soldiers that are to go from one territory to the same place get one order - the game's
+// own move on a selection of them, as a click of the player's would be (armies.c ar_group_move's recipe), together
+// (the group's speed: the fast wait for the slow, the mod's formations lay them out) and as an attack-move unless the
+// siege moves alone. Fewer than SN_GROUP of them wait where they stand for more, SN_GROUP_WAIT at most - a push and
+// an attack on their territory wait for nobody.
+internal int sn_group_move(ee_player *pl, uint32_t *ids, int n, ivec2 from, ivec2 d, int fight) {
+    static __attribute__((aligned(8))) uint8_t mem[0x40];
+    if (n <= 0) return 0;
+    uint32_t *sel[3] = { NULL, ids, ids + n };
+    player_select(pl, sel);
+    memset(mem, 0, sizeof mem);
+    float x = (float)d.x + 0.5f, y = (float)d.y + 0.5f;
+    path_msg_make((ee_path_msg *)mem, msg_as_begin(pl), x, y, 1, 0);
+    path_msg_set_forced((ee_path_msg *)mem, !fight);
+    path_msg_set_facing((ee_path_msg *)mem, atan2f(-(x - (float)from.x), y - (float)from.y));
+    msg_execute((ee_msg *)mem);
+    msg_as_end(pl);
+    return n;
+}
 // the stationed of a pool counted by territory into ac; then the territories short of tc are given those of the
 // nearest with more: 1 where anything moved
 internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, const struct tv_st *s, int *budget) {
-    static uint8_t vis[PR_T], done[PR_T];
+    static uint8_t vis[PR_T], done[PR_T], dep[PR_T];
     static short q[PR_T];
     int any = 0;
+    uint32_t tnow = game_time();
     memset(ac, 0, (size_t)n * sizeof *ac);
     for (int i = 0; i < z->n; i++) if (z->m[i].pool == pool && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) ac[z->m[i].ter]++;
     memset(done, 0, (size_t)n);
@@ -142,22 +170,30 @@ internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, c
         done[r] = 1;
         memset(vis, 0, (size_t)n);
         int qh = 0, qt = 0;
-        q[qt++] = (short)r; vis[r] = 1;
+        q[qt++] = (short)r; vis[r] = 1; dep[r] = 0;
+        int hard_r = s->t[r].foe > 0 && s->t[r].role != TVR_NONE, far_ = hard_r ? SN_GIVE_STEPS_ATTACK : SN_GIVE_STEPS;
         while (qh < qt && tc[r] > ac[r] && *budget > 0) {
             int o = q[qh++];
-            int give = o != r ? ac[o] - tc[o] : 0;
+            // BY STEPS (the player 2026-11-15: "units still get send over half the map, they should do a simple pathfind how
+            // many territores they are away, with incresing cost, neasrt first, very far might not be worth the move at all
+            // and its better to produce locally"): the nearest territory with more than its share first, as before; one
+            // step further keeps one more of its surplus for each step beyond the first, and beyond SN_GIVE_STEPS
+            // territories (SN_GIVE_STEPS_ATTACK for one under attack) nobody is sent - what stays missing there is
+            // produce.c's claim: it builds its own production.
+            int give = o != r ? ac[o] - tc[o] - (hard_r ? 0 : dep[o] - 1) : 0;
             for (int i = 0; i < z->n && give > 0 && tc[r] > ac[r] && *budget > 0; i++) {
                 struct sn_unit *m = &z->m[i];
                 if (m->pool != pool || m->scout || m->ter != o) continue;
+                if (!hard_r && m->moved_t && tnow >= m->moved_t && tnow - m->moved_t < SN_STAY) continue;   // it has just been sent somewhere: it stays (the shares shift with every look - 400 to 680 changes of station a player in 75 minutes)
                 int pushing = 0;
                 for (int p = 0; p < SN_PUSHES; p++) pushing |= z->push[p].on && z->push[p].from == o;
                 if (pushing) break;   // a territory that is pushing gives none
-                m->ter = (short)r; m->order_t = 0;
+                m->ter = (short)r; m->order_t = 0; m->moved_t = tnow ? tnow : 1;
                 ac[o]--; ac[r]++; give--; (*budget)--; z->moved++; any = 1;
             }
             for (int k = 0; k < g_ter.t[o].nbn; k++) {
                 unsigned w = g_ter.nb[g_ter.t[o].nb0 + k].to;
-                if (w < (unsigned)n && !vis[w] && !g_ter.t[w].water && qt < PR_T) { vis[w] = 1; q[qt++] = (short)w; }
+                if (w < (unsigned)n && !vis[w] && !g_ter.t[w].water && qt < PR_T && dep[o] < far_) { vis[w] = 1; dep[w] = (uint8_t)(dep[o] + 1); q[qt++] = (short)w; }
             }
         }
     }
@@ -415,6 +451,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (!m->order_t || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
     }
     // ORDERS
+    static struct { short r, cur; uint8_t fight, urgent; ivec2 d; int n; long sx, sy; uint32_t oldest; uint32_t ids[SN_GROUP_MAX]; short mi[SN_GROUP_MAX]; } grp[SN_GROUPS];
+    int ngrp = 0;
     for (int i = 0; i < nn; i++) {
         struct sn_unit *m = &z->m[i];
         if (m->scout || m->ter < 0 || m->ter >= n) continue;
@@ -440,9 +478,30 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (pu) { d = pu->at; reach = 5; }
         else if (fn[r] > 0 && s->t[r].role != TVR_NONE) { d = iv2(fx[r] / fn[r], fy[r] / fn[r]); reach = 5; }
         else if (m->pool == SNP_SIEGE) fight = 0;
-        if (ivec2_dist2(p, d) <= reach * reach) continue;
+        if (ivec2_dist2(p, d) <= reach * reach) { m->wait_t = 0; continue; }
         int moved = m->order_t && ivec2_dist2(m->to, d) > 6 * 6;   // its place has moved: the enemy, the push's next building
-        if (!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, i, d, fight, now);
+        if (!(!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && ar_idle(m->u)))) continue;
+        // AS A GROUP: with the others that stand in its territory and go to the same place
+        int cur = (int)ter_near(p.x, p.y), urgent = pu || (fn[r] > 0 && s->t[r].role != TVR_NONE), k = 0;
+        while (k < ngrp && (grp[k].r != r || grp[k].cur != cur || grp[k].fight != fight)) k++;
+        if (k == ngrp) {
+            if (ngrp == SN_GROUPS) { sn_order(z, m, i, d, fight, now); m->wait_t = 0; continue; }
+            grp[k].r = (short)r; grp[k].cur = (short)cur; grp[k].fight = (uint8_t)fight; grp[k].urgent = 0; grp[k].d = d; grp[k].n = 0; grp[k].sx = grp[k].sy = 0; grp[k].oldest = now; ngrp++;
+        }
+        if (grp[k].n == SN_GROUP_MAX) { sn_order(z, m, i, d, fight, now); m->wait_t = 0; continue; }
+        if (!m->wait_t) m->wait_t = now ? now : 1;
+        if (m->wait_t < grp[k].oldest) grp[k].oldest = m->wait_t;
+        grp[k].urgent |= (uint8_t)urgent;
+        grp[k].ids[grp[k].n] = (uint32_t)unit_get_serial(m->u); grp[k].mi[grp[k].n++] = (short)i;
+        grp[k].sx += p.x; grp[k].sy += p.y;
+    }
+    for (int k = 0; k < ngrp; k++) {
+        if (grp[k].n < SN_GROUP && !grp[k].urgent && now - grp[k].oldest < SN_GROUP_WAIT) continue;   // they wait for more
+        ivec2 from = iv2((int)(grp[k].sx / grp[k].n), (int)(grp[k].sy / grp[k].n));
+        if (grp[k].n == 1) { struct sn_unit *m = &z->m[grp[k].mi[0]]; sn_order(z, m, 0, grp[k].d, grp[k].fight, now); m->wait_t = 0; continue; }
+        sn_group_move(pl, grp[k].ids, grp[k].n, from, grp[k].d, grp[k].fight);
+        z->orders++; z->groups++; z->grouped += (unsigned)grp[k].n;
+        for (int j = 0; j < grp[k].n; j++) { struct sn_unit *m = &z->m[grp[k].mi[j]]; m->order_t = now ? now : 1; m->to = grp[k].d; m->wait_t = 0; }
     }
     z->need_on = 0;   // THE NEED'S PLACE
     for (int k = 0; k < SN_PUSHES && !z->need_on; k++) if (z->push[k].on) { z->need_at = z->push[k].at; z->need_on = 1; }
@@ -466,8 +525,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (tc[r] || ac[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s", r, ac[r], tc[r], fn[r] && s->t[r].role != TVR_NONE ? "!" : "");
         for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d) | pushes on %d, so far %u started, %u won, %u lost | "
-                   "so far %u changes of station, %u orders, %u scouts back | territory:stationed/share (! enemy soldiers there):%s\n",
-                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->scouted, buf);
+                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back | territory:stationed/share (! enemy soldiers there):%s\n",
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->groups, z->grouped, z->scouted, buf);
     }
 }
 internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); }
