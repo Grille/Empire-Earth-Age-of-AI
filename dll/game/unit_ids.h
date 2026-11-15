@@ -89,7 +89,10 @@ enum {
     UTR_GATE = 4,           // class gate (a wall the owner's units pass)
     UTR_SIEGE = 8,          // a land unit of family siege or machines that shoots from 3 tiles on (catapult .. Paladin
                             // and the Culverin and Bronze Cannon; not the Sampson, melee, nor the staff car)
-    UTR_RAM = 16,           // a land unit of family ram (not the siege towers and the Trojan Horse: class 16, they carry)
+    UTR_RAM = 16,           // a land unit of family ram (not the siege towers and the Trojan Horse: class 16, they carry) -
+                            // and one of family siege or machines that hits from under 3 tiles: the Sampson (the player
+                            // 2026-11-15: "generaly th ai trains to many samson, they are basicly siege" - as a soldier
+                            // of the line it was trained for the army and taken for a scout)
     UTR_CITIZEN = 32,       // class and family citizen (not the Engineer, a citizen-class human, nor the diplomat)
     UTR_TRANSPORT = 64,     // class transport ship
     UTR_FISHING_BOAT = 128, // class fishing boat

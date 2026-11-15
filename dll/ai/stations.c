@@ -27,7 +27,7 @@
 //               down; under SN_BACK they come back to their station and SN_PUSH_WAIT passes before the next look.
 //               No building left there: the push is over, the shares say where they stand next.
 //   SCOUTS    - while it has land territories no unit of its ever stood in (on the land the scout stands on) up
-//               to SN_SCOUTS of the main force, the fastest, go to the nearest of them one after the other (one
+//               to SN_SCOUTS of the main force, the fastest (of equally fast ones the one that sees furthest), go to the nearest of them one after the other (one
 //               not reached in SN_SCOUT_GIVE_UP is given up); none left: they are the main force's again,
 //               stationed where they stand, and none is taken for SN_SCOUT_REST.
 // Not here yet: anti-air, aircraft and ships by role (the player: "do it by role"), siege on a shoreline.
@@ -348,10 +348,16 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     int want_sc = unseen && np[SNP_MAIN] + scouts >= 3 && now >= z->scout_off ? 1 + unseen / 8 : 0;
     if (want_sc > SN_SCOUTS) want_sc = SN_SCOUTS;
     while (scouts < want_sc) {
-        int b = -1, bf = -1;
+        int b = -1; float bf = -1.0f;
         for (int i = 0; i < nn; i++) {
             struct sn_unit *m = &z->m[i];
-            int pushing = 0, f = ar_fast(unit_get_type_data(m->u));
+            // the fastest, among those the one that sees furthest (the player 2026-11-15: "samson is probbably the worst
+            // chioce for a scout possible? they are slow and have low view range" - the pick went by armies.c's raid
+            // families, 0 for everything on foot, so the first soldier of the list was taken)
+            ee_unit_type *mtd = unit_get_type_data(m->u);
+            int pushing = 0;
+            ee_unit_stats *mst = mtd ? unit_get_stats(m->u) : NULL;
+            float f = mst ? unit_stats_get_speed(mst) * 100.0f + unit_stats_get_sight(mst) : 0.0f;
             for (int p = 0; p < SN_PUSHES; p++) pushing |= z->push[p].on && z->push[p].from == m->ter;
             if (m->pool == SNP_MAIN && !m->scout && !pushing && f > bf) { bf = f; b = i; }
         }
