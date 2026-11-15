@@ -29,6 +29,7 @@
 #define GU_BATCH 10
 #define GU_WAIT 60000
 internal int wk_workable(unsigned idx, ivec2 p);   // work.c
+internal int wk_pool(unsigned idx, int sp[7]);     // work.c THE POOL
 #define GU_KICK 1.2f
 #define GU_FOOD 10000              // food in the bank from which farmers are spare too (the player 2026-11-15: "also do the farmers when food is secure (10k seem a very comfotable buffer)")
 // A GRANARY BEFORE THE NEXT (the player, the same day: "before building hundert silos upgrading the ones they alredy have
@@ -192,11 +193,20 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     int room = unit_type_get_garrison_capacity(btd) - unit_get_garrisoned(best), want = room < GU_BATCH ? room : GU_BATCH;
     kick = kick && best_kind == 1;
     int food_spare = !GAME_AI(idx) && player_get_stock(pl, 2) >= GU_FOOD;   // GU_FOOD: the farmers too
+    // THE POOL (the player 2026-11-15: "populate mines" is the pool's second job, and of his P3 at minute 118 - 354
+    // citizens, 212 on wood with 117,000 of it, 7 mines, an order every 2 to 4 minutes: "it dosnt us the citecens
+    // working there to upgrade the mines"): with the game's computer player off the farmers and wood cutters beyond
+    // what food and wood need (work.c wk_pool) are spare whatever the bank says, as many as the pool has, and they
+    // come from anywhere on the holder's land, the nearest first - sending them is this routine's decision (before:
+    // from the holder's territory or one beside it only; the mines' holders had nobody near, and the best holder
+    // without a citizen in reach was asked again every look while the others waited).
+    int sp[7] = { 0 }, pool = !GAME_AI(idx) ? wk_pool(idx, sp) : 0;
+    if (pool > 0 && !gran) { if (sp[2] > 0) food_spare = 1; if (want > pool) want = pool; }
     if (kick) want = 5 - unit_get_garrisoned(best) > 0 ? 5 - unit_get_garrisoned(best) : 1;
     // the citizens: the nearest spare ones on its land
     ivec2 bp = unit_get_tile(best);
     unsigned land = map_area(bp, 2);
-    int wood_spare = player_get_stock(pl, 3) > GU_WOOD;
+    int wood_spare = player_get_stock(pl, 3) > GU_WOOD || (pool > 0 && sp[3] > 0);
     if (!idle_spare && !wood_spare && !kick && !gran && !food_spare) return;
     static ee_unit *cand[4096];
     static int cd[4096];
@@ -215,7 +225,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         }
         ivec2 p = unit_get_tile(u);
         if (map_area(p, 2) != land || landing_has_unit(pl, u) || expand_has(pl, u) || tn_has_cit(idx, u)) continue;
-        if (!GAME_AI(idx) && !wk_beside(p, bp)) continue;   // THE MINES' HOLDERS: from its territory or one beside it
+        if (!GAME_AI(idx) && pool <= 0 && !wk_beside(p, bp)) continue;   // THE MINES' HOLDERS: from its territory or one beside it; THE POOL: from anywhere
         cand[nc] = u; cd[nc] = ivec2_dist2(p, bp) - (idle ? 1000000 : 0) + (other ? 500000 : 0); nc++;   // the idle first, the miners last
     }
     int n = 0;
@@ -227,7 +237,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         int td = cd[n]; cd[n] = cd[b]; cd[b] = td;
         pick[n] = cand[n]; n++;
     }
-    if (!n) return;
+    if (!n) { if (!GAME_AI(idx)) gu_note(g, gu_key(best), now); return; }   // nobody for it: the next holder's turn
     int idle_n = 0;
     for (int k = 0; k < n; k++) idle_n += cd[k] < 0;
     uint8_t *vec[4] = { 0, (uint8_t *)pick, (uint8_t *)(pick + n), (uint8_t *)(pick + n) };
