@@ -29,7 +29,7 @@ typedef struct {
 internal struct {
     CRITICAL_SECTION cs;
     int ready;
-    char names[OV_LAYERS][16];
+    char names[OV_LAYERS][24];
     int n_layers;
     uint32_t on;      // the layers shown (bit per layer)
     uint32_t kept;    // the layers shown whatever was asked for (overlay_keep: a view of the mod's own, not a debug one)

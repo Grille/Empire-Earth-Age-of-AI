@@ -296,7 +296,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
     tv_border_towers(pl, idx, now);
     tv_border_walls(pl, idx, now);
     static int layer = -2;
-    if (layer == -2) layer = overlay_layer("territories");
+    if (layer == -2) layer = overlay_layer("territory_labels");
     if (overlay_on(layer)) {   // the unsafe ones marked in the AI's colour, the held ones short of their guard named
         overlay_begin(layer, 0x100 + idx, now, 3 * TV_EVERY);
         for (int r = 0; r < s->n; r++) {

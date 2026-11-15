@@ -122,6 +122,14 @@ class display
             /// each AI's tactical map, read at any zoom: its base, towns and armies as marks, where they go as
             /// arrows, its numbers as text (ai/ai_overlay.c)
             bool ai;
+            /// the map's territories (game/territory.c): each border as a dashed line inside each side in the colour of
+            /// the side's holder, one on the border where both sides are alike
+            bool territory_borders;
+            /// the held territories faintly in their holder's colour (contested: every other row)
+            bool territory_fill;
+            /// each territory's number, size, borders and resources at its middle, and what each AI makes of it
+            /// (ai/territories.c: front, backland, lost)
+            bool territory_labels;
         }
         /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - or all; empty = none. The control
         /// pipe switches them while playing: overlay routes turns that one on or off (overlay off: none):

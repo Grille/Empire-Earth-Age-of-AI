@@ -4,7 +4,7 @@
 // is larger than 200 tiles it gets split in half ... than rate them on value: amount of resources, how many border
 // tiles to unclaimed teretories (harder to hold) ... its a system for the ai to reason about the world, players never
 // see or interact with it" - and of the size: "the 200 where a rough guess, well see the true size that makes sence").
-// READ ONLY so far: nothing of the AI asks it yet. It is built when someone looks - the overlay's layer "territories",
+// READ ONLY so far: nothing of the AI asks it yet. It is built when someone looks - the overlay's layers territory_*,
 // the pipe's territories, [autotest] territories_log - once a map, of the terrain and the trees as they stand then.
 // How it is split:
 //   the tiles - land (the terrain a citizen walks on, inside the map's diamond: a ford of shallow water too), water
@@ -85,7 +85,7 @@ internal struct {
     int shed, joined, split, lost, dropped;   // the log's: regions the narrow places made, small ones joined, parts the size added, regions past TER_MAX, tiles of regions too small to be one
     unsigned build_ms;
     uint32_t facts_t, log_t, built_at;   // built_at: the game time of the build
-    int shown; unsigned drawn; int lines;
+    int shown; unsigned drawn; int lines;   // shown: the layers' bits (territory_tick)
     uint32_t drawn_owners;        // the holders the borders were drawn with (ter_owners)
 } g_ter;
 struct ter_work {
@@ -817,7 +817,8 @@ internal uint32_t ter_side_argb(unsigned r) {
     struct ter_terr *t = &g_ter.t[r];
     return t->owner ? overlay_player_argb(t->owner, 230) : t->water ? 0xB050B0FFu : 0xD0FFFFFFu;
 }
-// the overlay's layer "territories": the borders as two dashed lines, one inside each side in the colour of the side's
+// the overlay's layers territory_borders, territory_fill and territory_labels (the player, 2026-11-15: split from one
+// "territories"): the borders as two dashed lines, one inside each side in the colour of the side's
 // holder (the player, 2026-11-14: "can you change the territory border to a double dotted line? with each side of the
 // line in the color of the owner", then "try dashed, with one dash per tile border"; the coast is the map's own), each
 // territory's middle with its line, the held ones faintly in their holder's colour
@@ -838,14 +839,14 @@ internal int ter_border(vec2 a, vec2 b, vec2 off, unsigned i, unsigned j, int li
     overlay_line_dashed(v2(a.x - off.x, a.y - off.y), v2(b.x - off.x, b.y - off.y), cj, 0.14f, TER_DASH);
     return 2;
 }
-internal void ter_draw(int layer, uint32_t now, int borders) {
+internal void ter_draw(const int *layer, int on, uint32_t now, int borders) {   // layer: borders, fill, labels; on their bits shown
     int size = g_ter.size;
     const uint16_t *lab = g_ter.lab;
     uint32_t owners = ter_owners();
-    if (borders || owners != g_ter.drawn_owners) {
+    if ((on & 1) && (borders || owners != g_ter.drawn_owners)) {
         int lines = 0;
         g_ter.drawn_owners = owners;
-        overlay_begin(layer, 0, now, 0);
+        overlay_begin(layer[0], 0, now, 0);
         // a border between two tiles: none (one territory, none, or coast), else both sides' territories, which make a run
         #define TER_B(i, j) (lab[i] != lab[j] && lab[i] != TER_NONE && lab[j] != TER_NONE && g_ter.t[lab[i]].water == g_ter.t[lab[j]].water)
         #define TER_K(i, j) ((uint32_t)lab[i] << 16 | lab[j])
@@ -870,15 +871,20 @@ internal void ter_draw(int layer, uint32_t now, int borders) {
         overlay_end();
         g_ter.lines = lines;
     }
-    overlay_begin(layer, 1, now, 3 * TER_FACTS_MS);
-    for (int y = 0; y < size; y++)
-        for (int x = 0; x < size; ) {
-            unsigned r = lab[y * size + x];
-            int x0 = x++, own = r == TER_NONE ? 0 : g_ter.t[r].owner;
-            if (!own) continue;
-            while (x < size && lab[y * size + x] == r) x++;
-            if ((y & 1) || !g_ter.t[r].contested) overlay_tiles(iv2(x0, y), x - x0, overlay_player_argb(own, 40));   // contested: every other row
-        }
+    if (on & 2) {
+        overlay_begin(layer[1], 1, now, 3 * TER_FACTS_MS);
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; ) {
+                unsigned r = lab[y * size + x];
+                int x0 = x++, own = r == TER_NONE ? 0 : g_ter.t[r].owner;
+                if (!own) continue;
+                while (x < size && lab[y * size + x] == r) x++;
+                if ((y & 1) || !g_ter.t[r].contested) overlay_tiles(iv2(x0, y), x - x0, overlay_player_argb(own, 40));   // contested: every other row
+            }
+        overlay_end();
+    }
+    if (!(on & 4)) return;
+    overlay_begin(layer[2], 1, now, 3 * TER_FACTS_MS);
     for (int r = 0; r < g_ter.n; r++) {
         struct ter_terr *t = &g_ter.t[r];
         char line[64];
@@ -892,16 +898,16 @@ internal void ter_draw(int layer, uint32_t now, int borders) {
 }
 // every step of an AI player: the layer kept up while it is shown, the log's lines (list: [autotest] territories_log)
 internal void territory_tick(uint32_t now, int list) {
-    static int layer = -2;
-    if (layer == -2) layer = overlay_layer("territories");
-    int show = overlay_on(layer), logs = g_log && list;
+    static int layer[3] = { -2 };
+    if (layer[0] == -2) layer[0] = overlay_layer("territory_borders"), layer[1] = overlay_layer("territory_fill"), layer[2] = overlay_layer("territory_labels");
+    int show = overlay_on(layer[0]) | overlay_on(layer[1]) << 1 | overlay_on(layer[2]) << 2, logs = g_log && list;
     if (!show && !logs) { g_ter.shown = 0; return; }
     if (g_ter.facts_t && now >= g_ter.facts_t && now - g_ter.facts_t < TER_FACTS_MS && show == g_ter.shown && g_ter.map == game_map() &&
         g_ter.p_size == g_ter_size && g_ter.p_ratio == g_ter_ratio && g_ter.p_trees == g_ter_trees && g_ter.p_water == g_ter_water && g_ter.p_field == g_ter_field) return;
     if (!ter_ready()) return;
     g_ter.facts_t = now ? now : 1;
     ter_facts();
-    if (show) { ter_draw(layer, now, !g_ter.shown || g_ter.drawn != g_ter.version); g_ter.drawn = g_ter.version; }
+    if (show) { ter_draw(layer, show, now, !(g_ter.shown & 1) || g_ter.drawn != g_ter.version); g_ter.drawn = g_ter.version; }
     g_ter.shown = show;
     if (logs && (!g_ter.log_t || now < g_ter.log_t || now - g_ter.log_t >= 300000)) {
         static char line[2048];
