@@ -51,6 +51,11 @@
 #define BD_AP_SAVE 300000
 #define BD_GUARD 7
 #define BD_CLAIM_EVERY 120000   // between two claims
+#define BD_HOUSES_TC 2          // THE MORALE'S HOUSES: the levels a Town Center's morale takes (the game's data)
+#define BD_HOUSES_CAPITOL 4     // ... a Capitol's
+#define BD_HOUSE_REACH 9        // ... a House's tile within this of the building's, each way (the square is 10)
+#define BD_HOUSE_EVERY 60000
+#define BD_HOUSE_PEND 180000
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
 #define BD_SINK_EVERY 20000
 #define BD_SINK_MAX 3           // of a kind in one territory
@@ -63,6 +68,7 @@ internal struct bd_st {
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
+    uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls;   // walls: builders sent to unfinished wall pieces
@@ -133,6 +139,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
     int nairport = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
+    static ivec2 house[512];
+    static struct { ivec2 p; int max; } town[128];
+    int nhouse = 0, ntown = 0, open_house = 0;
     int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 };
     const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // what it has: citizens, foundations, granaries, fields, defences, centres
@@ -161,6 +170,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (pr_kind(t) >= 0) open_prod += !done;
         open_sink += !done && (pr_kind(t) >= 0 || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
         for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
+        if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += !done; }
+        if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
         if (is_tower_type(t)) open_tower += !done;
         if ((is_tower_type(t) || defence_stats(u, &rng, &att)) && ndef < 512) def[ndef++] = p;
@@ -399,6 +410,31 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
         }
     }
+    // THE MORALE'S HOUSES (the player 2026-11-15: "the ai dosnt build houses yet in the influence are of its towncenters
+    // and capitols (the morale bonus)"): the game's data (dbareaeffect.dat "TC Morale Bonus Rng 10", "Capitol Morale
+    // Bonus Rng 10": a square 10 tiles each way, the most 2 and 4) and its count (the owner's finished Houses whose
+    // footprint meets the square) - each House there is a level of morale for its units in that square, up to 2
+    // round a Town Center and 4 round a Capitol. With nothing else to lay: a House by the Town Center or Capitol that
+    // has the fewest of its number (going up counts), a front territory's first, where its citizens may work - one
+    // at a time, one every BD_HOUSE_EVERY.
+    if (!type && !placed && !open_house && ntown && ut_has(UT(B_HOUSE)) && can_build(pl, UT(B_HOUSE)) && bd_pays(pl, UT(B_HOUSE), com) && workforce(pl) >= g_min_workforce &&
+        (!b->house_t || now < b->house_t || now - b->house_t >= BD_HOUSE_EVERY)) {
+        int bt = -1, bs = 0;
+        int pend = b->house_t && now >= b->house_t && now - b->house_t < BD_HOUSE_PEND;   // the last one laid may not show yet (the builder walks there): it counts, and the next keeps off its spot
+        if (pend && nhouse < 512) house[nhouse++] = b->house_at;
+        for (int j = 0; j < ntown; j++) {
+            int have_h = 0;
+            for (int k = 0; k < nhouse; k++) have_h += abs(house[k].x - town[j].p.x) <= BD_HOUSE_REACH && abs(house[k].y - town[j].p.y) <= BD_HOUSE_REACH;
+            unsigned r = ter_near(town[j].p.x, town[j].p.y);
+            if (have_h >= town[j].max || r >= (unsigned)s->n || !wk_workable(idx, town[j].p) || raiders_near(pl, town[j].p, 12) || wk_danger(idx, town[j].p)) continue;
+            int sc = (s->t[r].role == TVR_FRONT ? 100 : 0) + (town[j].max - have_h);
+            if (bt < 0 || sc > bs) { bt = j; bs = sc; }
+        }
+        if (bt >= 0) {
+            b->house_t = now ? now : 1;
+            if (bd_spot(pl, idx, UT(B_HOUSE), town[bt].p, 3, BD_HOUSE_REACH - 1, &at) && !(pend && abs(at.x - b->house_at.x) <= 3 && abs(at.y - b->house_at.y) <= 3)) { b->house_at = at; type = UT(B_HOUSE); what = "a House for the morale of its Town Center or Capitol"; } else b->no_spot++;
+        }
+    }
     // THE WOOD SINK (the player 2026-11-15: "the ai sould also be building more in general, right now it sits on 130k
     // wood. these can be spend in front territoies on hospitals, temples and production buildings (even when nobody
     // asked) above 10k wood it should try to get rid of it"): BD_SINK wood in the bank and nothing else to lay - a
@@ -443,8 +479,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!ok) b->refused++;
         else {
             int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : pr_kind(type) >= 0 ? 4 : 2;
-            if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else if (k == 4) { b->production++; g_pr[idx].type = 0; if (type == g_pr_more[idx]) g_pr_more[idx] = 0; } else b->towers++;
-            b->laid_t[k] = now ? now : 1; b->laid_type[k] = type;
+            if (type == UT(B_HOUSE)) b->houses++;
+            else if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else if (k == 4) { b->production++; g_pr[idx].type = 0; if (type == g_pr_more[idx]) g_pr_more[idx] = 0; } else b->towers++;
+            if (type != UT(B_HOUSE)) { b->laid_t[k] = now ? now : 1; b->laid_type[k] = type; }
             for (int r = 2; r < 7; r++) g_bd_com[idx][r] += unit_cost(pl, type, r);
             if (type == UT(B_AIRPORT)) ap_laid(idx, at, now);   // defence.c: its strip is taken until it shows
         }
