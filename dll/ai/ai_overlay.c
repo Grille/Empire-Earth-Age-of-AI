@@ -10,6 +10,7 @@
 // - its other armies (army_view.c: the landing's, raid parties, the fleet's forces): a triangle (a circle at sea), what
 //   it is and its task, an arrow to its mission's point;
 // - its towns (towns.c): a square, hollow while it is being founded, "fwd" for a forward base, its citizens.
+// With the game's computer player off there is no force: THE TERRITORIES instead (ao_territories, below).
 // Nothing here decides anything: it reads what the parts keep. A layer off costs the test.
 #define AO_EVERY 1000
 #define AO_TTL 5000
@@ -23,6 +24,81 @@ internal vec2 ao_pos(ee_unit *u) { vec3 p = unit_get_pos(u); return v2(p.x, p.y)
 // AO_ARMY with the player and the army's own number (0 the force)
 #define AO_ARMY 0x80000000u
 internal uint32_t ao_army_id(unsigned idx, int army) { return AO_ARMY | (uint32_t)idx << 24 | ((uint32_t)army & 0xFFFFFF); }
+// THE TERRITORIES (the game's computer player off; the player 2026-11-15: "can you overwork the overlay? maybe moving
+// continous arrow from the center of both src and dst territory? with text naming the move reason and units count
+// would be one idea to make it more readable"):
+// - a territory it holds or has soldiers stationed in: a hollow square at its middle, "T<number> front / backland",
+//   its soldiers there of those stationed and its share of the force, its citizens (work.c ITS TERRITORY), and
+//   "under attack" with the enemy soldiers seen there;
+// - a MOVE: the soldiers that stand in one territory and are stationed in another, by reason - one arrow from the
+//   middle of the one to the middle of the other, wider with more of them, dots running along it (AO_RUN a
+//   passage; each dot an anchor of its own, so it glides between the updates), and at its middle the reason and the
+//   count: "defend" (enemy soldiers in the territory they go to), "reinforce" (it is short of its share),
+//   "siege", "scout";
+// - a PUSH: from the middle of the territory it starts in to the building it goes at, "push" and its soldiers.
+#define AO_MOVES 96
+#define AO_RUN 4000
+#define AO_T 4096
+enum { AOW_DEFEND, AOW_REINFORCE, AOW_SIEGE, AOW_SCOUT, AOW_PUSH };
+internal void ao_move(unsigned idx, vec2 a, vec2 b, int key, int why, int n, uint32_t col, uint32_t now) {
+    static const char *nm[] = { "defend", "reinforce", "siege", "scout", "push" };
+    float w = 2.0f + (float)n / 4.0f;
+    overlay_arrow(a, b, w > 8.0f ? 8.0f : w, why == AOW_SCOUT ? (col & 0xFFFFFF) | 0x90000000u : col);
+    vec2 mid = v2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+    overlay_text(mid, 0, 0xFFFFFFFF, "%s %d", nm[why], n);
+    for (int j = 0; j < 3; j++) {   // the dots: a third of the way apart, a passage every AO_RUN
+        uint32_t t = now + (uint32_t)j * (AO_RUN / 3), cycle = t / AO_RUN;
+        float f = (float)(t % AO_RUN) / (float)AO_RUN;
+        overlay_anchor(AO_ARMY | (uint32_t)idx << 24 | 0x800000u | ((uint32_t)key & 0x1FFF) << 5 | (uint32_t)j << 3 | (cycle & 7));   // a new passage, a new anchor: no glide back to the start
+        overlay_mark(v2(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f), OVM_CIRCLE, 9, 0xFFFFFFFF);
+    }
+    overlay_anchor(0);
+}
+internal void ao_territories(ee_player *pl, unsigned idx, uint32_t col, uint32_t now) {
+    static short stn[AO_T], here[AO_T], cits[AO_T];
+    static struct { short from, to; uint8_t why; short n; } mv[AO_MOVES];
+    struct sn_st *z = &g_sn[idx];
+    struct tv_st *s = &g_tv[idx];
+    int n = s->n < AO_T ? s->n : AO_T, nmv = 0;
+    (void)pl;
+    if (!n || s->version != g_ter.version) return;
+    memset(stn, 0, (size_t)n * sizeof *stn); memset(here, 0, (size_t)n * sizeof *here); memset(cits, 0, (size_t)n * sizeof *cits);
+    for (int k = 0; k < g_wk[idx].nh; k++) { int h = g_wk[idx].home[k].ter; if (h >= 0 && h < n) cits[h]++; }
+    for (int i = 0; i < z->n; i++) {
+        struct sn_unit *m = &z->m[i];
+        if (!cv_alive(m->u) || (int)unit_get_serial(m->u) != m->id || m->ter < 0 || m->ter >= n) continue;
+        ivec2 p = unit_get_tile(m->u);
+        unsigned cur = ter_near(p.x, p.y);
+        if (!m->scout) stn[m->ter]++;
+        if (cur >= (unsigned)n) continue;
+        if ((int)cur == m->ter) { if (!m->scout) here[cur]++; continue; }
+        int pushing = 0;
+        for (int k = 0; k < SN_PUSHES; k++) pushing |= z->push[k].on && z->push[k].from == m->ter;
+        if (pushing && !m->scout) continue;   // a push's: its own arrow
+        int why = m->scout ? AOW_SCOUT : m->pool == SNP_SIEGE ? AOW_SIEGE : s->t[m->ter].foe > 0 ? AOW_DEFEND : AOW_REINFORCE, k = 0;
+        while (k < nmv && (mv[k].from != (short)cur || mv[k].to != m->ter || mv[k].why != why)) k++;
+        if (k == nmv) { if (nmv == AO_MOVES) continue; mv[nmv].from = (short)cur; mv[nmv].to = m->ter; mv[nmv].why = (uint8_t)why; mv[nmv++].n = 0; }
+        mv[k].n++;
+    }
+    for (int r = 0; r < n; r++) {
+        struct tv_terr *t = &s->t[r];
+        if (g_ter.t[r].water || (t->role == TVR_NONE && !stn[r])) continue;
+        vec2 at = ao_at(g_ter.t[r].c);
+        overlay_mark(at, OVM_SQUARE | OVM_HOLLOW, 16, col);
+        overlay_text(at, -1, col, "T%d %s", r, t->role == TVR_FRONT ? "front" : t->role == TVR_BACK ? "backland" : "not held");
+        overlay_text(at, 0, 0xFFFFFFFF, "%d of %d soldiers, share %d%%", here[r], stn[r], (g_pr_share[idx][r] + 5) / 10);
+        if (cits[r]) overlay_text(at, 1, 0xFFE0E0E0, "%d citizens", cits[r]);
+        if (t->foe > 0) overlay_text(at, cits[r] ? 2 : 1, 0xFFFF6060, "under attack: %d enemy soldiers", t->foe);
+    }
+    for (int k = 0; k < nmv; k++)
+        ao_move(idx, ao_at(g_ter.t[mv[k].from].c), ao_at(g_ter.t[mv[k].to].c), mv[k].from * 131 + mv[k].to * 7 + mv[k].why, mv[k].why, mv[k].n, col, now);
+    for (int k = 0; k < SN_PUSHES; k++) {
+        struct sn_push *pu = &z->push[k];
+        if (!pu->on || pu->from < 0 || pu->from >= n) continue;
+        overlay_mark(ao_at(pu->at), OVM_DIAMOND | OVM_HOLLOW, 18, col);
+        ao_move(idx, ao_at(g_ter.t[pu->from].c), ao_at(pu->at), pu->from * 131 + 5000 + k, AOW_PUSH, stn[pu->from], col, now);
+    }
+}
 internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
     static int layer = -2;
     static uint32_t last[16];
@@ -51,6 +127,7 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
         const char *name = player_get_name(pl);
         overlay_mark(at, OVM_SQUARE, 32, col);
         overlay_text(at, -1, col, "P%u %s, epoch %d", idx, name ? name : "", tt ? tech_tree_get_epoch(tt) : 0);
+        if (!is_vanilla(pl) && !GAME_AI(idx)) force_n = g_pr[idx].force;   // the territories' (produce.c)
         overlay_text(at, 0, 0xFFFFFFFF, "pop %d/%d, army %d", player_population(pl, 1, 0), unit_limit(pl), force_n);
         const int *st = player_stock_at(pl);
         for (int r = 0; r < 5; r++) ao_kfmt(b[r], (int)sizeof b[r], st[r + 2]);
@@ -60,6 +137,7 @@ internal void ai_overlay_tick(ee_player *pl, uint32_t now) {
             overlay_text(at, 2, 0xFFE0E0E0, "next push in %.1f min", (next - now) / 60000.0);
     }
     if (is_vanilla(pl)) { overlay_end(); return; }
+    if (!GAME_AI(idx)) { ao_territories(pl, idx, col, now); overlay_end(); return; }   // THE TERRITORIES: no force, no town plan then
     // the force
     if (ar_on(pl, idx) && sum.n) {
         // each member a dot (out: in its colour, those left home dim), the diamond at the middle the force's judgements
