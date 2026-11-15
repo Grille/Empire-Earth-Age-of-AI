@@ -31,6 +31,11 @@
 //               to SN_SCOUTS of the main force, the fastest (of equally fast ones the one that sees furthest), go to the nearest of them one after the other (one
 //               not reached in SN_SCOUT_GIVE_UP is given up); none left: they are the main force's again,
 //               stationed where they stand, and none is taken for SN_SCOUT_REST.
+//   DEMOLITION - a territory it has taken (its own, no enemy building but walls left, no enemy soldier there, no push
+//               from it) has the enemy's wall pieces and gates in it brought down, a low task: SN_DEMO of its idle
+//               main force and siege stationed there at the piece nearest its place, one after the other (the player
+//               2026-11-15: "after taking a territory the ai should "deconstruct" enemy walls in it as a low priorethy
+//               task"). A fight there or a push from there takes them first.
 // Not here yet: anti-air, aircraft and ships by role (the player: "do it by role"), siege on a shoreline.
 // "# stations:" a minute.
 #define SN_EVERY 5000
@@ -47,6 +52,7 @@
 #define SN_GROUP 4               // AS A GROUP: soldiers that march together at least
 #define SN_GROUP_WAIT 45000      // ... or the first of them has waited this long
 #define SN_GROUPS 64
+#define SN_DEMO 3                // DEMOLITION: soldiers a territory sets at the enemy's walls in it at most
 #define SN_STAY 180000           // a soldier given a station keeps it this long, but for an attack
 #define SN_GROUP_MAX 160
 #define SN_AA_BLD 20
@@ -69,7 +75,7 @@ internal struct sn_st {
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     uint32_t res_t, res_out_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n;   // THE RESERVE: its last look, the last fortress let out; soldiers in, out
-    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped;   // groups: orders to several at once, grouped: the soldiers in them
+    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos;   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
@@ -593,6 +599,29 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             }
         }
     }
+    // DEMOLITION: each territory's enemy wall piece or gate nearest its place, and who is at one already
+    static ee_unit *demo[PR_T];
+    static int dn[PR_T];
+    for (int r = 0; r < n; r++) { demo[r] = NULL; dn[r] = 0; }
+    {
+        static int dd[PR_T];
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+            ee_player *o = unit_get_owner(it.u);
+            if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || unit_get_x(it.u) < 0 ||
+                !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !explored_by(it.u, pl)) continue;
+            ivec2 q = unit_get_tile(it.u);
+            unsigned r = ter_near(q.x, q.y);
+            if (r >= (unsigned)n || s->t[r].role == TVR_NONE || s->t[r].ebld || fn[r] > 0) continue;
+            int d = ivec2_dist2(q, rally[r]);
+            if (!demo[r] || d < dd[r]) { demo[r] = it.u; dd[r] = d; }
+        }
+        for (int i = 0; i < nn; i++) {   // at a piece already
+            ee_goal *g = unit_get_goal(z->m[i].u);
+            ee_unit *tg = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
+            ee_unit_type *td = tg ? unit_get_type_data(tg) : NULL;
+            if (td && z->m[i].ter >= 0 && z->m[i].ter < n && (is_wall(unit_type_get_id(td)) || unit_type_get_class_id(td) == CLS_GATE)) dn[z->m[i].ter]++;
+        }
+    }
     // ORDERS
     static struct { short r, cur; uint8_t fight, urgent; ivec2 d; int n; long sx, sy; uint32_t oldest; uint32_t ids[SN_GROUP_MAX]; short mi[SN_GROUP_MAX]; } grp[SN_GROUPS];
     int ngrp = 0;
@@ -607,6 +636,16 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (m->pool == SNP_AA) {   // ANTI-AIR: at its station's place, whatever goes on
             if (ivec2_dist2(p, d) > SN_NEAR * SN_NEAR && (!m->order_t || (now - m->order_t > SN_REORDER && ar_idle(m->u)))) sn_order(z, m, i, d, 0, now);
             continue;
+        }
+        if (!pu && demo[r] && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE)) {   // DEMOLITION
+            ee_goal *cg = unit_get_goal(m->u);
+            ee_unit *tg = cg && goal_is_attack(cg) ? goal_get_target(cg) : NULL;
+            ee_unit_type *td = tg ? unit_get_type_data(tg) : NULL;
+            if (td && unit_get_hp(tg) > 0 && (is_wall(unit_type_get_id(td)) || unit_type_get_class_id(td) == CLS_GATE)) { m->wait_t = 0; continue; }   // at it
+            if (dn[r] < SN_DEMO && ar_idle(m->u)) {
+                ee_goal *g = goal_attack(m->u, demo[r]);
+                if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = unit_get_tile(demo[r]); m->wait_t = 0; dn[r]++; z->orders++; z->demos++; continue; }
+            }
         }
         if (pu && pu->breach) {   // A BREACH: the siege (everybody when it has none there) at the piece, the rest by it
             ee_unit *piece = sn_wall_at(pl, pu->wall);
@@ -669,8 +708,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (tc[r] || ac[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s", r, ac[r], tc[r], fn[r] && s->t[r].role != TVR_NONE ? "!" : "");
         for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d) | pushes on %d, so far %u started, %u won, %u lost | "
-                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back | territory:stationed/share (! enemy soldiers there):%s\n",
-                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->groups, z->grouped, z->scouted, buf);
+                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back, %u set at enemy walls | territory:stationed/share (! enemy soldiers there):%s\n",
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->groups, z->grouped, z->scouted, z->demos, buf);
     }
 }
 internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); }
