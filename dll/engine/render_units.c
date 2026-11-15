@@ -531,11 +531,8 @@ internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op,
     rasterizer_set_alpha_ref(ras, ref > op ? *(const float *)engine_display_alpha_ref_low_at() : ref, screen);
     rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
     if (!in_device(ras, screen)) return 0;
-    // a burnt one's player colour soot (the game's dead tank shows none: its painted parts stood out bright on the burnt
-    // Hercules, 2026-11-15)
-    vec3 soot = { 0.12f, 0.11f, 0.10f };
-    int burnt = g_ud_death_tex && (sil_of(rec) == SIL_WRECK || sil_of(rec) == SIL_BURNT);
-    dmg_model_set_player_colour(g, burnt ? &soot : (vec3 *)draw_record_color_at(rec), anim);
+    dmg_model_set_player_colour(g, draw_record_color_at(rec), anim);   // a burnt one's too, as the game's own wrecks
+    // keep theirs (the player, 2026-11-15: "the player color is intended and can also be found on the games own wrecks")
     ud_turns(rec);
     if (g_ud_death_tex && sil_of(rec) == SIL_WRECK) ud_rotors_off(rec);
     if (draw_record_get_gated(rec)) ud_gate(m, draw_record_get_gate_open(rec));

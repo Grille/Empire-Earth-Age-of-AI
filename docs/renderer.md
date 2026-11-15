@@ -1001,8 +1001,8 @@ neither - they stood as they lived, the names empty. A corpse of a machine's fam
 AA, siege, artillery, rams, field weapons, mechs) whose 4 and 5 have no frames is turned at its death by a yaw of up
 to 8 degrees and a lean of 2 - 6 degrees each way and let down by 4 - 9 % of its radius, at once, by its id (a look again
 the same); one whose 4 and 5 don't name the death texture is drawn burnt too (SIL_BURNT: the death texture, its parts
-kept). A burnt record's player colour is soot (both tags: the Hercules' painted panels stood bright blue on the charred
-hull; the game's dead tank shows none). Checked headless on Continental: the Hercules, Thor, Cargo Truck burnt, turned
+kept), its player's colour kept as the game's own wrecks keep theirs (a soot colour for a day; the player: "the player
+color is intended"). Checked headless on Continental: the Hercules, Thor, Cargo Truck burnt, turned
 and dug in; the Panzer and Sherman turned and dug in, burnt by the game as before.
 A fifth point is its ballast (the player, the same day: "a thried point in the middle that a bit lower than the others
 with a heigher wieght, to simulate a real ships balance better"): under the hull's middle at 0.6 of the keel's depth
