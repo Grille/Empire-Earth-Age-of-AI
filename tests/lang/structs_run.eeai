@@ -1,0 +1,69 @@
+// structs and refs where the engine's memory and the triggers come in (structs.eeai: the language itself): what each
+// line works out is in structs_run.expect - the build runs this through ageofai_check --bench and compares
+struct point {
+    x: int
+    y: int
+
+    add(value: int) {
+        this.x += value
+        this.y += value
+    }
+    sum() => this.x + this.y
+    plus(o: point) => point(this.x + o.x, this.y + o.y)
+}
+struct tally {
+    name: text
+    hits: int
+    last: point
+    marks: list<point>
+
+    hit(at: point) {
+        this.hits += 1
+        this.last = at
+    }
+}
+make(n: int) => point(n, n * 2)
+bump(ref who: tally, by: int) {
+    who.hits += by
+}
+
+// what a function gives back is a point where its code says so: no type written
+let m = make(3)
+m.add(1)
+let m2 = m.plus(make(1))
+m2.x = 100
+cmd("made {m} {m2}")
+
+// many rounds: what each drops is cleared out while the loop runs (the values kept stay what they are)
+let acc = point(0, 0)
+let list: list<point> = [point(1, 1), point(2, 2), point(3, 3)]
+let t = tally("first")
+ref third = list[3]
+for i in 1..200000 {
+    acc.add(1)
+    list[1 + i - int(i / 3) * 3].x += 1
+    third.y += 2
+    let tmp = acc.plus(point(i, i))
+    if i == 100000 {
+        t.hit(tmp)
+    }
+}
+cmd("loop {acc} {list[1]} {list[2]} {list[3]} {third} {t.hits} {t.last}")
+
+// a trigger's function changes the script's structs: kept past its tick
+let seen = tally("timer")
+let count = 0
+game.timer(1s, () => {
+    count += 1
+    seen.hit(point(count, count))
+    seen.name = "timer {count}"
+    seen.marks = [point(count, 0), point(0, count)]
+    seen.marks[2].add(1)
+    bump(ref seen, 10)
+    ref mk = seen.marks[1]
+    mk.y = 7
+})
+wait(3.5s)
+cmd("timer {seen.name} hits {seen.hits} last {seen.last} marks {seen.marks[1]} {seen.marks[2]} of {len(seen.marks)}")
+wait(2s)
+cmd("timer {seen.name} hits {seen.hits} sum {seen.last.sum()}")

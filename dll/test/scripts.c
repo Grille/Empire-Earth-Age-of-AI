@@ -317,7 +317,7 @@ internal void script_triggers(uint32_t now) {
 // stands is the middle of that command - told; what it started does.
 // A test that runs its own scripts (setup=) keeps to them: the save's are left out there. Elsewhere the save's test
 // scripts come back beside its setup.eeai.
-#define SCRIPT_STATE_FORMAT 3   // 3: the scripts' code and machines (2: the tree's frames and where a script stood)
+#define SCRIPT_STATE_FORMAT 4   // 4: structs and refs (their types with the code, a ref a value); 3: the scripts' code and machines (2: the tree's frames and where a script stood)
 internal uint8_t *scripts_state_save(uint32_t *size) {
     struct script *sc[1 + SCRIPTS_MAX];
     struct xcode *code[1 + SCRIPTS_MAX];

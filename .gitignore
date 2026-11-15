@@ -17,3 +17,4 @@ __pycache__/
 *.csv
 *.png
 /tests/bench/*.out
+/tests/lang/*.out

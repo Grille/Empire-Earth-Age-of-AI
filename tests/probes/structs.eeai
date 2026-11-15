@@ -1,0 +1,62 @@
+// structs and refs in a game (expr.c STRUCTS AND REFS; the language itself: tests/lang/structs.eeai): Continental
+// (seed 101) - a struct that holds a player and a list, a timer's function that changes it, refs held across waits
+// (a local's, a method's this while the method waits), the game's values read into fields. Played twice the lines must
+// be the same - also with `script state` (the pipe: what a save keeps, read back) called while it waits.
+struct point {
+    x: int
+    y: int
+
+    add(value: int) {
+        this.x += value
+        this.y += value
+    }
+    sum() => this.x + this.y
+}
+struct guard {
+    who: player
+    name: text
+    ticks: int
+    gold: list<int>
+    at: point
+    best: point?
+
+    tick() {
+        this.ticks += 1
+        this.gold = [this.who.gold, this.ticks]
+        this.at.add(1)
+    }
+    slowly(by: int) {
+        this.at.x += by
+        wait(2s)
+        this.at.y += by
+        wait(2s)
+        this.name = "{this.name} after {this.ticks} ticks"
+    }
+}
+note(ref w: guard, n: int) {
+    w.best = point(n, w.ticks)
+}
+let p2 = player(2)
+let one = guard(p2, "two")
+let all: list<guard> = [guard(player(2), "a"), guard(player(3), "b")]
+game.timer(1s, () => {
+    one.tick()
+    all[2].tick()
+    all[2].name = "b{all[2].ticks}"
+})
+ref second = all[2]
+ref corner = all[1].at
+wait_until(0.2min)
+ping("at 0.2 min: {one.name} {one.ticks} {one.at} {one.who} {one.gold[2]} {one.best == null}")
+corner.x = 500
+second.at.y += 1000
+note(ref one, 7)
+note(ref all[1], 8)
+wait_until(0.4min)
+ping("at 0.4 min: {one.ticks} {one.at.sum()} {one.best ?? "none"} {all[1].at} {all[1].best ?? "none"} {second.name} {second.at}")
+one.slowly(100)
+ping("after slowly: {one.name} {one.at} {one.ticks > 20}")
+all[1].slowly(3)
+corner.add(1)
+wait_until(1min)
+ping("at 1 min: {one.ticks} {one.at} {all[1].name} {all[1].at} {corner} {second.ticks} {second.at} {len(one.gold)}")

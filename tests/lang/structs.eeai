@@ -1,0 +1,148 @@
+// the language's structs and refs (docs/scripts.md "Structs", "Refs"): what each line works out is in structs.expect -
+// the build runs this through ageofai_check --bench and compares (no game needed: cmd only tells its text)
+struct point {
+    x: int
+    y: int = 5
+
+    add(value: int) {
+        this.x += value
+        this.y += value
+    }
+    sum() => this.x + this.y
+    scaled(by: int) => point(this.x * by, this.y * by)
+    reset() {
+        this = point()
+    }
+}
+struct squad {
+    name: text
+    pos: point
+    strength: float = 1.5
+    units: list<int>
+    target: point?
+
+    move(dx: int, dy: int) {
+        this.pos.x += dx
+        this.pos.y += dy
+    }
+    grow(by: float) {
+        this.strength *= by
+        this.pos.add(1)
+    }
+}
+shift(ref p: point, by: int) {
+    p.x += by
+}
+bump(ref num: int) {
+    num = num + 1
+}
+far(one: squad) => one.pos.sum()
+
+// made: defaults, in order
+let d = point()
+let o = point(0, 1)
+let h = point(3)
+cmd("made {d} {o} {h} {d.x} {d.y}")
+
+// a value: a copy
+let a = point(1, 1)
+let b = a
+b.x = 9
+cmd("copy {a} {b}")
+
+// methods change the variable they are called on
+a.add(2)
+cmd("method {a} sum {a.sum()}")
+let l0 = [point(4, 4)]
+let s = a.scaled(3)
+cmd("scaled {s} of {a}")
+let ps = point(2, 3).sum()
+cmd("on a value {ps} {a.scaled(2).sum()} {l0[1].sum()}")
+a.reset()
+cmd("reset {a}")
+
+// equality, field by field
+let zero = point()
+let four = point(4, 4)
+let e1 = point(1, 2) == point(1, 2)
+let e2 = point(1, 2) == point(2, 1)
+let e3 = point(1, 2) != point(2, 1)
+cmd("same {e1} {e2} {e3} {a == zero} {contains(l0, four)}")
+
+// a struct in a struct, defaults of every kind
+let w = squad("north")
+cmd("squad {w} target {w.target == null} units {len(w.units)}")
+w.pos.x = 7
+w.move(1, 2)
+w.grow(2)
+w.units = [4, 5, 6]
+w.units[2] = 50
+w.units[3] += 1
+w.target = point(9, 9)
+cmd("squad {w}")
+if w.target != null {
+    cmd("target {w.target.x}")
+}
+cmd("far {far(w)}")
+
+// ref parameters
+let n = 5
+bump(ref n)
+bump(ref n)
+shift(ref a, 4)
+shift(ref w.pos, 10)
+bump(ref w.pos.y)
+cmd("refs {n} {a} {w.pos}")
+
+// lists of structs: an item is a place
+let l: list<point> = [point(1, 1), point(2, 2), point(3, 3)]
+l[2].x = 20
+l[3].add(5)
+l[1] = point(7, 7)
+shift(ref l[1], 1)
+cmd("list {l[1]} {l[2]} {l[3]} of {len(l)}")
+let copy = l
+l[1].y = 0
+cmd("list copy {copy[1]} now {l[1]}")
+let total = 0
+for p in l {
+    total += p.sum()
+}
+cmd("total {total}")
+
+// ref locals: a second name for a place
+ref q = l[2]
+q.y = 99
+q.add(1)
+ref qx = q.x
+qx = qx * 2
+cmd("ref local {l[2]} {q} {qx}")
+ref wp: point = w.pos
+wp = point(1, 2)
+cmd("ref whole {w.pos}")
+
+// a list of squads, changed in place
+let squads: list<squad> = [squad("a"), squad("b", point(5, 5), 3.0)]
+squads[1].strength = 50
+squads[2].pos.add(1)
+squads[2].units = [1, 2]
+squads[2].units[1] = 9
+ref second = squads[2]
+second.move(10, 10)
+second.name = "second"
+cmd("squads {squads[1]} {squads[2]}")
+
+// functions set the variables around them; a timer's function would do the same
+let score = point()
+tick() {
+    score.add(1)
+}
+tick()
+tick()
+cmd("score {score}")
+
+// a wait between: refs and structs stay what they are
+ref keep = squads[1].pos
+wait(1s)
+keep.x = 42
+cmd("after wait {squads[1].pos} {keep.sum()}")

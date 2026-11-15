@@ -1,0 +1,20 @@
+2000 made point(0, 5) point(0, 1) point(3, 5) 0 5
+2000 copy point(1, 1) point(9, 1)
+2000 method point(3, 3) sum 6
+2000 scaled point(9, 9) of point(3, 3)
+2000 on a value 5 12 8
+2000 reset point(0, 5)
+2000 same 1 0 1 1 1
+2000 squad squad(north, point(0, 5), 1.5, , ) target 1 units 0
+2000 squad squad(north, point(9, 8), 3, [4, 50, 7], point(9, 9))
+2000 target 9
+2000 far 17
+2000 refs 7 point(4, 5) point(19, 9)
+2000 list point(8, 7) point(20, 2) point(8, 8) of 3
+2000 list copy point(8, 7) now point(8, 0)
+2000 total 46
+2000 ref local point(42, 100) point(42, 100) 42
+2000 ref whole point(1, 2)
+2000 squads squad(a, point(0, 5), 50, , ) squad(second, point(16, 16), 3, [9, 2], )
+2000 score point(2, 7)
+3000 after wait point(42, 5) 47

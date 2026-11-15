@@ -1225,6 +1225,27 @@ Open: a relation or method by number too (`p.at_war(q)`, `p.count(...)`: about 2
 that are a number and a text made only when asked for (an opinion's words: 4.6 us each time), a call's values freed
 when it returns. Plain statements take about 5 ns an instruction.
 
+### The language's own tests
+
+`tests/lang/*.eeai` are scripts of the language itself, each with what it works out beside it (`<name>.expect`): the
+build runs every one dry (`ageofai_check --bench`: no game, a `cmd("...")` only tells its text, a `wait` passes at
+once) and stops at a line that differs. A change to the language that is meant to change one: run it
+(`dll/ageofai_check.exe --bench tests/lang/x.eeai 1`), read `x.eeai.out`, and make it the new `.expect`.
+
+Structs and refs (2026-11-15, docs/scripts.md "Structs", "Refs"; expr.c STRUCTS AND REFS): `tests/lang/structs.eeai`
+(the language: making, copies, fields and items set in place, methods, ref parameters and locals, a ref across a
+wait), `tests/lang/structs_run.eeai` (200000 rounds of sets with the script's memory cleared meanwhile - 576 KB at the
+end -, a timer's function changing the script's structs), `tests/probes/structs.eeai` (in a game: a struct holding a
+player, the game's values in fields, a method that waits half-way while a timer changes its struct). Checked: 44
+mistakes told by the check and 4 more when they happen (a field's type, a set on a value that is no place, a
+ref where none belongs or seen in a function made there ...); the probe's lines the same in three games, one with `script state`
+(a save's scripts written and read back) called while a method waited and while refs were held; the text corpus
+(7275 rows) and the five older probes the same as the engine before - compared with that engine built with a padding
+variable: without it the corpus game itself differs between two builds of the same source (P4's citizens from
+minute 3 on, game_ai=1: the game depends on the DLL's layout somewhere - not the language's). `tests/bench/structs.eeai`:
+700000 struct operations (reads, sets, methods, ref calls, item sets) in 122 ms - a method call costs what a
+function's does, a field set makes its struct anew (three small allocations).
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

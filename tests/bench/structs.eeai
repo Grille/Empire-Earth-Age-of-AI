@@ -1,0 +1,41 @@
+// bench: structs and refs - a field read, a field set, a method that reads, one that sets, a ref parameter, a list's item set
+struct point {
+    x: int
+    y: int
+
+    add(value: int) {
+        this.x += value
+    }
+    sum() => this.x + this.y
+}
+shift(ref p: point, by: int) {
+    p.y += by
+}
+let a = point(1, 2)
+let s = 0
+for r in 1..100000 {
+    s += a.x + a.y
+}
+cmd("read {s}")
+for r in 1..100000 {
+    a.x = r
+    a.y += 1
+}
+cmd("set {a}")
+for r in 1..100000 {
+    s += a.sum()
+}
+cmd("method {s}")
+for r in 1..100000 {
+    a.add(1)
+}
+cmd("method sets {a}")
+for r in 1..100000 {
+    shift(ref a, 1)
+}
+cmd("ref {a}")
+let l: list<point> = [point(0, 0), point(0, 0), point(0, 0), point(0, 0)]
+for r in 1..100000 {
+    l[3].x += 1
+}
+cmd("item {l[3]}")

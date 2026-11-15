@@ -157,7 +157,7 @@
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:fortress|upgrades|landing|outpost|special|forest|epoch|farms|wants|b_\\w+|navy))\\s*(=)",
+          "begin": "^\\s*((?:research|fortress|upgrades|landing|outpost|special|forest|epoch|farms|wants|b_\\w+|laid|navy|air))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -625,7 +625,7 @@
         },
         {
           "name": "keyword.control.eeaimod",
-          "match": "\\b(?:return|if|else|while|for|in|break|continue|let)\\b"
+          "match": "\\b(?:return|if|else|while|for|in|break|continue|let|struct|ref|this)\\b"
         },
         {
           "name": "storage.type.function.arrow.eeaimod",
@@ -637,7 +637,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|wallghost|wallplace|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|stepload|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|palette|persona|picture|seltest|shadows|sndchan|targets|terrain|textlog|wallfit|wmclose|behind|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|lineup|modmsg|offmap|record|resume|rprobe|script|status|threat|topbar|board|bqadd|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|water|army|chat|form|gate|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wall|wave|aim|llm|lob|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:territories|nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|wallghost|wallplace|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|stepload|vistrack|aigroup|airraid|attacks|basemap|calloff|defence|epochup|godmode|landing|overlay|palette|persona|picture|ringmap|seltest|shadows|sndchan|targets|terrain|textlog|wallfit|wmclose|behind|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|lineup|modmsg|offmap|playas|record|resume|rprobe|script|status|threat|topbar|board|bqadd|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|water|wreck|army|chat|form|gate|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wall|wave|aim|llm|lob|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",
@@ -820,7 +820,7 @@
         },
         {
           "name": "keyword.control.eeaimod",
-          "match": "\\b(?:return|if|else|while|for|in|break|continue|let)\\b"
+          "match": "\\b(?:return|if|else|while|for|in|break|continue|let|struct|ref|this)\\b"
         },
         {
           "name": "storage.type.function.arrow.eeaimod",
@@ -832,7 +832,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|wallghost|wallplace|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|stepload|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|palette|persona|picture|seltest|shadows|sndchan|targets|terrain|textlog|wallfit|wmclose|behind|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|lineup|modmsg|offmap|record|resume|rprobe|script|status|threat|topbar|board|bqadd|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|water|army|chat|form|gate|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wall|wave|aim|llm|lob|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:territories|nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|wallghost|wallplace|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|stepload|vistrack|aigroup|airraid|attacks|basemap|calloff|defence|epochup|godmode|landing|overlay|palette|persona|picture|ringmap|seltest|shadows|sndchan|targets|terrain|textlog|wallfit|wmclose|behind|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|lineup|modmsg|offmap|playas|record|resume|rprobe|script|status|threat|topbar|board|bqadd|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|water|wreck|army|chat|form|gate|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wall|wave|aim|llm|lob|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",

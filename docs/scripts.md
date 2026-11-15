@@ -34,6 +34,9 @@ One a line; `//` starts a comment, as in the game's own scripts (.rmv, .tai) - a
 | `let name = value` | a new variable (a name of letters, digits, `_`) - once in its block; known from there to the block's end; `let name: float = value` with its type ("Types") |
 | `name = value` | a variable a `let` made gets a new value; `name += value`, `-=`, `*=`, `/=`: `name = name + value` ... |
 | `p.gold = value`, `p.gold += value` | an object's member that may be set ("Objects") |
+| `a.x = value`, `l[2] = value`, `l[2].x += value` | a struct's field, a list's item - set in the place it is in ("Structs") |
+| `struct name { ... }` | a type of the script's own, at its top only ("Structs") |
+| `ref q = l[2]` | a second name for a place ("Refs") |
 | `call(...)`, any expression | worked out, its value not kept |
 | `if c { ... } else if d { ... } else { ... }` | the first block whose condition holds (`else` on the `}`'s line or the next) |
 | `while c { ... }` | the block again and again while `c` holds |
@@ -89,7 +92,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `1920x1080` | a size: `vec(1920, 1080)` |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
-| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. Only a dict's entries are set (`l[1] = 5` on a list is a mistake) |
+| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A list is a value: `l[1] = 5` changes the variable `l` alone - "Structs") |
 | `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
@@ -121,11 +124,96 @@ Written where it can't be told - a function's parameters: `let f = (pos: vec3, i
 `every` has its `run` from there (`(run) => ...` is an int; `(run: text)` a mistake), the others take none. A `let`
 may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: list<text> = []`, `let l: player? = p.lord`.
 The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit_type`, `function`,
-`record`, `trigger`, `player`, `game`, `slot`; `list<T>` a list of them, `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
+`record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `list<T>` a list of them, `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
 made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
 
 Where a type still can't be told (a record's member, what a function gives back), the value is checked when it is
 worked out, as before.
+
+## Structs
+
+A type of the script's own: fields with their types, and methods. Declared at the script's top, known in the whole
+file (above where it is written too).
+
+```
+struct point {
+    x: int
+    y: int = 5                  // its default
+
+    add(value: int) {           // a method: its struct's fields are this.x, this.y
+        this.x += value
+        this.y += value
+    }
+    sum() => this.x + this.y
+}
+struct squad {
+    name: text
+    pos: point
+    strength: float = 1.5
+    units: list<unit>
+    target: point?
+}
+
+let a = point()                 // x 0, y 5
+let b = point(3)                // x 3, y 5
+let c = point(0, 1)
+let s = squad("north")          // pos point(0, 5), strength 1.5, no units, no target
+```
+
+- **Made** by its name: its fields in order, the last ones may be left out. A field left out has its default - the
+  declared one (`y: int = 5`: a value that needs none of the script's names), else `0`, `false`, `""`, an empty list,
+  `null` for a `T?`, a struct's own defaults. A field of a type with none (`player`, `unit`, `vec2` ...) is given, or
+  declared with one, or a `T?`.
+- **A value**, as a number is: `let b = a` is a copy (`b.x = 9` leaves `a` alone), a function gets a copy, a list
+  holds copies. `a == b` when every field is the same (`!=`; no `<`); in a text `point(3, 5)`.
+- **Set in its place**: `a.x = 5`, `a.x += 1`, `s.pos.x = 7` - the place is a variable, a field of one, or a list's
+  item: `l[2].x = 5`, `l[2] = point(1, 1)`, `squads[1].units[3] = u` (a list's items are set the same way:
+  `let n: list<int> = [1, 2]` then `n[1] += 5`). A value that is in no place - a call's result, a list written out -
+  can't be set: the change would be dropped (`point(1, 2).x = 5` is a mistake). So is a `for`'s variable: it is the
+  loop's copy of the item (`for i in 1..len(l) { l[i].x = 0 }` changes the list's).
+- **Methods**: `a.add(2)` changes `a` - its `this` is the place it is called on, so a method that changes its struct
+  is called on a place only (`point(1, 2).add(1)`: a mistake; `point(1, 2).sum()` is fine). `this = point()` sets
+  the whole struct. A method sees the script's top like any declared function, may `wait`, and may be called in a
+  `{placeholder}` when it changes nothing (`"{a.sum()}"`; a struct is made in a statement, not in a placeholder).
+- A struct holds no struct of its own type directly (`next: node` would never end): `next: node?` or `kids:
+  list<node>` does.
+- The check must know that a variable is a struct to set its fields or call its methods: it does from `let a =
+  point(...)`, a parameter's type, a field's, a list's (`let l: list<point> = [...]`), and from a function or method
+  written `name(...) => point(...)`. What any other function gives back has no type: `let a: point = make()`.
+- Functions set the variables around them, a timer's function too - no ref needed:
+  `let total = point()` then `game.timer(20s, () => { total.add(1) })`.
+
+Not there: inheritance, operators of its own (a vector has them), private fields.
+
+## Refs
+
+A second name for a place - a variable, a field of one, a list's item - so that a function can change what it is
+handed, and a long way is written once.
+
+```
+shift(ref p: point, by: int) {          // a parameter that is a place, not a copy
+    p.x += by
+}
+shift(ref a, 2)                         // ref at the call too: the reader sees a may change
+shift(ref squads[2].pos, 2)
+
+ref q = squads[2]                       // a local: q is squads[2] from here on
+q.strength = 50
+q.pos.add(1)
+ref n: int = total.x                    // of any type; its type, when written, is the place's own
+n = n + 1                               // total.x is one more
+```
+
+- Read, a ref is the value at its place; set (`q = ...`, `q.x = ...`), the place gets it. Nothing else can be done
+  with one: it is in no list, record or field, no function hands one back, there is no null ref and no arithmetic.
+- A ref parameter takes `ref <place>` and nothing else; a plain parameter takes no `ref`. It goes only to functions
+  the check knows - the script's declared ones, a `let`'s function not set anew, a struct's methods.
+- A function made where a ref is doesn't see it (`() => q.x` inside the code that has `q`: a mistake) - it may run
+  when the place is gone. `let v = q` copies the value for it. A method's `this` is such a ref.
+- A ref to a list's item is the item's number, taken when the ref is made: if the list is set anew with fewer items,
+  using the ref is a mistake told then (`a ref's place is gone`).
+- A ref is no pointer: it is its variable and the numbers of the way from it, so it survives a `wait` and a saved
+  game like any value.
 
 ## Objects
 
@@ -348,8 +436,8 @@ compiled to instructions and run by a machine of its own (dll/script/expr.c SCRI
 data - and that is what the save holds: the instructions (a save runs its own: it depends neither on what `setup.eeai`
 says later nor on what a later version of the mod would compile of it), the functions the script is in with their
 parameters and `let`s, the values it was working out, where it stands; with them the triggers and their conditions'
-state, the timers at their times, the `after`'s still to come, the dicts, the spawned units' handles, and the source
-for the messages. The loaded game goes on with them as they were: `# persist: scripts restored: 1 (1 going on), 3
+state, the timers at their times, the `after`'s still to come, the dicts, the spawned units' handles, the structs
+(their types with the instructions, their values as they are) and the refs, and the source for the messages. The loaded game goes on with them as they were: `# persist: scripts restored: 1 (1 going on), 3
 triggers and timers, 1 after's ...`.
 
 A script that waits (`wait`, `wait_until`, `every`) goes on where it stood, at the time it waited for - anywhere: in
