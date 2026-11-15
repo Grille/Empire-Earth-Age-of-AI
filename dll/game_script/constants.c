@@ -30,7 +30,7 @@ internal int ee_constant(const char *name, struct xval *v) {
     if (!_strnicmp(name, "kind.", 5)) {   // kind.towers: one of the game's families (docs/units.md) - its number and "kind.towers"
         for (int k = 0; k < UNIT_KINDS; k++)
             if (k_kind_ident[k] && !lstrcmpiA(name + 5, k_kind_ident[k])) {
-                static char text[UNIT_KINDS][48];   // "kind.towers" as it stays (a constant's text in its node: xe)
+                static char text[UNIT_KINDS][48];   // "kind.towers" as it stays (a constant's text kept where it is named: xop_name)
                 if (!text[k][0]) wsprintfA(text[k], "kind.%s", k_kind_ident[k]);
                 xdual_kept(v, k, text[k]);
                 return 2;

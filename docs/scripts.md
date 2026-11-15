@@ -6,7 +6,9 @@ expressions, plus statements, variables, functions and the pipe's commands. It r
 bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
 A script is compiled to instructions when it is read and run by a machine of its own (`dll/script/expr.c` SCRIPTS
 COMPILED): its turns come between the simulation's steps, where the pipe's commands run - a spawned unit is there at
-once - and a wait is that machine stopping where it is.
+once - and a wait is that machine stopping where it is. The texts (a personality's lines, names, functions and
+handlers, the prompts, the settings' numbers) run on the same engine since 2026-11-15: each source compiled when it is
+first worked out, all of them on one machine of their own that never waits - there is no second evaluator.
 
 ```
 // Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town

@@ -24,7 +24,7 @@ internal int x_command_verb(const char *name) {   // a pipe command (control.c e
 struct script {
     char path[MAX_PATH];
     char *text;
-    struct xunit u;         // its tree (read from a file: for the check and its game.setup blocks; a saved game's has none)
+    struct xunit u;         // its tree (read from a file: for the check; a saved game's has none)
     struct xcode *code;     // its instructions, and the machine that runs them once it begins (expr.c SCRIPTS COMPILED)
     struct xvm *vm;
     uint32_t wake;          // game ms it waits for
@@ -188,7 +188,7 @@ internal void scripts_load(void) {   // setup=a.eeai;b.eeai: each read, checked 
 }
 // THE GAME'S START (eeaimod.c hook_game_start, before the personalities are planned; scripts_new_game below): the
 // scripts read - a test's once, setup.eeai for this game -, and in a new game their game.setup blocks run
-// (game_script/relations.c SETUP; the tree's walk: before the game there is nothing to wait for or to save) - a loaded
+// (game_script/relations.c SETUP; on the texts' machine, x_setup_run: before the game there is nothing to wait for or to save) - a loaded
 // game's ran when it began (the setup's mode 2; a test's random map is a load of newgame.ees, its mode 0 again by now -
 // randmap.c). A mistake there ends that script
 internal void script_setup_blocks(struct script *s) {
@@ -198,7 +198,7 @@ internal void script_setup_blocks(struct script *s) {
     struct xregion *r0 = g_xr;
     g_xr = &s->reg;
     g_x_last_fail[0] = 0;
-    int ok = x_setup_run(&s->u, &c);
+    int ok = x_setup_run(s->code, &c);
     g_xr = r0;
     if (ok) return;
     s->done = 1;
@@ -308,7 +308,7 @@ internal void script_triggers(uint32_t now) {
 // that waits anywhere goes on there, at its time. With them the triggers, timers and after's, the views they keep,
 // the dicts (expr.c SAVED STATE), the spawned units' handles (game_script/units.c). A loaded game (hook_game_start's
 // persist_load, after scripts_new_game) has them as they were.
-// Not saved: a function of the tree's walk held in a variable (a text's - told in the log). A script whose own turn
+// Not saved: a text's function held in a variable (a personality's - told in the log). A script whose own turn
 // it is as the game is saved (a save of its own, not the queued one of the pipe's save) doesn't go on: where it
 // stands is the middle of that command - told; what it started does.
 // A test that runs its own scripts (setup=) keeps to them: the save's are left out there. Elsewhere the save's test

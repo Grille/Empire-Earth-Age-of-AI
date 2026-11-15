@@ -1137,7 +1137,15 @@ mistakes among them) as meant, the members and a vector as a command's argument 
 values and the files' records with commas (2026-10-22, scripts/build/eeai_commas.py converted every file): the old build
 with the old files against the new one with the converted files, Continental 777 at 5/15/30, 6679 rows each the
 same; `texts bench` them.soldiers 1.58 -> 0.32 us (the vars by hash, xvars_find); the 53 setup scripts run dry the
-same. A format change like this one: copy the old files aside (AI_DIR=<copy> for the old build's run) first.
+same. A format change like this one: copy the old files aside (AI_DIR=<copy> for the old build's run) first. The
+tree's walk gone (2026-11-15: every text compiled to the scripts' instructions and run on a machine, expr.c SCRIPTS
+COMPILED): Continental 777 at minute 5, 7275 rows the same (a control pair of the old build first: the same). What the
+shipped files don't have was played in both builds with a personality of its own (fields, a dict, a handler, functions
+with statements, loops, a function calling itself, a mistake in a list's item, the nesting limit) through `texts eval`
+from a script with a `game.setup` block and a timer: 70 log lines the same; the probes player_effects, unit_effects,
+units and spawn the same; a script waiting in the middle of expressions with its state saved and read back 14 times
+(`script state`) the same as left alone. `texts bench` within the noise (them.soldiers 1.5 us, me.count(kind.towers)
+2.5, a line's list of conditions 6.2 in both).
 
 ### Headless UI tests (menus, editor)
 
