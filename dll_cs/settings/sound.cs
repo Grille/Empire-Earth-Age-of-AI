@@ -17,9 +17,11 @@ class sound
         all,
     }
     /// Sound diagnostics into ageofai_log.csv:
+    [advanced]
     sound_log_choice sound_log = sound_log_choice.off;
     /// The "Max Number Of Sounds" slider goes to 200% = 32 channels, the sound mixer has 16 on current Windows: sounds on the
     /// missing channels stay silent (looping ones for good). 1 = hold the channels to what the mixer has (from 100% up: 16)
+    [advanced]
     bool sound_clamp_channels = true;
     /// Sound channels at 100% (8..63; the slider gives 8 at 0%). The mixer's 16 are only a fallback - Windows no longer
     /// reports hardware voices; Miles mixes in software. 16 = the game's own

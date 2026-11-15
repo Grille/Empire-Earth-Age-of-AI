@@ -37,21 +37,22 @@ class ai_base
         /// the AI builds up its economy, counts the food it can find, saves for the next epochs,
         /// keeps only a token army and advances as soon as it can pay:
         copper_plan_choice copper_plan = copper_plan_choice.on;
-        [range(0, 1), commented]
+        [advanced, range(0, 1), commented]
         share epoch_share = 0.4;
-        [commented]
+        [advanced, commented]
         int food_floor = 18;
         ///
         /// Military budget: soldiers may only be paid from a share of the AI's starting stock and of
         /// everything it gathers; the rest goes into economy and epochs. 1 = on, 0 = original behaviour
+        [advanced]
         int budget = 1;
         /// share of the starting stock / of all income that may go into the army (0% - 100%)
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         share military_start_share = 0.3;
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         share military_income_share = 0.4;
         /// from the Copper Age on (farms: food no longer runs out) a player puts most of his income into the army
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         share military_income_share_farms = 0.65;
         enum epoch_pacing_choice
         {
@@ -83,6 +84,7 @@ class ai_base
         int epoch_max = 70;
     }
 
+    [advanced]
     class Attacks
     {
         ///
@@ -136,6 +138,7 @@ class ai_base
         bool avoid_towers = true;
         /// Experimental: if the goal of an attack lies inside known tower range, attack an undefended enemy
         /// building nearby instead (the economy behind the towers, the open flank). 1 = on, 0 = off
+        [advanced]
         bool attack_weak_spots = true;
         /// Soldiers on an attack don't take on enemies standing inside known tower range (defenders waiting next to
         /// their towers would draw the whole army in) - unless the attack's goal is in there anyway. 1 = on, 0 = off
@@ -193,10 +196,11 @@ class ai_base
         /// Experimental: the citizens decide with the fight estimate instead, in every age - as a fallback when no soldiers
         /// near would win, unguarded builders when they win, soldiers only when they win clearly or are caught by faster
         /// units and still win. 0 = off (default)
+        [advanced]
         bool militia_estimate = false;
         /// ... with militia_estimate: caught by faster soldiers, the citizens fight back only when they would still destroy this
         /// share of the attackers (100% = all of them; 33% had 3 citizens attack a tank 42 times)
-        [range(0, 1), commented]
+        [advanced, range(0, 1), commented]
         share militia_caught_share = 1;
     }
 
@@ -214,9 +218,9 @@ class ai_base
         /// no army in the first age, then food-free ranged soldiers (Slinger, Simple Bowman, Javelin, Composite Bow,
         /// Long Bow ...) while the economy grows; the army's account is its own money before farms. 0 = off (default)
         bool early_army = false;
-        [range(0, 1), commented]
+        [advanced, range(0, 1), commented]
         share early_army_food_share = 0.1;
-        [commented]
+        [advanced, commented]
         int early_army_workers = 60;
         /// the alternative to the towers: this many soldiers at home in the first age (with early_army). 0 = none
         bool early_soldiers = false;
@@ -233,11 +237,12 @@ class ai_base
         /// soldiers within 10 tiles and its towers covering it beat them by this much on the fight estimate (150% =
         /// clearly, the default - with hurt_seen_short against the cheating game AI, 40 long games a map: Small Islands
         /// won 0 -> 2, lost 36 -> 29, the worker gap -116 -> -62; Large Islands won 11 -> 16; Continental the same). 0 = off
-        [range(0, 5), commented]
+        [advanced, range(0, 5), commented]
         share raid_held = 1.5;
         /// A spot where a citizen was hurt with an enemy soldier in sight near it counts 20 s instead of 2 minutes (it
         /// was seen - its own reach covers the rest); hurt by what it can't see (artillery from the fog, aircraft) still
         /// 2 minutes. 1 = on (default, measured with raid_held)
+        [advanced]
         bool hurt_seen_short = true;
         /// Enemies behind its walls: where its own walls close off the land around its town (or its island's coast), an
         /// enemy outside them no longer keeps the citizens inside from their work if it can't get at them - one that
@@ -249,6 +254,7 @@ class ai_base
         /// not its range and 3 tiles in a square, which on a small island covered nearly all of it (most citizens sent
         /// home on the island maps were sent for ships alone, while ships killed a quarter of the dead). 0 = off
         /// (default until measured)
+        [advanced]
         bool ship_reach_exact = false;
         /// Danger routes: the AI keeps a map of where its enemies can reach (their defences it has seen, soldiers and warships
         /// it sees at their reach, where its citizens were hurt lately), and its units that can't fight - citizens, fishing
@@ -262,9 +268,11 @@ class ai_base
         bool avoid_lost_fights = true;
         /// The fight judgements of fall-back, lost fights and the staging point count the enemy soldiers the AI saw within
         /// the last 3 minutes where it saw them, not only those in sight at that moment (with honest_vision). 0 = off
+        [advanced]
         bool fight_memory = true;
         /// The citizens' safety (builders' and gatherers' sites, build orders, their routes) counts the enemy soldiers the AI saw
         /// within the last minute where it saw them, not only those in sight (with honest_vision). 0 = off
+        [advanced]
         bool threat_memory = true;
         /// Fortresses (Copper Age, 350 wood, hold 40 units off the map): citizens under fire go into one nearby and come out
         /// when it is quiet; the AI builds one at its main drop site once enemy aircraft are possible or citizens get hurt
@@ -277,6 +285,7 @@ class ai_base
         /// ... and a reserve outside the population limit (units in a fortress don't count): with the map full, idle soldiers
         /// at home go in so training goes on; they come out after losses or when enemies come near. A mask of players
         /// (65535 = all, 0 = off)
+        [advanced]
         int bunker_reserve = 65535;
         /// ... and town guards (with the reserve): a fortress also at each front (by the AI's tower nearest it), each filled
         /// from the idle soldiers round it, letting them out when enemies come near it. 1 = on, being measured
@@ -285,7 +294,7 @@ class ai_base
         /// shelve_stock or more, idle citizens go into fortresses (more are built for them) so soldiers can be trained, and no
         /// new citizens are; they come out once a resource runs low or citizens are lost. 1 = on
         bool shelve_citizens = true;
-        [range(500, 1000000)]
+        [advanced, range(500, 1000000)]
         int shelve_stock = 5000;
         /// Settlement upgrades: spare citizens (idle once the AI trains no more or its food keeps every producer training, or wood cutters while the wood stock is over 5000) go into a Settlement by
         /// metal mines - 5 make it a Town Center -, then into the Town Center with the most metal mines near it - 10 more make
@@ -300,7 +309,7 @@ class ai_base
         /// Idle transports: the game's own order for one more transport ship trains none while this many of the AI's
         /// transports stand empty with nothing to do (seen: an AI with 40 idle transports at minute 176, 250 wood and a
         /// place under the population cap each). The mod's landings and outposts order their own as before. 0 = off
-        [range(0, 50)]
+        [advanced, range(0, 50)]
         int idle_transports = 2;
         bool territory_shelter = true;
         /// Held ground (ai/armies.c HELD GROUND): the army answers a raid wherever it stands in a territory the AI holds
@@ -366,11 +375,11 @@ class ai_base
         bool attack_siege = true;
         /// advanced: route cost per tower (a normal step costs 10-14), extra tiles kept from a tower's range,
         /// search radius (tiles) around the original goal for a weak spot
-        [commented]
+        [advanced, commented]
         int avoid_towers_weight = 2000;
-        [commented]
+        [advanced, commented]
         int avoid_towers_margin = 6;
-        [commented]
+        [advanced, commented]
         int attack_weak_spot_radius = 60;
     }
 
@@ -440,10 +449,10 @@ class ai_base
         /// artillery. Damaged ships go back to the dock; fishing boats flee to the dock from enemy warships it can't beat:
         navy_fleet_choice navy_fleet = navy_fleet_choice.big;
         /// (navy_fleet=big) the fleet's size as a share of the population limit (15%: 26 warships at a limit of 176)
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         share navy_fleet_pop = 0.15;
         /// (navy_fleet=big) the navy's share of the income while the fleet is below that size
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         share navy_share_max = 0.5;
         /// (navy_fleet=big) mass before striking: while weaker than the enemy fleet known or below a quarter of its size the
         /// ships wait at a rally inside the reach of its towers (a tower is built by the dock if none covers the sea), fight
@@ -452,6 +461,7 @@ class ai_base
         /// The game's own transports (the crossings that take citizens to mines on other islands) are economy orders like the
         /// fishing boats, not soldiers' - the soldiers' account kept the AI from ever taking another island. 0 = military
         /// (default until measured)
+        [advanced]
         bool transports_economy = false;
     }
 
@@ -500,9 +510,9 @@ class ai_base
         /// Food (docs/economy.md "Food and mines").
         /// Default count_trained|back_to_food (the first epoch ~8 minutes earlier, +7-9 workers at minute 30 on Continental);
         /// hunt_near, no_fields_wild, wild_settlement cost workers or fights in the tests. Its parts:
-        [on("count_trained, back_to_food")]
+        [advanced, on("count_trained, back_to_food")]
         food_plan_fields food_plan;
-        [commented]
+        [advanced, commented]
         int food_hunt_range = 15;
         struct mine_fill_fields
         {
@@ -519,6 +529,7 @@ class ai_base
         /// halved - the gold piled while the wood went short becomes an army before the war; on the small ones the war comes
         /// first and the gold lies unused: Small Islands with the cheat -6 to -7, Continental Stone Age head-to-head -12
         /// (docs/economy.md). Its parts:
+        [advanced]
         mine_fill_fields mine_fill;
         /// A Settlement by the forest its woodcutters work when 8 or more of them cut 15+ tiles from any drop site (the walk
         /// with each load decides the wood income: 54 tiles gave a fifth of the usual). 1 = on
@@ -543,10 +554,10 @@ class ai_base
         /// Citizen production (docs/economy.md "Citizen production").
         /// Default mine_slots|food_pays (+15-35 workers at 60 min, more on the mines, the base AI with the cheat won 31 of 120
         /// games instead of 45); empty = the game's citizen share. Its parts:
-        [on("mine_slots, food_pays")]
+        [advanced, on("mine_slots, food_pays")]
         citizen_plan_fields citizen_plan;
         /// the population cap's share kept for the army when the citizens' goal is larger (the home mines always fit)
-        [range(0, 0.9), commented]
+        [advanced, range(0, 0.9), commented]
         share citizen_army_share = 0.4;
         /// From the Copper Age the citizens wanted are at most half the population cap and at most the stone, gold and
         /// iron mines the AI knows x the gatherers a mine takes x 1.5 (the half for food and wood): in a game of a high
@@ -570,8 +581,9 @@ class ai_base
         /// Workforce into army (docs/economy.md "Workforce into army"), from the Copper Age.
         /// Empty = off (default): fewer citizens (what_is_used) or 10-20 more soldiers on the large maps (army_room), but no
         /// gain in the fights. Its parts:
+        [advanced]
         workforce_plan_fields workforce_plan;
-        [commented]
+        [advanced, commented]
         int workforce_army_cap = 250;
         struct army_plan_fields
         {
@@ -598,19 +610,19 @@ class ai_base
         /// Default top_up|room_soldiers|more_buildings|from_epoch|per_kind: with 39 Continental Large without the cheat the AI
         /// won 61 of 80 games against the base AI instead of 35; per_kind with resources piled up head-to-head soldiers +16,
         /// razed +16 a game; empty = off. Its parts:
-        [on("top_up, room_soldiers, more_buildings, from_epoch, per_kind")]
+        [advanced, on("top_up, room_soldiers, more_buildings, from_epoch, per_kind")]
         army_plan_fields army_plan;
         /// Outdated units attack: units of a type the AI's epoch has left behind (no upgrade reaches them any more) fill its
         /// population cap. Every 5 minutes, once 8 or more such land units stand free, they attack the nearest enemy building
         /// together (falling back as every attack does) and do some damage before they are completely outclassed. 1 = on
         bool outdated_attack = true;
-        [commented]
+        [advanced, commented]
         int army_plan_epoch = 5;
-        [commented]
+        [advanced, commented]
         int army_float_keep = 300;
-        [commented]
+        [advanced, commented]
         int army_float_keep_mineral = 100;
-        [commented]
+        [advanced, commented]
         int army_mix_food = 500;
         struct metal_plan_fields
         {
@@ -631,12 +643,13 @@ class ai_base
         /// Empty = off (default): on the large island maps fleet_by_enemy (+calm_navy_cap) gave 60-90 more soldiers trained and
         /// more kills - losses without the cheat, but against the cheating base AI the kills - losses fell on two maps;
         /// best_per_metal cost wins on small Continental. Its parts:
+        [advanced]
         metal_plan_fields metal_plan;
-        [commented]
+        [advanced, commented]
         int metal_cap = 250;
-        [commented]
+        [advanced, commented]
         int metal_fleet_pct = 250;
-        [commented]
+        [advanced, commented]
         int metal_fleet_min = 20;
     }
 
@@ -665,16 +678,17 @@ class ai_base
         /// Empty = off (default): rally lost fewer soldiers and killed more in head-to-head games and against the base AI
         /// without the cheat, but against the cheating base AI it killed fewer (kills - losses -10) and razed less; tether the
         /// same (kills -14 against the cheat); tether|only_buildings neutral everywhere. Its parts:
+        [advanced]
         army_mass_fields army_mass;
-        [commented]
+        [advanced, commented]
         int army_mass_group = 5;
-        [commented]
+        [advanced, commented]
         int army_mass_hold = 120;
-        [range(0, 10), commented]
+        [advanced, range(0, 10), commented]
         share army_mass_ratio = 1.3;
-        [commented]
+        [advanced, commented]
         int army_mass_wait = 10;
-        [commented]
+        [advanced, commented]
         int army_mass_tether = 12;
         /// The staging point (with danger_routes): an attack's march from safety into the enemy's reach or a lost fight goes to
         /// one gathering point outside every danger on the way from there to the base; the army waits there and goes in
@@ -717,15 +731,15 @@ class ai_base
         bool own_citizens = true;
         /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
         /// to spare; 100% = an even fight, as before)
-        [range(1, 5), commented]
+        [advanced, range(1, 5), commented]
         share raid_answer = 1;
         /// ... on a raid, a member this many tiles past the raid's spot is called home instead of chasing raiders that ride
         /// off (the player calls back the soldiers that followed on their own). 0 = off (default until measured)
-        [range(0, 60), commented]
+        [advanced, range(0, 60), commented]
         int raid_leash = 0;
         /// ... a raid on an ally's buildings within this many tiles of the force's home is answered as one on its own, by the
         /// same rules (the game's aid to allies finds no land soldiers: the force holds them). 0 = off (default until measured)
-        [range(0, 1000), commented]
+        [advanced, range(0, 1000), commented]
         int ally_aid = 0;
         /// ... a raid is answered by a part of the force, the soldiers nearest it that beat it two to one, an army of its own
         /// that comes back once the raid is over; the rest stays home for the next raid and the attack time. The whole force
@@ -751,7 +765,7 @@ class ai_base
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured
         bool front_army = false;
-        [range(0, 10), commented]
+        [advanced, range(0, 10), commented]
         share army_stage_go = 1.3;
         /// The attack commits (with army_stage): no squad goes past the staging point alone - the whole wave gathers there and
         /// goes in together, fighting on the way (an attack-move), and for 2.5 minutes none of its units falls back. 1 = on
@@ -784,19 +798,19 @@ class ai_base
         /// +2 to +56 a game (one map -5), fewer losses, more soldiers and warships alive; head-to-head +12 to +28. Empty = off.
         /// All four against the default (16 cells, head-to-head): no clear gain, and give_up's call-off can crash the game.
         /// Its parts:
-        [on("hospital, tower_cover, fleet_cover")]
+        [advanced, on("hospital, tower_cover, fleet_cover")]
         fall_back_fields fall_back;
-        [range(0, 10), commented]
+        [advanced, range(0, 10), commented]
         share fall_back_ratio = 0.5;
-        [range(0, 1), commented]
+        [advanced, range(0, 1), commented]
         share fall_back_hp = 0.4;
-        [commented]
+        [advanced, commented]
         int fall_back_value = 100;
-        [commented]
+        [advanced, commented]
         int fall_back_dist = 60;
-        [commented]
+        [advanced, commented]
         int fall_back_breaks = 2;
-        [range(0, 1), commented]
+        [advanced, range(0, 1), commented]
         share fall_back_end = 0.5;
     }
 
@@ -856,15 +870,15 @@ class ai_base
         /// is worth 10-25 soldiers, one that is lost costs as much, and half are lost (econ.c THE TRANSPORTS THE MOD'S). Its parts:
         [on("outposts, extra_citizens, more_islands, fort, beachhead")]
         expand_islands_fields expand_islands;
-        [commented]
+        [advanced, commented]
         int expand_citizens = 8;
-        [commented]
+        [advanced, commented]
         int expand_guard = 3;
-        [commented]
+        [advanced, commented]
         int expand_minute = 8;
-        [commented]
+        [advanced, commented]
         int expand_trips = 4;
-        [commented]
+        [advanced, commented]
         int expand_max = 3;
         /// Idle citizens stranded on land without a drop site of their AI (a transport put them off there) are fetched home by
         /// one of its transports - the game gives a citizen work only on its own land. 0 = off
@@ -930,11 +944,11 @@ class ai_base
         /// enemies in its base; empty = none:
         [on("resource_towns, spread, party")]
         towns_fields towns;
-        [range(0, 6), commented]
+        [advanced, range(0, 6), commented]
         int towns_max = 3;
-        [range(1, 12), commented]
+        [advanced, range(1, 12), commented]
         int towns_citizens = 6;
-        [range(0, 7), commented]
+        [advanced, range(0, 7), commented]
         int towers_per_town = 2;
         /// A town still going up whose citizens are all dead is given up and its unfinished buildings are removed
         /// (refunded) - left standing, the game's repair round kept sending citizens to them. 0 = off (default)
@@ -994,14 +1008,14 @@ class ai_base
         /// With enclose or base_ring: the ring only once the AI has this many citizens, the usual towers before (with
         /// enclose the front walls too) - the economy first (the ring from the start took most of the citizens off
         /// gathering: every Small Islands game lost)
-        [range(0, 400)]
+        [advanced, range(0, 400)]
         int enclose_citizens = 40;
         /// With enclose or base_ring: runs of wall (up to 12 pieces each) ordered every 20 s
-        [range(1, 4)]
+        [advanced, range(1, 4)]
         int enclose_runs = 1;
         /// With enclose or base_ring: a new run of wall only while fewer than this many ordered stand unfinished - a few builders at a
         /// time, so the ring can start early (0 = no limit)
-        [range(0, 8)]
+        [advanced, range(0, 8)]
         int enclose_in_flight = 0;
         /// With enclose, on an island: only enemy land units near keep the builders off a part of the coast wall, not ships
         /// (the coast is where the ships are; a piece that stands stops their fire). 0 = ships too
@@ -1013,10 +1027,10 @@ class ai_base
         /// With enclose, on its own land in the sea: no wall round the coast when at least this many of its tiles lie
         /// beyond a ship's reach of the sea (9 tiles) - room enough to build and work safe without walling itself in
         /// (the player: a small island needs the wall, a large one has safe space inland). 0 = the coast always
-        [range(0, 5000)]
+        [advanced, range(0, 5000)]
         int enclose_safe_tiles = 0;
         /// tiles from the base centre to the tower line
-        [commented]
+        [advanced, commented]
         int defence_distance = 10;
         /// Soldiers near the base attack enemy siege weapons shelling it - only when clearly stronger than the escort.
         /// 1 = on
@@ -1032,6 +1046,7 @@ class ai_base
         /// before any aircraft come (getting them up while the town is bombed is too late); aircraft seen anywhere count.
         /// 1 = on; aa_ahead_buildings = how many drop sites get one
         bool aa_ahead = true;
+        [advanced]
         int aa_ahead_buildings = 3;
         /// ... and by the air force it expects: half the aircraft it has seen each enemy field (the most at once, fading) and
         /// of those that enemy will train against what it saw of the AI's units count as aircraft seen (default off: not
@@ -1047,6 +1062,7 @@ class ai_base
         /// town and guard there instead of chasing it one by one (Guard behaviour), and strike together once they are 1.3x
         /// its strength. Tests against a camp that pushes and pulls back like a player: worse (the town is left to the
         /// pushes - fewer citizens, Town Center lost more often). 1 = on, 0 = off (default)
+        [advanced]
         bool hold_town = false;
     }
 
@@ -1057,10 +1073,12 @@ class ai_base
         bool unit_substitution = true;
         /// ... but a unit it can train and only can't pay yet is saved for first: this many seconds without a requested
         /// soldier before it trains a substitute (at once with enemy soldiers in its base). 0 = substitute at once
+        [advanced]
         int substitute_wait = 90;
         /// The mod's own training orders (AA units, siege, home guard, transports) only up to the room under the population
         /// cap - at the cap they were paid for and stuck in the queue, blocking the AI's own training. A mask of players
         /// (65535 = all, 0 = off)
+        [advanced]
         int train_room = 65535;
         /// Special orders (shore guns, anti-air, the attack's siege) are saved up for: while one waits, the cost of its next
         /// unit is held from the ordinary soldiers' and warships' orders and counted in what the citizens gather (the
@@ -1082,13 +1100,15 @@ class ai_base
         /// The units in production the room for training leaves out are set to what the buildings really have queued: a loaded
         /// game starts that count at 0 (the save doesn't keep it) and the AI queued far more than its limit lets out. Off: on
         /// the player's save "standing army" its AIs lost more units with it (101 against 82 in 15 minutes). 1 = on
+        [advanced]
         bool production_sync = false;
+        [advanced]
         bool catch_up_ais = true;
         /// Units each finished production building may hold (the one in the making and its queue): the game queued every
         /// request however deep the queues were - 80 soldiers in one building are resources tied up for 40 minutes. A request
         /// is cut to what keeps each producer of the unit at this many; the resources stay free for more production buildings.
         /// 0 = no limit, as the original
-        [range(0, 100)]
+        [advanced, range(0, 100)]
         int train_queue = 3;
         struct late_targets_fields
         {
@@ -1111,11 +1131,11 @@ class ai_base
         }
         /// Wood after the Copper Age: the game's food demand never shrinks, so wood got 1-3 workers and nothing was built.
         /// Default wood_gap|surplus_to_wood|metals, all = every part, empty = none (the original). Its parts:
-        [on("wood_gap, surplus_to_wood, metals")]
+        [advanced, on("wood_gap, surplus_to_wood, metals")]
         late_targets_fields late_targets;
         /// Experimental: no new citizens while food is short and more than this many (and 15% of all) stand idle - stalled
         /// the growth in tests. 9999 = off (default)
-        [commented]
+        [advanced, commented]
         int idle_citizen_slack = 9999;
     }
 
@@ -1192,12 +1212,15 @@ class ai_base
         /// then waves. landing_transports = the most transports (the size follows the beach), landing_citizens = citizens
         /// for the forward base, landing_waves = waves after the first. 1 = on
         bool landing = true;
+        [advanced]
         int landing_transports = 8;
+        [advanced]
         int landing_citizens = 10;
+        [advanced]
         int landing_waves = 3;
         /// Experimental: a beach too strong for the army it can send is shelled first by a fleet of warships (trained for it,
         /// 4-16), then the landing comes. 0 = off (default)
-        [commented]
+        [advanced, commented]
         bool landing_bombard = false;
         /// Air transport (the player 2026-11-13: "expansion and landings should also include (and prefer) air transport in
         /// later ages"): where an Airport stands, a landing and an outpost order transport helicopters before ships and take
@@ -1212,13 +1235,14 @@ class ai_base
         /// A transport waiting at the shore for passengers that will never come (they stand idle without an order, or went
         /// off on another one) lets go of them after 30 s and sails with those aboard. 0 = off (default: in tests the
         /// transports waited far less, but the games went no better)
-        [commented]
+        [advanced, commented]
         bool transport_watchdog = false;
         /// (tests only: landing_flag, landing_knows_map, landing_trace, transport_log)
         ///
         /// --- Experimental (off by default) ---
         /// The defence decisions (muster, hold the town, militia) compare sides with the fight estimate
         /// (range, minimum range, area damage, the game's damage tables) instead of hit points x attack - no gain in tests
+        [advanced]
         bool fight_estimate = false;
     }
 
@@ -1227,36 +1251,45 @@ class ai_base
         ///
         /// --- advanced tuning (same for all difficulties) ---
         /// workers the AI grows to before it starts saving for the early epochs
+        [advanced]
         int min_workforce = 40;
         /// Recovery after the Copper Age: while the workforce is under min_workforce, two thirds of the workers gather food,
         /// the citizens may spend the whole stock and no soldiers are trained unless enemies are in the base - an AI with 3
         /// citizens and finished fields left empty spent the food it got on soldiers and never rebuilt. 0 = off
+        [advanced]
         bool recover_economy = true;
         /// Epoch requirements: besides the cost, an epoch needs two "new things" of the current one (a new unit type,
         /// building or tech). The AI asked for them only once it could pay, and often picked unbuildable decoration
         /// (statues) - it waited 4-14 minutes. 1 = ask early, never decoration, requirement units past the army budget
+        [advanced]
         bool early_requirements = true;
         /// Reserve plan (from the Copper Age on): hold back for the next epoch only what can't be gathered again in time -
         /// food spent now while gold and iron are still missing grows back on the farms. 1 = on
+        [advanced]
         bool reserve_plan = true;
         /// before the Copper Age: citizens on stone, gold and iron only for the epoch costs + this much for the army
         /// (else they sat on 1000 iron while the Stone Age waited for food); -1 = follow the army's demand
+        [advanced]
         int mineral_worker_margin = 300;
         /// share of the wild food it has found (berries) the AI counts on gathering
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         share wild_food_share = 0.6;
         /// food above the epoch reserve + this amount may always go into the army (no endless hoarding)
+        [advanced]
         int hoard_cap = 3000;
         /// the same for stone, gold and iron (hardly any civilian use besides the epoch cost, which is reserved anyway) -
         /// 600 kept ~600 iron lying while the army failed for iron hundreds of times every 5 minutes
+        [advanced]
         int hoard_cap_mineral = 200;
         /// Population limit of the AIs: 0 = the game limit, the same as yours (the AI at its strongest); 1 = follows the
         /// humans (original): 0.8 x the largest human population + 0.2 x the game limit, x 70% / 90% / 140% (easy / medium /
         /// hard) - the AI grows with you and doesn't flood you with units. Per difficulty: [ai_easy] below sets 1.
         bool pop_follow_human = false;
         /// from the Copper Age on: minutes before a planned epoch advance in which the AI starts saving
+        [advanced]
         int reserve_window_min = 5;
         /// distance (tiles) from the base within which the wild food (berries) counts for the food budget before farms
+        [advanced]
         int site_max_distance = 20;
     }
 }

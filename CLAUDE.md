@@ -126,6 +126,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead -
   a range the code can't go beyond is `[range(lo, hi, error: true)]` (LIMIT: outside it a mistake too). A key
   that only sets one of the game's own values has [game(...)] (rows.h SETTING_GAME: ageofai_config.exe shows its key blue).
+  A fine-tuning key (a feature's numbers, a technical fix, a diagnostic, an experiment) has [advanced] (on a group: all
+  its keys): ageofai_config.exe lists it only with its Advanced box ticked or while the file sets it off its default.
 - The game reads the personality files from `config/personalities/` (`ai_dir` in the user's ageofai.ini): a change to
   their format needs the matching installed DLL.
 

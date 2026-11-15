@@ -35,9 +35,9 @@ class llm
     /// 0: only in the log
     bool llm_ai_talk = false;
     bool llm_ai_talk_show = true;
-    [range(0, 1000000)]
+    [advanced, range(0, 1000000)]
     int llm_ai_talk_gap = 60;
-    [range(0, 1000000)]
+    [advanced, range(0, 1000000)]
     int llm_ai_talk_turns = 4;
     /// The model decides between the AIs too (1; single player, not with fixed teams): an alliance offer or a capitulation
     /// from one AI to another is answered by the other's model, and in their talks an AI may offer peace, declare war on an
@@ -48,11 +48,12 @@ class llm
     /// diplomacy of its own as a vassal, a tribute every 3 minutes of at most a quarter of each resource. 0 = only the
     /// game limits it: peace and war whenever it likes (a vassal may rebel against its lord), a vassal answers peace
     /// offers itself, tributes of all it has - for capable models; expect surprises
+    [advanced]
     bool llm_constrained = true;
     /// what each AI remembers of its talk with you, and each pair of AIs of theirs: the last <memory> chat lines, answers
     /// and events, in order (8; 0 = nothing; more = longer requests - small models get slower and lose track). Kept in
     /// saved games
-    [range(0, 100000)]
+    [advanced, range(0, 100000)]
     int llm_memory = 8;
     enum memory_mode_choice
     {
@@ -64,11 +65,13 @@ class llm
         player,
     }
     /// What a computer player remembers of the talk:
+    [advanced]
     memory_mode_choice llm_memory_mode = memory_mode_choice.pair;
     /// the model isn't told who is human: you are "another leader in this game" like every AI (1), or the human player (0)
+    [advanced]
     bool llm_equal = false;
     /// seconds a line may wait for the model (2..120), else the fixed line
-    [range(0, 1000000)]
+    [advanced, range(0, 1000000)]
     int llm_timeout = 20;
     enum fallback_choice
     {
@@ -79,22 +82,25 @@ class llm
         pause,
     }
     /// When the model can't be reached or hasn't answered within timeout (single player only):
+    [advanced]
     fallback_choice llm_fallback = fallback_choice.rules;
     /// answer length (tokens, 16..8000; 300 is plenty for one or two sentences - more only with think=1) and temperature
     /// (80% = 0.8, up to 200%)
-    [range(0, 1000000)]
+    [advanced, range(0, 1000000)]
     int llm_max_tokens = 300;
-    [range(0, 2)]
+    [advanced, range(0, 2)]
     share llm_temperature = 0.8;
     /// Reasoning models think before they answer: 0 = asked not to ("reasoning_effort":"none" - answers in seconds; a server
     /// that doesn't know the field gets requests without it), 1 = let them think (much slower; needs more llm_max_tokens)
+    [advanced]
     bool llm_think = false;
     /// extra JSON fields for the request (e.g. "top_p":0.9)
-    [length(256)]
+    [advanced, length(256)]
     string llm_extra = "";
     /// for a server that wants a key (a local one doesn't)
     [length(128)]
     string llm_api_key = "";
     /// prompts and answers into ageofai_log.csv (# llm:)
+    [advanced]
     bool llm_log = true;
 }

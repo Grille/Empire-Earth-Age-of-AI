@@ -191,6 +191,7 @@ def analyse():
         rows = re.sub(r'\bV\(\s*\w+\s*,', blank, rows)
         rows = re.sub(r'\bB\(\s*\w+\s*,\s*\w+\s*\)', blank, rows)   # SETTING_TARGET's: a key and its build (ee, aoc)
         rows = re.sub(r'\bSETTING_TARGET\(B\)', blank, rows)   # its parameter: persist.c has a macro B of its own
+        rows = re.sub(r'\bZ\(\s*\w+\s*\)', blank, rows)   # SETTING_ADVANCED's: a key
         code['settings/rows.h'] = re.sub(r'\b[DE]\(\s*\w+\s*,(\s*\w+\s*,)?', blank, rows)
     owner = collections.defaultdict(set)
     for f in files:

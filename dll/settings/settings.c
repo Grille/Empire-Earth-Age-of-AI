@@ -68,6 +68,9 @@ internal const struct { int row; const char *sec; } k_settings_also[] = { SETTIN
 #define SET_TARGET(key, build) { SETTING_##key, #build },
 internal const struct { int row; const char *build; } k_settings_target[] = { SETTING_TARGET(SET_TARGET) };
 #define SETTING_TARGET_N ((int)(sizeof k_settings_target / sizeof *k_settings_target))
+#define SET_ADVANCED(key) SETTING_##key,
+internal const int k_settings_advanced[] = { SETTING_ADVANCED(SET_ADVANCED) };   // [advanced]: the tool's Advanced box
+#define SETTING_ADVANCED_N ((int)(sizeof k_settings_advanced / sizeof *k_settings_advanced))
 
 #define SET_TITLE(key, title) { SETTING_##key, title },
 internal const struct { int row; const char *title; } k_settings_titles[] = { SETTING_TITLES(SET_TITLE) };

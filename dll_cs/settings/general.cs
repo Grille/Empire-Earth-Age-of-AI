@@ -108,23 +108,23 @@ class general
         /// Land route corners (with land routes): each corner of a route moved up to 1.5 tiles away from the buildings,
         /// trees and cliffs it rounds, as far as there is room (through a gap it keeps to the middle), so units don't scrape
         /// every corner on the way. 0 = the corners as the search finds them
-        [commented("0")]
+        [advanced, commented("0")]
         bool land_widen = true;
         /// Shared routes (with ship or land routes): a route planned is kept for a second, and the next unit sent to the same
         /// spot joins it from where it stands instead of planning its own over the whole map - a group sent far asked for a
         /// route per unit, together long enough to make the picture stand. 0 = each unit its own route
-        [commented("0")]
+        [advanced, commented("0")]
         bool share_routes = true;
         /// Route budget (with ship or land routes): the route planning of one simulation step is limited - past it a unit
         /// sent far gets the first part of its route at once and the rest a moment later, so a big army's order doesn't
         /// hold up the picture. 0 = every route planned whole at once
-        [commented("0")]
+        [advanced, commented("0")]
         bool route_budget = true;
         /// Route corridor (with land routes): a long land trip's route is searched only along a coarse route through the
         /// map's walkable cells (who can walk where, gates by who may pass), and a spot no land unit can walk to is known at
         /// once instead of after searching everything reachable - the same routes for a third less work. 0 = every route
         /// searched over the whole map
-        [commented("0")]
+        [advanced, commented("0")]
         bool route_corridor = true;
         /// Ship turns: a ship whose next waypoint lies more than 45 degrees off its bow (a new order while under way, a corner)
         /// turns in an arc at the speed the turn allows, where the circle is free, instead of slowing to a crawl and turning
@@ -150,7 +150,7 @@ class general
         /// it, so it points the way it is actually going - before, a ship whose place lay beyond its neighbour kept steering
         /// at it and was pushed along sideways, a fleet sailing one way with some of its ships turned across it. It turns
         /// back to its place once nothing is in the way. 0 = it keeps steering at its place
-        [commented("0")]
+        [advanced, commented("0")]
         bool collide_slide = true;
         /// Formations: a group sent somewhere takes up its formation (line, staggered, wedge, circle - as chosen) laid out
         /// by its units' own sizes around the clicked point, each unit keeping its place in the group (the front ones in front,
@@ -176,24 +176,24 @@ class general
         /// facing another way, to face another way at its goal, or a shift-queued turn - when the turn moves its outermost
         /// unit no further than this; turned further it forms anew, each unit to the nearest place. A squad of six wheels
         /// right round within 3 tiles, a wedge of a hundred breaks up turning 30 degrees
-        [range(1, 20)]
+        [advanced, range(1, 20)]
         int formation_wheel = 3;
         /// Formation catch-up (with formation follow): how fast a unit behind its place in the marching formation may go to
         /// keep it, in percent of its own top speed - all of it within its own size of its place, falling off to its own top
         /// speed at formation_catchup_falloff times that. Also how much the formation slows in a turn (the outermost unit
         /// keeps up within it). 100% = never faster than its own top speed
-        [range(1, 3)]
+        [advanced, range(1, 3)]
         factor formation_catchup = 1.25;
         /// Formation catch-up fall-off (with formation follow): how far behind its place, in multiples of its own size, a
         /// unit's catch-up has fallen off to nothing - from there on it walks at its own top speed and the formation slows
         /// for it (formation_wait). 1 = the catch-up only within its own size of its place
-        [range(1, 20)]
+        [advanced, range(1, 20)]
         int formation_catchup_falloff = 4;
         /// Formation re-form (with formation follow): how fast a unit may go to take its place when the formation forms -
         /// for 5 seconds after a march begins or it was last in its place (a re-form or a new order on the march), in
         /// percent of its own top speed, fading out; no more than the catch-up it had at that moment (a straggler with
         /// none gets none, and none from rest). 100% = at its own top speed
-        [range(1, 3)]
+        [advanced, range(1, 3)]
         factor formation_reform = 1.25;
         /// Formation wait (with formation follow): the formation goes at most this share of a straggler's speed - a unit
         /// fallen behind the formation's rear beyond its catch-up (formation_catchup_falloff times its size) has only its
@@ -202,24 +202,25 @@ class general
         /// not gaining on its place for 10 seconds (blocked, jostled in a crowd) is given up on. Lower = the formation
         /// waits more for stragglers (tighter, slower), 0% = it stands until they have caught up, 100% = it doesn't slow
         /// below a straggler's speed (the straggler never gains on it)
-        [range(0, 1)]
+        [advanced, range(0, 1)]
         factor formation_wait = 1;
         /// Formation narrowing (with formation follow): a marching formation becomes a narrower, deeper column where the
         /// room across its way is less than this share of its width, and spreads out again where the ground opens. Under
         /// 40% of its width the column is always packed tight and files through in order. Higher = it re-forms already
         /// for gaps a little narrower than itself (its units keep the formation's spacing, the ranks are filled anew),
         /// lower = it squeezes through those as it is, the flanks drawn in
-        [range(0.1, 1)]
+        [advanced, range(0.1, 1)]
         factor formation_narrow = 0.4;
         /// Formation wide routes (with formation follow and land routes): a formation's route is chosen for the whole
         /// formation, not for one unit - a gap it must file through counts as the extra way its last unit walks for it,
         /// so a wider gap a little further off is taken instead, a far one is not. Large formations only (about 100
         /// foot soldiers and more): smaller ones lose little in a gap and keep the shortest way
+        [advanced]
         bool formation_wide_routes = true;
         /// Friendly collision (with land collide / ship collide): two units of one player or of allies push each other off
         /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as
         /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units
-        [range(0.25, 1)]
+        [advanced, range(0.25, 1)]
         factor friendly_collision = 0.75;
     }
 
@@ -237,7 +238,7 @@ class general
         /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player; chat_seconds = how long a line
         /// stays on screen:
         chat_choice chat = chat_choice.off;
-        [range(0, 3600)]
+        [advanced, range(0, 3600)]
         int chat_seconds = 15;
         /// AI personalities: copy the mod's folder personalities into this folder (ageofai). Every AI gets one of the personalities in
         /// it (name, favoured colour on random maps, traits for diplomacy, lines for situations of the game - see
@@ -247,7 +248,7 @@ class general
         bool ai_names = true;
         /// the personality folder somewhere else (absolute, or relative to the game folder) - for whoever works on the texts:
         /// the game reads them where they are edited, e.g. the mod's repository; empty = personalities in this folder
-        [length(limits.MAX_PATH), commented("_aimod\\config\\personalities")]
+        [advanced, length(limits.MAX_PATH), commented("_aimod\\config\\personalities")]
         string ai_dir = "";
         /// the game's language: the AI voice answers in it, colour names follow it - the texts in personalities are English. Detected from the game (all 12 retail languages:
         /// de, en, fr, es, it, pl, pt-br, ru, ko, zh-cn, zh-tw); set it here if that fails or to choose another, e.g.
@@ -256,21 +257,25 @@ class general
         string language = "";
         /// EXPERIMENTAL: 1 = the personalities' style settings change how they play (earlier/later attacks, army
         /// share, home guard). 0 (default) = every AI plays the same, tested way; personalities only talk and negotiate
+        [advanced]
         bool ai_style = false;
         /// For whoever writes the texts in personalities (personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai): 1 = every mistake comes
         /// up at once - the files' at startup in a message box, those found while playing (an unknown name in a condition, a
         /// broken expression, a placeholder nobody fills) as a line in the game. 0 (default) = a mistake is only logged
         /// (ageofai_log.csv, # texts:) and that key is skipped - a bad file never stops the game
+        [advanced]
         bool strict_parsing = false;
         /// Saved games: the mod's own state (opinions, grudges, who capitulated to whom, pending offers, army accounts)
         /// goes into <save name>.ageofai next to the save and comes back when it is loaded. 0 = off (all of it starts
         /// fresh after loading)
+        [advanced]
         bool save_state = true;
         /// a fixed personality for one player slot (file name without .eeai), e.g.:
         [per_player, length(40), commented("eroberer", "personality_P2")]
         string personality_P = "";
     }
 
+    [advanced]
     class ToolsAndDebugging
     {
         /// Remote control for tools (scripts/test/eectl.py, the MCP server scripts/test/ee_mcp.py): a local named pipe that can read

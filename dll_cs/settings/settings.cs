@@ -73,6 +73,9 @@
 // lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.
 // [target(aoc)] (or ee) it matters in that build only - the other has it of its own or lacks what it changes
 // (SETTING_TARGET: the tool greys it out next to the other build's exe).
+// [advanced] fine-tuning (a number that tunes a feature, a technical fix, a diagnostic, an experiment): the tool lists it
+// only with its "Advanced" box ticked, or while the file sets it away from its default (SETTING_ADVANCED) - the
+// file has it as any other key. On a group: every key in it (a [master] group's own key too).
 
 global using static ageofai.settings.build;   // [target(aoc)]: the builds by their names
 using System;
@@ -103,6 +106,8 @@ public sealed class master : Attribute { }
 public sealed class also : Attribute { public also(string section) { } }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class on : Attribute { public on(string fields) { } }
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)]
+public sealed class advanced : Attribute { }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class target : Attribute { public target(build b) { } }
 

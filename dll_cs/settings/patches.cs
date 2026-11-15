@@ -12,7 +12,7 @@ class patches
     /// Sight counts: a map tile counts the units that see it in one byte, so with more than 254 units seeing it the
     /// count wrapped - the tile took itself for unexplored, and it and everything on it (units, trees) blinked out in
     /// big armies. 1 = the whole count kept (up to 65000); 0 = the original
-    [title("Sight counts over 254 units")]
+    [advanced, title("Sight counts over 254 units")]
     bool sight_counts = true;
     /// Turn fix: Art of Conquest's fix brought back - units that turn with momentum (ships, helicopters, tanks ...)
     /// stop on their heading instead of swinging past it and back. 0 = the original
@@ -22,7 +22,7 @@ class patches
     /// looked in both folders' loose files before either archive - a loose file in Empire Earth's Data folder
     /// (a tweaked dbworld.dat ...) beat AoC's own data, and AoC read tables shorter than its own (units with no
     /// reload). 1 = AoC's files first, loose or packed, then Empire Earth's; 0 = the original
-    [title("Data order in Art of Conquest"), target(aoc)]
+    [advanced, title("Data order in Art of Conquest"), target(aoc)]
     bool aoc_data_order = true;
     enum reload_choice
     {
@@ -57,14 +57,14 @@ class patches
     /// stands only where a wall ends, turns or branches: a wall runs on through, and into a tower or a gate. Set
     /// when a wall or a gate is built; a destroyed wall's gap stays open. In multiplayer every player needs the
     /// same setting. 0 = the original
-    [title("Wall joins")]
+    [advanced, title("Wall joins")]
     bool wall_joins = true;
     /// Walls a game starts with (with wall_slopes): a scenario's walls (made without the mod, or with these settings
     /// off) and a game's saved before are fitted and joined at the game's start, as if built with them. 0 = they stay
     /// as they were made; walls built in the game are fitted, and an old one a new one is drawn onto with it. In the
     /// scenario editor 1 has every wall looked at whenever walls change there, 0 only those around the change.
     /// In multiplayer every player needs the same setting
-    [title("Fit the walls a game starts with")]
+    [advanced, title("Fit the walls a game starts with")]
     bool wall_start_fit = true;
     /// Buildings on slopes: some buildings lean with the ground under them (the AA guns), but one built in a game
     /// stood level, its legs in the hill on one side and in the air on the other, and the scenario editor leaned
@@ -79,12 +79,12 @@ class patches
     /// (one on several tiles is met again), and for every unit drawn it made and freed sixteen empty lists while
     /// counting another user of the unit's pictures - with thousands of units on the screen a good share of every
     /// frame. 1 = the list looked up, the user counted directly; 0 = the original
-    [title("Drawing many units")]
+    [advanced, title("Drawing many units")]
     bool draw_many_units = true;
     /// Interface redraw: with the hardware T&L renderer the game left unset whether the screen keeps its picture
     /// between frames, so in some games (by chance, at every start) it redrew the whole interface every frame - its
     /// bars and their text - instead of only what changed: a third slower on a big map. 1 = only what changed, as
     /// with the other renderer; 0 = the original
-    [title("Interface redrawn only where it changed")]
+    [advanced, title("Interface redrawn only where it changed")]
     bool interface_redraw = true;
 }

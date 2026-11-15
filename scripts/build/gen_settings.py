@@ -109,7 +109,7 @@ def table(name, args, lines):
 
 
 def rows_h(secs):   # the file below its header
-    fields, rows, groups, game, members, also, titles, easy, target, named = [], [], [], [], [], [], [], [], [], []
+    fields, rows, groups, game, members, also, titles, easy, target, named, advanced = [], [], [], [], [], [], [], [], [], [], []
     arg = settings_read.arg_text
     seen = {}
     for sec in secs:
@@ -151,6 +151,8 @@ def rows_h(secs):   # the file below its header
                 if to not in ('ee', 'aoc'):
                     raise SystemExit('%s: [target(%s)]: ee or aoc' % (k.where, to))
                 target.append('B(%s %s)' % ((k.name + ',').ljust(20), to))
+            if 'advanced' in k.attrs:
+                advanced.append('Z(%s)' % k.name)
             if k.master:
                 members.append('M(%s %s)' % ((k.name + ',').ljust(20), k.master))
     sections = ['T(%s %s %s %s)' % ((s.name + ',').ljust(10), ('%d,' % s.place).rjust(4), (s.kind + ',').ljust(6), c_str(s.title))
@@ -164,6 +166,7 @@ def rows_h(secs):   # the file below its header
     out += table('SETTING_MEMBERS', 'M', members)
     out += table('SETTING_ALSO', 'A', also)
     out += table('SETTING_TARGET', 'B', target)
+    out += table('SETTING_ADVANCED', 'Z', advanced)
     out += table('SETTING_TITLES', 'K', titles)
     out += table('SETTING_NAMED', 'N', named)
     return '\n'.join(out).rstrip('\n') + '\n'

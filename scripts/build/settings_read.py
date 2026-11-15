@@ -120,6 +120,7 @@ def kind_of(sec, k):   # rows.h's kind of a key
 def read_file(path):
     secs, doc, attr_text, depth, cur, group = [], [], '', 0, None, None   # group: the title of a group just begun
     master = None   # the [master] group's key its keys follow, while in it
+    advanced = False   # in an [advanced] group: its keys are
     inner = None   # an enum or struct written as a block: [kind, name, its doc, {member: file name} or [fields], {member: doc}]
     rel = os.path.relpath(path, ROOT).replace(os.sep, '/')
     for n, raw in enumerate(open(path, encoding='utf-8'), 1):
@@ -200,7 +201,7 @@ def read_file(path):
                 depth -= 1
                 continue
         if depth == 2 and cur and code == '}':   # a group ends
-            master = None
+            master, advanced = None, False
             if doc:
                 raise SystemExit('%s: /// lines at the end of a group - they belong before a key, or after the group' % where)
             depth -= 1
@@ -221,9 +222,12 @@ def read_file(path):
             name = re.match(r'^class\s+@?(\w+)$', code).group(1)
             named = dict((a[0], a[1]) for a in spec_read.attrs_of(attr_text))
             group = arg_text(named['title'][0]) if 'title' in named else title_of(name)
+            advanced = 'advanced' in named
             if 'master' in named:   # its own key first, its /// lines the class's
                 k = Key(snake(name), MASTER_TYPE, MASTER_TYPE + '.default', [], doc, where)
                 k.attrs['group'], group = [group], None
+                if advanced:
+                    k.attrs['advanced'] = []
                 cur.keys.append(k)
                 cur.enums[MASTER_TYPE] = {v: n for v, (n, _) in MASTER_VALUES.items()}
                 cur.docs[MASTER_TYPE] = {v: [t] for v, (_, t) in MASTER_VALUES.items()}
@@ -246,6 +250,8 @@ def read_file(path):
                 if k.type not in ('bool', 'factor', 'int'):
                     raise SystemExit('%s: %s is a %s - a [master] group holds bool, factor and int keys only' % (where, k.name, k.type))
                 k.master = master
+            if advanced:
+                k.attrs['advanced'] = []
             cur.keys.append(k)
             attr_text, doc = '', []
         depth += code.count('{') - code.count('}')

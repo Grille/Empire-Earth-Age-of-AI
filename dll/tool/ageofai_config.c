@@ -33,7 +33,7 @@
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
-       ID_GAME_APPLY, ID_GAME_RESTORE, ID_HELP_OPEN, ID_GAME_SETTINGS };
+       ID_GAME_APPLY, ID_GAME_RESTORE, ID_HELP_OPEN, ID_GAME_SETTINGS, ID_ADVANCED };
 
 // THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out) - the tree's sections and
 // the AI's difficulty columns; diff >= 0: a difficulty's own section, its rows those of [ai_base]
@@ -76,7 +76,7 @@ internal char g_unknown[4096];   // "[sec] key" of the keys that are no setting,
 internal struct { char sec[16], key[64]; } g_unk[64];
 internal int g_nunk, g_remove_unknown;
 
-internal HWND g_wnd, g_filter, g_list, g_help, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
+internal HWND g_wnd, g_filter, g_advanced, g_list, g_help, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
               g_game_text, g_game_apply, g_game_restore, g_game_settings;
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the game page's report, aligned for a fixed-width font
 internal HFONT g_strike[2];   // g_font, g_bold struck through: a master's member whose value doesn't play
@@ -628,6 +628,15 @@ internal int also_on(int row, int p) {   // row is listed on page p too (SETTING
     return 0;
 }
 
+// ADVANCED: the rows marked [advanced] (rows.h SETTING_ADVANCED: a feature's numbers, technical fixes, diagnostics,
+// experiments) are listed only with the Advanced box beside the search ticked - or while the file sets one away from
+// its default (an AI row: any difficulty of it), so that nothing the file changes is out of sight
+internal int g_show_advanced;
+internal int is_advanced(int row) {
+    for (int i = 0; i < SETTING_ADVANCED_N; i++) if (k_settings_advanced[i] == row) return 1;
+    return 0;
+}
+
 internal void make_groups(void) {   // the rows in their order: each in the last group begun in its section
     int cur[SETTING_SECTION_N];
     for (int s = 0; s < SETTING_SECTION_N; s++) cur[s] = -1;
@@ -823,12 +832,16 @@ internal void add_entry(int i, int level) {
 
 // the lines: a closed node's lines left out; with a search, every setting it finds and the nodes above them (open).
 // keep: the line selected again; stay: the list scrolled as it was (a node opened or closed), else from its start
+internal int advanced_listed(const struct entry *e) {   // not left out as advanced
+    return g_show_advanced || !is_advanced(e->row) || is_changed(e) || diff_set(e);
+}
 internal void fill_list(LPARAM keep, int stay) {
     char filter[64];
     static uint8_t found[1024];
     GetWindowTextA(g_filter, filter, sizeof filter);
     CharLowerA(filter);
-    for (int i = 0; i < g_ne; i++) found[i] = is_section_page(g_e[i].page) && matches(&g_e[i], filter);
+    for (int i = 0; i < g_ne; i++)
+        found[i] = is_section_page(g_e[i].page) && advanced_listed(&g_e[i]) && matches(&g_e[i], filter);
     g_nvis = 0;
     for (int p = 0; p < g_npages; p++) {
         if (!is_section_page(p)) continue;
@@ -1320,7 +1333,9 @@ internal void layout(void) {
     g_split_y1 = list_end;
     SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);   // the list moved and its columns set, then painted once
     g_defer = BeginDeferWindowPos(32);
-    put_control(g_filter, x, m, lw, dpi_px(24));
+    int aw = dpi_px(100);   // the Advanced box right of the search
+    put_control(g_filter, x, m, lw - aw - m, dpi_px(24));
+    put_control(g_advanced, x + lw - aw, m + dpi_px(2), aw, dpi_px(20));
     put_control(g_list, x, m + dpi_px(32), lw, list_h);
     put_control(g_help, px, m, pw, list_end - m);
     int by = h - dpi_px(32) - m / 2;
@@ -1360,6 +1375,7 @@ internal HWND make_child(const char *cls, const char *text, DWORD style, int id)
 internal void create_controls(void) {
     g_filter = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, ID_FILTER);
     SendMessageW(g_filter, EM_SETCUEBANNER, TRUE, (LPARAM)L"Search every setting");
+    g_advanced = make_child(WC_BUTTONA, "Advanced", BS_AUTOCHECKBOX | WS_TABSTOP, ID_ADVANCED);
     g_list = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "", WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT |
                              LVS_SINGLESEL | LVS_SHOWSELALWAYS, 0, 0, 10, 10, g_wnd, (HMENU)ID_LIST, GetModuleHandleA(NULL), NULL);
     SendMessageA(g_list, WM_SETFONT, (WPARAM)g_font, TRUE);
@@ -1436,7 +1452,7 @@ internal int ask_close(void) {
 // the settings, or the game page in their place (the Game exe button)
 internal void show_mode(void) {
     int game = g_game_mode;
-    HWND side[] = { g_filter, g_list, g_help };
+    HWND side[] = { g_filter, g_advanced, g_list, g_help };
     for (size_t i = 0; i < sizeof side / sizeof *side; i++) ShowWindow(side[i], game ? SW_HIDE : SW_SHOW);
     ShowWindow(g_game_text, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_apply, game ? SW_SHOW : SW_HIDE);
@@ -1787,6 +1803,10 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         if ((id == ED_COMBO && code == CBN_SELCHANGE) || (id == ED_EDIT && code == EN_CHANGE)) editor_changed(id);
         else if (id == ED_COMBO && code == CBN_CLOSEUP) SetFocus(g_list);   // the keys go on with the lines
         else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node, 0);
+        else if (id == ID_ADVANCED && code == BN_CLICKED) {
+            g_show_advanced = SendMessageA(g_advanced, BM_GETCHECK, 0, 0) == BST_CHECKED;
+            fill_list(g_node, 1);
+        }
         else if (id == ID_GAME) { g_game_mode ^= 1; show_mode(); }
         else if (id == ID_HELP_OPEN) help_open();
         else if (id == ID_GAME_APPLY) game_apply();
