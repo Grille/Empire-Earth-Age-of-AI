@@ -666,10 +666,15 @@ internal void rf_ground_lines(void) {
         d->changed |= RD_CH_VC;
     }
 }
-// the kept batches k0 .. k1 - 1 drawn again
+// the kept batches k0 .. k1 - 1 drawn again - under the renderer's lock, as every other draw that records: a surface
+// freed on another thread meanwhile (the game frees textures from its loader and the simulation, an epoch change many)
+// draws the list first (rd_surface_free), and this one's batches grew the constants' snapshots under it - realloc moved
+// them away and the replay read the freed block (the player's game, 2026-11-15, at 60.7 min: rf_draw's copy of
+// g_rf.vcs[86] from unmapped memory, and once before at 21:06 the same read)
 internal void rf_ground_again_part(rf_ground *g, int k0, int k1) {
     if (!g_kg_skip || !g->nb) return;
     if (k1 > g->nb) k1 = g->nb;
+    RD_LOCK();
     rd3_flush();
     for (int k = k0; k < k1; k++) {
         const rf_kept *b = &g->b[k];
@@ -695,6 +700,7 @@ internal void rf_ground_again_part(rf_ground *g, int k0, int k1) {
         g_kg_drawn++;
     }
     g_rd3.bound = 0;   // the game's next draw binds all its states again
+    RD_UNLOCK();
 }
 internal void rf_ground_again(rf_ground *g) { rf_ground_again_part(g, 0, g->nb); }
 
