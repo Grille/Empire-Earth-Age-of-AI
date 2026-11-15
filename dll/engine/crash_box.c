@@ -204,8 +204,29 @@ internal LRESULT CALLBACK cb_cbt(int code, WPARAM wp, LPARAM lp) {
     }
     return CallNextHookEx(NULL, code, wp, lp);
 }
+// the frozen game's window out of sight while the box is open, the box alone on the screen (the player, 2026-11-15:
+// "could the frozen game in the background be hidden away and only leave the dialog?"): cloaked by DWM, which sends the
+// window nothing - its thread may be the one stopped at the crash, and a hide (ShowWindow, SetWindowPos) waits on its
+// messages forever; a thread of its own, so a cloak that hangs anyway leaves the box. The cursor let out of the window's
+// clip (lock_mouse) too. Exclusive full screen has no DWM: it stays.
+typedef HRESULT (WINAPI *cb_dwm_set_fn)(HWND, DWORD, const void *, DWORD);
+internal int g_cb_cloaked;
+internal void cb_cloak(BOOL on) {
+    HWND w = g_subclassed;
+    HMODULE dw = w ? LoadLibraryA("dwmapi.dll") : NULL;
+    cb_dwm_set_fn set = dw ? (cb_dwm_set_fn)(void *)GetProcAddress(dw, "DwmSetWindowAttribute") : NULL;
+    if (set && SUCCEEDED(set(w, 13 /* DWMWA_CLOAK */, &on, sizeof on))) g_cb_cloaked = on;
+}
+internal DWORD WINAPI cb_cloak_thread(void *arg) {
+    (void)arg;
+    cb_cloak(TRUE);
+    return 0;
+}
 internal DWORD WINAPI cb_box_thread(void *arg) {
     (void)arg;
+    ClipCursor(NULL);
+    HANDLE ct = CreateThread(NULL, 64 * 1024, cb_cloak_thread, NULL, 0, NULL);
+    if (ct) CloseHandle(ct);
     EXCEPTION_RECORD *er = g_cb_ep->ExceptionRecord;
     CONTEXT *c = g_cb_ep->ContextRecord;
     char at[160];
@@ -273,7 +294,10 @@ internal LONG WINAPI cb_filter(EXCEPTION_POINTERS *ep) {
     g_cb_thread = GetCurrentThreadId();
     HANDLE h = CreateThread(NULL, 256 * 1024, cb_box_thread, NULL, 0, NULL);
     if (h) { WaitForSingleObject(h, INFINITE); CloseHandle(h); }
-    if (g_cb_debugger) return EXCEPTION_CONTINUE_EXECUTION;   // the faulting instruction again: the debugger stops at it
+    if (g_cb_debugger) {   // the faulting instruction again: the debugger stops at it, the window in sight again
+        if (g_cb_cloaked) cb_cloak(FALSE);
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
     TerminateProcess(GetCurrentProcess(), ep->ExceptionRecord->ExceptionCode);   // as a crash ended (not g_cb_next: above)
     return EXCEPTION_EXECUTE_HANDLER;
 }
