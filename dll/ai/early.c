@@ -107,7 +107,7 @@ internal int early_core_spot(ee_player *pl, int type, int *ox, int *oy) {
         for (int r = 0; r <= 2; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
-                    if ((abs(ax) != r && abs(ay) != r) || raiders_near(pl, iv2(x + ax, y + ay), 10) || !can_place(pl, type, iv2(x + ax, y + ay)))
+                    if ((abs(ax) != r && abs(ay) != r) || raiders_near(pl, iv2(x + ax, y + ay), 10) || !can_place_open(pl, type, iv2(x + ax, y + ay)))
                         continue;
                     *ox = x + ax; *oy = y + ay;
                     st->pend[k].x = *ox; st->pend[k].y = *oy; st->pend[k].t = now ? now : 1;

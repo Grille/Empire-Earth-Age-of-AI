@@ -329,7 +329,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 int x = d.x + ax, y = d.y + ay;
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
+                if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
                     !can_place(pl, FORTRESS_TYPE, iv2(x - 1, y - 1)) || raiders_near(pl, iv2(x, y), 8)) continue;
                 ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
                 int sent = b ? bk_builders(pl, b, 3) : 0;

@@ -954,7 +954,7 @@ internal int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int typ
                 int ok = area_id(q, 2) == cont && !area_id(q, 1);
                 for (int k = 0; k < l->nproj && ok; k++)   // room between its buildings: a way through
                     if (l->proj[k].state && abs(l->proj[k].p.x - q.x) < sz + 3 && abs(l->proj[k].p.y - q.y) < sz + 3) ok = 0;
-                if (!ok || !can_place(pl, type, q)) continue;
+                if (!ok || !can_place_open(pl, type, q)) continue;
                 float sc = (float)d + 10.0f * threat_at(pi, q);
                 if (sc < best) { best = sc; *o = q; found = 1; }
             }

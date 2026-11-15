@@ -380,7 +380,7 @@ internal int tn_spot(ee_player *pl, unsigned idx, struct tn_town *t, int type, i
                 int ok = area_id(q, 2) == hc && !area_id(q, 1);
                 for (int k = 0; k < t->nproj && ok; k++)   // a way between its buildings
                     if (t->proj[k].state && t->proj[k].state != 3 && abs(t->proj[k].p.x - q.x) < sz + 3 && abs(t->proj[k].p.y - q.y) < sz + 3) ok = 0;
-                if (!ok || !can_place(pl, type, q)) continue;
+                if (!ok || !can_place_open(pl, type, q)) continue;
                 float sc = (float)d + 10.0f * threat_at(idx, q);
                 if (sc < best) { best = sc; *o = q; found = 1; }
             }

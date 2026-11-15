@@ -164,6 +164,72 @@ internal int tb_neighbours_ok(ee_map *map, int size, int x, int y, int s, ee_pla
         }
     return tb_leads_out(map, size, x, y, x + s - 1, y + s - 1, x, y, s);   // a pocket among old buildings is no way out either
 }
+// NO SHUT-IN PLACES (the player 2026-11-15, three screenshots of the mod's own building with the game's computer player
+// off: a courtyard of Hospitals, Temples and a Town Center closed on all sides, a crowd of soldiers trapped between
+// buildings and a forest - "these enclosed spaces happen often and can kill an ai, the placement code must make sure
+// that the open space left for building actually connects to the remaining territory"). Every building the mod lays
+// itself (defence.c can_place_open: build.c's spots, the granaries, the towers, the fortress, the first towers) asks
+// what the packing asks without its widths: its walkable ring one unbroken arc - what walked through its footprint
+// walks round it, the last building of a courtyard has the yard on one side and the town on the other, two arcs - and
+// tb_neighbours_ok: the buildings beside it keep their way out, its own free tiles lead out. Trees, cliffs and the
+// sea count as what they are: a forest closes a yard as a wall would.
+// The spot's open ground must be the town's: a free tile beside it in the walking region (the reach map's, its gates
+// open) most of its buildings stand in - a yard already closed, the land behind a wall whose gate is shut are not (12
+// of P3's buildings stood behind its first border wall). On another continent (an outpost, a landing) not asked.
+// The town's region: worked out again every 30 s.
+internal int tb_town_side(ee_player *pl, int size, int x, int y, int s) {
+    static struct { int region; unsigned land; uint32_t t; } town[16];
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    int p = player_get_index(pl);
+    uint32_t now = game_time();
+    if (!town[idx].t || now < town[idx].t || now - town[idx].t >= 30000) {
+        static int reg[64], cnt[64], lx[64], ly[64];
+        int nr = 0, count = 0;
+        town[idx].t = now ? now : 1; town[idx].region = -1; town[idx].land = 0;
+        for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            int cls = td ? unit_type_get_class_id(td) : -1, bs = td ? unit_type_get_size(td) : 0, bx = unit_get_x(u), by = unit_get_y(u), r = -1;
+            if (!td || unit_get_hp(u) <= 0 || bx < 0 || (cls != CLS_BUILDING && cls != CLS_FORTRESS) || is_wall(unit_type_get_id(td))) continue;
+            if (bs < 1 || bs > 16) bs = 1;
+            for (int ry = by - 1; ry <= by + bs && r < 0; ry++)
+                for (int rx = bx - 1; rx <= bx + bs && r < 0; rx++)
+                    if (!(rx >= bx && rx < bx + bs && ry >= by && ry < by + bs)) r = rm_region_of(p, rx, ry);
+            if (r < 0) continue;
+            int k = 0;
+            while (k < nr && reg[k] != r) k++;
+            if (k == nr) { if (nr == 64) continue; reg[nr] = r; cnt[nr] = 0; lx[nr] = bx; ly[nr++] = by; }
+            cnt[k]++;
+        }
+        for (int k = 0, most = 0; k < nr; k++)
+            if (cnt[k] > most) { most = cnt[k]; town[idx].region = reg[k]; town[idx].land = area_id(iv2(lx[k], ly[k]), 2); }
+    }
+    if (town[idx].region < 0 || area_id(iv2(x, y), 2) != town[idx].land) return 1;
+    for (int ry = y - 1; ry <= y + s; ry++)
+        for (int rx = x - 1; rx <= x + s; rx++)
+            if (!(rx >= x && rx < x + s && ry >= y && ry < y + s) && rx >= 0 && ry >= 0 && rx < size && ry < size && rm_region_of(p, rx, ry) == town[idx].region) return 1;
+    return 0;
+}
+internal int tb_access_ok(ee_player *pl, int x, int y, int s) {
+    if (!rm_ready() || !g_reach.walker || s < 1 || s > TB_MAX_SIZE) return 1;   // no citizen on the map: nobody walks or builds
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0;
+    if (!size) return 1;
+    static const int8_t dx[4] = { 0, 1, 0, -1 }, dy[4] = { -1, 0, 1, 0 };
+    uint8_t f[4 * (TB_MAX_SIZE + 1)];
+    int n = 0, walkable = 0;
+    for (int side = 0; side < 4; side++) {   // the ring as tb_ring_ok walks it
+        int rx = side == 0 || side == 3 ? x - 1 : x + s, ry = side < 2 ? y - 1 : y + s, sx = -dy[side], sy = dx[side];
+        for (int i = 0; i <= s; i++) { f[n] = (uint8_t)(rm_tile_ok(map, size, rx + sx * i, ry + sy * i) != 0); walkable += f[n++]; }
+    }
+    if (!walkable) return 0;
+    if (walkable < n) {
+        int arcs = 0;
+        for (int i = 0; i < n; i++) arcs += f[i] && !f[(i + 1) % n];
+        if (arcs != 1) return 0;
+    }
+    if (!tb_town_side(pl, size, x, y, s)) return 0;
+    return tb_neighbours_ok(map, size, x, y, s, pl);
+}
 // nothing near it that wants the room
 internal int tb_clear(ee_map *map, int size, int x, int y, int s) {
     int r = TB_CLEAR_DROP;
@@ -224,8 +290,99 @@ internal int tb_spot(ee_build_mgr *bm, ee_player *pl, int type, int *ox, int *oy
     return found;
 }
 // the log's "# layout:" (every 20 minutes, the setting on or off): how close the player's production buildings stand - each one's gap to its nearest (0: touching), and how far from the base
+// the log's "# pockets:" (every 20 minutes): its buildings and land units shut in on its own land - those whose walking
+// region (the reach map's, its gates open) is not the one most of its buildings stand in, on the same continent
+internal void tb_pockets(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0, p = player_get_index(pl);
+    if (!g_log || !size || !rm_ready() || now / 1200000 == last[idx] / 1200000) return;
+    last[idx] = now;
+    static int reg[64], cnt[64];
+    int nr = 0, count = 0;
+#define TP_REGION(u, td, out) do { \
+        int s_ = unit_type_get_size(td), x_ = unit_get_x(u), y_ = unit_get_y(u), main_ = -1; (out) = -2; \
+        if (s_ < 1 || s_ > 16) s_ = 1; \
+        for (int ry_ = y_ - 1; ry_ <= y_ + s_ && main_ < 0; ry_++) \
+            for (int rx_ = x_ - 1; rx_ <= x_ + s_; rx_++) { \
+                if (rx_ >= x_ && rx_ < x_ + s_ && ry_ >= y_ && ry_ < y_ + s_) continue; \
+                int r_ = rm_region_of(p, rx_, ry_); \
+                if (r_ < 0) continue; \
+                if ((out) == -2) (out) = r_; \
+                if (r_ == want_) { (out) = r_; main_ = 1; break; } \
+            } \
+    } while (0)
+    int want_ = -1;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // the town's region
+        ee_unit_type *td = unit_get_type_data(u);
+        int cls = td ? unit_type_get_class_id(td) : -1, r;
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || (cls != CLS_BUILDING && cls != CLS_FORTRESS) || is_wall(unit_type_get_id(td))) continue;
+        TP_REGION(u, td, r);
+        if (r < 0) continue;
+        int k = 0;
+        while (k < nr && reg[k] != r) k++;
+        if (k == nr) { if (nr == 64) continue; reg[nr] = r; cnt[nr++] = 0; }
+        cnt[k]++;
+    }
+    for (int k = 0, most = 0; k < nr; k++) if (cnt[k] > most) { want_ = reg[k]; most = cnt[k]; }
+    if (want_ < 0) return;
+    unsigned land = 0;
+    int shut_b = 0, shut_u = 0, all_b = 0, ex = -1, ey = -1;
+    count = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // the town's continent
+        ee_unit_type *td = unit_get_type_data(u);
+        int cls = td ? unit_type_get_class_id(td) : -1, r;
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || (cls != CLS_BUILDING && cls != CLS_FORTRESS) || is_wall(unit_type_get_id(td))) continue;
+        TP_REGION(u, td, r);
+        if (r == want_) { land = area_id(unit_get_tile(u), 2); break; }
+    }
+    count = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || area_id(unit_get_tile(u), 2) != land) continue;
+        int cls = unit_type_get_class_id(td), r;
+        if ((cls == CLS_BUILDING || cls == CLS_FORTRESS) && !is_wall(unit_type_get_id(td)) && unit_type_get_id(td) != UT(B_FARM)) {
+            TP_REGION(u, td, r);
+            all_b++;
+            if (r >= 0 && r != want_) { shut_b++; if (ex < 0) { ex = unit_get_x(u); ey = unit_get_y(u); } }
+        } else if (rm_walks_like_citizen(u)) {
+            r = rm_region_of(p, unit_get_x(u), unit_get_y(u));
+            if (r >= 0 && r != want_) { shut_u++; if (ex < 0) { ex = unit_get_x(u); ey = unit_get_y(u); } }
+        }
+    }
+#undef TP_REGION
+    fprintf(g_log, "# pockets: P%u at %u min: %d of %d buildings and %d land units shut in on its own land (the first at %d,%d)\n",
+            idx, now / 60000, shut_b, all_b, shut_u, ex, ey);
+    // what closes the first: 31 x 31 tiles round it, a row per y - . the town's region, , another, B its building, E
+    // another's, W a wall or gate, t a tree, m another resource, ~ water, # other ground no citizen walks
+    for (int y = ey - 15; shut_b && y <= ey + 15; y++) {
+        char row[32];
+        for (int x = ex - 15; x <= ex + 15; x++) {
+            char c = '#';
+            if (x >= 0 && y >= 0 && x < size && y < size) {
+                int r = rm_region_of(p, x, y);
+                c = r >= 0 ? (r == want_ ? '.' : ',') : area_id(iv2(x, y), 1) ? '~' : '#';
+                ee_tile *tile = map_get_tiles(map)[y * size + x];
+                for (void *node = c == '#' && tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+                    ee_unit *o = tilenode_get_object(node);
+                    ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+                    ee_unit_stats *st = o ? unit_get_stats(o) : NULL;
+                    if (!td || (st && unit_stats_get_speed(st) > 0)) continue;
+                    int cls = unit_type_get_class_id(td);
+                    c = cls == CLS_RESOURCE ? (unit_type_get_resource_type(td) == 3 ? 't' : 'm') : unit_type_get_is_wall(td) ? 'W'
+                      : unit_get_owner(o) == pl ? 'B' : 'E';
+                    break;
+                }
+            }
+            row[x - ex + 15] = c;
+        }
+        row[31] = 0;
+        fprintf(g_log, "# pockets map P%u: %s\n", idx, row);
+    }
+}
 internal void tb_layout(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
+    tb_pockets(pl, idx, now);
     ee_build_mgr *bm = NULL;
     void *cm = player_get_civ_mgr(pl);
     if (cm) bm = civ_mgr_get_build_mgr(cm);

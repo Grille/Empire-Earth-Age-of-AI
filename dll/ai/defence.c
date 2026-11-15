@@ -57,6 +57,14 @@ internal int can_place(ee_player *pl, int type, ivec2 p) {
     if (sz < 1) sz = 1;
     return can_place_area(pl, type, p.x, p.y, sz) != 0;
 }
+// can_place, and standing there it shuts nothing in (packing.c NO SHUT-IN PLACES): every spot the mod picks for a
+// building of its own - a field lets everyone pass, a wall is meant to close (the ring has its own check)
+internal int can_place_open(ee_player *pl, int type, ivec2 p) {
+    if (!can_place(pl, type, p)) return 0;
+    if (type == UT(B_FARM) || is_wall(type)) return 1;
+    ee_unit_type *td = type_data(type);
+    return tb_access_ok(pl, p.x, p.y, td ? unit_type_get_size(td) : 1);
+}
 
 struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };   // walls: gate pieces too
 internal void def_scan_unit(ee_unit *u, void *ctx) {
@@ -770,7 +778,7 @@ internal int coast_spot(ee_player *pl, unsigned idx, struct def_plan *p, struct 
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
                     if ((abs(ax) != r && abs(ay) != r) || raiders_near(pl, iv2(tx + ax, ty + ay), 10) ||
-                        !can_place(pl, type, iv2(tx + ax, ty + ay))) continue;
+                        !can_place_open(pl, type, iv2(tx + ax, ty + ay))) continue;
                     *ox = tx + ax; *oy = ty + ay;
                     int o = 0;
                     for (int t = 1; t < 8; t++) if (p->pend[t].t < p->pend[o].t) o = t;
@@ -808,7 +816,7 @@ internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
                 for (int ay = -r; ay <= r; ay++) {
                     if ((abs(ax) != r && abs(ay) != r) || route_covered(pl, p->bx, p->by, x + ax, y + ay) ||
                         raiders_near(pl, iv2(x + ax, y + ay), 10) ||   // an enemy army there: its builders would walk into it
-                        !can_place(pl, type, iv2(x + ax, y + ay))) continue;   // the builders' way too
+                        !can_place_open(pl, type, iv2(x + ax, y + ay))) continue;   // the builders' way too
                     *ox = x + ax; *oy = y + ay;
                     int o = 0;
                     for (int t = 1; t < 8; t++) if (p->pend[t].t < p->pend[o].t) o = t;
@@ -958,7 +966,7 @@ internal int rf_walk(int sx, int sy, int ax, int ay, int bx, int by, uint8_t *se
     return n;
 }
 // the box, its walkable tiles and the base's walk; 0: no room for it
-internal int rf_setup(struct encl *e, ivec2 b, uint32_t now) {
+internal int rf_setup(ee_player *pl, struct encl *e, ivec2 b, uint32_t now) {
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0, x0 = b.x, y0 = b.y, x1 = b.x, y1 = b.y;
     if (!n) return 0;
@@ -977,7 +985,11 @@ internal int rf_setup(struct encl *e, ivec2 b, uint32_t now) {
     g_shut.x0 = x0; g_shut.y0 = y0; g_shut.w = x1 - x0 + 1; g_shut.h = y1 - y0 + 1;
     for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++) {
-            g_shut.real[rf_at(x, y)] = (uint8_t)(rm_tile_ok(map, n, x, y) != 0);
+            // a gate open only as the game opens it to its units: one still going up, half built in its chain or locked
+            // is a wall (P3's first border wall: its gate ordered at minute 2 and shut at 40, 12 of its buildings behind it)
+            int ok = rm_tile_ok(map, n, x, y);
+            if (ok == 2) { ee_unit *g = rm_gate_on(map_get_tiles(map)[y * n + x]); ok = g && gate_opens_for(g, pl); }
+            g_shut.real[rf_at(x, y)] = (uint8_t)(ok != 0);
             g_shut.walk[rf_at(x, y)] = (uint8_t)(g_shut.real[rf_at(x, y)] && !encl_pending(e, x, y, now));
         }
     g_shut.sx = -1;
@@ -1137,7 +1149,7 @@ internal void encl_lay(ee_player *pl, unsigned idx, struct encl *e, ivec2 base, 
     // (a few builders at a time, from the start); enclose_under_ships: on an island only enemy land units near stop a run
     // (a piece that stands stops the ships' fire)
     if (flight > 0 && encl_in_flight(e, now) >= flight) { e->skip_pend++; return; }
-    if (!rf_setup(e, base, now)) { e->skip_shut++; return; }   // nothing ordered that can't be checked
+    if (!rf_setup(pl, e, base, now)) { e->skip_shut++; return; }   // nothing ordered that can't be checked
     if (rf_free_pocket(pl, idx, e, now)) return;
     int gtype = encl_gate_type(pl);
     for (int order = 0; order < runs; order++) {

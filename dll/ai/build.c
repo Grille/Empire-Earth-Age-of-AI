@@ -101,7 +101,7 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = iv2(p.x + ax, p.y + ay);
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, type, q) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, type, q) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                 *out = q;
                 return 1;
             }
@@ -237,7 +237,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                         for (int ay = -r; ay <= r && !type; ay++) {
                             ivec2 q = iv2(centre[c].p.x + ax, centre[c].p.y + ay);
                             int room = 0;
-                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_GRANARY), q) || raiders_near(pl, q, 12) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                            if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, UT(B_GRANARY), q) || raiders_near(pl, q, 12) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                             for (int fx = -2; fx <= 2; fx += 2)
                                 for (int fy = -2; fy <= 2; fy += 2)
                                     if ((fx || fy) && can_place(pl, UT(B_FARM), iv2(q.x + fx, q.y + fy))) room++;
