@@ -94,7 +94,6 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 #define SN_RES_ROOM 5           // ... soldiers go in with this many places left on the map
 #define SN_RES_BATCH 20         // ... this many a look
 #define SN_RES_FOE 4            // ... or with this many enemy soldiers in a territory of its
-#define SN_RES_OUT 25           // ... a fortress lets its soldiers out with this many places free
 #define SN_RES_AGAIN 60000      // ... and nobody goes in for this long after
 #define SN_HOLD 600000          // THE CLEARED GROUND: held this long at most
 #define SN_STUCK 120000        // STUCK: no nearer to its building for this long
@@ -528,20 +527,21 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     // THE RESERVE (the player 2026-11-15: "the ai should never stop training units if it can help it, if its at its pop
     // limit it should train straight into the stash"): units inside a Fortress do not count toward the population.
     // Every SN_RES_EVERY: with the map full (SN_RES_ROOM places left) and no territory of its under attack, up to
-    // SN_RES_BATCH soldiers of the main force and the siege - not of a territory that pushes - go into a Fortress of
+    // (and no citizens the shelf would take first: bunker.c shelf_first) SN_RES_BATCH soldiers of the main force and the siege - not of a territory that pushes - go into a Fortress of
     // the reserve, the nearest to it first; the training fills the map again. No Fortress with room: one more is
     // built (bunker.c bk_build, BK_MAX). Out again, a Fortress a look: the nearest to a territory of its with enemy
-    // soldiers in it (SN_RES_FOE of them), or the fullest once SN_RES_OUT places are free on the map (losses) - and nobody in for
+    // soldiers in it (SN_RES_FOE of them), or the fullest that fits into the room on the map (SN_RES_ROOM kept) - and nobody in for
     // SN_RES_AGAIN after that.
     if (!z->res_t || now < z->res_t || now - z->res_t >= SN_RES_EVERY) {
         z->res_t = now ? now : 1;
         int room = bk_room(pl), hard_r = -1, ob = -1, od = 0;
         for (int r = 0; r < n && hard_r < 0; r++) if (!g_ter.t[r].water && s->t[r].role != TVR_NONE && fn[r] >= SN_RES_FOE) hard_r = r;   // a scout or two let nobody out (the first game: 37 of 44 looks let a fortress out)
         g_bk_more[idx] = 0;
-        if (hard_r >= 0 || room >= SN_RES_OUT)
+        if (hard_r >= 0 || room > SN_RES_ROOM)
             for (int k = 0; k < g_bk[idx].nf; k++) {
                 ee_unit *fo = g_bk[idx].f[k];
                 if (g_bk[idx].store[k] != 2 || bk_held(fo) <= 0) continue;
+                if (hard_r < 0 && bk_held(fo) + SN_RES_ROOM > room) continue;   // ONLY FOR ROOM (the player 2026-11-15: "if the pop limit has space again the units should go out and do tasks"): whoever fits into the room on the map comes out
                 int d = hard_r >= 0 ? ivec2_dist2(unit_get_tile(fo), g_ter.t[hard_r].c) : -bk_held(fo);
                 if (ob < 0 || d < od) { ob = k; od = d; }
             }
@@ -556,7 +556,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 if (g_log && !again) log_locked("# reserve: P%u at %.1f min: room %d%s - the fortress at %d,%d lets its %d soldiers out (%u in, %u out so far)\n", idx, now / 60000.0, room,
                                       hard_r >= 0 ? ", enemy soldiers in a territory of its" : "", unit_get_x(fo), unit_get_y(fo), held, z->res_in, z->res_out);
             }
-        } else if (hard_r < 0 && room <= SN_RES_ROOM && (!z->res_out_t || now < z->res_out_t || now - z->res_out_t >= SN_RES_AGAIN)) {
+        } else if (hard_r < 0 && room <= SN_RES_ROOM && !shelf_first(pl, idx) && (!z->res_out_t || now < z->res_out_t || now - z->res_out_t >= SN_RES_AGAIN)) {
             int best = -1, space = 0;
             for (int k = 0; k < g_bk[idx].nf; k++) {
                 ee_unit *fo = g_bk[idx].f[k];

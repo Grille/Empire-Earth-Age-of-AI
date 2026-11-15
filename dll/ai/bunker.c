@@ -466,11 +466,15 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
 // food fell under half and the fortress let them out again. Only citizens on the map count now, and no gatherer of a
 // resource under twice shelve_stock goes in.
 // PLENTY (the player 2026-11-15, his P4 with 92,000 food and 134,000 wood, 262 of its 369 citizens on them: "at 50k
-// food and wood it should stash most citezens in fortresses to make space for more millitary"): with SHELF_PLENTY of
-// food and of wood in the bank the gatherers of those two go onto the shelf whatever the population's room and
+// food and wood it should stash most citezens in fortresses to make space for more millitary"): with 50,000 of
+// food and of wood in the bank the gatherers of those two go onto the shelf once the map is full (ONLY FOR ROOM) and
 // whatever gold and iron stand at (they are what it is short of then: their miners stay), down to the same citizens
-// kept out; out again once food or wood falls under half of SHELF_PLENTY.
-#define SHELF_PLENTY 50000
+// kept out; out again once food or wood falls under half of that. (The first rule; THE POOL below replaced the bank's number.)
+// THE POOL instead (the player, later that day: "i think we need a pool of unneeded citezens ... they do building ->
+// populate mines -> work exxess food and wood -> stash if in the way"): no bank's number - the farmers and wood
+// cutters beyond what food and wood need (work.c wk_pool) go in when the map is full, as many as the pool has; out
+// again when the map has room for a fortress of them, or when the needs are 5 citizens short.
+internal int wk_pool(unsigned idx, int sp[7]);   // work.c
 internal int g_shelve = 1, g_v_shelve = -1, g_shelve_stock = 5000;
 #define SHELVE(idx) PV(idx, g_v_shelve, g_shelve)
 internal int shelf_rich(const int *st, int k) { return st[2] >= k && st[3] >= k && st[5] >= k && st[6] >= k; }
@@ -525,6 +529,13 @@ internal int shelf_citizens_out(ee_player *pl) {
     }
     return n;
 }
+// stations.c THE RESERVE: the shelf has citizens to take in (PLENTY: food and wood lie there, more citizens out than
+// are kept) - they go first, a soldier on the map is worth more than a wood cutter at the 200,000th wood
+internal int shelf_first(ee_player *pl, unsigned pi) {
+    int sp[7];
+    (void)pl;
+    return SHELVE(pi) && g_bunkers && !GAME_AI(pi) && wk_pool(pi, sp) > 0;
+}
 internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     static uint32_t last[16];
     if (!SHELVE(pi) || !g_bunkers || current_epoch(pl) < 2) { g_shelf[pi].want = 0; return; }
@@ -541,9 +552,10 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     // shelter and the reserve are the game's assignment hook's), and which were its is not in a save: after a load
     // they stood full for good, no citizen out, none more in
     if (!GAME_AI(pi)) for (int k = 0; k < g_bk[pi].nf; k++) if (!g_bk[pi].store[k] && !g_bk[pi].shelter[k] && bk_held(g_bk[pi].f[k]) > 0) g_bk[pi].store[k] = bk_holds_soldiers(g_bk[pi].f[k]) ? 2 : 1;   // by who is inside: the reserve's soldiers (stations.c) or its citizens
-    int plenty = st[2] >= SHELF_PLENTY && st[3] >= SHELF_PLENTY, rich = shelf_rich(st, g_shelve_stock);
+    int sp[7] = { 0 }, taken[7] = { 0 };
+    int pool = GAME_AI(pi) ? 0 : wk_pool(pi, sp), plenty = pool > 0, rich = shelf_rich(st, g_shelve_stock);
     if (shelf_held(pi) <= 0 && !plenty) g_shelf[pi].plenty = 0;
-    if ((g_shelf[pi].plenty || plenty ? st[2] < SHELF_PLENTY / 2 || st[3] < SHELF_PLENTY / 2 : !shelf_rich(st, g_shelve_stock / 2)) || out < keep * 3 / 4) {   // out again: the fullest of the shelf's, if quiet
+    if (GAME_AI(pi) ? !shelf_rich(st, g_shelve_stock / 2) || out < keep * 3 / 4 : pool <= -5) {   // out again: the fullest of the shelf's, if quiet
         int best = -1, held = 0;
         for (int k = 0; k < g_bk[pi].nf; k++) {
             ee_unit *fo = g_bk[pi].f[k];
@@ -559,9 +571,30 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
                            g_shelf[pi].in, g_shelf[pi].out);
         return;
     }
-    if ((!plenty && (room > 5 || queued < 1 || !rich)) || out <= keep) return;
+    // ONLY FOR ROOM (the player 2026-11-15: "the stash is only to free pop space, if the pop limit has space again the
+    // units should go out and do tasks. even citezens farming the 200k th wood are better than them sitting in the
+    // stash if the pop isnt actually needed yet for army"): with the game's computer player off a fortress of citizens
+    // that fits into the room on the map (5 places kept) comes out - the reserve's soldiers first (stations.c) -,
+    // and PLENTY sends nobody in while the map has room.
+    if (!GAME_AI(pi)) {
+        int sold = 0, ob = -1, oh = 0;
+        for (int k = 0; k < g_bk[pi].nf; k++) {
+            int h = bk_held(g_bk[pi].f[k]);
+            if (g_bk[pi].store[k] == 2 && h > 0) sold = 1;
+            if (g_bk[pi].store[k] == 1 && h > oh && h + 5 <= room && !raiders_near(pl, unit_get_tile(g_bk[pi].f[k]), 15)) { oh = h; ob = k; }
+        }
+        if (!sold && ob >= 0) {
+            if (bk_unload(g_bk[pi].f[ob])) {
+                g_shelf[pi].out += (unsigned)oh;
+                if (g_log) fprintf(g_log, "# shelf: P%u at %.1f min: room %d - %d citizens out of the fortress at %d,%d: the map has room for them (%u in, %u out so far)\n",
+                                   pi, now / 60000.0, room, oh, unit_get_x(g_bk[pi].f[ob]), unit_get_y(g_bk[pi].f[ob]), g_shelf[pi].in, g_shelf[pi].out);
+            }
+            return;
+        }
+    }
+    if (room > 5 || (GAME_AI(pi) ? queued < 1 || !rich || out <= keep : !plenty)) return;
     if (plenty) g_shelf[pi].plenty = 1;
-    int only_fw = plenty && (room > 5 || queued < 1 || !rich);   // PLENTY alone: the farmers and the wood cutters
+    int only_fw = plenty;   // THE POOL: the farmers and the wood cutters beyond the need
     g_shelf[pi].t = now ? now : 1;
     int best = -1, space = 0;   // a fortress of the shelf with room, else an empty one
     for (int k = 0; k < g_bk[pi].nf; k++) {
@@ -572,7 +605,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
         if (s > space + (g_bk[pi].store[k] ? -1 : 0)) { space = s; best = k; }
     }
     if (best < 0 || space < 5) { g_shelf[pi].want = 1; return; }
-    int n = out - keep;
+    int n = only_fw ? pool : out - keep;
     if (n > 20) n = 20;
     if (n > space) n = space;
     int most = 2;   // the resource with the most in stock: its gatherers first
@@ -596,7 +629,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
             ee_unit *bu = NULL;
             int bd = only_fw ? 0x7FFFFFFF : 60 * 60;   // PLENTY: from anywhere (the player's P4, 2026-11-15: 80 went in from within 60 tiles of its three fortresses, then nobody - 200 citizens out, 84,000 food)
             for (int r = 2; r < 7; r++) {
-                if ((pass == 0) != (r == most) || st[r] < 2 * g_shelve_stock || (only_fw && r > 3)) continue;   // never the scarce resource's
+                if ((pass == 0) != (r == most) || (only_fw ? r > 3 || taken[r] >= sp[r] : st[r] < 2 * g_shelve_stock)) continue;   // never the scarce resource's; THE POOL: no more of one than it has beyond its need
                 uint8_t *list = resource_mgr_list_at(rm, r);
                 for (unsigned k = 0, first = deque_front(list), cnt = off ? (unsigned)ncand : deque_count(list); k < cnt; k++) {
                     ee_unit *u = off ? (cres[k] == r ? cand[k] : NULL) : deque_at(list, first + k);
@@ -608,6 +641,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
             }
             if (!bu) break;
             pick[np++] = bu;
+            if (only_fw) taken[shelf_res(bu)]++;
         }
     if (!np || !bk_load(fo, pick, np)) return;
     g_bk[pi].store[best] = 1;

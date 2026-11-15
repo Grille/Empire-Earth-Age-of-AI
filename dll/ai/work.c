@@ -51,6 +51,7 @@ struct wk_home { ee_unit *u; int id; short ter; };
 struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost, cap; };   // n: its citizens there or on their way; cost: its territory's (wk_cost); cap: the food sites' places (a bush 3, a field 1)
 internal struct wk_st {
     uint32_t t, log_t;
+    int need_c[7];   // THE POOL: the citizens each resource needs (wk_needs' count and a margin, a mine's no more than its places)
     int have[7], want[7], places[7], idle, busy, n, food_short, by_need;   // food_short: citizens wanted on food that found no site at the last look
     unsigned assigned, moved, pulled, none[7];   // none: no site found for a citizen wanted on that resource; pulled: looks a citizen's site lay under an enemy tower
     unsigned xfers, retreats;   // ITS TERRITORY: citizens given another territory for a site, given one it holds because theirs may not be worked
@@ -458,6 +459,16 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             if (!w->by_need) wt[r] = WK_SHARE[r] * (k < 0.5f ? 0.5f : k);
             sum += wt[r];
         }
+        // THE POOL (the player 2026-11-15: "i think we need a pool of unneeded citezens ... they do building -> populate
+        // mines -> work exxess food and wood -> stash if in the way"): what each resource needs in citizens is
+        // wk_needs' count - what is spent and saved for over what a citizen brings - and a quarter more; the citizens
+        // beyond the sum of it are the pool. They work all the same: builders are taken from the free ones, the
+        // mines' places and their Settlements are filled first (the shares below, garrison.c), the rest cuts wood and
+        // farms beyond the need - and when the map is full they are the ones the shelf takes (bunker.c: wk_pool).
+        for (int r = 2; r < 7; r++) {
+            int c = w->by_need ? (int)(wt[r] * 1.25f) + 2 : nc;
+            w->need_c[r] = r >= 4 && c > w->places[r] ? w->places[r] : c;
+        }
         int left = nc;
         for (int r = 4; r < 7; r++) {
             int n = (int)((float)nc * wt[r] / sum + 0.5f);
@@ -540,3 +551,19 @@ internal int work_idle(unsigned idx) {
     return w->t && now >= w->t && now - w->t <= 4 * WK_EVERY ? w->idle : -1;
 }
 internal void work_new_game(void) { memset(g_wk, 0, sizeof g_wk); memset(g_wn, 0, sizeof g_wn); memset(g_wkd, 0, sizeof g_wkd); }
+// THE POOL for bunker.c's shelf: the citizens beyond what its resources need - sp[2], sp[3] those of them on food and
+// on wood (the ones a fortress may take), the return their sum; under 0: that many citizens short of the need (the
+// stashed are wanted back). 0 while the shares do not go by need yet or work.c has not looked for 30 s.
+internal int wk_pool(unsigned idx, int sp[7]) {
+    struct wk_st *w = &g_wk[idx & 15];
+    uint32_t now = game_time();
+    for (int r = 0; r < 7; r++) sp[r] = 0;
+    if (!w->by_need || !w->t || now < w->t || now - w->t > 30000) return 0;
+    int need = 0;
+    for (int r = 2; r < 7; r++) need += w->need_c[r];
+    int tot = w->n - need;
+    if (tot <= 0) return tot;
+    for (int r = 2; r < 4; r++) { int v = w->have[r] - w->need_c[r]; sp[r] = v < 0 ? 0 : v > tot ? tot : v; }
+    if (sp[2] + sp[3] > tot) sp[3] = tot - sp[2];
+    return sp[2] + sp[3];
+}
