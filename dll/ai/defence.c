@@ -49,13 +49,52 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
     for (int i = 0; i < 7; i++) if (bq_has(bm, g_ut[k_tower_line[i]])) return 1;
     return 0;
 }
+// AN AIRPORT'S RUNWAYS (the player 2026-11-15, screenshots of a strip through a Hospital, a University and a row of
+// towers: "the airport only checks for its hanger while the runway can go trough existing buildings or other
+// blockers"): the game lays three runway pieces (b_airport_runway) beside the hangar, 2, 4 and 6 tiles from it, along
+// the axis on which the hangar is further from the map's middle, towards the middle (18 Airports of one player in
+// his game, every one so) - its own placement test asked for the hangar says nothing of them. ap_strip: the three
+// pieces' tiles for a hangar at p; with the two distances within 2 of each other both axes are asked (which one the
+// game takes then is not known). g_ap_pend: the strips of the Airports laid in the last AP_PEND - the foundation
+// and its runways show only when the builder gets there, and until then anything could be laid onto the strip.
+#define AP_PEND 300000
+internal struct { ivec2 p; uint32_t t; } g_ap_pend[16][6];
+internal int ap_strip(ivec2 p, int n, ivec2 *q) {   // the runway pieces' tiles: 3, or 6 with both axes
+    int dx = n / 2 - p.x, dy = n / 2 - p.y, k = 0;
+    if (abs(dx) + 2 >= abs(dy)) for (int j = 1; j <= 3; j++) q[k++] = iv2(p.x + (dx >= 0 ? 2 : -2) * j, p.y);
+    if (abs(dy) + 2 >= abs(dx)) for (int j = 1; j <= 3; j++) q[k++] = iv2(p.x, p.y + (dy >= 0 ? 2 : -2) * j);
+    return k;
+}
+internal void ap_laid(unsigned idx, ivec2 p, uint32_t now) {   // build.c: an Airport laid there
+    int o = 0;
+    for (int k = 1; k < 6; k++) if (g_ap_pend[idx & 15][k].t < g_ap_pend[idx & 15][o].t) o = k;
+    g_ap_pend[idx & 15][o].p = p; g_ap_pend[idx & 15][o].t = now ? now : 1;
+}
 internal int can_place(ee_player *pl, int type, ivec2 p) {
     ee_unit_type *td = type_data(type);
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0, sz = td ? unit_type_get_size(td) : 0;
     if (!td || p.x < 2 || p.y < 2 || p.x >= n - 2 || p.y >= n - 2) return 0;
     if (sz < 1) sz = 1;
-    return can_place_area(pl, type, p.x, p.y, sz) != 0;
+    if (!can_place_area(pl, type, p.x, p.y, sz)) return 0;
+    ivec2 q[6];
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    uint32_t now = game_time();
+    if (!is_wall(type) && type != UT(B_FARM))   // not onto the strip of an Airport of its that is laid and not there yet
+        for (int k = 0; k < 6; k++) {
+            if (!g_ap_pend[idx][k].t || now < g_ap_pend[idx][k].t || now - g_ap_pend[idx][k].t >= AP_PEND) continue;
+            int m = ap_strip(g_ap_pend[idx][k].p, n, q);
+            if (abs(p.x - g_ap_pend[idx][k].p.x) <= sz + 1 && abs(p.y - g_ap_pend[idx][k].p.y) <= sz + 1) return 0;
+            for (int j = 0; j < m; j++) if (abs(p.x - q[j].x) <= sz + 1 && abs(p.y - q[j].y) <= sz + 1) return 0;
+        }
+    if (type == UT(B_AIRPORT)) {
+        int rt = ut_has(UT(B_AIRPORT_RUNWAY)) ? UT(B_AIRPORT_RUNWAY) : type, m = ap_strip(p, n, q);
+        ee_unit_type *rd = type_data(rt);
+        int rs = rd && unit_type_get_size(rd) > 0 ? unit_type_get_size(rd) : sz;
+        for (int j = 0; j < m; j++)
+            if (q[j].x < 2 || q[j].y < 2 || q[j].x >= n - 2 || q[j].y >= n - 2 || !can_place_area(pl, rt, q[j].x, q[j].y, rs)) return 0;
+    }
+    return 1;
 }
 // can_place, and standing there it shuts nothing in (packing.c NO SHUT-IN PLACES): every spot the mod picks for a
 // building of its own - a field lets everyone pass, a wall is meant to close (the ring has its own check)
@@ -844,10 +883,18 @@ internal int gate_fits(ee_player *pl, int x, int y, int dir) {
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0;
     if (dir < 1 || dir > 4) return 0;
+    // ... and on level ground (the player 2026-11-15, a gate laid flat across a dip between two hills: "gates can be
+    // places over walls that arent level like over hills"): the five tiles within one step of the ground's height of
+    // each other - the gate is one flat model, the wall pieces it replaces followed the slope
+    float lo = 0, hi = 0;
     for (int i = -2; i <= 2; i++) {
         int tx = x + step[dir][0] * i, ty = y + step[dir][1] * i, cnt = 0, ok = 0;
         if (tx < 0 || ty < 0 || tx >= n || ty >= n) return 0;
         ee_tile *tile = map_get_tiles(map)[ty * n + tx];
+        float h = tile ? tile_get_height(tile) : 0;
+        if (i == -2 || h < lo) lo = h;
+        if (i == -2 || h > hi) hi = h;
+        if (hi - lo > map_get_height_step(map) * 0.5f + 0.001f) return 0;
         for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
             ee_unit *o = tilenode_get_object(node);
             ee_unit_type *td = o ? unit_get_type_data(o) : NULL;

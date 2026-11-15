@@ -41,6 +41,7 @@
 // nobody empties now.
 #define BD_EVERY 5000
 #define BD_SENDS 4
+#define BD_PILE 5   // unfinished buildings from which each gets a second builder
 #define BD_GRANARIES 96   // no limit of its own (8 fed 64 farmers: the player's game of 2026-11-15, 55 citizens on food, 215 on wood with no field to go to, 25 food in the bank): one more whenever citizens wanted on food find no site
 #define BD_DROP 8
 #define BD_DROP_METAL 3   // a gold or iron mine's: the Settlement's middle this near (its half, a tile's gap, the mine)
@@ -162,12 +163,17 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!done && st && no < 96) openb[no++] = u;
     }
     b->open = no;
-    int sends = 0;
-    for (int i = 0; i < no && sends < BD_SENDS && nf; i++) {   // BUILDERS
+    int sends = 0, pile = no - open_fields;   // the unfinished that are no fields (a row of new fields is no pile)
+    for (int i = 0; i < no && sends < (pile >= BD_PILE ? 2 * BD_SENDS : BD_SENDS) && nf; i++) {   // BUILDERS
         ee_unit *site = field_site(openb[i]);
+        // MORE BUILDERS WHEN THEY PILE UP: one citizen a building, as before, while few stand unfinished; 2 a building
+        // from BD_PILE of them, 3 from twice that (a field always one) - the player's P4 had 13 to 23 buildings
+        // unfinished all through its game with 369 citizens. (3 a building always: twice the builders in the first
+        // half hour, 6 soldiers fewer at minute 28 for one of four.)
         int has = 0, bk = -1, bd = 0x7FFFFFFF;
-        for (int k = 0; k < nbuilt && !has; k++) has = built[k] == site || built[k] == openb[i];
+        for (int k = 0; k < nbuilt; k++) has += built[k] == site || built[k] == openb[i];
         ivec2 p = unit_get_tile(openb[i]);
+        has = has >= (unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM) ? 1 : pile >= 2 * BD_PILE ? 3 : pile >= BD_PILE ? 2 : 1);
         if (has || raiders_near(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;
         unsigned land = area_id(p, 2);
         for (int k = 0; k < nf; k++) {
@@ -375,7 +381,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int r = 0; r < tn; r++) {
             if (g_ter.t[r].water || s->t[r].role != (back ? TVR_BACK : TVR_FRONT) || s->t[r].state != TV_QUIET) continue;
             for (int k = back ? 3 : 0; k < nk; k++) {
-                if (kinds[k] < 0 || have[r][k] >= BD_SINK_MAX || !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
+                if (kinds[k] < 0 || have[r][k] >= (k == 2 ? 1 : BD_SINK_MAX) ||   // one Airport a territory (18 of one player's in the player's game)
+                     !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
                 if (br < 0 || have[r][k] < bn) { br = r; bk = k; bn = have[r][k]; }
             }
         }
@@ -395,6 +402,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else if (k == 4) { b->production++; g_pr[idx].type = 0; if (type == g_pr_more[idx]) g_pr_more[idx] = 0; } else b->towers++;
             b->laid_t[k] = now ? now : 1; b->laid_type[k] = type;
             for (int r = 2; r < 7; r++) g_bd_com[idx][r] += unit_cost(pl, type, r);
+            if (type == UT(B_AIRPORT)) ap_laid(idx, at, now);   // defence.c: its strip is taken until it shows
         }
         if (g_log && (ok || !(b->refused % 20)))
             log_locked("# build: P%u at %.1f min: %s - %d at %d,%d (territory %u): %s\n", idx, now / 60000.0, what, type, at.x, at.y, ter_near(at.x, at.y),

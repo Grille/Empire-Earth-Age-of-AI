@@ -61,7 +61,7 @@
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t; ivec2 to; };   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
-struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; };   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
+struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait; int near_d; ivec2 near_at; };   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
     int n;
@@ -89,6 +89,10 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 #define SN_ROUND 2
 #define SN_ROUND_MORE 10
 #define SN_WAY_EVERY 15000
+#define SN_STUCK 120000        // STUCK: no nearer to its building for this long
+#define SN_STUCK_AT 14          // ... and further from it than this (tiles): at it, it fights
+#define SN_STUCK_WALL 12        // the enemy wall to breach then: within this of its soldiers
+#define SN_STUCK_WAIT 600000    // none: before that territory pushes again
 internal int sn_way(ee_player *pl, unsigned idx, ivec2 from, ivec2 to, ivec2 *wall, int *round_, int *straight, uint32_t now) {
     static int path[65536];
     ee_map *map = game_map();
@@ -113,10 +117,10 @@ internal int sn_way(ee_player *pl, unsigned idx, ivec2 from, ivec2 to, ivec2 *wa
     return 1;
 }
 // the enemy wall piece or gate it has seen nearest p, within 4 tiles
-internal ee_unit *sn_wall_at(ee_player *pl, ivec2 p) {
+internal ee_unit *sn_wall_near(ee_player *pl, ivec2 p, int reach) {
     ee_unit *best = NULL;
     int bd = 0;
-    for (struct grid_it it = grid_it_box(p.x, p.y, 4, 1); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, reach, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !explored_by(it.u, pl)) continue;
         int d = ivec2_dist2(unit_get_tile(it.u), p);
@@ -124,6 +128,7 @@ internal ee_unit *sn_wall_at(ee_player *pl, ivec2 p) {
     }
     return best;
 }
+internal ee_unit *sn_wall_at(ee_player *pl, ivec2 p) { return sn_wall_near(pl, p, 4); }
 internal int sn_cmp(const void *a, const void *b) { const struct sn_unit *x = a, *y = b; return x->u < y->u ? -1 : x->u > y->u; }
 internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fight, uint32_t now) {
     ee_goal *g = ar_goal_at(d, k, fight);
@@ -355,6 +360,33 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (ratio < SN_BACK) { end = "losing"; z->lost++; }
             else p->at = eb[bi].p;
         }
+        // STUCK (the player 2026-11-15, his game's P2 from minute 183 to 222: 137 soldiers packed against a wall, "red is
+        // stuck on an attack that never ends" - the cells of the route search are coarser than a wall is thick, the way
+        // was "open" by a walk round that did not exist): a push whose soldiers have come no nearer to its building
+        // for SN_STUCK - by a tenth of the way, and not standing at it - goes at the enemy wall or gate it has seen
+        // nearest them (SN_STUCK_WALL tiles), THE WAY's breach without asking the route; with none there the push is
+        // over, and SN_STUCK_WAIT passes before that territory pushes again.
+        if (!end) {
+            int d = ivec2_dist2(mid, p->at);
+            if (!p->near_t || now < p->near_t || p->near_at.x != p->at.x || p->near_at.y != p->at.y || d * 10 < p->near_d * 8) { p->near_t = now ? now : 1; p->near_d = d; p->near_at = p->at; }
+            else if (now - p->near_t >= SN_STUCK && d > SN_STUCK_AT * SN_STUCK_AT) {
+                ee_unit *piece = sn_wall_near(pl, lead, SN_STUCK_WALL);
+                p->near_t = now ? now : 1;
+                if (piece) {
+                    p->breach = 1; p->wall = unit_get_tile(piece); p->force_t = now ? now : 1; p->way_t = now ? now : 1;
+                    z->breaches++;
+                    for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;
+                    if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is stuck (%d tiles from its building for %d s) - a breach at the wall at %d,%d\n",
+                                          idx, now / 60000.0, p->from, p->into, (int)sqrtf((float)d), SN_STUCK / 1000, p->wall.x, p->wall.y);
+                } else { end = "stuck, no way there"; z->lost++; p->wait = SN_STUCK_WAIT; }
+            }
+        }
+        if (!end && p->force_t && now >= p->force_t && now - p->force_t < SN_STUCK && sn_wall_at(pl, p->wall)) {   // the forced breach holds while a piece stands there
+            ee_unit *piece = sn_wall_at(pl, p->wall);
+            ivec2 w = unit_get_tile(piece);
+            if (w.x != p->wall.x || w.y != p->wall.y) { p->wall = w; for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0; }
+            p->way_t = now ? now : 1;
+        }
         if (!end && (!p->way_t || now < p->way_t || now - p->way_t >= SN_WAY_EVERY)) {   // THE WAY
             int was = p->breach;
             ivec2 wall = p->wall;
@@ -382,7 +414,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < SN_PUSHES; k++) {
             struct sn_push *p = &z->push[k];
             if (p->on && p->from == r) busy = 1;
-            if (!p->on && p->from == r && p->end_t && now >= p->end_t && now - p->end_t < SN_PUSH_WAIT) busy = 1;
+            if (!p->on && p->from == r && p->end_t && now >= p->end_t && now - p->end_t < (p->wait ? p->wait : SN_PUSH_WAIT)) busy = 1;
             if (!p->on && (slot < 0 || p->end_t < z->push[slot].end_t)) slot = k;   // the one that ended longest ago
         }
         if (busy || slot < 0) continue;
@@ -410,7 +442,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
         if (ratio < SN_PUSH) continue;
         struct sn_push *p = &z->push[slot];
-        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0;
+        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = 0;
         z->pushes++;
         if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the building at %d,%d, judged %.2f (enemy there: %d)\n",
                               idx, now / 60000.0, r, into, cn, p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);

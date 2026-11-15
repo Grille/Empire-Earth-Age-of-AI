@@ -116,6 +116,7 @@ internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the f
 internal void stations_new_game(void);
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
 internal void airguard_new_game(void);
+internal void shelf_off_tick(ee_player *pl, uint32_t now);   // bunker.c
 internal void territories_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
@@ -257,6 +258,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && !game) airguard_tick(pl, now);   // airguard.c: anti-air buildings and fighters (the game's computer player off)
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
+    if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
     if (pl && !is_vanilla(pl) && !game) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
     if (pl && !is_vanilla(pl) && !game) build_tick(pl, rm, now);   // build.c: nor builds anything
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch

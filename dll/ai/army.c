@@ -403,7 +403,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int cap = unit_limit(pl);
         int room = cap - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
         int goal = g_czp[idx].goal ? g_czp[idx].goal : unit_mgr_citizens_wanted(um);
-        int miss = goal - workforce(pl);
+        int miss = shelf_held(idx) > 0 ? 0 : goal - workforce(pl);   // bunker.c: citizens on the shelf are not missing - their room is the army's
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
         int ft = free <= 0 ? 0 : off ? ap_idle_type(pl, vis) : ap_type(pl, idx, um, vis);
         if (free > 0) ft = ar_fill_type(pl, idx, vis, ft, now);   // armies.c TRAINING BY NEED
@@ -453,7 +453,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             a->look = now ? now : 1;
             float acc = 0;
             for (int r = 2; r < 7; r++) acc += g_bud[idx].mil[r] > 0 ? g_bud[idx].mil[r] : 0;
-            int lim = 2 + workforce(pl) / 15;
+            int lim = off ? 2 + unit_limit(pl) / 30 : 2 + workforce(pl) / 15;   // off: by the population it may have (citizens on the shelf are no measure)
             if ((plan & 64) && shelf_rich(player_stock_at(pl), g_shelve_stock) && lim < 2 + unit_limit(pl) / 30) lim = 2 + unit_limit(pl) / 30;
             if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
                 (!off || (a->more_ok && ap_pays_more(pl, idx, a->last_type))) &&   // off: not when money is what its buildings wait for (the player's game of 2026-11-15: twenty Tank Factories in a row beside 650 gold and 137 iron - each "busy" with an order it could not pay)

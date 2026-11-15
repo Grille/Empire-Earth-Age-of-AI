@@ -115,7 +115,7 @@ internal void cmd_bunker(char *out, const char *args) {
 internal int g_bunkers = 1;   // [ai_base] bunkers
 internal int g_bk_res = 0xFFFF;   // [ai_base] bunker_reserve (below)
 internal int bk_room(ee_player *pl);
-internal struct shelf_st { int want; unsigned in, out; uint32_t t; } g_shelf[16];   // the shelf (below): a fortress more wanted, citizens in/out
+internal struct shelf_st { int want, plenty; unsigned in, out; uint32_t t; } g_shelf[16];   // the shelf (below): a fortress more wanted, citizens in/out
 internal struct { int nf, nall; ee_unit *f[8], *all[8]; int nq[8]; ee_unit *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; int walk[8]; uint8_t store[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in; store: the shelf's
 internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
@@ -460,6 +460,12 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
 // shelve_stock its farmers went in first among the nearest (54 farmers to 32 in two minutes), the fields stood empty,
 // food fell under half and the fortress let them out again. Only citizens on the map count now, and no gatherer of a
 // resource under twice shelve_stock goes in.
+// PLENTY (the player 2026-11-15, his P4 with 92,000 food and 134,000 wood, 262 of its 369 citizens on them: "at 50k
+// food and wood it should stash most citezens in fortresses to make space for more millitary"): with SHELF_PLENTY of
+// food and of wood in the bank the gatherers of those two go onto the shelf whatever the population's room and
+// whatever gold and iron stand at (they are what it is short of then: their miners stay), down to the same citizens
+// kept out; out again once food or wood falls under half of SHELF_PLENTY.
+#define SHELF_PLENTY 50000
 internal int g_shelve = 1, g_v_shelve = -1, g_shelve_stock = 5000;
 #define SHELVE(idx) PV(idx, g_v_shelve, g_shelve)
 internal int shelf_rich(const int *st, int k) { return st[2] >= k && st[3] >= k && st[5] >= k && st[6] >= k; }
@@ -477,7 +483,25 @@ internal int shelf_wanted(ee_player *pl, int n, int have) {
     int on = g_shelf[pi].t && now >= g_shelf[pi].t && now - g_shelf[pi].t < 30000;
     return (on || shelf_held(pi) > 0) && n > have ? have : n;
 }
+// the game's computer player off: nobody keeps its resource lists (a citizen in the wood list mines gold by work.c's
+// order - the first probe shelved the miners and the army's gold with them): what a citizen gathers is its goal's site
+internal int shelf_res(ee_unit *u) {   // 2 food .. 6 iron, 0 none
+    ee_goal *g = unit_get_goal(u);
+    ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
+    ee_unit_type *sd = site ? unit_get_type_data(site) : NULL;
+    if (!sd || unit_get_hp(site) <= 0) return 0;
+    int r = unit_type_get_id(sd) == UT(B_FARM) ? 2 : unit_get_resource(site);
+    return r >= 2 && r <= 6 ? r : 0;
+}
 internal int shelf_citizens_out(ee_player *pl) {
+    if (!GAME_AI((unsigned)player_get_index(pl) & 15)) {
+        int n = 0, count = 0;
+        for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            n += td && is_citizen_type(unit_type_get_id(td)) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && !bk_walking_into(u);
+        }
+        return n;
+    }
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
     int n = 0;
@@ -502,7 +526,9 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     int *st = player_stock_at(pl), keep = shelf_keep(pl), out = shelf_citizens_out(pl);
     int room = unit_limit(pl) - player_population(pl, 1, 0), queued = unit_mgr_get_in_production(um);
     g_shelf[pi].want = 0;
-    if (!shelf_rich(st, g_shelve_stock / 2) || out < keep * 3 / 4) {   // out again: the fullest of the shelf's, if quiet
+    int plenty = st[2] >= SHELF_PLENTY && st[3] >= SHELF_PLENTY, rich = shelf_rich(st, g_shelve_stock);
+    if (shelf_held(pi) <= 0 && !plenty) g_shelf[pi].plenty = 0;
+    if ((g_shelf[pi].plenty || plenty ? st[2] < SHELF_PLENTY / 2 || st[3] < SHELF_PLENTY / 2 : !shelf_rich(st, g_shelve_stock / 2)) || out < keep * 3 / 4) {   // out again: the fullest of the shelf's, if quiet
         int best = -1, held = 0;
         for (int k = 0; k < g_bk[pi].nf; k++) {
             ee_unit *fo = g_bk[pi].f[k];
@@ -518,33 +544,47 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
                            g_shelf[pi].in, g_shelf[pi].out);
         return;
     }
-    if (room > 5 || queued < 1 || !shelf_rich(st, g_shelve_stock) || out <= keep) return;
+    if ((!plenty && (room > 5 || queued < 1 || !rich)) || out <= keep) return;
+    if (plenty) g_shelf[pi].plenty = 1;
+    int only_fw = plenty && (room > 5 || queued < 1 || !rich);   // PLENTY alone: the farmers and the wood cutters
     g_shelf[pi].t = now ? now : 1;
     int best = -1, space = 0;   // a fortress of the shelf with room, else an empty one
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *fo = g_bk[pi].f[k];
         int s = bk_capacity(fo) - bk_held(fo) - g_bk[pi].walk[k];
         if (g_bk[pi].shelter[k] || (!g_bk[pi].store[k] && bk_held(fo) + g_bk[pi].walk[k] > 0)) continue;
+        if (plenty && g_bk[pi].walk[k] > 0) continue;   // a load order replaces the one before: those still walking in were dropped by the next 20's (135 ordered for 23 inside)
         if (s > space + (g_bk[pi].store[k] ? -1 : 0)) { space = s; best = k; }
     }
     if (best < 0 || space < 5) { g_shelf[pi].want = 1; return; }
     int n = out - keep;
     if (n > 20) n = 20;
     if (n > space) n = space;
-    int rich = 2;   // the resource with the most in stock: its gatherers first
-    for (int r = 3; r < 7; r++) if (st[r] > st[rich]) rich = r;
+    int most = 2;   // the resource with the most in stock: its gatherers first
+    for (int r = 3; r < (only_fw ? 4 : 7); r++) if (st[r] > st[most]) most = r;
     ee_unit *fo = g_bk[pi].f[best], *pick[20];
     ivec2 fp = unit_get_tile(fo);
     int np = 0;
+    static ee_unit *cand[1024]; static uint8_t cres[1024];
+    int ncand = 0, off = !GAME_AI(pi);
+    if (off) {
+        int count = 0;
+        for (ee_unit *u = player_get_units(pl); u && count < 16384 && ncand < 1024; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            if (!td || !is_citizen_type(unit_type_get_id(td)) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+            int r = shelf_res(u);
+            if (r) { cand[ncand] = u; cres[ncand++] = (uint8_t)r; }
+        }
+    }
     for (int pass = 0; pass < 2 && np < n; pass++)
         while (np < n) {
             ee_unit *bu = NULL;
             int bd = 60 * 60;
             for (int r = 2; r < 7; r++) {
-                if ((pass == 0) != (r == rich) || st[r] < 2 * g_shelve_stock) continue;   // never the scarce resource's
+                if ((pass == 0) != (r == most) || st[r] < 2 * g_shelve_stock || (only_fw && r > 3)) continue;   // never the scarce resource's
                 uint8_t *list = resource_mgr_list_at(rm, r);
-                for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
-                    ee_unit *u = deque_at(list, first + k);
+                for (unsigned k = 0, first = deque_front(list), cnt = off ? (unsigned)ncand : deque_count(list); k < cnt; k++) {
+                    ee_unit *u = off ? (cres[k] == r ? cand[k] : NULL) : deque_at(list, first + k);
                     int d = u ? ivec2_dist2(unit_get_tile(u), fp) : 0x7FFFFFFF, dup = 0;
                     if (d >= bd || !citizen_free(u, 0) || bk_walking_into(u)) continue;
                     for (int j = 0; j < np && !dup; j++) dup = pick[j] == u;
@@ -562,6 +602,18 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
                        pi, now / 60000.0, room, np, fp.x, fp.y, bk_held(fo), out, keep, st[2], st[3], st[5], st[6], g_shelf[pi].in, g_shelf[pi].out);
 }
 
+// the game's computer player off: nobody runs citizens_safety (attack.c: the citizen assignment's hook), which keeps
+// the fortresses' list and calls the shelf - eeaimod.c calls this instead, every 4 s: the list, the shelf, a fortress
+// the shelf wants.
+internal void shelf_off_tick(ee_player *pl, uint32_t now) {
+    static uint32_t last[16];
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    if (!g_bunkers || (last[pi] && now >= last[pi] && now - last[pi] < 4000)) return;
+    last[pi] = now ? now : 1;
+    bk_refresh(pl, pi);
+    shelf_tick(pl, pi, now);
+    if (g_shelf[pi].want) bk_build(pl, pi, now);   // only the shelf's: a shelter's fortress nobody would walk into then, and its wood was held back from minute 15
+}
 // a new game (the game start hook): the fortresses and the citizens queued for them are the last game's
 internal void bunker_new_game(void) {
     memset(g_bk, 0, sizeof g_bk);
