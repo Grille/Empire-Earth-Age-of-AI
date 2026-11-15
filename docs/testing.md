@@ -1147,6 +1147,53 @@ units and spawn the same; a script waiting in the middle of expressions with its
 (`script state`) the same as left alone. `texts bench` within the noise (them.soldiers 1.5 us, me.count(kind.towers)
 2.5, a line's list of conditions 6.2 in both).
 
+### The engine's speed
+
+`ageofai_check.exe` measures the language's engine without the game (dll/check/ageofai_check.c; built by `sh build.sh`
+as `dll/ageofai_check.exe`):
+
+- `ageofai_check --bench tests/bench/loop.eeai [runs]` runs a script dry (the clock jumps to where it waits, its
+  commands are written, not run - `script dryrun`'s way) and prints the best time of the runs; the first run's
+  commands go to `<script>.out`. `tests/bench/` has one script per kind of work (loop: plain statements and
+  conditions, calls, lists, records, strings, dicts), each ending in a `cmd("...")` of what it worked out.
+- `ageofai_check --eval <runs> "<expression>"` works a text's expression out that often (no game: numbers, texts,
+  lists, the builtin functions, constants) and prints its value and the time of one; `tests/bench/evals.txt` has a set.
+
+A change to expr.c: both before and after - the `.out` files must be the same, the times tell what it did. What needs
+the game (a player's values, the relations) is measured in one: `texts bench N P Q <expression>` from a script, the
+old build's DLL against the new one's (`-Dll`).
+
+Speed tuning, step 1 (2026-11-15): the names looked up by their letters. A builtin function's name was found after up
+to 22 compares of Windows' (lstrcmpiA, about 100 ns each), a dict walked all its entries with it, a text's equality
+too. Now x_ieq (the same answer, Windows only asked for a text that isn't plain ASCII), a hash index for a dict of
+more than 8 entries, the constants that never change kept where they are named (epoch.x, color.x, resource.x as
+unit.x and kind.x were), a string without a placeholder made once, a member path from a script's variable (`w.units`,
+`p.gold`) read from its slot (XI_PATH), `+ - * /` and the comparisons of two plain numbers worked out in the machine.
+
+| ms (best of 5) | before | after |
+|---|---|---|
+| loop.eeai (1 M rounds of two statements) | 155 | 145 |
+| calls.eeai (460000 calls) | 45.7 | 43.9 |
+| lists.eeai | 73.0 | 31.6 |
+| records.eeai | 196.8 | 38.9 |
+| strings.eeai | 55.7 | 38.5 |
+| dicts.eeai (2000 text keys) | 213.5 | 17.2 |
+
+| ns each | before | after |
+|---|---|---|
+| `max(3, 4) > 2 ? 10 : 20` | 458 | 150 |
+| `round(7 / 2) + abs(-3)` | 950 | 190 |
+| `vec(1, 2).x + distance(vec(0, 0), vec(3, 4))` | 6407 | 429 |
+| `"Fuchs" == "fuchs" and contains(["a", "b", "c"], "c")` | 1982 | 291 |
+| `epoch.middle` | 666 | 50 |
+| in a game: `me.count(kind.towers)` | 2580 | 420 |
+| in a game: `epoch >= epoch.middle and me.towers < 3` | 2870 | 1700 |
+| in a game: `them.opinion(me) > 0 and them.soldiers > me.soldiers * 2 ? 1 : 0` | 6650 | 4550 |
+
+Checked: the bench scripts' outputs the same; the corpus (Continental 777 at minute 5, 7275 rows) the same; the probes
+player_effects, unit_effects, units and spawn the same script lines. What is left in the game's rows is the host's
+side: a player's `epoch` and an `opinion` make their text every time, used or not.
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

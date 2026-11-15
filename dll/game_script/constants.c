@@ -6,8 +6,8 @@ internal const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper
 // resource.<name>: a resource's number 1..5 (food, wood, stone, gold, iron - the game's order), its text its name;
 // resource.all 0 (give: each of them)
 internal const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
-// 0: no constant, 1: one, 2: one that stays the same - kept in the parsed tree (kind.towers, unit.citizen once the
-// game's types are there: filters must be quick, AI code)
+// 0: no constant, 1: one, 2: one that stays the same - kept where it is named, in the code (expr.c xop_name: all but a
+// personality's file and a unit type before the game's types are there - filters must be quick, AI code)
 internal const char *persona_file_of(const char *file);   // voice/persona.c
 internal int ee_constant(const char *name, struct xval *v) {
     if (!_strnicmp(name, "persona.", 8)) {   // persona.fuchs: a personality by its file (fuchs.eeai in the personality folder) - its name
@@ -20,16 +20,16 @@ internal int ee_constant(const char *name, struct xval *v) {
         int k = isalpha((unsigned char)name[6]) ? color_index(name + 6) : -1;
         if (k < 0) return 0;
         xnum(v, k + 1);
-        return 1;
+        return 2;
     }
     if (!_strnicmp(name, "resource.", 9)) {   // resource.gold: 4 (and "gold"); resource.all: 0 - each of them
-        if (!lstrcmpiA(name + 9, "all")) { xdual(v, 0, "all"); return 1; }
-        for (int k = 0; k < 5; k++) if (!lstrcmpiA(name + 9, k_resource_const[k])) { xdual(v, k + 1, k_resource_const[k]); return 1; }
+        if (x_ieq(name + 9, "all")) { xdual_kept(v, 0, "all"); return 2; }
+        for (int k = 0; k < 5; k++) if (x_ieq(name + 9, k_resource_const[k])) { xdual_kept(v, k + 1, k_resource_const[k]); return 2; }
         return 0;
     }
     if (!_strnicmp(name, "kind.", 5)) {   // kind.towers: one of the game's families (docs/units.md) - its number and "kind.towers"
         for (int k = 0; k < UNIT_KINDS; k++)
-            if (k_kind_ident[k] && !lstrcmpiA(name + 5, k_kind_ident[k])) {
+            if (k_kind_ident[k] && x_ieq(name + 5, k_kind_ident[k])) {
                 static char text[UNIT_KINDS][48];   // "kind.towers" as it stays (a constant's text kept where it is named: xop_name)
                 if (!text[k][0]) wsprintfA(text[k], "kind.%s", k_kind_ident[k]);
                 xdual_kept(v, k, text[k]);
@@ -49,6 +49,6 @@ internal int ee_constant(const char *name, struct xval *v) {
         return 2;
     }
     if (_strnicmp(name, "epoch.", 6)) return 0;
-    for (int e = 0; e < 15; e++) if (!lstrcmpiA(name + 6, k_epoch_const[e])) { xnum(v, e + 1); return 1; }
+    for (int e = 0; e < 15; e++) if (x_ieq(name + 6, k_epoch_const[e])) { xnum(v, e + 1); return 2; }
     return 0;
 }

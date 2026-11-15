@@ -1294,7 +1294,7 @@ internal void persona_state_reset(void) {
 internal struct pfield *pinst_field(struct xctx *c, const char *name) {
     if (!c->pl || !x_field_known(name)) return NULL;
     struct pinst *in = pinst_of(c->pl);
-    for (int i = 0; in && i < in->n; i++) if (!lstrcmpiA(in->f[i].name, name)) return &in->f[i];
+    for (int i = 0; in && i < in->n; i++) if (x_ieq(in->f[i].name, name)) return &in->f[i];
     return NULL;
 }
 internal int persona_field_get(struct xctx *c, const char *name, struct xval *v) {   // host.h field_get

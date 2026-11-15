@@ -172,6 +172,26 @@ internal const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a 
 
 // a vars function whose body is statements, name(a, b) { ... }: its value is X_BODY, then "(a, b) => { ... }" (tfile_parse)
 #define X_BODY '\x01'
+// two names or texts the same, their case ignored - exactly as lstrcmpiA tells it (the user's language: an umlaut's
+// capital and small letter the same), but without asking it while every character is plain ASCII (x_plain_char):
+// Windows' compare takes ~100 ns, and a name looked up by its letters meets dozens of names on its way (a builtin's
+// was found after up to 22 of them). Not plain: a character above 0x7E or below a space (Windows ignores some, folds
+// others), the apostrophe and the hyphen (its word order weighs them apart from the letters)
+internal int x_plain_char(unsigned c) { return c - 0x20u <= 0x5Eu && c != '-' && c != 39; }
+internal int x_plain(const char *s) {   // a text of plain characters only
+    for (; *s; s++) if (!x_plain_char((unsigned char)*s)) return 0;
+    return 1;
+}
+internal int x_ieq(const char *a, const char *b) {
+    for (const unsigned char *p = (const unsigned char *)a, *q = (const unsigned char *)b; ; p++, q++) {
+        unsigned x = *p, y = *q;
+        if ((x && !x_plain_char(x)) || (y && !x_plain_char(y))) return !lstrcmpiA(a, b);
+        if (x - 'A' < 26u) x += 32;
+        if (y - 'A' < 26u) y += 32;
+        if (x != y) return 0;
+        if (!x) return 1;
+    }
+}
 // vars keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
 internal int xkey_is(const char *key, const char *name) {
     size_t n = strcspn(key, "(");
@@ -238,7 +258,7 @@ internal int g_xfld_n;
 internal void x_field_add(const char *b, size_t n) { if (n && n < 40 && g_xfld_n < 64) lstrcpynA(g_xfld[g_xfld_n++], b, (int)n + 1); }
 internal int x_field_known(const char *name) {
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
-    for (int i = 0; i < g_xfld_n; i++) if (!lstrcmpiA(g_xfld[i], name)) return 1;
+    for (int i = 0; i < g_xfld_n; i++) if (x_ieq(g_xfld[i], name)) return 1;
     return 0;
 }
 internal void x_var_add(const char *b, size_t n, int data) {
@@ -301,22 +321,22 @@ internal void x_fn_scan(const char *text) {
 }
 internal int x_fn_blk(const char *name) {   // a function of the files whose body is statements
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
-    for (int i = 0; i < g_xfn_n; i++) if (!lstrcmpiA(g_xfn[i].name, name)) return g_xfn[i].blk;
+    for (int i = 0; i < g_xfn_n; i++) if (x_ieq(g_xfn[i].name, name)) return g_xfn[i].blk;
     return 0;
 }
 internal int x_fn_known(const char *name) {   // its parameter count, -1: no function of that name
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
-    for (int i = 0; i < g_xfn_n; i++) if (!lstrcmpiA(g_xfn[i].name, name)) return g_xfn[i].n;
+    for (int i = 0; i < g_xfn_n; i++) if (x_ieq(g_xfn[i].name, name)) return g_xfn[i].n;
     return -1;
 }
 internal int x_var_known(const char *name) {
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
-    for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return 1;
+    for (int i = 0; i < g_xvn_n; i++) if (x_ieq(g_xvn[i], name)) return 1;
     return 0;
 }
 internal int x_var_data(const char *name) {   // a name of the files that is data (name = value): worked out the same anywhere
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
-    for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return g_xvd[i];
+    for (int i = 0; i < g_xvn_n; i++) if (x_ieq(g_xvn[i], name)) return g_xvd[i];
     return 0;
 }
 // THE NAMES CHECK while a file is read (tfile_parse): a name that is nothing known - no parameter, constant, vars
@@ -382,6 +402,9 @@ internal void xdual_kept(struct xval *v, double n, const char *s) {   // the sam
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
     v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0;
 }
+// a number and nothing else (no text with it, no list it was drawn from, nobody missing): the machine works + - * /
+// and the comparisons of two such out itself
+#define XV_IS_NUM(v) ((v)->has_n && (v)->w && !(v)->has_s && !(v)->ln && !(v)->kind && !(v)->obj && !(v)->miss[0])
 internal int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 internal double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
 internal int xtrue(const struct xval *v) { return v->w && (v->ln || v->obj || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
@@ -617,7 +640,7 @@ internal int xps_op(struct xps *p, const char *op) {
 internal int x_word_reserved(const char *name) {   // a word of the language: no variable's or parameter's name
     static const char *const k[] = { "true", "false", "null", "return", "and", "or", "not", "let", "if", "else", "while", "for", "in",
                                      "break", "continue" };
-    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!lstrcmpiA(name, k[i])) return 1;
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (x_ieq(name, k[i])) return 1;
     return 0;
 }
 internal void xps_expr(struct xps *p, struct xnode **out);
@@ -864,13 +887,13 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         while ((isalnum((unsigned char)*s) || *s == '_' || (*s == '.' && isalpha((unsigned char)s[1]))) && n < 39) name[n++] = *s++;
         name[n] = 0;
         p->s = s;
-        if (!lstrcmpiA(name, "true") || !lstrcmpiA(name, "false")) {
+        if (x_ieq(name, "true") || x_ieq(name, "false")) {
             o = xn_new(p, XN_NUM, s - n);
             if (!o) return;
-            o->n = !lstrcmpiA(name, "true");
+            o->n = x_ieq(name, "true");
             o->op = 'b';   // a bool
             o = XOFF(p, o);
-        } else if (!lstrcmpiA(name, "null")) {   // nothing there: lord == null
+        } else if (x_ieq(name, "null")) {   // nothing there: lord == null
             o = xn_new(p, XN_NUM, s - n);
             if (!o) return;
             o->op = 'n';
@@ -1432,16 +1455,13 @@ internal const struct xunit *x_compiled(const char *src) {
 
 // the builtin functions: their number by name and argument count (0: none - a vars function or a relation)
 internal int x_fn_id(const char *name, int na) {
-    return !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
-           !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
-           !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : !lstrcmpiA(name, "floor") && na == 1 ? 6 :
-           !lstrcmpiA(name, "len") && na == 1 ? 7 : !lstrcmpiA(name, "first") && na == 1 ? 8 :
-           !lstrcmpiA(name, "item") && na == 2 ? 9 : !lstrcmpiA(name, "contains") && na == 2 ? 10 :
-           !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
-           !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 :
-           !lstrcmpiA(name, "vec") && na >= 2 && na <= 4 ? 16 : !lstrcmpiA(name, "rgb") && na == 3 ? 17 :
-           !lstrcmpiA(name, "distance") && na == 2 ? 18 : !lstrcmpiA(name, "has") && na == 2 ? 19 :
-           !lstrcmpiA(name, "int") && na == 1 ? 20 : !lstrcmpiA(name, "ceil") && na == 1 ? 21 : 0;
+    static const struct { const char *name; signed char lo, hi, id; } k[] = {   // lo..hi: its arguments
+        { "chance", 1, 1, 1 }, { "min", 1, 127, 2 }, { "max", 1, 127, 2 }, { "abs", 1, 1, 3 }, { "round", 1, 1, 4 }, { "rnd", 0, 1, 5 },
+        { "floor", 1, 1, 6 }, { "len", 1, 1, 7 }, { "first", 1, 1, 8 }, { "item", 2, 2, 9 }, { "contains", 2, 2, 10 },
+        { "map_range", 3, 3, 11 }, { "str", 1, 1, 12 }, { "number", 1, 1, 13 }, { "log2", 1, 1, 14 }, { "pick", 1, 1, 15 },
+        { "vec", 2, 4, 16 }, { "rgb", 3, 3, 17 }, { "distance", 2, 2, 18 }, { "has", 2, 2, 19 }, { "int", 1, 1, 20 }, { "ceil", 1, 1, 21 } };
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (na >= k[i].lo && na <= k[i].hi && x_ieq(name, k[i].name)) return k[i].id;
+    return 0;
 }
 internal int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
@@ -2282,7 +2302,8 @@ internal int xvec_eq(const struct xval *a, const struct xval *b) {   // two vect
     for (int i = 0; i < a->vn; i++) if (a->vc[i] != b->vc[i]) return 0;
     return 1;
 }
-internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
+// <0, 0, >0: players the same one or not, numbers, else texts; eq: only whether they are the same is asked (0 or not)
+internal int xcmp_as(const struct xval *a, const struct xval *b, int eq) {
     double x, y;
     if (a->obj && b->obj) {
         if (a->okind != b->okind) return a->okind - b->okind;
@@ -2293,14 +2314,16 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
     if (a->kind == XV_REC || b->kind == XV_REC) return 2;   // (contains: a record is equal to nothing)
     if (xmismatch(a, b)) return 2;   // unequal
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
-    return lstrcmpiA(xtext_of(a), xtext_of(b));
+    return eq ? !x_ieq(xtext_of(a), xtext_of(b)) : lstrcmpiA(xtext_of(a), xtext_of(b));
 }
 // DICTS: dict<K, V>(default) - an entry per key, the default for every key without one (so d[k] is always a value, none
 // guessed). K: int, text or an object's kind (player ...: by its index, as == tells them apart); V: int, float, bool or
 // text. A dict is a table of its own, outside the values' regions: the values holding it share it (d[k] = v is seen
 // through every one), and a new game frees them all (x_triggers_reset). Its types are checked when it is worked out.
 struct xdent { int kobj; double kn; char *ks; double vn; char *vs; int vhas_s; };
-struct xdict { struct xdict *next; int kt, vt, n, cap; struct xdent def, *e; };
+// ix: THE INDEX (xdict_find) - nix places, an entry's number + 1 in each; nidx: the entries in it so far; odd: a text
+// key among them that isn't plain (x_plain)
+struct xdict { struct xdict *next; int kt, vt, n, cap; struct xdent def, *e; int *ix, nix, nidx, odd; };
 internal struct xdict *g_xdicts;
 internal int g_xdict_keep;   // the dicts made now are their maker's to free (a personality's fields: x_dict_free), not the list's
 internal void x_dict_free(struct xdict *d) {
@@ -2308,6 +2331,7 @@ internal void x_dict_free(struct xdict *d) {
     for (int i = 0; i < d->n; i++) { free(d->e[i].ks); free(d->e[i].vs); }
     free(d->def.vs);
     free(d->e);
+    free(d->ix);
     free(d);
 }
 internal void xdict_put(struct xdict *d, struct xdent *x) {   // an entry as it is (a saved game's): x's texts taken over
@@ -2336,7 +2360,7 @@ internal int xdict_fit(struct xe *e, int t, const struct xval *v, struct xdent *
         if (v->obj && v->w && v->okind == t) { de->kobj = v->obj; return 1; }
     } else if (t == XT_TEXT) {
         if (v->w && v->has_s && !v->obj && !v->kind && !v->ln) {
-            if (k) de->ks = _strdup(v->s); else { de->vs = _strdup(v->s); de->vhas_s = 1; }
+            if (k) de->ks = (char *)v->s; else { de->vs = _strdup(v->s); de->vhas_s = 1; }   // (a key: v's own text - xdict_set copies one it keeps)
             return 1;
         }
     } else if (v->w && v->has_n && !v->obj && !v->kind && !v->ln && (t != XT_INT || v->n == floor(v->n))) {   // int float bool
@@ -2346,11 +2370,56 @@ internal int xdict_fit(struct xe *e, int t, const struct xval *v, struct xdent *
     x_fail(e, "%s: %.40s is no %s - the dict's %s are %ss", what, xtext_of(v), xdict_tname(t, tn, sizeof tn), k ? "keys" : "values", tn);
     return 0;
 }
-internal struct xdent *xdict_find(struct xdict *d, const struct xdent *k) {
-    for (int i = 0; i < d->n; i++) {
-        struct xdent *x = &d->e[i];
-        if (d->kt < XT_INT ? x->kobj == k->kobj : d->kt == XT_TEXT ? !lstrcmpiA(x->ks, k->ks) : x->kn == k->kn) return x;
+// THE INDEX: a dict of more than a few entries finds one by its key's hash, not by walking them all (a text key was a
+// compare of Windows' with every entry). Made and added to when the dict is asked (entries come from xdict_set, a
+// saved game's xdict_put, a personality's fields read back: nidx tells what is new). A text key is the same as
+// lstrcmpiA tells it - which no hash knows for a key that isn't plain ASCII: with one such in the dict (odd), or
+// asked for, it is walked as before
+internal unsigned xdict_hash(const struct xdict *d, const struct xdent *k) {
+    unsigned h = 2166136261u;
+    if (d->kt < XT_INT) h = (unsigned)k->kobj;
+    else if (d->kt == XT_TEXT) {
+        for (const unsigned char *s = (const unsigned char *)k->ks; *s; s++) h = (h ^ (*s - 'A' < 26u ? *s + 32u : *s)) * 16777619u;
+    } else {
+        double x = k->kn == 0 ? 0 : k->kn;   // (-0 is 0)
+        uint64_t b;
+        memcpy(&b, &x, sizeof b);
+        h = (unsigned)(b ^ b >> 32);
     }
+    h ^= h >> 16; h *= 0x85EBCA6Bu; h ^= h >> 13; h *= 0xC2B2AE35u; h ^= h >> 16;
+    return h;
+}
+internal void xdict_index(struct xdict *d) {
+    if (d->nidx > d->n) d->nidx = d->nix = 0;   // (emptied and filled anew: a personality's fields read back)
+    if (d->n * 2 > d->nix) {
+        int nix = 64;
+        while (nix < d->n * 4) nix *= 2;
+        int *m = realloc(d->ix, (size_t)nix * sizeof *m);
+        if (!m) { d->nix = d->nidx = 0; return; }
+        memset(m, 0, (size_t)nix * sizeof *m);
+        d->ix = m; d->nix = nix; d->nidx = 0; d->odd = 0;
+    }
+    for (int i = d->nidx; i < d->n; i++) {
+        if (d->kt == XT_TEXT && !x_plain(d->e[i].ks)) d->odd = 1;
+        unsigned h = xdict_hash(d, &d->e[i]) & (unsigned)(d->nix - 1);
+        while (d->ix[h]) h = (h + 1) & (unsigned)(d->nix - 1);
+        d->ix[h] = i + 1;
+    }
+    d->nidx = d->n;
+}
+internal int xdict_same(const struct xdict *d, const struct xdent *x, const struct xdent *k) {
+    return d->kt < XT_INT ? x->kobj == k->kobj : d->kt == XT_TEXT ? x_ieq(x->ks, k->ks) : x->kn == k->kn;
+}
+internal struct xdent *xdict_find(struct xdict *d, const struct xdent *k) {
+    if (d->n > 8 && (d->kt != XT_TEXT || x_plain(k->ks))) {
+        if (d->nidx != d->n) xdict_index(d);
+        if (d->nix && !d->odd) {
+            for (unsigned h = xdict_hash(d, k) & (unsigned)(d->nix - 1); d->ix[h]; h = (h + 1) & (unsigned)(d->nix - 1))
+                if (xdict_same(d, &d->e[d->ix[h] - 1], k)) return &d->e[d->ix[h] - 1];
+            return NULL;
+        }
+    }
+    for (int i = 0; i < d->n; i++) if (xdict_same(d, &d->e[i], k)) return &d->e[i];
     return NULL;
 }
 internal void xdict_value(const struct xdict *d, const struct xdent *x, struct xval *v) {   // an entry's value (or the default's)
@@ -2361,20 +2430,21 @@ internal void xdict_get(struct xe *e, struct xdict *d, const struct xval *key, s
     struct xdent k;
     if (!xdict_fit(e, d->kt, key, &k, 1, "[...]")) return;
     const struct xdent *x = xdict_find(d, &k);
-    free(k.ks);
     xdict_value(d, x ? x : &d->def, v);
 }
 internal void xdict_set(struct xe *e, struct xdict *d, const struct xval *key, const struct xval *val) {   // d[key] = val
     struct xdent k, nv;
     if (!xdict_fit(e, d->kt, key, &k, 1, "[...] = ...")) return;
-    if (!xdict_fit(e, d->vt, val, &nv, 0, "[...] = ...")) { free(k.ks); return; }
+    if (!xdict_fit(e, d->vt, val, &nv, 0, "[...] = ...")) return;
     struct xdent *x = xdict_find(d, &k);
-    if (x) { free(k.ks); free(x->vs); }
+    if (x) free(x->vs);
     else {
+        if (k.ks && !(k.ks = _strdup(k.ks))) { free(nv.vs); e->err = 1; return; }   // (the key was the value's own text)
         if (d->n == d->cap) {
-            struct xdent *m = realloc(d->e, (size_t)(d->cap = d->cap ? d->cap * 2 : 8) * sizeof *m);
+            struct xdent *m = realloc(d->e, (size_t)(d->cap ? d->cap * 2 : 8) * sizeof *m);
             if (!m) { free(k.ks); free(nv.vs); e->err = 1; return; }
             d->e = m;
+            d->cap = d->cap ? d->cap * 2 : 8;
         }
         x = &d->e[d->n++];
         *x = k;
@@ -2512,6 +2582,20 @@ internal int x_body(struct xe *e, const char *src, struct xval *v) {
     struct xe q = { e->c, 0, NULL, 0, 0 };
     return xvm_eval(k, &q, v, NULL);
 }
+// a member path's value (name: r.a.b, p.gold - the whole path) from its head's, h (used): a player's the host's own
+// way first (p.soldiers), else member by member
+internal void x_path_walk(struct xe *e, const char *name, struct xval *h, struct xval *v) {
+    if (h->obj && h->w && g_x_host.value(e->c, name, v)) return;
+    for (const char *seg = strchr(name, '.') + 1; !e->err;) {
+        char m[40];
+        size_t k = strcspn(seg, ".");
+        lstrcpynA(m, seg, (int)(k < 39 ? k : 39) + 1);
+        x_member_of(e, m, h, name);
+        if (!seg[k]) break;
+        seg += k + 1;
+    }
+    if (!e->err) *v = *h;
+}
 internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
     struct xctx *c = e->c;
     if (c->fixed == 1) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
@@ -2528,18 +2612,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         if (own) {
             struct xval h;
             xe_ident(e, head, &h);
-            if (e->err) return;
-            if (!(h.obj && h.w && g_x_host.value(c, name, v))) {   // (a player's: the host's own way first - p.soldiers)
-                for (const char *seg = dot + 1; !e->err;) {
-                    char m[40];
-                    size_t k = strcspn(seg, ".");
-                    lstrcpynA(m, seg, (int)(k < 39 ? k : 39) + 1);
-                    x_member_of(e, m, &h, name);
-                    if (!seg[k]) break;
-                    seg += k + 1;
-                }
-                if (!e->err) *v = h;
-            }
+            if (!e->err) x_path_walk(e, name, &h, v);
             return;
         }
     }
@@ -2571,7 +2644,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
     if (c->script && !strcmp(name, "time")) { xnum(v, g_x_hooks.now ? g_x_hooks.now() : 0); return; }   // game seconds
     int k = g_x_host.constant(name, v);
     if (k) { e->kept = k == 2; return; }
-    if (c->nogame && lstrcmpiA(name, "language") && (g_x_host.is_value(name) || strchr(name, '.'))) { x_nogame(e, name); return; }
+    if (c->nogame && !x_ieq(name, "language") && (g_x_host.is_value(name) || strchr(name, '.'))) { x_nogame(e, name); return; }
     if (g_x_host.value(c, name, v)) return;
     if (x_vars_no_member(e, name)) return;   // colors.missing
     x_fail(e, !strcmp(name, "name") ? "an unknown name: name - the other player is them (them.name)" : "an unknown name: %s", name);
@@ -2964,11 +3037,12 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
     }
 }
 // name(a ...) with its arguments worked out (nall of them, at most 32): a function in a variable, one of the
-// language's, a vars file's, a script's, a command, a relation or method of the host's
-internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, struct xval *v) {
+// language's, a vars file's, a script's, a command, a relation or method of the host's; view 0: no variable has the
+// name (a script's code knows its own when it is compiled: a call by name there is none of them)
+internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int nall, int view, struct xval *v) {
     int na = nall < 8 ? nall : 8;
     if (!strchr(name, '.')) {   // a function in a variable or parameter
-        const struct xval *lv = x_view_find(e->c, name, strlen(name));
+        const struct xval *lv = view ? x_view_find(e->c, name, strlen(name)) : NULL;
         for (int i = 0; i < e->c->fnp; i++)
             if (!strcmp(e->c->fpn[i], name)) {
                 if (e->c->fpv[i].kind != XV_FN) { x_fail(e, "%s is no function", name); return; }
@@ -3083,7 +3157,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
     }
     if (f == 1) xnum(v, x_rnd01(e->c) < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
     else if (f == 2) {
-        int mx = !lstrcmpiA(name, "max");
+        int mx = x_ieq(name, "max");
         double r = xto_num(&a[0]);
         for (int i = 1; i < na; i++) { double x = xto_num(&a[i]); if (mx ? x > r : x < r) r = x; }
         xnum(v, r);
@@ -3110,7 +3184,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
         if (i >= 0 && i < xl_n(l)) { *v = *xl_at(l, i); v->w = 1; v->ln = 0; v->it = NULL; }
     } else if (f == 10) {   // contains(l, x): one of its items equal to x (as ==)
         int hit = 0;
-        for (int i = 0; i < xl_n(&a[0]) && !hit; i++) hit = a[1].w && !xcmp(xl_at(&a[0], i), &a[1]);
+        for (int i = 0; i < xl_n(&a[0]) && !hit; i++) hit = a[1].w && !xcmp_as(xl_at(&a[0], i), &a[1], 1);
         xnum(v, hit);
     }
     else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (base/math.c)
@@ -3155,14 +3229,19 @@ internal void xe_vec_op(struct xe *e, int op, struct xval *a, const struct xval 
 }
 // THE OPERATIONS on values already worked out - what an instruction of the machine (SCRIPTS COMPILED) does with its
 // operands, apart from how they came to be. Each takes its operands and leaves its value in v
+internal const char k_x_knum[] = "#";   // a kept constant's text place: none - a number alone
 internal void xop_name(struct xe *e, const char *name, double *kn, const char **kcs, struct xval *v) {   // a name's value
     struct xctx *c = e->c;
-    if (*kcs) { xdual_kept(v, *kn, *kcs); return; }   // a constant that stays, looked up before
+    if (*kcs && !c->fixed) {   // a constant that stays, looked up before (a setting takes no names: told below)
+        if (*kcs == k_x_knum) xnum(v, *kn); else xdual_kept(v, *kn, *kcs);
+        return;
+    }
     int kept = e->kept;   // a name in a name (a vars entry's): its own
     e->kept = 0;
     xe_ident(e, name, v);
     // a constant the host says stays the same (kind.tank, unit.citizen): kept where it is named (filters must be quick)
     if (!e->err && e->kept && v->has_s && v->has_n && v->n >= 0) { *kn = v->n; *kcs = v->s; }
+    else if (!e->err && e->kept && v->has_n && !v->has_s && v->w == 1 && !v->obj && !v->kind && !v->ln) { *kn = v->n; *kcs = k_x_knum; }   // (epoch.middle: a number alone)
     e->kept = kept;
     if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
 }
@@ -3253,7 +3332,7 @@ internal void xop_cmp(struct xe *e, int op, int an, int bn, struct xval *v, stru
         x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : b));
         return;
     }
-    int d = xcmp(v, b);
+    int d = xcmp_as(v, b, op == '=' || op == '!');
     xnum(v, op == '<' ? d < 0 : op == '>' ? d > 0 : op == 'l' ? d <= 0 : op == 'g' ? d >= 0 : op == '=' ? d == 0 : d != 0);
 }
 // d[k] = val, d[k] op= val (d, k and val used)
@@ -4029,7 +4108,7 @@ enum { XI_STMT, XI_CONST, XI_NIL, XI_LOADL, XI_LOADU, XI_STOREL, XI_STOREU, XI_N
        XI_ARITH, XI_CMP, XI_JMP, XI_JMPF, XI_AND, XI_OR, XI_COAL, XI_BOOL, XI_MEMBER, XI_INDEX, XI_MCALL, XI_DICT, XI_REC,
        XI_KEY, XI_LIST, XI_TRY, XI_ITEM, XI_LIST_END, XI_CLOSURE, XI_CALLV, XI_CALLN, XI_RET, XI_LOOP, XI_SETI, XI_SETM,
        XI_FORN, XI_FORN_NEXT, XI_FORN_STEP, XI_FORL, XI_FORL_NEXT, XI_FORL_STEP, XI_WAIT, XI_EVERY, XI_EVERY_NEXT,
-       XI_EVERY_CALL, XI_EVERY_DONE, XI_HOOK, XI_FAIL, XI_END, XI_SETF, XI_COUNT };
+       XI_EVERY_CALL, XI_EVERY_DONE, XI_HOOK, XI_FAIL, XI_END, XI_SETF, XI_PATH, XI_COUNT };
 struct xins { unsigned char op, b; unsigned short c; int a; };   // what, and its numbers (each instruction's own use)
 struct xkonst { double n; const char *s; const char *cs; };     // a number; a text or a name (cs, n: a name's constant once looked up)
 struct xfunc { int entry, nparams, nslots, parent, line; const char **slot; };   // slot: its names ("" a hidden one)
@@ -4042,6 +4121,8 @@ struct xcode {
     struct xfunc *fn;
     int nfn, cfn;
     const char *src;          // the source (its statements' texts for the messages)
+    int text;                 // a text's code (xc_compile_text): the names around it are not its own (a script's, seen
+                              // through the view by their letters: "{f(2)}" in a script's string)
     int ok;                   // compiled whole (else why, at why_line)
     const char *why;
     int why_line;
@@ -4122,6 +4203,13 @@ internal int xc_resolve(struct xcomp *cc, const char *name, int *depth) {
 }
 internal void xc_load(struct xcomp *cc, const char *name) {
     int depth, sl = xc_resolve(cc, name, &depth), k = xc_konst(cc, 0, name);
+    const char *dot = strchr(name, '.');
+    if (sl < 0 && dot && dot - name < 40) {   // w.units, p.gold of a variable: its slot, then the members (XI_PATH)
+        char head[40];
+        lstrcpynA(head, name, (int)(dot - name) + 1);
+        int hs = xc_resolve(cc, head, &depth);
+        if (hs >= 0) { xc_emit(cc, XI_PATH, k, depth, hs); return; }
+    }
     if (sl < 0) xc_emit(cc, XI_NAME, k, 0, 0);
     else if (!depth) xc_emit(cc, XI_LOADL, sl, 0, k);
     else xc_emit(cc, XI_LOADU, sl, depth, k);
@@ -4202,7 +4290,13 @@ internal void xc_expr(struct xcomp *cc, const struct xnode *n) {
     if (!n) { xc_emit(cc, XI_NIL, 0, 0, 0); return; }
     switch (n->k) {
     case XN_NUM: if (n->op == 'n') xc_emit(cc, XI_NIL, 0, 0, 0); else xc_emit(cc, XI_CONST, xc_konst(cc, n->n, NULL), 0, 0); break;
-    case XN_STR: xc_emit(cc, XI_STR, xc_konst(cc, 0, n->s), 0, 0); break;
+    case XN_STR:
+        if (!strchr(n->s, '{')) {   // no placeholder: the text itself, made once (b 1) - its \{ \} written as x_fill does
+            char *t = strpbrk(n->s, "\x01\x02") ? _strdup(n->s) : NULL;
+            for (char *q = t; q && *q; q++) if (*q == X_LBRACE) *q = '{'; else if (*q == X_RBRACE) *q = '}';
+            xc_emit(cc, XI_STR, xc_konst(cc, 0, t ? t : n->s), 1, 0);
+        } else xc_emit(cc, XI_STR, xc_konst(cc, 0, n->s), 0, 0);
+        break;
     case XN_NAME: xc_load(cc, n->s); break;
     case XN_CALL: xc_call(cc, n); break;
     case XN_LIST:
@@ -4422,6 +4516,7 @@ internal struct xcode *xc_compile_text(const struct xnode *root, const char *src
     if (!k || !cc) { free(k); free(cc); return NULL; }
     k->src = src; k->ok = 1;
     cc->c = k; cc->text = 1; cc->line = root->line;
+    k->text = 1;
     cc->fi = xc_func(cc, -1, 1);
     xc_expr(cc, root);
     xc_emit(cc, XI_RET, 0, 0, 0);
@@ -4498,7 +4593,7 @@ internal void xvm_callv(struct xvm *m, struct xe *e, int argc, const char *name)
     int base = m->sp - argc;
     xnothing(&r);
     if (fv.kind == XV_UNSET) {   // its let not reached yet: whatever else has that name
-        x_call_apply(e, name, args, argc, &r);
+        x_call_apply(e, name, args, argc, 1, &r);
         if (e->c->missed) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
     } else if (fv.kind != XV_FN) x_fail(e, "%s is no function", name);
     else if (fv.fn->vm == m) { xvm_enter(m, e, fv.fn, base, argc); return; }
@@ -4540,13 +4635,44 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             else w->val[in->a] = *v;
             break;
         case XI_NAME: v = xvm_push(m, e); xnothing(v); xop_name(e, k->s, &k->n, &k->cs, v); break;
-        case XI_STR: v = xvm_push(m, e); xnothing(v); x_str_fill(e, k->s, v); break;
+        case XI_PATH:   // a member path whose head is the slot c of the function b out: what xe_ident does once it found the head its own
+            w = &f->view;
+            for (int d = in->b; d > 0 && w; d--) w = w->up;
+            v = xvm_push(m, e);
+            xnothing(v);
+            // (its let not reached yet, a text's parameters or a setting's rules in the way: by its letters, as any name)
+            if (!w || in->c >= w->n || w->val[in->c].kind == XV_UNSET || c->fnp || c->fixed) { xop_name(e, k->s, &k->n, &k->cs, v); break; }
+            r = w->val[in->c];
+            x_path_walk(e, k->s, &r, v);
+            if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
+            break;
+        case XI_STR:
+            v = xvm_push(m, e);
+            xnothing(v);
+            if (in->b) { v->s = k->s; v->has_s = v->w = 1; }   // (no placeholder: the code's own text, which stays)
+            else x_str_fill(e, k->s, v);
+            break;
         case XI_USE: x_use(e, top); break;
         case XI_POP: m->sp--; break;
         case XI_NEG: xop_neg(e, top); break;
         case XI_NOT: xnum(top, !xtrue(top)); break;
-        case XI_ARITH: m->sp--; xop_arith(e, in->b, in->a, &m->st[m->sp - 1], &m->st[m->sp]); break;
-        case XI_CMP: m->sp--; xop_cmp(e, in->a, in->b & 1, in->b >> 1, &m->st[m->sp - 1], &m->st[m->sp]); break;
+        case XI_ARITH: {   // (two plain numbers: worked out here - what xop_arith comes to for them)
+            struct xval *a = &m->st[--m->sp - 1], *b = a + 1;
+            if (XV_IS_NUM(a) && XV_IS_NUM(b) && (in->a != '/' || b->n != 0)) {
+                double x = a->n, y = b->n;
+                xnum(a, in->b ? in->a == '*' ? x * y : in->a == '/' ? x / y : x - y : in->a == '-' ? x - y : x + y);
+            } else xop_arith(e, in->b, in->a, a, b);
+            break;
+        }
+        case XI_CMP: {
+            struct xval *a = &m->st[--m->sp - 1], *b = a + 1;
+            if (!in->b && XV_IS_NUM(a) && XV_IS_NUM(b)) {
+                double x = a->n, y = b->n;
+                int op = in->a;
+                xnum(a, op == '<' ? x < y : op == '>' ? x > y : op == 'l' ? x <= y : op == 'g' ? x >= y : op == '=' ? x == y : x != y);
+            } else xop_cmp(e, in->a, in->b & 1, in->b >> 1, a, b);
+            break;
+        }
         case XI_JMP: m->pc = in->a; break;
         case XI_JMPF: if (!xtrue(&m->st[--m->sp])) m->pc = in->a; break;
         case XI_AND: case XI_OR: {
@@ -4629,7 +4755,7 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
         case XI_CALLV: xvm_callv(m, e, in->b, k->s); break;
         case XI_CALLN:
             xnothing(&r);
-            x_call_apply(e, k->s, &m->st[m->sp - in->b], in->b, &r);
+            x_call_apply(e, k->s, &m->st[m->sp - in->b], in->b, code->text, &r);
             if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
             m->sp -= in->b;
             *xvm_push(m, e) = r;

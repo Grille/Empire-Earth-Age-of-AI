@@ -1,0 +1,11 @@
+// bench: lists - walked, indexed, made anew each round, searched
+let l = [3, 1, 4, 1, 5, 9, 2, 6]
+let s = 0
+for r in 1..40000 {
+    for x in l { s += x }
+    s += l[3]
+    let m = [r, r + 1, r + 2]
+    s += m[2]
+    if contains(l, 9) { s += 1 }
+}
+cmd("lists {s} {first(l) ?? 0} {l}")

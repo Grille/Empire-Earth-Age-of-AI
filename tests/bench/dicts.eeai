@@ -1,0 +1,13 @@
+// bench: dicts - entries set, added to and read
+let d = dict<int, int>(0)
+let names = dict<text, int>(0)
+let s = 0
+for r in 1..2000 {
+    for k in 1..50 {
+        d[k] += r
+        s += d[k]
+    }
+    names["a"] += 1
+    names["wave {r}"] = r
+}
+cmd("dicts {s} {d[50]} {names["a"]} {names["wave 1999"]}")

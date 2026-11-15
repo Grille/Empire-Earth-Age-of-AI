@@ -1,0 +1,11 @@
+// bench: texts - a string's placeholders filled each round, texts compared
+let name = "Fuchs"
+let n = 0
+let last = ""
+for i in 1..50000 {
+    let t = "wave {i} of 50000: {name} has {i * 2} men"
+    if t == "wave 7 of 50000: Fuchs has 14 men" { n += 1 }
+    if name == "Fuchs" { n += 1 }
+    last = t
+}
+cmd("strings {n} {last}")

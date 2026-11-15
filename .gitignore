@@ -16,3 +16,4 @@ __pycache__/
 /dll/*.dll
 *.csv
 *.png
+/tests/bench/*.out

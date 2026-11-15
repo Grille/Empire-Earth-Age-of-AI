@@ -1,0 +1,11 @@
+// bench: records and vectors - members read, a record made each round, vectors added
+let w = { at = vec(70, 50), units = 10, name = "wave" }
+let s = 0
+let p = vec(0, 0)
+for r in 1..100000 {
+    s += w.units + w.at.x
+    let q = { n = r, half = r / 2 }
+    s += q.n
+    p = p + vec(1, 2)
+}
+cmd("records {s} {p.x} {p.y} {w.name}")

@@ -111,9 +111,85 @@ internal void chk_game(void) {
     script_own_path(own);
     if (GetFileAttributesA(own) != INVALID_FILE_ATTRIBUTES) { printf("ageofai_check: %s\n", own); chk_script(own, NULL); }
 }
+// THE ENGINE'S SPEED, measured without the game (a change to expr.c: the same output, the time before and after):
+//   ageofai_check --bench <script.eeai> [runs]   the script run dry (test/scripts.c THE DRY RUN: the clock jumps to where
+//                                                it waits, its commands written, not run) - the first run's commands to
+//                                                <script>.out, the best time of the runs
+//   ageofai_check --eval <runs> <expression>     a text's expression worked out runs times (x_eval, no game: numbers,
+//                                                texts, lists, the builtin functions) - its value and the time of one
+internal double chk_ms(void) {
+    LARGE_INTEGER f, t;
+    QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&t);
+    return (double)t.QuadPart * 1000.0 / (double)f.QuadPart;
+}
+internal int chk_bench(const char *path, int runs) {
+    char out[MAX_PATH];
+    char *text = script_read(path);
+    struct xunit u;
+    struct xcode *code;
+    const char *why = "can't be read";
+    int line = 0;
+    double t0 = chk_ms(), best = 0;
+    if (!text || !script_compile(path, text, &u, &code, &why, &line)) { printf("%s:%d: %s\n", path, line > 0 ? line : 1, why); return 1; }
+    double compiled = chk_ms() - t0;
+    snprintf(out, sizeof out, "%s.out", path);
+    for (int i = 0; i < runs; i++) {
+        struct xregion reg = { 0 }, *r0 = g_xr;
+        reg.busy = 1;
+        g_xr = &reg;
+        g_dry_out = fopen(i ? "NUL" : out, "wb");
+        if (!g_dry_out) { printf("%s: can't be written\n", out); return 1; }
+        g_dry_now = 2.0;
+        x_triggers_reset();
+        g_x_hooks.now = dry_now; g_x_hooks.wait = NULL; g_x_hooks.command = dry_command; g_x_hooks.did = dry_did; g_x_hooks.note = NULL;
+        t0 = chk_ms();
+        struct xvm *m = xvm_new(code, 0);
+        const char *stop = "no memory";
+        int r = m ? xvm_turn(m, &stop) : XVM_FAIL;
+        while (r == XVM_YIELD) { dry_wait(m->wake); r = xvm_turn(m, &stop); }
+        double ms = chk_ms() - t0;
+        if (r != XVM_DONE) fprintf(g_dry_out, "stopped at line %d - %s\n", m ? m->line : 0, stop);
+        if (r != XVM_DONE && !i) printf("%s:%d: stopped - %s\n", path, m ? m->line : 0, stop);
+        if (!i || ms < best) best = ms;
+        free(m);
+        memset(&g_x_hooks, 0, sizeof g_x_hooks);
+        g_xr = r0;
+        x_region_free(&reg);
+        fclose(g_dry_out);
+        g_dry_out = NULL;
+    }
+    printf("%-28s %9.3f ms (best of %d; read and compiled in %.3f ms)\n", strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path, best, runs, compiled);
+    return 0;
+}
+internal int chk_eval(int runs, const char *src) {
+    struct xctx c;
+    struct xval v;
+    char t[XVAL_CAP];
+    int ok = 1;
+    memset(&c, 0, sizeof c);
+    c.found = 1; c.nogame = 1;
+    double t0 = chk_ms();
+    for (int i = 0; i < runs && ok; i++) ok = x_eval(src, &c, &v);
+    double ms = chk_ms() - t0;
+    if (!ok) { printf("%s: %s\n", src, c.failed ? g_x_last_fail : "not an expression"); return 1; }
+    xto_text(&v, t, sizeof t);
+    printf("%8.1f ns  %-44.44s = %.40s\n", ms * 1e6 / runs, src, t);
+    return 0;
+}
 int main(int argc, char **argv) {
     const char *ai = NULL;
     int n = 0;
+    if (argc >= 3 && (!strcmp(argv[1], "--bench") || !strcmp(argv[1], "--eval"))) {
+        InitializeCriticalSection(&g_x_lock);
+        InitializeCriticalSection(&g_lock);
+        x_host_install();
+        g_x_told = chk_told;
+        if (argv[1][2] == 'e') return argc >= 4 ? chk_eval(atoi(argv[2]) > 0 ? atoi(argv[2]) : 1, argv[3]) : 1;
+        char full[MAX_PATH];
+        GetFullPathNameA(argv[2], MAX_PATH, full, NULL);
+        return chk_bench(full, argc >= 4 && atoi(argv[3]) > 0 ? atoi(argv[3]) : 5);
+    }
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--ai") && i + 1 < argc) ai = argv[++i];
         else n++;

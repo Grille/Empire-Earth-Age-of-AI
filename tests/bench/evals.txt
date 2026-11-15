@@ -1,0 +1,8 @@
+1 + 2 * 3
+max(3, 4) > 2 ? 10 : 20
+[1, 2, 3]
+"a {1 + 1} b"
+round(7 / 2) + abs(-3)
+vec(1, 2).x + distance(vec(0, 0), vec(3, 4))
+"Fuchs" == "fuchs" and contains(["a", "b", "c"], "c")
+epoch.middle

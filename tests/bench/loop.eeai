@@ -1,0 +1,13 @@
+// bench: plain statements - a sum in a loop, conditions (ageofai_check --bench; docs/testing.md "The engine's speed")
+let s = 0
+let odd = 0
+for r in 1..5 {
+    for i in 1..180000 {
+        s += i * 2 - 1
+        if i > 1000 and not (s < 0) or i == 7 { odd += 1 }
+    }
+    wait(1s)
+}
+let n = 0
+while n < 300000 { n += 3 }
+cmd("loop {s} {odd} {n}")

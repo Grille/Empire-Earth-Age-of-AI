@@ -1,0 +1,14 @@
+// bench: functions called - a declared one, one that calls itself, one made in the code that sets a name around it
+add(a: int, b: int) => a + b
+fib(n: int) {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+let s = 0
+for i in 1..200000 { s = add(s, i) }
+let hits = 0
+let hit = (k: int) => {
+    if k > 2 { hits += 1 }
+}
+for i in 1..200000 { hit(i) }
+cmd("calls {s} {fib(22)} {hits}")
