@@ -526,6 +526,10 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     int *st = player_stock_at(pl), keep = shelf_keep(pl), out = shelf_citizens_out(pl);
     int room = unit_limit(pl) - player_population(pl, 1, 0), queued = unit_mgr_get_in_production(um);
     g_shelf[pi].want = 0;
+    // the game's computer player off: a fortress with units inside is the shelf's - nobody else fills one then (the
+    // shelter and the reserve are the game's assignment hook's), and which were its is not in a save: after a load
+    // they stood full for good, no citizen out, none more in
+    if (!GAME_AI(pi)) for (int k = 0; k < g_bk[pi].nf; k++) if (!g_bk[pi].store[k] && !g_bk[pi].shelter[k] && bk_held(g_bk[pi].f[k]) > 0) g_bk[pi].store[k] = 1;
     int plenty = st[2] >= SHELF_PLENTY && st[3] >= SHELF_PLENTY, rich = shelf_rich(st, g_shelve_stock);
     if (shelf_held(pi) <= 0 && !plenty) g_shelf[pi].plenty = 0;
     if ((g_shelf[pi].plenty || plenty ? st[2] < SHELF_PLENTY / 2 || st[3] < SHELF_PLENTY / 2 : !shelf_rich(st, g_shelve_stock / 2)) || out < keep * 3 / 4) {   // out again: the fullest of the shelf's, if quiet
@@ -579,7 +583,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     for (int pass = 0; pass < 2 && np < n; pass++)
         while (np < n) {
             ee_unit *bu = NULL;
-            int bd = 60 * 60;
+            int bd = only_fw ? 0x7FFFFFFF : 60 * 60;   // PLENTY: from anywhere (the player's P4, 2026-11-15: 80 went in from within 60 tiles of its three fortresses, then nobody - 200 citizens out, 84,000 food)
             for (int r = 2; r < 7; r++) {
                 if ((pass == 0) != (r == most) || st[r] < 2 * g_shelve_stock || (only_fw && r > 3)) continue;   // never the scarce resource's
                 uint8_t *list = resource_mgr_list_at(rm, r);
