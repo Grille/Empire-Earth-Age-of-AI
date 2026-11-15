@@ -16,7 +16,8 @@
 //             disasters, thats goe sinto rank 1").
 //   RANK 2  - a line upgrade (category 7, an effect of kind 0x13: type -> new type) of a line it fields: RS_FIELDED
 //             units of the line's types or more, or one of them on order with none there yet (a new unit comes out
-//             as the old type until the upgrade is in). The line with the most units first.
+//             as the old type until the upgrade is in). The line with the most units first. While one of them is still to
+//             buy the epoch is neither bought nor saved for (THE LINES BEFORE THE EPOCH, below).
 //   RANK 3  - the next epoch, when it is due - the game's own time for it (the civilization manager's, drawn anew
 //             here when an epoch is reached: epoch_min .. epoch_max, the human players' epochs by epoch_pacing),
 //             at once with rush, with follow once a human is ahead, before the farms with the copper plan; never
@@ -36,7 +37,7 @@
 // or more than RS_QUEUE entries (a Town Center trains citizens: the tech waits behind what is queued).
 // A tech marked queued that no building holds at two looks running is set free again (econ.c LOST UPGRADES).
 #define RS_EVERY 5000
-#define RS_FIELDED 5
+#define RS_FIELDED 1
 #define RS_HOLD1 2
 #define RS_HOLD2 4
 #define RS_QUEUE 2
@@ -229,6 +230,12 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         if (waits[c->rank]++ < (c->rank == RS_ECON ? RS_HOLD1 : RS_HOLD2)) for (int r = 2; r < 7; r++) hold[r] += c->cost[r];
     }
     for (int r = 2; r < 7; r++) g_rs_hold[idx][r] = hold[r] - g_bd_com[idx][r] - (bw >= 0 ? unit_cost(pl, bw, r) : 0);   // the rows add those themselves
+    // THE LINES BEFORE THE EPOCH (the player 2026-11-15: "the ai lags behind on unit line upgrades, by our tiers line
+    // upgrades (tier2) for units the ai has should come before aging up (tier3)"): the epoch is neither bought nor
+    // saved for while a line upgrade of rank 2 is still to buy. What rank 2 waits for was held back from the epoch
+    // before too - but only of the resources it costs: with gold short and food and iron in the bank the epoch went
+    // first and the lines fell an epoch behind.
+    if (z->left[RS_LINE] > 0) due = 0;
     g_rs_epoch[idx] = due && miss <= 0 ? next : 0;
     // rank 3: the epoch - or, while a requirement is missing, the cheapest tech that counts for it
     ee_tech *et = ed ? tech_tree_lookup(tt, tech_data_get_id(ed)) : NULL;
