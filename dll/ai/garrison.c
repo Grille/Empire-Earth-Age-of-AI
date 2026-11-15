@@ -30,6 +30,14 @@
 #define GU_WAIT 60000
 internal int wk_workable(unsigned idx, ivec2 p);   // work.c
 #define GU_KICK 1.2f
+#define GU_FOOD 10000              // food in the bank from which farmers are spare too (the player 2026-11-15: "also do the farmers when food is secure (10k seem a very comfotable buffer)")
+// A GRANARY BEFORE THE NEXT (the player, the same day: "before building hundert silos upgrading the ones they alredy have
+// should alsdo be prefered"): build.c, about to lay another granary while one of its has room inside, asks here
+// instead (g_gu_gran: when) - the fullest granary with room where its citizens may work gets up to GU_BATCH citizens
+// from its territory or one beside it: idle ones and wood cutters (those wanted on food that found no field cut wood).
+internal uint32_t g_gu_gran[16];
+#define GU_GRAN_MS 60000
+internal int gu_granary(ee_unit_type *td) { int t = unit_type_get_id(td); return t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED); }
 #define GU_HOLD (2 * GU_EVERY)     // how far ahead the game's rounds are kept: beyond the next pass here
 #define GU_REACH2 20.0f            // the bonus: a mine within this squared distance of the building (0x833AB4)
 #define GU_MINES_R 5
@@ -148,21 +156,36 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         if (!GAME_AI(idx) && !wk_workable(idx, unit_get_tile(u))) continue;
         if (!best || (off ? score > best_score : (kind == 1) > (best_kind == 1) || ((kind == 1) == (best_kind == 1) && score > best_score))) { best = u; best_score = score; best_kind = kind; }
     }
+    int gran = 0;
+    if (!GAME_AI(idx) && g_gu_gran[idx] && now >= g_gu_gran[idx] && now - g_gu_gran[idx] < GU_GRAN_MS) {   // A GRANARY BEFORE THE NEXT
+        ee_unit *gb = NULL;
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+            ee_unit *u = it.u;
+            if (!gu_granary(it.td) || unit_get_owner(u) != pl || !cv_built(u) || unit_get_hp(u) <= 0) continue;
+            int room = unit_type_get_garrison_capacity(it.td) - unit_get_garrisoned(u);
+            ee_goal *hg = unit_get_goal(u);
+            if (room <= 0 || (hg && goal_is_garrison(hg)) || gu_recent(g, gu_key(u), now) || raiders_near(pl, unit_get_tile(u), GU_SAFE_R) || !wk_workable(idx, unit_get_tile(u))) continue;
+            if (!gb || unit_get_garrisoned(u) > unit_get_garrisoned(gb)) gb = u;
+        }
+        if (gb) { best = gb; best_kind = 4; best_score = 0; gran = 1; }
+    }
     if (g_log && g_autotest && (!g->log_t || now - g->log_t >= 60000)) {
         g->log_t = now ? now : 1;
-        fprintf(g_log, "# garrison: P%u at %.1f min: settlements %d, town centers %d, capitols %d; %u orders, %u citizens sent (%u idle, %u from wood)\n",
-                idx, now / 60000.0, towns[1], towns[2], towns[3], g->rounds, g->citizens, g->idle, g->wood);
+        ee_unit_type *g0 = type_data(UT(B_GRANARY)), *g1 = type_data(UT(B_GRANARY_IMPROVED));
+        fprintf(g_log, "# garrison: P%u at %.1f min: settlements %d, town centers %d, capitols %d; %u orders, %u citizens sent (%u idle, %u from wood); a granary takes %d, an improved one %d\n",
+                idx, now / 60000.0, towns[1], towns[2], towns[3], g->rounds, g->citizens, g->idle, g->wood, g0 ? unit_type_get_garrison_capacity(g0) : -1, g1 ? unit_type_get_garrison_capacity(g1) : -1);
     }
     if (!best) return;
     ee_unit_type *btd = unit_get_type_data(best);
     int room = unit_type_get_garrison_capacity(btd) - unit_get_garrisoned(best), want = room < GU_BATCH ? room : GU_BATCH;
     kick = kick && best_kind == 1;
+    int food_spare = !GAME_AI(idx) && player_get_stock(pl, 2) >= GU_FOOD;   // GU_FOOD: the farmers too
     if (kick) want = 5 - unit_get_garrisoned(best) > 0 ? 5 - unit_get_garrisoned(best) : 1;
     // the citizens: the nearest spare ones on its land
     ivec2 bp = unit_get_tile(best);
     unsigned land = map_area(bp, 2);
     int wood_spare = player_get_stock(pl, 3) > GU_WOOD;
-    if (!idle_spare && !wood_spare && !kick) return;
+    if (!idle_spare && !wood_spare && !kick && !gran && !food_spare) return;
     static ee_unit *cand[4096];
     static int cd[4096];
     int nc = 0;
@@ -172,11 +195,11 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         int idle = idle_spare && citizen_free(u, 1);
         int other = 0;
         if (!idle) {
-            if ((!wood_spare && !kick) || !citizen_free(u, 0)) continue;
+            if ((!wood_spare && !kick && !gran && !food_spare) || !citizen_free(u, 0)) continue;
             ee_unit *site = goal_get_site(unit_get_goal(u));
             int res = site ? unit_get_resource(site) : 0;
-            if (res != 3 && !(kick && res >= 4 && res <= 6)) continue;
-            other = res != 3;
+            if (res == 3 ? !(wood_spare || kick || gran) : res == 2 ? !food_spare || gran : !(kick && res >= 4 && res <= 6)) continue;
+            other = res >= 4;
         }
         ivec2 p = unit_get_tile(u);
         if (map_area(p, 2) != land || landing_has_unit(pl, u) || expand_has(pl, u) || tn_has_cit(idx, u)) continue;
@@ -203,7 +226,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     gu_note(g, gu_key(best), now);
     g->rounds++; g->citizens += (unsigned)n; g->idle += (unsigned)idle_n; g->wood += (unsigned)(n - idle_n);
     if (g_log) fprintf(g_log, "# garrison: P%u at %.1f min: %d citizens (%d idle, %d from wood; wood %d) into the %s at %d,%d (%d inside of %d, metal mines near: %d)\n",
-                       idx, now / 60000.0, n, idle_n, n - idle_n, player_get_stock(pl, 3), best_kind == 1 ? "Settlement" : best_kind == 2 ? "Town Center" : "Capitol",
+                       idx, now / 60000.0, n, idle_n, n - idle_n, player_get_stock(pl, 3), best_kind == 1 ? "Settlement" : best_kind == 2 ? "Town Center" : best_kind == 4 ? "Granary" : "Capitol",
                        bp.x, bp.y, unit_get_garrisoned(best), unit_type_get_garrison_capacity(btd), best_score);
 }
 internal void garrison_new_game(void) { memset(g_gu, 0, sizeof g_gu); }

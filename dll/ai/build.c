@@ -55,6 +55,7 @@
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 internal struct bd_st {
     uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
+    uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
@@ -73,6 +74,17 @@ internal int bd_send(ee_player *pl, ee_unit *cit, ee_unit *building) {
     return 1;
 }
 // the bank pays one of type with what is laid and not paid yet (com) left alone
+// A GRANARY BEFORE THE NEXT (garrison.c): 1 lay the next granary; 0 one of its has room inside - garrison.c is asked to
+// fill it instead. Asked for BD_GRAN_ASK without the room going (nobody near to send): laid all the same.
+#define BD_GRAN_ASK 180000
+#define BD_GRAN_PLAIN 3   // its first granaries are laid without it: 8 citizens inside one at minute 15 were a quarter of its workforce
+internal int bd_gran_first(struct bd_st *b, unsigned idx, int gran_room, uint32_t now) {
+    if (!gran_room) { b->gran_ask_t = 0; return 1; }
+    if (!b->gran_ask_t || now < b->gran_ask_t || gran_room != b->gran_room) { b->gran_ask_t = now ? now : 1; b->gran_room = gran_room; }
+    if (now - b->gran_ask_t >= BD_GRAN_ASK) { b->gran_ask_t = 0; return 1; }
+    g_gu_gran[idx] = now ? now : 1;
+    return 0;
+}
 internal int bd_pays(ee_player *pl, int type, const int *com) {
     const int *stock = player_stock_at(pl);
     for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - com[r] < c) return 0; }
@@ -110,6 +122,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
+    int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
     int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, count = 0, have_rb[3] = { 0, 0, 0 };
     const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // what it has: citizens, foundations, granaries, fields, defences, centres
@@ -128,7 +141,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         ivec2 p = unit_get_tile(u);
         float rng, att;
         if (t == UT(B_FARM)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }
-        else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; }
+        else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
         else if (t == UT(B_SETTLEMENT)) open_settle += !done;
         else if (pr_kind(t) >= 0) open_prod += !done;
         for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
@@ -198,7 +211,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int type = 0, ok = 0;
     ivec2 at = iv2(0, 0);
     if (!placed && current_epoch(pl) >= FARM_EPOCH && ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) && bd_pays(pl, UT(B_GRANARY), com) && !open_gran && !open_fields && !fields_due &&
-        ngran < BD_GRANARIES && (!ngran || g_wk[idx].food_short > 0) && !wait[0]) {   // A GRANARY: by its centre in the best territory
+        ngran < BD_GRANARIES && (!ngran || g_wk[idx].food_short > 0) && !wait[0] && bd_gran_first(b, idx, ngran >= BD_GRAN_PLAIN ? gran_room : 0, now)) {   // A GRANARY: by its centre in the best territory
         for (int pass = 1; pass <= 3 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++) {
                 if (centre[c].cost != pass) continue;
