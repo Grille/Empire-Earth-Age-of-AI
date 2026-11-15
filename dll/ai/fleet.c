@@ -798,9 +798,18 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 #define HB_TOWER_R 8
 #define HB_STONE 600                // stone in the bank from which a harbour gets its second tower unasked
 #define HB_DOCKS 8
+#define HB_LAID 90000
 internal int tv_harbour_next(unsigned idx, const unsigned *dock_seas, int nd, int cits, ivec2 *shore, unsigned *land, unsigned *sea);   // territories.c
 internal int tv_sea_threat(unsigned idx, unsigned sea);
-internal struct { uint32_t t; unsigned docks, towers; } g_hb[16];
+internal struct { uint32_t t, laid_t; unsigned docks, towers; } g_hb[16];   // laid_t: the last one laid with the game's computer player off (HB_LAID)
+// a harbour's building at q: into the build manager's queue - the game's computer player off (nobody works that queue:
+// the player 2026-11-15, "it dosnt buidl habous and claims water territories yet") laid at once, when it pays
+internal int hb_lay(ee_player *pl, unsigned idx, ee_build_mgr *bm, int e, int type, ivec2 q) {
+    if (GAME_AI(idx)) { int entry[3] = { type, q.x, q.y }; build_mgr_queue_add(bm, e, entry); return 1; }
+    const int *stock = player_stock_at(pl);
+    for (int r = 2; r < 7; r++) if (stock[r] - g_bd_com[idx][r] < unit_cost(pl, type, r)) return 0;
+    return hook_place(bm, type, q.x, q.y) != 0;
+}
 internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
     g_hb[idx].t = now ? now : 1;
@@ -808,13 +817,14 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int e = current_epoch(pl);
     if (!bm || e < 0 || e >= 14) return;
+    if (!GAME_AI(idx) && g_hb[idx].laid_t && now >= g_hb[idx].laid_t && now - g_hb[idx].laid_t < HB_LAID) return;   // the last one first: the builder is on its way, nothing queued tells of it
     unsigned dock_seas[16];   // the sea territory each of its docks stands on
     for (int k = 0; k < g_fs.nd && k < 16; k++) {
         ivec2 dw = g_fs.dk[k];
         dock_seas[k] = ocean_near(g_fs.dk[k], 4, &dw) ? territory_at(dw.x, dw.y) : TER_NONE;
     }
     int ttype = tower_newest(pl);
-    for (int k = 0; ttype && k < g_fs.nd && k < 16 && !tower_queued(bm); k++) {   // its towers first: a dock without one is no harbour
+    for (int k = 0; ttype && k < g_fs.nd && k < 16 && (!GAME_AI(idx) || !tower_queued(bm)); k++) {   // its towers first: a dock without one is no harbour
         ivec2 dk = g_fs.dk[k];
         int cov = 0, oc = (int)ocean_near(dk, 4, NULL), want = 1 + ((dock_seas[k] != TER_NONE && tv_sea_threat(idx, dock_seas[k])) || player_stock_at(pl)[4] >= HB_STONE);   // the second: under threat, or with the stone there (the player: "just add the second tower if the stone is threr")
         for (int j = 0; j < g_fs.ntw; j++) cov += ivec2_dist2(g_fs.tw[j], dk) <= HB_TOWER_R * HB_TOWER_R;
@@ -824,25 +834,23 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
                 for (int ay = -r; ay <= r; ay++) {
                     ivec2 q = ivec2_add(dk, iv2(ax, ay));
                     if ((abs(ax) != r && abs(ay) != r) || !fl_coast(q, oc) || !can_place(pl, ttype, q)) continue;
-                    int entry[3] = { ttype, q.x, q.y };
-                    build_mgr_queue_add(bm, e, entry);
-                    g_hb[idx].towers++;
+                    if (!hb_lay(pl, idx, bm, e, ttype, q)) return;
+                    g_hb[idx].towers++; g_hb[idx].laid_t = now ? now : 1;
                     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d of %d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov, want);
                     return;
                 }
     }
     ivec2 shore;
     unsigned land = 0, sea = 0;
-    if (!ut_has(UT(B_DOCK)) || g_fs.nd >= HB_DOCKS || build_mgr_queued(bm, UT(B_DOCK)) || !can_build(pl, UT(B_DOCK))) return;
+    if (!ut_has(UT(B_DOCK)) || g_fs.nd >= HB_DOCKS || (GAME_AI(idx) && build_mgr_queued(bm, UT(B_DOCK))) ||   /* off: what its queue still lists nobody builds */ !can_build(pl, UT(B_DOCK))) return;
     if (!tv_harbour_next(idx, dock_seas, g_fs.nd < 16 ? g_fs.nd : 16, HB_CITS, &shore, &land, &sea) || raiders_near(pl, shore, 12)) return;
     for (int r = 0; r <= 8; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = ivec2_add(shore, iv2(ax, ay));
                 if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q)) continue;
-                int entry[3] = { UT(B_DOCK), q.x, q.y };
-                build_mgr_queue_add(bm, e, entry);
-                g_hb[idx].docks++;
+                if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
+                g_hb[idx].docks++; g_hb[idx].laid_t = now ? now : 1;
                 if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a dock queued at %d,%d for the sea territory %u from the land territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, q.x, q.y, sea, land, shore.x, shore.y, g_fs.nd);
                 return;
             }

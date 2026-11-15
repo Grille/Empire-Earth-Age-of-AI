@@ -45,10 +45,16 @@
 #define BD_DROP 8
 #define BD_GUARD 7
 #define BD_CLAIM_EVERY 120000   // between two claims
+#define BD_SINK 10000           // wood in the bank from which it builds unasked
+#define BD_SINK_EVERY 20000
+#define BD_SINK_MAX 3           // of a kind in one territory
+#define BD_SINK_OPEN 4          // unfinished buildings
+#define BD_SINK_T 4096
 #define BD_CLAIM_GUARD 3        // its soldiers in the held territory a claim starts from
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 internal struct bd_st {
     uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
+    uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot;
@@ -261,7 +267,17 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // stand (the border is secured first) - the nearest to its base, one every BD_CLAIM_EVERY, when nothing else is
         // to lay and it has min_workforce citizens. The tower makes the territory its own (territories.c TV_HOLDS): the
         // shares station soldiers there, its citizens may work there and beside it, and the next claim starts from it.
-        if (!type && !placed && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
+        // ... and a building (the player, the same day: "a building and a tower"): a Settlement beside the tower of a
+        // claim that has nothing else yet - before the next claim
+        int lone = -1;
+        for (int r = 0; r < s->n && lone < 0; r++)
+            if (!g_ter.t[r].water && s->t[r].role != TVR_NONE && s->t[r].state == TV_QUIET && s->t[r].bld == 1 && s->t[r].def >= 1) lone = r;
+        if (!type && !placed && lone >= 0 && !open_settle && !wait[1] && ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
+            ivec2 c = g_ter.t[lone].c;
+            for (int j = 0; j < ndef; j++) if ((int)ter_near(def[j].x, def[j].y) == lone) c = iv2(def[j].x, def[j].y);
+            if (!raiders_near(pl, c, 12) && !wk_danger(idx, c) && bd_spot(pl, idx, UT(B_SETTLEMENT), c, 2, 8, &at)) { type = UT(B_SETTLEMENT); what = "a claim's Settlement beside its tower"; }
+        }
+        if (!type && !placed && lone < 0 && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
             (!b->claim_t || now < b->claim_t || now - b->claim_t >= BD_CLAIM_EVERY)) {
             int cb = -1, cd = 0;
             for (int r = 0; r < s->n; r++) {
@@ -280,6 +296,40 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             if (cb >= 0) {
                 if (bd_spot(pl, idx, ttype, g_ter.t[cb].c, 0, 8, &at)) { type = ttype; what = "a claim: a tower in a territory nobody holds"; b->claim_t = now ? now : 1; b->claims++; } else b->no_spot++;
             }
+        }
+    }
+    // THE WOOD SINK (the player 2026-11-15: "the ai sould also be building more in general, right now it sits on 130k
+    // wood. these can be spend in front territoies on hospitals, temples and production buildings (even when nobody
+    // asked) above 10k wood it should try to get rid of it"): BD_SINK wood in the bank and nothing else to lay - a
+    // Hospital, a Temple or a production building in a quiet front territory of its, the kind that territory has the
+    // fewest of (BD_SINK_MAX of a kind in one at most), one every BD_SINK_EVERY while fewer than BD_SINK_OPEN of its
+    // buildings stand unfinished.
+    if (!type && !placed && player_stock_at(pl)[3] >= BD_SINK && no < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
+        int kinds[2 + PR_NK], nk = 0;
+        kinds[nk++] = rb[1]; kinds[nk++] = rb[2];
+        for (int k = 0; k < PR_NK; k++) kinds[nk++] = g_ut[PR_KINDS[k]];
+        static uint8_t have[BD_SINK_T][2 + PR_NK];
+        int tn = s->n < BD_SINK_T ? s->n : BD_SINK_T, cnt = 0;
+        memset(have, 0, (size_t)tn * sizeof *have);
+        for (ee_unit *u = player_get_units(pl); u && cnt < 16384; u = unit_get_next(u), cnt++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+            unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
+            for (int k = 0; r < (unsigned)tn && k < nk; k++) if (kinds[k] >= 0 && unit_type_get_id(td) == kinds[k] && have[r][k] < 255) have[r][k]++;
+        }
+        int br = -1, bk = -1, bn = 0;
+        for (int r = 0; r < tn; r++) {
+            if (g_ter.t[r].water || s->t[r].role != TVR_FRONT || s->t[r].state != TV_QUIET) continue;
+            for (int k = 0; k < nk; k++) {
+                if (kinds[k] < 0 || have[r][k] >= BD_SINK_MAX || !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
+                if (br < 0 || have[r][k] < bn) { br = r; bk = k; bn = have[r][k]; }
+            }
+        }
+        if (br >= 0) {
+            ivec2 c = g_ter.t[br].c;
+            for (int j = 0; j < ncen; j++) if ((int)ter_near(centre[j].p.x, centre[j].p.y) == br) c = centre[j].p;
+            if (!raiders_near(pl, c, 12) && !wk_danger(idx, c) && bd_spot(pl, idx, kinds[bk], c, 3, 14, &at)) { type = kinds[bk]; what = "the wood sink: one more in a front territory"; b->sink_t = now ? now : 1; b->sinks++; }
+            else b->no_spot++;
         }
     }
     if (type) {
