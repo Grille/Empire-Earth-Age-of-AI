@@ -44,8 +44,11 @@
 #define BD_GRANARIES 8
 #define BD_DROP 8
 #define BD_GUARD 7
+#define BD_CLAIM_EVERY 120000   // between two claims
+#define BD_CLAIM_GUARD 3        // its soldiers in the held territory a claim starts from
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 internal struct bd_st {
+    uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot;
@@ -251,6 +254,32 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
         if (!type && !placed && tbest < 0x7FFFFFFF && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com)) {
             if (bd_spot(pl, idx, ttype, tp, 2, 5, &at)) { type = ttype; what = "a tower by a mine"; } else b->no_spot++;
+        }
+        // A CLAIM (the player 2026-11-15: "controlling the whole map is the endgoal ... but within reason"; "the ai also
+        // dosnt yet clam territoires that have no resources in it, they are still needed for map control"): a tower in
+        // the middle of a territory nobody has a building in, beside one it holds where BD_CLAIM_GUARD of its soldiers
+        // stand (the border is secured first) - the nearest to its base, one every BD_CLAIM_EVERY, when nothing else is
+        // to lay and it has min_workforce citizens. The tower makes the territory its own (territories.c TV_HOLDS): the
+        // shares station soldiers there, its citizens may work there and beside it, and the next claim starts from it.
+        if (!type && !placed && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
+            (!b->claim_t || now < b->claim_t || now - b->claim_t >= BD_CLAIM_EVERY)) {
+            int cb = -1, cd = 0;
+            for (int r = 0; r < s->n; r++) {
+                struct tv_terr *t = &s->t[r];
+                if (g_ter.t[r].water || t->role != TVR_NONE || t->bld || t->ebld || t->abld || t->state != TV_QUIET) continue;
+                int guarded = 0;
+                for (int k = 0; k < g_ter.t[r].nbn && !guarded; k++) {
+                    unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+                    guarded = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state == TV_QUIET && s->t[o].sold >= BD_CLAIM_GUARD;
+                }
+                ivec2 c = g_ter.t[r].c;
+                if (!guarded || raiders_near(pl, c, 12) || wk_danger(idx, c)) continue;
+                int d = ivec2_dist2(c, base);
+                if (cb < 0 || d < cd) { cb = r; cd = d; }
+            }
+            if (cb >= 0) {
+                if (bd_spot(pl, idx, ttype, g_ter.t[cb].c, 0, 8, &at)) { type = ttype; what = "a claim: a tower in a territory nobody holds"; b->claim_t = now ? now : 1; b->claims++; } else b->no_spot++;
+            }
         }
     }
     if (type) {

@@ -87,6 +87,11 @@
 #define TV_SHIPS 2
 enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 #define TV_HELD 3
+// a land territory is its own: TV_HELD of its buildings there (any but a wall's pieces: a field, a house, a tower),
+// or - the game's computer player off - one defence of its (a tower, a fortress): build.c's CLAIM, the player
+// 2026-11-15: "the ai also dosnt yet clam territoires that have no resources in it, they are still needed for map
+// control"
+#define TV_HOLDS(idx, t) ((t)->bld >= TV_HELD || (!GAME_AI(idx) && (t)->def >= 1))
 #define TV_GUARD 12
 #define TV_FOE_MEMORY 300000
 #define TV_EVERY 2000
@@ -251,14 +256,14 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (t->foe) t->foe_t = now ? now : 1;
         int w = t->cit / 3 > 3 ? t->cit / 3 : 3;
         if (t->foe_t && now >= t->foe_t && now - t->foe_t < TV_FOE_MEMORY && w < 8) w = 8;
-        t->want = (short)(!g_ter.t[r].water && t->bld >= TV_HELD ? (w < TV_GUARD ? w : TV_GUARD) : 0);   // land: a sea is held by ships (below)
+        t->want = (short)(!g_ter.t[r].water && TV_HOLDS(idx, t) ? (w < TV_GUARD ? w : TV_GUARD) : 0);   // land: a sea is held by ships (below)
     }
     for (int r = 0; r < s->n; r++) {   // FRONT AND BACKLAND: what it or an ally holds ...
         struct tv_terr *t = &s->t[r];
         // a sea: TV_SHIPS of its warships there and more than twice the enemy's it sees there now (no enemy warship seen
         // there for 5 minutes at first: with 4 AIs on 5 seas one always passes - 11 to 23 warships a player at minute 45
         // and no sea held, in 77 of 80 looks)
-        t->role = (uint8_t)(g_ter.t[r].water ? t->ships >= TV_SHIPS && t->ships > 2 * t->eships : t->bld >= TV_HELD);   // its own (the role below)
+        t->role = (uint8_t)(g_ter.t[r].water ? t->ships >= TV_SHIPS && t->ships > 2 * t->eships : TV_HOLDS(idx, t));   // its own (the role below)
         t->friendly = (uint8_t)(t->role || (!g_ter.t[r].water && t->abld >= TV_HELD));
     }
     for (int r = 0; r < s->n; r++) {   // ... and of its own, which border what nobody of its side holds
