@@ -41,6 +41,8 @@
 // nobody empties now.
 #define BD_EVERY 5000
 #define BD_SENDS 4
+#define BD_WALL_SENDS 2   // builders sent to unfinished wall pieces a look (WALLS)
+#define BD_WALL_RUN 4     // a builder on a piece within this many tiles: the stretch has one
 #define BD_PILE 5   // unfinished buildings from which each gets a second builder
 #define BD_GRANARIES 96   // no limit of its own (8 fed 64 farmers: the player's game of 2026-11-15, 55 citizens on food, 215 on wood with no field to go to, 25 food in the bank): one more whenever citizens wanted on food find no site
 #define BD_DROP 8
@@ -63,7 +65,7 @@ internal struct bd_st {
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
-    unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot;
+    unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls;   // walls: builders sent to unfinished wall pieces
     int open, mines, mines_drop, mines_guard;   // the last look: unfinished buildings; mines in reach, those with a drop site, with a defence
 } g_bd[16];
 // a citizen sent to build (as econ.c's field pass does it: a BuildRepair goal, the builder's state, its script told)
@@ -110,7 +112,7 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
     return 0;
 }
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
-    static ee_unit *freec[384], *built[192], *openb[96];
+    static ee_unit *freec[384], *built[192], *openb[96], *openw[256];
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
     static struct { ivec2 p; int cost, town; } centre[256];
     static ivec2 dsite[BD_DSITES];   // every Settlement, Town Center and Capitol of its, going up too: a mine's drop site (below)
@@ -128,7 +130,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     ee_map *map = game_map();
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
-    int nf = 0, nbuilt = 0, no = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
+    int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
     int nairport = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
     int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 };
@@ -143,7 +145,12 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             else if (nf < 384 && citizen_free(u, 0) && (!g || !strcmp(rtti_name(g), "EEUGGather@@"))) freec[nf++] = u;
             continue;
         }
-        if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(t)) continue;
+        if (fam != CLS_BUILDING && fam != CLS_FORTRESS) continue;
+        if (is_wall(t)) {   // its wall pieces going up: WALLS below
+            ee_unit *ws = unit_get_physics(u);
+            if (ws && !unit_get_finished(ws) && nw < 256) openw[nw++] = u;
+            continue;
+        }
         ee_unit *st = unit_get_physics(u);
         int done = st && unit_get_finished(st);
         ivec2 p = unit_get_tile(u);
@@ -188,6 +195,33 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (bk < 0 || path_raided(pl, unit_get_x(freec[bk]), unit_get_y(freec[bk]), p.x, p.y) || !bd_send(pl, freec[bk], openb[i])) continue;
         freec[bk] = freec[--nf];
         sends++; b->sent++;
+    }
+    // WALLS: a piece is given its builders by the order that lays its run (the wall manager's build-wall, as a player
+    // drags one); a builder who died or was called back left it a foundation for good - the game's round for unfinished
+    // foundations is off with its computer player, and the pieces counted as wall (the player 2026-11-15: "red and
+    // yellow have holes in their wall with foundations laid, but they never get build"). One builder a stretch: none
+    // where a builder works on a piece within BD_WALL_RUN tiles (he goes on along the run), BD_WALL_SENDS a look, the
+    // buildings' care (raiders, a territory being lost, enemy towers, a raided way).
+    for (int i = 0, ws = 0; i < nw && ws < BD_WALL_SENDS && nf; i++) {
+        ivec2 p = unit_get_tile(openw[i]);
+        int near_b = 0, bk = -1, bd = 0x7FFFFFFF;
+        for (int k = 0; k < nbuilt && !near_b; k++) {
+            ee_unit_type *kd = built[k] ? unit_get_type_data(built[k]) : NULL;
+            ivec2 q = built[k] ? unit_get_tile(built[k]) : iv2(-1000, -1000);
+            near_b = kd && is_wall(unit_type_get_id(kd)) && abs(q.x - p.x) <= BD_WALL_RUN && abs(q.y - p.y) <= BD_WALL_RUN;
+        }
+        if (near_b || raiders_known(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;
+        unsigned land = area_id(p, 2);
+        for (int k = 0; k < nf; k++) {
+            ivec2 q = unit_get_tile(freec[k]);
+            int d = ivec2_dist2(p, q);
+            if (d >= bd || (land && area_id(q, 2) && area_id(q, 2) != land)) continue;
+            bd = d; bk = k;
+        }
+        if (bk < 0 || path_raided(pl, unit_get_x(freec[bk]), unit_get_y(freec[bk]), p.x, p.y) || !bd_send(pl, freec[bk], openw[i])) continue;
+        freec[bk] = freec[--nf];
+        if (nbuilt < 192) built[nbuilt++] = openw[i];   // the stretch has its builder now
+        ws++; b->sent++; b->walls++;
     }
     // LAID, NOT PAID: a building laid through the placement is paid when its builder gets there and the foundation
     // shows, a field when its building starts - until then (BD_WAIT at most) the price is this file's to keep: no
@@ -421,8 +455,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (g_log && (!b->log_t || now - b->log_t >= 60000)) {
         b->log_t = now ? now : 1;
         log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings | mines in reach %d, with a drop site %d, with a defence %d | "
-                   "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot\n",
-                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot);
+                   "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u\n",
+                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls);
     }
 }
 internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }
