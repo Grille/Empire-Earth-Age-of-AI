@@ -489,6 +489,14 @@ internal void cp_clock_moved(LONGLONG now) {
     LeaveCriticalSection(&g_cp_cs);
 }
 internal LONGLONG g_cp_last_at;                    // when the simulation's last copy was made
+// ONE COPY A FRAME (the player 2026-11-15, at x40: "does work for frames than never will display alredy get dropped?"):
+// above 2.5 the game speed is more steps a second - at x40 some 700 against 120 frames, and the copy at every step's
+// end was 31% of the simulation's time in his game. A step copies only when a frame has read the newest copy since it
+// was made (g_cp_new_seen); else the newest stays for the frames during a step (they read a copy beside the next step
+// anyway - now one up to a frame older) and is stale for one between the steps, which makes its own under the read
+// lock, the world as it is. At the normal pace every copy is read (43 steps, 120 frames a second) and nothing changes.
+internal volatile LONG g_cp_new_seen = 1;
+internal LONG g_cp_skips;                          // steps that left the newest copy as it was, no frame having read it
 internal int cp_spare(void) {   // inside g_cp_cs
     for (int i = 0; i < UC_COPIES; i++)
         if (i != g_cp_new && i != g_cp_read) return i;
@@ -703,6 +711,10 @@ internal void collect_fx_check(void) {
         log_locked("# collect: the effects' queues differ from the game's: %u effects, the simulation's %u\n", a.n, b.n);
 }
 
+internal int cp_fits(const uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int x1, int y1) {
+    return c->ok && c->map == map && c->pl == pl && c->free_cam == god_see_all() &&
+           c->hidden_mode == show_hidden_mode() && x0 >= c->x0 && y0 >= c->y0 && x1 < c->x0 + c->w && y1 < c->y0 + c->h;
+}
 // at the end of a write to the world (render_3d.c rd_hook_write_unlock, its holder still in; ret: where it took the
 // lock): the steps' copy of the frame's last view and UC_MARGIN round it, else the copy stale
 internal void collect_copy_written(uintptr_t ret) {
@@ -714,11 +726,15 @@ internal void collect_copy_written(uintptr_t ret) {
         g_cp_stales++;
         return;
     }
+    ee_player *me = game_players()[local_player_index()];
     EnterCriticalSection(&g_cp_cs);
     int i = cp_spare();
+    int unseen = !g_cp_new_seen && g_cp_new >= 0 && cp_fits(&g_cp[g_cp_new], map, me, g_cp_view[0], g_cp_view[1], g_cp_view[2], g_cp_view[3]);
+    if (unseen) g_cp_stale = 1, g_cp_skips++;
     LeaveCriticalSection(&g_cp_cs);
+    if (unseen) { collect_fx_step(map); return; }
     LONGLONG t0 = rd_qpc();
-    int ok = cp_make(&g_cp[i], map, game_players()[local_player_index()], g_cp_view[0] - UC_MARGIN, g_cp_view[1] - UC_MARGIN,
+    int ok = cp_make(&g_cp[i], map, me, g_cp_view[0] - UC_MARGIN, g_cp_view[1] - UC_MARGIN,
                      g_cp_view[2] + UC_MARGIN, g_cp_view[3] + UC_MARGIN, 1);
     LONGLONG t1 = rd_qpc();
     g_cp_step_qpc += t1 - t0;
@@ -727,13 +743,9 @@ internal void collect_copy_written(uintptr_t ret) {
     g_cp_last_at = t1;
     collect_fx_step(map);
     EnterCriticalSection(&g_cp_cs);
-    if (ok) g_cp_new = i, g_cp_stale = 0, g_cp_by_step++, g_cp_objs = (LONG)g_cp[i].n_objs;
+    if (ok) g_cp_new = i, g_cp_new_seen = 0, g_cp_stale = 0, g_cp_by_step++, g_cp_objs = (LONG)g_cp[i].n_objs;
     else g_cp_stale = 1, g_cp_fails++;
     LeaveCriticalSection(&g_cp_cs);
-}
-internal int cp_fits(const uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int x1, int y1) {
-    return c->ok && c->map == map && c->pl == pl && c->free_cam == god_see_all() &&
-           c->hidden_mode == show_hidden_mode() && x0 >= c->x0 && y0 >= c->y0 && x1 < c->x0 + c->w && y1 < c->y0 + c->h;
 }
 // the walk's copy of its view [x0, x1] x [y0, y1]: the newest when it fits (its view, player, free camera, show-hidden
 // mode) and no other writer came since, else made now (the walk holds the read lock); NULL out of memory
@@ -742,6 +754,7 @@ internal uc_copy *cp_take(ee_map *map, ee_player *pl, int x0, int y0, int x1, in
     uc_copy *c = NULL;
     EnterCriticalSection(&g_cp_cs);
     if (g_cp_on && g_cp_new >= 0 && !g_cp_stale && cp_fits(&g_cp[g_cp_new], map, pl, x0, y0, x1, y1)) c = &g_cp[g_cp_read = g_cp_new];
+    g_cp_new_seen = 1;   // the newest read, or the one made now
     int i = c ? -1 : (g_cp_read = cp_spare());
     LeaveCriticalSection(&g_cp_cs);
     if (c) { g_cp_used++; return c; }

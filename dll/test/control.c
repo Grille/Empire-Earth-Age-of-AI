@@ -86,6 +86,8 @@ internal void cmd_chatme(char *out, const char *args);
 internal void cmd_trig(char *out, const char *args);
 internal void cmd_explored(char *out, const char *args);
 internal void cmd_stats(char *out, const char *args);
+internal float speed_steps_set(float s);   // voice/chat.c: the + key's speed s on this PC - the game's own speed to set
+internal float speed_shown(void);
 internal void cmd_diplo(char *out, const char *args);
 internal void cmd_persona(char *out, const char *args);
 internal void cmd_spawn(char *out, const char *args);
@@ -504,9 +506,10 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
     else if (!strcmp(verb, "watch")) { unsigned a = 0; int l = 4; sscanf(args, "%x %d", &a, &l); watch_set(a, l); REPLY("ok: watching %08x len %d\n", a, l); }
     else if (!strcmp(verb, "speed")) {
-        float s = (float)atof(args);
+        float s = (float)atof(args[0] == 'x' ? args + 1 : args);
+        if (args[0] == 'x' && s > 0) s = speed_steps_set(s);   // xN: the + key's speeds - above 2.5 more steps of 2.5
         if (s > 0) { g_auto.speed = s; apply_game_speed(s); }   // also keeps autotest from reverting it
-        REPLY("speed=%.2f\n", *game_speed_var());
+        REPLY("speed=%.2f (shown x%g)\n", *game_speed_var(), (double)speed_shown());
     }
     else if (!strcmp(verb, "turbo")) {
         if (*args) g_turbo = atoi(args);

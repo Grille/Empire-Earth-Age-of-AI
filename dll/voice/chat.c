@@ -199,6 +199,13 @@ internal void cmd_chatme(char *out, const char *args) {
 #define SPEED_LINE_MS 3000
 #define SPEED_STEP_TOP 2.5f
 internal float speed_shown(void) { return g_speed_steps > 1 ? SPEED_STEP_TOP * (float)g_speed_steps : *game_speed_var(); }
+// the pipe's speed xN (test/control.c): the + key's speed s on this PC alone - above 2.5 so many times the steps; the
+// game's own speed to set
+internal float speed_steps_set(float s) {
+    g_speed_steps = s > SPEED_STEP_TOP + 0.01f ? (int)(s / SPEED_STEP_TOP + 0.5f) : 1;
+    if (g_speed_steps > 1) g_speed_fast = 1;
+    return s > SPEED_STEP_TOP ? SPEED_STEP_TOP : s;
+}
 internal void __thiscall hook_speed_msg(ee_speed_msg *msg) {
     float want = speed_msg_get_speed(msg);
     g_speed_steps = want > SPEED_STEP_TOP + 0.01f ? (int)(want / SPEED_STEP_TOP + 0.5f) : 1;

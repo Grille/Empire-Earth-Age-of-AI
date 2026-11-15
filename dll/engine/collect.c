@@ -1612,7 +1612,7 @@ internal int collect_during_begin(void) {
     EnterCriticalSection(&g_cp_cs);
     if (map && g_cp_new >= 0 && cp_fits(&g_cp[g_cp_new], map, pl, g_cp_view[0], g_cp_view[1], g_cp_view[2], g_cp_view[3]) &&
         (g_cp[g_cp_new].at != g_uc_walked_at || (g_cp_smooth == 1 && g_uc_walked_alpha < 1.0f)))
-        c = &g_cp[g_cp_read = g_cp_new];
+        c = &g_cp[g_cp_read = g_cp_new], g_cp_new_seen = 1;
     LeaveCriticalSection(&g_cp_cs);
     if (!c) { g_uc_in_during = 0; return 0; }
     g_uc_during_c = c;
@@ -1713,9 +1713,9 @@ internal int collect_ghost(int type, float x, float y) {
 internal int collect_copy_mode(int how) {
     if (!g_uc_installed) return -1;
     g_cp_chk_n = g_cp_chk_diff = g_cp_chk_objs = 0;
-    g_cp_by_step = g_cp_by_frame = g_cp_stales = g_cp_used = 0;
+    g_cp_by_step = g_cp_by_frame = g_cp_stales = g_cp_used = g_cp_skips = 0;
     g_cp_step_qpc = g_cp_frame_qpc = 0;
-    g_cp_stale = 1;
+    g_cp_stale = 1, g_cp_new_seen = 1;
     g_cp_on = how;
     return 0;
 }
@@ -1820,9 +1820,9 @@ internal void collect_print(void) {
         log_locked("# collect: trees' fill held against the game's: %u trees, %u differ; doppelgangers' %u (%u drawn), %u differ; ghosts' %u (%u fills), %u differ\n", g_uc_tr_n, g_uc_tr_diff,
                    g_uc_dp_n, g_uc_dp_yes, g_uc_dp_diff, g_uc_gh_n, g_uc_gh_calls, g_uc_gh_diff);
     LONG steps = g_cp_by_step, frames = g_cp_by_frame;
-    log_locked("# collect: the copy (%s): %ld by the steps (%.2f ms each, %ld objects the last), %ld by the frame (%.2f ms each), %ld writes making it stale, %ld walks of the steps'; checked %ld (%ld objects), %ld differ\n",
+    log_locked("# collect: the copy (%s): %ld by the steps (%.2f ms each, %ld objects the last; %ld steps none, no frame having read the last), %ld by the frame (%.2f ms each), %ld writes making it stale, %ld walks of the steps'; checked %ld (%ld objects), %ld differ\n",
                g_cp_on == 2 ? "check" : g_cp_on ? "on" : "off", (long)steps, steps ? (double)g_cp_step_qpc / rd_qpc_ms(1) / steps : 0.0,
-               (long)g_cp_objs, (long)frames, frames ? (double)g_cp_frame_qpc / rd_qpc_ms(1) / frames : 0.0, (long)g_cp_stales,
+               (long)g_cp_objs, (long)g_cp_skips, (long)frames, frames ? (double)g_cp_frame_qpc / rd_qpc_ms(1) / frames : 0.0, (long)g_cp_stales,
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
     if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far\n", (long)g_uc_during_walks);
     if (g_fx_on)
