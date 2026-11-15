@@ -131,6 +131,7 @@ internal int chk_bench(const char *path, int runs) {
     const char *why = "can't be read";
     int line = 0;
     double t0 = chk_ms(), best = 0;
+    size_t left = 0;   // its values' region at a run's end (what it dropped on its way cleared out: expr.c xvm_gc)
     if (!text || !script_compile(path, text, &u, &code, &why, &line)) { printf("%s:%d: %s\n", path, line > 0 ? line : 1, why); return 1; }
     double compiled = chk_ms() - t0;
     snprintf(out, sizeof out, "%s.out", path);
@@ -152,6 +153,7 @@ internal int chk_bench(const char *path, int runs) {
         if (r != XVM_DONE) fprintf(g_dry_out, "stopped at line %d - %s\n", m ? m->line : 0, stop);
         if (r != XVM_DONE && !i) printf("%s:%d: stopped - %s\n", path, m ? m->line : 0, stop);
         if (!i || ms < best) best = ms;
+        if (reg.total > left) left = reg.total;
         free(m);
         memset(&g_x_hooks, 0, sizeof g_x_hooks);
         g_xr = r0;
@@ -159,7 +161,8 @@ internal int chk_bench(const char *path, int runs) {
         fclose(g_dry_out);
         g_dry_out = NULL;
     }
-    printf("%-28s %9.3f ms (best of %d; read and compiled in %.3f ms)\n", strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path, best, runs, compiled);
+    printf("%-28s %9.3f ms (best of %d; read and compiled in %.3f ms; its values take %u KB at the end)\n",
+           strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path, best, runs, compiled, (unsigned)(left >> 10));
     return 0;
 }
 internal int chk_eval(int runs, const char *src) {

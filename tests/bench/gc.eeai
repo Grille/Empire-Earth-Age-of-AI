@@ -1,0 +1,24 @@
+// bench: what a long turn makes and drops is cleared out on its way (expr.c xvm_gc) - with functions in progress,
+// values half worked out below a call, a function made in the code, lists and records held across it
+make(n: int) {
+    let l = [n, n + 1]
+    let s = 0
+    for i in 1..3000 {
+        let t = "item {i} of {n}"
+        let r = { a = i, b = [i, i + 1, i + 2], name = t }
+        s += r.b[2] + l[1]
+        if r.name == "item 7 of 3" { s += 1000 }
+    }
+    return [s, n]
+}
+let total = 0
+let keep = ["a", "b"]
+let f = (k: int) => k + total
+for round in 1..60 {
+    let got = [round, round * 2][2] + make(round)[1] + f(1) - total
+    total += got
+    keep = [keep[2], "round {round}"]
+}
+let d = dict<text, int>(0)
+for i in 1..30000 { d["key {i / 100}"] += 1 }
+cmd("gc {total} {keep[1]} {keep[2]} {f(0)} {d["key 1"]} {d["key 299.5"]}")

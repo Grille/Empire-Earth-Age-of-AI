@@ -1052,13 +1052,15 @@ internal const char *color_name(int c) {   // in the game's language: the German
 
 // the speaker's age, localized (strings 30145 + epoch: Vorzeit, Steinzeit, ...)
 internal void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name
+    static char known[15][96];   // the game's names, each asked for once (its resource strings stay; a text's p.epoch asks every time)
     void *res = string_resources();
     lstrcpynA(out, epoch_name(e), cap);
     if (!res || e < 0 || e > 14) return;
+    if (known[e][0]) { lstrcpynA(out, known[e], cap); return; }
     __attribute__((aligned(8))) uint8_t s[32];
     wstring_init(s);
     resource_string(res, 30145 + e, s);
-    if (FIELD(s, 4, const char *)) lstrcpynA(out, FIELD(s, 4, const char *), cap);
+    if (FIELD(s, 4, const char *)) { lstrcpynA(out, FIELD(s, 4, const char *), cap); lstrcpynA(known[e], FIELD(s, 4, const char *), sizeof known[e]); }
     wstring_free(s);
 }
 internal void epoch_text(ee_player *pl, char *out, int cap) { epoch_text_n(current_epoch(pl), out, cap); }

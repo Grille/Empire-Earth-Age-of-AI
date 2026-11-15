@@ -30,7 +30,6 @@ struct script {
     uint32_t wake;          // game ms it waits for
     int done;
     int hooks;              // setup.eeai: the hooks called after its top, a bit each (SETUP.EEAI below)
-    size_t gc_at;           // its region's size at which what it dropped is cleared out (script_turn)
     struct xregion reg;     // its values
 };
 internal struct script g_scripts[SCRIPTS_MAX];
@@ -130,7 +129,8 @@ internal int script_read_in(struct script *s, const char **why, int *line) {   /
     return script_compile(s->path, s->text, &s->u, &s->code, why, line);
 }
 // a script's turn: its machine goes on until it waits, ends or stops on a mistake; then what it worked out and dropped
-// is cleared out of its region when that has grown (the values it holds copied into a new one)
+// is cleared out of its region when that has grown (the values it holds copied into a new one: expr.c xvm_gc - a
+// loop that runs long does it on its way too)
 internal void script_turn(struct script *s, uint32_t now) {
     if (!s->text || !s->code || s->done || now < s->wake) return;
     if (!s->vm && !(s->vm = xvm_new(s->code, s->hooks))) { s->done = 1; log_line("# setup: %s: no memory - not run\n", s->path); return; }
@@ -151,14 +151,7 @@ internal void script_turn(struct script *s, uint32_t now) {
         log_line("# setup: %s: done\n", s->path);
         s->done = 1;
     }
-    if (x_region_bytes(&s->reg) > (s->gc_at ? s->gc_at : (size_t)1 << 20)) {
-        struct xregion old = s->reg;
-        memset(&s->reg, 0, sizeof s->reg);
-        s->reg.busy = 1;
-        xvm_collect(s->vm);
-        x_region_free(&old);
-        s->gc_at = x_region_bytes(&s->reg) * 2 + ((size_t)1 << 20);
-    }
+    if (s->reg.total > (s->vm->gc_at ? s->vm->gc_at : X_GC_STEP)) xvm_gc(s->vm);
     g_cur_script = NULL;
     g_x_safe = 0;
     memset(&g_x_hooks, 0, sizeof g_x_hooks);

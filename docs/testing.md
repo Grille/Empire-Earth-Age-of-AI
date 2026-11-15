@@ -1194,6 +1194,23 @@ Checked: the bench scripts' outputs the same; the corpus (Continental 777 at min
 player_effects, unit_effects, units and spawn the same script lines. What is left in the game's rows is the host's
 side: a player's `epoch` and an `opinion` make their text every time, used or not.
 
+Step 2 (the same day): a value is 56 bytes instead of 88 (its small numbers a byte each, who isn't there a word) -
+about 10% on expressions, nothing on the plain loop (its time is the instructions' own work). `script dryrun` says how
+long the run took; run in a game it reads the game's objects for real: `tests/bench/game/` (player, methods, units,
+epoch) through `cmd("script dryrun <file> <out>")` from a setup script (paths without spaces).
+
+Step 3: memory and texts.
+- A script's values are cleared of what it dropped while it runs too (xvm_gc at a loop's next round, once its region
+  has grown by 1 MB - before only after a turn): a loop that never waits no longer holds everything every round made
+  until it does. `--bench` prints what a script's values take at the end: gc.eeai (functions in progress, half
+  worked-out values below a call, lists and records held across it) 128 KB instead of 72 MB, records.eeai 0.8 instead
+  of 18 MB, lists.eeai 1 instead of 6.6 - and the same results as a build that never clears (`-DX_GC_STEP=...`).
+- A string's fill needs no malloc when it is short, a whole number's text no printf: strings.eeai 38.5 -> 26.9 ms,
+  `"a {1 + 1} b"` 285 -> 160 ns.
+- A member path from a variable asks the host's `value()` only for the kind it reads (a player: `x_host.value_kind`) -
+  a unit's member went there first for nothing. The game's epoch names are asked for once (`p.epoch` made the game
+  look the string up every time).
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

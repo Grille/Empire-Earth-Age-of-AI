@@ -638,6 +638,7 @@ internal void x_host_install(void) {
     g_x_host.obj_key = x_unit_key;
     g_x_host.field_get = persona_field_get;
     g_x_host.field_set = persona_field_set;
+    g_x_host.value_kind = XK_PLAYER;
     g_ini_eval = x_const_eval;
     g_ini_eval_vec2 = x_const_vec2;
 }

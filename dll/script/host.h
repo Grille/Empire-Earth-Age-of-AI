@@ -51,6 +51,9 @@ struct x_host {
     int (*field_get)(struct xctx *c, const char *name, struct xval *v);
     // a field set: 0 none such, 1 set - *why a mistake (a value of another type), not set
     int (*field_set)(struct xctx *c, const char *name, const struct xval *v, const char **why);
+    // the kind of object value() reads a member path of when its head is a variable (p.gold of a script's p: a
+    // player) - a variable of another kind is not asked (0: every kind is)
+    int value_kind;
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -76,4 +79,4 @@ internal int xh_field_set(struct xctx *c, const char *name, const struct xval *v
 }
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
-                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set };
+                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set, 0 };

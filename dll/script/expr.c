@@ -134,9 +134,10 @@ internal struct {
 // THE VALUES' REGIONS: their texts and lists, in chunks. The shared one (the lines, prompts, settings) starts afresh
 // with the outermost evaluation (x_eval, x_fill from outside): what a caller reads of a value it got lives until the
 // next. A script has its own (its variables outlive anything else worked out meanwhile), emptied of what it
-// dropped by copying what it holds (xvm_collect).
+// dropped by copying what it holds (xvm_gc: after a turn, and in a turn's loops - a loop that never waits must not
+// pile up what each round made). total: its chunks' bytes
 struct xchunk { struct xchunk *next; size_t cap, used; char d[]; };
-struct xregion { struct xchunk *first, *cur; int busy; };
+struct xregion { struct xchunk *first, *cur; int busy; size_t total; };
 internal struct xregion g_xr_shared, *g_xr = &g_xr_shared;
 internal void *x_alloc(size_t n) {
     struct xregion *r = g_xr;
@@ -148,6 +149,7 @@ internal void *x_alloc(size_t n) {
         k->next = NULL; k->cap = cap; k->used = 0;
         if (r->cur) r->cur->next = k; else r->first = k;
         r->cur = k;
+        r->total += cap;
     }
     void *p = r->cur->d + r->cur->used;
     r->cur->used += n;
@@ -159,10 +161,12 @@ internal void x_region_reset(struct xregion *r) {   // empty again (its first ch
     r->first->next = NULL;
     r->first->used = 0;
     r->cur = r->first;
+    r->total = r->first->cap;
 }
 internal void x_region_free(struct xregion *r) {
     for (struct xchunk *k = r->first, *nx; k; k = nx) { nx = k->next; free(k); }
     r->first = r->cur = NULL;
+    r->total = 0;
 }
 internal const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a text in the region
     char *r = x_alloc(n + 1);
@@ -441,8 +445,16 @@ internal double x_round_dec(double n, int dec) {
 }
 internal void xnum_text(double n, char *out, int cap) {   // a number as a text: whole, or up to 2 decimals
     double r = n < 0 ? -n : n;
-    if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)n);
-    else {
+    if (r - (double)(long long)r < 1e-9 && r < 1e15) {   // (its digits by hand: printf takes ~100 ns, and most numbers said are whole)
+        char t[24];
+        long long x = (long long)n;
+        unsigned long long u = x < 0 ? 0ull - (unsigned long long)x : (unsigned long long)x;
+        int k = sizeof t, o = 0;
+        do t[--k] = (char)('0' + u % 10); while (u /= 10);
+        if (x < 0) t[--k] = '-';
+        while (k < (int)sizeof t && o < cap - 1) out[o++] = t[k++];
+        if (cap > 0) out[o] = 0;
+    } else {
         snprintf(out, (size_t)cap, "%.2f", x_round_dec(n, 2));
         char *e = out + strlen(out);
         while (e > out && e[-1] == '0') *--e = 0;
@@ -2607,7 +2619,7 @@ internal int x_body(struct xe *e, const char *src, struct xval *v) {
 // a member path's value (name: r.a.b, p.gold - the whole path) from its head's, h (used): a player's the host's own
 // way first (p.soldiers), else member by member
 internal void x_path_walk(struct xe *e, const char *name, struct xval *h, struct xval *v) {
-    if (h->obj && h->w && g_x_host.value(e->c, name, v)) return;
+    if (h->obj && h->w && (!g_x_host.value_kind || h->okind == g_x_host.value_kind) && g_x_host.value(e->c, name, v)) return;
     for (const char *seg = strchr(name, '.') + 1; !e->err;) {
         char m[40];
         size_t k = strcspn(seg, ".");
@@ -3217,12 +3229,12 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
 internal void x_str_fill(struct xe *e, const char *tmpl, struct xval *v) {   // a string: its placeholders filled
     int f0 = e->c->failed;
     size_t cap = strlen(tmpl) * 2 + 4096;
-    char *f = malloc(cap);
+    char small[6144], *f = cap <= sizeof small ? small : malloc(cap);   // (a short one - nearly all - without malloc)
     if (!f) { e->err = 1; return; }
     x_fill(f, (int)cap, tmpl, e->c);
-    if (e->c->failed > f0) { free(f); e->err = 1; e->why = "a mistake while working it out"; return; }   // told in x_fill
-    xstr(v, f);
-    free(f);
+    if (e->c->failed > f0) { e->err = 1; e->why = "a mistake while working it out"; }   // told in x_fill
+    else xstr(v, f);
+    if (f != small) free(f);
 }
 // a op b with a vector among them (into a): + - two vectors of as many numbers, number by number; * a vector and a
 // number (either side), / a vector by a number - anything else a mistake, nothing guessed
@@ -4576,6 +4588,7 @@ struct xvm {
     struct xvtry tr[XVM_TRIES];
     int ntr;
     int pc, hooks, line, done, started;
+    size_t gc_at;                        // its region's size at which what it dropped is cleared out (xvm_gc; 0: X_GC_STEP)
     int text;                            // the texts' machine (xvm_eval): nothing waits on it
     double wake;                         // the game second it waits for (XVM_YIELD)
 };
@@ -4623,6 +4636,10 @@ internal void xvm_callv(struct xvm *m, struct xe *e, int argc, const char *name)
     m->sp = base;
     *xvm_push(m, e) = r;
 }
+#ifndef X_GC_STEP
+#define X_GC_STEP ((size_t)1 << 20)   // (a build may set another: none at all, to compare what a script works out)
+#endif
+internal void xvm_gc(struct xvm *m);
 internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
     struct xctx *c = e->c;
     int ntr0 = m->ntr;
@@ -4797,6 +4814,9 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
         case XI_LOOP:   // a loop's next round
             if (++e->steps > X_LOOP_STEPS) { x_fail(e, "a loop (line %d) ran %d rounds without waiting - wait(...) lets the game go on", code->line[m->pc - 1], X_LOOP_STEPS); break; }
             m->pc = in->a;
+            // what the rounds so far made and dropped, out of the script's region - in its own turn only (until_nfr 0,
+            // its region the one in use): there every value it holds is on its stack, between two statements
+            if (g_xr->total > (m->gc_at ? m->gc_at : X_GC_STEP) && !until_nfr && !m->text && !g_xt_in && g_xr->busy == 1) xvm_gc(m);
             break;
         case XI_SETI: m->sp -= 3; xop_seti(e, in->a, &m->st[m->sp], &m->st[m->sp + 1], &m->st[m->sp + 2]); break;
         case XI_SETM: m->sp -= 2; xop_setm(e, k->s, in->b, &m->st[m->sp], &m->st[m->sp + 1]); break;
@@ -4978,10 +4998,15 @@ internal void xvm_copy(struct xval *dst, const struct xval *src) {
 internal void xvm_collect(struct xvm *m) {
     for (int i = 0; i < m->sp; i++) { struct xval t; xvm_copy(&t, &m->st[i]); m->st[i] = t; }
 }
-internal size_t x_region_bytes(const struct xregion *r) {
-    size_t n = 0;
-    for (const struct xchunk *k = r->first; k; k = k->next) n += k->cap;
-    return n;
+// a script's region (the one in use, g_xr) cleared of what the script dropped: the values its machine holds copied
+// into a new one, the old freed - and not again before it has grown to twice that and a step
+internal void xvm_gc(struct xvm *m) {
+    struct xregion old = *g_xr;
+    memset(g_xr, 0, sizeof *g_xr);
+    g_xr->busy = old.busy;
+    xvm_collect(m);
+    x_region_free(&old);
+    m->gc_at = g_xr->total * 2 + X_GC_STEP;
 }
 internal int xfn_nparams(const struct xfn *fn) { return fn->code->fn[fn->fi].nparams; }
 // THE TEXTS' MACHINE: every text's code runs on this one - a value at a time: its top function entered above whatever
