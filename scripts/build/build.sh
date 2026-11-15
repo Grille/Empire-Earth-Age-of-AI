@@ -51,7 +51,8 @@ rm -f ageofai_check.log
 # text) and what it worked out compared with its .expect - a line that differs stops the build
 for t in ../tests/lang/*.eeai; do
     ./ageofai_check.exe --bench "$t" 1 > /dev/null 2>&1
-    cmp -s "$t.out" "${t%.eeai}.expect" || { echo "$t: not what ${t%.eeai}.expect says"; diff "$t.out" "${t%.eeai}.expect" | head -20; exit 1; }
+    # (the lines' ends aside: a checkout may give the .expect CR LF, the checker writes LF)
+    diff -q --strip-trailing-cr "$t.out" "${t%.eeai}.expect" > /dev/null || { echo "$t: not what ${t%.eeai}.expect says"; diff --strip-trailing-cr "$t.out" "${t%.eeai}.expect" | head -20; exit 1; }
     rm -f "$t.out"
 done
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
