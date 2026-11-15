@@ -91,7 +91,21 @@ enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 // or - the game's computer player off - one defence of its (a tower, a fortress): build.c's CLAIM, the player
 // 2026-11-15: "the ai also dosnt yet clam territoires that have no resources in it, they are still needed for map
 // control"
-#define TV_HOLDS(idx, t) ((t)->bld >= TV_HELD || (!GAME_AI(idx) && (t)->def >= 1))
+// What holds, with the game's computer player off (the player, the same day: "unfinished buildings shouldnt count,
+// also only building that can demage (tower) or prodcue, towncenter/capitol, barracks etc, just a settlemt or a stray
+// house should not count as holding an territory"): one finished building of its that shoots (a tower, a fortress) or
+// trains (a Town Center, a Capitol, a Barracks and the other production buildings, a Dock) - tv_terr.hold counts
+// them. With the game's computer player on as it was measured: TV_HELD of any.
+#define TV_HOLDS(idx, t) (GAME_AI(idx) ? (t)->bld >= TV_HELD : (t)->hold >= 1)
+internal int tv_holder(ee_unit *u, ee_unit_type *td) {
+    ee_unit *st = unit_get_physics(u);
+    int t = unit_type_get_id(td);
+    float rng, att;
+    if (!st || !unit_get_finished(st)) return 0;
+    if (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || defence_stats(u, &rng, &att)) return 1;
+    for (int k = 0; k < AM_NK; k++) if (g_ut[k_am_bld[k]] >= 0 && g_ut[k_am_bld[k]] == t) return 1;
+    return 0;
+}
 #define TV_GUARD 12
 #define TV_FOE_MEMORY 300000
 #define TV_EVERY 2000
@@ -103,7 +117,7 @@ enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 #define TV_CALM 20000
 #define TV_HOT 8                  // territories looked at closer a pass
 enum { TV_QUIET, TV_FOES, TV_UNSAFE };
-struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, cit, bld, want, ships, eships, abld, ebld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; ebld: an enemy's it has seen there (work.c: no ground to settle); coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
+struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, hold, cit, bld, want, ships, eships, abld, ebld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; ebld: an enemy's it has seen there (work.c: no ground to settle); coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
 internal struct tv_st {
     unsigned version; int n; struct tv_terr *t;
     uint32_t tick, log_t;
@@ -162,7 +176,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         s->version = g_ter.version; s->n = s->t ? g_ter.n : 0;
     }
     if (!s->n) return;
-    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = s->t[r].ebld = 0; s->t[r].fish = 0; s->t[r].ratio = 0; }
+    for (int r = 0; r < s->n; r++) { s->t[r].foe = s->t[r].sold = s->t[r].def = s->t[r].hold = s->t[r].cit = s->t[r].bld = s->t[r].ships = s->t[r].eships = s->t[r].abld = s->t[r].ebld = 0; s->t[r].fish = 0; s->t[r].ratio = 0; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -194,7 +208,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             int fam = unit_type_get_class_id(it.td);
             if (is_citizen_type(unit_type_get_id(it.td))) s->t[r].cit++;
             else if (is_wall(unit_type_get_id(it.td))) continue;   // a wall's pieces hold no territory (three of a front's wall across a border made the land behind "held") - by the role (walls, gates): the game's wall flag is on the towers too, which from 219186e1 to here counted neither as buildings nor as defences
-            else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { s->t[r].bld++; s->t[r].def += defence_stats(u, &rng, &att) != 0; }
+            else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { s->t[r].bld++; s->t[r].def += defence_stats(u, &rng, &att) != 0; s->t[r].hold = (short)(s->t[r].hold + tv_holder(u, it.td)); }
             else if (tv_own_soldier(it.td)) s->t[r].sold++;
             else if (tv_warship(it.td)) s->t[r].ships++;
         }

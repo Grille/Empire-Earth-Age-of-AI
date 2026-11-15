@@ -277,7 +277,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // claim that has nothing else yet - before the next claim
         int lone = -1;
         for (int r = 0; r < s->n && lone < 0; r++)
-            if (!g_ter.t[r].water && s->t[r].role != TVR_NONE && s->t[r].state == TV_QUIET && s->t[r].bld == 1 && s->t[r].def >= 1) lone = r;
+            if (!g_ter.t[r].water && s->t[r].role != TVR_NONE && s->t[r].state == TV_QUIET && s->t[r].bld == 1 && s->t[r].hold >= 1) lone = r;   // its tower stands finished (territories.c TV_HOLDS)
         if (!type && !placed && lone >= 0 && !open_settle && !wait[1] && ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
             ivec2 c = g_ter.t[lone].c;
             for (int j = 0; j < ndef; j++) if ((int)ter_near(def[j].x, def[j].y) == lone) c = iv2(def[j].x, def[j].y);
