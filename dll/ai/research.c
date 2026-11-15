@@ -42,7 +42,11 @@
 #define RS_HOLD2 4
 #define RS_QUEUE 2
 #define RS_IDS 15000
-#define RS_BLD 128
+// its finished buildings (not the fields: they research nothing): 128 left the late ones out - P4 in the player's game
+// at 215 min, 193 fields and ~400 buildings, had its one Naval Yard past the list's end, no maker for a ship's line
+// upgrade, its U-Boats unupgraded from epoch 11 to 13 (the player 2026-11-15: "the submarines of p4 are still the ww1
+// version")
+#define RS_BLD 4096
 #define RS_CAND 256
 enum { RS_ECON = 1, RS_LINE, RS_EPOCH, RS_REST };
 internal struct rsr_st {
@@ -156,7 +160,7 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         ncit += is_citizen_type(t);
         if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(t)) continue;
         ee_unit *st = unit_get_physics(u);
-        if (!st || !unit_get_finished(st)) continue;
+        if (!st || !unit_get_finished(st) || t == UT(B_FARM)) continue;
         int cur = unit_get_producing(u), *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u), nq = qb && qe > qb && qe - qb < 4096 ? (int)(qe - qb) : 0;
         int load = cur > 0 && cur != 100000, tech = 0;
         for (int j = -1; j < nq; j++) {
