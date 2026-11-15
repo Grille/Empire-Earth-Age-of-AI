@@ -799,9 +799,11 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 #define HB_STONE 600                // stone in the bank from which a harbour gets its second tower unasked
 #define HB_DOCKS 8
 #define HB_LAID 90000
+#define HB_YARD_DOCKS 3
+#define HB_YARD_TRIES 3
 internal int tv_harbour_next(unsigned idx, const unsigned *dock_seas, int nd, int cits, ivec2 *shore, unsigned *land, unsigned *sea);   // territories.c
 internal int tv_sea_threat(unsigned idx, unsigned sea);
-internal struct { uint32_t t, laid_t; unsigned docks, towers; } g_hb[16];   // laid_t: the last one laid with the game's computer player off (HB_LAID)
+internal struct { uint32_t t, laid_t; unsigned docks, towers; int yards, yard_tries; } g_hb[16];   // laid_t: the last one laid with the game's computer player off (HB_LAID)
 // a harbour's building at q: into the build manager's queue - the game's computer player off (nobody works that queue:
 // the player 2026-11-15, "it dosnt buidl habous and claims water territories yet") laid at once, when it pays
 internal int hb_lay(ee_player *pl, unsigned idx, ee_build_mgr *bm, int e, int type, ivec2 q) {
@@ -839,6 +841,30 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
                     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d of %d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov, want);
                     return;
                 }
+    }
+    // A NAVY YARD (the game's computer player off; the player 2026-11-15: "the navel port and airports arent build yet"):
+    // one for every HB_YARD_DOCKS docks, on the coast by a dock of its - the ships a dock does not build come from it
+    if (!GAME_AI(idx) && ut_has(UT(B_NAVY_YARD)) && can_build(pl, UT(B_NAVY_YARD)) && g_fs.nd) {
+        ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+        uint8_t *yq = um ? unit_mgr_type_list(um, UT(B_NAVY_YARD)) : NULL;
+        int yards = yq ? (int)deque_count(yq) : 0;
+        if (yards != g_hb[idx].yards) { g_hb[idx].yards = yards; g_hb[idx].yard_tries = 0; }   // one more came of it
+        if (yards < (g_fs.nd + HB_YARD_DOCKS - 1) / HB_YARD_DOCKS && g_hb[idx].yard_tries < HB_YARD_TRIES) {   // laid HB_YARD_TRIES times with none standing after: no more (one AI laid 14 in 25 minutes and had 1)
+            for (int k = 0; k < g_fs.nd && k < 16; k++) {
+                ivec2 dk = g_fs.dk[k];
+                if (raiders_near(pl, dk, 10)) continue;
+                for (int r = 3; r <= 10; r++)
+                    for (int ax = -r; ax <= r; ax++)
+                        for (int ay = -r; ay <= r; ay++) {
+                            ivec2 q = ivec2_add(dk, iv2(ax, ay));
+                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_NAVY_YARD), q)) continue;
+                            if (!hb_lay(pl, idx, bm, e, UT(B_NAVY_YARD), q)) return;
+                            g_hb[idx].laid_t = now ? now : 1; g_hb[idx].yard_tries++;
+                            if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a Navy Yard laid at %d,%d by the dock %d,%d (%d yards, %d docks)\n", idx, now / 60000.0, q.x, q.y, dk.x, dk.y, yards, g_fs.nd);
+                            return;
+                        }
+            }
+        }
     }
     ivec2 shore;
     unsigned land = 0, sea = 0;

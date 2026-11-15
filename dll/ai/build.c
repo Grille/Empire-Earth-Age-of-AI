@@ -86,6 +86,8 @@ internal int bd_gran_first(struct bd_st *b, unsigned idx, int gran_room, uint32_
     g_gu_gran[idx] = now ? now : 1;
     return 0;
 }
+internal uint32_t g_bd_airport[16];   // airstrike.c: an Airport asked for, when (AN AIRPORT)
+internal int g_bd_airport_n[16];      // ... how many it wants in all
 internal int bd_pays(ee_player *pl, int type, const int *com) {
     const int *stock = player_stock_at(pl);
     for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - com[r] < c) return 0; }
@@ -123,6 +125,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
+    int nairport = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
     int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, count = 0, have_rb[3] = { 0, 0, 0 };
     const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
@@ -146,6 +149,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (t == UT(B_SETTLEMENT)) open_settle += !done;
         else if (pr_kind(t) >= 0) open_prod += !done;
         for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
+        nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
         if (is_tower_type(t)) open_tower += !done;
         if ((is_tower_type(t) || defence_stats(u, &rng, &att)) && ndef < 512) def[ndef++] = p;
         if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && nds < BD_DSITES) dsite[nds++] = p;
@@ -252,6 +256,15 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (!type && !placed && g_pr[idx].type && !g_pr[idx].first && !wait[4] && !open_prod && bd_pays(pl, g_pr[idx].type, com)) {   // PRODUCTION
         if (bd_spot(pl, idx, g_pr[idx].type, g_pr[idx].at, 3, 10, &at)) { type = g_pr[idx].type; what = g_pr[idx].why; } else b->no_spot++;
     }
+    // AN AIRPORT (airstrike.c af_train asks: the wing it wants has too few): by a Town Center or Capitol in a territory it
+    // holds, backland first
+    if (!type && !placed && g_bd_airport[idx] && now >= g_bd_airport[idx] && now - g_bd_airport[idx] < 120000 && nairport < g_bd_airport_n[idx] && !wait[4] && !open_prod &&
+        ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT)) && bd_pays(pl, UT(B_AIRPORT), com)) {
+        for (int pass = 1; pass <= 2 && !type; pass++)
+            for (int c = 0; c < ncen && !type; c++)
+                if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, UT(B_AIRPORT), centre[c].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport for the bombers' wing"; g_bd_airport[idx] = 0; }
+        if (!type) b->no_spot++;
+    }
     b->mines = b->mines_drop = b->mines_guard = 0;
     {   // A MINE'S SETTLEMENT, A MINE'S TOWER: the cheapest territory's first, then the nearest to the base
         ivec2 base = build_mgr_get_base(bm), sp = iv2(0, 0), tp = iv2(0, 0);
@@ -329,10 +342,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // fewest of (BD_SINK_MAX of a kind in one at most), one every BD_SINK_EVERY while fewer than BD_SINK_OPEN of its
     // buildings stand unfinished.
     if (!type && !placed && player_stock_at(pl)[3] >= BD_SINK && no < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
-        int kinds[2 + PR_NK], nk = 0;
-        kinds[nk++] = rb[1]; kinds[nk++] = rb[2];
+        int kinds[3 + PR_NK], nk = 0;
+        kinds[nk++] = rb[1]; kinds[nk++] = rb[2]; kinds[nk++] = UT(B_AIRPORT);   // an Airport near the front: the planes' reach
         for (int k = 0; k < PR_NK; k++) kinds[nk++] = g_ut[PR_KINDS[k]];
-        static uint8_t have[BD_SINK_T][2 + PR_NK];
+        static uint8_t have[BD_SINK_T][3 + PR_NK];
         int tn = s->n < BD_SINK_T ? s->n : BD_SINK_T, cnt = 0;
         memset(have, 0, (size_t)tn * sizeof *have);
         for (ee_unit *u = player_get_units(pl); u && cnt < 16384; u = unit_get_next(u), cnt++) {

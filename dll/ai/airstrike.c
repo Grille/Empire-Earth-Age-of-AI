@@ -135,7 +135,7 @@ internal int af_takes(ee_unit *u) {
     ee_unit_type *td = pl ? unit_get_type_data(u) : NULL;
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     return td && unit_type_get_family(td) == KIND_BOMBER && unit_type_get_class_id(td) == CLS_AIRPLANE && PV(idx, g_v_air_strike, AS_ON) &&
-           ar_on(pl, idx) && current_epoch(pl) + 1 >= 10;
+           (ar_on(pl, idx) || !GAME_AI(idx)) && current_epoch(pl) + 1 >= 10;   // the game's computer player off: the territories' pushes are its positions (below)
 }
 internal int as_held_at(struct as_st *s, int id) {
     for (int k = 0; k < s->nh; k++) if (s->held[k].id == id) return k;
@@ -171,6 +171,10 @@ internal void af_train(ee_player *pl, unsigned idx, struct as_st *s, int have, u
     if (ap_want > AF_AIRPORTS) ap_want = AF_AIRPORTS;
     if (ap + building > s->ap_seen) s->ap_tries = 0;   // one more came of it
     s->ap_seen = ap + building;
+    // the game's computer player off (the player 2026-11-15: "the navel port and airports arent build yet"): nobody works
+    // the build manager's queue - build.c lays it (g_bd_airport: asked when), no count of tries
+    if (!GAME_AI(idx)) { if (ap + building < ap_want && ut_has(UT(B_AIRPORT))) { g_bd_airport[idx] = now ? now : 1; g_bd_airport_n[idx] = ap_want; } }
+    else
     if (bm && ap + building < ap_want && ut_has(UT(B_AIRPORT)) && !bq_has(bm, UT(B_AIRPORT)) && e >= 0 && e < 14 &&
         s->ap_tries < AF_AIRPORT_TRIES && (!s->airport_t || now - s->airport_t >= 60000)) {
         s->airport_t = now ? now : 1;
@@ -221,7 +225,7 @@ internal int as_shooters(unsigned idx, struct as_st *s, uint32_t now) {
 internal void airstrike_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct as_st *s = &g_as[idx];
-    if (!ar_on(pl, idx)) return;
+    if (!ar_on(pl, idx) && (!pl || is_vanilla(pl) || GAME_AI(idx))) return;
     if (s->t && now >= s->t && now - s->t < AS_EVERY) return;
     if (now < s->t) memset(s, 0, sizeof *s);
     s->t = now ? now : 1;
@@ -265,6 +269,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     else if (g_ar_breach[idx].on) pos = g_ar_breach[idx].focus;
     else if (a->out == 1 && a->target) pos = a->dest;
     else if (a->strong_t && now - a->strong_t < AF_STRONG_MS) pos = a->strong;
+    else if (!GAME_AI(idx) && sn_need_at(idx, &pos)) { }   // stations.c: a push's building, the enemy in a territory of its, the nearest enemy building
     else return;
     // the anti-air near it and what holds it - the nearest first
     static struct { ee_unit *u; long d; } aa[AS_TARGETS], tg[AS_TARGETS];
