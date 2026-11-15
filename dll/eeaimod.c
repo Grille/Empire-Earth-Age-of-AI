@@ -81,6 +81,8 @@ internal void wf_tick(ee_player *pl, uint32_t now);
 internal void wf_new_game(void);
 internal void ap_targets(ee_resource_mgr *rm);   // army.c
 internal void citizens_safety(ee_resource_mgr *rm, int game);
+internal ee_player *g_grid_viewer;   // game/grid.c: whose turn it is (the others' foundations unseen)
+internal int honest_vision_on(void);   // ai/attack.c: [ai_base] honest_vision
 internal void attack_tick(ee_player *pl, uint32_t now);
 internal void vanilla_tick(ee_player *pl, uint32_t now);
 internal void ecolog_tick(ee_player *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
@@ -201,6 +203,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
     ee_player *pl = resource_mgr_player(rm);
+    g_grid_viewer = pl && !is_vanilla(pl) && honest_vision_on() ? pl : NULL;   // its turn: the others' foundations unseen (game/grid.c; honest_vision)
     if (pl) {
         unsigned idx = (unsigned)player_get_index(pl) & 15;
         ctl_note_player(pl);
@@ -268,6 +271,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
     if (pl) territory_tick(now, g_set.territories_log);
+    g_grid_viewer = NULL;
     g_rm_seen = 1;
     autotest_tick(now);
 }

@@ -778,7 +778,7 @@ internal void ter_facts(void) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
         int p = o ? player_get_index(o) : 0;
-        if (p <= 0 || p > 15 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+        if (p <= 0 || p > 15 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || foundation_unseen(u, it.td, NULL)) continue;   // a foundation: its owner's only (grid.c)
         unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
         if (r == TER_NONE) continue;
         if (ter_is_building(it.td)) { g_ter.t[r].bld[p]++; if (ter_holds(u, it.td) && g_ter.t[r].hold[p] < 0x7FFF) g_ter.t[r].hold[p]++; } else g_ter.t[r].units[p]++;

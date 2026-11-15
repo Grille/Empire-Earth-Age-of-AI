@@ -34,6 +34,7 @@ internal int g_avoid_margin = 6;        // tiles added to the tower's range
 // building pl has seen before (still where it was - a human remembers it on the map), the default; 0: the count as
 // the game keeps it - all-knowing about the human.
 internal int g_honest_vision = 1;
+internal int honest_vision_on(void) { return g_honest_vision; }   // eeaimod.c rm_tick: the others' foundations unseen too
 internal uint16_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
 internal int intel_remembers(ee_player *pl, ee_unit *u);   // intel.c: a building pl has seen
 internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
@@ -48,6 +49,7 @@ internal int seen_by(ee_unit *u, ee_player *pl) {
     if (!vis) return 0;
     unsigned c = sight_count(vis[pi]);
     if (!g_honest_vision) return c != 0;
+    if (foundation_unseen(u, unit_get_type_data(u), pl)) return 0;   // another's foundation: its owner's (grid.c)
     ee_player *o = unit_get_owner(u);
     unsigned oi = o ? (unsigned)player_get_index(o) & 15 : 0;
     if (c > g_vis_floor[pi][oi] || intel_revealed(pi, u)) return 1;

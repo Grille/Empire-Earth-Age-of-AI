@@ -13,6 +13,21 @@
 // holding the own cell, so the nearest area cell to the own cell is one of it. break / continue / return in the loop
 // body work as in a plain loop:
 //     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) { ee_unit *u = it.u; uint8_t *td = it.td; ... }
+// FOUNDATIONS ARE THEIR OWNER'S (the player 2026-11-15: "right now the ai sees placed foundations of other players, it
+// shouldnt, in rare cases it gives the ai and small advantage, in most its just noise that confuses it"): a building
+// laid and not begun (its foundation flag, 0x345 - cleared once a builder starts: a site going up is everyone's to see)
+// the game draws for its owner only. While an AI's turn runs (rm_tick sets g_grid_viewer) the iterator leaves out
+// the other players' - every look an AI takes over the grid; seen_by (attack.c) says no to them too. Part of
+// [ai_base] honest_vision (0: as before). Measured (Continental 101, 4 AIs, epoch 5, rich, base_ring, 120 min, seeds
+// 1-6): within the noise - the two weaker AIs out at 55/34 min on average before, 43/40 with it.
+internal ee_player *g_grid_viewer;
+internal int foundation_unseen(ee_unit *u, ee_unit_type *td, ee_player *viewer) {   // viewer NULL: hidden from everyone
+    int c = unit_type_get_class_id(td);
+    if (c != CLS_BUILDING && c != CLS_FORTRESS && c != CLS_NAVAL_BUILDING && c != CLS_GATE) return 0;
+    ee_player *o = unit_get_owner(u);
+    ee_unit *st = unit_get_physics(u);
+    return o && o != viewer && st && unit_get_foundation(st);
+}
 struct grid_it {
     ee_grid_cell *cells, *cell;   // the grid's cells, the current cell
     ee_unit **b;                  // the next entry in it
@@ -56,7 +71,7 @@ internal int grid_it_next(struct grid_it *it) {
         while (it->b && it->b < grid_cell_get_units_end(it->cell)) {
             ee_unit *u = *it->b++;
             ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-            if (!td) continue;
+            if (!td || (g_grid_viewer && foundation_unseen(u, td, g_grid_viewer))) continue;
             if (it->once) {   // only in its own cell, or the area's cell nearest to it
                 int ox = unit_get_x(u) / it->cs, oy = unit_get_y(u) / it->cs;
                 ox = ox < it->x0 ? it->x0 : ox > it->x1 ? it->x1 : ox;
