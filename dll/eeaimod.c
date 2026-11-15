@@ -114,6 +114,8 @@ internal void research_tick(ee_player *pl, uint32_t now);   // research.c: resea
 internal void research_new_game(void);
 internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the force by territory
 internal void stations_new_game(void);
+internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
+internal void airguard_new_game(void);
 internal void territories_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
@@ -252,6 +254,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl) armies_tick(pl, now);
     if (pl && !is_vanilla(pl)) garrison_tick(pl, now);
     if (pl && !is_vanilla(pl)) airstrike_tick(pl, now);
+    if (pl && !is_vanilla(pl) && !game) airguard_tick(pl, now);   // airguard.c: anti-air buildings and fighters (the game's computer player off)
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
     if (pl && !is_vanilla(pl) && !game) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
@@ -401,6 +404,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     build_new_game();
     research_new_game();
     stations_new_game();
+    airguard_new_game();
     airstrike_new_game();
     skirmish_new_game();
     spoils_new_game();
@@ -480,6 +484,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/airstrike.c"
+#include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
 #include "ai/ai_overlay.c"   // the AI's tactical map (the overlay's layer "ai")
