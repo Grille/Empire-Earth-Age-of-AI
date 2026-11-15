@@ -223,6 +223,7 @@ typedef struct ee_particle3d ee_particle3d;
 typedef struct ee_graphic_effect ee_graphic_effect;
 typedef struct ee_farm_fx ee_farm_fx;
 typedef struct ee_model ee_model;
+typedef struct ee_water_splash ee_water_splash;
 typedef struct ee_particle2d ee_particle2d;
 typedef struct ee_box ee_box;
 typedef struct ee_material ee_material;

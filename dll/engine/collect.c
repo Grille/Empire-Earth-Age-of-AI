@@ -346,6 +346,38 @@ internal uint32_t __thiscall pt_hook_draw2d(ee_particle2d *o) {
     memcpy(place, cur, 12); *angle = cur[3], *fade = cur[4];
     return r;
 }
+// A WATER SPLASH BETWEEN STEPS (the player, 2026-11-15: "the water splash effect (projectile hit) dosnt animate smothly,
+// it jumps back and fort a bit"). A shot's splash on the water (EEE3DWaterSplash) goes on by its progress, a step's ms
+// over its kind's life_ms each step; the view's test as the queues are made (vf9) copies it into drawn, and the draw
+// (vf6) reads drawn and leaves it eased, 1 - (1 - it)^2. A frame during a step draws the queues made before without a
+// vf9 between: each such frame eased the eased one again - the splash ran on toward its end and sprang back at the next
+// real frame. Here drawn is put back after every draw, and the splash is drawn at the pieces' game time (pt_clock): its
+// progress is even in the game time, so its birth is taken once at its first sight (the game time then less its progress'
+// share of its life; seen again with a smaller progress, a new splash in the same memory) and its progress drawn is the
+// pieces' time since over its life - never past the game's own.
+internal uint32_t __thiscall ws_hook_draw(ee_water_splash *o) {
+    float was = water_splash_get_drawn(o);
+    ee_graphic_effect *ge = water_splash_get_graphic_effect(o);
+    int life = ge ? graphic_effect_get_life_ms(ge) : 0;
+    if (g_uc_anim_smooth && g_cp_smooth == 1 && g_cp_cs_ok && life > 0) {
+        pt_clock();
+        LONGLONG t = g_pt_show_at;
+        float p = water_splash_get_progress(o);
+        pt_e *e = pt_entry(o, t);
+        if (e->n && (t - e->seen > rd_qpc_ms(250) || p < e->v[0][0])) e->n = 0;
+        e->seen = t;
+        if (!e->n) e->n = 1, e->ms[0] = physics_get_time_ms(game_physics()) - p * (float)life;
+        e->v[0][0] = p;
+        double d = g_pt_show_ms;
+        if (d >= 0.0) {
+            float q = (float)((d - e->ms[0]) / life);
+            water_splash_set_drawn(o, q < 0.0f ? 0.0f : q > p ? p : q > 1.0f ? 1.0f : q);
+        }
+    }
+    uint32_t r = eee3_d_water_splash_draw(o);
+    water_splash_set_drawn(o, was);
+    return r;
+}
 // THE FARMS' STALKS SWAYING BETWEEN STEPS (with the animation's: picture collect anim; the player, 2026-11-13: "do the
 // weat next, it looks like an uv animation"; then "its not smooth and also broken now": the first try moved the tops'
 // texture coordinates, the wheat thin strands): a farm's stalks are a mesh of its effect (EEE3DFarm), and they sway by
@@ -1672,6 +1704,7 @@ internal void collect_install(void) {
     if (!patch_particle3d_draw(pt_hook_draw) && g_log) fprintf(g_log, "# collect: the flying pieces' draw NOT hooked\n");
     if (!patch_particle2d_draw(pt_hook_draw2d) && g_log) fprintf(g_log, "# collect: the flames' and smoke's draw NOT hooked\n");
     if (!patch_farm_fx_draw(fsw_hook_draw) && g_log) fprintf(g_log, "# collect: the farms' stalks' draw NOT hooked\n");
+    if (!patch_water_splash_draw(ws_hook_draw) && g_log) fprintf(g_log, "# collect: the water splashes' draw NOT hooked\n");
     g_mt_apply = transform_mul_export();
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");

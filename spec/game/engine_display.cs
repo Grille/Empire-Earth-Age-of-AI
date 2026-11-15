@@ -503,6 +503,31 @@ unsafe struct EEE3DFarm
     extern uint32 update();
 }
 
+/// a projectile's splash on the water (the kind "Water Splash": graphics Splash1), an effect drawn from a model that rises
+/// and fades over its kind's life_ms
+[vtable((ee)0x0082C0AC, (aoc)0x008410F4), c_type("ee_water_splash")]
+unsafe struct EEE3DWaterSplash
+{
+    /// what it is (its kind: life_ms)
+    [offset(0xC), found(c)]
+    EEGraphicEffect* graphic_effect;
+
+    /// how far gone, 0 .. 1: the update (vf19) adds a step's ms over its kind's life_ms, past 1 it is done
+    [offset(0x74), found(c)]
+    float32 progress;
+
+    /// how far gone as drawn: vf9 (the view's test, as the queues are made) copies progress into it, and vf6 reads it
+    /// and leaves it eased (1 - (1 - it)^2) - so a second draw without a vf9 between (a frame during a step, which draws
+    /// the queues made before) starts from the eased one
+    [offset(0x78), found(c)]
+    float32 drawn;
+
+    /// vf6: draws it - its size by 1 - drawn^2 and the eased drawn, its alpha down from 0.9 on
+    [slot(6), address((ee)0x004F7BDD, (aoc)0x00501DB4)]
+    [vtable_site("water_splash_draw")]
+    extern uint32 draw();
+}
+
 /// an effect's kind (an effect's +0xC: its look, shared by all of the kind) - the fields EEE3DParticle's draw (vf6) reads
 [c_type("ee_graphic_effect")]
 unsafe struct EEGraphicEffect
@@ -525,6 +550,10 @@ unsafe struct EEGraphicEffect
     /// a farm's (EEE3DFarm): the ms a step of its stalks' sway takes (vf19 adds the step's ms over this)
     [offset((ee)0x28, (aoc)0x2C), found(c)]
     float32 period;
+
+    /// its life (ms): a water splash's (EEE3DWaterSplash vf19: progress + a step's ms over it)
+    [offset((ee)0x74, (aoc)0x78), found(c)]
+    int32 life_ms;
 
     /// its colour: the model's first material's while it is drawn (white again after)
     [offset((ee)0x34, (aoc)0x38), found(c)]

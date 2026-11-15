@@ -425,6 +425,30 @@ internal inline uint32_t farm_fx_update(ee_farm_fx *farm_fx) { return ((farm_fx_
 internal farm_fx_update_fn fn_eee3_d_farm_update;
 internal inline uint32_t eee3_d_farm_update(ee_farm_fx *farm_fx) { return fn_eee3_d_farm_update(farm_fx); }
 
+// class EEE3DWaterSplash (ee_water_splash)
+// a projectile's splash on the water (the kind "Water Splash": graphics Splash1), an effect drawn from a model that rises
+// and fades over its kind's life_ms
+// what it is (its kind: life_ms)
+internal inline ee_graphic_effect *water_splash_get_graphic_effect(const ee_water_splash *o) { return *(ee_graphic_effect **)((uint8_t *)o + of_water_splash_graphic_effect); }
+internal inline void water_splash_set_graphic_effect(ee_water_splash *o, ee_graphic_effect *v) { *(ee_graphic_effect **)((uint8_t *)o + of_water_splash_graphic_effect) = v; }
+internal inline ee_graphic_effect **water_splash_graphic_effect_at(const ee_water_splash *o) { return (ee_graphic_effect **)((uint8_t *)o + of_water_splash_graphic_effect); }
+// how far gone, 0 .. 1: the update (vf19) adds a step's ms over its kind's life_ms, past 1 it is done
+internal inline float water_splash_get_progress(const ee_water_splash *o) { return *(float *)((uint8_t *)o + of_water_splash_progress); }
+internal inline void water_splash_set_progress(ee_water_splash *o, float v) { *(float *)((uint8_t *)o + of_water_splash_progress) = v; }
+internal inline float *water_splash_progress_at(const ee_water_splash *o) { return (float *)((uint8_t *)o + of_water_splash_progress); }
+// how far gone as drawn: vf9 (the view's test, as the queues are made) copies progress into it, and vf6 reads it
+// and leaves it eased (1 - (1 - it)^2) - so a second draw without a vf9 between (a frame during a step, which draws
+// the queues made before) starts from the eased one
+internal inline float water_splash_get_drawn(const ee_water_splash *o) { return *(float *)((uint8_t *)o + of_water_splash_drawn); }
+internal inline void water_splash_set_drawn(ee_water_splash *o, float v) { *(float *)((uint8_t *)o + of_water_splash_drawn) = v; }
+internal inline float *water_splash_drawn_at(const ee_water_splash *o) { return (float *)((uint8_t *)o + of_water_splash_drawn); }
+// vf6: draws it - its size by 1 - drawn^2 and the eased drawn, its alpha down from 0.9 on
+typedef uint32_t (__thiscall *water_splash_draw_fn)(ee_water_splash *);
+internal inline uint32_t water_splash_draw(ee_water_splash *water_splash) { return ((water_splash_draw_fn)(*(void ***)water_splash)[slot_water_splash_draw])(water_splash); }
+internal water_splash_draw_fn fn_eee3_d_water_splash_draw;
+internal inline uint32_t eee3_d_water_splash_draw(ee_water_splash *water_splash) { return fn_eee3_d_water_splash_draw(water_splash); }
+internal inline int patch_water_splash_draw(water_splash_draw_fn h) { return patch_vtable(vt_eee3_d_water_splash, (int)slot_water_splash_draw, (uintptr_t)fn_eee3_d_water_splash_draw, (void *)h); }
+
 // class EEGraphicEffect (ee_graphic_effect)
 // an effect's kind (an effect's +0xC: its look, shared by all of the kind) - the fields EEE3DParticle's draw (vf6) reads
 // whose alpha_ref the alpha test takes (none: 0)
@@ -446,6 +470,10 @@ internal inline float *graphic_effect_opacity_at(const ee_graphic_effect *o) { r
 internal inline float graphic_effect_get_period(const ee_graphic_effect *o) { return *(float *)((uint8_t *)o + of_graphic_effect_period); }
 internal inline void graphic_effect_set_period(ee_graphic_effect *o, float v) { *(float *)((uint8_t *)o + of_graphic_effect_period) = v; }
 internal inline float *graphic_effect_period_at(const ee_graphic_effect *o) { return (float *)((uint8_t *)o + of_graphic_effect_period); }
+// its life (ms): a water splash's (EEE3DWaterSplash vf19: progress + a step's ms over it)
+internal inline int graphic_effect_get_life_ms(const ee_graphic_effect *o) { return *(int *)((uint8_t *)o + of_graphic_effect_life_ms); }
+internal inline void graphic_effect_set_life_ms(ee_graphic_effect *o, int v) { *(int *)((uint8_t *)o + of_graphic_effect_life_ms) = v; }
+internal inline int *graphic_effect_life_ms_at(const ee_graphic_effect *o) { return (int *)((uint8_t *)o + of_graphic_effect_life_ms); }
 // its colour: the model's first material's while it is drawn (white again after)
 internal inline vec3 graphic_effect_get_colour(const ee_graphic_effect *o) { return *(vec3 *)((uint8_t *)o + of_graphic_effect_colour); }
 internal inline void graphic_effect_set_colour(ee_graphic_effect *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_graphic_effect_colour) = v; }
@@ -1407,11 +1435,18 @@ internal int spec_engine_display_select(int build) {
         fn_eee3_d_farm_draw = (farm_fx_draw_fn)0x004E7399;
         slot_farm_fx_update = 19;
         fn_eee3_d_farm_update = (farm_fx_update_fn)0x004E76BE;
+        vt_eee3_d_water_splash = 0x0082C0AC;
+        of_water_splash_graphic_effect = 0xC;
+        of_water_splash_progress = 0x74;
+        of_water_splash_drawn = 0x78;
+        slot_water_splash_draw = 6;
+        fn_eee3_d_water_splash_draw = (water_splash_draw_fn)0x004F7BDD;
         of_graphic_effect_alpha_graphics = 0x8;
         of_graphic_effect_size_end = 0x18;
         of_graphic_effect_size_start = 0x1C;
         of_graphic_effect_opacity = 0x24;
         of_graphic_effect_period = 0x28;
+        of_graphic_effect_life_ms = 0x74;
         of_graphic_effect_colour = 0x34;
         of_graphic_effect_glows = 0x84;
         vt_eee2_d_particle = 0x0082B0EC;
@@ -1838,11 +1873,18 @@ internal int spec_engine_display_select(int build) {
         fn_eee3_d_farm_draw = (farm_fx_draw_fn)0x004F0CE2;
         slot_farm_fx_update = 19;
         fn_eee3_d_farm_update = (farm_fx_update_fn)0x004F1043;
+        vt_eee3_d_water_splash = 0x008410F4;
+        of_water_splash_graphic_effect = 0xC;
+        of_water_splash_progress = 0x74;
+        of_water_splash_drawn = 0x78;
+        slot_water_splash_draw = 6;
+        fn_eee3_d_water_splash_draw = (water_splash_draw_fn)0x00501DB4;
         of_graphic_effect_alpha_graphics = 0xC;
         of_graphic_effect_size_end = 0x1C;
         of_graphic_effect_size_start = 0x20;
         of_graphic_effect_opacity = 0x28;
         of_graphic_effect_period = 0x2C;
+        of_graphic_effect_life_ms = 0x78;
         of_graphic_effect_colour = 0x38;
         of_graphic_effect_glows = 0x88;
         vt_eee2_d_particle = 0x0083FEA4;
@@ -2221,6 +2263,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_slot(vt_eee3_d_farm, slot_farm_fx_draw, (uintptr_t)fn_eee3_d_farm_draw, "EEE3DFarm.draw [slot]");
     bad += spec_code((uintptr_t)fn_eee3_d_farm_update, "EEE3DFarm.update");
     bad += spec_slot(vt_eee3_d_farm, slot_farm_fx_update, (uintptr_t)fn_eee3_d_farm_update, "EEE3DFarm.update [slot]");
+    bad += spec_vtable(vt_eee3_d_water_splash, ".?AVEEE3DWaterSplash@@", "EEE3DWaterSplash [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_water_splash_draw, "EEE3DWaterSplash.draw");
+    bad += spec_slot(vt_eee3_d_water_splash, slot_water_splash_draw, (uintptr_t)fn_eee3_d_water_splash_draw, "EEE3DWaterSplash.draw [slot]");
     bad += spec_vtable(vt_eee2_d_particle, ".?AVEEE2DParticle@@", "EEE2DParticle [vtable]");
     bad += spec_code((uintptr_t)fn_eee2_d_particle_draw, "EEE2DParticle.draw");
     bad += spec_slot(vt_eee2_d_particle, slot_particle2d_draw, (uintptr_t)fn_eee2_d_particle_draw, "EEE2DParticle.draw [slot]");
