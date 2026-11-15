@@ -64,6 +64,32 @@ internal int gu_mines(ee_unit *h) {
     }
     return score;
 }
+// THE MINES' HOLDERS (the game's computer player off; the player 2026-11-15: "the settlement upgrade priorethy, its a big
+// reason the ai is short on gold and iron. right now it just dumps excess citezens into towncenters wher ever.... it
+// upgrade effort should focus on settlments beside mines for golf iron or stone, never tree stlments, they dont
+// profit. before upgrading a settlment not beside a mine it should upgrade one near a mine to a capitol, and after keep
+// going to an 50 capitol even. resouce nodes must be upgraded in this game"): only a holder with a stone, gold or iron
+// mine in the bonus's reach gets citizens - the second producer's Settlement too -, the one where the next citizen
+// raises the income most: the mines' gatherers there (gold and iron count double) times what a citizen inside adds at
+// its level (5% up to 5, 2.5% up to 15, 1.5% up to 50). So a busy mine's Settlement becomes a Town Center first, then
+// a Capitol, then fills to 50, before a holder by a mine nobody works. The citizens come from its own territory or one
+// beside it (work.c ITS TERRITORY: nobody marches across the map to go inside).
+internal int wk_beside(ivec2 a, ivec2 b);   // work.c: the same territory, or two side by side
+internal int gu_gain(ee_unit *h) {
+    vec3 hp = unit_get_pos(h);
+    ivec2 t = unit_get_tile(h);
+    int w = 0, in = unit_get_garrisoned(h);
+    for (struct grid_it it = grid_it_box(t.x, t.y, GU_MINES_R, 1); grid_it_next(&it); ) {
+        ee_unit *s = it.u;
+        int r = unit_get_resource(s);
+        if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;
+        vec3 sp = unit_get_pos(s);
+        float dx = sp.x - hp.x, dy = sp.y - hp.y;
+        if (dx * dx + dy * dy > GU_REACH2) continue;
+        w += 1 + (int)site_gatherers(s) * (r == 4 ? 2 : 4);
+    }
+    return w * (in < 5 ? 50 : in < 15 ? 25 : 15);
+}
 internal int gu_key(ee_unit *u) { ivec2 t = unit_get_tile(u); return t.x * 4096 + t.y; }
 internal int gu_recent(struct gu_st *g, int id, uint32_t now) {
     for (int k = 0; k < g->nsent; k++) if (g->sent[k].id == id && now - g->sent[k].t < GU_WAIT) return 1;
@@ -113,14 +139,14 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         int room = unit_type_get_garrison_capacity(it.td) - unit_get_garrisoned(u);
         ee_goal *hg = unit_get_goal(u);
         if (room <= 0 || (hg && goal_is_garrison(hg)) || gu_recent(g, gu_key(u), now)) continue;
-        int score = gu_mines(u);
-        if (kick && kind == 1) score = 1000 + unit_get_garrisoned(u) * 10 + score;
+        int off = !GAME_AI(idx), score = off ? gu_gain(u) : gu_mines(u);   // off: THE MINES' HOLDERS
+        if (!off && kick && kind == 1) score = 1000 + unit_get_garrisoned(u) * 10 + score;
         if (!score || raiders_near(pl, unit_get_tile(u), GU_SAFE_R)) continue;
         // the game's computer player off: only where the citizens work (work.c wk_cost: a territory it holds or one
         // beside it, quiet, no enemy building) - the fullest Settlement was any, one under an enemy's towers too, and
         // it sent five after five (139 times in the player's game of 2026-11-15)
         if (!GAME_AI(idx) && !wk_workable(idx, unit_get_tile(u))) continue;
-        if (!best || (kind == 1) > (best_kind == 1) || ((kind == 1) == (best_kind == 1) && score > best_score)) { best = u; best_score = score; best_kind = kind; }
+        if (!best || (off ? score > best_score : (kind == 1) > (best_kind == 1) || ((kind == 1) == (best_kind == 1) && score > best_score))) { best = u; best_score = score; best_kind = kind; }
     }
     if (g_log && g_autotest && (!g->log_t || now - g->log_t >= 60000)) {
         g->log_t = now ? now : 1;
@@ -154,6 +180,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         }
         ivec2 p = unit_get_tile(u);
         if (map_area(p, 2) != land || landing_has_unit(pl, u) || expand_has(pl, u) || tn_has_cit(idx, u)) continue;
+        if (!GAME_AI(idx) && !wk_beside(p, bp)) continue;   // THE MINES' HOLDERS: from its territory or one beside it
         cand[nc] = u; cd[nc] = ivec2_dist2(p, bp) - (idle ? 1000000 : 0) + (other ? 500000 : 0); nc++;   // the idle first, the miners last
     }
     int n = 0;

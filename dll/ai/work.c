@@ -111,6 +111,13 @@ internal int wk_cost(struct tv_st *s, unsigned r) {
     return 6;
 }
 internal int wk_workable(unsigned idx, ivec2 p) { return wk_cost(&g_tv[idx & 15], ter_near(p.x, p.y)) > 0; }   // garrison.c: a place its citizens may go to
+internal int wk_beside(ivec2 a, ivec2 b) {   // garrison.c: the same territory, or two side by side
+    unsigned ra = ter_near(a.x, a.y), rb = ter_near(b.x, b.y);
+    if (ra == rb) return ra != TER_NONE;
+    if (ra >= (unsigned)g_ter.n || rb >= (unsigned)g_ter.n) return 0;
+    for (int k = 0; k < g_ter.t[ra].nbn; k++) if (g_ter.nb[g_ter.t[ra].nb0 + k].to == rb) return 1;
+    return 0;
+}
 // WHAT IT NEEDS (the player 2026-11-14: "we probably also record resource stats for the ai, how much as gatherd in the
 // last 10 minutes, how much spend, defrence etc, so where not stuck on hard numbers but what the ai actually needs").
 // A minute at a time, the last WK_WIN of them: what came in of each resource (the income the budget counts), what went
