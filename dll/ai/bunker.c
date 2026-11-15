@@ -50,13 +50,13 @@ internal int bk_load(ee_unit *f, ee_unit **units, int n) {
 // 3 north-east the same, 3 east they came out at once. A spot that works isn't told by the tiles' buildings (a guess
 // from them ruled out east too), so: 3 tiles out on a side on land, and a holder holding as many at its next unload
 // as at this one tries the next side
-internal struct { ee_unit *f; int side, held; } g_bk_out[32];
+internal struct { ee_unit *f; int side, held; } g_bk_out[128];
 internal unsigned g_bk_out_next;
 internal int bk_unload(ee_unit *f) {
     static const int dir[8][2] = { { 0, 3 }, { 3, 0 }, { 0, -3 }, { -3, 0 }, { 3, 3 }, { -3, 3 }, { 3, -3 }, { -3, -3 } };
     int fx = unit_get_x(f), fy = unit_get_y(f), held = bk_held(f), k = 0;
-    while (k < 32 && g_bk_out[k].f != f) k++;
-    if (k == 32) { k = (int)(g_bk_out_next++ & 31); g_bk_out[k].f = f; g_bk_out[k].side = 0; g_bk_out[k].held = -1; }
+    while (k < 128 && g_bk_out[k].f != f) k++;
+    if (k == 128) { k = (int)(g_bk_out_next++ & 127); g_bk_out[k].f = f; g_bk_out[k].side = 0; g_bk_out[k].held = -1; }
     else if (g_bk_out[k].held == held) g_bk_out[k].side = (g_bk_out[k].side + 1) & 7;   // nothing came out the last time
     g_bk_out[k].held = held;
     int s = g_bk_out[k].side;
@@ -116,7 +116,12 @@ internal int g_bunkers = 1;   // [ai_base] bunkers
 internal int g_bk_res = 0xFFFF;   // [ai_base] bunker_reserve (below)
 internal int bk_room(ee_player *pl);
 internal struct shelf_st { int want, plenty; unsigned in, out; uint32_t t; } g_shelf[16];   // the shelf (below): a fortress more wanted, citizens in/out
-internal struct { int nf, nall; ee_unit *f[8], *all[8]; int nq[8]; ee_unit *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; int walk[8]; uint8_t store[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in; store: the shelf's
+// BK_MAX fortresses a player (8 until 2026-11-15, the player: "raise it to 64 or something, its not just citecenz, the
+// ai should never stop training units if it can help it, if its at its pop limit it should train straight into the
+// stash" - stations.c THE RESERVE). store: 1 the shelf's citizens, 2 the reserve's soldiers.
+#define BK_MAX 64
+internal int g_bk_more[16];   // stations.c THE RESERVE: one more fortress wanted
+internal struct { int nf, nall; ee_unit *f[BK_MAX], *all[BK_MAX]; int nq[BK_MAX]; ee_unit *q[BK_MAX][40]; uint32_t build_t, quiet_t[BK_MAX]; unsigned in, out; int need_wood; uint32_t shelter[BK_MAX]; int walk[BK_MAX]; uint8_t store[BK_MAX]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in; store: the shelf's
 internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
     int n = 0;
@@ -127,7 +132,7 @@ internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     return n;
 }
 internal int expand_building(unsigned idx, ee_unit *b);   // expand.c
-struct bk_own { ee_player *pl; int nf, nall; ee_unit *f[8], *all[8]; int nw; ee_unit *w[256]; };
+struct bk_own { ee_player *pl; int nf, nall; ee_unit *f[BK_MAX], *all[BK_MAX]; int nw; ee_unit *w[256]; };
 internal ee_unit *bk_walking_into(ee_unit *u) {   // the holder unit u walks into (its load goal's part), else NULL
     ee_goal *g = unit_get_goal(u);
     ee_unit *h = g && goal_is_load(g) ? goal_get_holder(g) : NULL;
@@ -140,8 +145,8 @@ internal void bk_own_unit(ee_unit *u, void *ctx) {   // finished ones (f) and fo
     if (h && o->nw < 256) o->w[o->nw++] = h;
     if (bk_capacity(u) <= 0) return;
     ee_unit *bs = unit_get_physics(u);
-    if (o->nall < 8 && !expand_building((unsigned)player_get_index(o->pl) & 15, u)) o->all[o->nall++] = u;   // an outpost's is its own to build, and no fortress of the base's count
-    if (bs && unit_get_finished(bs) && o->nf < 8) o->f[o->nf++] = u;
+    if (o->nall < BK_MAX && !expand_building((unsigned)player_get_index(o->pl) & 15, u)) o->all[o->nall++] = u;   // an outpost's is its own to build, and no fortress of the base's count
+    if (bs && unit_get_finished(bs) && o->nf < BK_MAX) o->f[o->nf++] = u;
 }
 internal void bk_refresh(ee_player *pl, unsigned pi) {   // the player's fortresses (each pass of citizens_safety, every 4 s)
     static struct bk_own o;   // 1 KB of walkers: not on the stack
@@ -279,9 +284,9 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     for (int t = 0; t < 7; t++) cit += FIELD(resource_mgr_list_at(rm, t), 0x10, int);
     int want = air || bk_hurt_recent(pi, 0, 0, 10000, 120000) >= 3 ? (cit >= 40 ? 2 : 1) : 0;
     if (g_bk_res >> pi & 1 && bk_room(pl) <= 5 && want < 1) want = 1;   // the reserve: near the population cap
-    if (g_shelf[pi].want && want < g_bk[pi].nall + 1) want = g_bk[pi].nall + 1 < 8 ? g_bk[pi].nall + 1 : 8;   // the shelf: full
+    if ((g_shelf[pi].want || g_bk_more[pi]) && want < g_bk[pi].nall + 1) want = g_bk[pi].nall + 1 < BK_MAX ? g_bk[pi].nall + 1 : BK_MAX;   // the shelf, the reserve: full
     ivec2 guard_at = iv2(-1, -1);   // town guards: a front station without a fortress near
-    if (TOWN_GUARDS(pi) && g_bk_res >> pi & 1 && g_bk[pi].nall < 8) {
+    if (TOWN_GUARDS(pi) && g_bk_res >> pi & 1 && g_bk[pi].nall < BK_MAX) {
         ivec2 st;
         for (int k = 0; fronts_station(pi, k, &st) && guard_at.x < 0; k++) {
             int has = 0;
@@ -472,7 +477,7 @@ internal int shelf_rich(const int *st, int k) { return st[2] >= k && st[3] >= k 
 internal int shelf_keep(ee_player *pl) { int k = unit_limit(pl) / 8; return k > 40 ? k : 40; }
 internal int shelf_held(unsigned pi) {   // citizens on the shelf (its fortresses hold only them)
     int n = 0;
-    for (int k = 0; k < g_bk[pi].nf; k++) if (g_bk[pi].store[k]) n += bk_held(g_bk[pi].f[k]);
+    for (int k = 0; k < g_bk[pi].nf; k++) if (g_bk[pi].store[k] == 1) n += bk_held(g_bk[pi].f[k]);
     return n;
 }
 // hook_cit_wanted (citizens.c): while the shelf works or holds citizens, no more than there are - on the map or in it
@@ -492,6 +497,12 @@ internal int shelf_res(ee_unit *u) {   // 2 food .. 6 iron, 0 none
     if (!sd || unit_get_hp(site) <= 0) return 0;
     int r = unit_type_get_id(sd) == UT(B_FARM) ? 2 : unit_get_resource(site);
     return r >= 2 && r <= 6 ? r : 0;
+}
+internal int bk_holds_soldiers(ee_unit *f) {   // the first unit inside is no citizen
+    if (bk_held(f) <= 0) return 0;
+    ee_unit *in = ((ee_unit **)vector_first(unit_inside_at(f) - 4))[0];
+    ee_unit_type *td = in ? unit_get_type_data(in) : NULL;
+    return td && !is_citizen_type(unit_type_get_id(td));
 }
 internal int shelf_citizens_out(ee_player *pl) {
     if (!GAME_AI((unsigned)player_get_index(pl) & 15)) {
@@ -529,7 +540,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     // the game's computer player off: a fortress with units inside is the shelf's - nobody else fills one then (the
     // shelter and the reserve are the game's assignment hook's), and which were its is not in a save: after a load
     // they stood full for good, no citizen out, none more in
-    if (!GAME_AI(pi)) for (int k = 0; k < g_bk[pi].nf; k++) if (!g_bk[pi].store[k] && !g_bk[pi].shelter[k] && bk_held(g_bk[pi].f[k]) > 0) g_bk[pi].store[k] = 1;
+    if (!GAME_AI(pi)) for (int k = 0; k < g_bk[pi].nf; k++) if (!g_bk[pi].store[k] && !g_bk[pi].shelter[k] && bk_held(g_bk[pi].f[k]) > 0) g_bk[pi].store[k] = bk_holds_soldiers(g_bk[pi].f[k]) ? 2 : 1;   // by who is inside: the reserve's soldiers (stations.c) or its citizens
     int plenty = st[2] >= SHELF_PLENTY && st[3] >= SHELF_PLENTY, rich = shelf_rich(st, g_shelve_stock);
     if (shelf_held(pi) <= 0 && !plenty) g_shelf[pi].plenty = 0;
     if ((g_shelf[pi].plenty || plenty ? st[2] < SHELF_PLENTY / 2 || st[3] < SHELF_PLENTY / 2 : !shelf_rich(st, g_shelve_stock / 2)) || out < keep * 3 / 4) {   // out again: the fullest of the shelf's, if quiet
@@ -537,7 +548,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
         for (int k = 0; k < g_bk[pi].nf; k++) {
             ee_unit *fo = g_bk[pi].f[k];
             int h = bk_held(fo);
-            if (!g_bk[pi].store[k]) continue;
+            if (g_bk[pi].store[k] != 1) continue;
             if (h <= 0 && !g_bk[pi].walk[k]) { g_bk[pi].store[k] = 0; continue; }   // empty: an ordinary fortress again
             if (h > held && !raiders_near(pl, unit_get_tile(fo), 15)) { held = h; best = k; }
         }
@@ -556,7 +567,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *fo = g_bk[pi].f[k];
         int s = bk_capacity(fo) - bk_held(fo) - g_bk[pi].walk[k];
-        if (g_bk[pi].shelter[k] || (!g_bk[pi].store[k] && bk_held(fo) + g_bk[pi].walk[k] > 0)) continue;
+        if (g_bk[pi].shelter[k] || g_bk[pi].store[k] == 2 || (!g_bk[pi].store[k] && bk_held(fo) + g_bk[pi].walk[k] > 0)) continue;
         if (plenty && g_bk[pi].walk[k] > 0) continue;   // a load order replaces the one before: those still walking in were dropped by the next 20's (135 ordered for 23 inside)
         if (s > space + (g_bk[pi].store[k] ? -1 : 0)) { space = s; best = k; }
     }
@@ -616,7 +627,7 @@ internal void shelf_off_tick(ee_player *pl, uint32_t now) {
     last[pi] = now ? now : 1;
     bk_refresh(pl, pi);
     shelf_tick(pl, pi, now);
-    if (g_shelf[pi].want) bk_build(pl, pi, now);   // only the shelf's: a shelter's fortress nobody would walk into then, and its wood was held back from minute 15
+    if (g_shelf[pi].want || g_bk_more[pi]) bk_build(pl, pi, now);   // only the shelf's: a shelter's fortress nobody would walk into then, and its wood was held back from minute 15
 }
 // a new game (the game start hook): the fortresses and the citizens queued for them are the last game's
 internal void bunker_new_game(void) {

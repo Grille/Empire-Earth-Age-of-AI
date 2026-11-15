@@ -60,7 +60,7 @@
 #define SN_SCOUT_REST 300000
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t; ivec2 to; };   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t, stash_t; ivec2 to; };   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
@@ -68,6 +68,7 @@ internal struct sn_st {
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
+    uint32_t res_t, res_out_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n;   // THE RESERVE: its last look, the last fortress let out; soldiers in, out
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped;   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
 } g_sn[16];
@@ -89,6 +90,12 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 #define SN_ROUND 2
 #define SN_ROUND_MORE 10
 #define SN_WAY_EVERY 15000
+#define SN_RES_EVERY 10000      // THE RESERVE: a look
+#define SN_RES_ROOM 5           // ... soldiers go in with this many places left on the map
+#define SN_RES_BATCH 20         // ... this many a look
+#define SN_RES_FOE 4            // ... or with this many enemy soldiers in a territory of its
+#define SN_RES_OUT 25           // ... a fortress lets its soldiers out with this many places free
+#define SN_RES_AGAIN 60000      // ... and nobody goes in for this long after
 #define SN_HOLD 600000          // THE CLEARED GROUND: held this long at most
 #define SN_STUCK 120000        // STUCK: no nearer to its building for this long
 #define SN_STUCK_AT 14          // ... and further from it than this (tiles): at it, it fights
@@ -518,12 +525,81 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         if (!m->order_t || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
     }
+    // THE RESERVE (the player 2026-11-15: "the ai should never stop training units if it can help it, if its at its pop
+    // limit it should train straight into the stash"): units inside a Fortress do not count toward the population.
+    // Every SN_RES_EVERY: with the map full (SN_RES_ROOM places left) and no territory of its under attack, up to
+    // SN_RES_BATCH soldiers of the main force and the siege - not of a territory that pushes - go into a Fortress of
+    // the reserve, the nearest to it first; the training fills the map again. No Fortress with room: one more is
+    // built (bunker.c bk_build, BK_MAX). Out again, a Fortress a look: the nearest to a territory of its with enemy
+    // soldiers in it (SN_RES_FOE of them), or the fullest once SN_RES_OUT places are free on the map (losses) - and nobody in for
+    // SN_RES_AGAIN after that.
+    if (!z->res_t || now < z->res_t || now - z->res_t >= SN_RES_EVERY) {
+        z->res_t = now ? now : 1;
+        int room = bk_room(pl), hard_r = -1, ob = -1, od = 0;
+        for (int r = 0; r < n && hard_r < 0; r++) if (!g_ter.t[r].water && s->t[r].role != TVR_NONE && fn[r] >= SN_RES_FOE) hard_r = r;   // a scout or two let nobody out (the first game: 37 of 44 looks let a fortress out)
+        g_bk_more[idx] = 0;
+        if (hard_r >= 0 || room >= SN_RES_OUT)
+            for (int k = 0; k < g_bk[idx].nf; k++) {
+                ee_unit *fo = g_bk[idx].f[k];
+                if (g_bk[idx].store[k] != 2 || bk_held(fo) <= 0) continue;
+                int d = hard_r >= 0 ? ivec2_dist2(unit_get_tile(fo), g_ter.t[hard_r].c) : -bk_held(fo);
+                if (ob < 0 || d < od) { ob = k; od = d; }
+            }
+        if (ob >= 0) {
+            ee_unit *fo = g_bk[idx].f[ob];
+            int held = bk_held(fo);
+            if (bk_unload(fo)) {
+                int again = z->res_last == fo && z->res_last_n == held;   // told again: the game took the first order and did nothing (bunker.c bk_unload tries the next side)
+                z->res_last = fo; z->res_last_n = held;
+                if (!again) z->res_out += (unsigned)held;
+                z->res_out_t = now ? now : 1;
+                if (g_log && !again) log_locked("# reserve: P%u at %.1f min: room %d%s - the fortress at %d,%d lets its %d soldiers out (%u in, %u out so far)\n", idx, now / 60000.0, room,
+                                      hard_r >= 0 ? ", enemy soldiers in a territory of its" : "", unit_get_x(fo), unit_get_y(fo), held, z->res_in, z->res_out);
+            }
+        } else if (hard_r < 0 && room <= SN_RES_ROOM && (!z->res_out_t || now < z->res_out_t || now - z->res_out_t >= SN_RES_AGAIN)) {
+            int best = -1, space = 0;
+            for (int k = 0; k < g_bk[idx].nf; k++) {
+                ee_unit *fo = g_bk[idx].f[k];
+                int sp = bk_capacity(fo) - bk_held(fo);
+                if (g_bk[idx].store[k] == 1 || g_bk[idx].shelter[k] || g_bk[idx].walk[k] > 0 || (!g_bk[idx].store[k] && bk_held(fo) > 0)) continue;   // one load order a fortress at a time
+                if (sp > space) { space = sp; best = k; }
+            }
+            if (best < 0 || space < 5) g_bk_more[idx] = 1;
+            else {
+                ee_unit *fo = g_bk[idx].f[best], *pick[SN_RES_BATCH];
+                int pi_[SN_RES_BATCH], npk = 0, take = space < SN_RES_BATCH ? space : SN_RES_BATCH;
+                ivec2 fp = unit_get_tile(fo);
+                while (npk < take) {
+                    int ci = -1, cdist = 0;
+                    for (int i = 0; i < nn; i++) {
+                        struct sn_unit *m = &z->m[i];
+                        if (m->scout || m->pool == SNP_AA || m->ter < 0 || m->ter >= n || fn[m->ter] > 0 || (m->stash_t && now >= m->stash_t && now - m->stash_t < SN_RES_AGAIN)) continue;
+                        int busy = 0;
+                        for (int k = 0; k < SN_PUSHES; k++) busy |= z->push[k].on && z->push[k].from == m->ter;
+                        for (int j = 0; j < npk; j++) busy |= pi_[j] == i;
+                        if (busy) continue;
+                        int d = ivec2_dist2(unit_get_tile(m->u), fp);
+                        if (ci < 0 || d < cdist) { ci = i; cdist = d; }
+                    }
+                    if (ci < 0) break;
+                    pi_[npk] = ci; pick[npk++] = z->m[ci].u;
+                }
+                if (npk && bk_load(fo, pick, npk)) {
+                    g_bk[idx].store[best] = 2; g_bk[idx].walk[best] += npk;
+                    for (int j = 0; j < npk; j++) z->m[pi_[j]].stash_t = now ? now : 1;
+                    z->res_in += (unsigned)npk;
+                    if (g_log) log_locked("# reserve: P%u at %.1f min: room %d - %d soldiers into the fortress at %d,%d (holds %d; %u in, %u out so far)\n", idx, now / 60000.0, room, npk, fp.x, fp.y, bk_held(fo), z->res_in, z->res_out);
+                }
+            }
+        }
+    }
     // ORDERS
     static struct { short r, cur; uint8_t fight, urgent; ivec2 d; int n; long sx, sy; uint32_t oldest; uint32_t ids[SN_GROUP_MAX]; short mi[SN_GROUP_MAX]; } grp[SN_GROUPS];
     int ngrp = 0;
     for (int i = 0; i < nn; i++) {
         struct sn_unit *m = &z->m[i];
         if (m->scout || m->ter < 0 || m->ter >= n) continue;
+        if (m->stash_t && now >= m->stash_t && now - m->stash_t < SN_RES_AGAIN) continue;   // THE RESERVE: on its way into a fortress
         int r = m->ter, reach = SN_NEAR, fight = 1;
         ivec2 d = rally[r], p = unit_get_tile(m->u);
         struct sn_push *pu = NULL;
