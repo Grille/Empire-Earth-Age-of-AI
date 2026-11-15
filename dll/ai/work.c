@@ -90,6 +90,8 @@ internal int wk_cost(struct tv_st *s, unsigned r) {
 //   citizens          - needed / a citizen brings, scaled to the citizens there are.
 // "# needs:" every 5 minutes.
 #define WK_WIN 10
+#define WK_ARMY_MS 30000   // a soldier's training, about
+#define WK_ARMY_BANK 400    // above what is held back
 internal const float WK_PER_CIT[7] = { 0, 0, 20, 20, 15, 15, 15 };
 internal struct wk_need {
     uint32_t t, log_t;
@@ -124,6 +126,24 @@ internal int wk_needs(ee_player *pl, unsigned idx, struct wk_st *w, uint32_t now
     if (g_rs_epoch[idx])   // research.c: the epoch it would buy now - budget_reserve knows it only by the game's time for it (epoch_pacing = rush: Bronze 26 minutes after it was due, 3 citizens on gold and iron)
         for (int r = 2; r < 7; r++) if (epoch_cost(pl, g_rs_epoch[idx], r) > reserve[r]) reserve[r] = epoch_cost(pl, g_rs_epoch[idx], r);
     prio_research(pl, 0, reserve);   // priority.c: what the research's ranks 1 and 2 wait for, the research building it saves for
+    // THE ARMY'S APPETITE (the player 2026-11-15: "the ai just barely order units right now, even with full bank it just
+    // sits on it" - his game at minute 70: 5 to 13 of 120-300 citizens each on gold and iron, the epoch's saving held
+    // all of it, 34 soldiers): what was spent says nothing of what the army would spend - a soldier costs gold or
+    // iron, none came in, none was spent, none was needed. What its land production buildings use training without
+    // a pause (a soldier of the type it trains now every WK_ARMY_MS in each; of gold and iron each at least half its
+    // metal - the next type may cost the other) is needed whatever was spent, of a resource with less than
+    // WK_ARMY_BANK above what is held back.
+    float army[7] = { 0 };
+    {
+        ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+        int nb = 0, ty = g_ap[idx].last_type;
+        for (size_t k = 0; um && k < sizeof k_ap_land / sizeof *k_ap_land; k++) { int h = 0, b = 0; am_bld(um, g_ut[k_ap_land[k]], &h, &b); nb += h; }
+        if (ty && nb && workforce(pl) >= g_min_workforce) {   // the economy first: before that its citizens went to the mines for it and the growth stalled (27 citizens for 40 at minute 20 from the Stone Age)
+            float per = (float)nb * 60000.0f / (float)WK_ARMY_MS, metal = (float)(unit_cost(pl, ty, 5) + unit_cost(pl, ty, 6)) * 0.5f;
+            for (int r = 2; r < 7; r++) army[r] = (float)unit_cost(pl, ty, r) * per;
+            for (int r = 5; r < 7; r++) if (army[r] < metal * per) army[r] = metal * per;
+        }
+    }
     float total = 0;
     for (int r = 2; r < 7; r++) {
         float cm = 0;
@@ -133,7 +153,10 @@ internal int wk_needs(ee_player *pl, unsigned idx, struct wk_st *w, uint32_t now
         q->per_cit[r] = pc < 3.0f ? 3.0f : pc > 80.0f ? 80.0f : pc;
         float spend = (float)q->sum_out[r] / (float)q->n, need = spend;
         if (reserve[r] > stock[r]) need += (float)(reserve[r] - stock[r]) / 5.0f;
-        if (r == 2 && need < cz_nonstop_food(pl)) need = cz_nonstop_food(pl);
+        if (r == 2 && stock[r] - reserve[r] > WK_ARMY_BANK) army[r] = 0;
+        if (r == 2 && need < cz_nonstop_food(pl) + army[2]) need = cz_nonstop_food(pl) + army[2];
+        if (stock[r] - reserve[r] > WK_ARMY_BANK) army[r] = 0;   // enough of it lies there: another resource is what its soldiers wait for
+        if (r > 2 && need < army[r]) need = army[r];
         if (stock[r] < 150) need *= 1.5f;
         if ((float)stock[r] > 4000.0f + 15.0f * spend) need *= 0.2f;
         else if ((float)stock[r] > 1500.0f + 5.0f * spend) need *= 0.5f;

@@ -136,6 +136,7 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 // +6.2 (4.1), wins 55 -> 65, base AI 55 -> 43; head-to-head Continental Large +46.0 (17.5). Default 39 (7 + LATE).
 internal int g_army_plan = 103, g_v_army_plan = -1;
 internal int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
+#define AP_PASSES 6
 internal int g_army_epoch = 5;   // LATE: army_plan_epoch
 #define ARMY_PLAN(idx) PV(idx, g_v_army_plan, g_army_plan)
 internal const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY };
@@ -381,7 +382,9 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int type = (plan & 4) ? ap_type(pl, idx, um, big) : 0;   // BUILD: what the game would train
     if (type) a->last_type = type;
     int filled = 0;
-    if (plan & 2) {   // FILL: what the account and the stock above the reserves pay
+    // the game's computer player off: up to AP_PASSES orders a look, each into another idle building (one order, one
+    // type, one building every 10 s left the others idle beside a full bank)
+    for (int pass = 0; (plan & 2) && pass < (off ? AP_PASSES : 1); pass++) {   // FILL: what the account and the stock above the reserves pay
         int res[7] = { 0 }, vis[7] = { 0 };
         am_reserve(pl, idx, res);
         for (int r = 2; r < 7; r++) {
@@ -401,7 +404,8 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             unsigned n = 0;
             hook_train_units(um, req, (uintptr_t)&n);
             a->fill += n;
-        }
+            if (!n) break;
+        } else break;
     }
     if (plan & 4) {   // BUILD: the samples come with the 10-s tick, a look every 30 s
         int nb = 0, kb = -1;
