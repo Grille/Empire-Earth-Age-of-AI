@@ -48,6 +48,12 @@ unsafe struct EEUnitClass
     [offset((ee)0x40C, (aoc)0x110), found(c)]
     void* model;
 
+    /// its improvements' table (db\dbupgrade.dat's row by the object data's +0x238, unit_type.upgrade_tables; the
+    /// type's constructor 0x61C35B, AoC 0x62F317) - every type of a running game holds one (2026-11-15: buildings a
+    /// row with max_level 0)
+    [offset((ee)0x410, (aoc)0x114), found(c)]
+    EEUCUpgradeTable* upgrades;
+
     /// the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
     /// stats.height x (z / it x 0.5 + 0.5) (the AoC decompilation: mCruiseAltitude)
     [offset((ee)0x418, (aoc)0x11C), found(c), guess]
@@ -391,9 +397,46 @@ unsafe struct EEUCProjectile
     extern char8 down(EEUnit* projectile);
 }
 
-/// a unit type's per-player values, a unit's +0x34 (range, attack ...)
-unsafe struct ee_unit_stats
+/// a unit type's per-player values, a unit's +0x34 (range, attack ...): EEUnitClassUpgrade, the type data's values
+/// with the player's improvements - the per-type upgrades bought at a building (attack, hit points, range, speed, the
+/// armours ...; not the tech tree's). Made by 0x627765(type) (AoC 0x63B6AE); +0x4 holds an EEUnitClassImprovement
+/// (its levels and points). A buy: the button (EEUIBUpgrade) queues EEAUpgradeImprovement, which sends
+/// EEMImproveUnit; its execute pays and queues it (EEPlayer.queue_improvement), the player's update counts the queue's
+/// front down by the research time (dbworld.dat record 0x39 + attribute: 24-90 s the first, a quarter more later)
+/// and applies it (EEPlayer.apply_improvement -> change_level): the level up by one, the stat by the table's step x
+/// the type's base value (at least 1, the area and speed's 0.1 / 0.05), the player's live units of the type rescaled.
+/// The price: the type's own price x the level (counting the queue) x the table's price factor. Limits: the table's
+/// max_level buys of an attribute, ee_game_data.improvement_points points (an armour 1, the rest 2) a type, and
+/// game.improvements_allowed. A line upgrade carries the levels over to the new type (copy_levels_to). The game's
+/// computer player buys them only as an attack group forms (EECPAttackGroup.buy_improvements: paid and applied at
+/// once, no research time). Read in both builds' code 2026-11-15; the layout checked in a running game
+[c_type("ee_unit_stats"), vtable((ee)0x00833A60, (aoc)0x00849AD8)]
+unsafe struct EEUnitClassUpgrade
 {
+    /// its improvements' levels by attribute (enum improvement), 1 at the start: each level above 1 one bought
+    /// (EEUnitClassImprovement +0x4)
+    [offset(0x8), found(c)]
+    fixed int32 levels[16];
+
+    /// the improvement points it has spent (EEUnitClassImprovement +0x44): with the queue's at most
+    /// ee_game_data.improvement_points. Reapplying after a tech tree reload (0x55A912, AoC 0x569990) adds the points
+    /// again without clearing them first [read, not tested]
+    [offset(0x48), found(c)]
+    int32 points;
+
+    /// thiscall(stats, other): other's levels raised by this one's above 1, the stats with them - a line upgrade's
+    /// carry-over (0x5BA59D: the old type's stats to the new type's)
+    [slot(1), address((ee)0x00627855, (aoc)0x0063B7A4)]
+    extern void copy_levels_to(EEUnitClassUpgrade* other);
+
+    /// an improvement raised (+1) or lowered (-1) now: EEUnitClassImprovement.change_level on its +0x4
+    [address((ee)0x0062792B, (aoc)0x0063B87A)]
+    extern void change_level(int32 attr, int32 delta);
+
+    /// the values refilled from the type data, then the levels applied again (EEUnitClassImprovement.reapply)
+    [address((ee)0x00627942, (aoc)0x0063B891)]
+    extern void reset();
+
     /// its name (UWideString): the units' fill shows it under the unit under the mouse
     [offset(0x4C), found(c)]
     wstring name;
@@ -451,8 +494,13 @@ unsafe struct ee_unit_stats
     [offset(0xD8), found(c)]
     float32 attack;
 
-    /// between fields read through a unit's +0x34, unchanged
-    [offset(0xE0), found(b)]
+    /// leadership (the type's +0x538; improvement leadership)
+    [offset(0xDC), found(c)]
+    float32 leadership;
+
+    /// the armour against each damage class, float[6]: [0] shock, [1] arrow, [2] pierce, [3] gun, [4] laser, [5]
+    /// missile (the improvements' change_level writes each of them)
+    [offset(0xE0), found(c)]
     block armor;
 
     /// an aircraft's flight time, ms (the scenario's Create gives a new one this)
@@ -472,6 +520,10 @@ unsafe struct ee_unit_stats
     /// a new unit's power (a priest's, a prophet's; the scenario's Create gives it this when more than 0)
     [offset(0x148), found(c)]
     int32 power;
+
+    /// what it carries (the type's +0x570; improvement transport)
+    [offset(0x14C), found(c)]
+    int32 transport;
 
     /// it may lob over a wall: a shot of its that hits a wall in the way sets its unit's alt_attack, and with this the
     /// unit then fires the high arc (ballistic_game) at 1.5 x its reload, its shots passing walls (the flight's check
@@ -536,9 +588,76 @@ enum unit_class : int32
     planet_spaceship = 34,
 }
 
+/// a unit type's improvement levels for one player (EEUnitClassImprovement, 0x48 bytes), held at EEUnitClassUpgrade
+/// +0x4 (its levels and points there)
+[c_type("ee_improvements"), vtable((ee)0x00833A54, (aoc)0x00849ACC)]
+unsafe struct EEUnitClassImprovement
+{
+    /// thiscall(impr, type, stats, attr, delta): levels[attr] and the points moved by delta, the stat by delta x the
+    /// step (the table's step x the type's base value, at least the attribute's least step)
+    [address((ee)0x00627078, (aoc)0x0063AFC1)]
+    extern void change_level(EEUnitClass* type, EEUnitClassUpgrade* stats, int32 attr, int32 delta);
+
+    /// thiscall(impr, type, stats): each level set back to 1 and applied again (level - 1 steps) to freshly filled
+    /// stats - the points are added again
+    [address((ee)0x00627412, (aoc)0x0063B35B)]
+    extern void reapply(EEUnitClass* type, EEUnitClassUpgrade* stats);
+}
+
+/// a unit type's improvements, db\dbupgrade.dat's row (EEUCUpgradeTable, 0x88 bytes): the file a count (2017 update
+/// 69, AoC 76) and records of 0xF0 - the name, the steps, the price factors, max_level - that the loader (0x4D67CE,
+/// AoC 0x4DC6F0) puts into factors[attr]; the constructor (0x4D67A9, AoC 0x4DC6CB) sets every price factor 1, every
+/// step 0. Spearman: attack, hit points 0.15 x 2, pierce and shock armour 0.15 x 0.75, speed 0.1 x 2, max 2; Tower:
+/// range 0.15 x 1, max 1; Building: max 0
+[c_type("ee_upgrade_table"), size(0x88), vtable((ee)0x0082AB04, (aoc)0x0083F800)]
+unsafe struct EEUCUpgradeTable
+{
+    /// float[2] per attribute (enum improvement): +0 the price factor, +4 the step (a share of the type's base value
+    /// per level; 0: not offered)
+    [offset(0x4), found(c)]
+    block factors;
+
+    /// buys per attribute: a level (from 1, the queue counted) may be bought while it is at most this
+    [offset(0x84), found(c)]
+    int32 max_level;
+}
+
+/// an improvement's attribute (EEUnitClassUpgrade.levels, EEUIBUpgrade.attr, EEMImproveUnit.attr): the switch of
+/// EEUnitClassImprovement.change_level and the names 0x626E74 (strings 30000+)
+[c_prefix("IMP")]
+enum improvement : int32
+{
+    /// stats.area (the type's +0x424), steps of at least 0.1
+    area = 0,
+    /// stats.attack (+0x510)
+    attack = 1,
+    armor_arrow = 2,
+    armor_gun = 3,
+    armor_laser = 4,
+    armor_missile = 5,
+    armor_pierce = 6,
+    armor_shock = 7,
+    /// stats.flight_ms when the type has a flight time (its +0x534 above 0), else stats.power
+    flight_or_power = 8,
+    /// stats.hp (+0x55C), the live units' hit points rescaled
+    hp = 9,
+    leadership = 10,
+    /// stats.range (+0x420) and the sight with it
+    range = 11,
+    /// the type's +0x554 to stats +0x140 (what it does not read); no table has a step for it
+    repair = 12,
+    /// stats.speed (+0x430), steps of at least 0.05
+    speed = 14,
+    transport = 15,
+}
+
 /// unit_type's data of the game, places in its code and numbers
 static unsafe class unit_type
 {
+    /// the improvements' tables by their dbupgrade.dat index (EEUCUpgradeTable* vector: its begin, the end after it)
+    [address((ee)0x008D202C, (aoc)0x008E872C)]
+    static block upgrade_tables;
+
     /// attack_bonus_game's object
     [address((ee)0x00917DE0, (aoc)0x009318E8)]
     static EEToHitTable bonus_table;

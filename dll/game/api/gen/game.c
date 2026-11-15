@@ -150,6 +150,9 @@ internal inline uint8_t *game_sound_manager_at(void) { return (uint8_t *)(uintpt
 internal inline uint8_t *game_sound_percent_at(void) { return (uint8_t *)(uintptr_t)data_game_sound_percent; }
 // table_value_game's table (0x16: the population limit)
 internal inline ee_world_table *game_table_values_at(void) { return (ee_world_table *)(uint8_t *)(uintptr_t)data_game_table_values; }
+// the setup's "Unit Improvements Allowed" (EEPWorldHelper; copied from the setup at 0x5688B9): 0 and no
+// improvement (EEUnitClassUpgrade) can be bought - can_buy_improvement's first test, the computer player's too
+internal inline uint8_t *game_improvements_allowed_at(void) { return (uint8_t *)(uintptr_t)data_game_improvements_allowed; }
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
@@ -365,6 +368,7 @@ internal int spec_game_select(int build) {
         data_game_sound_manager = 0x00919848;
         data_game_sound_percent = 0x009193B8;
         data_game_table_values = 0x00917BB0;
+        data_game_improvements_allowed = 0x00918E9B;
         data_game_teams_locked = 0x00918E9F;
         data_game_types = 0x009418A0;
         data_game_ui_manager = 0x009197A0;
@@ -494,6 +498,7 @@ internal int spec_game_select(int build) {
         data_game_sound_manager = 0x009319C4;
         data_game_sound_percent = 0x00930838;
         data_game_table_values = 0x0092FCA0;
+        data_game_improvements_allowed = 0x009318DB;
         data_game_teams_locked = 0x009318DF;
         data_game_types = 0x009636AC;
         data_game_ui_manager = 0x0093191C;
@@ -629,6 +634,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_sound_manager, "game.sound_manager");
     bad += spec_data(data_game_sound_percent, "game.sound_percent");
     bad += spec_data(data_game_table_values, "game.table_values");
+    bad += spec_data(data_game_improvements_allowed, "game.improvements_allowed");
     bad += spec_data(data_game_teams_locked, "game.teams_locked");
     bad += spec_data(data_game_types, "game.types");
     bad += spec_data(data_game_ui_manager, "game.ui_manager");

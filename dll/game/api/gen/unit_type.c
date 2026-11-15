@@ -50,6 +50,12 @@ internal inline ee_unit_type **unit_type_projectile_at(const ee_unit_type *o) { 
 internal inline void *unit_type_get_model(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_model); }
 internal inline void unit_type_set_model(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_model) = v; }
 internal inline void **unit_type_model_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_model); }
+// its improvements' table (db\dbupgrade.dat's row by the object data's +0x238, unit_type.upgrade_tables; the
+// type's constructor 0x61C35B, AoC 0x62F317) - every type of a running game holds one (2026-11-15: buildings a
+// row with max_level 0)
+internal inline ee_upgrade_table *unit_type_get_upgrades(const ee_unit_type *o) { return *(ee_upgrade_table **)((uint8_t *)o + of_unit_type_upgrades); }
+internal inline void unit_type_set_upgrades(ee_unit_type *o, ee_upgrade_table *v) { *(ee_upgrade_table **)((uint8_t *)o + of_unit_type_upgrades) = v; }
+internal inline ee_upgrade_table **unit_type_upgrades_at(const ee_unit_type *o) { return (ee_upgrade_table **)((uint8_t *)o + of_unit_type_upgrades); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
 // stats.height x (z / it x 0.5 + 0.5) (the AoC decompilation: mCruiseAltitude)
@@ -388,8 +394,45 @@ internal unit_type_down_fn fn_eeuc_projectile_down;
 internal inline char eeuc_projectile_down(ee_unit_type *unit_type, ee_unit *projectile) { return fn_eeuc_projectile_down(unit_type, projectile); }
 internal inline int patch_proj_down(unit_type_down_fn h) { return patch_vtable(vt_eeuc_projectile, (int)slot_unit_type_down, (uintptr_t)fn_eeuc_projectile_down, (void *)h); }
 
-// class ee_unit_stats (ee_unit_stats)
-// a unit type's per-player values, a unit's +0x34 (range, attack ...)
+// class EEUnitClassUpgrade (ee_unit_stats)
+// a unit type's per-player values, a unit's +0x34 (range, attack ...): EEUnitClassUpgrade, the type data's values
+// with the player's improvements - the per-type upgrades bought at a building (attack, hit points, range, speed, the
+// armours ...; not the tech tree's). Made by 0x627765(type) (AoC 0x63B6AE); +0x4 holds an EEUnitClassImprovement
+// (its levels and points). A buy: the button (EEUIBUpgrade) queues EEAUpgradeImprovement, which sends
+// EEMImproveUnit; its execute pays and queues it (EEPlayer.queue_improvement), the player's update counts the queue's
+// front down by the research time (dbworld.dat record 0x39 + attribute: 24-90 s the first, a quarter more later)
+// and applies it (EEPlayer.apply_improvement -> change_level): the level up by one, the stat by the table's step x
+// the type's base value (at least 1, the area and speed's 0.1 / 0.05), the player's live units of the type rescaled.
+// The price: the type's own price x the level (counting the queue) x the table's price factor. Limits: the table's
+// max_level buys of an attribute, ee_game_data.improvement_points points (an armour 1, the rest 2) a type, and
+// game.improvements_allowed. A line upgrade carries the levels over to the new type (copy_levels_to). The game's
+// computer player buys them only as an attack group forms (EECPAttackGroup.buy_improvements: paid and applied at
+// once, no research time). Read in both builds' code 2026-11-15; the layout checked in a running game
+// its improvements' levels by attribute (enum improvement), 1 at the start: each level above 1 one bought
+// (EEUnitClassImprovement +0x4)
+internal inline int unit_stats_get_levels(const ee_unit_stats *o, int i) { return ((int *)((uint8_t *)o + of_unit_stats_levels))[i]; }
+internal inline void unit_stats_set_levels(ee_unit_stats *o, int i, int v) { ((int *)((uint8_t *)o + of_unit_stats_levels))[i] = v; }
+internal inline int *unit_stats_levels_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_levels); }
+// the improvement points it has spent (EEUnitClassImprovement +0x44): with the queue's at most
+// ee_game_data.improvement_points. Reapplying after a tech tree reload (0x55A912, AoC 0x569990) adds the points
+// again without clearing them first [read, not tested]
+internal inline int unit_stats_get_points(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_points); }
+internal inline void unit_stats_set_points(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_points) = v; }
+internal inline int *unit_stats_points_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_points); }
+// thiscall(stats, other): other's levels raised by this one's above 1, the stats with them - a line upgrade's
+// carry-over (0x5BA59D: the old type's stats to the new type's)
+typedef void (__thiscall *unit_stats_copy_levels_to_fn)(ee_unit_stats *, ee_unit_stats *);
+internal inline void unit_stats_copy_levels_to(ee_unit_stats *unit_stats, ee_unit_stats *other) { ((unit_stats_copy_levels_to_fn)(*(void ***)unit_stats)[slot_unit_stats_copy_levels_to])(unit_stats, other); }
+internal unit_stats_copy_levels_to_fn fn_ee_unit_class_upgrade_copy_levels_to;
+internal inline void ee_unit_class_upgrade_copy_levels_to(ee_unit_stats *unit_stats, ee_unit_stats *other) { fn_ee_unit_class_upgrade_copy_levels_to(unit_stats, other); }
+// an improvement raised (+1) or lowered (-1) now: EEUnitClassImprovement.change_level on its +0x4
+typedef void (__thiscall *unit_stats_change_level_fn)(ee_unit_stats *, int, int);
+internal unit_stats_change_level_fn fn_unit_stats_change_level;
+internal inline void unit_stats_change_level(ee_unit_stats *unit_stats, int attr, int delta) { fn_unit_stats_change_level(unit_stats, attr, delta); }
+// the values refilled from the type data, then the levels applied again (EEUnitClassImprovement.reapply)
+typedef void (__thiscall *unit_stats_reset_fn)(ee_unit_stats *);
+internal unit_stats_reset_fn fn_unit_stats_reset;
+internal inline void unit_stats_reset(ee_unit_stats *unit_stats) { fn_unit_stats_reset(unit_stats); }
 // its name (UWideString): the units' fill shows it under the unit under the mouse
 internal inline uint8_t *unit_stats_name_at(const ee_unit_stats *o) { return (uint8_t *)o + of_unit_stats_name; }
 // between fields read through a unit's +0x34, unchanged
@@ -445,7 +488,12 @@ internal inline float *unit_stats_shot_speed_at(const ee_unit_stats *o) { return
 internal inline float unit_stats_get_attack(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_attack); }
 internal inline void unit_stats_set_attack(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_attack) = v; }
 internal inline float *unit_stats_attack_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_attack); }
-// between fields read through a unit's +0x34, unchanged
+// leadership (the type's +0x538; improvement leadership)
+internal inline float unit_stats_get_leadership(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_leadership); }
+internal inline void unit_stats_set_leadership(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_leadership) = v; }
+internal inline float *unit_stats_leadership_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_leadership); }
+// the armour against each damage class, float[6]: [0] shock, [1] arrow, [2] pierce, [3] gun, [4] laser, [5]
+// missile (the improvements' change_level writes each of them)
 internal inline uint8_t *unit_stats_armor_at(const ee_unit_stats *o) { return (uint8_t *)o + of_unit_stats_armor; }
 // an aircraft's flight time, ms (the scenario's Create gives a new one this)
 internal inline int unit_stats_get_flight_ms(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_flight_ms); }
@@ -465,6 +513,10 @@ internal inline int *unit_stats_hp_at(const ee_unit_stats *o) { return (int *)((
 internal inline int unit_stats_get_power(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_power); }
 internal inline void unit_stats_set_power(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_power) = v; }
 internal inline int *unit_stats_power_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_power); }
+// what it carries (the type's +0x570; improvement transport)
+internal inline int unit_stats_get_transport(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_transport); }
+internal inline void unit_stats_set_transport(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_transport) = v; }
+internal inline int *unit_stats_transport_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_transport); }
 // it may lob over a wall: a shot of its that hits a wall in the way sets its unit's alt_attack, and with this the
 // unit then fires the high arc (ballistic_game) at 1.5 x its reload, its shots passing walls (the flight's check
 // 0x61F6A4 skips group 0x2A objects only for a shooter with this and alt_attack); the AI's target choice skips
@@ -486,8 +538,42 @@ internal inline float to_hit_table_attack_bonus(ee_to_hit_table *to_hit_table, i
 // a unit type's class_id, the game data's "Unit type": the class of its type data, one each (EEUC + the name: 4
 // EEUCNaval) - every type's read in a running game of both builds 2026-10-25
 
+// class EEUnitClassImprovement (ee_improvements)
+// a unit type's improvement levels for one player (EEUnitClassImprovement, 0x48 bytes), held at EEUnitClassUpgrade
+// +0x4 (its levels and points there)
+// thiscall(impr, type, stats, attr, delta): levels[attr] and the points moved by delta, the stat by delta x the
+// step (the table's step x the type's base value, at least the attribute's least step)
+typedef void (__thiscall *improvements_change_level_fn)(ee_improvements *, ee_unit_type *, ee_unit_stats *, int, int);
+internal improvements_change_level_fn fn_improvements_change_level;
+internal inline void improvements_change_level(ee_improvements *improvements, ee_unit_type *type, ee_unit_stats *stats, int attr, int delta) { fn_improvements_change_level(improvements, type, stats, attr, delta); }
+// thiscall(impr, type, stats): each level set back to 1 and applied again (level - 1 steps) to freshly filled
+// stats - the points are added again
+typedef void (__thiscall *improvements_reapply_fn)(ee_improvements *, ee_unit_type *, ee_unit_stats *);
+internal improvements_reapply_fn fn_improvements_reapply;
+internal inline void improvements_reapply(ee_improvements *improvements, ee_unit_type *type, ee_unit_stats *stats) { fn_improvements_reapply(improvements, type, stats); }
+
+// class EEUCUpgradeTable (ee_upgrade_table)
+// a unit type's improvements, db\dbupgrade.dat's row (EEUCUpgradeTable, 0x88 bytes): the file a count (2017 update
+// 69, AoC 76) and records of 0xF0 - the name, the steps, the price factors, max_level - that the loader (0x4D67CE,
+// AoC 0x4DC6F0) puts into factors[attr]; the constructor (0x4D67A9, AoC 0x4DC6CB) sets every price factor 1, every
+// step 0. Spearman: attack, hit points 0.15 x 2, pierce and shock armour 0.15 x 0.75, speed 0.1 x 2, max 2; Tower:
+// range 0.15 x 1, max 1; Building: max 0
+// float[2] per attribute (enum improvement): +0 the price factor, +4 the step (a share of the type's base value
+// per level; 0: not offered)
+internal inline uint8_t *upgrade_table_factors_at(const ee_upgrade_table *o) { return (uint8_t *)o + of_upgrade_table_factors; }
+// buys per attribute: a level (from 1, the queue counted) may be bought while it is at most this
+internal inline int upgrade_table_get_max_level(const ee_upgrade_table *o) { return *(int *)((uint8_t *)o + of_upgrade_table_max_level); }
+internal inline void upgrade_table_set_max_level(ee_upgrade_table *o, int v) { *(int *)((uint8_t *)o + of_upgrade_table_max_level) = v; }
+internal inline int *upgrade_table_max_level_at(const ee_upgrade_table *o) { return (int *)((uint8_t *)o + of_upgrade_table_max_level); }
+
+// class improvement (enum improvement)
+// an improvement's attribute (EEUnitClassUpgrade.levels, EEUIBUpgrade.attr, EEMImproveUnit.attr): the switch of
+// EEUnitClassImprovement.change_level and the names 0x626E74 (strings 30000+)
+
 // static class unit_type
 // unit_type's data of the game, places in its code and numbers
+// the improvements' tables by their dbupgrade.dat index (EEUCUpgradeTable* vector: its begin, the end after it)
+internal inline uint8_t *unit_type_upgrade_tables_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_upgrade_tables; }
 // attack_bonus_game's object
 internal inline ee_to_hit_table *unit_type_bonus_table_at(void) { return (ee_to_hit_table *)(uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
 // EEUnitClass: thiscall(type data, unit), as the game's goal assignment
@@ -507,6 +593,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_shot_gfx = 0x3C4;
         of_unit_type_projectile = 0x3FC;
         of_unit_type_model = 0x40C;
+        of_unit_type_upgrades = 0x410;
         of_unit_type_flight_altitude = 0x418;
         of_unit_type_min_range = 0x41C;
         of_unit_type_range = 0x420;
@@ -582,6 +669,13 @@ internal int spec_unit_type_select(int build) {
         vt_eeuc_projectile = 0x00833060;
         slot_unit_type_down = 55;
         fn_eeuc_projectile_down = (unit_type_down_fn)0x006078F9;
+        vt_ee_unit_class_upgrade = 0x00833A60;
+        of_unit_stats_levels = 0x8;
+        of_unit_stats_points = 0x48;
+        slot_unit_stats_copy_levels_to = 1;
+        fn_ee_unit_class_upgrade_copy_levels_to = (unit_stats_copy_levels_to_fn)0x00627855;
+        fn_unit_stats_change_level = (unit_stats_change_level_fn)0x0062792B;
+        fn_unit_stats_reset = (unit_stats_reset_fn)0x00627942;
         of_unit_stats_name = 0x4C;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_gfx = 0x68;
@@ -595,14 +689,24 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_turn_rate = 0xB4;
         of_unit_stats_shot_speed = 0xC0;
         of_unit_stats_attack = 0xD8;
+        of_unit_stats_leadership = 0xDC;
         of_unit_stats_armor = 0xE0;
         of_unit_stats_flight_ms = 0x130;
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
         of_unit_stats_power = 0x148;
+        of_unit_stats_transport = 0x14C;
         of_unit_stats_lob = 0x15C;
         vt_ee_to_hit_table = 0x0082C920;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004D5F2C;
+        vt_ee_unit_class_improvement = 0x00833A54;
+        fn_improvements_change_level = (improvements_change_level_fn)0x00627078;
+        fn_improvements_reapply = (improvements_reapply_fn)0x00627412;
+        vt_eeuc_upgrade_table = 0x0082AB04;
+        size_eeuc_upgrade_table = 0x88;
+        of_upgrade_table_factors = 0x4;
+        of_upgrade_table_max_level = 0x84;
+        data_unit_type_upgrade_tables = 0x008D202C;
         data_unit_type_bonus_table = 0x00917DE0;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 60;
@@ -617,6 +721,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_shot_gfx = 0xB4;
         of_unit_type_projectile = 0xF8;
         of_unit_type_model = 0x110;
+        of_unit_type_upgrades = 0x114;
         of_unit_type_flight_altitude = 0x11C;
         of_unit_type_min_range = 0x120;
         of_unit_type_range = 0x124;
@@ -692,6 +797,13 @@ internal int spec_unit_type_select(int build) {
         vt_eeuc_projectile = 0x00848ED0;
         slot_unit_type_down = 56;
         fn_eeuc_projectile_down = (unit_type_down_fn)0x00619143;
+        vt_ee_unit_class_upgrade = 0x00849AD8;
+        of_unit_stats_levels = 0x8;
+        of_unit_stats_points = 0x48;
+        slot_unit_stats_copy_levels_to = 1;
+        fn_ee_unit_class_upgrade_copy_levels_to = (unit_stats_copy_levels_to_fn)0x0063B7A4;
+        fn_unit_stats_change_level = (unit_stats_change_level_fn)0x0063B87A;
+        fn_unit_stats_reset = (unit_stats_reset_fn)0x0063B891;
         of_unit_stats_name = 0x4C;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_gfx = 0x68;
@@ -705,14 +817,24 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_turn_rate = 0xB4;
         of_unit_stats_shot_speed = 0xC0;
         of_unit_stats_attack = 0xD8;
+        of_unit_stats_leadership = 0xDC;
         of_unit_stats_armor = 0xE0;
         of_unit_stats_flight_ms = 0x130;
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
         of_unit_stats_power = 0x148;
+        of_unit_stats_transport = 0x14C;
         of_unit_stats_lob = 0x164;
         vt_ee_to_hit_table = 0x008420C0;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004DBE44;
+        vt_ee_unit_class_improvement = 0x00849ACC;
+        fn_improvements_change_level = (improvements_change_level_fn)0x0063AFC1;
+        fn_improvements_reapply = (improvements_reapply_fn)0x0063B35B;
+        vt_eeuc_upgrade_table = 0x0083F800;
+        size_eeuc_upgrade_table = 0x88;
+        of_upgrade_table_factors = 0x4;
+        of_upgrade_table_max_level = 0x84;
+        data_unit_type_upgrade_tables = 0x008E872C;
         data_unit_type_bonus_table = 0x009318E8;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 61;
@@ -736,8 +858,18 @@ internal int spec_unit_type_check(void) {
     bad += spec_vtable(vt_eeuc_projectile, ".?AVEEUCProjectile@@", "EEUCProjectile [vtable]");
     bad += spec_code((uintptr_t)fn_eeuc_projectile_down, "EEUCProjectile.down");
     bad += spec_slot(vt_eeuc_projectile, slot_unit_type_down, (uintptr_t)fn_eeuc_projectile_down, "EEUCProjectile.down [slot]");
+    bad += spec_vtable(vt_ee_unit_class_upgrade, ".?AVEEUnitClassUpgrade@@", "EEUnitClassUpgrade [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_unit_class_upgrade_copy_levels_to, "EEUnitClassUpgrade.copy_levels_to");
+    bad += spec_slot(vt_ee_unit_class_upgrade, slot_unit_stats_copy_levels_to, (uintptr_t)fn_ee_unit_class_upgrade_copy_levels_to, "EEUnitClassUpgrade.copy_levels_to [slot]");
+    bad += spec_code((uintptr_t)fn_unit_stats_change_level, "EEUnitClassUpgrade.change_level");
+    bad += spec_code((uintptr_t)fn_unit_stats_reset, "EEUnitClassUpgrade.reset");
     bad += spec_vtable(vt_ee_to_hit_table, ".?AVEEToHitTable@@", "EEToHitTable [vtable]");
     bad += spec_code((uintptr_t)fn_to_hit_table_attack_bonus, "EEToHitTable.attack_bonus");
+    bad += spec_vtable(vt_ee_unit_class_improvement, ".?AVEEUnitClassImprovement@@", "EEUnitClassImprovement [vtable]");
+    bad += spec_code((uintptr_t)fn_improvements_change_level, "EEUnitClassImprovement.change_level");
+    bad += spec_code((uintptr_t)fn_improvements_reapply, "EEUnitClassImprovement.reapply");
+    bad += spec_vtable(vt_eeuc_upgrade_table, ".?AVEEUCUpgradeTable@@", "EEUCUpgradeTable [vtable]");
+    bad += spec_data(data_unit_type_upgrade_tables, "unit_type.upgrade_tables");
     bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
     return bad;
 }

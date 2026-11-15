@@ -285,6 +285,11 @@ static unsafe class game
     [address((ee)0x00917BB0, (aoc)0x0092FCA0)]
     static EEWorldTable table_values;
 
+    /// the setup's "Unit Improvements Allowed" (EEPWorldHelper; copied from the setup at 0x5688B9): 0 and no
+    /// improvement (EEUnitClassUpgrade) can be bought - can_buy_improvement's first test, the computer player's too
+    [address((ee)0x00918E9B, (aoc)0x009318DB)]
+    static block improvements_allowed;
+
     [address((ee)0x00918E9F, (aoc)0x009318DF)]
     static block teams_locked;
 

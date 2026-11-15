@@ -14,6 +14,14 @@ internal inline ee_unit **attack_group_target_unit_at(const ee_attack_group *o) 
 internal inline ee_player *attack_group_get_target(const ee_attack_group *o) { return *(ee_player **)((uint8_t *)o + of_attack_group_target); }
 internal inline void attack_group_set_target(ee_attack_group *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_attack_group_target) = v; }
 internal inline ee_player **attack_group_target_at(const ee_attack_group *o) { return (ee_player **)((uint8_t *)o + of_attack_group_target); }
+// the game's computer player's only improvements (EEUnitClassUpgrade): thiscall(group, its units) - improve_units
+// of the group's unit types at random, of each improve_attributes of the attributes it may buy at random, paid
+// (pay_improvement) and applied at once (apply_improvement: no queue, no research time); the k-th attribute is
+// tried k + 1 times. Its caller (0x456077, AoC 0x457391; from new_group and 0x450F36) calls it when
+// game.improvements_allowed, the combat manager's att_62 and a difficulty above easy
+typedef void (__thiscall *attack_group_buy_improvements_fn)(ee_attack_group *, void *);
+internal attack_group_buy_improvements_fn fn_attack_group_buy_improvements;
+internal inline void attack_group_buy_improvements(ee_attack_group *attack_group, void *units) { fn_attack_group_buy_improvements(attack_group, units); }
 
 // class EECPCombatManager (ee_combat_mgr)
 // the AI's combat manager, player +0xB8C (EECPCombatManager)
@@ -502,6 +510,7 @@ internal int spec_attack_select(int build) {
         of_attack_group_subgroups_begin = 0x8;
         of_attack_group_target_unit = 0x44;
         of_attack_group_target = 0x48;
+        fn_attack_group_buy_improvements = (attack_group_buy_improvements_fn)0x0045720D;
         of_combat_mgr_player = 0x44;
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
@@ -647,6 +656,7 @@ internal int spec_attack_select(int build) {
         of_attack_group_subgroups_begin = 0x8;
         of_attack_group_target_unit = 0x44;
         of_attack_group_target = 0x48;
+        fn_attack_group_buy_improvements = (attack_group_buy_improvements_fn)0x00458B2E;
         of_combat_mgr_player = 0x44;
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
@@ -796,6 +806,7 @@ internal const char *const k_spec_attack_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_attack_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_attack_group_buy_improvements, "EECPAttackGroup.buy_improvements");
     bad += spec_code((uintptr_t)fn_combat_mgr_attack_plan_ok, "EECPCombatManager.attack_plan_ok");
     bad += spec_code((uintptr_t)fn_combat_mgr_revenge, "EECPCombatManager.revenge");
     bad += spec_code((uintptr_t)fn_combat_mgr_unit_free, "EECPCombatManager.unit_free");

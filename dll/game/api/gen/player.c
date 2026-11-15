@@ -59,6 +59,11 @@ internal inline uint8_t *player_type_stats_at(const ee_player *o) { return (uint
 // int32 kinds: 0x5564FB adds a finished building's type +0x5B4 (dbobjects' "Wonder bonus") here; set_diplomacy
 // looks for kind 5 and refreshes the shared sight (0x559472 / 0x5545E3), 0x52D4xx for kind 4
 internal inline uint8_t *player_wonder_bonuses_at(const ee_player *o) { return (uint8_t *)o + of_player_wonder_bonuses; }
+// the improvements bought and waiting (EEUnitClassUpgrade), a std::map<type, {float32 ms left; vector<int32>
+// attrs}>: its head +4, its size +8; a node's type +0xC, the front's time left +0x10, the attributes' vector +0x18
+// .. +0x1C. The update (vf37) counts the front down and applies it (apply_improvement); a type's empty list is
+// erased
+internal inline uint8_t *player_improvement_queue_at(const ee_player *o) { return (uint8_t *)o + of_player_improvement_queue; }
 // its minimap flares, an object in it (the scenario's Minimap-Flare calls flare_add on its address; a list of
 // them at +0x10 .. +0x14, the newest +0x1C)
 internal inline uint8_t *player_flares_at(const ee_player *o) { return (uint8_t *)o + of_player_flares; }
@@ -360,6 +365,59 @@ internal inline void player_adopt(ee_player *player, int ids, char refresh) { ((
 typedef void (__thiscall *player_drop_fn)(ee_player *, ee_unit *, char);
 internal player_drop_fn fn_player_drop;
 internal inline void player_drop(ee_player *player, ee_unit *u, char again) { fn_player_drop(player, u, again); }
+// thiscall(player, type, attr, front, no_pay): an improvement paid (pay_improvement, unless no_pay) and put in
+// improvement_queue - EEMImproveUnit's execute passes (0, 0), the load of a save (vf8) (0, 1) for what was queued
+typedef void (__thiscall *player_queue_improvement_fn)(ee_player *, int, int, char, char);
+internal player_queue_improvement_fn fn_player_queue_improvement;
+internal inline void player_queue_improvement(ee_player *player, int type, int attr, char front, char no_pay) { fn_player_queue_improvement(player, type, attr, front, no_pay); }
+// may it buy the improvement now: game.improvements_allowed, the table offers the attribute, the level and the
+// points within max_level and ee_game_data.improvement_points with the queue counted, the price in stock; else
+// the reason into why (a UWideString*)
+typedef char (__thiscall *player_can_buy_improvement_fn)(ee_player *, int, int, void *);
+internal player_can_buy_improvement_fn fn_player_can_buy_improvement;
+internal inline char player_can_buy_improvement(ee_player *player, int type, int attr, void *why) { return fn_player_can_buy_improvement(player, type, attr, why); }
+// can_buy_improvement without the queue and the price: the queue's front, before its time starts
+typedef char (__thiscall *player_can_improve_fn)(ee_player *, int, int, void *);
+internal player_can_improve_fn fn_player_can_improve;
+internal inline char player_can_improve(ee_player *player, int type, int attr, void *why) { return fn_player_can_improve(player, type, attr, why); }
+// the attribute's level with the queued ones (1: none bought), -1 when it has no stats for the type
+typedef int (__thiscall *player_improvement_level_fn)(ee_player *, int, int);
+internal player_improvement_level_fn fn_player_improvement_level;
+internal inline int player_improvement_level(ee_player *player, int type, int attr) { return fn_player_improvement_level(player, type, attr); }
+typedef char (__thiscall *player_improvement_maxed_fn)(ee_player *, int, int);
+internal player_improvement_maxed_fn fn_player_improvement_maxed;
+internal inline char player_improvement_maxed(ee_player *player, int type, int attr) { return fn_player_improvement_maxed(player, type, attr); }
+// thiscall(player, type, attr, lower): the level moved by one now (EEUnitClassUpgrade.change_level) and its live
+// units of the type rescaled (hit points, power or flight time, range or area)
+typedef void (__thiscall *player_apply_improvement_fn)(ee_player *, int, int, char);
+internal player_apply_improvement_fn fn_player_apply_improvement;
+internal inline void player_apply_improvement(ee_player *player, int type, int attr, char lower) { fn_player_apply_improvement(player, type, attr, lower); }
+// one queued entry of the attribute erased and refunded (refund_improvement 1.0) - EEMRemoveImprovement's
+typedef void (__thiscall *player_remove_queued_improvement_fn)(ee_player *, int, int, char);
+internal player_remove_queued_improvement_fn fn_player_remove_queued_improvement;
+internal inline void player_remove_queued_improvement(ee_player *player, int type, int attr, char not_current) { fn_player_remove_queued_improvement(player, type, attr, not_current); }
+// the improvement's price taken: for resources 2..6 the type's own price x the level (the queue counted) x the
+// table's price factor (take, vf46)
+typedef void (__thiscall *player_pay_improvement_fn)(ee_player *, ee_unit_type *, int);
+internal inline void player_pay_improvement(ee_player *player, ee_unit_type *type, int attr) { ((player_pay_improvement_fn)(*(void ***)player)[slot_player_pay_improvement])(player, type, attr); }
+internal player_pay_improvement_fn fn_ee_player_pay_improvement;
+internal inline void ee_player_pay_improvement(ee_player *player, ee_unit_type *type, int attr) { fn_ee_player_pay_improvement(player, type, attr); }
+// the improvement's price given back x fraction
+typedef void (__thiscall *player_refund_improvement_fn)(ee_player *, ee_unit_type *, int, float);
+internal inline void player_refund_improvement(ee_player *player, ee_unit_type *type, int attr, float fraction) { ((player_refund_improvement_fn)(*(void ***)player)[slot_player_refund_improvement])(player, type, attr, fraction); }
+internal player_refund_improvement_fn fn_ee_player_refund_improvement;
+internal inline void ee_player_refund_improvement(ee_player *player, ee_unit_type *type, int attr, float fraction) { fn_ee_player_refund_improvement(player, type, attr, fraction); }
+// EEPlayer's own update (vf37; EEComputerPlayer's update is the computer's): the improvement queue among the rest
+typedef void (__thiscall *player_base_update_fn)(ee_player *);
+internal inline void player_base_update(ee_player *player) { ((player_base_update_fn)(*(void ***)player)[slot_player_base_update])(player); }
+internal player_base_update_fn fn_ee_player_base_update;
+internal inline void ee_player_base_update(ee_player *player) { fn_ee_player_base_update(player); }
+// the type's queue's front started (its time from dbworld.dat record 0x39 + attr: +0x10 the first buy, +0x14 a
+// later one; instant_build 1 ms); 1 when the type's list is empty (erased)
+typedef char (__thiscall *player_start_next_improvement_fn)(ee_player *, int);
+internal inline char player_start_next_improvement(ee_player *player, int type) { return ((player_start_next_improvement_fn)(*(void ***)player)[slot_player_start_next_improvement])(player, type); }
+internal player_start_next_improvement_fn fn_ee_player_start_next_improvement;
+internal inline char ee_player_start_next_improvement(ee_player *player, int type) { return fn_ee_player_start_next_improvement(player, type); }
 
 // class ee_player_b98 (ee_player_b98)
 // the object at a player's +0xB98
@@ -379,6 +437,10 @@ internal inline char player_computer_is_human(ee_player *player) { return ((play
 internal player_computer_is_human_fn fn_ee_computer_player_computer_is_human;
 internal inline char ee_computer_player_computer_is_human(ee_player *player) { return fn_ee_computer_player_computer_is_human(player); }
 internal inline int patch_cp_is_human(player_computer_is_human_fn h) { return patch_vtable(vt_ee_computer_player, (int)slot_player_computer_is_human, (uintptr_t)fn_ee_computer_player_computer_is_human, (void *)h); }
+// the improvement's price added to its resource manager's demand (0x48C595, for resources 2..6), then
+// EEPlayer's (why the demand: not read)
+internal player_pay_improvement_fn fn_ee_computer_player_pay_improvement;
+internal inline void ee_computer_player_pay_improvement(ee_player *player, ee_unit_type *type, int attr) { fn_ee_computer_player_pay_improvement(player, type, attr); }
 // units it picked to delete: update deletes each one (its vf +0x60 (1, 0, 0)); delete_for_room passes over them
 internal inline ee_unit **player_get_doomed_begin(const ee_player *o) { return *(ee_unit ***)((uint8_t *)o + of_player_doomed_begin); }
 internal inline void player_set_doomed_begin(ee_player *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_player_doomed_begin) = v; }
@@ -776,10 +838,12 @@ internal inline void player_set_hero_max(ee_player *o, int v) { *(int *)((uint8_
 internal inline int *player_hero_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_hero_max); }
 // attributes it picks to improve per unit type before an attack (record 47 "Unit Attributes Selected for
 // Improvements")
+// - the improvements' attributes (EEUnitClassUpgrade) EECPAttackGroup.buy_improvements picks per type
 internal inline int player_get_improve_attributes(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_improve_attributes); }
 internal inline void player_set_improve_attributes(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_improve_attributes) = v; }
 internal inline int *player_improve_attributes_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_improve_attributes); }
 // unit types it picks to improve before an attack (record 46 "Unit Selected for Improvements")
+// - the unit types of the group EECPAttackGroup.buy_improvements improves
 internal inline int player_get_improve_units(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_improve_units); }
 internal inline void player_set_improve_units(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_improve_units) = v; }
 internal inline int *player_improve_units_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_improve_units); }
@@ -1211,6 +1275,7 @@ internal int spec_player_select(int build) {
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x874;
         of_player_wonder_bonuses = 0x8EC;
+        of_player_improvement_queue = 0x91C;
         of_player_flares = 0x928;
         of_player_computer = 0x9B4;
         of_player_selected_group = 0x9BC;
@@ -1286,10 +1351,26 @@ internal int spec_player_select(int build) {
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
         slot_player_adopt = 1;
         fn_player_drop = (player_drop_fn)0x0055FD76;
+        fn_player_queue_improvement = (player_queue_improvement_fn)0x005544D8;
+        fn_player_can_buy_improvement = (player_can_buy_improvement_fn)0x00555575;
+        fn_player_can_improve = (player_can_improve_fn)0x00555954;
+        fn_player_improvement_level = (player_improvement_level_fn)0x00556B41;
+        fn_player_improvement_maxed = (player_improvement_maxed_fn)0x00556C16;
+        fn_player_apply_improvement = (player_apply_improvement_fn)0x0055C0E0;
+        fn_player_remove_queued_improvement = (player_remove_queued_improvement_fn)0x005596D5;
+        slot_player_pay_improvement = 44;
+        fn_ee_player_pay_improvement = (player_pay_improvement_fn)0x0055BF4A;
+        slot_player_refund_improvement = 16;
+        fn_ee_player_refund_improvement = (player_refund_improvement_fn)0x0055473F;
+        slot_player_base_update = 37;
+        fn_ee_player_base_update = (player_base_update_fn)0x0055C802;
+        slot_player_start_next_improvement = 54;
+        fn_ee_player_start_next_improvement = (player_start_next_improvement_fn)0x0055A5CC;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
         slot_player_computer_is_human = 29;
         fn_ee_computer_player_computer_is_human = (player_computer_is_human_fn)0x004B129F;
+        fn_ee_computer_player_pay_improvement = (player_pay_improvement_fn)0x0043F565;
         of_player_doomed_begin = 0xB80;
         of_player_doomed_end = 0xB84;
         of_player_favorite_land = 0xBA8;
@@ -1506,6 +1587,7 @@ internal int spec_player_select(int build) {
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x884;
         of_player_wonder_bonuses = 0x8EC;
+        of_player_improvement_queue = 0x90C;
         of_player_flares = 0x918;
         of_player_computer = 0x9A4;
         of_player_selected_group = 0x9AC;
@@ -1581,10 +1663,26 @@ internal int spec_player_select(int build) {
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
         slot_player_adopt = 1;
         fn_player_drop = (player_drop_fn)0x0056F6AE;
+        fn_player_queue_improvement = (player_queue_improvement_fn)0x00562694;
+        fn_player_can_buy_improvement = (player_can_buy_improvement_fn)0x0056384D;
+        fn_player_can_improve = (player_can_improve_fn)0x00563C6D;
+        fn_player_improvement_level = (player_improvement_level_fn)0x00564ED7;
+        fn_player_improvement_maxed = (player_improvement_maxed_fn)0x00564FAC;
+        fn_player_apply_improvement = (player_apply_improvement_fn)0x0056B65A;
+        fn_player_remove_queued_improvement = (player_remove_queued_improvement_fn)0x0056870E;
+        slot_player_pay_improvement = 44;
+        fn_ee_player_pay_improvement = (player_pay_improvement_fn)0x0056B3F7;
+        slot_player_refund_improvement = 16;
+        fn_ee_player_refund_improvement = (player_refund_improvement_fn)0x00562915;
+        slot_player_base_update = 37;
+        fn_ee_player_base_update = (player_base_update_fn)0x0056BE3F;
+        slot_player_start_next_improvement = 54;
+        fn_ee_player_start_next_improvement = (player_start_next_improvement_fn)0x0056964A;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
         slot_player_computer_is_human = 29;
         fn_ee_computer_player_computer_is_human = (player_computer_is_human_fn)0x004AC9F3;
+        fn_ee_computer_player_pay_improvement = (player_pay_improvement_fn)0x0043EDC0;
         of_player_doomed_begin = 0xBB4;
         of_player_doomed_end = 0xBB8;
         of_player_favorite_land = 0xBDC;
@@ -1807,9 +1905,22 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_game_limit, "EEPlayer.game_limit");
     bad += spec_code((uintptr_t)fn_player_set_diplomacy, "EEPlayer.set_diplomacy");
     bad += spec_code((uintptr_t)fn_player_drop, "EEPlayer.drop");
+    bad += spec_code((uintptr_t)fn_player_queue_improvement, "EEPlayer.queue_improvement");
+    bad += spec_code((uintptr_t)fn_player_can_buy_improvement, "EEPlayer.can_buy_improvement");
+    bad += spec_code((uintptr_t)fn_player_can_improve, "EEPlayer.can_improve");
+    bad += spec_code((uintptr_t)fn_player_improvement_level, "EEPlayer.improvement_level");
+    bad += spec_code((uintptr_t)fn_player_improvement_maxed, "EEPlayer.improvement_maxed");
+    bad += spec_code((uintptr_t)fn_player_apply_improvement, "EEPlayer.apply_improvement");
+    bad += spec_code((uintptr_t)fn_player_remove_queued_improvement, "EEPlayer.remove_queued_improvement");
+    bad += spec_code((uintptr_t)fn_ee_player_pay_improvement, "EEPlayer.pay_improvement");
+    bad += spec_code((uintptr_t)fn_ee_player_refund_improvement, "EEPlayer.refund_improvement");
+    bad += spec_code((uintptr_t)fn_ee_player_base_update, "EEPlayer.base_update");
+    bad += spec_code((uintptr_t)fn_ee_player_start_next_improvement, "EEPlayer.start_next_improvement");
     bad += spec_vtable(vt_ee_computer_player, ".?AVEEComputerPlayer@@", "EEComputerPlayer [vtable]");
     bad += spec_code((uintptr_t)fn_ee_computer_player_computer_is_human, "EEComputerPlayer.computer_is_human");
     bad += spec_slot(vt_ee_computer_player, slot_player_computer_is_human, (uintptr_t)fn_ee_computer_player_computer_is_human, "EEComputerPlayer.computer_is_human [slot]");
+    bad += spec_code((uintptr_t)fn_ee_computer_player_pay_improvement, "EEComputerPlayer.pay_improvement");
+    bad += spec_slot(vt_ee_computer_player, slot_player_pay_improvement, (uintptr_t)fn_ee_computer_player_pay_improvement, "EEComputerPlayer.pay_improvement [slot]");
     bad += spec_code((uintptr_t)fn_player_adjust_cost, "EEComputerPlayer.adjust_cost");
     bad += spec_code((uintptr_t)fn_player_add_resource, "EEComputerPlayer.add_resource");
     bad += spec_code((uintptr_t)fn_player_pay, "EEComputerPlayer.pay");

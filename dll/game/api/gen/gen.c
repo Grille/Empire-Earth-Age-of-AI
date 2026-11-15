@@ -250,6 +250,8 @@ typedef struct ee_terrain ee_terrain;
 typedef struct ee_corner ee_corner;
 typedef struct ee_continent_mgr ee_continent_mgr;
 typedef struct ee_minimap ee_minimap;
+typedef struct ee_improve_msg ee_improve_msg;
+typedef struct ee_unimprove_msg ee_unimprove_msg;
 typedef struct ee_resign_msg ee_resign_msg;
 typedef struct ee_chat_msg ee_chat_msg;
 typedef struct ee_speed_msg ee_speed_msg;
@@ -607,6 +609,7 @@ typedef struct eeuib_color eeuib_color;
 typedef struct eeuib_generic_background eeuib_generic_background;
 typedef struct eeuib_map_background eeuib_map_background;
 typedef struct eeuib_saved_group eeuib_saved_group;
+typedef struct ee_improve_action ee_improve_action;
 typedef struct eeuib_upgrade eeuib_upgrade;
 typedef struct eeuic_chat_line eeuic_chat_line;
 typedef struct eeuic_ping eeuic_ping;
@@ -648,7 +651,9 @@ typedef struct ee_ghost_unit ee_ghost_unit;
 typedef struct ee_unit_vec ee_unit_vec;
 typedef struct ee_tile_vec ee_tile_vec;
 typedef struct ee_target_search ee_target_search;
+typedef struct ee_upgrade_table ee_upgrade_table;
 typedef struct ee_to_hit_table ee_to_hit_table;
+typedef struct ee_improvements ee_improvements;
 typedef struct ee_game_state ee_game_state;
 
 #include "game/api/gen/ai_managers.c"

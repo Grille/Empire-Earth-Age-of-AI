@@ -90,7 +90,8 @@ internal dmg_model_set_player_colour_fn fn_dmg_model_set_player_colour;
 internal inline void dmg_model_set_player_colour(ee_dmg_model *dmg_model, vec3 *colour, int anim) { fn_dmg_model_set_player_colour(dmg_model, colour, anim); }
 
 // class ee_game_data (ee_game_data)
-// the game data, [game.game_data]
+// the game data, [game.game_data]: dbworld.dat's records, 0x1C bytes each (+0x10 the value, +0x14 a second one) -
+// record 26's 50 and 1200 are unit_limit and unit_limit_max
 // the code reading [game.game_data]
 internal inline int game_data_get_line_ms(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_game_data_line_ms); }
 internal inline void game_data_set_line_ms(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_game_data_line_ms) = v; }
@@ -114,6 +115,11 @@ internal inline float *game_data_speed_max_at(const ee_game_data *o) { return (f
 internal inline float game_data_get_speed_step(const ee_game_data *o) { return *(float *)((uint8_t *)o + of_game_data_speed_step); }
 internal inline void game_data_set_speed_step(ee_game_data *o, float v) { *(float *)((uint8_t *)o + of_game_data_speed_step) = v; }
 internal inline float *game_data_speed_step_at(const ee_game_data *o) { return (float *)((uint8_t *)o + of_game_data_speed_step); }
+// record 47: the improvement points a player may spend on one unit type (EEUnitClassUpgrade.points; 10 in both
+// builds' data, read in a running game)
+internal inline int game_data_get_improvement_points(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_game_data_improvement_points); }
+internal inline void game_data_set_improvement_points(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_game_data_improvement_points) = v; }
+internal inline int *game_data_improvement_points_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_game_data_improvement_points); }
 
 // class EEPhysics (ee_physics)
 // the simulation, [api.world_clock] (EEPhysics)
@@ -350,6 +356,7 @@ internal int spec_world_select(int build) {
         of_game_data_speed_min = 0x4B4;
         of_game_data_speed_max = 0x4B8;
         of_game_data_speed_step = 0x4D0;
+        of_game_data_improvement_points = 0x534;
         of_physics_seed = 0x18;
         of_physics_tick_s = 0x50;
         of_physics_tick_ms = 0x54;
@@ -426,6 +433,7 @@ internal int spec_world_select(int build) {
         of_game_data_speed_min = 0x4B4;
         of_game_data_speed_max = 0x4B8;
         of_game_data_speed_step = 0x4D0;
+        of_game_data_improvement_points = 0x534;
         of_physics_seed = 0x18;
         of_physics_tick_s = 0x50;
         of_physics_tick_ms = 0x54;

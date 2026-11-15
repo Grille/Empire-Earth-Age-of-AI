@@ -102,6 +102,39 @@ unsafe struct EEMessage
     uint8 sendable_when_out;
 }
 
+/// an improvement bought (EEMImproveUnit, kind 0x77, 0x18 bytes; EEUnitClassUpgrade): the button's action
+/// (EEAUpgradeImprovement) sends it; its execute, on every PC, has the unit's owner queue it for the unit's type
+/// (EEPlayer.queue_improvement) when can_buy_improvement holds, else the refusal's sound and reason on that PC
+[@base(typeof(EEMessage)), c_type("ee_improve_msg"), vtable((ee)0x00825120, (aoc)0x00839118)]
+unsafe struct EEMImproveUnit
+{
+    /// a unit of the type (its id)
+    [offset(0x10), found(c)]
+    uint32 unit;
+
+    /// the attribute (enum improvement)
+    [offset(0x14), found(c)]
+    int32 attr;
+
+    [address((ee)0x004BFC0D, (aoc)0x004C8AE4)]
+    extern void execute();
+}
+
+/// a queued improvement taken back (EEMRemoveImprovement, kind 0x8B): the portrait's cancel (EEUICPortrait vf13
+/// 0x642657) and EEAUpgradeImprovement with raise 0; its execute calls EEPlayer.remove_queued_improvement (refunded)
+[@base(typeof(EEMessage)), c_type("ee_unimprove_msg"), vtable((ee)0x008250EC, (aoc)0x008390E4)]
+unsafe struct EEMRemoveImprovement
+{
+    [offset(0x10), found(c)]
+    uint32 unit;
+
+    [offset(0x14), found(c)]
+    int32 attr;
+
+    [address((ee)0x004BBA03, (aoc)0x004C45B8)]
+    extern void execute();
+}
+
 /// the resignation (EEMResign)
 [@base(typeof(EEMessage)), c_type("ee_resign_msg")]
 unsafe struct EEMResign

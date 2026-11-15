@@ -94,6 +94,111 @@ internal inline uint8_t msg_get_sendable_when_out(const ee_msg *o) { return *(ui
 internal inline void msg_set_sendable_when_out(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
 internal inline uint8_t *msg_sendable_when_out_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 
+// class EEMImproveUnit (ee_improve_msg)
+// an improvement bought (EEMImproveUnit, kind 0x77, 0x18 bytes; EEUnitClassUpgrade): the button's action
+// (EEAUpgradeImprovement) sends it; its execute, on every PC, has the unit's owner queue it for the unit's type
+// (EEPlayer.queue_improvement) when can_buy_improvement holds, else the refusal's sound and reason on that PC
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t improve_msg_get_ref_count(const ee_improve_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void improve_msg_set_ref_count(ee_improve_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *improve_msg_ref_count_at(const ee_improve_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t improve_msg_get_kind(const ee_improve_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void improve_msg_set_kind(ee_improve_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *improve_msg_kind_at(const ee_improve_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t improve_msg_get_for_slot(const ee_improve_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void improve_msg_set_for_slot(ee_improve_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *improve_msg_for_slot_at(const ee_improve_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t improve_msg_get_from(const ee_improve_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void improve_msg_set_from(ee_improve_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *improve_msg_from_at(const ee_improve_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t improve_msg_get_header_flags(const ee_improve_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void improve_msg_set_header_flags(ee_improve_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *improve_msg_header_flags_at(const ee_improve_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t improve_msg_get_spare(const ee_improve_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void improve_msg_set_spare(ee_improve_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *improve_msg_spare_at(const ee_improve_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t improve_msg_get_sendable_when_out(const ee_improve_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void improve_msg_set_sendable_when_out(ee_improve_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *improve_msg_sendable_when_out_at(const ee_improve_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// a unit of the type (its id)
+internal inline uint32_t improve_msg_get_unit(const ee_improve_msg *o) { return *(uint32_t *)((uint8_t *)o + of_improve_msg_unit); }
+internal inline void improve_msg_set_unit(ee_improve_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_improve_msg_unit) = v; }
+internal inline uint32_t *improve_msg_unit_at(const ee_improve_msg *o) { return (uint32_t *)((uint8_t *)o + of_improve_msg_unit); }
+// the attribute (enum improvement)
+internal inline int improve_msg_get_attr(const ee_improve_msg *o) { return *(int *)((uint8_t *)o + of_improve_msg_attr); }
+internal inline void improve_msg_set_attr(ee_improve_msg *o, int v) { *(int *)((uint8_t *)o + of_improve_msg_attr) = v; }
+internal inline int *improve_msg_attr_at(const ee_improve_msg *o) { return (int *)((uint8_t *)o + of_improve_msg_attr); }
+typedef void (__thiscall *improve_msg_execute_fn)(ee_improve_msg *);
+internal improve_msg_execute_fn fn_improve_msg_execute;
+internal inline void improve_msg_execute(ee_improve_msg *improve_msg) { fn_improve_msg_execute(improve_msg); }
+
+// class EEMRemoveImprovement (ee_unimprove_msg)
+// a queued improvement taken back (EEMRemoveImprovement, kind 0x8B): the portrait's cancel (EEUICPortrait vf13
+// 0x642657) and EEAUpgradeImprovement with raise 0; its execute calls EEPlayer.remove_queued_improvement (refunded)
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t unimprove_msg_get_ref_count(const ee_unimprove_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void unimprove_msg_set_ref_count(ee_unimprove_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *unimprove_msg_ref_count_at(const ee_unimprove_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t unimprove_msg_get_kind(const ee_unimprove_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void unimprove_msg_set_kind(ee_unimprove_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *unimprove_msg_kind_at(const ee_unimprove_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t unimprove_msg_get_for_slot(const ee_unimprove_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void unimprove_msg_set_for_slot(ee_unimprove_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *unimprove_msg_for_slot_at(const ee_unimprove_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t unimprove_msg_get_from(const ee_unimprove_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void unimprove_msg_set_from(ee_unimprove_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *unimprove_msg_from_at(const ee_unimprove_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t unimprove_msg_get_header_flags(const ee_unimprove_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void unimprove_msg_set_header_flags(ee_unimprove_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *unimprove_msg_header_flags_at(const ee_unimprove_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t unimprove_msg_get_spare(const ee_unimprove_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void unimprove_msg_set_spare(ee_unimprove_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *unimprove_msg_spare_at(const ee_unimprove_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t unimprove_msg_get_sendable_when_out(const ee_unimprove_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void unimprove_msg_set_sendable_when_out(ee_unimprove_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *unimprove_msg_sendable_when_out_at(const ee_unimprove_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline uint32_t unimprove_msg_get_unit(const ee_unimprove_msg *o) { return *(uint32_t *)((uint8_t *)o + of_unimprove_msg_unit); }
+internal inline void unimprove_msg_set_unit(ee_unimprove_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unimprove_msg_unit) = v; }
+internal inline uint32_t *unimprove_msg_unit_at(const ee_unimprove_msg *o) { return (uint32_t *)((uint8_t *)o + of_unimprove_msg_unit); }
+internal inline int unimprove_msg_get_attr(const ee_unimprove_msg *o) { return *(int *)((uint8_t *)o + of_unimprove_msg_attr); }
+internal inline void unimprove_msg_set_attr(ee_unimprove_msg *o, int v) { *(int *)((uint8_t *)o + of_unimprove_msg_attr) = v; }
+internal inline int *unimprove_msg_attr_at(const ee_unimprove_msg *o) { return (int *)((uint8_t *)o + of_unimprove_msg_attr); }
+typedef void (__thiscall *unimprove_msg_execute_fn)(ee_unimprove_msg *);
+internal unimprove_msg_execute_fn fn_unimprove_msg_execute;
+internal inline void unimprove_msg_execute(ee_unimprove_msg *unimprove_msg) { fn_unimprove_msg_execute(unimprove_msg); }
+
 // class EEMResign (ee_resign_msg)
 // the resignation (EEMResign)
 // EEMessage's, the base's
@@ -1204,6 +1309,14 @@ internal int spec_messages_select(int build) {
         of_msg_header_flags = 0xB;
         of_msg_spare = 0xC;
         of_msg_sendable_when_out = 0xD;
+        vt_eem_improve_unit = 0x00825120;
+        of_improve_msg_unit = 0x10;
+        of_improve_msg_attr = 0x14;
+        fn_improve_msg_execute = (improve_msg_execute_fn)0x004BFC0D;
+        vt_eem_remove_improvement = 0x008250EC;
+        of_unimprove_msg_unit = 0x10;
+        of_unimprove_msg_attr = 0x14;
+        fn_unimprove_msg_execute = (unimprove_msg_execute_fn)0x004BBA03;
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004BB906;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
@@ -1327,6 +1440,14 @@ internal int spec_messages_select(int build) {
         of_msg_header_flags = 0xB;
         of_msg_spare = 0xC;
         of_msg_sendable_when_out = 0xD;
+        vt_eem_improve_unit = 0x00839118;
+        of_improve_msg_unit = 0x10;
+        of_improve_msg_attr = 0x14;
+        fn_improve_msg_execute = (improve_msg_execute_fn)0x004C8AE4;
+        vt_eem_remove_improvement = 0x008390E4;
+        of_unimprove_msg_unit = 0x10;
+        of_unimprove_msg_attr = 0x14;
+        fn_unimprove_msg_execute = (unimprove_msg_execute_fn)0x004C45B8;
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004C44BB;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
@@ -1438,6 +1559,10 @@ internal int spec_messages_check(void) {
     int bad = 0;
     bad += spec_vtable(vt_ee_message, ".?AVEEMessage@@", "EEMessage [vtable]");
     bad += spec_code((uintptr_t)fn_msg_construct, "EEMessage.construct");
+    bad += spec_vtable(vt_eem_improve_unit, ".?AVEEMImproveUnit@@", "EEMImproveUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_improve_msg_execute, "EEMImproveUnit.execute");
+    bad += spec_vtable(vt_eem_remove_improvement, ".?AVEEMRemoveImprovement@@", "EEMRemoveImprovement [vtable]");
+    bad += spec_code((uintptr_t)fn_unimprove_msg_execute, "EEMRemoveImprovement.execute");
     bad += spec_code((uintptr_t)fn_resign_msg_execute, "EEMResign.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_execute, "EEMInGameChat.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_init, "EEMInGameChat.init");

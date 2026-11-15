@@ -107,7 +107,8 @@ unsafe struct EEGraphicObject
     extern void set_player_colour(vec3* colour, int32 anim);
 }
 
-/// the game data, [game.game_data]
+/// the game data, [game.game_data]: dbworld.dat's records, 0x1C bytes each (+0x10 the value, +0x14 a second one) -
+/// record 26's 50 and 1200 are unit_limit and unit_limit_max
 unsafe struct ee_game_data
 {
     /// the code reading [game.game_data]
@@ -132,6 +133,11 @@ unsafe struct ee_game_data
 
     [offset(0x4D0), found(c)]
     float32 speed_step;
+
+    /// record 47: the improvement points a player may spend on one unit type (EEUnitClassUpgrade.points; 10 in both
+    /// builds' data, read in a running game)
+    [offset(0x534), found(c)]
+    int32 improvement_points;
 }
 
 /// the simulation, [api.world_clock] (EEPhysics)

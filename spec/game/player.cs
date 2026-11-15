@@ -67,6 +67,13 @@ unsafe struct EEPlayer
     [offset(0x8EC), found(c), guess]
     vector wonder_bonuses;
 
+    /// the improvements bought and waiting (EEUnitClassUpgrade), a std::map<type, {float32 ms left; vector<int32>
+    /// attrs}>: its head +4, its size +8; a node's type +0xC, the front's time left +0x10, the attributes' vector +0x18
+    /// .. +0x1C. The update (vf37) counts the front down and applies it (apply_improvement); a type's empty list is
+    /// erased
+    [offset((ee)0x91C, (aoc)0x90C), found(c)]
+    block improvement_queue;
+
     /// its minimap flares, an object in it (the scenario's Minimap-Flare calls flare_add on its address; a list of
     /// them at +0x10 .. +0x14, the newest +0x1C)
     [offset((ee)0x928, (aoc)0x918), found(c)]
@@ -370,6 +377,55 @@ unsafe struct EEPlayer
     /// drops a released one once more) - the scenario's Kill / Remove after EEUnit.destroy left the unit's list_node
     [address((ee)0x0055FD76, (aoc)0x0056F6AE)]
     extern void drop(EEUnit* u, char8 again);
+
+    /// thiscall(player, type, attr, front, no_pay): an improvement paid (pay_improvement, unless no_pay) and put in
+    /// improvement_queue - EEMImproveUnit's execute passes (0, 0), the load of a save (vf8) (0, 1) for what was queued
+    [address((ee)0x005544D8, (aoc)0x00562694)]
+    extern void queue_improvement(int32 type, int32 attr, char8 front, char8 no_pay);
+
+    /// may it buy the improvement now: game.improvements_allowed, the table offers the attribute, the level and the
+    /// points within max_level and ee_game_data.improvement_points with the queue counted, the price in stock; else
+    /// the reason into why (a UWideString*)
+    [address((ee)0x00555575, (aoc)0x0056384D)]
+    extern char8 can_buy_improvement(int32 type, int32 attr, void* why);
+
+    /// can_buy_improvement without the queue and the price: the queue's front, before its time starts
+    [address((ee)0x00555954, (aoc)0x00563C6D)]
+    extern char8 can_improve(int32 type, int32 attr, void* why);
+
+    /// the attribute's level with the queued ones (1: none bought), -1 when it has no stats for the type
+    [address((ee)0x00556B41, (aoc)0x00564ED7)]
+    extern int32 improvement_level(int32 type, int32 attr);
+
+    [address((ee)0x00556C16, (aoc)0x00564FAC)]
+    extern char8 improvement_maxed(int32 type, int32 attr);
+
+    /// thiscall(player, type, attr, lower): the level moved by one now (EEUnitClassUpgrade.change_level) and its live
+    /// units of the type rescaled (hit points, power or flight time, range or area)
+    [address((ee)0x0055C0E0, (aoc)0x0056B65A)]
+    extern void apply_improvement(int32 type, int32 attr, char8 lower);
+
+    /// one queued entry of the attribute erased and refunded (refund_improvement 1.0) - EEMRemoveImprovement's
+    [address((ee)0x005596D5, (aoc)0x0056870E)]
+    extern void remove_queued_improvement(int32 type, int32 attr, char8 not_current);
+
+    /// the improvement's price taken: for resources 2..6 the type's own price x the level (the queue counted) x the
+    /// table's price factor (take, vf46)
+    [slot(44), address((ee)0x0055BF4A, (aoc)0x0056B3F7)]
+    extern void pay_improvement(EEUnitClass* type, int32 attr);
+
+    /// the improvement's price given back x fraction
+    [slot(16), address((ee)0x0055473F, (aoc)0x00562915)]
+    extern void refund_improvement(EEUnitClass* type, int32 attr, float32 fraction);
+
+    /// EEPlayer's own update (vf37; EEComputerPlayer's update is the computer's): the improvement queue among the rest
+    [slot(37), address((ee)0x0055C802, (aoc)0x0056BE3F)]
+    extern void base_update();
+
+    /// the type's queue's front started (its time from dbworld.dat record 0x39 + attr: +0x10 the first buy, +0x14 a
+    /// later one; instant_build 1 ms); 1 when the type's list is empty (erased)
+    [slot(54), address((ee)0x0055A5CC, (aoc)0x0056964A)]
+    extern char8 start_next_improvement(int32 type);
 }
 
 /// the object at a player's +0xB98
@@ -391,6 +447,11 @@ unsafe struct EEComputerPlayer
     [slot(29), address((ee)0x004B129F, (aoc)0x004AC9F3)]
     [vtable_site("cp_is_human")]
     extern char8 computer_is_human();
+
+    /// the improvement's price added to its resource manager's demand (0x48C595, for resources 2..6), then
+    /// EEPlayer's (why the demand: not read)
+    [address((ee)0x0043F565, (aoc)0x0043EDC0), overrides(typeof(EEPlayer))]
+    extern void pay_improvement(EEUnitClass* type, int32 attr);
 
     /// units it picked to delete: update deletes each one (its vf +0x60 (1, 0, 0)); delete_for_room passes over them
     [offset((ee)0xB80, (aoc)0xBB4), found(c)]
@@ -773,10 +834,12 @@ unsafe struct EEComputerPlayer
 
     /// attributes it picks to improve per unit type before an attack (record 47 "Unit Attributes Selected for
     /// Improvements")
+    /// - the improvements' attributes (EEUnitClassUpgrade) EECPAttackGroup.buy_improvements picks per type
     [offset((ee)0xD80, (aoc)0xDB8), found(c)]
     int32 improve_attributes;
 
     /// unit types it picks to improve before an attack (record 46 "Unit Selected for Improvements")
+    /// - the unit types of the group EECPAttackGroup.buy_improvements improves
     [offset((ee)0xD84, (aoc)0xDBC), found(c)]
     int32 improve_units;
 

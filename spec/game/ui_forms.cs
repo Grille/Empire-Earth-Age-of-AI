@@ -110,9 +110,34 @@ unsafe struct EEUIBSavedGroup
     extern int32 mouse_r_button_up();
 }
 
+/// the UI's improvement action (EEAUpgradeImprovement, 0x18 bytes; EEUnitClassUpgrade), queued by
+/// EEUIBUpgrade.button_up: +0xC the unit (held), +0x10 the attribute, +0x14 raise, +0x15 in a game. Its execute sends
+/// EEMImproveUnit (raise 0: EEMRemoveImprovement); in the scenario editor it changes the level at once
+/// (EEPlayer.apply_improvement)
+[c_type("ee_improve_action"), size(0x18), vtable((ee)0x00833D44, (aoc)0x008390D4)]
+unsafe struct EEAUpgradeImprovement
+{
+    /// thiscall(action, unit, attr, raise, in_game): made and queued (EEUserInterface.queue_action)
+    [address((ee)0x00640B5D, (aoc)0x0040505B)]
+    extern void init(EEUnit* unit, int32 attr, char8 raise, char8 in_game);
+
+    [slot(1), address((ee)0x004058E7, (aoc)0x004050DC)]
+    extern void execute();
+}
+
 [@base(typeof(UIButton)), vtable((ee)0x00833CA4, (aoc)0x00849D54)]
 unsafe struct EEUIBUpgrade
 {
+    /// the improvement it buys (enum improvement; 16 the garrison button) - the unit panel's attribute buttons
+    /// (EEUIFMGAttribute); button_up makes EEAUpgradeImprovement(the selection's first unit, it, 1, in a game)
+    [offset(0x118), found(c)]
+    int32 attr;
+
+    /// vf37 thiscall(button, EEUnit** unit, UWideString* why): the selection's first unit, and may its owner buy the
+    /// improvement (game.improvements_allowed, EEPlayer.can_buy_improvement)
+    [address((ee)0x00640476, (aoc)0x00656B3C)]
+    extern char8 can_buy(EEUnit** unit, void* why);
+
     /// its constructor (8 arguments, not typed yet)
     [address((ee)0x006401BC, (aoc)0x00656845)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5, uint32 p6, uint32 p7, uint32 p8);

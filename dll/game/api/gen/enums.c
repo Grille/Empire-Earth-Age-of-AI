@@ -165,3 +165,11 @@ enum unit_class : int32_t {
     CLS_FORTRESS = 29, CLS_BUILDING_PRIEST = 30, CLS_SPACESHIP = 31, CLS_SPACE_BUILDING = 32, CLS_SPACE_TRANSPORT = 33,
     CLS_PLANET_SPACESHIP = 34
 };
+
+// an improvement's attribute (EEUnitClassUpgrade.levels, EEUIBUpgrade.attr, EEMImproveUnit.attr): the switch of
+// EEUnitClassImprovement.change_level and the names 0x626E74 (strings 30000+)
+enum improvement : int32_t {
+    IMP_AREA = 0, IMP_ATTACK = 1, IMP_ARMOR_ARROW = 2, IMP_ARMOR_GUN = 3, IMP_ARMOR_LASER = 4, IMP_ARMOR_MISSILE = 5,
+    IMP_ARMOR_PIERCE = 6, IMP_ARMOR_SHOCK = 7, IMP_FLIGHT_OR_POWER = 8, IMP_HP = 9, IMP_LEADERSHIP = 10, IMP_RANGE = 11,
+    IMP_REPAIR = 12, IMP_SPEED = 14, IMP_TRANSPORT = 15
+};

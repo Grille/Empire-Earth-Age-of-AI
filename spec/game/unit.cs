@@ -88,7 +88,7 @@ unsafe struct EEUnit
 
     /// its player's stats of the type (USTAT)
     [offset(0x34), found(c)]
-    ee_unit_stats* stats;
+    EEUnitClassUpgrade* stats;
 
     /// a resource site's resource
     [offset(0x38), found(c)]
@@ -1079,13 +1079,13 @@ static unsafe class unit_functions
     static extern void attack_retarget(EEUnit* u, EEUnitGoal* goal, EEUnit* target);
 
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
-    static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
+    static extern char8 ballistic_game(EEUnit* p1, EEUnitClassUpgrade* p2, float32* p3, float32* p4, float32* p5);
 
     /// cdecl(shooter, target, &blocker, ?, ?): the line of fire from the shooter to its target - 1 when an object
     /// stands on it, *blocker that object (the target itself when nothing else does). The AI's target choice
-    /// (EECPAttackSubGroupUnit::vf4 0x4620DF, AoC 0x463D50) asks it only for a unit that can't lob (unit_type
-    /// high_arc 0, ee_unit_stats lob 0) and drops the target when the blocker is another object: a warship 4 tiles off
-    /// a coast walled on its last land tile never attacked the houses behind it (tests/probes/wall_ships.eeai)
+    /// (EECPAttackSubGroupUnit::vf4 0x4620DF, AoC 0x463D50) asks it only for a unit that can't lob (unit_type high_arc
+    /// 0, EEUnitClassUpgrade lob 0) and drops the target when the blocker is another object: a warship 4 tiles off a
+    /// coast walled on its last land tile never attacked the houses behind it (tests/probes/wall_ships.eeai)
     [address((ee)0x00637F5A, (aoc)0x0064DF23), cdecl, guess]
     static extern char8 line_of_fire_game(EEUnit* shooter, EEUnit* target, EEUnit** blocker, uint32* p4, int32* p5);
 

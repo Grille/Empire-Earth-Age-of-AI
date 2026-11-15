@@ -164,6 +164,20 @@ typedef int (__thiscall *eeuib_saved_group_mouse_r_button_up_fn)(eeuib_saved_gro
 internal eeuib_saved_group_mouse_r_button_up_fn fn_eeuib_saved_group_mouse_r_button_up;
 internal inline int eeuib_saved_group_mouse_r_button_up(eeuib_saved_group *eeuib_saved_group) { return fn_eeuib_saved_group_mouse_r_button_up(eeuib_saved_group); }
 
+// class EEAUpgradeImprovement (ee_improve_action)
+// the UI's improvement action (EEAUpgradeImprovement, 0x18 bytes; EEUnitClassUpgrade), queued by
+// EEUIBUpgrade.button_up: +0xC the unit (held), +0x10 the attribute, +0x14 raise, +0x15 in a game. Its execute sends
+// EEMImproveUnit (raise 0: EEMRemoveImprovement); in the scenario editor it changes the level at once
+// (EEPlayer.apply_improvement)
+// thiscall(action, unit, attr, raise, in_game): made and queued (EEUserInterface.queue_action)
+typedef void (__thiscall *improve_action_init_fn)(ee_improve_action *, ee_unit *, int, char, char);
+internal improve_action_init_fn fn_improve_action_init;
+internal inline void improve_action_init(ee_improve_action *improve_action, ee_unit *unit, int attr, char raise, char in_game) { fn_improve_action_init(improve_action, unit, attr, raise, in_game); }
+typedef void (__thiscall *improve_action_execute_fn)(ee_improve_action *);
+internal inline void improve_action_execute(ee_improve_action *improve_action) { ((improve_action_execute_fn)(*(void ***)improve_action)[slot_improve_action_execute])(improve_action); }
+internal improve_action_execute_fn fn_eea_upgrade_improvement_execute;
+internal inline void eea_upgrade_improvement_execute(ee_improve_action *improve_action) { fn_eea_upgrade_improvement_execute(improve_action); }
+
 // class EEUIBUpgrade (eeuib_upgrade)
 // UIButton's, the base's
 // UIControl's, the base's
@@ -190,6 +204,16 @@ internal inline float *eeuib_upgrade_top_at(const eeuib_upgrade *o) { return (fl
 internal inline ee_ui_form *eeuib_upgrade_get_form(const eeuib_upgrade *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuib_upgrade_set_form(eeuib_upgrade *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuib_upgrade_form_at(const eeuib_upgrade *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the improvement it buys (enum improvement; 16 the garrison button) - the unit panel's attribute buttons
+// (EEUIFMGAttribute); button_up makes EEAUpgradeImprovement(the selection's first unit, it, 1, in a game)
+internal inline int eeuib_upgrade_get_attr(const eeuib_upgrade *o) { return *(int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
+internal inline void eeuib_upgrade_set_attr(eeuib_upgrade *o, int v) { *(int *)((uint8_t *)o + of_eeuib_upgrade_attr) = v; }
+internal inline int *eeuib_upgrade_attr_at(const eeuib_upgrade *o) { return (int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
+// vf37 thiscall(button, EEUnit** unit, UWideString* why): the selection's first unit, and may its owner buy the
+// improvement (game.improvements_allowed, EEPlayer.can_buy_improvement)
+typedef char (__thiscall *eeuib_upgrade_can_buy_fn)(eeuib_upgrade *, ee_unit **, void *);
+internal eeuib_upgrade_can_buy_fn fn_eeuib_upgrade_can_buy;
+internal inline char eeuib_upgrade_can_buy(eeuib_upgrade *eeuib_upgrade, ee_unit **unit, void *why) { return fn_eeuib_upgrade_can_buy(eeuib_upgrade, unit, why); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_upgrade_init_fn)(eeuib_upgrade *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuib_upgrade_init_fn fn_eeuib_upgrade_init;
@@ -985,6 +1009,11 @@ internal inline void eeuif_error_open(eeuif_error *eeuif_error) { fn_eeuif_error
 // class EEUIFMGAttribute (eeuifmg_attribute)
 // control type 1005 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // EEUIBUpgrade's, the base's
+// the improvement it buys (enum improvement; 16 the garrison button) - the unit panel's attribute buttons
+// (EEUIFMGAttribute); button_up makes EEAUpgradeImprovement(the selection's first unit, it, 1, in a game)
+internal inline int eeuifmg_attribute_get_attr(const eeuifmg_attribute *o) { return *(int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
+internal inline void eeuifmg_attribute_set_attr(eeuifmg_attribute *o, int v) { *(int *)((uint8_t *)o + of_eeuib_upgrade_attr) = v; }
+internal inline int *eeuifmg_attribute_attr_at(const eeuifmg_attribute *o) { return (int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
 // UIButton's, the base's
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
@@ -1123,6 +1152,11 @@ internal inline void eeuifmg_main_group_again(ee_main_group *main_group) { fn_ee
 // class EEUIFMGStatusBar (eeuifmg_status_bar)
 // control type 1004 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // EEUIBUpgrade's, the base's
+// the improvement it buys (enum improvement; 16 the garrison button) - the unit panel's attribute buttons
+// (EEUIFMGAttribute); button_up makes EEAUpgradeImprovement(the selection's first unit, it, 1, in a game)
+internal inline int eeuifmg_status_bar_get_attr(const eeuifmg_status_bar *o) { return *(int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
+internal inline void eeuifmg_status_bar_set_attr(eeuifmg_status_bar *o, int v) { *(int *)((uint8_t *)o + of_eeuib_upgrade_attr) = v; }
+internal inline int *eeuifmg_status_bar_attr_at(const eeuifmg_status_bar *o) { return (int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
 // UIButton's, the base's
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
@@ -1921,7 +1955,14 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuib_saved_group_mouse_l_button_up = (eeuib_saved_group_mouse_l_button_up_fn)0x0063F85E;
         fn_eeuib_saved_group_mouse_l_button_double_pressed = (eeuib_saved_group_mouse_l_button_double_pressed_fn)0x0063F7DD;
         fn_eeuib_saved_group_mouse_r_button_up = (eeuib_saved_group_mouse_r_button_up_fn)0x0063F945;
+        vt_eea_upgrade_improvement = 0x00833D44;
+        size_eea_upgrade_improvement = 0x18;
+        fn_improve_action_init = (improve_action_init_fn)0x00640B5D;
+        slot_improve_action_execute = 1;
+        fn_eea_upgrade_improvement_execute = (improve_action_execute_fn)0x004058E7;
         vt_eeuib_upgrade = 0x00833CA4;
+        of_eeuib_upgrade_attr = 0x118;
+        fn_eeuib_upgrade_can_buy = (eeuib_upgrade_can_buy_fn)0x00640476;
         fn_eeuib_upgrade_init = (eeuib_upgrade_init_fn)0x006401BC;
         fn_eeuib_upgrade_button_down = (eeuib_upgrade_button_down_fn)0x006402BA;
         fn_eeuib_upgrade_button_up = (eeuib_upgrade_button_up_fn)0x006402DC;
@@ -2270,7 +2311,14 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuib_saved_group_mouse_l_button_up = (eeuib_saved_group_mouse_l_button_up_fn)0x00655EE7;
         fn_eeuib_saved_group_mouse_l_button_double_pressed = (eeuib_saved_group_mouse_l_button_double_pressed_fn)0x00655E66;
         fn_eeuib_saved_group_mouse_r_button_up = (eeuib_saved_group_mouse_r_button_up_fn)0x00655FCE;
+        vt_eea_upgrade_improvement = 0x008390D4;
+        size_eea_upgrade_improvement = 0x18;
+        fn_improve_action_init = (improve_action_init_fn)0x0040505B;
+        slot_improve_action_execute = 1;
+        fn_eea_upgrade_improvement_execute = (improve_action_execute_fn)0x004050DC;
         vt_eeuib_upgrade = 0x00849D54;
+        of_eeuib_upgrade_attr = 0x118;
+        fn_eeuib_upgrade_can_buy = (eeuib_upgrade_can_buy_fn)0x00656B3C;
         fn_eeuib_upgrade_init = (eeuib_upgrade_init_fn)0x00656845;
         fn_eeuib_upgrade_button_down = (eeuib_upgrade_button_down_fn)0x00656980;
         fn_eeuib_upgrade_button_up = (eeuib_upgrade_button_up_fn)0x006569A2;
@@ -2631,7 +2679,12 @@ internal int spec_ui_forms_check(void) {
     bad += spec_slot(vt_eeuib_saved_group, slot_ui_control_mouse_l_button_double_pressed, (uintptr_t)fn_eeuib_saved_group_mouse_l_button_double_pressed, "EEUIBSavedGroup.mouse_l_button_double_pressed [slot]");
     bad += spec_code((uintptr_t)fn_eeuib_saved_group_mouse_r_button_up, "EEUIBSavedGroup.mouse_r_button_up");
     bad += spec_slot(vt_eeuib_saved_group, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_eeuib_saved_group_mouse_r_button_up, "EEUIBSavedGroup.mouse_r_button_up [slot]");
+    bad += spec_vtable(vt_eea_upgrade_improvement, ".?AVEEAUpgradeImprovement@@", "EEAUpgradeImprovement [vtable]");
+    bad += spec_code((uintptr_t)fn_improve_action_init, "EEAUpgradeImprovement.init");
+    bad += spec_code((uintptr_t)fn_eea_upgrade_improvement_execute, "EEAUpgradeImprovement.execute");
+    bad += spec_slot(vt_eea_upgrade_improvement, slot_improve_action_execute, (uintptr_t)fn_eea_upgrade_improvement_execute, "EEAUpgradeImprovement.execute [slot]");
     bad += spec_vtable(vt_eeuib_upgrade, ".?AVEEUIBUpgrade@@", "EEUIBUpgrade [vtable]");
+    bad += spec_code((uintptr_t)fn_eeuib_upgrade_can_buy, "EEUIBUpgrade.can_buy");
     bad += spec_code((uintptr_t)fn_eeuib_upgrade_init, "EEUIBUpgrade.init");
     bad += spec_code((uintptr_t)fn_eeuib_upgrade_button_down, "EEUIBUpgrade.button_down");
     bad += spec_slot(vt_eeuib_upgrade, slot_ui_button_button_down, (uintptr_t)fn_eeuib_upgrade_button_down, "EEUIBUpgrade.button_down [slot]");

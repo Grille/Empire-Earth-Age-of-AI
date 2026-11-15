@@ -12,6 +12,14 @@ unsafe struct EECPAttackGroup
     /// the player it attacks
     [offset(0x48), found(b)]
     EEPlayer* target;
+
+    /// the game's computer player's only improvements (EEUnitClassUpgrade): thiscall(group, its units) - improve_units
+    /// of the group's unit types at random, of each improve_attributes of the attributes it may buy at random, paid
+    /// (pay_improvement) and applied at once (apply_improvement: no queue, no research time); the k-th attribute is
+    /// tried k + 1 times. Its caller (0x456077, AoC 0x457391; from new_group and 0x450F36) calls it when
+    /// game.improvements_allowed, the combat manager's att_62 and a difficulty above easy
+    [address((ee)0x0045720D, (aoc)0x00458B2E)]
+    extern void buy_improvements(void* units);
 }
 
 /// the AI's combat manager, player +0xB8C (EECPCombatManager)

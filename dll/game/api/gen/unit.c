@@ -1029,9 +1029,9 @@ internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, f
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // cdecl(shooter, target, &blocker, ?, ?): the line of fire from the shooter to its target - 1 when an object
 // stands on it, *blocker that object (the target itself when nothing else does). The AI's target choice
-// (EECPAttackSubGroupUnit::vf4 0x4620DF, AoC 0x463D50) asks it only for a unit that can't lob (unit_type
-// high_arc 0, ee_unit_stats lob 0) and drops the target when the blocker is another object: a warship 4 tiles off
-// a coast walled on its last land tile never attacked the houses behind it (tests/probes/wall_ships.eeai)
+// (EECPAttackSubGroupUnit::vf4 0x4620DF, AoC 0x463D50) asks it only for a unit that can't lob (unit_type high_arc
+// 0, EEUnitClassUpgrade lob 0) and drops the target when the blocker is another object: a warship 4 tiles off a
+// coast walled on its last land tile never attacked the houses behind it (tests/probes/wall_ships.eeai)
 typedef char (__cdecl *line_of_fire_game_fn)(ee_unit *, ee_unit *, ee_unit **, uint32_t *, int *);
 internal line_of_fire_game_fn fn_line_of_fire_game;
 internal inline char line_of_fire_game(ee_unit *shooter, ee_unit *target, ee_unit **blocker, uint32_t *p4, int *p5) { return fn_line_of_fire_game(shooter, target, blocker, p4, p5); }
