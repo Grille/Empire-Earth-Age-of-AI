@@ -22,24 +22,41 @@
 //   WHO    - every WK_EVERY: an idle citizen (no goal, or a gather goal whose site is gone or empty) to the resource
 //            furthest under its share, at the nearest site that fits on its land (resource_mgr_assign, the game's
 //            executor); then up to WK_MOVES citizens from a resource 2 or more over its share to one 2 or more under.
+//   ITS TERRITORY - every citizen belongs to a territory (the player 2026-11-15, after a far drop site had drawn 250 of
+//            an AI's citizens into an enemy's towers: "citezens shouldnt be able to be pulled in like that in the first
+//            place, every one should be locked to its asigned territory, and moving to another territory is an
+//            deliberate ai decison. not an unfinished settlement that pulls the whole population into death"): the
+//            one it stands in when it is first seen. It is sent to sites of that territory only. A CHANGE of
+//            territory is a step of its own: a citizen that finds no site of the resource it is wanted on at home
+//            may be given the nearest territory by the territory graph - over territories its citizens may work
+//            in only (wk_cost: one it holds or one beside it, quiet, no enemy building) - that has one, WK_XFER
+//            citizens a look at most; the rest stays where it is, on another resource or idle. A territory that
+//            may no longer be worked gives its citizens to the nearest it holds (a retreat, not counted).
 // Food: its finished fields first, a farmer each (build.c lays them), then the bushes, then animals. What is built
 // is build.c's. Nothing of the old economy's tuning is here (econ_targets, the food plan, the mine slots): those vet
 // the game's numbers and are silent with it - what proves itself here is brought over piece by piece.
 #define WK_EVERY 3000
 #define WK_MOVES 2
+#define WK_XFER 2     // citizens given another territory a look
+#define WK_XFER_T 12  // territories looked at for one
+#define WK_T 4096     // territories at most
 #define WK_CITS 768
 #define WK_MINES 512
 #define WK_BUSHES 512
 internal const float WK_SHARE[7] = { 0, 0, 0.36f, 0.30f, 0.06f, 0.14f, 0.14f };   // food, wood, stone, gold, iron
 #define WK_PATCH 6   // citizens at a food patch (a bush)
 #define WK_PATCH_BANK 600
-struct wk_cit { ee_unit *u; ee_unit *site; uint8_t res; };   // res 0: idle
+struct wk_cit { ee_unit *u; ee_unit *site; uint8_t res; short home, hk; };   // res 0: idle; home: its territory, hk: its entry in wk_st.home
+struct wk_home { ee_unit *u; int id; short ter; };
 struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost, cap; };   // n: its citizens there or on their way; cost: its territory's (wk_cost); cap: the food sites' places (a bush 3, a field 1)
 internal struct wk_st {
     uint32_t t, log_t;
     int have[7], want[7], places[7], idle, busy, n, food_short, by_need;   // food_short: citizens wanted on food that found no site at the last look
     unsigned assigned, moved, pulled, none[7];   // none: no site found for a citizen wanted on that resource; pulled: looks a citizen's site lay under an enemy tower
+    unsigned xfers, retreats;   // ITS TERRITORY: citizens given another territory for a site, given one it holds because theirs may not be worked
+    int nh; struct wk_home home[WK_CITS];
 } g_wk[16];
+internal struct { struct wk_site mine[WK_MINES], bush[WK_BUSHES]; int nm, nb; unsigned cap; } g_wks;   // a look's sites
 // the enemy defences it has explored (buildings stay known once seen), every 5 s; wk_danger: a tile in the reach of one
 #define WK_DEFS 384
 internal struct { uint32_t t; int n; short x[WK_DEFS], y[WK_DEFS]; float r[WK_DEFS]; } g_wkd[16];
@@ -213,7 +230,7 @@ internal ee_unit *wk_tile_site(ee_map *map, int size, int x, int y, int res) {
 }
 // the nearest tree for a citizen at p: ring by ring out to `reach` tiles, by distance x its territory's cost (a ring
 // further out cannot beat what is found once its bare distance is past that)
-internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach) {
+internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach, int ter) {
     ee_map *map = game_map();
     int size = map ? (int)map_get_size(map) : 0;
     ee_unit *best = NULL;
@@ -225,6 +242,7 @@ internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach) {
                 int x = p.x + (side == 0 ? k : side == 2 ? k : side == 1 ? -d : d), y = p.y + (side == 0 ? -d : side == 2 ? d : k);
                 ee_unit *u = wk_tile_site(map, size, x, y, 3);
                 if (!u) continue;
+                if (ter >= 0 && (int)ter_near(x, y) != ter) continue;   // ITS TERRITORY
                 int c = wk_cost(s, ter_near(x, y));
                 if (!c || !explored_by(u, pl) || wk_danger((unsigned)player_get_index(pl) & 15, iv2(x, y))) continue;   // not under an enemy tower it has seen
                 float dd = (float)((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y)) * (float)(c * c);
@@ -232,9 +250,62 @@ internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach) {
             }
     return best;
 }
+// a site of resource r in territory ter for the citizen cu at p (land: its land): the nearest mine with a place, a
+// field or bush with one, a tree, an animal; *mk, *bk: the mine's, the bush's entry
+internal ee_unit *wk_find(ee_player *pl, ee_resource_mgr *rm, struct tv_st *s, ee_unit *cu, ivec2 p, unsigned land, int r, int ter, int home, int *mk, int *bk) {
+    *mk = *bk = -1;
+    float bd = 0;
+    if (r >= 4) {
+        for (int k = 0; k < g_wks.nm; k++) {
+            struct wk_site *m = &g_wks.mine[k];
+            if (m->res != r || m->terr != ter || m->n >= g_wks.cap || site_gatherers(m->u) >= g_wks.cap) continue;
+            ivec2 q = unit_get_tile(m->u);
+            if (land && area_id(q, 2) && area_id(q, 2) != land) continue;
+            float d = (float)ivec2_dist2(p, q);
+            if (*mk < 0 || d < bd) { *mk = k; bd = d; }
+        }
+        return *mk >= 0 ? g_wks.mine[*mk].u : NULL;
+    }
+    if (r == 3) return ter == home ? wk_tree(pl, s, p, 60, ter) : wk_tree(pl, s, g_ter.t[ter].c, 40, ter);
+    for (int k = 0; k < g_wks.nb; k++) {   // a field (a farmer; cost 0: before any bush), a bush (WK_PATCH of its citizens at most)
+        struct wk_site *b = &g_wks.bush[k];
+        if (b->terr != ter || b->n >= b->cap || (b->cap > 1 && unit_get_amount(b->u) <= 0)) continue;
+        ivec2 q = unit_get_tile(b->u);
+        if (land && area_id(q, 2) && area_id(q, 2) != land) continue;
+        float d = (float)ivec2_dist2(p, q) * (float)(b->cost * b->cost);
+        if (*bk < 0 || d < bd) { *bk = k; bd = d; }
+    }
+    if (*bk >= 0) return g_wks.bush[*bk].u;
+    // food.c: an animal to hunt, by its own rules - in the territory asked for (from the Stone Age the hunt is most of
+    // the food: with the animals of its own territory only an AI had 43 citizens for 70 at minute 30)
+    ee_unit *a = food_animal(pl, rm, cu);
+    if (a) { ivec2 q = unit_get_tile(a); if ((int)ter_near(q.x, q.y) != ter || !wk_cost(s, (unsigned)ter)) a = NULL; }
+    return a;
+}
+// the territories a citizen of territory home may be given, nearest first by the graph, over land its citizens may work in
+internal int wk_reach(struct tv_st *s, int home, short *out, int max) {
+    static uint8_t seen[WK_T];
+    int n = 0, head = 0, tn = s->n < WK_T ? s->n : WK_T;
+    if (home < 0 || home >= tn) return 0;
+    memset(seen, 0, (size_t)tn);
+    static short queue[WK_T];
+    int qn = 0;
+    queue[qn++] = (short)home; seen[home] = 1;
+    while (head < qn && n < max) {
+        int r = queue[head++];
+        if (r != home) out[n++] = (short)r;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            if (o >= (unsigned)tn || seen[o] || g_ter.t[o].water || !wk_cost(s, o)) continue;
+            seen[o] = 1; queue[qn++] = (short)o;
+        }
+    }
+    return n;
+}
 internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static struct wk_cit cit[WK_CITS];
-    static struct wk_site mine[WK_MINES], bush[WK_BUSHES];
+    struct wk_site *mine = g_wks.mine, *bush = g_wks.bush;
+    static struct wk_home nhome[WK_CITS];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct wk_st *w = &g_wk[idx];
     struct tv_st *s = &g_tv[idx];
@@ -251,6 +322,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     w->idle = w->busy = 0;
     unsigned cap = table_value(0x16);
     if (cap < 1 || cap > 32) cap = 6;
+    g_wks.cap = cap;
     for (int k = 0; k < g_ter.nsite; k++) {   // what the worked territories offer: the mines and the bushes of the map's sites
         int r = g_ter.site[k].res, x = g_ter.site[k].x, y = g_ter.site[k].y;
         if (r != 2 && (r < 4 || r > 6)) continue;
@@ -276,10 +348,28 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             bush[nb].u = f; bush[nb].terr = (uint16_t)tr; bush[nb].res = 2; bush[nb].n = 0; bush[nb].cost = 0; bush[nb++].cap = 1;   // cost 0: a field before any bush
         }
     }
-    int count = 0;
+    int count = 0, nhn = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // its citizens: what each does
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
+        // ITS TERRITORY: the one it had, else where it stands; one that may not be worked: the nearest it holds
+        int home = -1, hk = -1;
+        if (nhn < WK_CITS) {
+            int o = nhn < w->nh && w->home[nhn].u == u ? nhn : -1;
+            for (int j = 0; o < 0 && j < w->nh; j++) if (w->home[j].u == u) o = j;
+            ivec2 hp = unit_get_tile(u);
+            home = o >= 0 && w->home[o].id == (int)unit_get_serial(u) ? w->home[o].ter : (int)ter_near(hp.x, hp.y);
+            if (home < 0 || home >= s->n || !wk_cost(s, (unsigned)home)) {
+                int b = -1, bd = 0;
+                for (int r = 0; r < s->n; r++) {
+                    if (g_ter.t[r].water || s->t[r].role == TVR_NONE || !wk_cost(s, (unsigned)r)) continue;
+                    int d = ivec2_dist2(g_ter.t[r].c, hp);
+                    if (b < 0 || d < bd) { b = r; bd = d; }
+                }
+                if (b >= 0) { if (o >= 0) w->retreats++; home = b; }
+            }
+            hk = nhn; nhome[nhn].u = u; nhome[nhn].id = (int)unit_get_serial(u); nhome[nhn++].ter = (short)home;
+        }
         if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u)) { w->busy++; continue; }   // held for a landing or an outpost, building
         ee_goal *g = unit_get_goal(u);
         int gather = g && !strcmp(rtti_name(g), "EEUGGather@@");
@@ -290,11 +380,13 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (r < 2 || r > 6) { r = 0; site = NULL; }
         if (site && wk_danger(idx, unit_get_tile(site))) { r = 0; site = NULL; w->pulled++; }   // its site under an enemy tower it has seen: to another
         if (nc >= WK_CITS) { w->busy++; continue; }
-        cit[nc].u = u; cit[nc].site = site; cit[nc++].res = (uint8_t)r;
+        cit[nc].u = u; cit[nc].site = site; cit[nc].home = (short)home; cit[nc].hk = (short)hk; cit[nc++].res = (uint8_t)r;
         if (r) w->have[r]++; else w->idle++;
         for (int k = 0; r >= 4 && k < nm; k++) if (mine[k].u == site) { if (mine[k].n < 255) mine[k].n++; break; }
         for (int k = 0; r == 2 && k < nb; k++) if (bush[k].u == site) { if (bush[k].n < 255) bush[k].n++; break; }
     }
+    memcpy(w->home, nhome, (size_t)nhn * sizeof *nhome); w->nh = nhn;
+    g_wks.nm = nm; g_wks.nb = nb;
     w->n = nc;
     w->food_short = 0;
     if (!nc) return;
@@ -335,7 +427,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             w->want[r] -= take; w->want[2] += take;
         }
     }
-    int moves = 0;
+    int moves = 0, xfers = 0;
     for (int pass = 0; pass < 2; pass++)   // the idle ones first, then those of a resource over its share
         for (int i = 0; i < nc; i++) {
             struct wk_cit *c = &cit[i];
@@ -348,32 +440,20 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 for (int q = 2; q < 7; q++) if (!tried[q] && q != c->res && w->want[q] - w->have[q] > most) { most = w->want[q] - w->have[q]; r = q; }
                 if (!r) break;
                 tried[r] = 1;
-                ee_unit *site = NULL;
-                int mk = -1;
-                if (r >= 4) {
-                    float bd = 0;
-                    for (int k = 0; k < nm; k++) {
-                        if (mine[k].res != r || mine[k].n >= cap || site_gatherers(mine[k].u) >= cap) continue;
-                        ivec2 q = unit_get_tile(mine[k].u);
-                        if (land && area_id(q, 2) && area_id(q, 2) != land) continue;
-                        float d = (float)ivec2_dist2(p, q) * (float)(mine[k].cost * mine[k].cost);
-                        if (mk < 0 || d < bd) { mk = k; bd = d; }
+                // ITS TERRITORY: a site at home; none there: another territory, while the look has changes left
+                int mk = -1, bk = -1, home = c->home;
+                ee_unit *site = home >= 0 && home < s->n ? wk_find(pl, rm, s, c->u, p, land, r, home, home, &mk, &bk) : NULL;
+                if (!site && xfers < WK_XFER && home >= 0 && home < s->n) {
+                    short to[WK_XFER_T];
+                    int tn = wk_reach(s, home, to, WK_XFER_T);
+                    for (int k = 0; k < tn && !site; k++) {
+                        site = wk_find(pl, rm, s, c->u, p, land, r, to[k], home, &mk, &bk);
+                        if (!site) continue;
+                        c->home = to[k]; xfers++; w->xfers++;
+                        if (c->hk >= 0) w->home[c->hk].ter = to[k];
                     }
-                    if (mk >= 0) site = mine[mk].u;
-                } else if (r == 3) site = wk_tree(pl, s, p, 60);
-                else {
-                    float bd = 0;
-                    int bk = -1;
-                    for (int k = 0; k < nb; k++) {   // a field (a farmer), a bush (WK_PATCH of its citizens at most)
-                        if (bush[k].n >= bush[k].cap || (bush[k].cap > 1 && unit_get_amount(bush[k].u) <= 0)) continue;
-                        ivec2 q = unit_get_tile(bush[k].u);
-                        if (land && area_id(q, 2) && area_id(q, 2) != land) continue;
-                        float d = (float)ivec2_dist2(p, q) * (float)(bush[k].cost * bush[k].cost);
-                        if (bk < 0 || d < bd) { bk = k; bd = d; }
-                    }
-                    if (bk >= 0) { site = bush[bk].u; bush[bk].n++; }
-                    else site = food_animal(pl, rm, c->u);   // food.c: an animal to hunt, by its own rules
                 }
+                if (site && bk >= 0) bush[bk].n++;
                 if (!site) { w->none[r]++; w->food_short += r == 2; continue; }
                 resource_mgr_assign(rm, c->u, site);
                 if (c->res) { w->have[c->res]--; w->moved++; moves++; } else { w->idle--; w->assigned++; }
@@ -388,9 +468,9 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int worked = 0;
         for (int r = 0; r < s->n; r++) worked += !g_ter.t[r].water && s->t[r].bld >= 1 && s->t[r].state != TV_UNSAFE;
         log_locked("# work: P%u at %.1f min: %d citizens free for work (%d idle, %d more building or held), shares %s | at food %d wood %d stone %d gold %d iron %d | wanted %d %d %d %d %d | "
-                   "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, no site for food %u wood %u stone %u gold %u iron %u\n",
+                   "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, %u given another territory, %u back from one not to be worked, no site for food %u wood %u stone %u gold %u iron %u\n",
                    idx, now / 60000.0, nc, w->idle, w->busy, w->by_need ? "by need" : "by the plain rule", w->have[2], w->have[3], w->have[4], w->have[5], w->have[6], w->want[2], w->want[3], w->want[4], w->want[5], w->want[6],
-                   nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6]);
+                   nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->xfers, w->retreats, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6]);
     }
 }
 // the citizens it found without work at its last look, -1 while it does not run (the game's computer player on)
