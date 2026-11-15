@@ -43,6 +43,7 @@
 #define BD_SENDS 4
 #define BD_GRANARIES 96   // no limit of its own (8 fed 64 farmers: the player's game of 2026-11-15, 55 citizens on food, 215 on wood with no field to go to, 25 food in the bank): one more whenever citizens wanted on food find no site
 #define BD_DROP 8
+#define BD_DROP_METAL 3   // a gold or iron mine's: the Settlement's middle this near (its half, a tile's gap, the mine)
 #define BD_DSITES 2048
 #define BD_GUARD 7
 #define BD_CLAIM_EVERY 120000   // between two claims
@@ -254,7 +255,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     b->mines = b->mines_drop = b->mines_guard = 0;
     {   // A MINE'S SETTLEMENT, A MINE'S TOWER: the cheapest territory's first, then the nearest to the base
         ivec2 base = build_mgr_get_base(bm), sp = iv2(0, 0), tp = iv2(0, 0);
-        int sbest = 0x7FFFFFFF, tbest = 0x7FFFFFFF, ttype = tower_newest(pl);
+        int sbest = 0x7FFFFFFF, tbest = 0x7FFFFFFF, ttype = tower_newest(pl), smetal = 0;
         drops_cached(pl);
         for (int k = 0; k < g_ter.nsite; k++) {
             int r = g_ter.site[k].res;
@@ -267,15 +268,19 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             // its own count, not sites.c's cache of 64 drop sites (granaries among them): past 64 a Settlement just laid
             // was never seen and the mine got the next one - twenty round one mine, 303 laid (the player's game of 2026-11-15)
             int guard = 0, score = c * 1000000 + ivec2_dist2(p, base), has_drop = 0;
-            for (int j = 0; j < nds && !has_drop; j++) has_drop = ivec2_dist2(dsite[j], p) <= BD_DROP * BD_DROP;
+            // gold and iron: a Settlement right beside the mine, a tile's gap at most (the player 2026-11-15: "a settlemnt a
+            // fe wtiles close isnt good enough for iron and gold, they deserve a settlent directly beside them with
+            // maximal one tile gap") - one a few tiles off no longer counts as theirs; stone as before
+            int dr = r >= 5 ? BD_DROP_METAL : BD_DROP;
+            for (int j = 0; j < nds && !has_drop; j++) has_drop = ivec2_dist2(dsite[j], p) <= dr * dr + (r >= 5 ? 1 : 0);
             for (int j = 0; j < ndef && !guard; j++) guard = abs(def[j].x - p.x) <= BD_GUARD && abs(def[j].y - p.y) <= BD_GUARD;
             b->mines_drop += has_drop; b->mines_guard += guard;
             if (raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // not a mine under an enemy tower it has seen
-            if (!has_drop) { if (score < sbest) { sbest = score; sp = p; } }
+            if (!has_drop) { if (score < sbest) { sbest = score; sp = p; smetal = r >= 5; } }
             else if (!guard && score < tbest) { tbest = score; tp = p; }
         }
         if (!type && !placed && sbest < 0x7FFFFFFF && !open_settle && !wait[1] && ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
-            if (bd_spot(pl, idx, UT(B_SETTLEMENT), sp, 2, 6, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by a mine"; } else b->no_spot++;
+            if (bd_spot(pl, idx, UT(B_SETTLEMENT), sp, 2, smetal ? BD_DROP_METAL : 6, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by a mine"; } else b->no_spot++;
         }
         if (!type && !placed && tbest < 0x7FFFFFFF && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com)) {
             if (bd_spot(pl, idx, ttype, tp, 2, 5, &at)) { type = ttype; what = "a tower by a mine"; } else b->no_spot++;

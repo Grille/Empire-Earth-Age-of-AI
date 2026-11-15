@@ -93,7 +93,19 @@ internal int gu_gain(ee_unit *h) {
         if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;
         vec3 sp = unit_get_pos(s);
         float dx = sp.x - hp.x, dy = sp.y - hp.y;
-        if (dx * dx + dy * dy > GU_REACH2) continue;
+        float d2 = dx * dx + dy * dy;
+        if (d2 > GU_REACH2) continue;
+        // the mine's own holder only: the nearest of its Settlements, Town Centers and Capitols to it - that is where its
+        // gatherers drop (the player 2026-11-15: "by near enough it picked the settlment behind the woodline here")
+        int nearer = 0;
+        ivec2 st = unit_get_tile(s);
+        for (struct grid_it o = grid_it_box(st.x, st.y, GU_MINES_R + 1, 1); !nearer && grid_it_next(&o); ) {
+            if (o.u == h || !gu_town(o.td) || unit_get_owner(o.u) != unit_get_owner(h) || unit_get_hp(o.u) <= 0) continue;
+            vec3 op = unit_get_pos(o.u);
+            float ox = sp.x - op.x, oy = sp.y - op.y;
+            nearer = ox * ox + oy * oy < d2;
+        }
+        if (nearer) continue;
         w += 1 + (int)site_gatherers(s) * (r == 4 ? 2 : 4);
     }
     return w * (in < 5 ? 50 : in < 15 ? 25 : 15);
