@@ -991,6 +991,17 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) { 
     int x = unit_get_x(site), y = unit_get_y(site);
     // the searches refuse a raided site too (else: sent back, sent again) - not one the town holds
     unsigned pi = (unsigned)player_get_index(pl) & 15;
+    // GOLD AND IRON STAY (the player 2026-11-15: "it scares citezens away from work way to agresevly, for farms and wood
+    // thats fine, go somwhere saver, but gold and iron are abandoned way to quickly"; 2026-10: citizens away from the
+    // front, "risk only for gold/iron"): a gold or iron mine is left only when its citizens are being hit there - 3
+    // hits within 6 tiles in the last 2 minutes (hurt_danger) - and its soldiers and towers there do not win. Not
+    // for enemy soldiers seen or remembered near it, not for the danger map on the way, not for a territory that
+    // counts as being lost while nobody is hit there.
+    if (res >= 5) {
+        int h = hurt_danger(pl, x, y, res) && !raid_held(pl, iv2(x, y));
+        g_site_why[pi][1] += (unsigned)h;
+        return h;
+    }
     int raided = raiders_near(pl, iv2(x, y), 6), hurt = !raided && hurt_danger(pl, x, y, res);
     if ((raided || hurt) && !raid_held(pl, iv2(x, y))) { g_site_why[pi][raided ? 0 : 1]++; return 1; }
     ivec2 d = iv2(-10000, 0);
@@ -1164,7 +1175,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                 }
                 continue;
             }
-            if (unit_get_x(u) >= 0 && tv_unsafe(idx, unit_get_x(u), unit_get_y(u))) {   // its territory is being lost (territories.c)
+            if (unit_get_x(u) >= 0 && tv_unsafe(idx, unit_get_x(u), unit_get_y(u)) && !(r >= 5 && hurt_near(idx, unit_get_x(u), unit_get_y(u)) < 1)) {   // its territory is being lost (territories.c); GOLD AND IRON STAY while nobody is hit there
                 ivec2 at = unit_get_tile(u), rf;
                 int in = g_bunkers ? bk_shelter_in(pl, u, 1, TV_REACH) : 0;   // into a fortress on its land
                 if (in) { sheltered++; if (in > 1) tv_count(idx, 0); continue; }
@@ -1182,7 +1193,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             ee_unit *site = build ? goal_get_building(goal) : goal_get_site(goal);
             ivec2 d;
             if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
-            int raided = raiders_known(pl, unit_get_tile(site), build ? 8 : 6);
+            int raided = !(!build && r >= 5) && raiders_known(pl, unit_get_tile(site), build ? 8 : 6);   // GOLD AND IRON STAY: its miners go for hits only (below)
             if (raided && raid_held(pl, unit_get_tile(site))) { held++; continue; }   // its soldiers and towers there win
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
