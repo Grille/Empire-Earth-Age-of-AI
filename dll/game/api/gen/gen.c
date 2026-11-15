@@ -259,6 +259,7 @@ typedef struct ee_load_msg ee_load_msg;
 typedef struct ee_attack_msg ee_attack_msg;
 typedef struct ee_gather_msg ee_gather_msg;
 typedef struct ee_repair_msg ee_repair_msg;
+typedef struct ee_rebase_msg ee_rebase_msg;
 typedef struct ee_select_unit_msg ee_select_unit_msg;
 typedef struct ee_path_msg ee_path_msg;
 typedef struct ee_start_msg ee_start_msg;

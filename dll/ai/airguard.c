@@ -45,6 +45,113 @@ internal void ag_types(void) {
     }
 }
 internal int ag_fighter(int t) { for (int k = 0; k < g_ag_nt; k++) if (g_ag_types[k] == t) return 1; return 0; }
+// THE AIR BASES - its aircraft move to the Airport nearest the fighting (the player 2026-11-15: "next the airplane base
+// relocation"; 2026-10, on the wing: "airfields forward to reach deeper into enemy territory, the home airfields
+// become empty backup ... the ai's airplanes are all stuck at home since the ai never extends their reach").
+// How a player does it: aircraft in the air selected, a right-click on another Airport - the game's EEMReturnToBase
+// (game/api/messages.c rebase_msg_make): each of the selection in the air gets that Airport as its home and turns
+// for it. One standing in its Airport is not touched: it has to fly first.
+// Every AB_EVERY, with a place where its force meets the enemy next (stations.c sn_need_at): the forward Airport is
+// its finished one nearest that place, in no territory being lost and with no enemy soldiers near. An aircraft based
+// (last seen inside) at an Airport AB_GAIN tiles further from the place than the forward one moves, AB_CAP based at
+// the forward one at most:
+//   in the air (a sortie of the wing's or the guard's)  - rebased as it flies, its orders kept: it lands forward;
+//   on the ground, no order                            - sent to fly to the forward Airport (AB_LAUNCH a look), and
+//                                                        rebased at the next look, when it is in the air.
+// "# air bases:" at every move and once a game minute (tests).
+#define AB_EVERY 10000
+#define AB_GAIN 15
+#define AB_CAP 12
+#define AB_LAUNCH 2
+#define AB_PLANES 256
+#define AB_PORTS 64
+internal struct ab_st {
+    uint32_t t, log_t;
+    struct { int id, home; uint32_t launch_t; } p[AB_PLANES]; int n;   // its aircraft: the Airport each was last seen in (its serial, 0 none), sent to fly when
+    unsigned rebased, launched;
+} g_ab[16];
+internal void airbase_tick(ee_player *pl, unsigned idx, uint32_t now) {
+    static ee_unit *ap[AB_PORTS], *air[AB_PLANES];
+    static int based[AB_PORTS];
+    static __attribute__((aligned(8))) uint8_t mem[0x40];
+    struct ab_st *a = &g_ab[idx];
+    if (now < a->t) memset(a, 0, sizeof *a);
+    if (a->t && now - a->t < AB_EVERY) return;
+    a->t = now ? now : 1;
+    ivec2 at;
+    if (!sn_need_at(idx, &at)) return;
+    int nap = 0, nair = 0, count = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0) continue;
+        int t = unit_type_get_id(td);
+        ee_unit *st = unit_get_physics(u);
+        if (t == UT(B_AIRPORT)) { if (unit_get_x(u) >= 0 && st && unit_get_finished(st) && nap < AB_PORTS) ap[nap++] = u; }
+        else if (unit_type_get_class_id(td) == CLS_AIRPLANE && unit_type_get_refuel_at(td) == 1 && nair < AB_PLANES) air[nair++] = u;
+    }
+    if (nap < 2 || !nair) return;
+    int fwd = -1, fd = 0;
+    for (int k = 0; k < nap; k++) {
+        ivec2 p = unit_get_tile(ap[k]);
+        int d = ivec2_dist2(p, at);
+        if (tv_unsafe(idx, p.x, p.y) || raiders_near(pl, p, 10)) continue;
+        if (fwd < 0 || d < fd) { fwd = k; fd = d; }
+    }
+    if (fwd < 0) return;
+    // its aircraft: where each is based
+    static struct { int id, home; uint32_t launch_t; } np[AB_PLANES];
+    memset(based, 0, sizeof based);
+    for (int i = 0; i < nair; i++) {
+        ee_unit *u = air[i];
+        int id = unit_get_id(u), k = 0, home = 0;
+        uint32_t lt = 0;
+        while (k < a->n && a->p[k].id != id) k++;
+        if (k < a->n) { home = a->p[k].home; lt = a->p[k].launch_t; }
+        // its home: the unit's own field (+0x1D4, what EEMReturnToBase sets), else the Airport it is inside or stands on
+        // with no flight time left (the first run read the holder alone: 0 of 12 aircraft based anywhere)
+        void *h = unit_get_air_traffic(u), *h2 = unit_get_x(u) < 0 ? unit_get_holder(u) : NULL;
+        int seen = 0;
+        for (int j = 0; j < nap && !seen; j++)
+            if ((h && (h == (void *)ap[j] || h == (void *)unit_get_physics(ap[j]))) || (h2 && (h2 == (void *)ap[j] || h2 == (void *)unit_get_physics(ap[j])))) { home = unit_get_serial(ap[j]); seen = 1; }
+        for (int j = 0; j < nap && !seen; j++)
+            if (unit_get_x(u) >= 0 && unit_get_flight_ms(u) <= 0 && ivec2_dist2(unit_get_tile(u), unit_get_tile(ap[j])) <= 8 * 8) { home = unit_get_serial(ap[j]); seen = 1; }
+        np[i].id = id; np[i].home = home; np[i].launch_t = lt;
+        for (int j = 0; j < nap; j++) if (home && home == unit_get_serial(ap[j])) based[j]++;
+    }
+    int fser = unit_get_serial(ap[fwd]), launched = 0, moved = 0;
+    float fr = sqrtf((float)fd) + (float)AB_GAIN;
+    ivec2 fp = unit_get_tile(ap[fwd]);
+    for (int i = 0; i < nair && based[fwd] < AB_CAP; i++) {
+        ee_unit *u = air[i];
+        if (np[i].home == fser) continue;
+        int hk = -1;
+        for (int j = 0; j < nap; j++) if (np[i].home && np[i].home == unit_get_serial(ap[j])) hk = j;
+        if (hk >= 0 && sqrtf((float)ivec2_dist2(unit_get_tile(ap[hk]), at)) < fr) continue;   // its Airport is about as near
+        int ours = np[i].launch_t && now >= np[i].launch_t && now - np[i].launch_t < 120000;
+        if (unit_get_x(u) >= 0 && unit_get_flight_ms(u) > 0) {   // in the air: rebased
+            if (hk < 0 && !ours) continue;   // never seen in an Airport of its: a new one on its way out, a carrier's
+            uint32_t id1 = (uint32_t)unit_get_serial(u), *sel[3] = { NULL, &id1, &id1 + 1 };
+            player_select(pl, sel);
+            memset(mem, 0, sizeof mem);
+            rebase_msg_make((ee_rebase_msg *)mem, msg_as_begin(pl), (unsigned)fser);
+            rebase_msg_set_keep((ee_rebase_msg *)mem, (uint8_t)(ours ? 0 : 1));   // a sortie flies on and lands forward; one sent up for the move turns for it at once
+            msg_execute((ee_msg *)mem);
+            msg_as_end(pl);
+            if (hk >= 0) based[hk]--;
+            np[i].home = fser; np[i].launch_t = 0; based[fwd]++;
+            a->rebased++; moved++;
+        } else if (unit_get_flight_ms(u) <= 0 && hk >= 0 && !ours && !unit_get_goal(u) && launched < AB_LAUNCH && as_order(u, goal_move((float)fp.x + 0.5f, (float)fp.y + 0.5f))) {
+            np[i].launch_t = now ? now : 1;
+            a->launched++; launched++;
+        }
+    }
+    memcpy(a->p, np, (size_t)nair * sizeof *np); a->n = nair;
+    if (g_log && (moved || launched || (g_autotest && (!a->log_t || now - a->log_t >= 60000)))) {
+        a->log_t = now ? now : 1;
+        log_locked("# air bases: P%u at %.1f min: the forward Airport at %d,%d (%d tiles from where the force meets the enemy, %d,%d), %d of its %d aircraft based there, %d Airports | now %d rebased in the air, %d sent up to move | so far %u rebased, %u sent up\n",
+                   idx, now / 60000.0, fp.x, fp.y, (int)sqrtf((float)fd), at.x, at.y, based[fwd], nair, nap, moved, launched, a->rebased, a->launched);
+    }
+}
 internal void airguard_tick(ee_player *pl, uint32_t now) {
     static ee_unit *mine[AG_FIGHTERS], *foe[AG_FOES];
     static ivec2 bld[512];
@@ -56,6 +163,7 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
     int epoch = current_epoch(pl) + 1;
     if (epoch < 10) return;
     ag_types();
+    airbase_tick(pl, idx, now);   // THE AIR BASES
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
@@ -158,4 +266,4 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
                    idx, now / 60000.0, air, nm, want_f, airports, have_b, want_b, g->laid, g->trained, g->sorties, g->orders);
     }
 }
-internal void airguard_new_game(void) { memset(g_ag, 0, sizeof g_ag); g_ag_nt = -1; }
+internal void airguard_new_game(void) { memset(g_ag, 0, sizeof g_ag); memset(g_ab, 0, sizeof g_ab); g_ag_nt = -1; }

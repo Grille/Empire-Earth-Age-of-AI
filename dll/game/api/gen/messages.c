@@ -633,6 +633,62 @@ typedef void (__thiscall *repair_msg_execute_fn)(ee_repair_msg *);
 internal repair_msg_execute_fn fn_repair_msg_execute;
 internal inline void repair_msg_execute(ee_repair_msg *repair_msg) { fn_repair_msg_execute(repair_msg); }
 
+// class EEMReturnToBase (ee_rebase_msg)
+// the return-to-base message (EEMReturnToBase, 0x18 bytes): the right-click's on an airport or carrier of the player's
+// own with aircraft selected. Its Execute (both builds read alike): every unit of the sender's selected group whose
+// type's category is 3 (an airplane) and whose flight time left (unit +0x28C) is above 0 - one in the air - gets the
+// target as its home (0x5F0755, referenced), and with keep 0 its flight time left set to 0: it flies there and lands.
+// One standing in its airport is not touched.
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t rebase_msg_get_ref_count(const ee_rebase_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void rebase_msg_set_ref_count(ee_rebase_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *rebase_msg_ref_count_at(const ee_rebase_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t rebase_msg_get_kind(const ee_rebase_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void rebase_msg_set_kind(ee_rebase_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *rebase_msg_kind_at(const ee_rebase_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t rebase_msg_get_for_slot(const ee_rebase_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void rebase_msg_set_for_slot(ee_rebase_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *rebase_msg_for_slot_at(const ee_rebase_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t rebase_msg_get_from(const ee_rebase_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void rebase_msg_set_from(ee_rebase_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *rebase_msg_from_at(const ee_rebase_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t rebase_msg_get_header_flags(const ee_rebase_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void rebase_msg_set_header_flags(ee_rebase_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *rebase_msg_header_flags_at(const ee_rebase_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t rebase_msg_get_spare(const ee_rebase_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void rebase_msg_set_spare(ee_rebase_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *rebase_msg_spare_at(const ee_rebase_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t rebase_msg_get_sendable_when_out(const ee_rebase_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void rebase_msg_set_sendable_when_out(ee_rebase_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *rebase_msg_sendable_when_out_at(const ee_rebase_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// the new home's id (its Execute: EEWorld::unit_by_id, then its physics)
+internal inline uint32_t rebase_msg_get_target(const ee_rebase_msg *o) { return *(uint32_t *)((uint8_t *)o + of_rebase_msg_target); }
+internal inline void rebase_msg_set_target(ee_rebase_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_rebase_msg_target) = v; }
+internal inline uint32_t *rebase_msg_target_at(const ee_rebase_msg *o) { return (uint32_t *)((uint8_t *)o + of_rebase_msg_target); }
+// 0: the flight time left is set to 0 (the plane turns for its new home at once), else kept
+internal inline uint8_t rebase_msg_get_keep(const ee_rebase_msg *o) { return *(uint8_t *)((uint8_t *)o + of_rebase_msg_keep); }
+internal inline void rebase_msg_set_keep(ee_rebase_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_rebase_msg_keep) = v; }
+internal inline uint8_t *rebase_msg_keep_at(const ee_rebase_msg *o) { return (uint8_t *)((uint8_t *)o + of_rebase_msg_keep); }
+typedef void (__thiscall *rebase_msg_execute_fn)(ee_rebase_msg *);
+internal rebase_msg_execute_fn fn_rebase_msg_execute;
+internal inline void rebase_msg_execute(ee_rebase_msg *rebase_msg) { fn_rebase_msg_execute(rebase_msg); }
+
 // class EEMSelectUnit (ee_select_unit_msg)
 // a click's selection of one unit (EEMSelectUnit, kind 0x48, 0x14 bytes): the UI's click (0x644xxx) makes it as
 // construct does and sends it; its Execute (0x4BCF73) carries out EEPlayer.select_unit(id, 1, 1) for the sender's
@@ -1179,6 +1235,10 @@ internal int spec_messages_select(int build) {
         of_repair_msg_target = 0x10;
         of_repair_msg_queued = 0x14;
         fn_repair_msg_execute = (repair_msg_execute_fn)0x004BB27C;
+        vt_eem_return_to_base = 0x00824E6C;
+        of_rebase_msg_target = 0x10;
+        of_rebase_msg_keep = 0x14;
+        fn_rebase_msg_execute = (rebase_msg_execute_fn)0x004BC0F7;
         vt_eem_select_unit = 0x0082500C;
         size_eem_select_unit = 0x14;
         of_select_unit_msg_id = 0x10;
@@ -1298,6 +1358,10 @@ internal int spec_messages_select(int build) {
         of_repair_msg_target = 0x10;
         of_repair_msg_queued = 0x14;
         fn_repair_msg_execute = (repair_msg_execute_fn)0x004C3E31;
+        vt_eem_return_to_base = 0x00838EE4;
+        of_rebase_msg_target = 0x10;
+        of_rebase_msg_keep = 0x14;
+        fn_rebase_msg_execute = (rebase_msg_execute_fn)0x004C4E02;
         vt_eem_select_unit = 0x00838E78;
         size_eem_select_unit = 0x14;
         of_select_unit_msg_id = 0x10;
@@ -1391,6 +1455,9 @@ internal int spec_messages_check(void) {
     bad += spec_vtable(vt_eem_repair_unit, ".?AVEEMRepairUnit@@", "EEMRepairUnit [vtable]");
     bad += spec_code((uintptr_t)fn_repair_msg_execute, "EEMRepairUnit.execute");
     bad += spec_slot(vt_eem_repair_unit, slot_msg_execute, (uintptr_t)fn_repair_msg_execute, "EEMRepairUnit.execute [slot]");
+    bad += spec_vtable(vt_eem_return_to_base, ".?AVEEMReturnToBase@@", "EEMReturnToBase [vtable]");
+    bad += spec_code((uintptr_t)fn_rebase_msg_execute, "EEMReturnToBase.execute");
+    bad += spec_slot(vt_eem_return_to_base, slot_msg_execute, (uintptr_t)fn_rebase_msg_execute, "EEMReturnToBase.execute [slot]");
     bad += spec_vtable(vt_eem_select_unit, ".?AVEEMSelectUnit@@", "EEMSelectUnit [vtable]");
     bad += spec_code((uintptr_t)fn_select_unit_msg_construct, "EEMSelectUnit.construct");
     bad += spec_vtable(vt_eem_path_to, ".?AVEEMPathTo@@", "EEMPathTo [vtable]");

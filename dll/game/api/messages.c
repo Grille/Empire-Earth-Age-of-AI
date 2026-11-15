@@ -63,6 +63,14 @@ internal inline void repair_msg_make(ee_repair_msg *msg, int from, unsigned targ
     repair_msg_set_target(msg, target);
     repair_msg_set_queued(msg, (uint8_t)queued);
 }
+// the right-click's on an airport with aircraft selected (EEMReturnToBase): those of the selection in the air get
+// the target as their home and turn for it (keep 0)
+internal inline void rebase_msg_make(ee_rebase_msg *msg, int from, unsigned target) {
+    *(uintptr_t *)msg = vt_eem_return_to_base;
+    rebase_msg_set_from(msg, (int8_t)from);
+    rebase_msg_set_target(msg, target);
+    rebase_msg_set_keep(msg, 0);
+}
 internal inline void load_msg_set_vtable(ee_load_msg *msg) { *(uintptr_t *)msg = (uintptr_t)data_messages_vt_msg_load; }
 // A message the mod makes and carries out for player pl itself, never sent (an AI army's move): the game carries a
 // message out for EEWorld::player(its from), the first player whose msg_id is that one - and every computer player has

@@ -253,6 +253,26 @@ unsafe struct EEMRepairUnit
     extern void execute();
 }
 
+/// the return-to-base message (EEMReturnToBase, 0x18 bytes): the right-click's on an airport or carrier of the player's
+/// own with aircraft selected. Its Execute (both builds read alike): every unit of the sender's selected group whose
+/// type's category is 3 (an airplane) and whose flight time left (unit +0x28C) is above 0 - one in the air - gets the
+/// target as its home (0x5F0755, referenced), and with keep 0 its flight time left set to 0: it flies there and lands.
+/// One standing in its airport is not touched.
+[@base(typeof(EEMessage)), c_type("ee_rebase_msg"), vtable((ee)0x00824E6C, (aoc)0x00838EE4)]
+unsafe struct EEMReturnToBase
+{
+    /// the new home's id (its Execute: EEWorld::unit_by_id, then its physics)
+    [offset(0x10), found(c)]
+    uint32 target;
+
+    /// 0: the flight time left is set to 0 (the plane turns for its new home at once), else kept
+    [offset(0x14), found(c)]
+    uint8 keep;
+
+    [address((ee)0x004BC0F7, (aoc)0x004C4E02), overrides(typeof(EEMessage))]
+    extern void execute();
+}
+
 /// a click's selection of one unit (EEMSelectUnit, kind 0x48, 0x14 bytes): the UI's click (0x644xxx) makes it as
 /// construct does and sends it; its Execute (0x4BCF73) carries out EEPlayer.select_unit(id, 1, 1) for the sender's
 /// player, then the server's executor fills the selection panel from that player's selection. Godmode sends one after its
