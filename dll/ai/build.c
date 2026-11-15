@@ -45,6 +45,7 @@
 #define BD_DROP 8
 #define BD_DROP_METAL 3   // a gold or iron mine's: the Settlement's middle this near (its half, a tile's gap, the mine)
 #define BD_DSITES 2048
+#define BD_AP_SAVE 300000
 #define BD_GUARD 7
 #define BD_CLAIM_EVERY 120000   // between two claims
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
@@ -56,6 +57,7 @@
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 internal struct bd_st {
     uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
+    uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
@@ -189,6 +191,16 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (wait[k] && !shown[k] && b->laid_type[k] > 0) for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, b->laid_type[k], r);
     for (int r = 2; r < 7 && ut_has(UT(B_FARM)); r++) com[r] += open_fields * unit_cost(pl, UT(B_FARM), r);
     memcpy(g_bd_com[idx], com, sizeof com);
+    // AN AIRPORT SAVED FOR (below): asked for and not paid - nothing but fields, research and production buildings is laid
+    // meanwhile, BD_AP_SAVE at a stretch and then as long not (from the World War an AI's wood stood between 9 and 369 for
+    // 19 minutes, a granary or a Settlement taking each 125 as it came: the wing wanted from minute 18, its first
+    // Airport at minute 37)
+    int ap_ask = g_bd_airport[idx] && now >= g_bd_airport[idx] && now - g_bd_airport[idx] < 120000 && nairport < g_bd_airport_n[idx] && ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT));
+    int ap_save = 0;
+    if (ap_ask && !bd_pays(pl, UT(B_AIRPORT), com) && workforce(pl) >= g_min_workforce) {
+        if (!b->ap_save_t || now < b->ap_save_t || now - b->ap_save_t >= 2 * BD_AP_SAVE) b->ap_save_t = now ? now : 1;
+        ap_save = now - b->ap_save_t < BD_AP_SAVE;
+    }
     int placed = 0;
     if (ut_has(UT(B_FARM)))   // FIELDS
         for (int g = 0; g < ngran && placed < 2 && open_fields < 4; g++)
@@ -215,7 +227,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     const char *what = NULL;
     int type = 0, ok = 0;
     ivec2 at = iv2(0, 0);
-    if (!placed && current_epoch(pl) >= FARM_EPOCH && ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) && bd_pays(pl, UT(B_GRANARY), com) && !open_gran && !open_fields && !fields_due &&
+    if (!placed && !ap_save && current_epoch(pl) >= FARM_EPOCH && ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) && bd_pays(pl, UT(B_GRANARY), com) && !open_gran && !open_fields && !fields_due &&
         ngran < BD_GRANARIES && (!ngran || g_wk[idx].food_short > 0) && !wait[0] && bd_gran_first(b, idx, ngran >= BD_GRAN_PLAIN ? gran_room : 0, now)) {   // A GRANARY: by its centre in the best territory
         for (int pass = 1; pass <= 3 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++) {
@@ -258,13 +270,14 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     }
     // AN AIRPORT (airstrike.c af_train asks: the wing it wants has too few): by a Town Center or Capitol in a territory it
     // holds, backland first
-    if (!type && !placed && g_bd_airport[idx] && now >= g_bd_airport[idx] && now - g_bd_airport[idx] < 120000 && nairport < g_bd_airport_n[idx] && !wait[4] && !open_prod &&
-        ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT)) && bd_pays(pl, UT(B_AIRPORT), com)) {
+    if (!type && !placed && ap_ask && !wait[4] && !open_prod && bd_pays(pl, UT(B_AIRPORT), com)) {
         for (int pass = 1; pass <= 2 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++)
                 if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, UT(B_AIRPORT), centre[c].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport for the bombers' wing"; g_bd_airport[idx] = 0; }
         if (!type) b->no_spot++;
     }
+    if (ap_save && !type) placed = 1;   // AN AIRPORT SAVED FOR: nothing after it
+    if (ap_save && !type && !g_rs_want[idx]) g_rs_want[idx] = UT(B_AIRPORT) + 1;   // ... and its price held from every other spender (priority.c's row "research": the docks' towers, the training)
     b->mines = b->mines_drop = b->mines_guard = 0;
     {   // A MINE'S SETTLEMENT, A MINE'S TOWER: the cheapest territory's first, then the nearest to the base
         ivec2 base = build_mgr_get_base(bm), sp = iv2(0, 0), tp = iv2(0, 0);
