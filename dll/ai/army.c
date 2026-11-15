@@ -404,9 +404,24 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int room = cap - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
         int goal = g_czp[idx].goal ? g_czp[idx].goal : unit_mgr_citizens_wanted(um);
         int miss = shelf_held(idx) > 0 ? 0 : goal - workforce(pl);   // bunker.c: citizens on the shelf are not missing - their room is the army's
+        // THE CITIZENS' ROOM (the player's game of 2026-11-15, P4 at minute 139: "lots of food gold and irons, but it dosnt
+        // produce more units" - 64,000 food, 7,200 gold, 8,400 iron, 64 production buildings, its population 920 to 943 of
+        // 1015 for 20 minutes and its soldiers down from 428 to 346): the room was held for the citizens the game's share of
+        // the limit wants (45%: 456) less those at work (about 370 - the ones inside its Town Centers not counted), 70
+        // to 90, while its own orders for citizens asked for none (cz_wanted: no more than the economy uses). With the
+        // game's computer player off the room held is for the citizens its orders still ask for, those inside counted.
+        if (off && miss > 0) { int m2 = cz_wanted(pl, idx, um, unit_mgr_citizens_wanted(um)) - unit_mgr_citizens(um); if (m2 < miss) miss = m2; }
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
         int ft = free <= 0 ? 0 : off ? ap_idle_type(pl, vis) : ap_type(pl, idx, um, vis);
         if (free > 0) ft = ar_fill_type(pl, idx, vis, ft, now);   // armies.c TRAINING BY NEED
+        {   // the room once a minute: what holds its orders back
+            static uint32_t room_t[16];
+            if (off && !pass && g_log && (!room_t[idx] || now < room_t[idx] || now - room_t[idx] >= 60000)) {
+                room_t[idx] = now ? now : 1;
+                log_locked("# army: P%u at %.1f min: the room %d of %d (in production %d), held for citizens %d (wanted %d, there %d, at work %d), a landing %d, the fleet %d - free for soldiers %d, the type %d\n",
+                           idx, now / 60000.0, room, cap, unit_mgr_get_in_production(um), miss > 0 ? miss : 0, goal, unit_mgr_citizens(um), workforce(pl), landing_room_reserve(pl), navy_room_reserve(pl), free, ft);
+            }
+        }
         filled = ft;
         if (ft) {
             int req[4] = { ft, free < 5 ? free : 5, 0, 0 };

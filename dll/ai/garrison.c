@@ -28,6 +28,7 @@
 #define GU_WOOD 5000
 #define GU_BATCH 10
 #define GU_WAIT 60000
+#define GU_STALE 180000            // an order to take citizens in that has not ended by then is taken for dead
 internal int wk_workable(unsigned idx, ivec2 p);   // work.c
 internal int wk_pool(unsigned idx, int sp[7]);     // work.c THE POOL
 #define GU_KICK 1.2f
@@ -116,6 +117,10 @@ internal int gu_recent(struct gu_st *g, int id, uint32_t now) {
     for (int k = 0; k < g->nsent; k++) if (g->sent[k].id == id && now - g->sent[k].t < GU_WAIT) return 1;
     return 0;
 }
+internal int gu_within(struct gu_st *g, int id, uint32_t now, uint32_t ms) {
+    for (int k = 0; k < g->nsent; k++) if (g->sent[k].id == id && now - g->sent[k].t < ms) return 1;
+    return 0;
+}
 internal void gu_note(struct gu_st *g, int id, uint32_t now) {
     int k = 0, old = 0;
     while (k < g->nsent && g->sent[k].id != id) k++;
@@ -159,7 +164,11 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         towns[kind]++;
         int room = unit_type_get_garrison_capacity(it.td) - unit_get_garrisoned(u);
         ee_goal *hg = unit_get_goal(u);
-        if (room <= 0 || (hg && goal_is_garrison(hg)) || gu_recent(g, gu_key(u), now)) continue;
+        // A STALE ORDER (the player's game of 2026-11-15, P4 at minute 139: "agains dosnt upgrade its mines" - 13 of its 19
+        // Town Centers and Capitols carried the order to take citizens in, 3 citizens in all on their way to one: an
+        // order whose citizens were given other work, or died, stays on the holder, and a holder with one was passed
+        // over for good): with the game's computer player off the order counts for GU_STALE, then the holder gets a new one.
+        if (room <= 0 || (hg && goal_is_garrison(hg) && (GAME_AI(idx) || gu_within(g, gu_key(u), now, GU_STALE))) || gu_recent(g, gu_key(u), now)) continue;
         int off = !GAME_AI(idx), score = off ? gu_gain(u) : gu_mines(u);   // off: THE MINES' HOLDERS
         if (!off && kick && kind == 1) score = 1000 + unit_get_garrisoned(u) * 10 + score;
         if (!score || raiders_near(pl, unit_get_tile(u), GU_SAFE_R)) continue;
