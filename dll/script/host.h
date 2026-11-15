@@ -10,11 +10,14 @@
 #define X_ANY 0
 #define X_LIST_OF 0x100
 // THE TYPES the check knows (a value's, as far as it can tell when a file is read): X_ANY not known, 1..63 a kind of
-// the host's objects, from XT_INT the language's own; + X_LIST_OF a list of them, + X_NULLABLE or null (T?)
+// the host's objects, from XT_INT the language's own (XT_VOID: what a function gives back that gives nothing), from
+// 128 a script's structs, from 0x400 the types that hold types (expr.c THE TYPES THAT HOLD TYPES: a function with its
+// parameters and result, a record with its members, a list's items when they are lists or may be null); + X_LIST_OF
+// a list of them, + X_NULLABLE or null (T?). In 15 bits: a short holds one
 enum { XT_INT = 64, XT_FLOAT, XT_BOOL, XT_TEXT, XT_VEC2, XT_VEC3, XT_VEC4, XT_EPOCH, XT_COLOR, XT_UTYPE, XT_FN, XT_REC,
-       XT_TRIG, XT_STOP };
+       XT_TRIG, XT_STOP, XT_VOID };
 #define X_NULLABLE 0x200
-#define X_TBASE(t) ((t) & 0xFF)   // without list and null
+#define X_TBASE(t) ((t) & 0x7CFF)   // without list and null
 struct x_kmember { const char *name; signed char amin, amax; short result; signed char set; };
 struct x_kind { const char *name; int numbered; const struct x_kmember *m; int n; };   // numbered: a command takes its number
 struct x_host {

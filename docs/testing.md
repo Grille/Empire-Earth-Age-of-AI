@@ -1253,6 +1253,12 @@ type written after the parameters (`name(a: int): float { ... }`: required of a 
 statements that hands a value back), told from the one value of `=> value`; 14 mistakes told by the check (no type
 written, a value of another type, a way through without a return, the result used as another type ...).
 
+A function's type (2026-11-15, docs/scripts.md "Types"; expr.c THE TYPES THAT HOLD TYPES): `tests/lang/functypes.eeai` -
+`func<int, text, point>` written for variables, parameters, a struct's fields and a list's items; functions written
+and declared going where one is wanted; calls through such a variable. 12 mistakes told by the check (a function of
+other parameters or another result, wrong arguments through a variable, an int called ...). The check's types are 15
+bits now (host.h: from 0x400 the types that hold types - their table in expr.c).
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

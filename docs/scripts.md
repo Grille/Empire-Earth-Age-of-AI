@@ -127,6 +127,27 @@ The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `c
 `record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `list<T>` a list of them, `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
 made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
 
+**A function's type** says its parameters and what it gives back: `func<int, text, point>` takes an int and a text
+and gives a point (the last is the result; `void`: nothing - `func<int, void>`, `func<void>`). A function written or
+declared has such a type from its code, so it is checked where it goes, and a variable or parameter of one is called
+like any function - its arguments checked, its result's type known:
+
+```
+apply(f: func<int, int>, v: int) => f(f(v))
+twice(n: int) => n * 2
+let a = apply(twice, 4)                    // 16
+let b = apply((n: int) => n + 1, 4)        // 6
+let c = apply((t: text) => 1, 4)           // a mistake: a func<text, int> can't go in
+let op: func<int, int> = twice
+op = (n: int) => n * n                     // set anew: still a func<int, int>
+struct rule { name: text  test: func<int, bool> }
+```
+
+The parameters' types are the very ones (no int for a float there); the result may be an int where a float is
+wanted, anything where `void` is. `function` alone is any function - nothing known of it: what it takes and gives is
+checked when it is called. A function with a `ref` parameter has no such type (it goes by its name only). A value
+of another type called (`let n = 5` then `n(3)`) is a mistake.
+
 Where a type still can't be told (a record's member, what a function held in a variable gives back when it wrote
 none), the value is checked when it is worked out, as before.
 

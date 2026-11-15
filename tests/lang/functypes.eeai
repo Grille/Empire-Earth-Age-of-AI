@@ -1,0 +1,72 @@
+// a function's type with its parameters and its result (docs/scripts.md "Types": func<int, text, point>) - what each
+// line works out is in functypes.expect (the build compares)
+struct point {
+    x: int
+    y: int
+}
+struct rule {
+    name: text
+    test: func<int, bool>
+    make: func<int, point>?
+}
+twice(n: int) => n * 2
+half(n: int): float {
+    return n / 2
+}
+shout(t: text) {
+    cmd("shout {t}")
+}
+apply(f: func<int, int>, v: int) => f(v)
+apply2(f: func<int, int>, v: int): int {
+    return f(f(v))
+}
+each(l: list<int>, f: func<int, void>) {
+    for v in l { f(v) }
+}
+pick(l: list<int>, keep: func<int, bool>): int? {
+    for v in l {
+        if keep(v) { return v }
+    }
+    return null
+}
+maker(k: int): point => point(k, k + 1)
+
+// declared functions and written ones as values of a type
+cmd("apply {apply(twice, 4)} {apply2(twice, 4)} {apply((a: int) => a + 1, 4)}")
+let sum = 0
+each([1, 2, 3], (v: int) => { sum += v })
+cmd("each {sum} {pick([1, 5, 9], (v: int) => v > 4) ?? 0} {pick([1, 5, 9], (v: int) => v > 40) ?? -1}")
+
+// a variable of a function's type: called with its parameters, its result's type known
+let op: func<int, int> = twice
+let r1: int = op(5)
+op = (a: int) => a * a
+let r2: int = op(5)
+let hf: func<int, float> = half
+let say: func<text, void> = shout
+say("hello")
+cmd("vars {r1} {r2} {hf(5)}")
+
+// a function that gives back a struct: its fields set without a type at the let
+let mk: func<int, point> = maker
+let made = mk(3)
+made.x += 10
+cmd("made {made}")
+
+// functions in a struct's fields, one or null
+let rules: list<rule> = [rule("big", (n: int) => n > 10), rule("even", (n: int) => n - int(n / 2) * 2 == 0, maker)]
+let hits = 0
+for i in 1..len(rules) {
+    let t = rules[i].test
+    if t(12) { hits += 1 }
+    let m = rules[i].make
+    if m != null {
+        let p = m(i)
+        cmd("rule {rules[i].name} makes {p}")
+    }
+}
+cmd("rules {hits}")
+
+// the types written in lists: of lists, of ones that may be null (their values: tests/lang/lists.eeai)
+let none: func<int, int>? = null
+cmd("none {none == null}")
