@@ -123,24 +123,32 @@ internal ee_unit *x_unit_of(const struct xval *o, const char **why) {
     return u;
 }
 // u.<member> (a member dll_cs/lang/unit.cs declares - expr.c checked the name)
-internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *name, struct xval *v) {
+// a unit's member by its number (lang.h XUI_: its place among a unit's members) - 0: none of its values (a method)
+internal int x_unit_member_at(struct xctx *c, const struct xval *o, int mi, struct xval *v) {
     const char *why;
-    ee_unit *u = x_unit_of(o, &why);
     unsigned id;
-    if (!strcmp(name, "alive")) { xnum(v, u != NULL); return 1; }
-    if (!strcmp(name, "id") && x_unit_state(o, &id) == XS_THERE) { xnum(v, id); return 1; }
-    if (!u) { x_host_fail(c, "%s.%s: %s", xtext_of(o), name, why); return 1; }
+    if (mi < 0 || mi >= (int)(sizeof k_xk_unit / sizeof *k_xk_unit) || k_xk_unit[mi].amin >= 0) return 0;
+    ee_unit *u = x_unit_of(o, &why);
+    if (mi == XUI_ALIVE) { xnum(v, u != NULL); return 1; }
+    if (mi == XUI_ID && x_unit_state(o, &id) == XS_THERE) { xnum(v, id); return 1; }
+    if (!u) { x_host_fail(c, "%s.%s: %s", xtext_of(o), k_xk_unit[mi].name, why); return 1; }
     int type = unit_type_get_id(unit_get_type_data(u));
-    if (!strcmp(name, "type")) xdual(v, type, (unsigned)type < G_TYPES_N ? g_unit_ident[type] : "?");   // as unit.<identifier>
-    else if (!strcmp(name, "owner")) x_player(v, unit_get_owner(u), "owner");
-    else if (!strcmp(name, "pos")) { vec3 p = unit_get_pos(u); double xy[2] = { p.x, p.y }; xvec(v, xy, 2); }
-    else if (!strcmp(name, "hp")) xnum(v, unit_get_hp(u));
-    else if (!strcmp(name, "max_hp")) { ee_unit_stats *st = unit_get_stats(u); xnum(v, st ? unit_stats_get_hp(st) : 0); }
-    else if (!strcmp(name, "ammo")) xnum(v, unit_get_ammo(u));
-    else if (!strcmp(name, "power")) xnum(v, unit_get_power(u));
-    else if (!strcmp(name, "stance")) xnum(v, unit_stance(u));
-    else return 0;
+    switch (mi) {
+    case XUI_TYPE: xdual(v, type, (unsigned)type < G_TYPES_N ? g_unit_ident[type] : "?"); break;   // as unit.<identifier>
+    case XUI_OWNER: x_player(v, unit_get_owner(u), "owner"); break;
+    case XUI_POS: { vec3 p = unit_get_pos(u); double xy[2] = { p.x, p.y }; xvec(v, xy, 2); break; }
+    case XUI_HP: xnum(v, unit_get_hp(u)); break;
+    case XUI_MAX_HP: { ee_unit_stats *st = unit_get_stats(u); xnum(v, st ? unit_stats_get_hp(st) : 0); break; }
+    case XUI_AMMO: xnum(v, unit_get_ammo(u)); break;
+    case XUI_POWER: xnum(v, unit_get_power(u)); break;
+    case XUI_STANCE: xnum(v, unit_stance(u)); break;
+    default: return 0;
+    }
     return 1;
+}
+internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *name, struct xval *v) {
+    const struct x_kmember *m = x_kind_member(XK_UNIT, name);
+    return m ? x_unit_member_at(c, o, (int)(m - k_xk_unit), v) : 0;
 }
 // a unit in what an effect tells (the log, a dry run's commands): by its id, a spawned one to come by its slot
 internal const char *x_unit_said(const struct xval *o, char *buf, int cap) {

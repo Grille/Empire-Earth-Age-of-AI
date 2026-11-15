@@ -54,6 +54,9 @@ struct x_host {
     // the kind of object value() reads a member path of when its head is a variable (p.gold of a script's p: a
     // player) - a variable of another kind is not asked (0: every kind is)
     int value_kind;
+    // o's member number mi (its place in its kind's members) read, when it is a plain value the host reads by its
+    // number - what member() does for it, without the name; 0: not this way (member() / value() then)
+    int (*get)(struct xctx *c, const struct xval *o, int mi, struct xval *v);
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -74,9 +77,10 @@ internal int xh_set(struct xctx *c, const struct xval *o, const char *name, cons
     (void)c; (void)o; (void)name; (void)v; return 0;
 }
 internal int xh_field_get(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
+internal int xh_get(struct xctx *c, const struct xval *o, int mi, struct xval *v) { (void)c; (void)o; (void)mi; (void)v; return 0; }
 internal int xh_field_set(struct xctx *c, const char *name, const struct xval *v, const char **why) {
     (void)c; (void)name; (void)v; (void)why; return 0;
 }
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
-                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set, 0 };
+                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set, 0, xh_get };

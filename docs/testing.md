@@ -1215,8 +1215,13 @@ Step 3: memory and texts.
   and a record set every half second for an hour - 448 KB instead of 6 MB. `tests/probes/trigger_sets.eeai` plays it
   in a game.
 
-Open: the game's objects' members by a number instead of their names (the host finds each by comparing names: a
-player's member about 80 ns, a unit's 150, a relation 300), strings with placeholders compiled, the texts of values
+Step 4: the game's objects' members by a number. A player's and a unit's plain values are read by their place in the
+kind's table (lang.h XMI_ / XUI_, generated; `x_host.get`), which the instruction remembers for the kind of object it
+met (x_member_fast: `p.gold`, `u.hp`, `men[1].hp`) - the name is looked up once, not compared with every member's
+each time. In a game (tests/bench/game/, ms): player 41 -> 13 (a member about 110 -> 25 ns), units 1.7 -> 1.4,
+epoch 34 -> 20, methods 36 -> 25 (the members' names searched by their first letter first). Corpus and probes the same.
+
+Open: a relation or method by number too (`p.at_war(q)`, `p.count(...)`: about 250 ns), strings with placeholders compiled, the texts of values
 that are a number and a text made only when asked for (an opinion's words: 4.6 us each time), a call's values freed
 when it returns. Plain statements take about 5 ns an instruction.
 

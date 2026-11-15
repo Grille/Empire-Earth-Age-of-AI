@@ -4144,7 +4144,9 @@ enum { XI_STMT, XI_CONST, XI_NIL, XI_LOADL, XI_LOADU, XI_STOREL, XI_STOREU, XI_N
        XI_FORN, XI_FORN_NEXT, XI_FORN_STEP, XI_FORL, XI_FORL_NEXT, XI_FORL_STEP, XI_WAIT, XI_EVERY, XI_EVERY_NEXT,
        XI_EVERY_CALL, XI_EVERY_DONE, XI_HOOK, XI_FAIL, XI_END, XI_SETF, XI_PATH, XI_COUNT };
 struct xins { unsigned char op, b; unsigned short c; int a; };   // what, and its numbers (each instruction's own use)
-struct xkonst { double n; const char *s; const char *cs; };     // a number; a text or a name (cs, n: a name's constant once looked up)
+// a number; a text or a name (cs, n: a name's constant once looked up; mk, mi: a member's name - the kind of object it
+// was last read of and its number there + 1, 0 none the host reads by number: x_member_fast)
+struct xkonst { double n; const char *s; const char *cs; short mk, mi; };
 struct xfunc { int entry, nparams, nslots, parent, line; const char **slot; };   // slot: its names ("" a hidden one)
 struct xcode {
     struct xins *ins;
@@ -4200,7 +4202,7 @@ internal int xc_konst(struct xcomp *cc, double n, const char *s) {   // a consta
         if (!m) { xcc_fail(cc, "no memory for the script's constants"); return 0; }
         k->k = m; k->ck = cap;
     }
-    k->k[k->nk].n = n; k->k[k->nk].s = s; k->k[k->nk].cs = NULL;
+    k->k[k->nk].n = n; k->k[k->nk].s = s; k->k[k->nk].cs = NULL; k->k[k->nk].mk = k->k[k->nk].mi = 0;
     return k->nk++;
 }
 internal int xc_func(struct xcomp *cc, int parent, int line) {
@@ -4644,6 +4646,25 @@ internal void xvm_callv(struct xvm *m, struct xe *e, int argc, const char *name)
     m->sp = base;
     *xvm_push(m, e) = r;
 }
+// object o's member read by its number (script/host.h get) - which the instruction's constant k remembers for the
+// kind of object it met last (member: its name), so a member of the game's objects is found by its letters once: v
+// its value and 1, or 0: not this way (no object's plain value - by its name then, with the mistakes that tells)
+internal int x_member_fast(struct xe *e, struct xkonst *k, const char *member, const struct xval *o, struct xval *v) {
+    if (!o->obj || !o->w || o->ln) return 0;
+    if (k->mk != o->okind) {
+        const struct x_kind *kd = g_x_host.kind(o->okind);
+        const struct x_kmember *km = x_kind_member(o->okind, member);
+        k->mk = o->okind;
+        k->mi = kd && km && km->amin < 0 ? (short)(km - kd->m + 1) : 0;
+    }
+    if (!k->mi) return 0;
+    struct xval oc = *o, r;
+    xnothing(&r);
+    if (!g_x_host.get(e->c, &oc, k->mi - 1, &r)) return 0;
+    *v = r;
+    if (e->c->missed) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (the host's)
+    return 1;
+}
 #ifndef X_GC_STEP
 #define X_GC_STEP ((size_t)1 << 20)   // (a build may set another: none at all, to compare what a script works out)
 #endif
@@ -4699,6 +4720,10 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             // (its let not reached yet, a text's parameters or a setting's rules in the way: by its letters, as any name)
             if (!w || in->c >= w->n || w->val[in->c].kind == XV_UNSET || c->fnp || c->fixed) { xop_name(e, k->s, &k->n, &k->cs, v); break; }
             r = w->val[in->c];
+            {   // (one member of an object: by its number)
+                const char *mem = strchr(k->s, '.') + 1;
+                if (!strchr(mem, '.') && x_member_fast(e, k, mem, &r, v)) break;
+            }
             x_path_walk(e, k->s, &r, v);
             if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
             break;
@@ -4739,7 +4764,7 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
         }
         case XI_BOOL: xnum(top, xtrue(top)); break;
         case XI_COAL: if (top->w > 0) m->pc = in->a; else m->sp--; break;
-        case XI_MEMBER: x_member_of(e, k->s, top, NULL); break;
+        case XI_MEMBER: if (!x_member_fast(e, k, k->s, top, top)) x_member_of(e, k->s, top, NULL); break;
         case XI_INDEX:
             xnothing(&r);
             xop_index(e, &m->st[m->sp - 2], &m->st[m->sp - 1], &r);

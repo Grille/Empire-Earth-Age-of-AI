@@ -1,6 +1,7 @@
 """The language's objects made C (run by build.sh): dll/game_script/lang.h from dll_cs/lang/*.cs (lang_read.py) - the tables
 relations.c includes. k_xmembers: a player's members (player.cs) - name, kind (XM_: a value, a player, a relation, a
-method, an effect), doc, type, arguments, set (a script may), mine (a text has it alone); k_xglobals: the names a text
+method, an effect), doc, type, arguments, set (a script may), mine (a text has it alone), and XMI_<NAME> / XUI_<NAME>: a
+player's and a unit's members' places in their tables (the code reads one by that number); k_xglobals: the names a text
 has of its own (playerctx.cs); k_xk_player / k_xk_game / k_xk_slot: each kind's members as the check reads them
 (script/host.h x_kmember). A type is host.h's code: the language's own XT_..., a kind relations.c's XK_..., T? with
 X_NULLABLE, T[] with X_LIST_OF."""
@@ -59,8 +60,14 @@ def main():
             out.append('    { %s, %d, %d, %s, %d },' % (cstr(m.name), lo, hi, ctype(m.type, m.where), m.has('set')))
         out.append('};')
 
+    def numbers(prefix, kind):   # each member's place in its table by name: XMI_GOLD, XUI_HP (a member read by its number)
+        names = ', '.join('%s_%s' % (prefix, m.name.upper()) for m in kind.members)
+        out.append('enum { %s };' % names)
+
     xmembers('k_xmembers', kinds['player'])
     out.append('#define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)')
+    numbers('XMI', kinds['player'])
+    numbers('XUI', kinds['unit'])
     xmembers('k_xglobals', kinds['playerctx'])
     out.append('#define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)')
     for k in KINDS:

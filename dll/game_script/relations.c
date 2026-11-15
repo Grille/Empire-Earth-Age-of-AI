@@ -56,6 +56,22 @@ internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     int x = pidx(px);
     const char *n = m->name;
     double r = 0;
+    switch ((int)(m - k_xmembers)) {   // the plain numbers by the member's number (the names below: every other)
+    case XMI_FOOD: xnum(v, player_get_stock(px, 2)); return;
+    case XMI_WOOD: xnum(v, player_get_stock(px, 3)); return;
+    case XMI_STONE: xnum(v, player_get_stock(px, 4)); return;
+    case XMI_GOLD: xnum(v, player_get_stock(px, 5)); return;
+    case XMI_IRON: xnum(v, player_get_stock(px, 6)); return;
+    case XMI_SOLDIERS: xnum(v, g_ws.soldiers[x]); return;
+    case XMI_CITIZENS: xnum(v, g_ws.citizens[x]); return;
+    case XMI_POPULATION: xnum(v, g_ws.soldiers[x] + g_ws.citizens[x]); return;
+    case XMI_BUILDINGS: xnum(v, g_ws.buildings[x]); return;
+    case XMI_TOWERS: xnum(v, g_ws.towers[x]); return;
+    case XMI_WALLS: xnum(v, g_ws.walls[x]); return;
+    case XMI_CENTERS: xnum(v, g_ws.centers[x]); return;
+    case XMI_ALIVE: xnum(v, !is_out(px)); return;
+    default: break;
+    }
     static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
     for (int k = 0; k < 5; k++) {
         if (!strcmp(n, "stock")) r += player_get_stock(px, k + 2);
@@ -138,7 +154,8 @@ internal void x_relation(void *pa, void *pb, const struct xmember *m, double win
     xnum(v, r);
 }
 internal const struct xmember *x_find_member(const char *n, int len) {
-    for (int i = 0; i < N_XMEMBERS; i++) if ((int)strlen(k_xmembers[i].name) == len && !strncmp(k_xmembers[i].name, n, len)) return &k_xmembers[i];
+    for (int i = 0; len > 0 && i < N_XMEMBERS; i++)   // (the first letter first: 57 names, asked for every member and relation by name)
+        if (k_xmembers[i].name[0] == n[0] && !strncmp(k_xmembers[i].name, n, (size_t)len) && !k_xmembers[i].name[len]) return &k_xmembers[i];
     return NULL;
 }
 internal int x_mine(const char *name) {   // a member that alone is mine: epoch, allies, enemies, the traits ([mine])
@@ -560,6 +577,17 @@ internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *
 internal int x_units_of(struct xctx *c, int pl, const struct xval *a, int na, struct xval *v);
 internal void x_unit_by_id(struct xctx *c, const struct xval *id, struct xval *v);
 internal int x_unit_do(struct xctx *c, const struct xval *o, const char *name, struct xval *v);
+internal int x_unit_member_at(struct xctx *c, const struct xval *o, int mi, struct xval *v);   // units.c
+// o's member number mi as a plain value (script/host.h get): a player's value, a unit's - what x_obj_member_of comes
+// to for it; 0: anything else (a relation, a method, the game, a slot, a player who isn't there)
+internal int x_obj_get(struct xctx *c, const struct xval *o, int mi, struct xval *v) {
+    if (o->okind == XK_UNIT) return x_unit_member_at(c, o, mi, v);
+    if (o->okind != XK_PLAYER || mi < 0 || mi >= N_XMEMBERS || k_xmembers[mi].kind != XM_PLAYER || mi == XMI_UNITS) return 0;
+    void *p = player_at(o->obj - 1);
+    if (!p) return 0;
+    x_member(p, &k_xmembers[mi], v);
+    return 1;
+}
 // o.name, o.name(a ...) (expr.c x_obj_member: a member of its kind, its arguments counted)
 internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v) {
     if (o->okind == XK_SLOT) return x_slot_member(c, o, name, v);
