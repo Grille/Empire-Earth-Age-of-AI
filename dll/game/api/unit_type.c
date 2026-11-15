@@ -14,6 +14,13 @@ internal inline int unit_type_terrain_ok(const ee_unit_type *td, int kind) { ret
 // +0xE0 float[6] the armour against each damage class
 internal inline float unit_stats_get_armor(const ee_unit_stats *st, int c) { return FIELD(st, of_unit_stats_armor + c * 4, float); }
 
+// A UNIT TYPE'S IMPROVEMENTS (EEUCUpgradeTable, unit_type_get_upgrades): per attribute (IMP_*) the price factor and the
+// step - 0: not offered; a level costs the type's own price x the level x the factor
+internal inline float upgrade_table_price(const ee_upgrade_table *t, int attr) { return ((const float *)upgrade_table_factors_at(t))[attr * 2]; }
+internal inline float upgrade_table_step(const ee_upgrade_table *t, int attr) { return ((const float *)upgrade_table_factors_at(t))[attr * 2 + 1]; }
+// the improvement points one level costs (0x626F9A): an armour 1, the rest 2
+internal inline int improvement_points(int attr) { return attr >= IMP_ARMOR_ARROW && attr <= IMP_ARMOR_SHOCK ? 1 : 2; }
+
 // FUNCTIONS
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
 internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {

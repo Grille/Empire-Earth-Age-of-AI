@@ -383,9 +383,10 @@ unsafe struct EEPlayer
     [address((ee)0x005544D8, (aoc)0x00562694)]
     extern void queue_improvement(int32 type, int32 attr, char8 front, char8 no_pay);
 
-    /// may it buy the improvement now: game.improvements_allowed, the table offers the attribute, the level and the
-    /// points within max_level and ee_game_data.improvement_points with the queue counted, the price in stock; else
-    /// the reason into why (a UWideString*)
+    /// may it buy the improvement now: the table offers the attribute (its step above 0), the level and the points
+    /// within max_level and ee_game_data.improvement_points with the queue counted, the price in stock; else the
+    /// reason into why (a UWideString*, NULL: none - both writes test it). Not game.improvements_allowed: its callers
+    /// test that (the button, the computer player)
     [address((ee)0x00555575, (aoc)0x0056384D)]
     extern char8 can_buy_improvement(int32 type, int32 attr, void* why);
 

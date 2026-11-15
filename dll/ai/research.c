@@ -27,8 +27,19 @@
 //   RANK 4  - every other line upgrade (a line it doesn't field) and the temple's other techs (its priests' and
 //             prophets': "other temple techs should go in rank 4 since at some point the ai should lern how to use
 //             temple units aynways"), the cheapest first, with what no row of the priority list holds back.
-// Never: a hero's upgrade (his list; the AI uses no heroes), the units' improvements (attack, hit points ... per
-// type: not in the tech tree, not found yet).
+// THE UNITS' IMPROVEMENTS ([ai_base] unit_improvements; the player 2026-11-15: "the ai should buy them for the units it
+// has, the two range upgrades per unit are a must, the others can be random but should be bought still"): the
+// attack, hit points, range, speed and armours a player buys for a unit type (EEUnitClassUpgrade in the spec: a
+// table per type, its max_level buys of an attribute, 10 points a type - an armour 1, the rest 2), for each type it
+// fields (RS_FIELDED, no building) while the setup allows them (game.improvements_allowed): the range ones in rank 2
+// (the most units first; before the epoch as the lines), the others in rank 4 in an order of its own (a hash of the
+// player, the type and the attribute: the same on every PC, unlike rand) and only with the points the range ones
+// still need left over. Bought as a player buys: EEPlayer.queue_improvement - paid now, in after its research time
+// (24 to 90 s, one after another per type); the queued count as bought. Head-to-head 2026-11-15 (Continental large,
+// 4 AIs from epoch 5, 60 min, seeds 1-5 mirrored; v_unit_improvements=1 against 0): about 50 bought an AI, its
+// citizens' first (cheap: their own price); B - A soldiers -25 (se 12), kills +5 (10), losses -16 (16), razed -7.9
+// (4.4), workers -13 (8.6), alive -0.05 - better trades, fewer soldiers. On by the player's call.
+// Never: a hero's upgrade (his list; the AI uses no heroes).
 // A rank buys only with what the ranks above it don't still wait for: the price of the next RS_HOLD1 of rank 1 and
 // RS_HOLD2 of rank 2 it could not buy this look (no money, no free building) is held back - from its own lower
 // ranks here, from everybody else by the row "research" of the priority list (priority.c; the epoch has its own
@@ -53,12 +64,15 @@ internal struct rsr_st {
     uint32_t t, log_t;
     int ep;                  // its epoch at the last look, + 1 (0: no look yet)
     int left[5], next[5];    // by rank, the last look: techs still to buy; the first of them (-1 none)
-    unsigned bought[5], refused, freed;
+    unsigned bought[5], refused, freed, improved;
     int due, miss;           // the epoch: due now; its requirements still missing
 } g_rsr[16];
 internal uint8_t g_rs_lost[16][RS_IDS / 8 + 1];   // marked queued, in no building at the last look
 struct rs_bld { ee_unit *u; int type, load, tech; };
-struct rs_cand { int id, rank, score, cost[7], counts; ee_tech *t; };
+struct rs_cand { int id, rank, score, cost[7], counts; ee_tech *t; short ut, attr; };   // ut: an improvement's type + 1 (0: a tech)
+internal int g_rs_imp = 1, g_v_rs_imp = -1;   // unit_improvements; [autotest] v_unit_improvements: the variant players'
+#define IMPROVE(idx) PV(idx, g_v_rs_imp, g_rs_imp)
+#define RS_IMP_IDS (RS_IDS + 1)   // an improvement's id in the log: RS_IMP_IDS + type x 16 + attribute
 // a line upgrade's line: 0 no line (no effect of kind 0x13), 1 soldiers or ships, 2 walls and towers, 3 a hero;
 // *units: how many of its types it has, *ordered: one of them on order and none there
 internal int rs_line(unsigned idx, ee_tech_data *d, const short *cnt, int *units, int *ordered) {
@@ -124,6 +138,47 @@ internal int rs_buy(struct rsr_st *z, struct rs_bld *m, struct rs_cand *c, int r
     m->tech = 1; m->load++;
     z->bought[rank]++;
     return 1;
+}
+// an improvement handed to the player's queue: 1 when it took it (paid and queued)
+internal int rs_buy_imp(ee_player *pl, struct rsr_st *z, struct rs_cand *c, int rank) {
+    if (!player_can_buy_improvement(pl, c->ut - 1, c->attr, NULL)) { z->refused++; return 0; }
+    player_queue_improvement(pl, c->ut - 1, c->attr, 0, 0);
+    z->bought[rank]++; z->improved++;
+    return 1;
+}
+// the improvements of the types it fields (THE UNITS' IMPROVEMENTS), as candidates
+internal int rs_improvements(ee_player *pl, unsigned idx, ee_tech_tree *tt, const short *cnt, struct rs_cand *cand, int nc) {
+    ee_game_data *gd = game_data();
+    int cap = gd ? game_data_get_improvement_points(gd) : 0;
+    if (!IMPROVE(idx) || !*game_improvements_allowed_at() || cap <= 0) return nc;
+    for (int t = 0; t < 768 && nc < RS_CAND; t++) {
+        if (cnt[t] < RS_FIELDED) continue;
+        ee_unit_type *td = type_data(t);
+        int cls = td ? unit_type_get_class_id(td) : CLS_BUILDING;
+        ee_upgrade_table *tab = td ? unit_type_get_upgrades(td) : NULL;
+        if (cls == CLS_BUILDING || cls == CLS_FORTRESS || cls == CLS_NAVAL_BUILDING || is_wall(t) || !tab || upgrade_table_get_max_level(tab) <= 0) continue;
+        ee_tech *ut = tech_tree_lookup(tt, unit_type_get_tech(td));
+        ee_tech_data *ud = ut ? tech_get_data(ut) : NULL;
+        if (!ud) continue;
+        int lv[16], used = 0, range_left = 0, max = upgrade_table_get_max_level(tab);
+        for (int a = 0; a < 16; a++) {   // with the queued ones; 0 not offered, -1 no stats
+            lv[a] = a == IMP_REPAIR || a == 13 || upgrade_table_step(tab, a) <= 0 ? 0 : player_improvement_level(pl, t, a);
+            if (lv[a] > 1) used += (lv[a] - 1) * improvement_points(a);
+        }
+        if (lv[IMP_RANGE] > 0 && lv[IMP_RANGE] <= max) range_left = (max - lv[IMP_RANGE] + 1) * improvement_points(IMP_RANGE);
+        for (int a = 0; a < 16 && nc < RS_CAND; a++) {
+            if (lv[a] <= 0 || lv[a] > max) continue;   // not offered, or all its buys made
+            int pts = improvement_points(a);
+            if (used + pts + (a == IMP_RANGE ? range_left - pts : range_left) > cap) continue;   // the range ones' points kept
+            struct rs_cand c = { .id = RS_IMP_IDS + t * 16 + a, .ut = (short)(t + 1), .attr = (short)a };
+            float f = upgrade_table_price(tab, a) * (float)lv[a];
+            for (int r = 2; r < 7; r++) { int base = tech_data_get_cost(ud, r); c.cost[r] = base > 0 ? (int)((float)base * f + 0.0001f) : 0; }
+            if (a == IMP_RANGE) { c.rank = RS_LINE; c.score = -cnt[t]; }
+            else { c.rank = RS_REST; c.score = (int)(((idx * 7919u + (unsigned)t * 131u + (unsigned)a * 2654435761u) >> 8) & 0xFFFFFF); }
+            cand[nc++] = c;
+        }
+    }
+    return nc;
 }
 internal int rs_cmp(const void *a, const void *b) {
     const struct rs_cand *x = a, *y = b;
@@ -211,6 +266,7 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         }
         if (nc < RS_CAND) cand[nc++] = c;
     }
+    nc = rs_improvements(pl, idx, tt, cnt, cand, nc);
     qsort(cand, (size_t)nc, sizeof *cand, rs_cmp);
     int hold[7] = { 0 }, waits[5] = { 0 }, buys = 0;
     int bw = g_rs_want[idx] - 1;   // build.c: the University, Hospital or Temple it saves for comes first - the techs are researched there (not its first production building: research does not wait for that)
@@ -224,8 +280,8 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         if (c->rank > RS_LINE) break;
         z->left[c->rank]++;
         if (z->next[c->rank] < 0) z->next[c->rank] = c->id;
-        struct rs_bld *m = rs_pays(stock, hold, c->cost) ? rs_maker(tech_get_data(c->t), bl, nb) : NULL;
-        if (m && buys < 4 && rs_buy(z, m, c, c->rank)) {
+        struct rs_bld *m = !c->ut && rs_pays(stock, hold, c->cost) ? rs_maker(tech_get_data(c->t), bl, nb) : NULL;
+        if (buys < 4 && (c->ut ? rs_pays(stock, hold, c->cost) && rs_buy_imp(pl, z, c, c->rank) : m && rs_buy(z, m, c, c->rank))) {
             size_t l = strlen(told);
             if (l < sizeof told - 20) snprintf(told + l, sizeof told - l, " %d(rank %d)", c->id, c->rank);
             buys++; c->rank = 0;
@@ -280,8 +336,11 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         if (z->next[RS_REST] < 0) z->next[RS_REST] = c->id;
         if (buys >= 4) continue;
         if (!any4++) prio_hold(pl, S_PLAN, rows, NULL);
-        struct rs_bld *m = rs_pays(stock, rows, c->cost) ? rs_maker(tech_get_data(c->t), bl, nb) : NULL;
-        if (!m || !rs_buy(z, m, c, RS_REST)) continue;
+        if (c->ut) { if (!rs_pays(stock, rows, c->cost) || !rs_buy_imp(pl, z, c, RS_REST)) continue; }
+        else {
+            struct rs_bld *m = rs_pays(stock, rows, c->cost) ? rs_maker(tech_get_data(c->t), bl, nb) : NULL;
+            if (!m || !rs_buy(z, m, c, RS_REST)) continue;
+        }
         buys++;
         for (int r = 2; r < 7; r++) rows[r] += c->cost[r];   // the stock is read again at the next look
         size_t l = strlen(told);
@@ -292,9 +351,14 @@ internal void research_tick(ee_player *pl, uint32_t now) {
     if (g_log && (!z->log_t || now - z->log_t >= 60000)) {
         z->log_t = now ? now : 1;
         log_locked("# research: P%u at %.1f min, epoch %d: to buy rank 1 %d (next %d), rank 2 %d (next %d), rank 4 %d (next %d) | epoch %d: %s, due at %.1f min, requirements missing %d | "
-                   "held back F%d W%d S%d G%d I%d | bought so far %u / %u / %u epochs and for them / %u, %u not taken, %u set free\n",
+                   "held back F%d W%d S%d G%d I%d | bought so far %u / %u / %u epochs and for them / %u (%u of them units' improvements), %u not taken, %u set free\n",
                    idx, now / 60000.0, ep, z->left[1], z->next[1], z->left[2], z->next[2], z->left[4], z->next[4], next, !ed ? "none" : due ? "due" : "not due",
-                   *timer / 60000.0, miss, hold[2], hold[3], hold[4], hold[5], hold[6], z->bought[1], z->bought[2], z->bought[3], z->bought[4], z->refused, z->freed);
+                   *timer / 60000.0, miss, hold[2], hold[3], hold[4], hold[5], hold[6], z->bought[1], z->bought[2], z->bought[3], z->bought[4], z->improved, z->refused, z->freed);
     }
+}
+internal void research_install(const char *autotest_ini) {
+    g_rs_imp = g_set_ai[1].unit_improvements;
+    if (autotest_ini) g_v_rs_imp = ini_int("autotest", "v_unit_improvements", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# research: units' improvements %d (variant %d)\n", g_rs_imp, g_v_rs_imp);
 }
 internal void research_new_game(void) { memset(g_rs_epoch, 0, sizeof g_rs_epoch); memset(g_rs_econ_first, 0, sizeof g_rs_econ_first); memset(g_rsr, 0, sizeof g_rsr); memset(g_rs_lost, 0, sizeof g_rs_lost); memset(g_rs_hold, 0, sizeof g_rs_hold); }

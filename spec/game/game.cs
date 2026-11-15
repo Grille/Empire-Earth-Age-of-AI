@@ -286,7 +286,8 @@ static unsafe class game
     static EEWorldTable table_values;
 
     /// the setup's "Unit Improvements Allowed" (EEPWorldHelper; copied from the setup at 0x5688B9): 0 and no
-    /// improvement (EEUnitClassUpgrade) can be bought - can_buy_improvement's first test, the computer player's too
+    /// improvement (EEUnitClassUpgrade) can be bought - tested by the button (EEUIBUpgrade.can_buy) and the computer
+    /// player, not by EEPlayer.can_buy_improvement
     [address((ee)0x00918E9B, (aoc)0x009318DB)]
     static block improvements_allowed;
 

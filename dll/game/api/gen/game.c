@@ -151,7 +151,8 @@ internal inline uint8_t *game_sound_percent_at(void) { return (uint8_t *)(uintpt
 // table_value_game's table (0x16: the population limit)
 internal inline ee_world_table *game_table_values_at(void) { return (ee_world_table *)(uint8_t *)(uintptr_t)data_game_table_values; }
 // the setup's "Unit Improvements Allowed" (EEPWorldHelper; copied from the setup at 0x5688B9): 0 and no
-// improvement (EEUnitClassUpgrade) can be bought - can_buy_improvement's first test, the computer player's too
+// improvement (EEUnitClassUpgrade) can be bought - tested by the button (EEUIBUpgrade.can_buy) and the computer
+// player, not by EEPlayer.can_buy_improvement
 internal inline uint8_t *game_improvements_allowed_at(void) { return (uint8_t *)(uintptr_t)data_game_improvements_allowed; }
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }

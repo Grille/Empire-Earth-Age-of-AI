@@ -370,9 +370,10 @@ internal inline void player_drop(ee_player *player, ee_unit *u, char again) { fn
 typedef void (__thiscall *player_queue_improvement_fn)(ee_player *, int, int, char, char);
 internal player_queue_improvement_fn fn_player_queue_improvement;
 internal inline void player_queue_improvement(ee_player *player, int type, int attr, char front, char no_pay) { fn_player_queue_improvement(player, type, attr, front, no_pay); }
-// may it buy the improvement now: game.improvements_allowed, the table offers the attribute, the level and the
-// points within max_level and ee_game_data.improvement_points with the queue counted, the price in stock; else
-// the reason into why (a UWideString*)
+// may it buy the improvement now: the table offers the attribute (its step above 0), the level and the points
+// within max_level and ee_game_data.improvement_points with the queue counted, the price in stock; else the
+// reason into why (a UWideString*, NULL: none - both writes test it). Not game.improvements_allowed: its callers
+// test that (the button, the computer player)
 typedef char (__thiscall *player_can_buy_improvement_fn)(ee_player *, int, int, void *);
 internal player_can_buy_improvement_fn fn_player_can_buy_improvement;
 internal inline char player_can_buy_improvement(ee_player *player, int type, int attr, void *why) { return fn_player_can_buy_improvement(player, type, attr, why); }

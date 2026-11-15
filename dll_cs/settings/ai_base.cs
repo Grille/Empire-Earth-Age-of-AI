@@ -408,6 +408,12 @@ class ai_base
         /// Upgrade reserve: the price of up to 4 waiting unit upgrades of units the AI fields is kept from its soldiers, so an
         /// army that spends every coin of gold still gets its upgrades - an upgrade is worth more than a few more soldiers. 1 = on
         bool upgrade_reserve = true;
+        /// Unit improvements: the attack, hit points, range, speed and armour a player buys for a unit type (the "+" buttons
+        /// of its units). With its own economy (game_ai = 0) the AI buys them for the units it has as a player does - paid
+        /// at once, in after their research time: both range improvements of a unit type before the next epoch, like its
+        /// line upgrades, the others in a random order of its own with what is left over. Only when the game's setup allows
+        /// unit improvements. 1 = on
+        bool unit_improvements = true;
         /// More granaries: the game's AI builds a single granary (8 fields), so its food stays short and the citizens it
         /// can't put on food go to gold. It asks for another one when the food workers are 6+ below the target and every
         /// field is farmed (about one per 8 wanted food workers, at most 8). The first granary comes once the food workers

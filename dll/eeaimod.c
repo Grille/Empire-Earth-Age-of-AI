@@ -114,6 +114,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   //
 internal void build_new_game(void);
 internal void research_tick(ee_player *pl, uint32_t now);   // research.c: research by rank
 internal void research_new_game(void);
+internal void research_install(const char *autotest_ini);   // research.c: unit_improvements
 internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the force by territory
 internal void stations_new_game(void);
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
@@ -765,6 +766,7 @@ internal void install(HMODULE self) {
     stage_install(g_autotest ? g_ini : NULL);
     armies_install(g_autotest ? g_ini : NULL);
     garrison_install(g_autotest ? g_ini : NULL);
+    research_install(g_autotest ? g_ini : NULL);
     territories_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);
