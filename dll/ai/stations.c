@@ -49,13 +49,13 @@
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since; ivec2 to; };   // since: a scout's territory is its goal since then
-struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; };
+struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; };   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
     int n;
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
-    unsigned moved, orders, pushes, won, lost, scouted;
+    unsigned moved, orders, pushes, won, lost, scouted, breaches;
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
@@ -64,6 +64,53 @@ internal struct st_side g_sn_own;
 // against the enemy there): a push's building, else the middle of the enemy soldiers in the territory of its with the
 // most of them, else the enemy building it knows nearest the territory with the largest share. 0: none known.
 internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at; return g_sn[idx & 15].need_on; }
+// THE WAY (the player 2026-11-15: "ai attacks dont cope well with walls yet. the attack should actual try to pathfind to
+// the target. maybe 2 paths? on with walls and one ignoring them, if the path with wall is a larger detour the ai bring
+// siege to destroy walls"): from a push's soldiers to its building two ways over the cells of armies.c's route search -
+// one as if no enemy wall stood, one with every cell of a wall or gate it has seen shut. No wall on the first: nothing
+// to do. The second no more than SN_ROUND times the first (and SN_ROUND_MORE cells): the walk round, which the game's
+// own pathfinding takes by itself. Longer, or none: A BREACH - the first wall on the way through is what the push
+// goes at: its siege (the soldiers too when it has none) attacks the piece, the rest stands by it; looked at again
+// every SN_WAY_EVERY, so the next piece follows and the push goes on once the way is open.
+// 1 a breach (*wall the piece's tile), 0 none; *round_, *straight the two ways in cells (0 none)
+#define SN_ROUND 2
+#define SN_ROUND_MORE 10
+#define SN_WAY_EVERY 15000
+internal int sn_way(ee_player *pl, unsigned idx, ivec2 from, ivec2 to, ivec2 *wall, int *round_, int *straight, uint32_t now) {
+    static int path[65536];
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0, d = 0, w = 0;
+    *round_ = *straight = 0; (void)pl;
+    int n = size > 0 ? ar_route_cells(idx, size, (unsigned short)map_area(from, 2), &g_armies[idx], now) : 0;
+    if (!n) return 0;
+    g_arr_walls = 2;
+    int len = ar_route_find(n, from, to, path, 65536, &d, &w), first = -1;
+    for (int j = len - 1; j >= 0 && first < 0; j--) if (g_arr.wall[path[j]]) first = path[j];   // from the start: path runs from the building back
+    *straight = len;
+    if (len && first >= 0) { g_arr_walls = 1; *round_ = ar_route_find(n, from, to, path, 65536, &d, &w); }
+    g_arr_walls = 0;
+    if (g_log && g_autotest) {   // tests: every look
+        int wc = 0;
+        for (int c = 0; c < n * n; c++) wc += g_arr.wall[c];
+        log_locked("# way: P%u at %.1f min: %d,%d -> %d,%d: the way through %d cells%s, the walk round %d; wall cells it knows %d\n", idx, now / 60000.0, from.x, from.y, to.x, to.y, len, first >= 0 ? " over a wall" : "", *round_, wc);
+    }
+    if (!len || first < 0 || (*round_ && *round_ <= len * SN_ROUND + SN_ROUND_MORE)) return 0;
+    ivec2 c = iv2((first % n) * AR_CELL + AR_CELL / 2, (first / n) * AR_CELL + AR_CELL / 2);
+    *wall = c;
+    return 1;
+}
+// the enemy wall piece or gate it has seen nearest p, within 4 tiles
+internal ee_unit *sn_wall_at(ee_player *pl, ivec2 p) {
+    ee_unit *best = NULL;
+    int bd = 0;
+    for (struct grid_it it = grid_it_box(p.x, p.y, 4, 1); grid_it_next(&it); ) {
+        ee_player *o = unit_get_owner(it.u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !explored_by(it.u, pl)) continue;
+        int d = ivec2_dist2(unit_get_tile(it.u), p);
+        if (!best || d < bd) { best = it.u; bd = d; }
+    }
+    return best;
+}
 internal int sn_cmp(const void *a, const void *b) { const struct sn_unit *x = a, *y = b; return x->u < y->u ? -1 : x->u > y->u; }
 internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fight, uint32_t now) {
     ee_goal *g = ar_goal_at(d, k, fight);
@@ -214,6 +261,12 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             st_side_add(&g_sn_own, z->m[i].u);
         }
         ivec2 mid = cn ? iv2((int)(sx / cn), (int)(sy / cn)) : p->at;
+        ivec2 lead = mid;   // THE WAY's start: the soldier nearest their middle (the middle itself can lie in a wood or on water)
+        for (int i = 0, ld = 0x7FFFFFFF; i < nn; i++) {
+            if (z->m[i].ter != p->from || z->m[i].scout) continue;
+            ivec2 q = unit_get_tile(z->m[i].u);
+            if (ivec2_dist2(q, mid) < ld) { ld = ivec2_dist2(q, mid); lead = q; }
+        }
         for (int e = 0; e < neb; e++) {
             if (eb[e].ter != p->into) continue;
             int d = ivec2_dist2(eb[e].p, mid);
@@ -228,6 +281,21 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             ratio = st_ratio(&g_sn_own, &g_sgs_foe);
             if (ratio < SN_BACK) { end = "losing"; z->lost++; }
             else p->at = eb[bi].p;
+        }
+        if (!end && (!p->way_t || now < p->way_t || now - p->way_t >= SN_WAY_EVERY)) {   // THE WAY
+            int was = p->breach;
+            ivec2 wall = p->wall;
+            p->way_t = now ? now : 1;
+            p->breach = sn_way(pl, idx, lead, p->at, &wall, &p->round_, &p->straight, now);
+            ee_unit *piece = p->breach ? sn_wall_at(pl, wall) : NULL;
+            if (!piece) p->breach = 0; else wall = unit_get_tile(piece);
+            if (p->breach != was || (p->breach && (wall.x != p->wall.x || wall.y != p->wall.y))) {
+                for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;
+                if (p->breach) z->breaches++;
+                if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d - %s (the way through %d cells, the walk round %d)\n", idx, now / 60000.0, p->from, p->into,
+                                      p->breach ? "a wall in the way: a breach" : "the way is open", p->straight, p->round_);
+            }
+            p->wall = wall;
         }
         if (!end) continue;
         p->on = 0; p->end_t = now ? now : 1;
@@ -269,7 +337,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
         if (ratio < SN_PUSH) continue;
         struct sn_push *p = &z->push[slot];
-        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0;
+        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0;
         z->pushes++;
         if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the building at %d,%d, judged %.2f (enemy there: %d)\n",
                               idx, now / 60000.0, r, into, cn, p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
@@ -324,6 +392,17 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         ivec2 d = rally[r], p = unit_get_tile(m->u);
         struct sn_push *pu = NULL;
         for (int k = 0; k < SN_PUSHES; k++) if (z->push[k].on && z->push[k].from == r) pu = &z->push[k];
+        if (pu && pu->breach) {   // A BREACH: the siege (everybody when it has none there) at the piece, the rest by it
+            ee_unit *piece = sn_wall_at(pl, pu->wall);
+            if (piece && (m->pool == SNP_SIEGE || !acs[r])) {
+                if (!m->order_t || (ar_idle(m->u) && now - m->order_t >= 3000)) {
+                    ee_goal *g = goal_attack(m->u, piece);
+                    if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = pu->wall; z->orders++; }
+                }
+                continue;
+            }
+            d = pu->wall; reach = 6;
+        } else
         if (pu) { d = pu->at; reach = 5; }
         else if (fn[r] > 0 && s->t[r].role != TVR_NONE) { d = iv2(fx[r] / fn[r], fy[r] / fn[r]); reach = 5; }
         else if (m->pool == SNP_SIEGE) fight = 0;

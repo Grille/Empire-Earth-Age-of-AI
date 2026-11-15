@@ -512,6 +512,7 @@ internal void ar_price_clear(struct armies_st *a, ivec2 d) {
 }
 internal unsigned g_ar_push_now;   // test (attacknow): the players whose force pushes at its next tick at home
 internal struct ar_route_buf { int n; int *g, *par; uint64_t *heap; uint8_t *seen, *dang, *wall; unsigned short *land; int hn; } g_arr;   // seen: 1 open, 2 done; wall: an enemy wall or gate seen on the cell
+internal int g_arr_walls;   // ar_route_find's walls: 0 a price (AR_ROUTE_WALL), 1 shut - no way over a wall's cell -, 2 open - as if none stood (stations.c THE WAY)
 internal int ar_route_alloc(int n) {
     if (g_arr.n == n) return 1;
     free(g_arr.g); free(g_arr.par); free(g_arr.heap); free(g_arr.seen); free(g_arr.dang); free(g_arr.wall); free(g_arr.land);
@@ -570,7 +571,7 @@ internal int ar_route_cells(unsigned idx, int size, unsigned short land, const s
     for (struct grid_it it = grid_it_all(1); pl && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || unit_get_hp(u) <= 0 || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || unit_get_hp(u) <= 0 || !(GAME_AI(idx) ? seen_by(u, pl) : explored_by(u, pl))) continue;   // off (stations.c THE WAY): every wall it has ever seen - a wall stays where it was
         ivec2 t = unit_get_tile(u);
         if (t.x >= 0 && t.y >= 0 && t.x < size && t.y < size) g_arr.wall[(t.y / AR_CELL) * n + t.x / AR_CELL] = 1;
     }
@@ -600,8 +601,9 @@ internal int ar_route_find(int n, ivec2 a, ivec2 b, int *path, int max, int *dan
             int j = ny * n + nx;
             if ((!g_arr.land[j] && j != t) || g_arr.seen[j] == 2) continue;
             if (d >= 4 && (!g_arr.land[cy * n + nx] || !g_arr.land[ny * n + cx])) continue;
+            if (g_arr_walls == 1 && ((g_arr.wall[j] && j != t) || (d >= 4 && (g_arr.wall[cy * n + nx] || g_arr.wall[ny * n + cx])))) continue;
             int near_t = abs(nx - tx) <= free_r && abs(ny - ty) <= free_r;
-            int cost = (d >= 4 ? 14 : 10) + (near_t ? 0 : g_arr.dang[j] * AR_ROUTE_DANGER * 10) + g_arr.wall[j] * AR_ROUTE_WALL * 10;
+            int cost = (d >= 4 ? 14 : 10) + (near_t ? 0 : g_arr.dang[j] * AR_ROUTE_DANGER * 10) + (g_arr_walls ? 0 : g_arr.wall[j] * AR_ROUTE_WALL * 10);
             int ng = g_arr.g[c] + cost;
             if (g_arr.seen[j] == 1 && ng >= g_arr.g[j]) continue;
             g_arr.g[j] = ng; g_arr.par[j] = c; g_arr.seen[j] = 1;

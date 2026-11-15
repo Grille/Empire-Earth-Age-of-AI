@@ -66,7 +66,7 @@ internal void ao_territories(ee_player *pl, unsigned idx, uint32_t col, uint32_t
     for (int k = 0; k < g_wk[idx].nh; k++) { int h = g_wk[idx].home[k].ter; if (h >= 0 && h < n) cits[h]++; }
     for (int i = 0; i < z->n; i++) {
         struct sn_unit *m = &z->m[i];
-        if (!cv_alive(m->u) || (int)unit_get_serial(m->u) != m->id || m->ter < 0 || m->ter >= n) continue;
+        if (!cv_alive(m->u) || (int)unit_get_id(m->u) != m->id || m->ter < 0 || m->ter >= n) continue;   // stations.c knows them by the id
         ivec2 p = unit_get_tile(m->u);
         unsigned cur = ter_near(p.x, p.y);
         if (!m->scout) stn[m->ter]++;
