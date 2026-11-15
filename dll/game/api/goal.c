@@ -68,6 +68,10 @@ internal inline int goal_is_load(const ee_goal *g) { return *(const uintptr_t *)
 internal inline int goal_is_unload(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_unload; }
 internal inline int goal_is_garrison(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_load_garrison; }
 internal inline int goal_is_gather(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_gather; }
+// a garrison order with units still to come in (its holder keeps an order whose last unit is in, unless that filled it)
+internal inline int goal_garrison_waits(const ee_goal *g) {
+    return goal_is_garrison(g) && garrison_goal_get_pending_first((const ee_garrison_goal *)g) != garrison_goal_get_pending_last((const ee_garrison_goal *)g);
+}
 // the memory of a goal the game may free (game_new of its size), then made with its _init
 internal inline void *goal_build_alloc(void) { return game_new(value_goal_size_goal_build); }
 internal inline void *goal_attack_alloc(void) { return game_new(value_goal_size_goal_attack); }

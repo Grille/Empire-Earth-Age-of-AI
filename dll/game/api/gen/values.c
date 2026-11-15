@@ -1089,6 +1089,8 @@ internal uint32_t of_build_goal_tech_id;
 internal uint32_t of_build_goal_type_id;
 internal uint32_t vt_eeug_load_transport;
 internal uint32_t vt_eeug_load_garrison;
+internal uint32_t of_garrison_goal_pending_first;
+internal uint32_t of_garrison_goal_pending_last;
 internal uint32_t vt_eeug_location;
 internal uint32_t of_location_goal_yaw;
 internal uint32_t of_location_goal_forced;

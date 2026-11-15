@@ -281,6 +281,16 @@ internal inline void **garrison_goal_0x3c_at(const ee_garrison_goal *o) { return
 internal inline ee_unit *garrison_goal_get_holder(const ee_garrison_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
 internal inline void garrison_goal_set_holder(ee_garrison_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
 internal inline ee_unit **garrison_goal_holder_at(const ee_garrison_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// the units still to come in, a std::vector at +0x24 (the load goal's base, as EEUGLoadTransport's: add_passenger
+// 0x61321D pushes there, AoC 0x625AB4 the same) - its first; the holder's order stays when the last is in, unless
+// that fills it (the player's game of 2026-11-15: 28 of P4's 30 orders with none to come, for good)
+internal inline ee_unit **garrison_goal_get_pending_first(const ee_garrison_goal *o) { return *(ee_unit ***)((uint8_t *)o + of_garrison_goal_pending_first); }
+internal inline void garrison_goal_set_pending_first(ee_garrison_goal *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_garrison_goal_pending_first) = v; }
+internal inline ee_unit ***garrison_goal_pending_first_at(const ee_garrison_goal *o) { return (ee_unit ***)((uint8_t *)o + of_garrison_goal_pending_first); }
+// the end of the units still to come in (pending_first)
+internal inline ee_unit **garrison_goal_get_pending_last(const ee_garrison_goal *o) { return *(ee_unit ***)((uint8_t *)o + of_garrison_goal_pending_last); }
+internal inline void garrison_goal_set_pending_last(ee_garrison_goal *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_garrison_goal_pending_last) = v; }
+internal inline ee_unit ***garrison_goal_pending_last_at(const ee_garrison_goal *o) { return (ee_unit ***)((uint8_t *)o + of_garrison_goal_pending_last); }
 // new 0x74: thiscall(goal, holder, vector of the units {_, begin, end, cap}, flag) - the load goal's base
 // (0x613080) as EEUGLoadTransport's
 typedef void *(__thiscall *garrison_goal_init_fn)(ee_garrison_goal *, void *, void *, int);
@@ -683,6 +693,8 @@ internal int spec_goal_select(int build) {
         vt_eeug_load_transport = 0x00831DC0;
         fn_load_goal_init = (load_goal_init_fn)0x0061487F;
         vt_eeug_load_garrison = 0x00831D20;
+        of_garrison_goal_pending_first = 0x28;
+        of_garrison_goal_pending_last = 0x2C;
         fn_garrison_goal_init = (garrison_goal_init_fn)0x00614120;
         vt_eeug_location = 0x00831E64;
         of_location_goal_yaw = 0x2C;
@@ -763,6 +775,8 @@ internal int spec_goal_select(int build) {
         vt_eeug_load_transport = 0x008477F8;
         fn_load_goal_init = (load_goal_init_fn)0x00627286;
         vt_eeug_load_garrison = 0x00847754;
+        of_garrison_goal_pending_first = 0x28;
+        of_garrison_goal_pending_last = 0x2C;
         fn_garrison_goal_init = (garrison_goal_init_fn)0x00626B0E;
         vt_eeug_location = 0x008478A0;
         of_location_goal_yaw = 0x2C;

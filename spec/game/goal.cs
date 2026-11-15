@@ -155,6 +155,16 @@ unsafe struct EEUGLoadTransport
 [@base(typeof(EEUnitGoal)), c_type("ee_garrison_goal"), vtable((ee)0x00831D20, (aoc)0x00847754)]
 unsafe struct EEUGLoadGarrison
 {
+    /// the units still to come in, a std::vector at +0x24 (the load goal's base, as EEUGLoadTransport's: add_passenger
+    /// 0x61321D pushes there, AoC 0x625AB4 the same) - its first; the holder's order stays when the last is in, unless
+    /// that fills it (the player's game of 2026-11-15: 28 of P4's 30 orders with none to come, for good)
+    [offset(0x28), found(c)]
+    EEUnit** pending_first;
+
+    /// the end of the units still to come in (pending_first)
+    [offset(0x2C), found(c)]
+    EEUnit** pending_last;
+
     /// new 0x74: thiscall(goal, holder, vector of the units {_, begin, end, cap}, flag) - the load goal's base
     /// (0x613080) as EEUGLoadTransport's
     [address((ee)0x00614120, (aoc)0x00626B0E)]
