@@ -67,6 +67,7 @@ internal struct bd_st {
     int open, mines, mines_drop, mines_guard;   // the last look: unfinished buildings; mines in reach, those with a drop site, with a defence
 } g_bd[16];
 // a citizen sent to build (as econ.c's field pass does it: a BuildRepair goal, the builder's state, its script told)
+internal int sn_holding(unsigned idx, int r, ivec2 *at);   // stations.c: a push of its holds the territory it cleared
 internal int bd_send(ee_player *pl, ee_unit *cit, ee_unit *building) {
     void *mem = goal_build_alloc();
     if (!mem) return 0;
@@ -334,12 +335,19 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             for (int j = 0; j < ndef; j++) if ((int)ter_near(def[j].x, def[j].y) == lone) c = iv2(def[j].x, def[j].y);
             if (!raiders_near(pl, c, 12) && !wk_danger(idx, c) && bd_spot(pl, idx, UT(B_SETTLEMENT), c, 2, 8, &at)) { type = UT(B_SETTLEMENT); what = "a claim's Settlement beside its tower"; }
         }
-        if (!type && !placed && lone < 0 && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
-            (!b->claim_t || now < b->claim_t || now - b->claim_t >= BD_CLAIM_EVERY)) {
-            int cb = -1, cd = 0;
+        // ... and the ground a push has cleared and holds (stations.c THE CLEARED GROUND) first and at once: its
+        // soldiers stand there for the tower - no wait for the last claim, a lone tower's Settlement or the tower
+        // going up elsewhere
+        int held_r = -1;
+        ivec2 held_at = iv2(0, 0);
+        for (int r = 0; r < s->n && held_r < 0; r++)
+            if (!g_ter.t[r].water && !s->t[r].bld && sn_holding(idx, r, &held_at) && !wk_danger(idx, held_at)) held_r = r;   // by its soldiers; whatever the view still remembers of the enemy's there (3 of 4 holds got no tower: the push sees no building left, the view's count of them lasts)
+        if (!type && !placed && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
+            (held_r >= 0 || (lone < 0 && !open_tower && (!b->claim_t || now < b->claim_t || now - b->claim_t >= BD_CLAIM_EVERY)))) {
+            int cb = held_r, cd = 0;
             for (int r = 0; r < s->n; r++) {
                 struct tv_terr *t = &s->t[r];
-                if (g_ter.t[r].water || t->role != TVR_NONE || t->bld || t->ebld || t->abld || t->state != TV_QUIET) continue;
+                if (held_r >= 0 || g_ter.t[r].water || t->role != TVR_NONE || t->bld || t->ebld || t->abld || t->state != TV_QUIET) continue;
                 int guarded = 0;
                 for (int k = 0; k < g_ter.t[r].nbn && !guarded; k++) {
                     unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
@@ -351,7 +359,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (cb < 0 || d < cd) { cb = r; cd = d; }
             }
             if (cb >= 0) {
-                if (bd_spot(pl, idx, ttype, g_ter.t[cb].c, 0, 8, &at)) { type = ttype; what = "a claim: a tower in a territory nobody holds"; b->claim_t = now ? now : 1; b->claims++; } else b->no_spot++;
+                if (bd_spot(pl, idx, ttype, cb == held_r ? held_at : g_ter.t[cb].c, 0, 8, &at)) { type = ttype; what = "a claim: a tower in a territory nobody holds"; b->claim_t = now ? now : 1; b->claims++; } else b->no_spot++;
             }
         }
     }

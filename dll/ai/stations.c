@@ -61,7 +61,7 @@
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t; ivec2 to; };   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
-struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait; int near_d; ivec2 near_at; };   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
+struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
     int n;
@@ -89,6 +89,7 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 #define SN_ROUND 2
 #define SN_ROUND_MORE 10
 #define SN_WAY_EVERY 15000
+#define SN_HOLD 600000          // THE CLEARED GROUND: held this long at most
 #define SN_STUCK 120000        // STUCK: no nearer to its building for this long
 #define SN_STUCK_AT 14          // ... and further from it than this (tiles): at it, it fights
 #define SN_STUCK_WALL 12        // the enemy wall to breach then: within this of its soldiers
@@ -207,6 +208,11 @@ internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, c
         }
     }
     return any;
+}
+// build.c's claim: a push of its holds the territory it cleared
+internal int sn_holding(unsigned idx, int r, ivec2 *at) {   // *at: where its soldiers stand
+    for (int k = 0; k < SN_PUSHES; k++) if (g_sn[idx & 15].push[k].on && g_sn[idx & 15].push[k].hold_t && g_sn[idx & 15].push[k].into == r) { *at = g_sn[idx & 15].push[k].at; return 1; }
+    return 0;
 }
 internal void stations_tick(ee_player *pl, uint32_t now) {
     static struct sn_unit old[SN_UNITS];
@@ -353,7 +359,24 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         const char *end = NULL;
         float ratio = 0;
         if (!cn) end = "nobody left";
-        else if (bi < 0) { end = "no building left there"; z->won++; }
+        else if (bi < 0) {
+            // THE CLEARED GROUND (the player 2026-11-15: "the claiming proccess needs some work, right now the army comes,
+            // clears evrething and than leaves. leaving the citezens alone to build their tower"): with no building left
+            // there the push is won, not over - its soldiers stand where its last building stood until a
+            // building of its holds it (territories.c TV_HOLDS: build.c's claim lays the tower there first, at once),
+            // SN_HOLD at most, or until they are losing against what comes.
+            if (!p->hold_t) {
+                p->hold_t = now ? now : 1; z->won++;
+                p->breach = 0;   // where the last building stood: they are there (the territory's middle may lie in a wood, behind a wall - 2 of the first 3 holds ended "stuck" on the way to it)
+                for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;
+                if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d has cleared it - %d soldiers hold it until a building of its stands there\n", idx, now / 60000.0, p->from, p->into, cn);
+            }
+            stage_foe(pl, p->at);
+            ratio = st_ratio(&g_sn_own, &g_sgs_foe);
+            if (TV_HOLDS(idx, &s->t[p->into])) end = "claimed: a building of its holds the territory";
+            else if (now < p->hold_t || now - p->hold_t >= SN_HOLD) end = "cleared, and not claimed in time";
+            else if (ratio < SN_BACK) end = "losing the ground it cleared";
+        }
         else {
             stage_foe(pl, eb[bi].p);
             ratio = st_ratio(&g_sn_own, &g_sgs_foe);
@@ -366,7 +389,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         // for SN_STUCK - by a tenth of the way, and not standing at it - goes at the enemy wall or gate it has seen
         // nearest them (SN_STUCK_WALL tiles), THE WAY's breach without asking the route; with none there the push is
         // over, and SN_STUCK_WAIT passes before that territory pushes again.
-        if (!end) {
+        if (!end && !p->hold_t) {
             int d = ivec2_dist2(mid, p->at);
             if (!p->near_t || now < p->near_t || p->near_at.x != p->at.x || p->near_at.y != p->at.y || d * 10 < p->near_d * 8) { p->near_t = now ? now : 1; p->near_d = d; p->near_at = p->at; }
             else if (now - p->near_t >= SN_STUCK && d > SN_STUCK_AT * SN_STUCK_AT) {
@@ -442,7 +465,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
         if (ratio < SN_PUSH) continue;
         struct sn_push *p = &z->push[slot];
-        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = 0;
+        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
         z->pushes++;
         if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the building at %d,%d, judged %.2f (enemy there: %d)\n",
                               idx, now / 60000.0, r, into, cn, p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
