@@ -147,13 +147,16 @@ internal int chk_bench(const char *path, int runs) {
         t0 = chk_ms();
         struct xvm *m = xvm_new(code, 0);
         const char *stop = "no memory";
+        if (m) m->reg = &reg;
+        g_dry_vm = m;
         int r = m ? xvm_turn(m, &stop) : XVM_FAIL;
         while (r == XVM_YIELD) { dry_wait(m->wake); r = xvm_turn(m, &stop); }
+        g_dry_vm = NULL;
         double ms = chk_ms() - t0;
         if (r != XVM_DONE) fprintf(g_dry_out, "stopped at line %d - %s\n", m ? m->line : 0, stop);
         if (r != XVM_DONE && !i) printf("%s:%d: stopped - %s\n", path, m ? m->line : 0, stop);
         if (!i || ms < best) best = ms;
-        if (reg.total > left) left = reg.total;
+        if (reg.total + g_xt_keep.total > left) left = reg.total + g_xt_keep.total;   // (its triggers' with it)
         free(m);
         memset(&g_x_hooks, 0, sizeof g_x_hooks);
         g_xr = r0;

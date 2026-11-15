@@ -1,0 +1,14 @@
+// bench: a timer that sets the script's names every tick for an hour of game time, while the script waits - what it
+// set before is cleared out (expr.c XI_STOREU, test/scripts.c script_triggers), not kept for the whole game
+let n = 0
+let last = ""
+let items = [0]
+let seen = { tick = 0, name = "" }
+game.timer(0.5s, () => {
+    n += 1
+    last = "tick {n} of the timer, a text of some length to see what it takes"
+    items = [n, n + 1, n + 2, n + 3, n + 4, n + 5, n + 6, n + 7]
+    seen = { tick = n, name = last }
+})
+wait(60min)
+cmd("timers {n} {last} {items[8]} {seen.tick} {seen.name}")

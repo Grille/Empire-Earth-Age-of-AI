@@ -290,9 +290,20 @@ internal void script_triggers(uint32_t now) {
     if (now > g_script_now) g_script_now = now;
     g_x_hooks.now = script_now; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
     g_x_safe = 1;   // (a trigger's spawns made at once: units.c)
+    struct script *all[1 + SCRIPTS_MAX] = { &g_own };
+    for (int i = 0; i < g_nscripts; i++) all[1 + i] = &g_scripts[i];
+    for (int i = 0; i < 1 + g_nscripts; i++) if (all[i]->vm) all[i]->vm->reg = &all[i]->reg;   // (where its triggers' functions set its names)
     x_triggers_tick(g_script_now / 1000.0);
     g_x_safe = 0;
     memset(&g_x_hooks, 0, sizeof g_x_hooks);
+    for (int i = 0; i < 1 + g_nscripts; i++) {   // what they set and dropped again, cleared out (a script that waits long, or is done, has no turn to do it in)
+        struct script *s = all[i];
+        if (!s->vm || s->reg.total <= (s->vm->gc_at ? s->vm->gc_at : X_GC_STEP)) continue;
+        struct xregion *r0 = g_xr;
+        g_xr = &s->reg;
+        xvm_gc(s->vm);
+        g_xr = r0;
+    }
 }
 // THE SCRIPTS IN A SAVED GAME (persist.c's block "scripts", in the save's .ageofai file): a save carries its scripts
 // whole - each one's source as it was read (for the messages), its instructions (a save runs its own: it doesn't
@@ -410,8 +421,13 @@ internal void scripts_state_load(const uint8_t *p, uint32_t size) {
 internal double g_dry_now;
 internal FILE *g_dry_out;
 internal double dry_now(void) { return g_dry_now; }
+internal struct xvm *g_dry_vm;   // the machine run dry (its region the one in use)
 internal void dry_wait(double until) {
-    for (double t = g_dry_now + 0.5; t <= until + 1e-9; t += 0.5) { g_dry_now = t; x_triggers_tick(t); }
+    for (double t = g_dry_now + 0.5; t <= until + 1e-9; t += 0.5) {
+        g_dry_now = t;
+        x_triggers_tick(t);
+        if (g_dry_vm && g_xr->total > (g_dry_vm->gc_at ? g_dry_vm->gc_at : X_GC_STEP)) xvm_gc(g_dry_vm);   // (as script_triggers does)
+    }
     if (until > g_dry_now) g_dry_now = until;
 }
 internal void dry_command(const char *cmd, char *reply, int cap) {
@@ -475,8 +491,12 @@ internal void cmd_script(char *out, const char *args) {
     QueryPerformanceCounter(&q0);
     struct xvm *m = xvm_new(code, 0);   // (setup.eeai run dry: its top, no hook - there is no game to tell its kind)
     const char *stop = "no memory";
+    struct xvm *dry0 = g_dry_vm;
+    if (m) m->reg = &reg;
+    g_dry_vm = m;
     int r = m ? xvm_turn(m, &stop) : XVM_FAIL;
     while (r == XVM_YIELD) { dry_wait(m->wake); r = xvm_turn(m, &stop); }   // the machine's turns, the clock moved where it waits
+    g_dry_vm = dry0;
     int ok = r == XVM_DONE;
     QueryPerformanceCounter(&q1);
     if (!ok) log_line("# setup: %s:%d: stopped - %s\n", file, m ? m->line : 0, stop);

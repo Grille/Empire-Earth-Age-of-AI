@@ -3091,7 +3091,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
             return;
         }
     }
-    int f = x_fn_id(name, na);
+    int f = strchr(name, '.') ? 0 : x_fn_id(name, na);   // (no builtin has a dot: a relation, a method)
     for (int i = 0; f && i < na; i++) if (a[i].miss) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
     if (e->err) return;
     if (e->c->fixed && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no vars functions
@@ -4589,6 +4589,8 @@ struct xvm {
     int ntr;
     int pc, hooks, line, done, started;
     size_t gc_at;                        // its region's size at which what it dropped is cleared out (xvm_gc; 0: X_GC_STEP)
+    struct xregion *reg;                 // its script's region (the runner's; NULL: not told) - what a trigger's function
+                                         // sets in the script's top goes there (XI_STOREU)
     int text;                            // the texts' machine (xvm_eval): nothing waits on it
     double wake;                         // the game second it waits for (XVM_YIELD)
 };
@@ -4597,6 +4599,12 @@ internal int xvm_made_in(const struct xval *v, const struct xview *w) {   // a f
     if (v->kind == XV_FN && v->fn && v->fn->venv == w) return 1;
     for (int i = 0; i < v->ln; i++) if (xvm_made_in(&v->it[i], w)) return 1;
     for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) if (xvm_made_in(&v->rec->val[i], w)) return 1;
+    return 0;
+}
+internal int xvm_has_fn(const struct xval *v) {   // a function, in v or its items
+    if (v->kind == XV_FN) return 1;
+    for (int i = 0; i < v->ln; i++) if (xvm_has_fn(&v->it[i])) return 1;
+    for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) if (xvm_has_fn(&v->rec->val[i])) return 1;
     return 0;
 }
 internal void xvm_unset(struct xval *v) { xnothing(v); v->kind = XV_UNSET; }
@@ -4669,9 +4677,18 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             v = &m->st[--m->sp];
             if (!w || in->a >= w->n) { x_fail(e, "%s = ...: its frame is gone", k->s); break; }
             if (xvm_made_in(v, &f->view)) { x_fail(e, "%s = ...: a function made inside a function can't be handed out of it", k->s); break; }
-            // a frame that stays set from a trigger's function (its values are the tick's): kept
-            if (w->keep && g_xt_in && (v->has_s || v->ln || v->kind || v->obj)) xt_keep(&w->val[in->a], v);
-            else w->val[in->a] = *v;
+            // a frame that stays set from a trigger's function (its values are the tick's): kept - the script's top in the
+            // script's own region, which is cleared of what it drops (a timer setting a text every tick must not pile
+            // them up for the whole game: the triggers' own region is only freed with the game); a function, or a
+            // function's frame a trigger keeps, there
+            if (w->keep && g_xt_in && (v->has_s || v->ln || v->kind || v->obj)) {
+                if (w == &m->fr[0].view && m->reg && !xvm_has_fn(v)) {
+                    struct xregion *r0 = g_xr;
+                    g_xr = m->reg;
+                    xv_copy(&w->val[in->a], v);
+                    g_xr = r0;
+                } else xt_keep(&w->val[in->a], v);
+            } else w->val[in->a] = *v;
             break;
         case XI_NAME: v = xvm_push(m, e); xnothing(v); xop_name(e, k->s, &k->n, &k->cs, v); break;
         case XI_PATH:   // a member path whose head is the slot c of the function b out: what xe_ident does once it found the head its own
