@@ -2,150 +2,112 @@
 
 *An unofficial fan mod. Not affiliated with or endorsed by the rights holders of Empire Earth.*
 
+> **[Image: banner]** A wide shot of a big late-game battle - two armies clashing in front of a walled town, towers
+> firing, zoomed out far enough to show the scale. The mod's name over it.
+
+**Computer players worth playing against.** The original Empire Earth AI only keeps up because it cheats: it pays
+about 1% of the real prices. Take that away and it can't run an economy. Age of AI gives the computer players a
+brain of their own - they pay what you pay, see only what you could see, and still build, expand, defend and attack
+like a player. On top of that the mod fixes and modernizes the game itself: windowed mode, a camera that zooms out
+further, big selections, smoother movement and much more.
+
+It is a single DLL dropped into the game folder; the game's own files stay untouched. It works with
+**Empire Earth 1.04** (GOG, Steam Gold Edition, NeoEE) and **The Art of Conquest**.
+
 The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI -
-the game's code was reverse-engineered and the mod written largely with AI coding tools. Short: **EE: Age of AI**.
+the game's code was reverse-engineered and the mod written largely with AI coding tools.
 
-A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the last official
-base-game exe) and **The Art of Conquest**. It fixes and tunes the game from inside: a DLL in the game folder
-patches the running exe, and the game's files stay unchanged. The engine loads every DLL in its folder, so dropping
-the file there is enough.
+## Highlights
 
-## What it changes
+### An AI that plays fair
 
-- **The computer player** (the main focus): the original AI pays about 1% of the real prices and still can't run
-  an economy without that cheat. The mod's AI pays what you pay and never sees what a human couldn't: it builds a
-  real economy, defends its base, attacks as one army round the defences it has seen, and goes to sea on water
-  maps. Tuned for 200-400 population per player. [docs/ai-features.md](docs/ai-features.md)
-- **Diplomacy and personalities**: the AIs answer war, make peace and alliances, capitulate and betray, remember
-  across save and load, and speak with a character of their own - optionally through a language model on your PC
-  that you can talk to in the chat. [docs/diplomacy.md](docs/diplomacy.md)
-- **Fixes of the game itself**: windowed and borderless mode, the scenario editor at higher resolutions, smoother
-  camera, no blinking objects in big fights, walls that follow the ground, selections of more than 63 units,
-  transports that share out the units, straight routes, turning, collision and formations that hold together,
-  more sound channels. [docs/game-fixes.md](docs/game-fixes.md)
+- **No cheating.** The AI pays full price and knows only what it has scouted - enemy buildings it has seen, armies
+  it has spotted.
+- **It thinks in territories.** The map is split into regions. The AI works the land it holds, guards its borders,
+  builds a Settlement and a tower by every mine, and sends soldiers where they are needed rather than leaving them in
+  one heap.
+- **A real economy.** Citizens gather where it is safe and stay at their gold and iron until they are actually
+  attacked. Farms, houses for morale, researched upgrades and epochs at a sensible pace.
+- **It fights like a player.** It pushes when it is winning and pulls back when it isn't. It brings siege against
+  defences and uses priests to convert lone units. Prophets bring towers down with an earthquake cast from out of
+  range.
+- **It understands scenarios.** In a scenario the AI follows the trigger system's attack and defend targets and
+  respects the AI settings the map gives it.
 
-Every feature has its own setting in `ageofai.ini`, explained in the file and in `ageofai_config.exe`.
+> **[Image: AI town]** An AI's base mid-game: fields round a granary, a Settlement with a tower by a gold mine, a
+> wall with towers at the front facing the enemy.
 
-## Which game
+> **[Image: territories]** The AI's plan drawn on the map (the debug overlay): territories outlined, which ones it
+> works, where its soldiers are stationed and where it pushes.
 
-The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam Gold Edition**
-(`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest
-added), the **Vanilla** setup from empireearth.eu or **NeoEE** (the community's online version: see [NeoEE](#neoee)).
-Another copy of 1.04 - the retail CD game's exe without its copy protection, say - plays too when its code is the
-same: an exe the mod doesn't know by its file is checked against every place in its code the mod uses when the game
-starts, and the mod switches on only when every one holds (the log's `# build:` and `# spec:` lines). With the copy
-protection still on (SafeDisc, which Windows 10 and 11 no longer run anyway) and with versions before 1.04 the mod
-stays switched off, with a message.
+### Diplomacy and personalities
 
-Art of Conquest (`EE-AOC.exe`, GOG and Steam) plays with the mod too, since 2026-11-05 (see [Status](#status)).
+- The AIs answer when you declare war, make peace and alliances, capitulate and sometimes betray you. They remember
+  it all across save and load.
+- Each AI has a personality and talks in the chat in its own voice. Optionally a language model running on your own
+  PC lets you actually chat with them.
+- Personalities are plain text files you can edit or write yourself.
 
-The mod coexists with community DLL patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116
-patches touches a place the mod patches); a few of their options overlap with the mod's
-([docs/game-fixes.md](docs/game-fixes.md#beside-other-dll-mods)).
+> **[Image: chat]** The in-game chat with an AI answering a declaration of war in its personality's voice.
+
+### A better game for everyone
+
+- **Windowed and borderless mode**, drawn by the mod's own renderer (Direct3D 11): sharp at high resolutions, with
+  shadows and smoothed edges, and screenshots and recording work.
+- **Camera:** smoother scrolling and a zoom that goes further out than the game allows.
+- **Big armies:** double-click or drag-select more than 63 units; objects no longer blink in and out in big fights;
+  room for 4 GB of memory.
+- **Movement:** straighter routes, units turning and colliding properly, formations that hold together, transports
+  that share out their load.
+- **Walls** that follow the ground, a **scenario editor** that works at high resolutions, **more sound channels**.
+
+> **[Image: zoomed out]** The same spot at the game's furthest zoom and at the mod's, side by side.
+
+> **[Image: big selection]** A box selection of a few hundred soldiers, all of them selected.
+
+### Easy to set up
+
+Every feature has its own switch. `ageofai_config.exe` shows all of them in one window, each with its explanation
+and default, so there's no need to edit files by hand.
+
+> **[Image: settings window]** ageofai_config.exe open on the AI's page, a setting selected with its explanation
+> shown.
 
 ## Installing
 
-The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll` and `ageofai_config.exe`
-(Windows and the game load DLLs from there only); everything else of the mod is in one folder `ageofai` beside them
-- its settings, the personalities, the game's settings file, the log. Writing personalities? `ageofai_check.exe`, a
-download of its own, goes there too: it checks them without starting the game (config/personalities/README.md).
+1. Download the release zip and unpack it into your Empire Earth folder, next to `Empire Earth.exe`. It adds
+   `ageofai.dll`, `ageofai_config.exe` and a folder `ageofai` with the settings and the personalities.
+2. Optional: start `ageofai_config.exe` to change settings. Its Game page can also give the game 4 GB of memory,
+   which big maps and armies need.
+3. Start Empire Earth as usual and play a skirmish or a scenario against the computer.
 
-1. Copy `ageofai.dll` into the Empire Earth folder (next to `Empire Earth.exe`), and make a folder `ageofai` there.
-2. Copy [`config/ageofai.ini`](config/ageofai.ini) into `ageofai` and adjust it. Every option is explained in the
-   file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and `[ai_hard]`
-   override it for those two.
-3. Optional: copy the folder [`config/personalities`](config/personalities) into `ageofai` too, for the AI
-   personalities and the mod's texts (without them the AIs say nothing and have no diplomacy of their own). Add or
-   edit `.eeai` files there to make your own; they are read when Empire Earth starts.
-4. Start the game normally. Changes to `ageofai.ini` take effect when a game starts or a save is loaded.
-   Instead of editing the file you can copy `ageofai_config.exe` next to `Empire Earth.exe` and start it: every
-   setting in one tree - the sections (General, Display, ... the AI), their topics (Movement, Navy, ...), a
-   master setting with the ones it switches - with its explanation, its value and its default, an AI setting's
-   easy and hard values where they differ; a search finds any of them; a value is checked as you type, as the
-   game reads it, and Save writes only what you changed, keeping the file's comments. It also lists keys in your
-   file that this version no longer knows (old experiments, typing mistakes) and can remove them. Without an
-   `ageofai\ageofai.ini` it offers to make one with the default settings. Its Game exe button shows which exe is next
-   to it and can give the game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps
-   need it; one bit in the exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put
-   back by Restore). Help (F1) explains its colours and the rest.
-5. Optional: on the same Game page, "Settings in a file": the game then keeps its own settings (graphics, sound,
-   scroll speed, the last game's options - what the options screen sets) in `ageofai\eesettings.ini` instead of
-   the Windows registry, so they travel with the folder; the first start copies the registry's values into it.
-   The game reads them before it loads the mod, so this makes Windows load `ageofai.dll` earlier: it adds it to
-   the imports of `Low-Level Engine.dll` (the engine's code stays as it is; the file kept as
-   `Low-Level Engine.dll.original`). The same button takes it out again, and so does the game's "verify files"
-   (Steam, GOG) - the settings are then in the registry again. While it is on, the game needs `ageofai.dll`.
+To play the original game again, set `enabled=0` at the top of `ageofai\ageofai.ini`, or delete `ageofai.dll`.
 
-`ageofai\ageofai.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
-set `enabled=0` at the top of `ageofai.ini` (the mod then installs nothing), or delete `ageofai.dll` to
-uninstall (with the settings in a file: switch that off first - the engine won't start without the DLL). A setting
-missing from an older `ageofai.ini` takes its built-in default. The DLL writes a log to
-`ageofai\ageofai_log.csv`.
-
-For windowed or borderless play set `[display] display_mode`; the mod draws the picture itself or through a
-DirectDraw wrapper such as DDrawCompat ([docs/game-fixes.md](docs/game-fixes.md#window-and-picture)).
-
-### NeoEE
-
-The same steps, in NeoEE's game folder (`%LOCALAPPDATA%\Programs\Neo Empire Earth\Empire Earth` for its current
-installer). The mod knows NeoEE's `Empire Earth.exe`: the start's log says `# build: NeoEE (ee's code)`. What
-differs from the GOG version:
-
-- NeoEE's exe has no 4 GB flag; `ageofai_config.exe` sets it as on the GOG exe (checked: the game starts and plays).
-- NeoEE ships dreXmod 3.4, dgVoodoo as `ddraw.dll` and an English `Language.dll`. dreXmod's FixTnLVertexBuffer does
-  what `[display] vertex_sysmem` does (the mod finds it done and leaves it). The mod's `[camera]` settings do what
-  dreXmod's camera does and more (a zoom further out): set `<Camera><Enabled>` to false in `dreXmod.config`. Its menu
-  resolution and the mod's `[display]` settings haven't been tried together by hand yet.
-- NeoEE's data changes a few rules (its `Data\db` files: a population limit of 4000, more starting-resource levels
-  and game variants). The AI adapts to the data, but it was measured on the original rules.
-- NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too, but off in a normal start until test games have run on
-  it.
-- Not on NeoEE's online servers: see [Multiplayer](#multiplayer).
-
-### Multiplayer
-
-Not tested yet. Every player needs the same `ageofai.dll`, the same `ageofai.ini` and the same personalities. The
-game is lockstep - every PC simulates everything - so different settings make the games drift apart; the mod's
-decisions use only the game's own state, math and random numbers for this. Nothing checks yet that every PC has the
-same; until the mod does (the host's settings for every PC), don't use it in online games - and not in NeoEE's
-ranked games at all: its rank system and cheat detector expect the original game, and how they treat the mod is a
-question for NeoEE's people, not something to try.
+Which game versions work, installing by hand, NeoEE, the game's settings in a file, and multiplayer (not ready yet:
+don't use it online): [docs/installing.md](docs/installing.md).
 
 ## Status
 
-- **Confirmed in play:** the scenario fix, the early economy (fair prices, economy first, budget), windowed and
-  borderless mode, editor resolution, camera scrolling.
-- **Tested in automated AI games and test scenarios, needs playtesting against a human:** most of the AI - build
-  queue, mines, defences, home guard, the army, attack routing, siege, the navy, diplomacy and personalities. The
-  numbers are in [docs/ai-analysis.md](docs/ai-analysis.md#test-results-so-far) and the commits.
-- **NeoEE:** recognized and tested in automated games (the same checks and hooks as on the GOG exe); not played by
-  hand yet.
-- **Experimental, off by default:** what hasn't shown a gain yet ([docs/experiments.md](docs/experiments.md)), the
-  personalities' play styles (`ai_style`).
-- **Art of Conquest, on since 2026-11-05:** every address the mod uses is known for it too (its load checks hold).
-  Automated test games: 14 maps and seeds of 45 minutes each, AoC and the base game the same games, no crash and the
-  AI as strong in both (alive, epoch, workers, soldiers within a few percent). The base game's online screens, which
-  AoC removed, and two of the off-map fix's ten calls are the base game's only. Not played by hand much yet.
+The mod is in active development, and every part has its own switch.
 
-## Documentation
+- **The computer player is being rebuilt.** Since November 2026 the mod's AIs no longer use the game's own AI at
+  all; everything they do is the mod's own code. The economy, building, research, the army on land, priests and
+  prophets, and scenario targets are in. Ships and aircraft by role are still being written.
+- **The game fixes:** windowed and borderless mode, the editor's resolution and the camera are confirmed in play;
+  the rest is tested in automated games.
+- **Multiplayer** is not tested yet. Every PC would need the same settings, and nothing checks that yet.
 
-| Document | Contents |
-|---|---|
-| [docs/ai-features.md](docs/ai-features.md) | What the mod's computer player does differently, feature by feature, with the measurements |
-| [docs/diplomacy.md](docs/diplomacy.md) | Diplomacy, the personalities and their texts, the AI voice (language model) |
-| [docs/game-fixes.md](docs/game-fixes.md) | Display, editor, camera, walls, selection, transports, movement and sound fixes |
-| [config/ageofai.ini](config/ageofai.ini) | Every setting, explained |
-| [config/personalities/README.md](config/personalities/README.md) | The personalities and texts: format, expressions, values, situations |
-| [config/personalities/_template.eeai](config/personalities/_template.eeai) | An empty personality with every key explained, to copy |
-| [docs/ai-analysis.md](docs/ai-analysis.md) | How the original AI works, where it fails, and the test results |
-| [docs/economy.md](docs/economy.md), [docs/navy.md](docs/navy.md) | The AI's economy against the base game's AI; ship roles and the navy |
-| [docs/experiments.md](docs/experiments.md) | The AI experiments that are off: why they failed |
-| [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
-| [docs/triggers.md](docs/triggers.md), [docs/renderer.md](docs/renderer.md) | The scenario triggers; the mod's own renderer |
-| [docs/units.md](docs/units.md) | Every unit and building type: id, identifier, name (generated) |
-| [docs/development.md](docs/development.md) | Building, the reverse-engineering setup, the project layout |
-| [docs/testing.md](docs/testing.md), [docs/scripts.md](docs/scripts.md) | Automated tests, the control pipe, the test scripts |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | What the project takes, how to report, the rules a change has to follow |
+What is confirmed, what is only tested in automated games, and what is experimental:
+[docs/installing.md](docs/installing.md#status). Found a bug or have an idea? See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Learn more
+
+- [What the AI does](docs/ai-features.md) and [diplomacy and personalities](docs/diplomacy.md)
+- [The game fixes and their settings](docs/game-fixes.md)
+- [Writing your own personalities](config/personalities/README.md) and [scripts](docs/scripts.md)
+- [Every setting, explained](config/ageofai.ini)
+- [All the documentation](docs/README.md) - including how the mod is built and tested, and what was learned about
+  the game's engine
 
 ## License
 

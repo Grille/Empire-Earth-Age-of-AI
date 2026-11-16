@@ -6,7 +6,8 @@
 // header pointed at it; nothing of the engine's code or data moves. The file is copied first to
 // <engine>.original (Restore and "off" put it back), the game closed, the header's checksum made anew. Undone by a
 // game's "verify files" too (Steam, GOG): the mod then simply loads late again, the settings in the registry. With
-// the import, ageofai.dll must stay: Windows won't start the engine without it (README "Installing").
+// the import, ageofai.dll must stay: Windows won't start the engine without it (docs/installing.md "The game's
+// settings in a file").
 #define LLE_FILE "Low-Level Engine.dll"
 #define LLE_IMPORT "ageofai.dll"
 #define LLE_FN "ageofai_settings"

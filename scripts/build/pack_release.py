@@ -1,5 +1,5 @@
 """Packs a release: local/work/release/ageofai-<date>-<commit>.zip - unpacked into the game folder (next to
-Empire Earth.exe) it is the mod as README "Installing" lays it out:
+Empire Earth.exe) it is the mod as docs/installing.md "Installing" lays it out:
     ageofai.dll, ageofai_config.exe            beside the game
     ageofai/ageofai.ini, ageofai/personalities/ the mod's folder: the shipped settings and personalities
 and beside the zip ageofai_check.exe, the .eeai checker - a download of its own on the release page, never in the zip

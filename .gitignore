@@ -1,4 +1,4 @@
-# Everything of this machine's that isn't the project's own (README "Setup"): local/
+# Everything of this machine's that isn't the project's own (docs/development.md "Setup"): local/
 #   work/         build output of install.sh, test logs and slots, caches
 #   scratch/      notes and leftovers
 #   tools/ venv/  the toolchains (llvm-mingw, Ghidra, JDK) and the Python environment

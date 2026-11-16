@@ -3,7 +3,7 @@
 What the mod changes in the game itself, for every player and the AI alike, and the `ageofai.ini` keys that switch
 it. Each key's own explanation is in [config/ageofai.ini](../config/ageofai.ini) (and in `ageofai_config.exe`); this
 page says what was wrong and what the fix does. A setting marked "in multiplayer every PC needs the same setting"
-changes the simulation: in a lockstep game different values make the PCs' games drift apart (README "Multiplayer").
+changes the simulation: in a lockstep game different values make the PCs' games drift apart ([installing.md](installing.md#multiplayer)).
 
 ## Window and picture
 

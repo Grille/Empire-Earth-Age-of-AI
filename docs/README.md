@@ -5,6 +5,8 @@ What each page here is for, grouped by who reads it. What the mod is and how to 
 
 ## Playing with the mod
 
+- [installing.md](installing.md) - which game versions the mod runs on, installing by hand, the settings window,
+  the game's settings in a file, NeoEE, multiplayer, and the status of each part.
 - [ai-features.md](ai-features.md) - what the mod changes in the computer player, feature by feature, with the
   `ageofai.ini` keys that switch each one.
 - [game-fixes.md](game-fixes.md) - the fixes to the game itself, for every player: window and picture, the scenario

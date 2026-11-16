@@ -25,7 +25,7 @@ welcome on the same terms as any other: you answer for what you send - you have 
   Code extension, `ageofai_config.exe`.
 - **Personalities and texts** (`config/personalities/`): new characters, better lines.
 - **NeoEE**, the community's online version, as much as the GOG and Steam versions: its `Empire Earth.exe` is the
-  2017 update's code in another layout, and every change has to work on both (README "NeoEE").
+  2017 update's code in another layout, and every change has to work on both (docs/installing.md "NeoEE").
 - **The Art of Conquest** (the spec's second build; on since 2026-11-05, NeoEE's AoC still off until tested).
 
 **Out of scope**
