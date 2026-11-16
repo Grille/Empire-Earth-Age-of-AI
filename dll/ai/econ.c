@@ -2519,7 +2519,10 @@ internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, u
             if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; g_am_noroom = 1; return 0; }
             req[1] = room0 - hold;
         }
-        int depth = pl && !is_citizen_type(req[0]) ? TRAIN_QUEUE(idx) : 0;
+        // ... nor a transport or a fishing boat, the economy's as a citizen is: a Dock's queue full of the fleet's
+        // warships refused them for good (Small Islands, P2 with 340-680 wood: "can't train a transport" 24 times, the
+        // ferry given up; the player 2026-11-16: "no transports or fishing ships got orderd")
+        int depth = pl && !is_citizen_type(req[0]) && !is_transport(req[0]) && !is_fishing_boat(req[0]) ? TRAIN_QUEUE(idx) : 0;
         int qroom = depth > 0 ? queue_room(pl, um, req[0], depth) : -1;
         if (qroom >= 0 && qroom < (req[1] > 0 ? req[1] : 1)) {   // the queues are deep enough
             g_queue_cut[idx] += (unsigned)((req[1] > 0 ? req[1] : 1) - qroom);

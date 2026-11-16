@@ -1661,6 +1661,66 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
 #define FB_DANGER 120000
 #define FB_AGAIN 2000
 internal struct { uint32_t t; unsigned orders, ordered, idle, no_fish, danger, making; } g_fb[16];
+// THE BOATS' WORK (the game's computer player off; the player 2026-11-16, Small Islands at minute 178: "in my current
+// game no transports or fishing ships got orderd" - both AIs in epoch 1 with 4 and 23 food, nobody on food): with
+// the game's computer player off its citizen assignment, which gave the boats their fish, doesn't run, and the order
+// below waited for the resource manager's food target, which nobody sets then (0: never under it) - no boat in 178
+// minutes. Every FB_WORK: each boat of its without a gather goal is sent (resource_mgr_assign, as work.c sends its
+// citizens) to the nearest fish on its water with food left, fewer than FB_PER_FISH boats on it, no enemy within
+// FB_SAFE of it and under no enemy tower it has seen (work.c wk_danger). The count of boats left without fish is the
+// order's "a boat idle".
+#define FB_WORK 10000
+#define FB_PER_FISH 2
+#define FB_SAFE 10
+#define FB_FOOD_BANK 8000      // ... and no order with this much food in the bank
+internal int wk_danger(unsigned idx, ivec2 p);   // work.c
+internal struct { uint32_t t; int boats, idle, sent, room; unsigned total_sent; } g_fbw[16];   // room: places for a boat on safe fish (the order)
+internal void boats_work(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t now) {
+    struct { ee_unit *u; ivec2 p; unsigned area; int n; } static fish[1024];
+    static ee_unit *idle[256];
+    if (g_fbw[idx].t && now >= g_fbw[idx].t && now - g_fbw[idx].t < FB_WORK) return;
+    g_fbw[idx].t = now ? now : 1;
+    int nf = 0, ni = 0, boats = 0, count = 0;
+    for (struct grid_it it = grid_it_all(1); nf < 1024 && grid_it_next(&it); ) {
+        if (unit_type_get_id(it.td) != UT(RES_FISH) || unit_get_amount(it.u) <= 0 || !explored_by(it.u, pl)) continue;
+        ivec2 p = unit_get_tile(it.u);
+        if (raiders_near(pl, p, FB_SAFE) || wk_danger(idx, p)) continue;
+        fish[nf].u = it.u; fish[nf].p = p; fish[nf].area = area_id(p, 1); fish[nf++].n = 0;
+    }
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || unit_type_get_class_id(td) != CLS_NAVAL_CITIZEN) continue;
+        boats++;
+        ee_goal *g = unit_get_goal(u);
+        ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
+        if (site) { for (int k = 0; k < nf; k++) if (fish[k].u == site) { fish[k].n++; break; } continue; }
+        if (!g && ni < 256) idle[ni++] = u;   // on an order (a flight from a warship): left alone
+    }
+    int sent = 0, left = 0;
+    for (int i = 0; i < ni; i++) {
+        ivec2 p = unit_get_tile(idle[i]);
+        unsigned a = area_id(p, 1);
+        int b = -1, bd = 0;
+        for (int k = 0; k < nf; k++) {
+            if (fish[k].n >= FB_PER_FISH || (a && fish[k].area && fish[k].area != a)) continue;
+            int d = ivec2_dist2(fish[k].p, p);
+            if (b < 0 || d < bd) { b = k; bd = d; }
+        }
+        if (b < 0) { left++; continue; }
+        resource_mgr_assign(rm, idle[i], fish[b].u);
+        fish[b].n++; sent++;
+    }
+    g_fbw[idx].boats = boats; g_fbw[idx].idle = left; g_fbw[idx].sent = sent; g_fbw[idx].total_sent += (unsigned)sent;
+    int room = 0;
+    for (int k = 0; k < nf; k++) room += FB_PER_FISH - fish[k].n > 0 ? FB_PER_FISH - fish[k].n : 0;
+    static uint32_t log_t[16];
+    if (g_log && (!log_t[idx] || now < log_t[idx] || now - log_t[idx] >= 60000)) {
+        log_t[idx] = now ? now : 1;
+        log_locked("# fishing: P%u at %.1f min: %d boats, %d sent to fish now (%u so far), %d without a fish; %d fish safe to work, room for %d more boats on them; %u boats ordered so far (%u asked)\n",
+                   idx, now / 60000.0, boats, sent, g_fbw[idx].total_sent, left, nf, room, g_fb[idx].ordered, g_fb[idx].orders);
+    }
+    g_fbw[idx].room = room;
+}
 internal void boats_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (is_vanilla(pl) || OWN_CITIZENS(idx) < 2) return;
@@ -1669,7 +1729,9 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     if (!rm || !um) return;
     resource_mgr_set_next_fishing_boat(rm, now + 600000);   // the game's own order never comes
-    if (now < g_fb[idx].t) memset(&g_fb[idx], 0, sizeof g_fb[idx]);
+    if (now < g_fb[idx].t) { memset(&g_fb[idx], 0, sizeof g_fb[idx]); memset(&g_fbw[idx], 0, sizeof g_fbw[idx]); }
+    int off = !GAME_AI(idx);
+    if (off) boats_work(pl, idx, rm, now);   // THE BOATS' WORK
     if (g_fb[idx].t && now - g_fb[idx].t < FB_EVERY) return;
     g_fb[idx].t = now ? now : 1;
     // THE SEAS (sea_fishing): not the game's water map flag - a finished dock of its on a sea with fish it has seen in
@@ -1682,12 +1744,14 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
         if (sea_food <= 0) { g_fb[idx].no_fish++; return; }
         fl_sea_docks(um, sea, &area, NULL, NULL);
     }
-    if ((!by_sea && !player_get_boats_for_food(pl)) || (int)resource_mgr_get_target(rm, 2) <= rm_count(rm, 2)) return;
+    if (!by_sea && !player_get_boats_for_food(pl)) return;
+    if (off ? g_fbw[idx].idle > 0 || g_fbw[idx].room <= 0 || player_stock_at(pl)[2] >= FB_FOOD_BANK   // off: every boat at a fish, room on a safe one, the food not piled up (no target is set then)
+            : (int)resource_mgr_get_target(rm, 2) <= rm_count(rm, 2)) return;
     int type = hook_fish_type(cm);
     if (!type || !is_fishing_boat(type) || !ld_type_avail(pl, type)) return;
     if (unit_mgr_in_production_of(um, type) || unit_mgr_pending(um, type)) { g_fb[idx].making++; return; }
     uint8_t *list = resource_mgr_list_at(rm, 0);
-    for (unsigned k = 0, first = deque_front(list), n = deque_count(list); k < n && k < 1024; k++) {
+    for (unsigned k = 0, first = deque_front(list), n = off ? 0 : deque_count(list); k < n && k < 1024; k++) {   // off: nobody keeps the lists - THE BOATS' WORK counted the idle
         ee_unit *u = deque_at(list, first + k);
         ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (td && unit_get_hp(u) > 0 && unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) { g_fb[idx].idle++; return; }
@@ -1695,6 +1759,7 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     int fish = 0;
     void **qb = resource_mgr_get_fish_begin(rm), **qe = resource_mgr_get_fish_end(rm);
     for (void **h = qb; qb && h < qe && h - qb < 4096 && !fish; h++) fish = *h && unit_get_amount(*h) > 0;
+    if (off) fish = g_fbw[idx].room > 0;
     if (!fish && !by_sea) { g_fb[idx].no_fish++; return; }
     if (g_fl[idx].pull_t && now >= g_fl[idx].pull_t && now - g_fl[idx].pull_t < FB_DANGER) { g_fb[idx].danger++; return; }
     int req[4] = { type, 1, 0, (int)area };

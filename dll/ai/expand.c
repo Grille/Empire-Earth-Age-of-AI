@@ -400,6 +400,18 @@ internal void expand_reserve(ee_player *pl, int reserve[7]) {
     towns_reserve(pl, reserve);
     if (!g_landing_order) expand_hold(pl, reserve);   // its own transport (and a landing's) spend it
 }
+// priority.c's row "outpost" for buildings with the game's computer player off: the transport the ferry waits for -
+// not its Settlement and tower (spend_tiers, unmeasured). Nobody else builds then, and build.c spent the wood within
+// seconds of its coming in: "can't train a transport" 24-33 times in each Small Islands test game of 60 minutes (2
+// AIs), 2 ferries given up for want of one (the player 2026-11-16: "in my current game no transports or fishing ships
+// got orderd")
+internal void expand_transport_hold(ee_player *pl, int reserve[7]) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct ex_st *x = &g_xs[idx];
+    if (!EXPAND(idx) || GAME_AI(idx) || x->fphase != 1 || g_landing_order) return;
+    int tt = ld_transport_type(pl);
+    for (int r = 2; r < 7 && tt; r++) reserve[r] += unit_cost(pl, tt, r);
+}
 internal void expand_hold(ee_player *pl, int reserve[7]) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct ex_st *x = &g_xs[idx];

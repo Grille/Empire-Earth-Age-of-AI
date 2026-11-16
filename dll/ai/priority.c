@@ -76,6 +76,7 @@ internal int unit_cost(ee_player *pl, int type, int r);
 internal void landing_reserve(ee_player *pl, int reserve[7]);   // landing.c
 internal void expand_reserve(ee_player *pl, int reserve[7]);    // expand.c
 internal void expand_hold(ee_player *pl, int hold[7]);
+internal void expand_transport_hold(ee_player *pl, int hold[7]);
 internal void bunker_reserve(ee_player *pl, int *reserve);      // bunker.c
 internal void wood_reserve(ee_player *pl, int reserve[7]);      // mines.c
 internal void navy_hold(ee_player *pl, unsigned idx, int reserve[7]);   // navy.c
@@ -108,6 +109,7 @@ internal void prio_landing(ee_player *pl, unsigned s, int r[7]) { (void)s; landi
 internal void prio_outpost(ee_player *pl, unsigned s, int r[7]) {
     if (!(s & S_BUILD)) expand_reserve(pl, r);
     else if (g_spend_tiers) expand_hold(pl, r);
+    else expand_transport_hold(pl, r);   // the game's computer player off: its ferry's transport (expand.c)
 }
 internal void prio_fortress(ee_player *pl, unsigned s, int r[7]) { (void)s; bunker_reserve(pl, r); }
 internal void prio_forest(ee_player *pl, unsigned s, int r[7]) { (void)s; wood_reserve(pl, r); }
@@ -158,7 +160,9 @@ internal int prio_refuses(ee_player *pl, int type) {
     static unsigned refused[16];
     static uint32_t log_t[16];
     unsigned idx = PRIO_IDX, s = S_BUILD;
-    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx] && !g_shelter_urgent[idx] && !prio_research_any(idx)) return 0;
+    int ferry[7] = { 0 };
+    expand_transport_hold(pl, ferry);   // a ferry's transport waited for (the game's computer player off)
+    if (!g_spend_tiers && !g_farm_hold[idx] && !g_prio_cur[idx] && !g_aa_urgent[idx] && !g_shelter_urgent[idx] && !prio_research_any(idx) && !ferry[3] && !ferry[5] && !ferry[6]) return 0;
     if (type == g_prio_cur[idx] - 1) s |= S_WANTED;
     if (prio_air_type(idx, type)) s |= S_AIR;
     if (UT_IN(type, UT_TOWNS, UT_B_GRANARY, UT_B_GRANARY_IMPROVED, UT_B_FARM, UT_B_HOUSE, UT_B_DOCK)) s |= S_BUILD_ECON;
