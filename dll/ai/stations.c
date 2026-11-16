@@ -50,6 +50,8 @@
 #define SN_MOVES 16
 #define SN_NEAR 10
 #define SN_REORDER 30000
+#define SN_STILL 180000          // A STUCK ORDER: this long within SN_STILL_D tiles since its order
+#define SN_STILL_D 4
 #define SN_PUSH_MIN 6
 #define SN_GIVE_STEPS 3          // territories a soldier is sent at most
 #define SN_GIVE_STEPS_ATTACK 5   // ... to one under attack
@@ -71,7 +73,7 @@
 #define SN_SCOUT_REST 300000
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t, stash_t; ivec2 to; };   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still; };   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
@@ -80,7 +82,7 @@ internal struct sn_st {
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     uint32_t res_t, res_out_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n;   // THE RESERVE: its last look, the last fortress let out; soldiers in, out
-    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos;   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
+    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale;   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
@@ -149,6 +151,20 @@ internal ee_unit *sn_wall_near(ee_player *pl, ivec2 p, int reach) {
 }
 internal ee_unit *sn_wall_at(ee_player *pl, ivec2 p) { return sn_wall_near(pl, p, 4); }
 internal int sn_cmp(const void *a, const void *b) { const struct sn_unit *x = a, *y = b; return x->u < y->u ? -1 : x->u > y->u; }
+// A STUCK ORDER (the player 2026-11-16, of yellow in "aistuck": "the yellow ai seemed genuinly dead, no reinforcments
+// or moves, as if something got stuck completly" - from minute 84 to 101 not one order, 34 of its 53 soldiers on an
+// attack and 19 on a move the game never ended; a soldier is ordered again only when it stands idle, and a load, which
+// forgets the orders given, set it going at once): a soldier that has not come SN_STILL_D tiles from where it stood
+// for SN_STILL since its last order counts as idle - its order is taken for dead.
+internal int sn_idle(struct sn_st *z, struct sn_unit *m, uint32_t now) {
+    if (ar_idle(m->u)) return 1;
+    if (unit_get_x(m->u) < 0) return 0;   // inside
+    ivec2 p = unit_get_tile(m->u);
+    if (!m->still_t || now < m->still_t || ivec2_dist2(p, m->still) >= SN_STILL_D * SN_STILL_D) { m->still = p; m->still_t = now ? now : 1; return 0; }
+    if (now - m->still_t < SN_STILL || !m->order_t || now < m->order_t || now - m->order_t < SN_STILL) return 0;
+    m->still_t = now ? now : 1; z->stale++;
+    return 1;
+}
 internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fight, uint32_t now) {
     ee_goal *g = ar_goal_at(d, k, fight);
     if (!g || !unit_goal(m->u, g, 0, 0x1F40)) return 0;
@@ -573,7 +589,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             }
             m->ter = (short)b; m->order_t = 0; m->since = now ? now : 1;
         }
-        if (!m->order_t || (now - m->order_t > SN_REORDER && ar_idle(m->u))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
+        if (!m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
     }
     // THE RESERVE (the player 2026-11-15: "the ai should never stop training units if it can help it, if its at its pop
     // limit it should train straight into the stash"): units inside a Fortress do not count toward the population.
@@ -679,7 +695,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         struct sn_push *pu = NULL;
         for (int k = 0; k < SN_PUSHES; k++) if (z->push[k].on && z->push[k].from == r) pu = &z->push[k];
         if (m->pool == SNP_AA) {   // ANTI-AIR: at its station's place, whatever goes on
-            if (ivec2_dist2(p, d) > SN_NEAR * SN_NEAR && (!m->order_t || (now - m->order_t > SN_REORDER && ar_idle(m->u)))) sn_order(z, m, i, d, 0, now);
+            if (ivec2_dist2(p, d) > SN_NEAR * SN_NEAR && (!m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now)))) sn_order(z, m, i, d, 0, now);
             continue;
         }
         if (!pu && demo[r] && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE)) {   // DEMOLITION
@@ -695,7 +711,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (pu && pu->breach) {   // A BREACH: the siege (everybody when it has none there) at the piece, the rest by it
             ee_unit *piece = sn_wall_at(pl, pu->wall);
             if (piece && (m->pool == SNP_SIEGE || !acs[r])) {
-                if (!m->order_t || (ar_idle(m->u) && now - m->order_t >= 3000)) {
+                if (!m->order_t || (now - m->order_t >= 3000 && sn_idle(z, m, now))) {
                     ee_goal *g = goal_attack(m->u, piece);
                     if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = pu->wall; z->orders++; }
                 }
@@ -708,7 +724,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         else if (m->pool == SNP_SIEGE) fight = 0;
         if (ivec2_dist2(p, d) <= reach * reach) { m->wait_t = 0; continue; }
         int moved = m->order_t && ivec2_dist2(m->to, d) > 6 * 6;   // its place has moved: the enemy, the push's next building
-        if (!(!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && ar_idle(m->u)))) continue;
+        if (!(!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && sn_idle(z, m, now)))) continue;
         // AS A GROUP: with the others that stand in its territory and go to the same place
         int cur = (int)ter_near(p.x, p.y), urgent = pu || (fn[r] > 0 && s->t[r].role != TVR_NONE), k = 0;
         while (k < ngrp && (grp[k].r != r || grp[k].cur != cur || grp[k].fight != fight)) k++;
@@ -753,8 +769,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (tc[r] || ac[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s", r, ac[r], tc[r], fn[r] && s->t[r].role != TVR_NONE ? "!" : "");
         for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d) | pushes on %d, so far %u started, %u won, %u lost | "
-                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back, %u set at enemy walls | territory:stationed/share (! enemy soldiers there):%s\n",
-                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->groups, z->grouped, z->scouted, z->demos, buf);
+                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back, %u set at enemy walls, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, z->moved, z->orders, z->groups, z->grouped, z->scouted, z->demos, z->stale, buf);
     }
 }
 internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); }
