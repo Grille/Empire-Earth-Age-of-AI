@@ -498,8 +498,10 @@ unsafe struct EEE3DFarm
     [vtable_site("farm_fx_draw")]
     extern uint32 draw();
 
-    /// vf19: the update - the sway's step
+    /// vf19: the update - the sway's step (the stalk tops' points set one by one: a twentieth of a late test game's
+    /// simulation, 2026-11-16), and 7 when its farm is gone (the effect ends)
     [slot(19), address((ee)0x004E76BE, (aoc)0x004F1043)]
+    [vtable_site("farm_fx_update")]
     extern uint32 update();
 }
 

@@ -419,11 +419,13 @@ internal inline uint32_t farm_fx_draw(ee_farm_fx *farm_fx) { return ((farm_fx_dr
 internal farm_fx_draw_fn fn_eee3_d_farm_draw;
 internal inline uint32_t eee3_d_farm_draw(ee_farm_fx *farm_fx) { return fn_eee3_d_farm_draw(farm_fx); }
 internal inline int patch_farm_fx_draw(farm_fx_draw_fn h) { return patch_vtable(vt_eee3_d_farm, (int)slot_farm_fx_draw, (uintptr_t)fn_eee3_d_farm_draw, (void *)h); }
-// vf19: the update - the sway's step
+// vf19: the update - the sway's step (the stalk tops' points set one by one: a twentieth of a late test game's
+// simulation, 2026-11-16), and 7 when its farm is gone (the effect ends)
 typedef uint32_t (__thiscall *farm_fx_update_fn)(ee_farm_fx *);
 internal inline uint32_t farm_fx_update(ee_farm_fx *farm_fx) { return ((farm_fx_update_fn)(*(void ***)farm_fx)[slot_farm_fx_update])(farm_fx); }
 internal farm_fx_update_fn fn_eee3_d_farm_update;
 internal inline uint32_t eee3_d_farm_update(ee_farm_fx *farm_fx) { return fn_eee3_d_farm_update(farm_fx); }
+internal inline int patch_farm_fx_update(farm_fx_update_fn h) { return patch_vtable(vt_eee3_d_farm, (int)slot_farm_fx_update, (uintptr_t)fn_eee3_d_farm_update, (void *)h); }
 
 // class EEE3DWaterSplash (ee_water_splash)
 // a projectile's splash on the water (the kind "Water Splash": graphics Splash1), an effect drawn from a model that rises

@@ -513,6 +513,13 @@ internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
     }
     return r;
 }
+// headless (a test nobody watches): the update's sway step left out - it sets every stalk top's point one by one, a
+// twentieth of a late test game's simulation (2026-11-16) - by keeping the step's way to go far below 1; the rest of
+// the update (the effect's end with its farm's) runs. The draw sways them still where smoothed (fsw_hook_draw).
+internal uint32_t __thiscall fsw_hook_update(ee_farm_fx *o) {
+    farm_fx_set_sway_left(o, -1e9f);
+    return eee3_d_farm_update(o);
+}
 // THE MODELS' FRAME TRANSFORMATIONS BETWEEN FRAMES (with the animation's: picture collect anim): a model moves by its
 // vertices per frame, which the engine blends by next_frame and fraction, and by a transformation per frame (GEModel
 // frame_transforms), which PrepareTransforms takes from the frame alone. A part that hangs on a model flies by the
@@ -1704,6 +1711,7 @@ internal void collect_install(void) {
     if (!patch_particle3d_draw(pt_hook_draw) && g_log) fprintf(g_log, "# collect: the flying pieces' draw NOT hooked\n");
     if (!patch_particle2d_draw(pt_hook_draw2d) && g_log) fprintf(g_log, "# collect: the flames' and smoke's draw NOT hooked\n");
     if (!patch_farm_fx_draw(fsw_hook_draw) && g_log) fprintf(g_log, "# collect: the farms' stalks' draw NOT hooked\n");
+    if (g_headless && !patch_farm_fx_update(fsw_hook_update) && g_log) fprintf(g_log, "# collect: the farms' sway (headless: left out) NOT hooked\n");
     if (!patch_water_splash_draw(ws_hook_draw) && g_log) fprintf(g_log, "# collect: the water splashes' draw NOT hooked\n");
     g_mt_apply = transform_mul_export();
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)

@@ -1198,7 +1198,9 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     int after = g_rwl_handoff_after;
     if (held && g_rwl_during_handoff > after && !memcmp(g_rwl_update_cam, camera_transformation_at(game_camera()), sizeof g_rwl_update_cam))
         after = g_rwl_during_handoff;   // the units come from the copy: only the ground, shadows and effects wait - not while the camera moves
-    if (held && g_rwl_taken && rd_qpc() - g_rwl_update_at >= rd_qpc_ms(after)) {
+    // headless: nobody watches - no step waits for a frame (at its five frames a second each handoff ran its whole
+    // RWL_HANDOFF_MS: a fifth of a turbo test's simulation, 2026-11-16), but a record's
+    if (held && g_rwl_taken && (!g_headless || rec_busy()) && rd_qpc() - g_rwl_update_at >= rd_qpc_ms(after)) {
         ResetEvent(g_rwl_taken);
         g_rwl_want = 1;
     }
