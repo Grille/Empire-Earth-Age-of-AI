@@ -54,7 +54,7 @@ internal int seen_by(ee_unit *u, ee_player *pl) {
     unsigned oi = o ? (unsigned)player_get_index(o) & 15 : 0;
     if (c > g_vis_floor[pi][oi] || intel_revealed(pi, u)) return 1;
     int fam = unit_type_get_class_id(unit_get_type_data(u));
-    return (fam == CLS_BUILDING || fam == CLS_FORTRESS) && intel_remembers(pl, u);
+    return (fam == CLS_BUILDING || fam == CLS_FORTRESS || fam == CLS_GATE) && intel_remembers(pl, u);   // intel.c intel_kind: what stays where it was
 }
 
 // Defence building with a ground attack (AA guns and missile towers only shoot at aircraft).
@@ -1753,7 +1753,7 @@ internal void rt_pick_unit(ee_unit *u, void *ctx) {
     ee_player *o = unit_get_owner(u);
     if (!td || !o || player_get_index(o) <= 0 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_enemy(s->pl, o) || is_out(o)) return;
     int fam = unit_type_get_class_id(td);
-    if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(td)) || !explored_by(u, s->pl)) return;
+    if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(td)) || !seen_by(u, s->pl)) return;
     long d = ivec2_dist2(unit_get_tile(u), s->at);
     if (!s->best || d < s->bd) { s->best = u; s->bd = d; }
 }

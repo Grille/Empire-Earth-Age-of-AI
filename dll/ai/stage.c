@@ -321,7 +321,7 @@ internal void wv_pick_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     if (!td || unit_get_owner(u) != s->target || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     int fam = unit_type_get_class_id(td);
-    if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(td)) || !explored_by(u, s->pl)) return;
+    if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(td)) || !seen_by(u, s->pl)) return;
     if ((short)map_area(unit_get_tile(u), 2) != s->area) return;
     long d = ivec2_dist2(unit_get_tile(u), s->from);
     if (!s->best || d < s->bd) { s->best = u; s->bd = d; }

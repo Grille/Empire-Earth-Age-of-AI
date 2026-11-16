@@ -571,7 +571,7 @@ internal int ar_route_cells(unsigned idx, int size, unsigned short land, const s
     for (struct grid_it it = grid_it_all(1); pl && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || unit_get_hp(u) <= 0 || !(GAME_AI(idx) ? seen_by(u, pl) : explored_by(u, pl))) continue;   // off (stations.c THE WAY): every wall it has ever seen - a wall stays where it was
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || unit_get_hp(u) <= 0 || !seen_by(u, pl)) continue;   // in sight or remembered: the wall pieces and gates it has seen stay where they were (intel.c) - explored_by was every one on ground it ever explored, the whole map for a computer player
         ivec2 t = unit_get_tile(u);
         if (t.x >= 0 && t.y >= 0 && t.x < size && t.y < size) g_arr.wall[(t.y / AR_CELL) * n + t.x / AR_CELL] = 1;
     }

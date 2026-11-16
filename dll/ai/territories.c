@@ -197,7 +197,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
                 int ofam = unit_type_get_class_id(it.td);
                 if (is_enemy(pl, o)) {
                     if (tv_warship(it.td) && seen_by(u, pl)) { s->t[ro].eships++; s->t[ro].eship_t = now ? now : 1; }
-                    else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !is_wall(unit_type_get_id(it.td)) && explored_by(u, pl) && s->t[ro].ebld < 0x7FFF) s->t[ro].ebld++;
+                    else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !is_wall(unit_type_get_id(it.td)) && seen_by(u, pl) && s->t[ro].ebld < 0x7FFF) s->t[ro].ebld++;   // in sight or remembered (attack.c seen_by) - not every one on ground it ever explored (a computer player has the whole map explored from the start: it knew each enemy building as it was laid)
                 }
                 else if ((ofam == CLS_BUILDING || ofam == CLS_FORTRESS) && !is_wall(unit_type_get_id(it.td))) s->t[ro].abld++;   // not a wall's pieces: see bld
             }
@@ -215,6 +215,13 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
     struct intel *in = &g_intel[idx];
+    for (int k = 0; k < in->n; k++) {   // an enemy building it remembers that is gone out of its sight: it still stands for it until it looks (intel.c)
+        struct intel_rec *q = &in->r[k];
+        ee_player *o = q->owner > 0 && q->owner < 16 ? player_at(q->owner) : NULL;
+        if (q->kind != 0 || q->u || q->x < 0 || !o || !is_enemy(pl, o) || is_wall(q->type)) continue;
+        unsigned ro = ter_near(q->x, q->y);
+        if (ro < (unsigned)s->n && s->t[ro].ebld < 0x7FFF) s->t[ro].ebld++;
+    }
     for (int k = 0; k < in->n; k++) {   // the soldiers it saw there and doesn't see now
         struct intel_rec *q = &in->r[k];
         ee_player *o = q->owner > 0 && q->owner < 16 ? player_at(q->owner) : NULL;

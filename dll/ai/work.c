@@ -67,7 +67,7 @@ internal void wk_defences(ee_player *pl, unsigned idx, uint32_t now) {
     int n = 0;
     for (struct grid_it it = grid_it_all(1); n < WK_DEFS && grid_it_next(&it); ) {
         float r, a;
-        if (unit_get_hp(it.u) <= 0 || !is_enemy(pl, unit_get_owner(it.u)) || !defence_stats(it.u, &r, &a) || !explored_by(it.u, pl)) continue;
+        if (unit_get_hp(it.u) <= 0 || !is_enemy(pl, unit_get_owner(it.u)) || !defence_stats(it.u, &r, &a) || !seen_by(it.u, pl)) continue;   // the enemy defences it has seen (in sight or remembered)
         g_wkd[idx].x[n] = (short)unit_get_x(it.u); g_wkd[idx].y[n] = (short)unit_get_y(it.u); g_wkd[idx].r[n++] = r + 2.0f;
     }
     g_wkd[idx].n = n;

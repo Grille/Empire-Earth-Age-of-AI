@@ -86,7 +86,7 @@ internal int intel_revealed(unsigned pi, ee_unit *u) {
 }
 internal int intel_kind(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td);
-    if (fam == CLS_BUILDING || fam == CLS_FORTRESS) return 0;
+    if (fam == CLS_BUILDING || fam == CLS_FORTRESS || fam == CLS_GATE) return 0;   // a gate stays where it was, as the wall pieces (class building) beside it
     if (is_soldier(td) || is_siege(unit_type_get_id(td))) return 1;
     if (fam == CLS_NAVAL) return 2;
     if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) return 3;

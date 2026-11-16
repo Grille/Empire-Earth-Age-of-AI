@@ -31,6 +31,12 @@
 //               to SN_SCOUTS of the main force, the fastest (of equally fast ones the one that sees furthest), go to the nearest of them one after the other (one
 //               not reached in SN_SCOUT_GIVE_UP is given up); none left: they are the main force's again,
 //               stationed where they stand, and none is taken for SN_SCOUT_REST.
+//               A LOOK AGAIN (the player 2026-11-16: "the ai does it only at the start to uncover the map, but it should
+//               after regularly scout neutral and enemy territory for changes"): a land territory it doesn't hold that
+//               no unit of its has stood in for SN_RESCOUT is due again, as one never stood in (those first); one
+//               given up is tried again after SN_RESCOUT too. What a scout sees there is what the AI knows of it: the
+//               enemy buildings by territory are those in sight or remembered (attack.c seen_by), no longer every one
+//               on ground it ever explored - a computer player has the whole map explored from the start.
 //   PATROLS   - single soldiers of the main force at the patches of its own ground it has long had out of sight
 //               (watch.c), patch after patch; the main force's again when none is left (below, [ai_base] fog_patrols).
 //   A SCENARIO'S AI TOGGLES (the player 2026-11-16: "respecting the ai flags (aktiv, cheat, angreifen, etc)"; the
@@ -73,6 +79,7 @@
 #define SN_SCOUTS 3
 #define SN_SCOUT_GIVE_UP 180000
 #define SN_SCOUT_REST 300000
+#define SN_RESCOUT 600000       // A LOOK AGAIN: a territory it doesn't hold, this long after a unit of its last stood in it
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
@@ -85,12 +92,19 @@ internal struct sn_st {
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
-    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale;   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
+    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale; int due;   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
     ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts, quarantined, cured;   // quarantined, cured: QUARANTINE's so far   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
+internal uint32_t g_sn_look[16][PR_T];   // A LOOK AGAIN: when a unit of its last stood in each territory (or a scout gave it up)
+// a territory a scout goes to: never stood in (2: that first), or one it doesn't hold not stood in for SN_RESCOUT (1)
+internal int sn_due(unsigned idx, int r, const struct tv_st *s, uint32_t now) {
+    if (g_ter.t[r].water) return 0;
+    if (!g_sn_seen[idx][r]) return 2;
+    return s->t[r].role == TVR_NONE && (now < g_sn_look[idx][r] || now - g_sn_look[idx][r] >= SN_RESCOUT);
+}
 internal struct st_side g_sn_own;
 // TRAINING BY NEED's place with the game's computer player off (armies.c ar_need_pick: what to train is what adds most
 // against the enemy there): a push's building, else the middle of the enemy soldiers in the territory of its with the
@@ -195,7 +209,7 @@ internal ee_unit *sn_wall_near(ee_player *pl, ivec2 p, int reach) {
     int bd = 0;
     for (struct grid_it it = grid_it_box(p.x, p.y, reach, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !explored_by(it.u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !seen_by(it.u, pl)) continue;
         int d = ivec2_dist2(unit_get_tile(it.u), p);
         if (!best || d < bd) { best = it.u; bd = d; }
     }
@@ -310,7 +324,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct sn_st *z = &g_sn[idx];
     struct tv_st *s = &g_tv[idx];
-    if (now < z->t) { memset(z, 0, sizeof *z); memset(g_sn_seen[idx], 0, sizeof g_sn_seen[idx]); }
+    if (now < z->t) { memset(z, 0, sizeof *z); memset(g_sn_seen[idx], 0, sizeof g_sn_seen[idx]); memset(g_sn_look[idx], 0, sizeof g_sn_look[idx]); }
     if (z->t && now - z->t < SN_EVERY) return;
     z->t = now ? now : 1;
     int n = s->n < PR_T ? s->n : PR_T;
@@ -330,6 +344,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         unsigned r = ter_near(p.x, p.y);
         if (r >= (unsigned)n) continue;
         g_sn_seen[idx][r] = 1;
+        g_sn_look[idx][r] = now ? now : 1;   // A LOOK AGAIN: a unit of its stands there
         if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
             ee_unit *st = unit_get_physics(u);
             int town = is_wall(t) ? 0 : t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) ? 3 : t == UT(B_SETTLEMENT) ? 2 : 1;
@@ -647,9 +662,10 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                               idx, now / 60000.0, r, into, cn, ti >= 0 ? "scenario's target" : "building", p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
     }
     // SCOUTS
-    int unseen = 0;
-    for (int r = 0; r < n; r++) unseen += !g_ter.t[r].water && !g_sn_seen[idx][r];
-    int want_sc = unseen && np[SNP_MAIN] + scouts >= 3 && now >= z->scout_off && player_ai_toggle(pl, SM_AIT_EXPLORE) ? 1 + unseen / 8 : 0;
+    int unseen = 0, due = 0;
+    for (int r = 0; r < n; r++) { unseen += !g_ter.t[r].water && !g_sn_seen[idx][r]; due += sn_due(idx, r, s, now) != 0; }   // A LOOK AGAIN
+    z->due = due;
+    int want_sc = due && np[SNP_MAIN] + scouts >= 3 && now >= z->scout_off && player_ai_toggle(pl, SM_AIT_EXPLORE) ? 1 + due / 8 : 0;
     if (want_sc > SN_SCOUTS) want_sc = SN_SCOUTS;
     while (scouts < want_sc) {
         int b = -1; float bf = -1.0f;
@@ -770,13 +786,17 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         struct sn_unit *m = &z->m[i];
         if (m->scout != 1) continue;
         ivec2 p = unit_get_tile(m->u);
-        if (m->ter >= 0 && m->ter < n && !g_sn_seen[idx][m->ter] && m->since && now - m->since > SN_SCOUT_GIVE_UP) g_sn_seen[idx][m->ter] = 2;   // not reached in that time: given up (walled off, held against it)
-        if (m->ter < 0 || m->ter >= n || g_sn_seen[idx][m->ter]) {   // the next one: the nearest it has not stood in, on its land, no other scout's
+        if (m->ter >= 0 && m->ter < n && sn_due(idx, m->ter, s, now) && m->since && now - m->since > SN_SCOUT_GIVE_UP) {   // not reached in that time: given up (walled off, held against it) - till SN_RESCOUT
+            if (!g_sn_seen[idx][m->ter]) g_sn_seen[idx][m->ter] = 2;
+            g_sn_look[idx][m->ter] = now ? now : 1;
+        }
+        if (m->ter < 0 || m->ter >= n || !sn_due(idx, m->ter, s, now)) {   // the next one: the nearest due (never stood in first), on its land, no other scout's
             unsigned land = area_id(p, 2);
             int b = -1, bd = 0;
             for (int r = 0; r < n; r++) {
-                if (g_ter.t[r].water || g_sn_seen[idx][r] || (land && area_id(g_ter.t[r].c, 2) != land)) continue;
-                int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p);
+                int du = sn_due(idx, r, s, now);
+                if (!du || (land && area_id(g_ter.t[r].c, 2) != land)) continue;
+                int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p) / (du == 2 ? 4 : 1);
                 for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout == 1 && z->m[j].ter == r;
                 if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
             }
@@ -960,7 +980,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_player *o = unit_get_owner(it.u);
             if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || unit_get_x(it.u) < 0 ||
-                !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !explored_by(it.u, pl)) continue;
+                !(is_wall(unit_type_get_id(it.td)) || unit_type_get_class_id(it.td) == CLS_GATE) || !seen_by(it.u, pl)) continue;
             ivec2 q = unit_get_tile(it.u);
             unsigned r = ter_near(q.x, q.y);
             if (r >= (unsigned)n || s->t[r].role == TVR_NONE || s->t[r].ebld || fn[r] > 0) continue;
@@ -1065,11 +1085,11 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
         int rh = 0, rf = 0;   // THE RESERVE: soldiers inside its Fortresses
         for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
-        log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d) | pushes on %d, so far %u started, %u won, %u lost | "
+        log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
                    "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
                    "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back, %u set at enemy walls, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
-                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
                    z->moved, z->orders, z->groups, z->grouped, z->scouted, z->demos, z->stale, buf);
     }
 }
-internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); }
+internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }
