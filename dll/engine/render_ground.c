@@ -867,6 +867,17 @@ internal int rg_target_gone(ID3D11RenderTargetView *rtv, ID3D11DepthStencilView 
 }
 // the ground (water 0) or the water of this frame into the list, on the game's states for it. again: 1 a frame during a step,
 // 2 one while another writer has the world - nothing of the game's is read then, a load is freeing it
+// the display DLL's texture bind, with the renderer's lock let go meanwhile. The bind takes the display's texture lock
+// and may load the texture; the game's loader thread takes that lock first and then makes surfaces, which take the
+// renderer's (render.c rd_dd_create_surface) - held here across the bind, each waited for the other: the player's game
+// stood for good at 38 min (2026-11-16: the render thread in the bind, the loader in CreateSurface, the simulation
+// waiting for that model's load, the main thread for the world). Let go, the locks are always taken texture-first
+internal void rg_bind_unlocked(int i, void *tex) {
+    LONG depth = g_rd_cs.OwningThread == (HANDLE)(uintptr_t)GetCurrentThreadId() ? g_rd_cs.RecursionCount : 0;
+    for (LONG k = 0; k < depth; k++) LeaveCriticalSection(&g_rd_cs);
+    g_rg.bind[i](g_rg.ras, tex, g_rg.screen);
+    for (LONG k = 0; k < depth; k++) EnterCriticalSection(&g_rd_cs);
+}
 internal void rg_draw_now(int water, int again) {
     rd_device *d = g_rd3.prep_dev;
     if (!g_rg.ras || !rg_build()) return;
@@ -937,7 +948,7 @@ internal void rg_draw_now(int water, int again) {
     unsigned wf = water && nmat ? rg_water_frame() : 0, wn = water && nmat ? mesh_water_groups(g_rg.mesh) : 1;
     for (int m = 0; m < nmat; m++) {
         if (!want[m]) continue;
-        g_rg.bind[i](g_rg.ras, water ? mesh_water_texture(g_rg.mesh, ((unsigned)m + wf) % wn) : g_rg.mat[m], g_rg.screen);
+        rg_bind_unlocked(i, water ? mesh_water_texture(g_rg.mesh, ((unsigned)m + wf) % wn) : g_rg.mat[m]);
         rd_surface *t = d->tex[0];
         if (!t) continue;
         ID3D11ShaderResourceView *now = rd_gpu_texture(t, 0);
