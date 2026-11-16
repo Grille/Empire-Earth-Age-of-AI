@@ -6,7 +6,8 @@
 // by the players' count made anew: the map's sight counts, the influence table, the AI's turns), takes the human's
 // epoch, techs, improvements, stock and stances, then every unit and building of the human's (unit_give, the units
 // that walk first: the AI's build manager takes its base from its first one), and its AI starts (ai_start). The human
-// stays in the game as an observer - no fog, godmode on, allied to the new player - and is kept in: the victory
+// stays in the game as an observer - no fog, godview on (the player 2026-11-16: watched, its orders not given by a
+// stray click), allied to the new player - and is kept in: the victory
 // check would put out a player without objects, and end the game with no human left (victory_check: its objects
 // raised to 1 for the check). The new player is one of the mod's AIs from the start, its personality the one named
 // here, else one as at a game start, and its colour by that personality's as at a game start (the human's own counts
@@ -61,7 +62,7 @@ internal void takeover_tick(ee_player *pl) {
     }
 }
 
-internal void cmd_godmode(char *out, const char *args);
+internal void cmd_godview(char *out, const char *args);
 // a colour another player has - the human handed over (skip) not counted
 internal int ho_colour_taken(const float *k, unsigned skip) {
     for (unsigned i = 1; k && i < game_player_count(); i++) {
@@ -194,8 +195,8 @@ internal void cmd_handover(char *out, const char *args) {
     takeover_tick(p);   // its pacing before its first turn (that turn's epoch plan had it held by follow)
     char gm[REPLY_CAP];
     gm[0] = 0;
-    cmd_godmode(gm, "on");
+    cmd_godview(gm, "on");
     if (g_log) log_locked("# takeover: at %.1f min P%u handed over to the new computer player P%u (colour %d%s%s): %d units and buildings, %d techs, %d improvements, epoch %d\n",
                           game_time() / 60000.0, hi, n, colour, pick >= 0 ? ", personality " : "", pick >= 0 ? g_personas[pick].file : "", given, techs, imps, tt ? tech_tree_get_epoch(tt) : -1);
-    REPLY("P%u handed over to the new computer player P%u (%s, colour %d): %d units and buildings, %d techs, %d improvements; you watch with godmode\n", hi, n, pick >= 0 ? g_personas[pick].file : "no personality", colour, given, techs, imps);
+    REPLY("P%u handed over to the new computer player P%u (%s, colour %d): %d units and buildings, %d techs, %d improvements; you watch with godview\n", hi, n, pick >= 0 ? g_personas[pick].file : "no personality", colour, given, techs, imps);
 }
