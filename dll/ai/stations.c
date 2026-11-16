@@ -400,7 +400,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             stage_foe(pl, eb[bi].p);
             ratio = st_ratio(&g_sn_own, &g_sgs_foe);
             if (ratio < SN_BACK) { end = "losing"; z->lost++; }
-            else p->at = eb[bi].p;
+            else { p->at = eb[bi].p; p->hold_t = 0; }   // TO LOOK: one seen while it held the ground - the push goes on
         }
         // STUCK (the player 2026-11-15, his game's P2 from minute 183 to 222: 137 soldiers packed against a wall, "red is
         // stuck on an attack that never ends" - the cells of the route search are coarser than a wall is thick, the way
@@ -471,7 +471,12 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             int d = ivec2_dist2(eb[e].p, rally[r]);
             if (bi < 0 || d < bd) { bi = e; bd = d; }
         }
-        if (bi < 0) continue;   // none it sees or remembers now
+        // TO LOOK (the player's game of 2026-11-16, "aistuck": yellow's push into red's territory 7 ended "cleared" at
+        // minute 82 with a production building of red's still there - built out of its sight on ground it had explored,
+        // which the view counts (territories.c ebld) and a push does not know; no push started again in 20 minutes):
+        // an enemy territory with no building it sees or remembers is pushed into all the same, at its middle - there
+        // its soldiers see what stands, and the push goes on at that, or holds the ground as cleared.
+        ivec2 aim = bi >= 0 ? eb[bi].p : g_ter.t[into].c;
         st_side_clear(&g_sn_own);
         for (int i = 0; i < nn; i++) {
             if (z->m[i].ter != r || z->m[i].scout || z->m[i].pool == SNP_AA) continue;
@@ -481,7 +486,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             st_side_add(&g_sn_own, z->m[i].u);
         }
         if (there * 4 < cn * 3) continue;   // still gathering
-        stage_foe(pl, eb[bi].p);
+        stage_foe(pl, aim);
         float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
         // THE CALL (the player 2026-11-16: "yellow just sits there, it has enough soilders to finish red or atleast take
         // the food source it desperratly needs, instead it seems completly dead" - 53 soldiers over 4 territories, 9 to 16
@@ -513,11 +518,11 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             for (int j = 0; j < nj; j++) { struct sn_unit *m = &z->m[joiner[j]]; ac[m->ter]--; m->ter = (short)r; m->order_t = 0; m->moved_t = now ? now : 1; ac[r]++; z->moved++; }
             z->call_r = r; z->call_t = now ? now : 1; z->calls++;
             if (g_log) log_locked("# stations: P%u at %.1f min: territory %d calls %d soldiers from its quiet territories to push into %d (the building at %d,%d) - %d of its own judged %.2f, together %.2f (enemy there: %d)\n",
-                                  idx, now / 60000.0, r, nj, into, eb[bi].p.x, eb[bi].p.y, cn, (double)ratio, (double)all, g_sgs_foe.n);
+                                  idx, now / 60000.0, r, nj, into, aim.x, aim.y, cn, (double)ratio, (double)all, g_sgs_foe.n);
             continue;
         }
         struct sn_push *p = &z->push[slot];
-        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
+        p->on = 1; p->from = (short)r; p->into = (short)into; p->at = aim; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
         z->pushes++;
         if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the building at %d,%d, judged %.2f (enemy there: %d)\n",
                               idx, now / 60000.0, r, into, cn, p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
