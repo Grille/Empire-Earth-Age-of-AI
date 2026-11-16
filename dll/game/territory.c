@@ -66,7 +66,8 @@ struct ter_terr {
     short res[7]; int amount[7];  // resource sites with something left by resource (2 food .. 6 iron), what they hold
     short bld[16], units[16];     // per player: buildings, other units
     short hold[16];               // by player: its finished buildings there that hold ground (ter_holds)
-    int8_t owner, contested;      // the player with the most buildings that hold ground (0 none); an enemy of it has such there too
+    int8_t owner, contested;      // the player with the most buildings that hold ground (0 none); the enemy of it with the most
+                                  // such there too (0 none: not contested)
 };
 struct ter_nb { uint16_t to; int len; };
 struct ter_site { short x, y; uint8_t res; };
@@ -787,7 +788,8 @@ internal void ter_facts(void) {
         struct ter_terr *t = &g_ter.t[r];
         for (int p = 1; p < 16; p++) if (t->hold[p] > (t->owner ? t->hold[t->owner] : 0)) t->owner = (int8_t)p;
         ee_player *own = t->owner ? player_at(t->owner) : NULL;
-        for (int p = 1; p < 16 && own; p++) if (p != t->owner && t->hold[p] && player_at(p) && is_enemy(own, player_at(p))) t->contested = 1;
+        for (int p = 1; p < 16 && own; p++)
+            if (p != t->owner && t->hold[p] && player_at(p) && is_enemy(own, player_at(p)) && (!t->contested || t->hold[p] > t->hold[t->contested])) t->contested = (int8_t)p;
     }
 }
 // a territory's line: its number, tiles, borders and what it holds
@@ -809,7 +811,7 @@ internal void ter_line(char *out, size_t cap, int r, int full) {
 // a sum over the territories' holders: the borders drawn again when one changes hands
 internal uint32_t ter_owners(void) {
     uint32_t h = 2166136261u;
-    for (int r = 0; r < g_ter.n; r++) h = (h ^ (uint32_t)(uint8_t)g_ter.t[r].owner) * 16777619u;
+    for (int r = 0; r < g_ter.n; r++) h = (h ^ (uint32_t)(uint8_t)g_ter.t[r].owner << 8 ^ (uint32_t)(uint8_t)g_ter.t[r].contested) * 16777619u;
     return h;
 }
 // a border's side: its territory's holder's colour, else land white, water blue
@@ -841,23 +843,30 @@ internal float ter_end(int a2, int b2, unsigned r, float side, float cap, int *j
 }
 // a run of border from a to b between territories i (on the side off points to) and j: a dashed line inside each side in
 // its colour, one on the border itself when both sides are the same colour (the player, 2026-11-14: "when its the same
-// owner on both sides just draw one dash instead of double"); past: the tiles past a and past b on i's side and on j's
-// ({ a's i, a's j, b's i, b's j }, -1 off the map), cap: along the rows (ter_end); the lines drawn, none past TER_LINES
+// owner on both sides just draw one dash instead of double"); a contested side's dashes with a square in their middle in
+// its strongest enemy's colour (the player, 2026-11-16: "if its contensted maybe a small square of the weaker players
+// color in the middle of the dash"), the line on the border i's enemy's, else j's. past: the tiles past a and past b on
+// i's side and on j's ({ a's i, a's j, b's i, b's j }, -1 off the map), cap: along the rows (ter_end); the lines drawn,
+// none past TER_LINES
+#define TER_MARK 2       // a contested side's square, 2 sixteenths of a tile along the line, the line's width across
 internal int ter_border(vec2 a, vec2 b, vec2 off, unsigned i, unsigned j, const int *past, float cap, int lines) {
     uint32_t ci = ter_side_argb(i), cj = ter_side_argb(j);
     float len = fabsf(b.x - a.x) + fabsf(b.y - a.y);   // the run is along a row or a column
     vec2 d = v2((b.x - a.x) / len, (b.y - a.y) / len);
-    int same = ci == cj, ja, jb;
-    if (lines + 2 - same > TER_LINES) return 0;
+    int same = ci == cj, ja, jb, foe[2] = { g_ter.t[i].contested, g_ter.t[j].contested };
+    if (same && !foe[0]) foe[0] = foe[1];
+    int need = same ? 1 + !!foe[0] : 2 + !!foe[0] + !!foe[1];
+    if (lines + need > TER_LINES) return 0;
     for (int s = 0; s < 2 - same; s++) {   // i's line, then j's
         float side = same ? 0 : TER_SIDE, k = s ? -1.0f : 1.0f;
         unsigned r = s ? j : i;
         float sa = ter_end(past[s], past[1 - s], r, side, cap, &ja), sb = ter_end(past[2 + s], past[3 - s], r, side, cap, &jb);
         vec2 o = v2(off.x * k * (side / TER_SIDE), off.y * k * (side / TER_SIDE));
-        overlay_line_dashed(v2(a.x - d.x * sa + o.x, a.y - d.y * sa + o.y), v2(b.x + d.x * sb + o.x, b.y + d.y * sb + o.y),
-                            s ? cj : ci, TER_WIDTH, TER_DASH, (ja ? OV_JOIN_A : 0) | (jb ? OV_JOIN_B : 0));
+        vec2 la = v2(a.x - d.x * sa + o.x, a.y - d.y * sa + o.y), lb = v2(b.x + d.x * sb + o.x, b.y + d.y * sb + o.y);
+        overlay_line_dashed(la, lb, s ? cj : ci, TER_WIDTH, TER_DASH, (ja ? OV_JOIN_A : 0) | (jb ? OV_JOIN_B : 0));
+        if (foe[s]) overlay_line_dashed(la, lb, overlay_player_argb(foe[s], 230), TER_WIDTH, TER_MARK, 0);   // in each dash's middle: both in the tiles' middles
     }
-    return 2 - same;
+    return need;
 }
 internal void ter_draw(const int *layer, int on, uint32_t now, int borders) {   // layer: borders, fill, labels; on their bits shown
     int size = g_ter.size;
