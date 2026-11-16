@@ -124,9 +124,9 @@ internal int current_epoch(ee_player *pl);
 internal int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 internal uint32_t g_chat_status[16];
 internal volatile int g_speed_steps = 1;   // the + and - keys above the game's own speeds: so many times the steps a second (hook_speed_msg)
-internal volatile int g_speed_fast;        // that was used in this game: hook_speed_send
+internal volatile int g_speed_fast;        // that was used in this session (not reset with a game: hook_speed_send)
 internal void chat_new_game(void) {
-    g_speed_steps = 1, g_speed_fast = 0;
+    g_speed_steps = 1;
     for (int i = 0; i < 16; i++) { g_chat_epoch[i] = -1; g_chat_status[i] = g_chat_last[i] = 0; }
     memset(g_chat_kind_last, 0, sizeof g_chat_kind_last);
     memset(g_chat_lines, 0, sizeof g_chat_lines);
@@ -255,6 +255,9 @@ internal long __thiscall hook_speed_wait(void *ev, unsigned long ms) {
 }
 // The server's wait for its next tick of 15 steps: so many times shorter. Its time is reckoned from when the tick was due, which
 // the shorter waits leave far ahead: once fast, never longer than a tick, or it would stand for as long after coming back.
+// Once in the session, not the game: the server and its due time outlive a game - the next game, at normal speed again,
+// stood on its loading screen for the whole lead (the player 2026-11-16: "my current game is stuck in loading screen",
+// after a game of 163 minutes sped up: the server's wait 51 minutes, its tick count the last game's).
 #define SPEED_TICK_MS 350u
 internal DWORD WINAPI hook_speed_send(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
     DWORD most = SPEED_TICK_MS / (DWORD)g_speed_steps;
