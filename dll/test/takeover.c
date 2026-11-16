@@ -123,13 +123,20 @@ internal void cmd_handover(char *out, const char *args) {
         tech_tree_assign_player(tt, p);
         tech_tree_set_epochs(tt, tech_tree_get_start_epoch(ht), tech_tree_get_end_epoch(ht));
         tech_tree_setup(tt, *game_tech_setup_flag_at(), 1);
-        if (tech_tree_get_epoch(ht) > tech_tree_get_epoch(tt)) tech_tree_reach_epoch(tt, tech_tree_get_epoch(ht));
+        // its epoch's techs granted - at the same epoch too: from the first epoch the start's techs came only by it (the
+        // player's game 2026-11-16, from epoch 0: no citizen, clubman or Capitol in its tree, 3 techs of the human's
+        // applied by hand below - the citizens' among them, their buttons gone - and 63 minutes on 5 citizens)
+        if (tech_tree_get_epoch(ht) >= tech_tree_get_epoch(tt)) tech_tree_reach_epoch(tt, tech_tree_get_epoch(ht));
         for (int pass = 0, more = 1; pass < 8 && more; pass++) {   // a tech can need another first: again until none is left
             more = 0;
             for (int id = 0; id < 15000; id++) {
                 ee_tech *a = tech_tree_lookup(ht, id), *b = a && tech_get_researched(a) ? tech_tree_lookup(tt, id) : NULL;
                 if (!b || tech_get_researched(b)) continue;
-                tech_apply(b, 1, 1); tech_set_researched(b, 1); techs++; more = 1;
+                // a unit's or building's: researched, not applied - as the game's start leaves its starting units
+                // (applied, +5, the citizens' lost their button: no citizen trained in a game from epoch 0)
+                ee_tech_data *bd = tech_get_data(b);
+                if (!bd || !tech_data_get_is_object(bd)) tech_apply(b, 1, 1);
+                tech_set_researched(b, 1); techs++; more = 1;
             }
         }
     }
