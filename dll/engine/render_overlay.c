@@ -434,12 +434,19 @@ internal void ro_camera_vp(float *out) {
 internal void ro_map_shapes(const float *vp, int n, ID3D11ShaderResourceView *ring, int *plain) {
     for (int i = 0; i < n; i++) {
         const ov_shape *s = &g_ro.shapes[i];
-        if (s->kind == OV_LINE && s->sub) {   // dashed (overlay_line_dashed): a dash of sub sixteenths in the middle of each tile's length
-            float dx = s->a[2] - s->a[0], dy = s->a[3] - s->a[1], len = sqrtf(dx * dx + dy * dy), d = (float)s->sub / 16.0f;
-            for (float t = 0; t < len; t += 1.0f) {
-                float t0 = t + (1.0f - d) * 0.5f, t1 = t + (1.0f + d) * 0.5f;
-                t1 = t1 < len ? t1 : len;
-                if (t0 < t1) ro_ribbon(s->a[0] + dx * t0 / len, s->a[1] + dy * t0 / len, s->a[0] + dx * t1 / len, s->a[1] + dy * t1 / len, s->width, s->argb);
+        if (s->kind == OV_LINE && s->sub) {   // dashed (overlay_line_dashed): a dash in the middle of each tile of the grid it runs along
+            float dx = s->a[2] - s->a[0], dy = s->a[3] - s->a[1], h = (float)(s->sub & 15) / 32.0f;
+            int along_x = fabsf(dx) >= fabsf(dy);
+            float ua = along_x ? s->a[0] : s->a[1], ub = along_x ? s->a[2] : s->a[3];
+            if (ua == ub) continue;
+            // in the axis's coordinate, low end to high: the tiles between the grid lines nearest the ends, the joined
+            // end's dash out to it, the others' cut at their end
+            int lo_join = s->sub & (ua < ub ? OV_JOIN_A : OV_JOIN_B), hi_join = s->sub & (ua < ub ? OV_JOIN_B : OV_JOIN_A);
+            float lo = fminf(ua, ub), hi = fmaxf(ua, ub), first = floorf(lo + 0.5f) + 0.5f, last = floorf(hi + 0.5f) - 0.5f;
+            for (float c = first; c <= last; c += 1.0f) {
+                float u0 = c == first && lo_join ? lo : fmaxf(c - h, lo), u1 = c == last && hi_join ? hi : fminf(c + h, hi);
+                float t0 = (u0 - ua) / (ub - ua), t1 = (u1 - ua) / (ub - ua);
+                if (u0 < u1) ro_ribbon(s->a[0] + dx * t0, s->a[1] + dy * t0, s->a[0] + dx * t1, s->a[1] + dy * t1, s->width, s->argb);
             }
         }
         else if (s->kind == OV_LINE) ro_ribbon(s->a[0], s->a[1], s->a[2], s->a[3], s->width, s->argb);

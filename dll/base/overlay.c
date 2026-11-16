@@ -172,11 +172,18 @@ internal void overlay_line(vec2 a, vec2 b, uint32_t argb, float width) {
     ov_shape *s = ov_add(OV_LINE, argb, width);
     if (s) { s->a[0] = a.x; s->a[1] = a.y; s->a[2] = b.x; s->a[3] = b.y; }
 }
-// a dashed one: a dash of dash sixteenths of a tile (1..15) in the middle of each tile's length from a (the renderer's
-// ro_map_shapes)
-internal void overlay_line_dashed(vec2 a, vec2 b, uint32_t argb, float width, int dash) {
+// a dashed one along a run of tiles: a dash of dash sixteenths of a tile (1..15) in the middle of each tile the run
+// passes, those of the map's grid between the grid lines nearest a and b, so dashes of runs that meet line up (the
+// renderer's ro_map_shapes); ends OV_JOIN_A / OV_JOIN_B: the dash next to that end reaches out to it - a corner, the
+// line around it unbroken (the player, 2026-11-16: the territory borders' corners "arent handled cleanly")
+#define OV_JOIN_A 0x10
+#define OV_JOIN_B 0x20
+internal void overlay_line_dashed(vec2 a, vec2 b, uint32_t argb, float width, int dash, int ends) {
     ov_shape *s = ov_add(OV_LINE, argb, width);
-    if (s) { s->a[0] = a.x; s->a[1] = a.y; s->a[2] = b.x; s->a[3] = b.y; s->sub = (uint8_t)(dash < 1 ? 1 : dash > 15 ? 15 : dash); }
+    if (s) {
+        s->a[0] = a.x; s->a[1] = a.y; s->a[2] = b.x; s->a[3] = b.y;
+        s->sub = (uint8_t)((dash < 1 ? 1 : dash > 15 ? 15 : dash) | (ends & (OV_JOIN_A | OV_JOIN_B)));
+    }
 }
 internal void overlay_circle(vec2 c, float r, uint32_t argb, float width) {
     ov_shape *s = ov_add(OV_CIRCLE, argb, width);
