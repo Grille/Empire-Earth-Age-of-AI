@@ -200,6 +200,11 @@ internal int ap_pays_more(ee_player *pl, unsigned idx, int type) {
     for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - res[r] < c * AP_MORE_UNITS) return 0; }
     return 1;
 }
+// stations.c THE RESERVE's FULL STEAM: the bank pays for training on - AP_MORE_UNITS of FILL's last type above the reserves
+internal int ap_training_pays(ee_player *pl, unsigned idx) {
+    int t = g_ap[idx].last_type;
+    return t > 0 && can_build(pl, t) && ap_pays_more(pl, idx, t);
+}
 // the game's computer player off - FILL's own type: the strongest land soldier vis pays that an idle building of its
 // trains (the strongest of all came from the Barracks every time: it trained without a pause, the Archery Range and
 // the Stable beside it stood idle and 3 of 4 orders trained nothing)

@@ -134,7 +134,8 @@ internal struct shelf_st { int want, plenty; unsigned in, out; uint32_t t; } g_s
 // ai should never stop training units if it can help it, if its at its pop limit it should train straight into the
 // stash" - stations.c THE RESERVE). store: 1 the shelf's citizens, 2 the reserve's soldiers.
 #define BK_MAX 64
-internal int g_bk_more[16];   // stations.c THE RESERVE: one more fortress wanted
+internal int g_bk_more[16];   // stations.c THE RESERVE: more fortresses wanted (FORTRESSES AHEAD)
+internal int g_res_claim[16];  // stations.c THE RESERVE: the room the training claims (FULL STEAM) - the shelf keeps it too
 internal struct { int nf, nall; ee_unit *f[BK_MAX], *all[BK_MAX]; int nq[BK_MAX]; ee_unit *q[BK_MAX][40]; uint32_t build_t, quiet_t[BK_MAX]; unsigned in, out; int need_wood; uint32_t shelter[BK_MAX]; int walk[BK_MAX]; uint8_t store[BK_MAX]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in; store: the shelf's
 internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
@@ -275,7 +276,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
     return sent;
 }
 internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
-    if (g_bk[pi].build_t && now >= g_bk[pi].build_t && now - g_bk[pi].build_t < (g_shelter_urgent[pi] ? 15000u : 60000u)) return;   // under fire: a look every 15 s
+    if (g_bk[pi].build_t && now >= g_bk[pi].build_t && now - g_bk[pi].build_t < (g_shelter_urgent[pi] || g_bk_more[pi] > 1 ? 15000u : 60000u)) return;   // under fire, or the reserve wants several: a look every 15 s
     g_bk[pi].build_t = now ? now : 1;
     int e = current_epoch(pl);
     if (e < 2 || e >= 14) return;
@@ -298,7 +299,10 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     for (int t = 0; t < 7; t++) cit += FIELD(resource_mgr_list_at(rm, t), 0x10, int);
     int want = air || bk_hurt_recent(pi, 0, 0, 10000, 120000) >= 3 ? (cit >= 40 ? 2 : 1) : 0;
     if (g_bk_res >> pi & 1 && bk_room(pl) <= 5 && want < 1) want = 1;   // the reserve: near the population cap
-    if ((g_shelf[pi].want || g_bk_more[pi]) && want < g_bk[pi].nall + 1) want = g_bk[pi].nall + 1 < BK_MAX ? g_bk[pi].nall + 1 : BK_MAX;   // the shelf, the reserve: full
+    {   // the shelf, the reserve: full - the reserve asks for as many more as its room ahead takes (stations.c FORTRESSES AHEAD)
+        int more = g_bk_more[pi] > 1 ? g_bk_more[pi] : 1;
+        if ((g_shelf[pi].want || g_bk_more[pi]) && want < g_bk[pi].nall + more) want = g_bk[pi].nall + more < BK_MAX ? g_bk[pi].nall + more : BK_MAX;
+    }
     ivec2 guard_at = iv2(-1, -1);   // town guards: a front station without a fortress near
     if (TOWN_GUARDS(pi) && g_bk_res >> pi & 1 && g_bk[pi].nall < BK_MAX) {
         ivec2 st;
@@ -331,31 +335,46 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     int cost = tech && tech_get_data(tech) ? tech_data_get_cost(tech_get_data(tech), 3) : 350;   // the cost lives in its tech (wood)
     if (g_shelter_urgent[pi]) g_shelter_wood[pi] = cost;
     if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
-    // the drop site nearest the base point without a fortress within 10 tiles
-    ivec2 base = build_mgr_get_base(bm), d = iv2(0, 0);
-    int bd = 0x7FFFFFFF;
+    // the drop sites without a fortress within 10 tiles, the nearest the base point first - each tried in turn (the
+    // nearest alone stood crowded: the reserve's test, P2 at minute 30-40, one more wanted and none laid, no word), then
+    // for the reserve and the shelf the base point itself, further out
+    ivec2 base = build_mgr_get_base(bm), cand[17];
+    int cd[17], nc = 0, rmax[17];
     drops_cached(pl);
-    for (int i = 0; i < g_drops[pi].n; i++) {
-        const struct drop *p = &g_drops[pi].d[i];
-        int dd = ivec2_dist2(p->p, base), held_near = 0;
-        for (int k = 0; k < g_bk[pi].nall && !held_near; k++)
-            held_near = abs(unit_get_x(g_bk[pi].all[k]) - p->p.x) <= 10 && abs(unit_get_y(g_bk[pi].all[k]) - p->p.y) <= 10;
-        if (!p->food && !held_near && dd < bd) { bd = dd; d = p->p; }
+    if (guard_at.x >= 0) { cand[0] = guard_at; rmax[0] = 9; nc = 1; }   // the town guard's fortress at its station
+    else {
+        for (int i = 0; i < g_drops[pi].n; i++) {
+            const struct drop *p = &g_drops[pi].d[i];
+            int dd = ivec2_dist2(p->p, base), held_near = 0;
+            for (int k = 0; k < g_bk[pi].nall && !held_near; k++)
+                held_near = abs(unit_get_x(g_bk[pi].all[k]) - p->p.x) <= 10 && abs(unit_get_y(g_bk[pi].all[k]) - p->p.y) <= 10;
+            if (p->food || held_near) continue;
+            if (nc == 16 && dd >= cd[15]) continue;   // insertion by distance, the 16 nearest kept
+            int j = nc < 16 ? nc++ : 15;
+            while (j > 0 && cd[j - 1] > dd) { cand[j] = cand[j - 1]; cd[j] = cd[j - 1]; j--; }
+            cand[j] = p->p; cd[j] = dd;
+        }
+        for (int i = 0; i < nc; i++) rmax[i] = 9;
+        if (g_bk_more[pi] || g_shelf[pi].want) { cand[nc] = base; rmax[nc++] = 20; }
     }
-    if (guard_at.x >= 0) { d = guard_at; bd = 0; }   // the town guard's fortress at its station
-    if (bd == 0x7FFFFFFF || prio_refuses(pl, FORTRESS_TYPE)) return;
-    for (int r = 4; r <= 9; r++)
-        for (int ax = -r; ax <= r; ax++)
-            for (int ay = -r; ay <= r; ay++) {
-                int x = d.x + ax, y = d.y + ay;
-                if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
-                    !can_place(pl, FORTRESS_TYPE, iv2(x - 1, y - 1)) || raiders_near(pl, iv2(x, y), 8)) continue;
-                ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
-                int sent = b ? bk_builders(pl, b, 3) : 0;
-                if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
-                                   now / 60000.0, x, y, b ? "laid" : "refused", sent, guard_at.x >= 0 ? "a town guard at the front" : air ? "aircraft possible" : "citizens hurt", cit, g_bk[pi].nall);
-                return;
-            }
+    if (!nc || prio_refuses(pl, FORTRESS_TYPE)) return;
+    const char *why = guard_at.x >= 0 ? "a town guard at the front" : air ? "aircraft possible" : g_bk_more[pi] ? "the reserve" : g_shelf[pi].want ? "the shelf" : "citizens hurt";
+    for (int c = 0; c < nc; c++) {
+        ivec2 d = cand[c];
+        for (int r = 4; r <= rmax[c]; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    int x = d.x + ax, y = d.y + ay;
+                    if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
+                        !can_place(pl, FORTRESS_TYPE, iv2(x - 1, y - 1)) || raiders_near(pl, iv2(x, y), 8)) continue;
+                    ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
+                    int sent = b ? bk_builders(pl, b, 3) : 0;
+                    if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
+                                       now / 60000.0, x, y, b ? "laid" : "refused", sent, why, cit, g_bk[pi].nall);
+                    return;
+                }
+    }
+    if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: no place for a fortress by %d spots (%s, %d fortresses)\n", pi, now / 60000.0, nc, why, g_bk[pi].nall);
 }
 // the wood a fortress waits for, held back from unit training (as the fields' wood and a landing's transports)
 internal void bunker_reserve(ee_player *pl, int *reserve) {
@@ -569,6 +588,10 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     if (!um || !rm) return;
     int *st = player_stock_at(pl), keep = shelf_keep(pl), out = shelf_citizens_out(pl);
     int room = GAME_AI(pi) ? unit_limit(pl) - player_population(pl, 1, 0) : bk_room_free(pl), queued = unit_mgr_get_in_production(um);   // off: the training's room (bk_room_free)
+    if (!GAME_AI(pi) && g_res_claim[pi] > 0) {   // FULL STEAM: a place kept for each production building (the shelf stashed for the last 5 only)
+        int q = units_queued(pl);
+        room = bk_room(pl) - (q > g_res_claim[pi] ? q : g_res_claim[pi]);
+    }
     g_shelf[pi].want = 0;
     // the game's computer player off: a fortress with units inside is the shelf's - nobody else fills one then (the
     // shelter and the reserve are the game's assignment hook's), and which were its is not in a save: after a load

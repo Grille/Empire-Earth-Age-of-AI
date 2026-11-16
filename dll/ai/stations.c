@@ -83,7 +83,7 @@ internal struct sn_st {
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
-    uint32_t res_t, res_out_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n;   // THE RESERVE: its last look, the last fortress let out; soldiers in, out
+    uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale;   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
     ivec2 esc_at; uint32_t esc_t; int esc_n; unsigned escorts;   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
@@ -119,6 +119,8 @@ internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRS
 #define SN_RES_BATCH 20         // ... this many a look
 #define SN_RES_FOE 4            // ... or with this many enemy soldiers in a territory of its
 #define SN_RES_ODDS 3           // ... unless its soldiers stationed there are this many times as many
+#define SN_RES_LOOK 120         // ... at most this many a look (several Fortresses)
+#define SN_RES_AHEAD 2          // ... Fortress room wanted ahead: this many units per production building
 #define SN_RES_AGAIN 60000      // ... and nobody goes in for this long after
 #define SN_HOLD 600000          // THE CLEARED GROUND: held this long at most
 #define SN_STUCK 120000        // STUCK: no nearer to its building for this long
@@ -742,23 +744,34 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     // Every SN_RES_EVERY: with no room left for the training (SN_RES_ROOM places: the population and the units its
     // buildings have queued - bunker.c bk_room_free) and no territory of its under attack (SN_RES_ODDS), up to
     // (and no citizens the shelf would take first: bunker.c shelf_first) SN_RES_BATCH soldiers of the main force and the siege - not of a territory that pushes - go into a Fortress of
-    // the reserve, the nearest to it first; the training fills the map again. No Fortress with room: one more is
-    // built (bunker.c bk_build, BK_MAX). Out again, a Fortress a look: the nearest to a territory of its with enemy
+    // the reserve, the nearest to it first; the training fills the map again. While the bank pays the training
+    // claims a place for each production building (FULL STEAM), a look loads several Fortresses, and more are built
+    // ahead (FORTRESSES AHEAD; bunker.c bk_build, BK_MAX). Out again, a Fortress a look: the nearest to a territory of its with enemy
     // soldiers in it (SN_RES_FOE of them), or the fullest that fits into the room on the map (SN_RES_ROOM kept) - and nobody in for
     // SN_RES_AGAIN after that.
     if (!z->res_t || now < z->res_t || now - z->res_t >= SN_RES_EVERY) {
         z->res_t = now ? now : 1;
-        int room = bk_room_free(pl), hard_r = -1, ob = -1, od = 0;   // the training's room: the population's less what is queued (bunker.c)
+        // FULL STEAM (the player 2026-11-16: "idealy the ai keeps always training on full steam just filling up
+        // reserves"): while the bank pays for training (army.c ap_training_pays) the room the training claims is a place
+        // for each of its production buildings (produce.c), else what they have queued (bunker.c bk_room_free) - with 5
+        // places kept, 28-43 buildings had 20-30 units in production between them, 3-6 soldiers a minute where they
+        // make about 50. room: what is spare beyond that claim
+        int nb = ap_training_pays(pl, idx) ? g_pr[idx].buildings : 0, q = units_queued(pl), claim = q > nb ? q : nb;
+        int room = bk_room(pl) - claim, hard_r = -1, ob = -1, od = 0;
+        z->res_room = room; z->res_claim = claim; g_res_claim[idx] = nb;
         // a scout or two let nobody out (the first game: 37 of 44 looks let a fortress out); nor a few raiders where its
         // soldiers stand SN_RES_ODDS to one (the player's game of 2026-11-16: P2's 1000 soldiers at the cap, 4+ enemies
         // in one of its 7 territories most minutes - 140 of its own there - and nobody stashed)
         for (int r = 0; r < n && hard_r < 0; r++) if (!g_ter.t[r].water && s->t[r].role != TVR_NONE && fn[r] >= SN_RES_FOE && fn[r] * SN_RES_ODDS > ac[r]) hard_r = r;
         g_bk_more[idx] = 0;
-        if (hard_r >= 0 || room > SN_RES_ROOM)
+        // out for room only with SN_RES_BATCH to spare beyond the Fortress's soldiers and not within SN_RES_AGAIN of a
+        // load: the room a load makes is the training's until its units come out (they were let out again before)
+        int quiet_in = !z->res_in_t || now < z->res_in_t || now - z->res_in_t >= SN_RES_AGAIN;
+        if (hard_r >= 0 || (room > SN_RES_ROOM && quiet_in))
             for (int k = 0; k < g_bk[idx].nf; k++) {
                 ee_unit *fo = g_bk[idx].f[k];
                 if (g_bk[idx].store[k] != 2 || bk_held(fo) <= 0) continue;
-                if (hard_r < 0 && bk_held(fo) + SN_RES_ROOM > room) continue;   // ONLY FOR ROOM (the player 2026-11-15: "if the pop limit has space again the units should go out and do tasks"): whoever fits into the room on the map comes out
+                if (hard_r < 0 && bk_held(fo) + SN_RES_ROOM + SN_RES_BATCH > room) continue;   // ONLY FOR ROOM (the player 2026-11-15: "if the pop limit has space again the units should go out and do tasks"): whoever fits into the room on the map comes out
                 int d = hard_r >= 0 ? ivec2_dist2(unit_get_tile(fo), g_ter.t[hard_r].c) : -bk_held(fo);
                 if (ob < 0 || d < od) { ob = k; od = d; }
             }
@@ -773,27 +786,44 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 if (g_log && !again) log_locked("# reserve: P%u at %.1f min: room %d%s - the fortress at %d,%d lets its %d soldiers out (%u in, %u out so far)\n", idx, now / 60000.0, room,
                                       hard_r >= 0 ? ", enemy soldiers in a territory of its" : "", unit_get_x(fo), unit_get_y(fo), held, z->res_in, z->res_out);
             }
-        } else if (hard_r < 0 && room <= SN_RES_ROOM && !shelf_first(pl, idx) && (!z->res_out_t || now < z->res_out_t || now - z->res_out_t >= SN_RES_AGAIN)) {
-            int best = -1, space = 0;
+        } else if (hard_r < 0 && room <= SN_RES_ROOM && (nb > 0 || !shelf_first(pl, idx)) &&   /* FULL STEAM: beside the shelf - alone it kept up 20 a look (cap 500, 61 buildings, 32-42 in production) */ (!z->res_out_t || now < z->res_out_t || now - z->res_out_t >= SN_RES_AGAIN)) {
+            // a look loads SN_RES_BATCH and what the map holds beyond the claim, into as many Fortresses as that takes
+            // (one load order a Fortress at a time: a new one replaces the one before)
+            int want = SN_RES_BATCH + (room < 0 ? -room : 0), cap1 = 40, have = 0;
+            if (want > SN_RES_LOOK) want = SN_RES_LOOK;
+            static uint8_t used[BK_MAX];
+            memset(used, 0, sizeof used);
+            for (int k = 0; k < g_bk[idx].nall; k++) {   // FORTRESSES AHEAD: unfinished ones count as empty
+                ee_unit *bs = unit_get_physics(g_bk[idx].all[k]);
+                if (!bs || !unit_get_finished(bs)) have += cap1;
+            }
             for (int k = 0; k < g_bk[idx].nf; k++) {
                 ee_unit *fo = g_bk[idx].f[k];
-                int sp = bk_space(fo);   // by the soldiers' sizes (bunker.c)
-                if (g_bk[idx].store[k] == 1 || g_bk[idx].shelter[k] || g_bk[idx].walk[k] > 0 || (!g_bk[idx].store[k] && bk_held(fo) > 0)) continue;   // one load order a fortress at a time
-                if (sp > space) { space = sp; best = k; }
+                if (bk_capacity(fo) > 0) cap1 = bk_capacity(fo);
+                if (g_bk[idx].store[k] == 1 || g_bk[idx].shelter[k] || (!g_bk[idx].store[k] && bk_held(fo) > 0)) continue;
+                have += bk_space(fo) > 0 ? bk_space(fo) : 0;
             }
-            if (best < 0 || space < 5) g_bk_more[idx] = 1;
-            else {
-                ee_unit *fo = g_bk[idx].f[best], *pick[SN_RES_BATCH];
-                int pi_[SN_RES_BATCH], npk = 0, left = space;
+            for (int k = 0; k < g_bk[idx].nf && want > 0; k++) {   // the Fortresses in no particular order: the soldiers nearest each go
+                int best = -1, space = 0;
+                for (int j = 0; j < g_bk[idx].nf; j++) {
+                    ee_unit *fo = g_bk[idx].f[j];
+                    int sp = bk_space(fo);   // by the soldiers' sizes (bunker.c)
+                    if (used[j] || g_bk[idx].store[j] == 1 || g_bk[idx].shelter[j] || g_bk[idx].walk[j] > 0 || (!g_bk[idx].store[j] && bk_held(fo) > 0)) continue;
+                    if (sp > space) { space = sp; best = j; }
+                }
+                if (best < 0 || space < 5) break;
+                used[best] = 1;
+                ee_unit *fo = g_bk[idx].f[best], *pick[64];
+                int pi_[64], npk = 0, left = space;
                 ivec2 fp = unit_get_tile(fo);
-                while (npk < SN_RES_BATCH && left > 0) {
+                while (npk < 64 && npk < want && left > 0) {
                     int ci = -1, cdist = 0;
                     for (int i = 0; i < nn; i++) {
                         struct sn_unit *m = &z->m[i];
                         if (m->scout || m->pool == SNP_AA || m->ter < 0 || m->ter >= n || fn[m->ter] > 0 || (m->stash_t && now >= m->stash_t && now - m->stash_t < SN_RES_AGAIN)) continue;
                         if (bk_size(m->u) > left) continue;   // what still fits
                         int busy = 0;
-                        for (int k = 0; k < SN_PUSHES; k++) busy |= z->push[k].on && z->push[k].from == m->ter;
+                        for (int h = 0; h < SN_PUSHES; h++) busy |= z->push[h].on && z->push[h].from == m->ter;
                         for (int j = 0; j < npk; j++) busy |= pi_[j] == i;
                         if (busy) continue;
                         int d = ivec2_dist2(unit_get_tile(m->u), fp);
@@ -803,13 +833,21 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                     pi_[npk] = ci; pick[npk++] = z->m[ci].u;
                     left -= bk_size(z->m[ci].u);
                 }
-                if (npk && bk_load(fo, pick, npk)) {
+                if (!npk) break;   // nobody left to take
+                if (bk_load(fo, pick, npk)) {
                     g_bk[idx].store[best] = 2; g_bk[idx].walk[best] += npk;
                     for (int j = 0; j < npk; j++) z->m[pi_[j]].stash_t = now ? now : 1;
                     z->res_in += (unsigned)npk;
-                    if (g_log) log_locked("# reserve: P%u at %.1f min: room %d - %d soldiers into the fortress at %d,%d (holds %d; %u in, %u out so far)\n", idx, now / 60000.0, room, npk, fp.x, fp.y, bk_held(fo), z->res_in, z->res_out);
+                    z->res_in_t = now ? now : 1;
+                    want -= npk;
+                    if (g_log) log_locked("# reserve: P%u at %.1f min: room %d (claim %d) - %d soldiers into the fortress at %d,%d (holds %d; %u in, %u out so far)\n", idx, now / 60000.0, room, claim, npk, fp.x, fp.y, bk_held(fo), z->res_in, z->res_out);
                 }
             }
+            // FORTRESSES AHEAD: room in them for SN_RES_AHEAD units a production building (a minute of full steam,
+            // a unit about every 30 s each), SN_RES_BATCH at least - else as many more as that takes (bunker.c bk_build)
+            int ahead = SN_RES_AHEAD * g_pr[idx].buildings;
+            if (ahead < SN_RES_BATCH) ahead = SN_RES_BATCH;
+            if (have < ahead) g_bk_more[idx] = (ahead - have + cap1 - 1) / cap1;
         }
     }
     // DEMOLITION: each territory's enemy wall piece or gate nearest its place, and who is at one already
@@ -925,9 +963,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         int rh = 0, rf = 0;   // THE RESERVE: soldiers inside its Fortresses
         for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d) | pushes on %d, so far %u started, %u won, %u lost | "
-                   "the reserve %d soldiers in %d fortresses (so far %u in, %u out), the training's room %d | "
+                   "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
                    "so far %u changes of station, %u orders (%u to groups, %u soldiers in them), %u scouts back, %u set at enemy walls, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
-                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, bk_room_free(pl),
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
                    z->moved, z->orders, z->groups, z->grouped, z->scouted, z->demos, z->stale, buf);
     }
 }
