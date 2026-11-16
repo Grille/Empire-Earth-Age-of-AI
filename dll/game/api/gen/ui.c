@@ -106,6 +106,20 @@ internal inline int *camera_view_at(const ee_camera *o) { return (int *)((uint8_
 typedef void (__thiscall *camera_move_fn)(ee_camera *, float, float);
 internal camera_move_fn fn_camera_move;
 internal inline void camera_move(ee_camera *camera, float dx, float dy) { fn_camera_move(camera, dx, dy); }
+// the look-at at blend t into out: lerped from its last (+0x40) to the new (+0x78) - a cinematic's start saves it;
+// the earthquake's shake (0x4AA52E, AoC's at the call site) takes the camera's place from it at the global blend
+// 0x918DA8 and moves it from there
+typedef void (__thiscall *camera_look_at_blend_fn)(ee_camera *, float, float *);
+internal camera_look_at_blend_fn fn_camera_look_at_blend;
+internal inline void camera_look_at_blend(ee_camera *camera, float t, float *out) { fn_camera_look_at_blend(camera, t, out); }
+internal inline int patch_quake_look_at(camera_look_at_blend_fn h) { return patch_call(call_quake_look_at, (uintptr_t)fn_camera_look_at_blend, (void *)h); }
+// the camera centred on the point (a, b: 1, 1 the earthquake's and the minimap's) - a new move there; the
+// earthquake's shake calls it every step it shakes (the local player's +0xB48 clear) with the look-at moved by a
+// random push: the camera itself walks off, nothing brings it back
+typedef void (__thiscall *camera_center_fn)(ee_camera *, float *, char, char);
+internal camera_center_fn fn_camera_center;
+internal inline void camera_center(ee_camera *camera, float *at, char a, char b) { fn_camera_center(camera, at, a, b); }
+internal inline int patch_quake_center(camera_center_fn h) { return patch_call(call_quake_center, (uintptr_t)fn_camera_center, (void *)h); }
 // the zoom (+0xE0) set and the camera's move to it started (0x51DDD7, AoC 0x528996): the step's blend (+0xD8)
 // turns and moves the transformation to it a step at a time
 typedef void (__thiscall *camera_zoom_to_fn)(ee_camera *, float);
@@ -797,6 +811,10 @@ internal int spec_ui_select(int build) {
         of_camera_zoom = 0xE0;
         of_camera_view = 0xF4;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
+        fn_camera_look_at_blend = (camera_look_at_blend_fn)0x0051D56A;
+        call_quake_look_at = 0x004AA5CE;
+        fn_camera_center = (camera_center_fn)0x0051EC85;
+        call_quake_center = 0x004AA615;
         fn_camera_zoom_to = (camera_zoom_to_fn)0x0051F2F3;
         of_gfx_owner = 0x20;
         of_gfx_shown = 0x2D;
@@ -1046,6 +1064,10 @@ internal int spec_ui_select(int build) {
         of_camera_zoom = 0xE0;
         of_camera_view = 0xF4;
         fn_camera_move = (camera_move_fn)0x00528EA5;
+        fn_camera_look_at_blend = (camera_look_at_blend_fn)0x00528129;
+        call_quake_look_at = 0x004B09F6;
+        fn_camera_center = (camera_center_fn)0x00529844;
+        call_quake_center = 0x004B0A3D;
         fn_camera_zoom_to = (camera_zoom_to_fn)0x00529EB2;
         of_gfx_owner = 0x20;
         of_gfx_shown = 0x2D;
@@ -1286,6 +1308,10 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_ui_line, "EEUserInterface.line");
     bad += spec_code((uintptr_t)fn_camera_make_transformation, "EECameraControl.make_transformation");
     bad += spec_code((uintptr_t)fn_camera_move, "EECameraControl.move");
+    bad += spec_code((uintptr_t)fn_camera_look_at_blend, "EECameraControl.look_at_blend");
+    bad += spec_call(call_quake_look_at, (uintptr_t)fn_camera_look_at_blend, "EECameraControl.look_at_blend [call_site quake_look_at]");
+    bad += spec_code((uintptr_t)fn_camera_center, "EECameraControl.center");
+    bad += spec_call(call_quake_center, (uintptr_t)fn_camera_center, "EECameraControl.center [call_site quake_center]");
     bad += spec_code((uintptr_t)fn_camera_zoom_to, "EECameraControl.zoom_to");
     bad += spec_code((uintptr_t)fn_mouse_update, "RTSMouse.update");
     bad += spec_call(calls_mouse_update[0], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 0]");

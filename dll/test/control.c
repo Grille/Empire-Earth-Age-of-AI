@@ -94,6 +94,7 @@ internal float speed_steps_set(float s);   // voice/chat.c: the + key's speed s 
 internal float speed_shown(void);
 internal void cmd_diplo(char *out, const char *args);
 internal void cmd_persona(char *out, const char *args);
+internal void cmd_cast(char *out, const char *args);     // testcmd.c: a prophet casts a power
 internal void cmd_spawn(char *out, const char *args);
 internal void cmd_airraid(char *out, const char *args);   // testcmd.c
 internal void cmd_modmsg(char *out, const char *args);   // testcmd.c: the mod's own message
@@ -495,6 +496,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "diplo")) cmd_diplo(out, args);
     else if (!strcmp(verb, "persona")) cmd_persona(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
+    else if (!strcmp(verb, "cast")) cmd_cast(out, args);
     else if (!strcmp(verb, "airraid")) cmd_airraid(out, args);
     else if (!strcmp(verb, "modmsg")) cmd_modmsg(out, args);
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);

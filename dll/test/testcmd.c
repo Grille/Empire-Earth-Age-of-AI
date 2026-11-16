@@ -303,6 +303,30 @@ internal void cmd_modmsg(char *out, const char *args) {
     if (!mod_msg_send(MOD_MSG_TEST, b, n)) { REPLY("error: not sent (no game, or the message not registered)\n"); return; }
     REPLY("sent #%u, %d bytes at %u ms\n", seq, n, now);
 }
+// cast P power x y (test): P's prophet nearest x, y (spawn one first) casts a power there, its power topped up -
+// quake, fire, volcano, plague, hurricane, malaria (holy.c hl_cast: the power's own check, then the cast's goal)
+internal void cmd_cast(char *out, const char *args) {
+    static const char *const nm[6] = { "quake", "fire", "volcano", "plague", "hurricane", "malaria" };
+    char w[16] = "";
+    int p = 0, x = 0, y = 0, k = -1;
+    if (sscanf(args, "%d %15s %d %d", &p, w, &x, &y) < 4) { REPLY("error: usage: cast P quake|fire|volcano|plague|hurricane|malaria x y\n"); return; }
+    for (int i = 0; i < 6; i++) if (!strcmp(w, nm[i])) k = i;
+    ee_player *pl = player_at(p);
+    if (!pl || k < 0) { REPLY("error: no player %d or power '%s'\n", p, w); return; }
+    ee_unit *best = NULL;
+    float bd = 1e30f;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        if (unit_get_owner(it.u) != pl || unit_type_get_id(it.td) != UT(PROPHET) || unit_get_hp(it.u) <= 0) continue;
+        float dx = unit_get_x(it.u) - (float)x, dy = unit_get_y(it.u) - (float)y, d = dx * dx + dy * dy;
+        if (d < bd) bd = d, best = it.u;
+    }
+    if (!best) { REPLY("error: P%d has no prophet (spawn one)\n", p); return; }
+    unit_set_power(best, 1000);
+    int ok = hl_cast(pl, best, iv2(x, y), k);
+    REPLY("%s: P%d's prophet at %d,%d %s %s at %d,%d\n", ok ? "ok" : "error", p, unit_get_tile(best).x, unit_get_tile(best).y,
+          ok ? "casts" : "refused (the power's check or the goal)", nm[k], x, y);
+}
+
 internal void cmd_spawn(char *out, const char *args) {
     int p, type, x, y, n = 1, off = 0;
     if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {

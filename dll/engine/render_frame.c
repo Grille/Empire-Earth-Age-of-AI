@@ -778,6 +778,7 @@ internal int rf_screen_ray(const float *m, float mx, float my, float *eye, float
 // at blend 1 after a move (snap), during the zoom's ride its blend moved on by the time since the step last changed
 // it - never back within one ride (a step's dt shorter than the time here), a new ride (blend set back) starts over.
 internal float g_cam_now[16];   // the camera's transformation this frame (rf_camera_frame)
+internal void quake_shake_frame(float *m);   // quake_shake.c: an earthquake's shake on it
 internal float g_cam_view_now[16];
 internal int g_cam_now_ok;
 internal float g_cam_blend_seen, g_cam_t;
@@ -806,6 +807,7 @@ internal void rf_camera_frame(void) {
         g_cam_t = t;
         camera_make_transformation(cam, g_cam_now, t);
         camera_anchor_frame(cam, g_cam_now, t);
+        quake_shake_frame(g_cam_now);   // an earthquake's shake: the view's offset, not the camera's (quake_shake.c)
     }
     g_cam_now_ok = rf_camera_view(g_cam_view_now, g_cam_now);
 }

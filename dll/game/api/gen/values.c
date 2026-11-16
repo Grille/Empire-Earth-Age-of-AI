@@ -2040,6 +2040,8 @@ internal uint32_t of_camera_blend_rate;
 internal uint32_t of_camera_snap;
 internal uint32_t of_camera_zoom;
 internal uint32_t of_camera_view;
+internal uint32_t call_quake_look_at;
+internal uint32_t call_quake_center;
 internal uint32_t of_gfx_owner;
 internal uint32_t of_gfx_shown;
 internal uint32_t of_gfx_0x2e;

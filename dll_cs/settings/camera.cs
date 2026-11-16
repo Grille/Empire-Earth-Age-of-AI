@@ -22,6 +22,10 @@ class camera
     /// 1 = the camera moves with every drawn frame by the time the frame took (same speed), also while the game is
     /// busy, 0 = the game's steps
     bool smooth_scroll = true;
+    /// Earthquake shake: the game shook the screen in an earthquake by moving the camera itself a little every step,
+    /// never back - it wandered off, and fought the fine scrolling and the zoom. 1 = the view shakes around where the
+    /// camera stands, the camera stays put (with the mod's renderer), 0 = the game's
+    bool quake_shake = true;
     /// How far back the camera stands at the game's own furthest zoom, in tiles (0 = the game's 20.5). It levels out
     /// toward the ground on the way in as the game's camera does, at any value here:
     [range(0, 100)]

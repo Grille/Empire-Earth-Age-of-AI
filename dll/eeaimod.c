@@ -528,6 +528,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/godmode.c"   // godmode: the whole map, any player's units and buildings as this PC's own (playas)
 #include "base/headless_win.c"
 #include "engine/display.c"
+#include "engine/quake_shake.c"    // an earthquake shakes the view, not the camera ([camera] quake_shake)
 #include "engine/crash_box.c"   // [general] crash_dialog: a crash stays open in a box, a memory dump of it
 #include "engine/hold_profile.c"
 #include "engine/playername.c"
@@ -817,6 +818,7 @@ internal void install(HMODULE self) {
     display_install(g_autotest ? g_ini : NULL);
     hold_profile_install();   // after it: the own renderer or not (g_rd_on)
     camera_install();   // after it: the own renderer or not (g_rd_on)
+    quake_shake_install();
     sound_install();
     stat_graphs_install();
     select_install();

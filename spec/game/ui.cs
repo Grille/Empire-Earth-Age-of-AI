@@ -109,6 +109,20 @@ unsafe struct EECameraControl
     [address((ee)0x0051E2E6, (aoc)0x00528EA5)]
     extern void move(float32 dx, float32 dy);
 
+    /// the look-at at blend t into out: lerped from its last (+0x40) to the new (+0x78) - a cinematic's start saves it;
+    /// the earthquake's shake (0x4AA52E, AoC's at the call site) takes the camera's place from it at the global blend
+    /// 0x918DA8 and moves it from there
+    [address((ee)0x0051D56A, (aoc)0x00528129)]
+    [call_site("quake_look_at", (ee)0x004AA5CE, (aoc)0x004B09F6)]
+    extern void look_at_blend(float32 t, float32* out);
+
+    /// the camera centred on the point (a, b: 1, 1 the earthquake's and the minimap's) - a new move there; the
+    /// earthquake's shake calls it every step it shakes (the local player's +0xB48 clear) with the look-at moved by a
+    /// random push: the camera itself walks off, nothing brings it back
+    [address((ee)0x0051EC85, (aoc)0x00529844)]
+    [call_site("quake_center", (ee)0x004AA615, (aoc)0x004B0A3D)]
+    extern void center(float32* at, char8 a, char8 b);
+
     /// the zoom (+0xE0) set and the camera's move to it started (0x51DDD7, AoC 0x528996): the step's blend (+0xD8)
     /// turns and moves the transformation to it a step at a time
     [address((ee)0x0051F2F3, (aoc)0x00529EB2)]
