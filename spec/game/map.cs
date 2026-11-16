@@ -29,6 +29,12 @@ unsafe struct ee_grid_cell
 /// the map, [game.map] (EEMap)
 unsafe struct EEMap
 {
+    /// thiscall(map, n): the tiles' sight counts made for n players (a uint16 each, two to a dword: a new buffer, the
+    /// old counts copied, each tile's +0xC pointed into it, the old one freed; +0x181700 the count) - the game start's
+    /// for the players' count
+    [address((ee)0x00511694, (aoc)0x0051BC03)]
+    extern void sight_players(uint32 n);
+
     /// its GETerrainMesh (the units' update: lea ecx, [map + 0x1C] for the visible rows, both builds)
     [offset(0x1C), found(c)]
     block mesh;

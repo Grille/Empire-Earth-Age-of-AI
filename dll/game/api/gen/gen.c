@@ -657,6 +657,7 @@ typedef struct ee_target_search ee_target_search;
 typedef struct ee_upgrade_table ee_upgrade_table;
 typedef struct ee_to_hit_table ee_to_hit_table;
 typedef struct ee_improvements ee_improvements;
+typedef struct ee_influence ee_influence;
 typedef struct ee_game_state ee_game_state;
 
 #include "game/api/gen/ai_managers.c"

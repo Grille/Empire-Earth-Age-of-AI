@@ -117,6 +117,8 @@ internal void research_new_game(void);
 internal void research_install(const char *autotest_ini);   // research.c: unit_improvements
 internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the force by territory
 internal void stations_new_game(void);
+internal void takeover_new_game(void);   // test/takeover.c
+internal void takeover_install(void);
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
 internal void airguard_new_game(void);
 internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and prophets
@@ -420,6 +422,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     build_new_game();
     research_new_game();
     stations_new_game();
+    takeover_new_game();
     airguard_new_game();
     holy_new_game();
     airstrike_new_game();
@@ -506,6 +509,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/holy.c"          // priests and prophets while the game's computer player is off
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
+#include "test/takeover.c"   // `handover`: the human player's empire to a new computer player
 #include "ai/ai_overlay.c"   // the AI's tactical map (the overlay's layer "ai")
 #include "persist.c"
 #include "engine/aim.c"
@@ -778,6 +782,7 @@ internal void install(HMODULE self) {
     armies_install(g_autotest ? g_ini : NULL);
     garrison_install(g_autotest ? g_ini : NULL);
     research_install(g_autotest ? g_ini : NULL);
+    takeover_install();
     territories_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);

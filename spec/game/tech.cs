@@ -88,6 +88,11 @@ unsafe struct EETechTreeNode
     /// AoC's takes an argument: called in the 2017 update only
     [address((ee)0x005BF335, (aoc)0x005CFA53)]
     extern int32 grant();
+
+    /// thiscall(node, 1, 1): its effects applied without a price (+5 applied; the epoch techs, the civilization's
+    /// bonuses, a re-grant)
+    [address((ee)0x005BF4C8, (aoc)0x005CFBFE)]
+    extern void apply(char8 a, char8 b);
 }
 
 /// a tech's data, TECH +8 (costs, its building ...)
@@ -192,9 +197,35 @@ unsafe struct EETechTree
     [offset((ee)0x4E4, (aoc)0x538), found(v)]
     int32 epoch;
 
+    /// the game's start epoch (set_epochs)
+    [offset((ee)0x4E8, (aoc)0x53C), found(c)]
+    int32 start_epoch;
+
+    /// the game's end epoch (set_epochs)
+    [offset((ee)0x4EC, (aoc)0x540), found(c)]
+    int32 end_epoch;
+
     /// thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
     [address((ee)0x005BC15D, (aoc)0x005CCB34)]
     extern void epoch_next();
+
+    /// thiscall(tech tree, player): its player (+0x4E0) set, then vf1(the player's index) - the game start's for each
+    /// player (0x52F327)
+    [address((ee)0x005BC93E, (aoc)0x005CD358)]
+    extern void assign_player(EEPlayer* p);
+
+    /// thiscall(tech tree, start epoch, end epoch): the game's epochs (+0x4E8, +0x4EC) - the game start's
+    [address((ee)0x005BC8F6, (aoc)0x005CD30A)]
+    extern void set_epochs(int32 start, int32 end);
+
+    /// thiscall(tech tree, flag, enable): its set up - with enable its enabled_techs made available (0x5BB8C5) - the
+    /// game start's (flag: the byte at 0x918E98)
+    [address((ee)0x005BC173, (aoc)0x005CCB4A)]
+    extern void setup(char8 flag, char8 enable);
+
+    /// thiscall(tech tree, epoch): the epoch set, its techs up to it granted (the epoch cheat's path 0x520F3E)
+    [address((ee)0x005BC893, (aoc)0x005CD2A7)]
+    extern void reach_epoch(int32 epoch);
 
     [address((ee)0x004019A1, (aoc)0x004018A4)]
     extern EETechTreeNode* lookup(int32 id);

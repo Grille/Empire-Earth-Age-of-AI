@@ -88,6 +88,11 @@ internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t
 typedef int (__thiscall *tech_grant_fn)(ee_tech *);
 internal tech_grant_fn fn_tech_grant;
 internal inline int tech_grant(ee_tech *tech) { return fn_tech_grant(tech); }
+// thiscall(node, 1, 1): its effects applied without a price (+5 applied; the epoch techs, the civilization's
+// bonuses, a re-grant)
+typedef void (__thiscall *tech_apply_fn)(ee_tech *, char, char);
+internal tech_apply_fn fn_tech_apply;
+internal inline void tech_apply(ee_tech *tech, char a, char b) { fn_tech_apply(tech, a, b); }
 
 // class ee_tech_data (ee_tech_data)
 // a tech's data, TECH +8 (costs, its building ...)
@@ -182,10 +187,36 @@ internal inline ee_player **tech_tree_player_at(const ee_tech_tree *o) { return 
 internal inline int tech_tree_get_epoch(const ee_tech_tree *o) { return *(int *)((uint8_t *)o + of_tech_tree_epoch); }
 internal inline void tech_tree_set_epoch(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tech_tree_epoch) = v; }
 internal inline int *tech_tree_epoch_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tech_tree_epoch); }
+// the game's start epoch (set_epochs)
+internal inline int tech_tree_get_start_epoch(const ee_tech_tree *o) { return *(int *)((uint8_t *)o + of_tech_tree_start_epoch); }
+internal inline void tech_tree_set_start_epoch(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tech_tree_start_epoch) = v; }
+internal inline int *tech_tree_start_epoch_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tech_tree_start_epoch); }
+// the game's end epoch (set_epochs)
+internal inline int tech_tree_get_end_epoch(const ee_tech_tree *o) { return *(int *)((uint8_t *)o + of_tech_tree_end_epoch); }
+internal inline void tech_tree_set_end_epoch(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tech_tree_end_epoch) = v; }
+internal inline int *tech_tree_end_epoch_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tech_tree_end_epoch); }
 // thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
 typedef void (__thiscall *tech_tree_epoch_next_fn)(ee_tech_tree *);
 internal tech_tree_epoch_next_fn fn_tech_tree_epoch_next;
 internal inline void tech_tree_epoch_next(ee_tech_tree *tech_tree) { fn_tech_tree_epoch_next(tech_tree); }
+// thiscall(tech tree, player): its player (+0x4E0) set, then vf1(the player's index) - the game start's for each
+// player (0x52F327)
+typedef void (__thiscall *tech_tree_assign_player_fn)(ee_tech_tree *, ee_player *);
+internal tech_tree_assign_player_fn fn_tech_tree_assign_player;
+internal inline void tech_tree_assign_player(ee_tech_tree *tech_tree, ee_player *p) { fn_tech_tree_assign_player(tech_tree, p); }
+// thiscall(tech tree, start epoch, end epoch): the game's epochs (+0x4E8, +0x4EC) - the game start's
+typedef void (__thiscall *tech_tree_set_epochs_fn)(ee_tech_tree *, int, int);
+internal tech_tree_set_epochs_fn fn_tech_tree_set_epochs;
+internal inline void tech_tree_set_epochs(ee_tech_tree *tech_tree, int start, int end) { fn_tech_tree_set_epochs(tech_tree, start, end); }
+// thiscall(tech tree, flag, enable): its set up - with enable its enabled_techs made available (0x5BB8C5) - the
+// game start's (flag: the byte at 0x918E98)
+typedef void (__thiscall *tech_tree_setup_fn)(ee_tech_tree *, char, char);
+internal tech_tree_setup_fn fn_tech_tree_setup;
+internal inline void tech_tree_setup(ee_tech_tree *tech_tree, char flag, char enable) { fn_tech_tree_setup(tech_tree, flag, enable); }
+// thiscall(tech tree, epoch): the epoch set, its techs up to it granted (the epoch cheat's path 0x520F3E)
+typedef void (__thiscall *tech_tree_reach_epoch_fn)(ee_tech_tree *, int);
+internal tech_tree_reach_epoch_fn fn_tech_tree_reach_epoch;
+internal inline void tech_tree_reach_epoch(ee_tech_tree *tech_tree, int epoch) { fn_tech_tree_reach_epoch(tech_tree, epoch); }
 typedef ee_tech *(__thiscall *tech_tree_lookup_fn)(ee_tech_tree *, int);
 internal tech_tree_lookup_fn fn_tech_tree_lookup;
 internal inline ee_tech *tech_tree_lookup(ee_tech_tree *tech_tree, int id) { return fn_tech_tree_lookup(tech_tree, id); }
@@ -245,6 +276,7 @@ internal int spec_tech_select(int build) {
         of_tech_unit_media_loaded = 0x1F;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005BF335;
+        fn_tech_apply = (tech_apply_fn)0x005BF4C8;
         of_tech_data_makers_begin = 0x10;
         of_tech_data_makers_end = 0x14;
         of_tech_data_costs = 0x24;
@@ -266,7 +298,13 @@ internal int spec_tech_select(int build) {
         of_tech_tree_disabled_techs = 0x4C4;
         of_tech_tree_player = 0x4E0;
         of_tech_tree_epoch = 0x4E4;
+        of_tech_tree_start_epoch = 0x4E8;
+        of_tech_tree_end_epoch = 0x4EC;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005BC15D;
+        fn_tech_tree_assign_player = (tech_tree_assign_player_fn)0x005BC93E;
+        fn_tech_tree_set_epochs = (tech_tree_set_epochs_fn)0x005BC8F6;
+        fn_tech_tree_setup = (tech_tree_setup_fn)0x005BC173;
+        fn_tech_tree_reach_epoch = (tech_tree_reach_epoch_fn)0x005BC893;
         fn_tech_tree_lookup = (tech_tree_lookup_fn)0x004019A1;
         fn_tech_tree_ui_refresh = (tech_tree_ui_refresh_fn)0x005BC95A;
         of_tt_epoch_tech_data = 0x8;
@@ -296,6 +334,7 @@ internal int spec_tech_select(int build) {
         of_tech_unit_media_loaded = 0x23;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005CFA53;
+        fn_tech_apply = (tech_apply_fn)0x005CFBFE;
         of_tech_data_makers_begin = 0x10;
         of_tech_data_makers_end = 0x14;
         of_tech_data_costs = 0x24;
@@ -317,7 +356,13 @@ internal int spec_tech_select(int build) {
         of_tech_tree_disabled_techs = 0x518;
         of_tech_tree_player = 0x534;
         of_tech_tree_epoch = 0x538;
+        of_tech_tree_start_epoch = 0x53C;
+        of_tech_tree_end_epoch = 0x540;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005CCB34;
+        fn_tech_tree_assign_player = (tech_tree_assign_player_fn)0x005CD358;
+        fn_tech_tree_set_epochs = (tech_tree_set_epochs_fn)0x005CD30A;
+        fn_tech_tree_setup = (tech_tree_setup_fn)0x005CCB4A;
+        fn_tech_tree_reach_epoch = (tech_tree_reach_epoch_fn)0x005CD2A7;
         fn_tech_tree_lookup = (tech_tree_lookup_fn)0x004018A4;
         fn_tech_tree_ui_refresh = (tech_tree_ui_refresh_fn)0x005CD374;
         of_tt_epoch_tech_data = 0x8;
@@ -337,7 +382,12 @@ internal const char *const k_spec_tech_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_tech_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_tech_grant, "EETechTreeNode.grant");
+    bad += spec_code((uintptr_t)fn_tech_apply, "EETechTreeNode.apply");
     bad += spec_code((uintptr_t)fn_tech_tree_epoch_next, "EETechTree.epoch_next");
+    bad += spec_code((uintptr_t)fn_tech_tree_assign_player, "EETechTree.assign_player");
+    bad += spec_code((uintptr_t)fn_tech_tree_set_epochs, "EETechTree.set_epochs");
+    bad += spec_code((uintptr_t)fn_tech_tree_setup, "EETechTree.setup");
+    bad += spec_code((uintptr_t)fn_tech_tree_reach_epoch, "EETechTree.reach_epoch");
     bad += spec_code((uintptr_t)fn_tech_tree_lookup, "EETechTree.lookup");
     bad += spec_code((uintptr_t)fn_tech_tree_ui_refresh, "EETechTree.ui_refresh");
     bad += spec_code(data_tech_call_epoch_upgrades, "tech.call_epoch_upgrades");

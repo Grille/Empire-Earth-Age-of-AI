@@ -154,6 +154,9 @@ internal inline ee_world_table *game_table_values_at(void) { return (ee_world_ta
 // improvement (EEUnitClassUpgrade) can be bought - tested by the button (EEUIBUpgrade.can_buy) and the computer
 // player, not by EEPlayer.can_buy_improvement
 internal inline uint8_t *game_improvements_allowed_at(void) { return (uint8_t *)(uintptr_t)data_game_improvements_allowed; }
+// a byte of the setup the game start passes to each player's tech tree setup (EETechTree.setup's flag: the calls
+// 0x52F327 and the start's own, AoC the same)
+internal inline uint8_t *game_tech_setup_flag_at(void) { return (uint8_t *)(uintptr_t)data_game_tech_setup_flag; }
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
@@ -370,6 +373,7 @@ internal int spec_game_select(int build) {
         data_game_sound_percent = 0x009193B8;
         data_game_table_values = 0x00917BB0;
         data_game_improvements_allowed = 0x00918E9B;
+        data_game_tech_setup_flag = 0x00918E98;
         data_game_teams_locked = 0x00918E9F;
         data_game_types = 0x009418A0;
         data_game_ui_manager = 0x009197A0;
@@ -500,6 +504,7 @@ internal int spec_game_select(int build) {
         data_game_sound_percent = 0x00930838;
         data_game_table_values = 0x0092FCA0;
         data_game_improvements_allowed = 0x009318DB;
+        data_game_tech_setup_flag = 0x009318D8;
         data_game_teams_locked = 0x009318DF;
         data_game_types = 0x009636AC;
         data_game_ui_manager = 0x0093191C;
@@ -636,6 +641,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_sound_percent, "game.sound_percent");
     bad += spec_data(data_game_table_values, "game.table_values");
     bad += spec_data(data_game_improvements_allowed, "game.improvements_allowed");
+    bad += spec_data(data_game_tech_setup_flag, "game.tech_setup_flag");
     bad += spec_data(data_game_teams_locked, "game.teams_locked");
     bad += spec_data(data_game_types, "game.types");
     bad += spec_data(data_game_ui_manager, "game.ui_manager");

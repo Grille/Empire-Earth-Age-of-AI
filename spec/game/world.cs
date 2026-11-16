@@ -251,6 +251,18 @@ unsafe struct EEWorld
     [offset(0xBC), found(c)]
     EEMap* map;
 
+    /// the population of all players together (vf8 change_pop_total sets it; recount divides it among them)
+    [offset(0xD0), found(c)]
+    uint32 pop_total;
+
+    /// a player's share of pop_total (recount)
+    [offset(0xD4), found(c)]
+    uint32 pop_each;
+
+    /// the influence table: new_influence replaces it
+    [offset(0xB20), found(c)]
+    EEInfluenceTable* influence;
+
     /// the players' count (game.players_n is this memory): player 0x52E6EF and unit_by_id 0x53B889 (id >> 24 against
     /// it) bound by it
     [offset(0xCC), found(c)]
@@ -307,6 +319,37 @@ unsafe struct EEWorld
     [address((ee)0x0052D5D7, (aoc)0x005384DD)]
     extern void set_stance(int32 from, int32 to, int32 stance);
 
+    /// thiscall(world, index, player): players[index] set (an old one there released first) - the game start's after
+    /// a player's construction
+    [address((ee)0x0053BA03, (aoc)0x005481C9)]
+    extern void set_player(int32 index, EEPlayer* p);
+
+    /// vf7: the players' count (+0xCC) set, then recount(1) and every player's +0xB1C counted again (0x52D3FE)
+    [slot(7)]
+    extern void set_player_count(uint32 n);
+
+    /// vf8: the population of all players together (+0xD0; RTSWorld's 0x53BA3C) set, every player's +0xB1C counted
+    /// again - recount gives each its share
+    [slot(8)]
+    extern void change_pop_total(uint32 n);
+
+    /// vf1: each player's share of the population (+0xD4 = +0xD0 / the players that are in, by their vf5), with all
+    /// every player's vf2 too (its population +0xB10 and objects counted again)
+    [slot(1)]
+    extern void recount(char8 all);
+
+    /// thiscall(world, map): a new influence table for the players' count (EEInfluenceTable, 0x1C bytes, 0x4A028D)
+    /// in the place of the old one (0x5334BF deletes it) - the world's setup 0x52E912. Empty: the units are added to it
+    /// again one by one (EEInfluenceTable.add)
+    [address((ee)0x0052F26A, (aoc)0x0053A255)]
+    extern void new_influence(EEMap* map);
+
+    /// thiscall(world): the victory check, every step (0x546DE2): with the standard victory a player without objects
+    /// (+0xB14 < 1) is out; in every mode the game ends when no human player is left in
+    [address((ee)0x00531913, (aoc)0x0053C9B4)]
+    [call_site("victory_check", (ee)0x00546DE2, (aoc)0x00553290)]
+    extern int32 victory_check();
+
     /// thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
     /// unknown
     [address((ee)0x0053B889, (aoc)0x0054804F)]
@@ -345,6 +388,18 @@ unsafe struct EEGameState
     [address((ee)0x0052599B, (aoc)0x005306F2)]
     [call_site("game_start", (ee)0x004CEC14, (aoc)0x004D4443)]
     extern char8 start(ee_setup* setup, void* p2);
+}
+
+/// the players' influence over the map (EEInfluenceTable, world.influence; 0x1C bytes): a cell per 9 tiles, each an
+/// array of the players' count + 1 {key, value} records - the last the total, so it holds the count it was made for
+/// (EEWorld.new_influence)
+[c_type("ee_influence"), vtable((ee)0x00827C2C, (aoc)0x0083C41C)]
+unsafe struct EEInfluenceTable
+{
+    /// thiscall(table, unit, x, y): the unit's influence added at its tile - for a unit whose type has influence (the
+    /// world's vf10 0x5313D6, a unit's placement 0x6171F7)
+    [address((ee)0x004A04FD, (aoc)0x004A5839)]
+    extern uint32 add(EEUnit* u, int32 x, int32 y);
 }
 
 /// the game's tables of values, game.table_values (EEWorldTable)

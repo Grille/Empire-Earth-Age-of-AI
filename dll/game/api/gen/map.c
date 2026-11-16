@@ -29,6 +29,12 @@ internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { ret
 
 // class EEMap (ee_map)
 // the map, [game.map] (EEMap)
+// thiscall(map, n): the tiles' sight counts made for n players (a uint16 each, two to a dword: a new buffer, the
+// old counts copied, each tile's +0xC pointed into it, the old one freed; +0x181700 the count) - the game start's
+// for the players' count
+typedef void (__thiscall *map_sight_players_fn)(ee_map *, uint32_t);
+internal map_sight_players_fn fn_map_sight_players;
+internal inline void map_sight_players(ee_map *map, uint32_t n) { fn_map_sight_players(map, n); }
 // its GETerrainMesh (the units' update: lea ecx, [map + 0x1C] for the visible rows, both builds)
 internal inline uint8_t *map_mesh_at(const ee_map *o) { return (uint8_t *)o + of_map_mesh; }
 // the ground's corners: a row per corner y (0 .. size), 0xC each - 0x517C10 reads a tile's four, x, x + 1 of rows
@@ -428,6 +434,7 @@ internal int spec_map_select(int build) {
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
+        fn_map_sight_players = (map_sight_players_fn)0x00511694;
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
@@ -537,6 +544,7 @@ internal int spec_map_select(int build) {
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
+        fn_map_sight_players = (map_sight_players_fn)0x0051BC03;
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
@@ -648,6 +656,7 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_map_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_map_sight_players, "EEMap.sight_players");
     bad += spec_code((uintptr_t)fn_map_refresh_corner, "EEMap.refresh_corner");
     bad += spec_code((uintptr_t)fn_map_refresh_tiles, "EEMap.refresh_tiles");
     bad += spec_code((uintptr_t)fn_map_paint_terrain, "EEMap.paint_terrain");

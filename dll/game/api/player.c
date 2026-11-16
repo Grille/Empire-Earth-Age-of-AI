@@ -112,3 +112,7 @@ internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
 // a kill counted in the statistics (diplo.c - a thunk)
 internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(data_player_call_kill_stat, (uintptr_t)fn_player_stats_add, (void *)thunk); }
+// the memory of a computer player (EEComputerPlayer's size), for player_construct (test/takeover.c)
+internal inline ee_player *computer_player_alloc(void) { return (ee_player *)game_new(size_ee_computer_player); }
+// the computer players' turns made anew from the players (after a player is added: test/takeover.c)
+internal inline void ai_turns_refresh(void) { void *t = *(void **)player_ai_turns_at(); if (t) ai_turns_rebuild(t); }

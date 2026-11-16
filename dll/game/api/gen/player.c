@@ -370,6 +370,11 @@ internal inline int player_game_limit(ee_player *player, int zero) { return fn_p
 typedef void (__thiscall *player_set_diplomacy_fn)(ee_player *, ee_player *, int, int);
 internal player_set_diplomacy_fn fn_player_set_diplomacy;
 internal inline void player_set_diplomacy(ee_player *player, ee_player *other, int stance, int flag) { fn_player_set_diplomacy(player, other, stance, flag); }
+// thiscall(player, float rgb[3]): its colour (+0x438.. and a darker copy +0x444..) - the game start's after the
+// construction (from ui_functions.game_color_rgb)
+typedef void (__thiscall *player_set_color_fn)(ee_player *, float *);
+internal player_set_color_fn fn_player_set_color;
+internal inline void player_set_color(ee_player *player, float *rgb) { fn_player_set_color(player, rgb); }
 // vf1 (EEPlayer's 0x554584, then RTSPlayer's 0x55F8BB): each of list_begin's units vf10(unit, ids) - an id for
 // one the player has just made (ids 0: its index << 24 + its counter, EEPlayer::vf10 0x5549D1 counting it in),
 // then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
@@ -444,6 +449,18 @@ internal inline uint8_t *player_b98_att_at(const ee_player_b98 *o) { return (uin
 
 // class EEComputerPlayer (ee_player)
 // the computer's player (the AI's): an EEPlayer with the computer's managers - its own functions, the C's cp_
+// thiscall(memory of its size from game_new, UWideString* name, index): a computer player made - the base
+// constructors (0x553C81, 0x55F7F6: index +0x45C, not_gaia), its tech tree and managers, the AI settings
+// (0x431697: game.difficulty, the dbcpbehavior values). The game start 0x52599B's for a computer slot (its colour
+// set_color after it), the editor's fill of empty slots 0x52E329
+typedef void (__thiscall *player_construct_fn)(ee_player *, void *, int);
+internal player_construct_fn fn_player_construct;
+internal inline void player_construct(ee_player *player, void *name, int index) { fn_player_construct(player, name, index); }
+// vf55: the AI's start once its units stand - the zones (0x4307A7, 0x4716BC), the resource manager's 0x48B778,
+// then vf36; the end of the world's setup 0x52E7C8 calls it for each computer player. Its zones need the build
+// manager's base, set by the unit manager from its first unit that is no building (0x4905DF)
+typedef void (__thiscall *player_ai_start_fn)(ee_player *);
+internal inline void player_ai_start(ee_player *player) { ((player_ai_start_fn)(*(void ***)player)[slot_player_ai_start])(player); }
 // vf29 (+0x74): 1 when a human plays the player - the computer's 0 (0x4B129F, a "return 0" other classes share).
 // The command panel (EEUIFMGMainGroup 0x651A19) shows its buttons only for a selection of this PC's player that
 // answers 1; the simulation asks it too (a citizen's idling 0x5FEC13, 0x5EED30 ...). cp_is_human: a PC switched to
@@ -1232,6 +1249,9 @@ internal inline void player_stats_add(ee_player_stats *player_stats, int n, int 
 
 // static class player
 // player's data of the game, places in its code and numbers
+// the computer players' turns (game.ai_turns_rebuild's object): the tick 0x42F395 gives each its update in turn,
+// 1000 ms shared among them
+internal inline uint8_t *player_ai_turns_at(void) { return (uint8_t *)(uintptr_t)data_player_ai_turns; }
 // where the command panel's call of computer_is_human returns (EEUIFMGMainGroup 0x651A19: `call [eax+0x74]` at 0x651B6D on
 // this PC's player, its buttons only when it answers 1)
 internal inline uint8_t *player_panel_is_human_ret_at(void) { return (uint8_t *)(uintptr_t)data_player_panel_is_human_ret; }
@@ -1243,6 +1263,11 @@ internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uin
 
 // static class player_functions
 // the game's functions player.c wraps, by the names the C side gives them
+// thiscall([player.ai_turns]): its list made anew from the players with a computer part (+0x9B4), the time shared
+// among them - the world's setup 0x52EA9A after the players are made
+typedef void (__thiscall *ai_turns_rebuild_fn)(void *);
+internal ai_turns_rebuild_fn fn_ai_turns_rebuild;
+internal inline void ai_turns_rebuild(void *turns) { fn_ai_turns_rebuild(turns); }
 // cdecl char(player, type, x, y, w, h, 0)
 typedef char (__cdecl *can_place_game_fn)(void *, int, int, int, int, int, int);
 internal can_place_game_fn fn_can_place_game;
@@ -1369,6 +1394,7 @@ internal int spec_player_select(int build) {
         fn_player_can_build = (player_can_build_fn)0x00555710;
         fn_player_game_limit = (player_game_limit_fn)0x00556EBC;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
+        fn_player_set_color = (player_set_color_fn)0x00526B3A;
         slot_player_adopt = 1;
         fn_player_drop = (player_drop_fn)0x0055FD76;
         fn_player_queue_improvement = (player_queue_improvement_fn)0x005544D8;
@@ -1388,6 +1414,9 @@ internal int spec_player_select(int build) {
         fn_ee_player_start_next_improvement = (player_start_next_improvement_fn)0x0055A5CC;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
+        size_ee_computer_player = 0xF08;
+        fn_player_construct = (player_construct_fn)0x0042F57A;
+        slot_player_ai_start = 55;
         slot_player_computer_is_human = 29;
         fn_ee_computer_player_computer_is_human = (player_computer_is_human_fn)0x004B129F;
         fn_ee_computer_player_pay_improvement = (player_pay_improvement_fn)0x0043F565;
@@ -1572,12 +1601,14 @@ internal int spec_player_select(int build) {
         fn_ee_computer_player_hold_unit = (player_hold_unit_fn)0x004301CD;
         of_player_stats_lists = 0x1C;
         fn_player_stats_add = (player_stats_add_fn)0x0055DBCF;
+        data_player_ai_turns = 0x00919854;
         data_player_panel_is_human_ret = 0x00651B70;
         data_player_call_kill_stat = 0x00617780;
         value_player_slot_cp_add_resource = 18;
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
+        fn_ai_turns_rebuild = (ai_turns_rebuild_fn)0x0042F30A;
         fn_can_place_game = (can_place_game_fn)0x0062E940;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
         calls_place_building[0] = 0x004B3EE3;
@@ -1682,6 +1713,7 @@ internal int spec_player_select(int build) {
         fn_player_can_build = (player_can_build_fn)0x005639E8;
         fn_player_game_limit = (player_game_limit_fn)0x0056528B;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
+        fn_player_set_color = (player_set_color_fn)0x00531872;
         slot_player_adopt = 1;
         fn_player_drop = (player_drop_fn)0x0056F6AE;
         fn_player_queue_improvement = (player_queue_improvement_fn)0x00562694;
@@ -1701,6 +1733,9 @@ internal int spec_player_select(int build) {
         fn_ee_player_start_next_improvement = (player_start_next_improvement_fn)0x0056964A;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
+        size_ee_computer_player = 0xF58;
+        fn_player_construct = (player_construct_fn)0x0042CF7E;
+        slot_player_ai_start = 55;
         slot_player_computer_is_human = 29;
         fn_ee_computer_player_computer_is_human = (player_computer_is_human_fn)0x004AC9F3;
         fn_ee_computer_player_pay_improvement = (player_pay_improvement_fn)0x0043EDC0;
@@ -1885,12 +1920,14 @@ internal int spec_player_select(int build) {
         fn_ee_computer_player_hold_unit = (player_hold_unit_fn)0x0042DB35;
         of_player_stats_lists = 0x1C;
         fn_player_stats_add = (player_stats_add_fn)0x0056D507;
+        data_player_ai_turns = 0x009319D0;
         data_player_panel_is_human_ret = 0x00668961;
         data_player_call_kill_stat = 0x0062A2DF;
         value_player_slot_cp_add_resource = 18;
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
+        fn_ai_turns_rebuild = (ai_turns_rebuild_fn)0x0042CD0E;
         fn_can_place_game = (can_place_game_fn)0x00643CE6;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
         calls_place_building[0] = 0x004BBE04;
@@ -1925,6 +1962,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_can_build, "EEPlayer.can_build");
     bad += spec_code((uintptr_t)fn_player_game_limit, "EEPlayer.game_limit");
     bad += spec_code((uintptr_t)fn_player_set_diplomacy, "EEPlayer.set_diplomacy");
+    bad += spec_code((uintptr_t)fn_player_set_color, "EEPlayer.set_color");
     bad += spec_code((uintptr_t)fn_player_drop, "EEPlayer.drop");
     bad += spec_code((uintptr_t)fn_player_queue_improvement, "EEPlayer.queue_improvement");
     bad += spec_code((uintptr_t)fn_player_can_buy_improvement, "EEPlayer.can_buy_improvement");
@@ -1938,6 +1976,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_ee_player_base_update, "EEPlayer.base_update");
     bad += spec_code((uintptr_t)fn_ee_player_start_next_improvement, "EEPlayer.start_next_improvement");
     bad += spec_vtable(vt_ee_computer_player, ".?AVEEComputerPlayer@@", "EEComputerPlayer [vtable]");
+    bad += spec_code((uintptr_t)fn_player_construct, "EEComputerPlayer.construct");
     bad += spec_code((uintptr_t)fn_ee_computer_player_computer_is_human, "EEComputerPlayer.computer_is_human");
     bad += spec_slot(vt_ee_computer_player, slot_player_computer_is_human, (uintptr_t)fn_ee_computer_player_computer_is_human, "EEComputerPlayer.computer_is_human [slot]");
     bad += spec_code((uintptr_t)fn_ee_computer_player_pay_improvement, "EEComputerPlayer.pay_improvement");
@@ -1957,8 +1996,10 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_ee_computer_player_hold_unit, "EEComputerPlayer.hold_unit");
     bad += spec_slot(vt_ee_computer_player, slot_player_hold_unit, (uintptr_t)fn_ee_computer_player_hold_unit, "EEComputerPlayer.hold_unit [slot]");
     bad += spec_code((uintptr_t)fn_player_stats_add, "EEPlayerStatistics.add");
+    bad += spec_data(data_player_ai_turns, "player.ai_turns");
     bad += spec_code(data_player_panel_is_human_ret, "player.panel_is_human_ret");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
+    bad += spec_code((uintptr_t)fn_ai_turns_rebuild, "player_functions.ai_turns_rebuild");
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
     bad += spec_call(calls_place_building[0], (uintptr_t)fn_place_foundation, "player_functions.place_foundation [call_site place_building 0]");

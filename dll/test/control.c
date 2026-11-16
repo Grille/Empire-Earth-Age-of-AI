@@ -31,6 +31,7 @@ internal void cmd_intel(char *out, const char *args);
 internal void cmd_calloff(char *out, const char *args);
 internal void cmd_aitoggle(char *out, const char *args);
 internal void cmd_scentarget(char *out, const char *args);   // scen_targets.c
+internal void cmd_handover(char *out, const char *args);     // takeover.c
 internal void cmd_vistrack(char *out, const char *args);
 internal void cmd_terrain(char *out, const char *args);
 internal void cmd_board(char *out, const char *args);
@@ -434,6 +435,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "calloff")) cmd_calloff(out, args);
     else if (!strcmp(verb, "aitoggle")) cmd_aitoggle(out, args);
     else if (!strcmp(verb, "scentarget")) cmd_scentarget(out, args);
+    else if (!strcmp(verb, "handover")) cmd_handover(out, args);
     else if (!strcmp(verb, "vistrack")) cmd_vistrack(out, args);
     else if (!strcmp(verb, "terrain")) cmd_terrain(out, args);
     else if (!strcmp(verb, "board")) cmd_board(out, args);

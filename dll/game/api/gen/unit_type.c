@@ -202,6 +202,12 @@ internal inline int *unit_type_reload_at(const ee_unit_type *o) { return (int *)
 internal inline int unit_type_get_attack(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_attack); }
 internal inline void unit_type_set_attack(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_attack) = v; }
 internal inline int *unit_type_attack_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_attack); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the influence table counts its units only while this is set (the world's vf10 0x5313D6 / 0x6171E3 test it
+// before EEInfluenceTable.add; AoC 0x53C4CE) - what it holds is not read [guess: the name from that use]
+internal inline int unit_type_get_influence(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_influence); }
+internal inline void unit_type_set_influence(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_influence) = v; }
+internal inline int *unit_type_influence_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_influence); }
 // a corpse's rotting time (ms): caps the unit's +0x2A8
 internal inline int unit_type_get_rot_time(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_rot_time); }
 internal inline void unit_type_set_rot_time(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_rot_time) = v; }
@@ -623,6 +629,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_tech = 0x4E0;
         of_unit_type_reload = 0x50C;
         of_unit_type_attack = 0x510;
+        of_unit_type_influence = 0x540;
         of_unit_type_rot_time = 0x548;
         of_unit_type_transport_capacity = 0x54C;
         of_unit_type_garrison_capacity = 0x550;
@@ -751,6 +758,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_tech = 0x1E4;
         of_unit_type_reload = 0x210;
         of_unit_type_attack = 0x214;
+        of_unit_type_influence = 0x244;
         of_unit_type_rot_time = 0x248;
         of_unit_type_transport_capacity = 0x24C;
         of_unit_type_garrison_capacity = 0x250;

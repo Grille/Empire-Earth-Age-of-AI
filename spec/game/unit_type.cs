@@ -194,6 +194,11 @@ unsafe struct EEUnitClass
     [offset((ee)0x510, (aoc)0x214), found(c)]
     int32 attack;
 
+    /// the influence table counts its units only while this is set (the world's vf10 0x5313D6 / 0x6171E3 test it
+    /// before EEInfluenceTable.add; AoC 0x53C4CE) - what it holds is not read [guess: the name from that use]
+    [offset((ee)0x540, (aoc)0x244), found(c), guess]
+    int32 influence;
+
     /// a corpse's rotting time (ms): caps the unit's +0x2A8
     [offset((ee)0x548, (aoc)0x248), found(c)]
     int32 rot_time;

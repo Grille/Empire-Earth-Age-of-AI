@@ -382,6 +382,11 @@ unsafe struct EEPlayer
     [address((ee)0x0055B8E1, (aoc)0x0056AB41)]
     extern void set_diplomacy(EEPlayer* other, int32 stance, int32 flag);
 
+    /// thiscall(player, float rgb[3]): its colour (+0x438.. and a darker copy +0x444..) - the game start's after the
+    /// construction (from ui_functions.game_color_rgb)
+    [address((ee)0x00526B3A, (aoc)0x00531872)]
+    extern void set_color(float32* rgb);
+
     /// vf1 (EEPlayer's 0x554584, then RTSPlayer's 0x55F8BB): each of list_begin's units vf10(unit, ids) - an id for
     /// one the player has just made (ids 0: its index << 24 + its counter, EEPlayer::vf10 0x5549D1 counting it in),
     /// then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
@@ -453,9 +458,22 @@ unsafe struct ee_player_b98
 }
 
 /// the computer's player (the AI's): an EEPlayer with the computer's managers - its own functions, the C's cp_
-[@base(typeof(EEPlayer)), c_type("ee_player"), vtable((ee)0x008264C0, (aoc)0x0083A57C)]
+[@base(typeof(EEPlayer)), c_type("ee_player"), size((ee)0xF08, (aoc)0xF58), vtable((ee)0x008264C0, (aoc)0x0083A57C)]
 unsafe struct EEComputerPlayer
 {
+    /// thiscall(memory of its size from game_new, UWideString* name, index): a computer player made - the base
+    /// constructors (0x553C81, 0x55F7F6: index +0x45C, not_gaia), its tech tree and managers, the AI settings
+    /// (0x431697: game.difficulty, the dbcpbehavior values). The game start 0x52599B's for a computer slot (its colour
+    /// set_color after it), the editor's fill of empty slots 0x52E329
+    [address((ee)0x0042F57A, (aoc)0x0042CF7E)]
+    extern void construct(void* name, int32 index);
+
+    /// vf55: the AI's start once its units stand - the zones (0x4307A7, 0x4716BC), the resource manager's 0x48B778,
+    /// then vf36; the end of the world's setup 0x52E7C8 calls it for each computer player. Its zones need the build
+    /// manager's base, set by the unit manager from its first unit that is no building (0x4905DF)
+    [slot(55)]
+    extern void ai_start();
+
     /// vf29 (+0x74): 1 when a human plays the player - the computer's 0 (0x4B129F, a "return 0" other classes share).
     /// The command panel (EEUIFMGMainGroup 0x651A19) shows its buttons only for a selection of this PC's player that
     /// answers 1; the simulation asks it too (a citizen's idling 0x5FEC13, 0x5EED30 ...). cp_is_human: a PC switched to
@@ -1236,6 +1254,11 @@ unsafe struct EEPlayerStatistics
 /// player's data of the game, places in its code and numbers
 static unsafe class player
 {
+    /// the computer players' turns (game.ai_turns_rebuild's object): the tick 0x42F395 gives each its update in turn,
+    /// 1000 ms shared among them
+    [address((ee)0x00919854, (aoc)0x009319D0)]
+    static block ai_turns;
+
     /// where the command panel's call of computer_is_human returns (EEUIFMGMainGroup 0x651A19: `call [eax+0x74]` at 0x651B6D on
     /// this PC's player, its buttons only when it answers 1)
     [address((ee)0x00651B70, (aoc)0x00668961)]
@@ -1266,6 +1289,11 @@ static unsafe class player
 [c_prefix("")]
 static unsafe class player_functions
 {
+    /// thiscall([player.ai_turns]): its list made anew from the players with a computer part (+0x9B4), the time shared
+    /// among them - the world's setup 0x52EA9A after the players are made
+    [address((ee)0x0042F30A, (aoc)0x0042CD0E), thiscall]
+    static extern void ai_turns_rebuild(void* turns);
+
     /// cdecl char(player, type, x, y, w, h, 0)
     [address((ee)0x0062E940, (aoc)0x00643CE6), cdecl]
     static extern char8 can_place_game(void* p1, int32 p2, int32 p3, int32 p4, int32 p5, int32 p6, int32 p7);

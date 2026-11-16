@@ -291,6 +291,11 @@ static unsafe class game
     [address((ee)0x00918E9B, (aoc)0x009318DB)]
     static block improvements_allowed;
 
+    /// a byte of the setup the game start passes to each player's tech tree setup (EETechTree.setup's flag: the calls
+    /// 0x52F327 and the start's own, AoC the same)
+    [address((ee)0x00918E98, (aoc)0x009318D8)]
+    static block tech_setup_flag;
+
     [address((ee)0x00918E9F, (aoc)0x009318DF)]
     static block teams_locked;
 

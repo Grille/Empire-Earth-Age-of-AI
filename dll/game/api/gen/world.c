@@ -228,6 +228,18 @@ internal inline uint8_t *world_players_at(const ee_world *o) { return (uint8_t *
 internal inline ee_map *world_get_map(const ee_world *o) { return *(ee_map **)((uint8_t *)o + of_world_map); }
 internal inline void world_set_map(ee_world *o, ee_map *v) { *(ee_map **)((uint8_t *)o + of_world_map) = v; }
 internal inline ee_map **world_map_at(const ee_world *o) { return (ee_map **)((uint8_t *)o + of_world_map); }
+// the population of all players together (vf8 change_pop_total sets it; recount divides it among them)
+internal inline uint32_t world_get_pop_total(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_pop_total); }
+internal inline void world_set_pop_total(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_pop_total) = v; }
+internal inline uint32_t *world_pop_total_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_pop_total); }
+// a player's share of pop_total (recount)
+internal inline uint32_t world_get_pop_each(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_pop_each); }
+internal inline void world_set_pop_each(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_pop_each) = v; }
+internal inline uint32_t *world_pop_each_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_pop_each); }
+// the influence table: new_influence replaces it
+internal inline ee_influence *world_get_influence(const ee_world *o) { return *(ee_influence **)((uint8_t *)o + of_world_influence); }
+internal inline void world_set_influence(ee_world *o, ee_influence *v) { *(ee_influence **)((uint8_t *)o + of_world_influence) = v; }
+internal inline ee_influence **world_influence_at(const ee_world *o) { return (ee_influence **)((uint8_t *)o + of_world_influence); }
 // the players' count (game.players_n is this memory): player 0x52E6EF and unit_by_id 0x53B889 (id >> 24 against
 // it) bound by it
 internal inline uint32_t world_get_players_n(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_players_n); }
@@ -281,6 +293,34 @@ internal inline void world_player_out(ee_world *world, int won, int index) { fn_
 typedef void (__thiscall *world_set_stance_fn)(ee_world *, int, int, int);
 internal world_set_stance_fn fn_world_set_stance;
 internal inline void world_set_stance(ee_world *world, int from, int to, int stance) { fn_world_set_stance(world, from, to, stance); }
+// thiscall(world, index, player): players[index] set (an old one there released first) - the game start's after
+// a player's construction
+typedef void (__thiscall *world_set_player_fn)(ee_world *, int, ee_player *);
+internal world_set_player_fn fn_world_set_player;
+internal inline void world_set_player(ee_world *world, int index, ee_player *p) { fn_world_set_player(world, index, p); }
+// vf7: the players' count (+0xCC) set, then recount(1) and every player's +0xB1C counted again (0x52D3FE)
+typedef void (__thiscall *world_set_player_count_fn)(ee_world *, uint32_t);
+internal inline void world_set_player_count(ee_world *world, uint32_t n) { ((world_set_player_count_fn)(*(void ***)world)[slot_world_set_player_count])(world, n); }
+// vf8: the population of all players together (+0xD0; RTSWorld's 0x53BA3C) set, every player's +0xB1C counted
+// again - recount gives each its share
+typedef void (__thiscall *world_change_pop_total_fn)(ee_world *, uint32_t);
+internal inline void world_change_pop_total(ee_world *world, uint32_t n) { ((world_change_pop_total_fn)(*(void ***)world)[slot_world_change_pop_total])(world, n); }
+// vf1: each player's share of the population (+0xD4 = +0xD0 / the players that are in, by their vf5), with all
+// every player's vf2 too (its population +0xB10 and objects counted again)
+typedef void (__thiscall *world_recount_fn)(ee_world *, char);
+internal inline void world_recount(ee_world *world, char all) { ((world_recount_fn)(*(void ***)world)[slot_world_recount])(world, all); }
+// thiscall(world, map): a new influence table for the players' count (EEInfluenceTable, 0x1C bytes, 0x4A028D)
+// in the place of the old one (0x5334BF deletes it) - the world's setup 0x52E912. Empty: the units are added to it
+// again one by one (EEInfluenceTable.add)
+typedef void (__thiscall *world_new_influence_fn)(ee_world *, ee_map *);
+internal world_new_influence_fn fn_world_new_influence;
+internal inline void world_new_influence(ee_world *world, ee_map *map) { fn_world_new_influence(world, map); }
+// thiscall(world): the victory check, every step (0x546DE2): with the standard victory a player without objects
+// (+0xB14 < 1) is out; in every mode the game ends when no human player is left in
+typedef int (__thiscall *world_victory_check_fn)(ee_world *);
+internal world_victory_check_fn fn_world_victory_check;
+internal inline int world_victory_check(ee_world *world) { return fn_world_victory_check(world); }
+internal inline int patch_victory_check(world_victory_check_fn h) { return patch_call(call_victory_check, (uintptr_t)fn_world_victory_check, (void *)h); }
 // thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
 // unknown
 typedef ee_unit *(__thiscall *world_unit_by_id_fn)(ee_world *, uint32_t);
@@ -319,6 +359,16 @@ typedef char (__thiscall *game_state_start_fn)(ee_game_state *, ee_setup *, void
 internal game_state_start_fn fn_game_state_start;
 internal inline char game_state_start(ee_game_state *game_state, ee_setup *setup, void *p2) { return fn_game_state_start(game_state, setup, p2); }
 internal inline int patch_game_start(game_state_start_fn h) { return patch_call(call_game_start, (uintptr_t)fn_game_state_start, (void *)h); }
+
+// class EEInfluenceTable (ee_influence)
+// the players' influence over the map (EEInfluenceTable, world.influence; 0x1C bytes): a cell per 9 tiles, each an
+// array of the players' count + 1 {key, value} records - the last the total, so it holds the count it was made for
+// (EEWorld.new_influence)
+// thiscall(table, unit, x, y): the unit's influence added at its tile - for a unit whose type has influence (the
+// world's vf10 0x5313D6, a unit's placement 0x6171F7)
+typedef uint32_t (__thiscall *influence_add_fn)(ee_influence *, ee_unit *, int, int);
+internal influence_add_fn fn_influence_add;
+internal inline uint32_t influence_add(ee_influence *influence, ee_unit *u, int x, int y) { return fn_influence_add(influence, u, x, y); }
 
 // class EEWorldTable (ee_world_table)
 // the game's tables of values, game.table_values (EEWorldTable)
@@ -382,6 +432,9 @@ internal int spec_world_select(int build) {
         vt_ee_world = 0x0082C84C;
         of_world_players = 0x74;
         of_world_map = 0xBC;
+        of_world_pop_total = 0xD0;
+        of_world_pop_each = 0xD4;
+        of_world_influence = 0xB20;
         of_world_players_n = 0xCC;
         of_world_setup = 0x110;
         of_world_setup_2 = 0x51C;
@@ -394,6 +447,13 @@ internal int spec_world_select(int build) {
         fn_world_settle = (world_settle_fn)0x0053B8AC;
         fn_world_player_out = (world_player_out_fn)0x0052E2B7;
         fn_world_set_stance = (world_set_stance_fn)0x0052D5D7;
+        fn_world_set_player = (world_set_player_fn)0x0053BA03;
+        slot_world_set_player_count = 7;
+        slot_world_change_pop_total = 8;
+        slot_world_recount = 1;
+        fn_world_new_influence = (world_new_influence_fn)0x0052F26A;
+        fn_world_victory_check = (world_victory_check_fn)0x00531913;
+        call_victory_check = 0x00546DE2;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0053B889;
         fn_world_site_gatherers = (world_site_gatherers_fn)0x0052E5F7;
         fn_world_set_time_of_day = (world_set_time_of_day_fn)0x00531292;
@@ -403,6 +463,8 @@ internal int spec_world_select(int build) {
         vt_ee_game_state = 0x0082CA14;
         fn_game_state_start = (game_state_start_fn)0x0052599B;
         call_game_start = 0x004CEC14;
+        vt_ee_influence_table = 0x00827C2C;
+        fn_influence_add = (influence_add_fn)0x004A04FD;
         vt_ee_world_table = 0x0082AB14;
         fn_world_table_value = (world_table_value_fn)0x0048E817;
         return 0;
@@ -459,6 +521,9 @@ internal int spec_world_select(int build) {
         vt_ee_world = 0x00841FEC;
         of_world_players = 0x74;
         of_world_map = 0xBC;
+        of_world_pop_total = 0xD0;
+        of_world_pop_each = 0xD4;
+        of_world_influence = 0xB20;
         of_world_players_n = 0xCC;
         of_world_setup = 0x110;
         of_world_setup_2 = 0x51C;
@@ -471,6 +536,13 @@ internal int spec_world_select(int build) {
         fn_world_settle = (world_settle_fn)0x00548072;
         fn_world_player_out = (world_player_out_fn)0x005391F2;
         fn_world_set_stance = (world_set_stance_fn)0x005384DD;
+        fn_world_set_player = (world_set_player_fn)0x005481C9;
+        slot_world_set_player_count = 7;
+        slot_world_change_pop_total = 8;
+        slot_world_recount = 1;
+        fn_world_new_influence = (world_new_influence_fn)0x0053A255;
+        fn_world_victory_check = (world_victory_check_fn)0x0053C9B4;
+        call_victory_check = 0x00553290;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0054804F;
         fn_world_site_gatherers = (world_site_gatherers_fn)0x00539532;
         fn_world_set_time_of_day = (world_set_time_of_day_fn)0x0053C301;
@@ -480,6 +552,8 @@ internal int spec_world_select(int build) {
         vt_ee_game_state = 0x00842178;
         fn_game_state_start = (game_state_start_fn)0x005306F2;
         call_game_start = 0x004D4443;
+        vt_ee_influence_table = 0x0083C41C;
+        fn_influence_add = (influence_add_fn)0x004A5839;
         vt_ee_world_table = 0x0083F810;
         fn_world_table_value = (world_table_value_fn)0x004CD4B3;
         return 0;
@@ -504,6 +578,10 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_world_settle, "EEWorld.settle");
     bad += spec_code((uintptr_t)fn_world_player_out, "EEWorld.player_out");
     bad += spec_code((uintptr_t)fn_world_set_stance, "EEWorld.set_stance");
+    bad += spec_code((uintptr_t)fn_world_set_player, "EEWorld.set_player");
+    bad += spec_code((uintptr_t)fn_world_new_influence, "EEWorld.new_influence");
+    bad += spec_code((uintptr_t)fn_world_victory_check, "EEWorld.victory_check");
+    bad += spec_call(call_victory_check, (uintptr_t)fn_world_victory_check, "EEWorld.victory_check [call_site victory_check]");
     bad += spec_code((uintptr_t)fn_world_unit_by_id, "EEWorld.unit_by_id");
     bad += spec_code((uintptr_t)fn_world_site_gatherers, "EEWorld.site_gatherers");
     bad += spec_code((uintptr_t)fn_world_set_time_of_day, "EEWorld.set_time_of_day");
@@ -513,6 +591,8 @@ internal int spec_world_check(void) {
     bad += spec_vtable(vt_ee_game_state, ".?AVEEGameState@@", "EEGameState [vtable]");
     bad += spec_code((uintptr_t)fn_game_state_start, "EEGameState.start");
     bad += spec_call(call_game_start, (uintptr_t)fn_game_state_start, "EEGameState.start [call_site game_start]");
+    bad += spec_vtable(vt_ee_influence_table, ".?AVEEInfluenceTable@@", "EEInfluenceTable [vtable]");
+    bad += spec_code((uintptr_t)fn_influence_add, "EEInfluenceTable.add");
     bad += spec_vtable(vt_ee_world_table, ".?AVEEWorldTable@@", "EEWorldTable [vtable]");
     bad += spec_code((uintptr_t)fn_world_table_value, "EEWorldTable.value");
     return bad;
