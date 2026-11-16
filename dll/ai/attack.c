@@ -1018,6 +1018,7 @@ internal int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 foo
     return hurt_near((unsigned)player_get_index(pl) & 15, x, y) >= (res >= 4 ? 3 : 1);
 }
 internal int raid_held(ee_player *pl, ivec2 p);   // defence.c: its soldiers and towers there beat the raiders
+internal int build_held(ee_player *pl, ivec2 p);   // defence.c BUILDERS UNDER COVER: its soldiers there, not losing
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = unit_get_x(site), y = unit_get_y(site);
@@ -1202,6 +1203,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                     danger = path_raided(pl, ux, uy, (int)goal_get_dest_x(goal), (int)goal_get_dest_y(goal));
                 else
                     danger = raiders_near(pl, iv2(ux, uy), 8) || (st && raiders_near(pl, unit_get_tile(st), 8));
+                if (danger && st && !strcmp(gn0, "EEUGBuildRepair@@") && build_held(pl, unit_get_tile(st))) continue;   // BUILDERS UNDER COVER (defence.c)
                 if (danger && g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }
                 if (danger) {
                     float fx, fy;
@@ -1214,7 +1216,9 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                 }
                 continue;
             }
-            if (unit_get_x(u) >= 0 && tv_unsafe(idx, unit_get_x(u), unit_get_y(u)) && !(r >= 5 && hurt_near(idx, unit_get_x(u), unit_get_y(u)) < 1)) {   // its territory is being lost (territories.c); GOLD AND IRON STAY while nobody is hit there
+            ee_unit *bsite = goal && !strcmp(rtti_name(goal), "EEUGBuildRepair@@") ? goal_get_building(goal) : NULL;   // a builder's site
+            if (unit_get_x(u) >= 0 && tv_unsafe(idx, unit_get_x(u), unit_get_y(u)) && !(r >= 5 && hurt_near(idx, unit_get_x(u), unit_get_y(u)) < 1) &&
+                !(bsite && build_held(pl, unit_get_tile(bsite)))) {   // nor a builder whose soldiers there hold (BUILDERS UNDER COVER)   // its territory is being lost (territories.c); GOLD AND IRON STAY while nobody is hit there
                 ivec2 at = unit_get_tile(u), rf;
                 int in = g_bunkers ? bk_shelter_in(pl, u, 1, TV_REACH) : 0;   // into a fortress on its land
                 if (in) { sheltered++; if (in > 1) tv_count(idx, 0); continue; }
@@ -1233,14 +1237,16 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             ivec2 d;
             if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
             int raided = !(!build && r >= 5) && raiders_known(pl, unit_get_tile(site), build ? 8 : 6);   // GOLD AND IRON STAY: its miners go for hits only (below)
-            if (raided && raid_held(pl, unit_get_tile(site))) { held++; continue; }   // its soldiers and towers there win
+            if (raided && (build ? build_held(pl, unit_get_tile(site)) : raid_held(pl, unit_get_tile(site)))) { held++; continue; }   // its soldiers and towers there win (a builder's: not losing, defence.c)
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
             if (build && !raided && unit_type_get_id(unit_get_type_data(site)) != UT(B_FARM)) {
                 // ON THE WAY: a builder still walking (8 tiles off) into enemy soldiers it sees or remembers on the
                 // next 24 tiles - the site in the fog looked safe, the way there was not (P2's column above)
                 ivec2 at = unit_get_tile(u), sp = unit_get_tile(site);
-                if (ivec2_dist2(at, sp) <= 64 || !(raiders_near(pl, at, 8) || way_raided(pl, at.x, at.y, sp.x, sp.y, 24))) continue;
+                int near_r = raiders_near(pl, at, 8), ahead = way_raided(pl, at.x, at.y, sp.x, sp.y, 24);
+                if (ivec2_dist2(at, sp) <= 64 || !(near_r || ahead)) continue;
+                if (near_r && build_held(pl, at) && (!ahead || build_held(pl, sp))) { held++; continue; }   // its soldiers around it (BUILDERS UNDER COVER)
                 raided = 1;
                 g_cit_stats[idx].way++;
             }
@@ -1348,7 +1354,7 @@ internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int8_t appe
     int refuse = 0;
     if (pl && b && !is_vanilla(pl)) {
         ivec2 bt = unit_get_tile(b);
-        if (g_avoid_citizens && raiders_known(pl, bt, 8)) { g_repair_refused[pi]++; refuse = 1; }
+        if (g_avoid_citizens && raiders_known(pl, bt, 8) && !build_held(pl, bt)) { g_repair_refused[pi]++; refuse = 1; }
         else if (g_repair_one && repair_walker(pl, b, u)) { g_repair_walking[pi]++; refuse = 1; }
         else if (g_repair_way && (path_raided(pl, unit_get_x(u), unit_get_y(u), bt.x, bt.y) ||
                                   route_covered(pl, unit_get_x(u), unit_get_y(u), bt.x, bt.y))) { g_repair_unsafe[pi]++; refuse = 1; }

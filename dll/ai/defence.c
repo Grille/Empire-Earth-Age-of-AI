@@ -1718,7 +1718,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
 // against the cheating game AI, 40 long games a map (quit at 600 min) - Small Islands won 0 -> 2, lost 36 -> 29,
 // kills - vanilla's +6 -> +98, workers -116 -> -62; Large Islands won 11 -> 16, lost 24 -> 22; Continental 26 -> 27.
 internal float g_raid_held = 0;
-struct rh_scan { ee_player *pl; ivec2 p; };
+struct rh_scan { ee_player *pl; ivec2 p; int own_r; };   // own_r: its soldiers within this many tiles count
 internal struct st_side g_rh_own, g_rh_foe;
 internal void rh_unit(ee_unit *u, void *ctx) {
     struct rh_scan *s = ctx;
@@ -1729,7 +1729,7 @@ internal void rh_unit(ee_unit *u, void *ctx) {
     int fam = unit_type_get_class_id(td);
     float rng, att;
     if (o == s->pl) {
-        if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) ? defence_stats(u, &rng, &att) && (float)d <= rng + 1.0f : is_soldier(td) && d <= 10)
+        if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) ? defence_stats(u, &rng, &att) && (float)d <= rng + 1.0f : is_soldier(td) && d <= s->own_r)
             st_side_add(&g_rh_own, u);
     } else if (d <= 12 && (fam == CLS_LAND || fam == CLS_NAVAL) && unit_type_get_attack(td) > 0 && !is_citizen_type(unit_type_get_id(td)) &&
                player_get_index(o) > 0 && is_enemy(s->pl, o) && seen_by(u, s->pl))
@@ -1744,12 +1744,40 @@ internal int raid_held(ee_player *pl, ivec2 p) {
     typeof(&cache[0][0]) c = &cache[pi][(unsigned)(cx * 31 + cy) & 31];
     if (c->t && c->cx == cx && c->cy == cy && now >= c->t && now - c->t < 4000) return c->held;
     st_side_clear(&g_rh_own); st_side_clear(&g_rh_foe);
-    struct rh_scan s = { pl, iv2(cx * 4 + 2, cy * 4 + 2) };
+    struct rh_scan s = { pl, iv2(cx * 4 + 2, cy * 4 + 2), 10 };
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
     for (struct grid_it it = grid_it_box(s.p.x, s.p.y, 14, 1); grid && grid_it_next(&it); ) rh_unit(it.u, &s);
     c->cx = cx; c->cy = cy; c->t = now ? now : 1;
     c->held = (uint8_t)(g_rh_foe.n > 0 && st_ratio(&g_rh_own, &g_rh_foe) >= g_raid_held);
+    return c->held;
+}
+// BUILDERS UNDER COVER (the player 2026-11-17: "builders are way to easily scared off, if they are alone that ok, if
+// there is a whole army nerby they should just try to pull of their task like putting towers down etc"): a builder
+// is no gatherer - its site can't be had elsewhere, and a tower or fortress going up is what the soldiers there are
+// for. raid_held keeps a site only where its soldiers win clearly (150%) against raiders in sight; a builder whose
+// raiders were only remembered (threat_memory) was sent back with an army standing beside it. Its site holds while
+// at least BH_MIN of its soldiers (and its towers) stand within BH_OWN tiles and match the enemy soldiers it sees
+// within 12 (st_ratio >= 1, not losing) - or the enemy is only remembered there. Alone it still goes. Asked by the
+// citizens' safety for builders (attack.c citizens_safety: raided sites, the way there, a territory being lost,
+// the base overrun) and the repair round's hook; the same 4 x 4 cell's answer kept 4 s.
+#define BH_MIN 4
+#define BH_OWN 14
+internal int build_held(ee_player *pl, ivec2 p) {
+    if (!pl) return 0;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    static struct { int cx, cy; uint32_t t; uint8_t held; } cache[16][32];
+    uint32_t now = game_time();
+    int cx = p.x >> 2, cy = p.y >> 2;
+    typeof(&cache[0][0]) c = &cache[pi][(unsigned)(cx * 31 + cy) & 31];
+    if (c->t && c->cx == cx && c->cy == cy && now >= c->t && now - c->t < 4000) return c->held;
+    st_side_clear(&g_rh_own); st_side_clear(&g_rh_foe);
+    struct rh_scan s = { pl, iv2(cx * 4 + 2, cy * 4 + 2), BH_OWN };
+    ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
+    for (struct grid_it it = grid_it_box(s.p.x, s.p.y, BH_OWN + 2, 1); grid && grid_it_next(&it); ) rh_unit(it.u, &s);
+    c->cx = cx; c->cy = cy; c->t = now ? now : 1;
+    c->held = (uint8_t)(g_rh_own.n >= BH_MIN && (g_rh_foe.n == 0 || st_ratio(&g_rh_own, &g_rh_foe) >= 1.0f));
     return c->held;
 }
 
