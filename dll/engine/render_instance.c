@@ -358,12 +358,17 @@ internal uint32_t in_cap_make(const WORD *idx, uint32_t ni, const float *v, uint
         uint32_t l[IN_CAP_LOOP], ln = 0, p = s;
         while (ln < IN_CAP_LOOP && next[p] >= 0 && !done[p]) { done[p] = 1; l[ln++] = p; p = (uint32_t)next[p]; }
         if (p != s || ln < 4) continue;   // not closed
-        float llo[2] = { 1e30f, 1e30f }, lhi[2] = { -1e30f, -1e30f }, z = 0.0f;
+        float llo[2] = { 1e30f, 1e30f }, lhi[2] = { -1e30f, -1e30f }, z = 0.0f, larea = 0.0f;
         for (uint32_t i = 0; i < ln; i++) {
-            const float *q = v + real[l[i]] * 8;
+            const float *q = v + real[l[i]] * 8, *r = v + real[l[(i + 1) % ln]] * 8;
             for (int j = 0; j < 2; j++) llo[j] = fminf(llo[j], q[j]), lhi[j] = fmaxf(lhi[j], q[j]);
             z += q[2] / (float)ln;
+            larea += q[0] * r[1] - r[0] * q[1];
         }
+        // (a fill facing up is an opening seen from above, no bottom: the stone-age fishing raft's inner rim, a ring of
+        // its own material, was closed at its foot - its inside flat in the player's colour, the player 2026-11-16 -
+        // and the later fishing boats' and the carrier's decks had such holes filled; every hull's bottom faces down)
+        if (larea >= 0.0f) continue;
         if (llo[across] < mid && lhi[across] > mid && lhi[along] - llo[along] >= 0.5f * length && z < best_z)
             best_z = z, n = ln, memcpy(loop, l, ln * sizeof *l);
     }
