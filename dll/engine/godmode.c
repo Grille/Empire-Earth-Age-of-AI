@@ -118,6 +118,12 @@ internal int god_on(void) {   // (the render thread too: once an object drawn)
 internal int god_see_all(void) {
     return *game_free_camera_at() || (g_god && god_on() && (g_god == GOD_CONTROL || !playas_switched()));
 }
+// godview through another player's eyes: the player whose tiles never seen are black (sight.c sight_seen_ever: a
+// computer player has the whole map explored from the start - render_ground.c rg_fow, collect_copy.c), else -1
+internal int sight_seen_ever(int x, int y, int p);
+internal int god_eyes(void) {
+    return g_god == GOD_VIEW && god_on() && playas_switched() && !*game_free_camera_at() ? (int)local_player_index() : -1;
+}
 
 internal void god_minimap(void) {
     ee_minimap *mm = *(ee_minimap **)game_minimap_at();

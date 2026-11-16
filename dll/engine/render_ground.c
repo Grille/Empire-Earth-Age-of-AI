@@ -688,6 +688,7 @@ internal void rg_fow(void) {
     ee_map *map = g_rg.map;
     uint8_t *o = g_rg.fow_now;
     memset(o, 0, (size_t)g_rg.size * g_rg.size);
+    int eyes = god_eyes();   // godview: what that player has never seen black (godmode.c)
     for (int y = 0; y < g_rg.size; y++) {
         const int *row = map_view_row(map, (unsigned)y);
         int first = row[0], count = row[1];
@@ -697,7 +698,7 @@ internal void rg_fow(void) {
             int x = first + k;
             if (x < 0 || x >= g_rg.size) continue;
             unsigned s = *(const uint16_t *)(p + (size_t)k * 4);   // as UpdateFogOfWar reads it: the number as stored
-            o[y * g_rg.size + x] = s >= 2 ? 255 : s == 1 ? 128 : 0;
+            o[y * g_rg.size + x] = s >= 2 ? 255 : s == 1 && (eyes < 0 || sight_seen_ever(x, y, eyes) != 0) ? 128 : 0;
         }
     }
     int was = g_rg.fow_was[(size_t)g_rg.size * g_rg.size];

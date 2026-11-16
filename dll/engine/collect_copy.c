@@ -409,6 +409,8 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
         return c->ok = 0;
     if (++g_cp_gen == 0) { memset(g_cp_seen, 0, (size_t)g_cp_seen_cap * sizeof *g_cp_seen); g_cp_gen = 1; }
     ee_player *me = game_players()[local_player_index()];
+    int eyes = god_eyes();   // godview: what that player has never seen is not explored (godmode.c)
+    if (eyes >= 0 && game_players()[eyes] != pl) eyes = -1;
     for (int y = y0; y <= y1 && c->ok; y++)
         for (int x = x0; x <= x1 && c->ok; x++) {
             uc_ctile *ct = &c->tiles[(uint32_t)((y - y0) * c->w + (x - x0))];
@@ -418,7 +420,7 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
             ct->t = t;
             ct->obj_at = c->n_seq, ct->dopp_at = c->n_dopps;
             if (!t) continue;
-            ct->explored = unit_vis_explored(v, pl) != 0;
+            ct->explored = unit_vis_explored(v, pl) != 0 && (eyes < 0 || sight_seen_ever(x, y, eyes) != 0);
             ct->seen = unit_vis_seen_by(v, pl) != 0;
             ct->seen_me = pl == me ? ct->seen : unit_vis_seen_by(v, me) != 0;
             if (ct->explored || free_cam)
