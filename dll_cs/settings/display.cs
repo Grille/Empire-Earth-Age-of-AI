@@ -33,7 +33,7 @@ class display
     /// Objects drawn per frame (units, buildings, missiles - also arrows stuck in the ground). The game drew at most
     /// 512; in big fights and at high resolutions the farthest objects blinked out. 0 = the original 512
     [advanced, range(0, 1000000), game("the objects the game draws per frame", "512", 0), also("patches")]
-    int draw_limit = 4096;
+    int draw_limit = 16384;
     /// Windowed/borderless only: smooth (bilinear) scaling when the image is scaled; 0 = sharp pixels
     bool smooth_scaling = false;
     /// Windowed/borderless only: 1 = wait for the screen refresh (no tearing, fps capped at the refresh rate),

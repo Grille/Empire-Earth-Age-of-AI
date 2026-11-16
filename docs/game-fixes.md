@@ -30,9 +30,9 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   background, and the click that brings it back counts as a click. `[display] lock_mouse` keeps the cursor inside
   while the game is in front: `auto` (default) only in borderless, so edge scrolling doesn't slide onto a second
   monitor, while a window stays free; `on` always, `off` never.
-- `[display] draw_limit=4096` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
+- `[display] draw_limit=16384` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
   in flight or stuck in the ground included (a 360-archer fight reached 445) - so in big fights, and the more so at
-  high resolutions, the farthest objects blinked in and out. `0` keeps the 512.
+  high resolutions, the farthest objects blinked in and out. `0` keeps the 512. 16384 since 2026-11-16 (was 4096): room for huge crowds seen zoomed out, about 6 MB more.
 - `[display] frame_wait=auto` (default): the game's drawing thread slept at least a millisecond after every frame
   (about 15 ms on many PCs), which capped the frame rate. Now it only gives up its turn while the game draws (in a
   test about 290 -> 500-700 fps), and pauses as before once nothing has been drawn for 0.1 s (alt-tabbed,
