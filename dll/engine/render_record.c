@@ -115,6 +115,7 @@ internal int rec_queue(rec_item *it) {
 // record steps: while frames are left, every second frame skips the render objects' update as a frame drawn during a
 // step does - a heavy game draws many such frames, a test's steps are too short for any: alternating with the frames
 // drawn with an update, whatever such a frame draws otherwise is there for a frame and gone in the next (flicker.py)
+internal int rec_busy(void) { return g_rec.left > 0; }
 internal int rec_step(void) {
     if (!g_rec.steps || g_rec.left <= 0) return 0;
     g_rec.flip ^= 1;

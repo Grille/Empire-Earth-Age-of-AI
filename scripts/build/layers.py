@@ -48,7 +48,6 @@ EXCEPTIONS = [
     ('ai/econ.c', 'test/trace.c', 'trace_train', 'call tracing (autotest)'),
     ('ai/sites.c', 'test/trace.c', 'CALLER', 'the caller of a hooked site search'),
     ('engine/aim.c', 'ai/attack.c', 'seen_by', 'leading only targets the player sees'),
-    ('engine/display.c', 'test/control.c', 'g_turbo', 'turbo test runs draw nothing'),
     ('engine/display_diag.c', 'test/control.c', 'g_req', 'the frame watch reports a pending pipe command'),
     ('engine/display_diag.c', 'voice/llm.c', 'llm_busy', 'the frame watch reports the language model'),
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),

@@ -585,15 +585,17 @@ internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
 
 #include "display_diag.c"
 
+internal int rec_busy(void);   // render_record.c: the pipe's record takes frames now
 internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
     g_render_thread = GetCurrentThreadId();
     g_show_tick = GetTickCount();
     frame_watch();
     camera_frame(g_rd_on);
     camtrace_frame();
-    // headless turbo: nobody watches, so only a few frames a second (CPU for the simulation); a shot still
-    // gets the next frame
-    if (g_headless && g_turbo && !g_shot_req)
+    // headless: nobody watches, so only a few frames a second (the CPU for the simulation, the graphics card for
+    // the player's game) - turbo or not: without it a test game drew as fast as the card could, vsync off (2026-11-16:
+    // one plain run_test game at 96% of the card's 3D). A shot still gets the next frame, a recording every frame.
+    if (g_headless && !g_shot_req && !rec_busy())
         for (int i = 0; i < 20 && !g_shot_req; i++) Sleep(10);
     if (g_fullscreen) return g_show[DISPLAY_DLL(ras)].show(ras, screen);
     // windowed: the original is not called. Its Blt to the emulated primary at the window's screen position is
