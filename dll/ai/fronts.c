@@ -40,6 +40,13 @@ internal int fr_building(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td);   // the class (attack.c), not the family field
     return fam == CLS_BUILDING || fam == CLS_FORTRESS || is_tower_type(unit_type_get_id(td));
 }
+// an enemy building an attack goes at: a building, a fortress, a tower - no wall piece, but a gate (the player
+// 2026-11-16: "walls are excluded from attack targets right? makes sence, but gates should be readded, leaving an wide
+// opening only the enemy can use is a bad idea"; a gate is of the walls' family, its class CLS_GATE)
+internal int fr_target(ee_unit_type *td) {
+    if (unit_type_get_class_id(td) == CLS_GATE) return 1;
+    return fr_building(td) && !is_wall(unit_type_get_id(td));
+}
 // territory: distance in cells from the seeds marked 1 in m, along land, up to FR_TERR (m: 0 none, else 1 + distance)
 internal void fr_spread(uint8_t *m, int side) {
     int h = 0, t = 0;

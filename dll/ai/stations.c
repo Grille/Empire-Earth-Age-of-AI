@@ -356,7 +356,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         ivec2 p = unit_get_tile(u);
         unsigned r = ter_near(p.x, p.y);
         if (r >= (unsigned)n) continue;
-        if (fr_building(it.td)) { if (!is_wall(unit_type_get_id(it.td)) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }
+        // fronts.c fr_target: the enemy's gates too, no wall pieces
+        if (fr_building(it.td) || unit_type_get_class_id(it.td) == CLS_GATE) { if (fr_target(it.td) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }
         else if (ms_land_soldier(u, it.td)) { fx[r] += p.x; fy[r] += p.y; fn[r]++; }
     }
     // STATIONS: the shares in soldiers

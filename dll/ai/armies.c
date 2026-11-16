@@ -651,7 +651,7 @@ internal int ar_route(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 fr
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_target(it.td) || !seen_by(u, pl)) continue;
         if (pass < 0 && !site_wants_army(idx, unit_get_tile(u))) continue;
         if (pass <= 0 && !tn_mine_drop(pl, u, it.td)) continue;
         long d = ivec2_dist2(unit_get_tile(u), a->home);
@@ -754,7 +754,7 @@ internal ee_unit *ar_target_on(ee_player *pl, ivec2 from, unsigned land) {   // 
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_target(it.td) || !seen_by(u, pl)) continue;
         if (land && map_area(unit_get_tile(u), 2) != land) continue;
         if (!pass && !tn_mine_drop(pl, u, it.td)) continue;
         long d = ivec2_dist2(unit_get_tile(u), from);
@@ -770,7 +770,7 @@ internal ee_unit *ar_near_building(ee_player *pl, ivec2 p, int r) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_target(it.td) || !seen_by(u, pl)) continue;
         int d = ivec2_dist2(unit_get_tile(u), p);
         if (d < bd) { bd = d; best = u; }
     }
