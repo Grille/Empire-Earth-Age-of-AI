@@ -389,6 +389,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     walls_new_game();
     InterlockedIncrement(&g_game_starts);
     editor_undo_new_game();
+    overlay_clear();        // the last game's shapes (base/overlay.c)
     editor_orders_hide();   // the editor's selected units' orders not drawn over a game (the editor's panel draws them again)
     units_first_new_game();
     danger_new_game();

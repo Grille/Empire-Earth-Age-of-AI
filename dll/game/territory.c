@@ -718,7 +718,7 @@ internal int ter_ready(void) {
     }
     return 1;
 }
-internal void territory_new_game(void) { g_ter.map = NULL; }   // the next game's map may sit at the same address
+internal void territory_new_game(void) { g_ter.map = NULL; g_ter.shown = 0; g_ter.facts_t = 0; }   // (shown 0: its shapes cleared with the rest, drawn again)   // the next game's map may sit at the same address
 // the territory of a tile, TER_NONE none (a cliff, off the map; nothing built yet)
 internal unsigned territory_at(int x, int y) {
     if (!g_ter.lab || x < 0 || y < 0 || x >= g_ter.size || y >= g_ter.size) return TER_NONE;

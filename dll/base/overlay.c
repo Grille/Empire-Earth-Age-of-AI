@@ -143,6 +143,15 @@ internal void overlay_begin(int layer, uintptr_t key, uint32_t now, uint32_t ttl
 // the screen's shapes from here on are id's (its mark first: the place they glide by), 0 none - an id unique across
 // layers and keys (a unit's serial; an army's own number with a high bit of its own)
 internal void overlay_anchor(uint32_t id) { g_ov.open_id = id; }
+// every shape gone: a game starts or the editor opens (the player, 2026-11-16: "when playing and returning to the editor
+// all the overlays stay active") - the last game's producers no longer draw, and their ttl counted in that game's time,
+// which starts over, so they would never drop out. The layers and what is shown stay.
+internal void overlay_clear(void) {
+    ov_init();
+    EnterCriticalSection(&g_ov.cs);
+    g_ov.n = 0;
+    LeaveCriticalSection(&g_ov.cs);
+}
 internal void overlay_end(void) { LeaveCriticalSection(&g_ov.cs); }
 internal ov_shape *ov_add(int kind, uint32_t argb, float width) {
     if (g_ov.n == OV_SHAPES) { g_ov.dropped++; return NULL; }   // full: the rest of this plan isn't shown (counted: the pipe's overlay)

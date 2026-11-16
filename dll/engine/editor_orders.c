@@ -44,6 +44,7 @@ internal int eo_orders(int halt) {
 internal void __thiscall hook_eo_open(ee_editor_form *f) {
     int back = editor_form_get_testing(f) != 0;
     editor_form_open(f);
+    overlay_clear();   // a test's or an earlier game's shapes (territories, the AI's) not left over the editor's map
     if (!back) return;
     groupmove_new_game();   // the test's marches over: their linger would send the units back to the test's spots
     groupmove_resume_next(0);   // (not looked for till the read is done, below)
