@@ -76,7 +76,8 @@
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
-struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
+struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int mn;   // mmid, mn: the middle of its soldiers (no siege), how many (THE SIEGE'S ESCORT)
+                 uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
     int n;
@@ -133,6 +134,14 @@ internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRS
 #define SN_RES_ROOM 5           // ... soldiers go in with this many places left on the map
 #define SN_RES_BATCH 20         // ... this many a look
 #define SN_RES_FOE 4            // ... or with this many enemy soldiers in a territory of its
+// THE SIEGE'S ESCORT (the player 2026-11-16: "sometimes siege attacks completly alone, huge waste of resources, for
+// pushes it should only funtionas attachment to a force"): in a push the siege goes to the middle of the push's
+// soldiers (the main force), never to the building itself; at a breach it attacks the wall piece only with them within
+// SN_SIEGE_NEAR of it; a push with fewer than SN_SIEGE_ESCORT soldiers left is over (siege counted as somebody before:
+// the soldiers dead, the catapults went on alone); enemies in a territory of its: the siege goes at them only with
+// SN_SIEGE_ESCORT soldiers stationed there, else it stands at the station's place
+#define SN_SIEGE_ESCORT 3
+#define SN_SIEGE_NEAR 12
 #define SN_RES_ODDS 3           // ... unless its soldiers stationed there are this many times as many
 #define SN_RES_LOOK 120         // ... at most this many a look (several Fortresses)
 #define SN_RES_AHEAD 2          // ... Fortress room wanted ahead: this many units per production building
@@ -433,15 +442,18 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     for (int k = 0; k < SN_PUSHES; k++) {
         struct sn_push *p = &z->push[k];
         if (!p->on) continue;
-        long sx = 0, sy = 0;
+        long sx = 0, sy = 0, msx = 0, msy = 0;
         int cn = 0, bi = -1, bd = 0;
         st_side_clear(&g_sn_own);
+        p->mn = 0;
         for (int i = 0; i < nn; i++) {
             if (z->m[i].ter != p->from || z->m[i].scout || z->m[i].pool == SNP_AA) continue;
             ivec2 q = unit_get_tile(z->m[i].u);
             sx += q.x; sy += q.y; cn++;
+            if (z->m[i].pool == SNP_MAIN) { msx += q.x; msy += q.y; p->mn++; }
             st_side_add(&g_sn_own, z->m[i].u);
         }
+        p->mmid = p->mn ? iv2((int)(msx / p->mn), (int)(msy / p->mn)) : p->at;   // THE SIEGE'S ESCORT: where its soldiers are
         ivec2 mid = cn ? iv2((int)(sx / cn), (int)(sy / cn)) : p->at;
         ivec2 lead = mid;   // THE WAY's start: the soldier nearest their middle (the middle itself can lie in a wood or on water)
         for (int i = 0, ld = 0x7FFFFFFF; i < nn; i++) {
@@ -459,6 +471,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         const char *end = NULL;
         float ratio = 0;
         if (!cn) end = "nobody left";
+        else if (p->mn < SN_SIEGE_ESCORT) end = "too few soldiers left for its siege";   // siege alone is no push (the player 2026-11-16: "sometimes siege attacks completly alone")
         else if (ti >= 0) {
             stage_foe(pl, stg[ti].at);
             ratio = st_ratio(&g_sn_own, &g_sgs_foe);
@@ -911,7 +924,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (ivec2_dist2(p, d) > SN_NEAR * SN_NEAR && (!m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now)))) sn_order(z, m, i, d, 0, now);
             continue;
         }
-        if (!pu && demo[r] && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE)) {   // DEMOLITION
+        if (!pu && demo[r] && (m->pool == SNP_MAIN || (m->pool == SNP_SIEGE && ac[r] >= SN_SIEGE_ESCORT))) {   // DEMOLITION (the siege with soldiers of its there: THE SIEGE'S ESCORT)
             ee_goal *cg = unit_get_goal(m->u);
             ee_unit *tg = cg && goal_is_attack(cg) ? goal_get_target(cg) : NULL;
             ee_unit_type *td = tg ? unit_get_type_data(tg) : NULL;
@@ -923,7 +936,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         if (pu && pu->breach) {   // A BREACH: the siege (everybody when it has none there) at the piece, the rest by it
             ee_unit *piece = sn_wall_at(pl, pu->wall);
-            if (piece && (m->pool == SNP_SIEGE || !acs[r])) {
+            int escorted = ivec2_dist2(pu->mmid, pu->wall) <= SN_SIEGE_NEAR * SN_SIEGE_NEAR;   // THE SIEGE'S ESCORT: its soldiers by the wall
+            if (piece && ((m->pool == SNP_SIEGE && escorted) || !acs[r])) {
                 if (!m->order_t || (now - m->order_t >= 3000 && sn_idle(z, m, now))) {
                     ee_goal *g = goal_attack(m->u, piece);
                     if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = pu->wall; z->orders++; }
@@ -931,10 +945,11 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 continue;
             }
             d = pu->wall; reach = 6;
+            if (m->pool == SNP_SIEGE) { d = pu->mmid; reach = 4; }   // ... else with them
         } else
-        if (pu) { d = pu->at; reach = 5; }
-        else if (fn[r] > 0 && s->t[r].role != TVR_NONE) { d = iv2(fx[r] / fn[r], fy[r] / fn[r]); reach = 5; }
-        else if (m->pool == SNP_SIEGE) fight = 0;
+        if (pu) { d = m->pool == SNP_SIEGE ? pu->mmid : pu->at; reach = m->pool == SNP_SIEGE ? 4 : 5; }   // THE SIEGE'S ESCORT: in a push the siege goes where its soldiers are, never ahead to the building
+        else if (fn[r] > 0 && s->t[r].role != TVR_NONE && (m->pool != SNP_SIEGE || ac[r] >= SN_SIEGE_ESCORT)) { d = iv2(fx[r] / fn[r], fy[r] / fn[r]); reach = 5; }   // enemies there: the siege only with soldiers of its there
+        else if (m->pool == SNP_SIEGE && !(fn[r] > 0 && s->t[r].role != TVR_NONE)) fight = 0;
         if (ivec2_dist2(p, d) <= reach * reach) { m->wait_t = 0; continue; }
         int moved = m->order_t && ivec2_dist2(m->to, d) > 6 * 6;   // its place has moved: the enemy, the push's next building
         if (!(!m->order_t || (moved && now - m->order_t >= 10000) || (now - m->order_t > SN_REORDER && sn_idle(z, m, now)))) continue;

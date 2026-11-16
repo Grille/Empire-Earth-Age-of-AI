@@ -1510,7 +1510,11 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     for (int i = 0; i < ns; i++) g_siege_st[pi].prev[i] = siege[i];
     g_siege_st[pi].seen_t = now;
     siege_train(pl, pi, ns, now);
-    if (ns < 1) return;
+    // the game's computer player off: its siege is stations.c's (the pool SIEGE, with the force - THE SIEGE'S ESCORT);
+    // the waves here took every siege weapon of its at an enemy tower with any 2 idle soldiers of the map as escorts
+    // (the player 2026-11-16: "sometimes siege attacks completly alone, huge waste of resources" - his P3, minute 132-136:
+    // two waves, 3 siege lost within 5 minutes)
+    if (ns < 1 || !GAME_AI(pi)) return;
     sx /= (float)ns; sy /= (float)ns;
     // target: a breach wall of one of our subgroups, else the nearest known defence we outrange
     ee_unit *t = NULL; float best = 1e30f;
