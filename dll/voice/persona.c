@@ -102,6 +102,14 @@ internal struct persona g_personas[MAX_PERSONAS];
 internal int g_npersonas;
 internal int g_persona_of[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 internal int g_persona_assigned[16];
+// Only a skirmish (a random map) gives its computer players personalities by itself - a scenario's and a campaign's
+// keep their own names and say nothing of their own unless a script gives one (persona(2, "fuchs") in setup.eeai's
+// on_scenario(); the player 2026-11-16: "on default the personalities should only auto enable for skimishes, for
+// scenarios there are eeai scripts to enable it" - a campaign's opening cinematic had the AIs greeting each other).
+// A saved game knows from its state file (block persona_pick): who had which, and whether the game gave them; a save
+// without it (made before) as a skirmish's.
+internal int g_persona_auto;      // AIs without one get one at random (persona_assign)
+internal int g_persona_given[16]; // by player: the personality a script or the save gave before its first update (-1 none)
 internal int g_ai_talk = 1, g_ai_names = 1;
 internal int g_ai_style;   // [general] ai_style: 1 = the personalities' style settings apply (default 0: off)
 internal char g_persona_force[16][40];
@@ -808,7 +816,8 @@ internal int pc_taken(const struct pcolor *c, const int *used) {   // a table co
 internal void persona_state_reset(void);
 internal void persona_new_game(ee_setup *setup) {
     persona_state_reset();   // the last game's fields, and the dicts its code made
-    for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = -1; g_plan_color[i].idx = -2; g_persona_assigned[i] = 0; }
+    for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = g_persona_given[i] = -1; g_plan_color[i].idx = -2; g_persona_assigned[i] = 0; }
+    g_persona_auto = setup_get_mode(setup) == 0 || setup_get_mode(setup) == 2;   // a skirmish; a saved game till its state file says
     memset(g_persona_used, 0, sizeof g_persona_used);
     g_ai_color_n = g_ai_color_k = 0;
     memset(g_talk_last, 0, sizeof g_talk_last);
@@ -955,8 +964,8 @@ internal int persona_has_name(const struct persona *p, const char *name) {
 }
 
 // once per AI (its first update): pick and apply the personality - pinned by ageofai.ini, planned at the game start
-// (found by the player's colour, +0x438 = the colour table's rgb), the one with the player's name (a loaded game),
-// or a random one
+// (found by the player's colour, +0x438 = the colour table's rgb), given by a script or the saved game's state file,
+// the one with the player's name (a loaded game without that block), or - in a skirmish only - a random one
 internal void persona_apply(ee_player *pl, unsigned idx, int pick);
 internal void persona_assign(ee_player *pl) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
@@ -969,9 +978,10 @@ internal void persona_assign(ee_player *pl) {
         const float *c = g_plan_persona[s] >= 0 ? pc_rgb(&g_plan_color[s]) : NULL;
         if (c && c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]) { pick = g_plan_persona[s]; g_plan_persona[s] = -1; }
     }
-    for (int i = 0; i < g_npersonas && pick < 0; i++)
+    if (pick < 0) pick = g_persona_given[idx];
+    for (int i = 0; i < g_npersonas && pick < 0 && g_persona_auto; i++)
         if (persona_has_name(&g_personas[i], player_name(pl))) pick = i;
-    if (pick < 0) { pick = persona_random(); if (pick >= 0) g_persona_used[pick]++; }
+    if (pick < 0 && g_persona_auto) { pick = persona_random(); if (pick >= 0) g_persona_used[pick]++; }
     if (pick >= 0) persona_apply(pl, idx, pick);
 }
 // AI pl (player idx) is personality pick from now on: its name, civilization, style (persona_assign, cmd_persona)
@@ -1226,6 +1236,43 @@ internal void persona_state_load(const uint8_t *b, uint32_t size) {   // (after 
         o += n;
     }
 }
+// the saved game's personalities (block persona_pick): format 1, whether the game gives them by itself (a byte), then for
+// each AI that has one its player (a byte), its file's name's length (a byte) and the name - found again by the file on
+// load, before the AIs' first updates (persona_assign)
+internal uint8_t *persona_pick_save(uint32_t *size) {
+    struct pbuf o = { 0 };
+    uint32_t format = 1;
+    uint8_t aut = (uint8_t)(g_persona_auto != 0);
+    pb_put(&o, &format, 4);
+    pb_put(&o, &aut, 1);
+    for (int i = 0; i < 16; i++) {
+        int k = g_persona_of[i];
+        if (k < 0 || k >= g_npersonas) continue;
+        uint8_t ix = (uint8_t)i, n = (uint8_t)strnlen(g_personas[k].file, 255);
+        pb_put(&o, &ix, 1);
+        pb_put(&o, &n, 1);
+        pb_put(&o, g_personas[k].file, n);
+    }
+    if (o.bad) { free(o.b); *size = 0; return NULL; }
+    *size = o.n;
+    return o.b;
+}
+internal void persona_pick_load(const uint8_t *b, uint32_t size) {
+    uint32_t format;
+    if (size < 5 || (memcpy(&format, b, 4), format != 1)) { if (g_log) fprintf(g_log, "# persist: persona_pick of another format - the personalities found by name\n"); return; }
+    g_persona_auto = b[4] != 0;
+    for (uint32_t o = 5; o + 2 <= size; ) {
+        uint8_t ix = b[o], n = b[o + 1];
+        o += 2;
+        if (ix > 15 || n > size - o) { if (g_log) fprintf(g_log, "# persist: persona_pick broken - the rest left out\n"); return; }
+        char file[256];
+        memcpy(file, b + o, n);
+        file[n] = 0;
+        o += n;
+        g_persona_given[ix] = persona_find(file);
+        if (g_persona_given[ix] < 0 && g_log) fprintf(g_log, "# persist: P%u's personality %s is no more - none\n", ix, file);
+    }
+}
 internal void pinst_restore(struct pinst *in, unsigned idx) {   // the saved record of AI idx, by the fields' names
     struct pread r = { g_pinst_saved[idx].b, g_pinst_saved[idx].n, 0, 0 };
     char *file = pr_str(&r);
@@ -1447,8 +1494,8 @@ internal void cmd_persona(char *out, const char *args) {
     if (p >= 0 && p < 16 && name[0]) {
         for (int i = 0; i < g_npersonas; i++)
             if (!lstrcmpiA(g_personas[i].file, name)) {
-                if (g_players[p]) persona_apply(g_players[p], (unsigned)p, i);   // name, civilization, style as at the start
-                else g_persona_of[p] = i;
+                if (g_players[p]) { g_persona_assigned[p] = 1; persona_apply(g_players[p], (unsigned)p, i); }   // name, civilization, style as at the start
+                else g_persona_given[p] = i;   // its first update applies it (persona_assign)
                 REPLY("P%d is now %s\n", p, name);
                 return;
             }

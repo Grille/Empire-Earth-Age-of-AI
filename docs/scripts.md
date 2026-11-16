@@ -437,6 +437,11 @@ A mistake there (a human's personality, a vanilla player's, a scenario game - pe
 games) ends that script before the game starts: `# setup: <file>: game.setup stopped - ...`. Test runs read their
 scripts at the game's start now (setup=...); a dry run leaves the setup out.
 
+Only a skirmish gives its computer players personalities by itself (since 2026-11-16): a scenario's and a campaign's
+keep their own names and have none - no personality's lines, name or civilization - unless a script gives one, with the
+`persona` command: `persona(2, "fuchs")` (player 2 is personalities\fuchs.eeai from now on: its name, civilization and
+lines), in setup.eeai's `on_scenario()` / `on_campaign()` or a scenario's own script. A saved game keeps who had which.
+
 ## setup.eeai: every game's script
 
 `setup.eeai` beside `ageofai.ini` (`<game>\ageofai\setup.eeai`; the shipped one is `config/setup.eeai`, installed once

@@ -37,11 +37,14 @@ internal uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the langu
 internal void llm_mem_load(const uint8_t *p, uint32_t size);
 internal uint8_t *persona_state_save(uint32_t *size);        // persona.c: the personalities' fields (let), per AI
 internal void persona_state_load(const uint8_t *p, uint32_t size);
+internal uint8_t *persona_pick_save(uint32_t *size);         // persona.c: which AI has which personality, whether the game gives them
+internal void persona_pick_load(const uint8_t *p, uint32_t size);
 // the blocks of a variable size: their own format, checked as they are read (no layout hash)
 internal const struct { const char *tag; uint8_t *(*save)(uint32_t *size); void (*load)(const uint8_t *p, uint32_t size); } k_var_blocks[] = {
     { "llm_memory", llm_mem_save, llm_mem_load },
     { "kill_log", kill_log_save, kill_log_load },   // diplo.c
     { "persona_state", persona_state_save, persona_state_load },   // persona.c
+    { "persona_pick", persona_pick_save, persona_pick_load },   // persona.c
     { "scripts", scripts_state_save, scripts_state_load },   // test/scripts.c: the scripts, their variables, triggers and timers
 };
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };
