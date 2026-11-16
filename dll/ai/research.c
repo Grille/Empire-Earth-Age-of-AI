@@ -34,7 +34,9 @@
 // fields (RS_FIELDED) while the setup allows them (game.improvements_allowed): what the player's button offers (its
 // test, EEUIBUpgrade vf38: the table's step above 0, not maxed) - a unit's two of each, a tower's one range
 // (dbupgrade.dat's "Tower" row: range alone, max_level 1; the player 2026-11-16: "towers only allow a single range
-// upgrade (important)"), a building's none (max_level 0) - but never a citizen's (the player 2026-11-16: "as player i
+// upgrade (important)"; AoC's Space Turret and space Guard Tower the same row), the AA guns' two (the 88mm and the
+// Missile Towers: the row "AA Gun WW2", range among 4 attributes, max_level 2 - the player: "2x range also most
+// important there"), a building's none (max_level 0) - but never a citizen's (the player 2026-11-16: "as player i
 // cant upgrade them": the game sells them, its panel shows no buttons for them). The range ones in rank 2
 // (the most units first; before the epoch as the lines), the others in rank 4 in an order of its own (a hash of the
 // player, the type and the attribute: the same on every PC, unlike rand) and only with the points the range ones
