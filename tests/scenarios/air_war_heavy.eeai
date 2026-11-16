@@ -1,7 +1,7 @@
 // air_war_heavy.eeai: air_war.eeai with bombers - the player, 2026-11-11: "the game has nuclear bombers, and even normal
 // ones can ruin an economy" (air_war.eeai's World War I fighter-bombers, 18 a hit, killed ~8 citizens in 47 minutes: no
 // test of AA). Small Islands seed 101, 2 AIs, start epoch 10 (World War II; base ini random_map=Small Islands,seed=101,
-// start_epoch=10, and landing=0,navy=0,surrender=0): P2 home ~77,28, P3 home ~12,52. P2 gets two airports at 12 min;
+// start_epoch=10, and landing=0,navy_budget=0,surrender=0): P2 home ~77,28, P3 home ~12,52. P2 gets two airports at 12 min;
 // from 13 min to 43 min every 3 minutes a wave more - 2 bombers (79 B-17: 135 a hit, area 1.5) and a fighter-bomber (86
 // ME262, 26) - and every third wave an atomic bomber (70 B-29: 2200), the survivors stay (11 waves: 22 + 11 + 4); every
 // 20 s all of them attack whatever of P3's is nearest within 15 tiles of its home. Measure as air_war.eeai.

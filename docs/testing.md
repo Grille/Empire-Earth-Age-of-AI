@@ -231,7 +231,7 @@ player's save (citizens killed, units lost to his army), which these games don't
   of enemies across the water), the map's water share, the game's own water flag and +0xEFA. `# navy: P<n> budget`
   (every 5 minutes, water maps): the navy account, what it paid, the ship orders paid/refused by type, warships,
   docks (built, asked), fishing boats, the room held; `# navy: ... docks N of M - one more requested`.
-- Head-to-head on the navy: `[autotest] v_navy=1` with `variant_players=<p>` and `navy=0`: only those players have
+- Head-to-head on the navy: `[autotest] v_navy=1` with `variant_players=<p>` and `navy_budget=0`: only those players have
   the navy account (econ.c PV). The fleet mix comes with the fleet (`v_navy_fleet`; its own `navy_mix` / `v_navy_mix` removed).
 - `# navy: P<n> mix at N min:` (every 5 minutes while the fleet builds, `navy_fleet=big`, water maps): the wanted shares by role (F frigates,
   L battleships, A galleys/catapult ships, S attack subs, AA cruisers), own fleet by role, the type per role, the
@@ -598,8 +598,8 @@ stage 0.
 ### Navy account (navy stage 1)
 
 2026-10-19, `navy` 0 vs 1 (same DLL), shipped config, 2 AIs, seed 101 map, 60 min, 20 seeds
-(`REPEAT=20 sh scripts/test/scen.sh 60 islands "random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>" "b:navy=0" "a:navy=1"`),
-plus head-to-head (`"h3:navy=0,variant_players=3,v_navy=1" "h2:navy=0,variant_players=2,v_navy=1"`, 10 seeds) and
+(`REPEAT=20 sh scripts/test/scen.sh 60 islands "random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>" "b:navy_budget=0" "a:navy_budget=1"`),
+plus head-to-head (`"h3:navy_budget=0,variant_players=3,v_navy=1" "h2:navy_budget=0,variant_players=2,v_navy=1"`, 10 seeds) and
 Continental e5 (6 seeds); scored with `python scripts/results/navy_ab.py [-split] <logs>`. Both AIs on: warships at once 2.6-3.8 -> 3.6-4.6, docks 1.4-2.1 -> 2.9-3.2, navy lost
 7-11 -> 9-15 (std. error ~0.7), landings sailed 1.8-3.5 -> 1.3-1.9 (0.2-0.3), kills Small e5 76 -> 67 (4), Small
 e9 55 -> 43 (3), Large within noise; soldiers Large e5 28.2 -> 23.9 (1.0), Small e5/e9 -1.9/-2.6 (1.3). Head-to-head
@@ -1034,7 +1034,7 @@ each ship lost with what was near):
 **Run:**
 ```sh
 JOBS=6 REPEAT=10 sh scripts/test/scen.sh 60 seaop "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" \
-    "n0:navy=0" "f0:" "f1:navy_fleet=own"
+    "n0:navy_budget=0" "f0:" "f1:navy_fleet=own"
 python scripts/results/seacontrol.py [-v] [-ctl f0] "local/work/autotest_*_suite<stamp>_*_seaop-r*.csv"
 ```
 Name the variants `<variant><map>` (e.g. `f0Se5`) to pool maps per variant as fleet_ab.py does; `-ctl` pairs each run

@@ -103,7 +103,7 @@ class display
             /// the game draws through the ddraw.dll in its folder (DDrawCompat, dgVoodoo ...)
             wrapper,
             /// the mod's own renderer on Direct3D 11 (screenshots, recording and the game's warning dialogs work;
-            /// its picture matches DDrawCompat's - docs/renderer.md)
+            /// its picture matches DDrawCompat's)
             own,
         }
         ///
@@ -111,7 +111,7 @@ class display
         /// Windowed/borderless only: what draws the picture (with own, keep wrapper DLLs out of the game folder):
         renderer_choice renderer = renderer_choice.auto;
         /// [display] overlay - the debug overlay's layers by the names their producers give them
-        /// (base/overlay.c; attack.c: routes, danger)
+        ///
         struct overlay_fields
         {
             /// each attack group's route (its player's colour; red rings: waypoints in reach of known defences, a
@@ -124,15 +124,15 @@ class display
             /// front, the bigger the more of its army that front should get
             bool fronts;
             /// each AI's tactical map, read at any zoom: its base, towns and armies as marks, where they go as
-            /// arrows, its numbers as text (ai/ai_overlay.c)
+            /// arrows, its numbers as text
             bool ai;
-            /// the map's territories (game/territory.c): each border as a dashed line inside each side in the colour of
+            /// the map's territories: each border as a dashed line inside each side in the colour of
             /// the side's holder, one on the border where both sides are alike
             bool territory_borders;
             /// the held territories faintly in their holder's colour (contested: every other row)
             bool territory_fill;
             /// each territory's number, size, borders and resources at its middle, and what each AI makes of it
-            /// (ai/territories.c: front, backland, lost)
+            ///
             bool territory_labels;
         }
         /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - or all; empty = none. The control
@@ -143,11 +143,11 @@ class display
             /// the game's own: a soft patch under each object
             game,
             /// cast by the sun from the units', buildings', trees' and hills' shapes onto the ground and everything
-            /// standing on it (docs/renderer.md "Shadows")
+            /// standing on it
             dynamic,
         }
         /// The own renderer only: the shadows on the ground (the control pipe: shadows game / dynamic):
-        shadows_choice shadows = shadows_choice.game;
+        shadows_choice shadows = shadows_choice.dynamic;
         /// The own renderer only: the 3D scene's edges smoothed (FXAA - before the interface is drawn: its text stays
         /// sharp; the control pipe: picture aa on / off):
         bool antialias = true;
@@ -155,19 +155,19 @@ class display
         /// stand out while the textures stay sharp, and each edge is followed to its ends (the control pipe: picture
         /// aadepth on / off):
         [advanced]
-        bool antialias_depth = false;
+        bool antialias_depth = true;
         /// The own renderer only: the picture darkened where things stand close to each other - at the foot of a unit or a
         /// building, in a building's corners -, worked out from the scene's depth (the control pipe: picture ao on / off /
         /// view, view shows it alone):
-        bool ambient_occlusion = false;
+        bool ambient_occlusion = true;
         /// With ambient_occlusion: how far from a surface what stands near it still darkens it, in tiles (the control
         /// pipe: picture aoradius <n>):
         [advanced, range(0.1, 4)]
-        share ambient_occlusion_radius = 0.6;
+        share ambient_occlusion_radius = 0.5;
         /// With ambient_occlusion: how dark it gets (100% as the method works it out; the control pipe: picture aostrength
         /// <n>, 1 is 100%):
         [advanced, range(0, 4)]
-        share ambient_occlusion_strength = 1.0;
+        share ambient_occlusion_strength = 0.75;
         enum anisotropy_choice
         {
             /// as the game had it
@@ -196,21 +196,21 @@ class display
         /// in a 450-unit game; the control pipe: picture handoff <ms>):
         [advanced, range(0, 1000)]
         int step_handoff_ms = 50;
-        /// Experimental: units moved smoothly between the simulation's steps - drawn from the mod's own copy of the
+        /// The own renderer only: units moved smoothly between the simulation's steps - drawn from the mod's own copy of the
         /// world, a step behind the simulation, between where they were and where they are, instead of standing till
         /// the next step and jumping there (the mod's own collection of the units takes over from the game's; the
         /// control pipe: picture collect smooth on / off):
-        bool units_smooth = false;
+        bool units_smooth = true;
         /// The own renderer with dynamic shadows only: the water by its depth - the seabed loses its detail the deeper
         /// it lies, the shallows clearer, the shore without a hard line, the distance's fog on the sea as a whole instead
         /// of on the seabed under it (the control pipe: water on / off):
-        bool water_look = false;
+        bool water_look = true;
         /// With water_look: what is seen through the water fades into one colour, the deepest of the map's underwater
         /// colours, by how far the line of sight runs in the water to it, wholly after this way, in the scenario editor's
         /// height numbers (a depth of -20 there, about 4 tiles); with nothing behind the water, wholly. 0 = no fading (the
         /// control pipe: water opaque <n>):
         [advanced, range(0, 200)]
-        int water_opaque_depth = 20;
+        int water_opaque_depth = 80;
         /// With water_look: the colour of that fading, as #RRGGBB (#3265BB is a blue like the game's deep water). It is
         /// lit as the water is. none = the deepest of the map's own underwater colours times 0.75 (the game multiplies it with
         /// the ground's texture, raw it is too bright; the control pipe: water color
@@ -221,13 +221,13 @@ class display
         /// the waterline and fading with the depth; how bright, of the light on the ground (0% = none; the control
         /// pipe: water caustics <0..2>):
         [range(0, 2)]
-        share water_caustics = 0.6;
+        share water_caustics = 0.25;
         /// With water_caustics: how large their pattern is (100%: its cells about a tile across):
         [advanced, range(0.25, 4)]
-        factor water_caustics_size = 1;
+        factor water_caustics_size = 0.5;
         /// With water_caustics: how fast they move at the game's normal speed (0% = they stand):
         [advanced, range(0, 4)]
-        factor water_caustics_speed = 1;
+        factor water_caustics_speed = 0.25;
         /// With water_caustics: their light on what stands in the water - a ship's hull, a wading unit - times this, over
         /// the seabed's (0% = none on them; the control pipe: water objects <0..8>):
         [advanced, range(0, 8)]
@@ -244,18 +244,18 @@ class display
         /// The own renderer: the water moves by the game time - its waves, its caustics and its animation stand while the
         /// game is paused and go slower at a slower speed. The game's own water moves by the real time, paused or not:
         [advanced]
-        bool water_game_time = false;
+        bool water_game_time = true;
         /// The own renderer: the deeper ground under the water sways up and down, as the game
         /// draws it (its stand-in for the water bending the light); off, the seabed lies still:
         [advanced]
-        bool seabed_wobble = true;
+        bool seabed_wobble = false;
         /// The own renderer: the half see-through edges of units' and buildings' textures (a ladder's rails) drawn after
         /// everything solid and without writing the depth, so that what lies behind them shows through them (the control
         /// pipe: water edges on / off):
-        bool unit_soft_edges = false;
+        bool unit_soft_edges = true;
         /// The own renderer, with units_smooth: buildings stay whole, and units behind one are seen through it as a shape
         /// in their player's colour, lit as they are (the control pipe: picture sil on / off):
-        bool unit_silhouettes = false;
+        bool unit_silhouettes = true;
         /// With units_smooth: the dead sink slowly into the ground instead of fading out, every kind the same time - the
         /// game's own fade takes from a few seconds to minutes by the unit's kind:
         bool remains_sink = true;
@@ -282,14 +282,14 @@ class display
         int silhouette_fade_start = 3;
         /// With unit_silhouettes: and gone at this many tiles behind it (not more than silhouette_fade_start: no fading):
         [advanced, range(0, 1000)]
-        int silhouette_fade_end = 12;
+        int silhouette_fade_end = 6;
         /// The own renderer: units and buildings drawn by GPU instancing, past the display DLL's part by part work
         /// (the control pipe: picture inst on / off). The same picture for less of the CPU's time in big armies:
         [advanced]
-        bool unit_instancing = false;
+        bool unit_instancing = true;
         /// The own renderer with dynamic shadows only: units, buildings and trees mirrored in the water, drawn a second
         /// time at half the picture's size (the control pipe: water mirror on / off):
-        bool water_reflections = false;
+        bool water_reflections = true;
         /// The own renderer only: the units' animation blended by the graphics card - each frame of a model kept there
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):
@@ -298,7 +298,7 @@ class display
         /// The own renderer only: the borders between the ground's textures ragged instead of a soft fade along the tile
         /// grid: a texture's lighter clumps come first, its darker cracks last, and noise bends the border (the control
         /// pipe: picture gb on / off):
-        bool ground_blend = false;
+        bool ground_blend = true;
         /// With ground_blend: how much of the border goes by the noise and not by the texture's own heights (the control
         /// pipe: picture gbnoise <n>, 1 is 100%):
         [advanced, range(0, 1)]
@@ -306,7 +306,7 @@ class display
         /// With ground_blend: how soft the border is itself, from 2% (a hard line) (the control pipe: picture gbsoft <n>,
         /// 1 is 100%):
         [advanced, range(0.02, 1)]
-        share ground_blend_soft = 0.25;
+        share ground_blend_soft = 0.5;
         /// The own renderer only: the ground is made this much wider and taller than the screen (100% = twice its
         /// size), so that a frame drawn during a step after a scroll or a zoom out still has ground at the edges
         /// (0% = the screen's, as the game had it; limited by the game's 101-tile region; the control pipe: picture

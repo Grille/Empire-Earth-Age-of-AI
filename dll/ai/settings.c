@@ -119,7 +119,7 @@ internal void settings_load(void) {
         struct ai_cfg *c = &g_cfg[d];
         const struct settings_ai *v = &g_set_ai[d];
         c->copper_plan = v->copper_plan;
-        c->budget = v->budget || c->copper_plan;   // the plan works through the budget
+        c->budget = v->military_budget || c->copper_plan;   // the plan works through the budget
         c->mil_start_share = v->military_start_share;
         c->mil_income_share = v->military_income_share;
         c->mil_income_share_farms = v->military_income_share_farms;

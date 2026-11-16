@@ -865,7 +865,7 @@ internal void navy_install(const char *autotest_ini) {
     g_fish_boat = g_set_ai[1].fishing_boat;
     int ok = g_fish_boat ? patch_fish_type(hook_fish_type, NULL) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
-    g_navy = g_set_ai[1].navy;
+    g_navy = g_set_ai[1].navy_budget;
     g_tr_econ = g_set_ai[1].transports_economy;
     g_navy_share = setting_pct(g_set_ai[1].navy_share);
     if (g_navy_share < 0) g_navy_share = 0;

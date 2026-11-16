@@ -1,6 +1,6 @@
 // air_war.eeai: an air force that keeps growing, sent at P3's town (the player, 2026-11-11: "building up air forces is an
 // easy way to outplay the ai, it needs aa units and more static aa"). Small Islands seed 101, 2 AIs, start epoch 9 (World
-// War I; base ini random_map=Small Islands,seed=101,start_epoch=9, and landing=0,navy=0,surrender=0): P2 home ~77,28, P3
+// War I; base ini random_map=Small Islands,seed=101,start_epoch=9, and landing=0,navy_budget=0,surrender=0): P2 home ~77,28, P3
 // home ~12,52, each on its island - no land army reaches the other (on Continental P2's army razed P3's town beside the
 // aircraft and P3 resigned at 17-40 min: what killed it was not the air war). P2 gets two airports at 12 min; from 13 min
 // to 43 min every 3 minutes a wave more - 4 fighter-bombers (71) and a bomber (79: 135 a hit, area 1.5), the survivors

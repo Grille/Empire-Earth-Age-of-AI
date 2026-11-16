@@ -12,7 +12,7 @@
 // UWideString (Low-Level Engine.dll, used through EE.exe's import table): ctor [0x8231A4], operator=(const char *)
 //   [0x823224], dtor [0x823AEC]; the message keeps 0x14 bytes per string.
 //
-// ageofai.ini [general] chat = 0 off (default), 1 debug lines, 2 also the 5-minute status line; console: chat [level],
+// ageofai.ini [general] ai_debug_chat = 0 off (default), 1 debug lines, 2 also the 5-minute status line; console: chat [level],
 // say P text. Every line also goes to the log (# chat:). Per player at most one line per 4 s and per kind one per
 // kind's cooldown, the rest is dropped (not queued: a late line would be wrong).
 
@@ -118,7 +118,7 @@ internal int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
     return 1;
 }
 
-// every AI update (econ_tick): epoch changes, the 5-minute status line (chat=status)
+// every AI update (econ_tick): epoch changes, the 5-minute status line (ai_debug_chat=status)
 internal int home_soldiers_now(ee_player *pl);
 internal int current_epoch(ee_player *pl);
 internal int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
@@ -274,8 +274,8 @@ internal DWORD WINAPI hook_speed_send(DWORD n, const HANDLE *h, BOOL all, DWORD 
 }
 
 internal void chat_install(void) {
-    g_chat = g_set.chat;
-    g_chat_ms = g_set.chat_seconds * 1000;
+    g_chat = g_set.ai_debug_chat;
+    g_chat_ms = g_set.ai_debug_chat_seconds * 1000;
     if (g_log) fprintf(g_log, "# chat: level %d, %d s per line\n", g_chat, g_chat_ms / 1000);
     if ((!patch_msg_game_speed(hook_speed_msg) || !patch_speed_key(hook_speed_key)) && g_log) fprintf(g_log, "# chat: the game speed keys' hooks FAILED\n");
     if (!g_autotest && (!patch_sim_wait(hook_speed_wait) || !patch_send_wait(hook_speed_send)) && g_log) fprintf(g_log, "# chat: the fast speeds' hooks FAILED\n");   // a test has its own at both places (turbo)

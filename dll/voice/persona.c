@@ -33,7 +33,7 @@
 //
 // Assignment at the AI's first update: ageofai.ini [general] personality_P<n>=<file name without .ini>, otherwise
 // random, every personality once before any repeats (autotest: from the map seed, so runs repeat).
-// ageofai.ini [general] ai_talk = 1 (default) lines on, 0 off; ai_names = 1 (default) the personalities' names.
+// ageofai.ini [general] ai_lines = 1 (default) lines on, 0 off; ai_names = 1 (default) the personalities' names.
 //
 // Strings: UWideString takes only char * (the game's ANSI code page), so UTF-8 files are converted on load.
 // Randomness: an own generator - the game's rand() is part of the simulation and must not be touched.
@@ -43,7 +43,7 @@ internal const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride
 // situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI, audience:
 // who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {them}, the player
 // it is said to (taunts, diplomacy). The local player sees a line only when they are in its audience - an enemy AI
-// doesn't tell them that it attacks someone else. With [general] chat=debug or status (debug) every line shows, marked.
+// doesn't tell them that it attacks someone else. With [general] ai_debug_chat=debug or status (debug) every line shows, marked.
 enum audience { A_ALL, A_ALLIES, A_NAME };
 internal const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
     { "greeting", 60, 0, A_ALL },             { "war_declared", 100, 20, A_NAME },     { "betrayed", 100, 20, A_NAME },
@@ -1505,7 +1505,7 @@ internal void x_errors_show(void) {
     LeaveCriticalSection(&g_x_lock);
 }
 internal void persona_install(const char *test_ini) {
-    g_ai_talk = g_set.ai_talk;
+    g_ai_talk = g_set.ai_lines;
     g_ai_names = g_set.ai_names;
     g_ai_style = g_set.ai_style;
     g_prio_refresh = persona_priorities;

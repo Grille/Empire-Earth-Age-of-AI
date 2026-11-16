@@ -2,7 +2,7 @@
 // with 15 bombers each ... single airplanes are useless, players mass them and do multiple runs, i usually keep the
 // airport targets until i lost half the planes and are meeting resistance, enemy anti air and airfields are the first
 // target, than economy"; the scripted single waves of air_war.eeai killed ~8 citizens a game). Small Islands seed 101,
-// 2 AIs, start epoch 10 (base ini random_map=Small Islands,seed=101,start_epoch=10, landing=0,navy=0,surrender=0, and
+// 2 AIs, start epoch 10 (base ini random_map=Small Islands,seed=101,start_epoch=10, landing=0,navy_budget=0,surrender=0, and
 // variant_players=2,v_air_strike=0: P2's own air force would hold the bombers): P2 home ~77,28, P3 home ~12,52. P2 gets
 // two airports at 12 min and 30 B-17s (79) at 14; from then on the pipe's airraid flies them - a run once two thirds are
 // ready, the anti-air first, then airports, citizens, buildings, massed by each target's hit points; half lost: home 4

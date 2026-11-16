@@ -38,6 +38,7 @@ class general
         /// Homing missiles fly towards where the target will be (intercept) instead of where it is (pursuit). Tested
         /// against helicopters: about the same hits and flight times - missiles are 2.5x faster than aircraft and hit
         /// within 1.5 tiles, so plain pursuit rarely misses. 1 = on, 0 = off (original)
+        [advanced]
         bool lead_missiles = false;
         /// Missile launchers (AA towers, missile troopers, ...) don't all fire at the same target: when the missiles already
         /// on their way will destroy it, a launcher takes another enemy of the same kind in range, or holds its shot.
@@ -75,6 +76,7 @@ class general
         /// A unit that picked a building to attack by itself turns on the nearest enemy unit within its range + 4 tiles between
         /// its shots (the original keeps shooting the building while the enemy's soldiers shoot it). Every player's units; an
         /// ordered attack is never changed. 0 = the original
+        [advanced]
         bool units_first = false;
         enum answer_fire_choice
         {
@@ -235,16 +237,16 @@ class general
             /// also a status line every 5 minutes
             status,
         }
-        /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player; chat_seconds = how long a line
+        /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player; ai_debug_chat_seconds = how long a line
         /// stays on screen:
-        chat_choice chat = chat_choice.off;
+        chat_choice ai_debug_chat = chat_choice.off;
         [advanced, range(0, 3600)]
-        int chat_seconds = 15;
+        int ai_debug_chat_seconds = 15;
         /// AI personalities: copy the mod's folder personalities into this folder (ageofai). Every AI gets one of the personalities in
         /// it (name, favoured colour on random maps, traits for diplomacy, lines for situations of the game - see
         /// personalities\README.md for the format). A saved game finds its personalities again by their names.
-        /// ai_talk = 1 the AIs speak their lines, 0 silent; ai_names = 1 they take the personality's name
-        bool ai_talk = true;
+        /// ai_lines = 1 the AIs speak their lines, 0 silent; ai_names = 1 they take the personality's name
+        bool ai_lines = true;
         bool ai_names = true;
         /// the personality folder somewhere else (absolute, or relative to the game folder) - for whoever works on the texts:
         /// the game reads them where they are edited, e.g. the mod's repository; empty = personalities in this folder

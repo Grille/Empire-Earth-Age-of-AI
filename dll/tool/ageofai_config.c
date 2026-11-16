@@ -331,7 +331,7 @@ internal int key_line(const char *l) {
 }
 
 // THE HELP: the comment lines above key in section sec of the shipped file - above the key's line (key= or the example
-// ;key=; slots: key0 .. key15), past the keys right above it that share the comment (chat=, chat_seconds=)
+// ;key=; slots: key0 .. key15), past the keys right above it that share the comment (ai_debug_chat=, ai_debug_chat_seconds=)
 internal void help_of(const char *sec, const char *key, int slots, char *out, int cap) {
     out[0] = 0;
     if (!g_shipped) return;

@@ -29,9 +29,9 @@ class llm
     /// rules go ahead
     bool llm_decide = false;
     /// The AIs talk to each other (1; single player): a line one AI says to another (war, betrayal, an alliance offer, a
-    /// capitulation) opens an exchange of up to ai_talk_turns messages (4; any number - an AI may end it sooner with [end]),
+    /// capitulation) opens an exchange of up to llm_ai_talk_turns messages (4; any number - an AI may end it sooner with [end]),
     /// each pair with its own memory. Words only. At most
-    /// one exchange every ai_talk_gap seconds (10+); yours go first. ai_talk_show=1: you read along ("to <name>: ..."),
+    /// one exchange every llm_ai_talk_gap seconds (10+); yours go first. llm_ai_talk_show=1: you read along ("to <name>: ..."),
     /// 0: only in the log
     bool llm_ai_talk = false;
     bool llm_ai_talk_show = true;

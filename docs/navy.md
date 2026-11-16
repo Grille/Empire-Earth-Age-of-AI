@@ -275,7 +275,7 @@ unprotected in e9 too (9-10 per AI) - the playtester's point: farms first, the b
 
 ### Stage 1 - water-map detection and the navy account - DONE
 
-Built (dll/ai/navy.c, econ.c; `[ai_base] navy=1`, `navy_share=25%`):
+Built (dll/ai/navy.c, econ.c; `[ai_base] navy_budget=1`, `navy_share=25%`):
 
 - **Water map** (`navy_detect`, once per AI 10 s in): the home continent (area_id kind 2 at the build manager's
   base point) and every enemy's buildings - across the water when none stands on that continent. Strength = the

@@ -37,7 +37,7 @@ Copy `_template.eeai` to a new name in this folder, for example `seefahrer.eeai`
 `#register_personality()` and fill it in. Every AI of a game
 gets a personality at random, each one once before any repeats; on random maps its favoured colour comes first. To
 give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in ageofai.ini.
-`ai_talk=0` in ageofai.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
+`ai_lines=0` in ageofai.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
 
 ```
 register_personality()
