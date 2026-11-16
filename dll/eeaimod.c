@@ -124,6 +124,9 @@ internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-
 internal void airguard_new_game(void);
 internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and prophets
 internal void holy_new_game(void);
+internal void creep_tick(ee_player *pl, uint32_t now);   // creep.c: towers laid at an enemy's buildings
+internal void creep_new_game(void);
+internal void creep_install(const char *autotest_ini);
 internal void shelf_off_tick(ee_player *pl, uint32_t now);   // bunker.c
 internal void territories_new_game(void);
 internal void watch_new_game(void);   // watch.c
@@ -278,6 +281,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     int gather = pl && player_ai_toggle(pl, SM_AIT_GATHER), builds = pl && player_ai_toggle(pl, SM_AIT_BUILD_REPAIR);
     if (pl && !is_vanilla(pl) && !game && gather) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
     if (pl && !is_vanilla(pl) && !game && builds) build_tick(pl, rm, now);   // build.c: nor builds anything
+    if (pl && !is_vanilla(pl) && !game && builds) creep_tick(pl, now);   // creep.c: towers laid at an enemy's buildings
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch
     if (pl && !is_vanilla(pl) && !game) stations_tick(pl, now);   // stations.c: the soldiers by territory, in place of the one force
     if (pl && (game || is_vanilla(pl) || builds)) expand_tick(pl, now);
@@ -429,6 +433,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     takeover_new_game();
     airguard_new_game();
     holy_new_game();
+    creep_new_game();
     airstrike_new_game();
     skirmish_new_game();
     spoils_new_game();
@@ -512,6 +517,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
 #include "ai/holy.c"          // priests and prophets while the game's computer player is off
+#include "ai/creep.c"         // tower creep: towers laid at an enemy's buildings, the same
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
 #include "test/takeover.c"   // `handover`: the human player's empire to a new computer player
@@ -791,6 +797,7 @@ internal void install(HMODULE self) {
     takeover_install();
     territories_install(g_autotest ? g_ini : NULL);
     watch_install(g_autotest ? g_ini : NULL);
+    creep_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);
     spoils_install();
