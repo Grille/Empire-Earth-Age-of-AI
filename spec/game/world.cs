@@ -147,6 +147,13 @@ unsafe struct EEPhysics
     [offset(0x18), found(c)]
     uint32 seed;
 
+    /// the simulation runs: its thread's loop (0x5532FB) steps only while it is set, else idles (Sleep(1)); its
+    /// messages (RTSPhysics vf6 0x5534F8, AoC 0x561609) - 0x404 sets it, 0x402 and 0x403 clear it. A game starts it at
+    /// the server's go-ahead (engine message 0x2D: 0x4C3F1A posts 0x404 at 0x4C42AF and waits for it); a loaded game
+    /// too, its clock already at the save's time
+    [offset(0x2C), found(c)]
+    uint8 running;
+
     /// 0x553663 sets it with +0x54 (it in ms) and +0x58 (1 / it) and sets the timer; the step 0x546C63 passes it to
     /// 0x51EE75 every step; the game speed message 0x4B9378 resets it (the AoC decompilation: RTSPhysics::SetSpeed
     /// "sets the seconds per tick")

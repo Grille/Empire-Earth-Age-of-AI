@@ -3730,6 +3730,7 @@ internal uint32_t of_game_data_speed_max;
 internal uint32_t of_game_data_speed_step;
 internal uint32_t of_game_data_improvement_points;
 internal uint32_t of_physics_seed;
+internal uint32_t of_physics_running;
 internal uint32_t of_physics_tick_s;
 internal uint32_t of_physics_tick_ms;
 internal uint32_t of_physics_steps;

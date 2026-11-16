@@ -127,6 +127,13 @@ internal inline int *game_data_improvement_points_at(const ee_game_data *o) { re
 internal inline uint32_t physics_get_seed(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_seed); }
 internal inline void physics_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_seed) = v; }
 internal inline uint32_t *physics_seed_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_seed); }
+// the simulation runs: its thread's loop (0x5532FB) steps only while it is set, else idles (Sleep(1)); its
+// messages (RTSPhysics vf6 0x5534F8, AoC 0x561609) - 0x404 sets it, 0x402 and 0x403 clear it. A game starts it at
+// the server's go-ahead (engine message 0x2D: 0x4C3F1A posts 0x404 at 0x4C42AF and waits for it); a loaded game
+// too, its clock already at the save's time
+internal inline uint8_t physics_get_running(const ee_physics *o) { return *(uint8_t *)((uint8_t *)o + of_physics_running); }
+internal inline void physics_set_running(ee_physics *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_physics_running) = v; }
+internal inline uint8_t *physics_running_at(const ee_physics *o) { return (uint8_t *)((uint8_t *)o + of_physics_running); }
 // 0x553663 sets it with +0x54 (it in ms) and +0x58 (1 / it) and sets the timer; the step 0x546C63 passes it to
 // 0x51EE75 every step; the game speed message 0x4B9378 resets it (the AoC decompilation: RTSPhysics::SetSpeed
 // "sets the seconds per tick")
@@ -408,6 +415,7 @@ internal int spec_world_select(int build) {
         of_game_data_speed_step = 0x4D0;
         of_game_data_improvement_points = 0x534;
         of_physics_seed = 0x18;
+        of_physics_running = 0x2C;
         of_physics_tick_s = 0x50;
         of_physics_tick_ms = 0x54;
         of_physics_steps = 0x80;
@@ -497,6 +505,7 @@ internal int spec_world_select(int build) {
         of_game_data_speed_step = 0x4D0;
         of_game_data_improvement_points = 0x534;
         of_physics_seed = 0x18;
+        of_physics_running = 0x2C;
         of_physics_tick_s = 0x50;
         of_physics_tick_ms = 0x54;
         of_physics_steps = 0x80;

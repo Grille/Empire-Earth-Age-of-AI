@@ -816,6 +816,11 @@ internal int sim_drained(void) {
     return srv && phys && server_get_sent(srv) == server_get_done(srv) && physics_get_steps_granted(phys) == 0 &&
            !g_in_step;
 }
+// The simulation has been started (physics.running): until then nothing is held - a loaded game's clock is at the save's
+// time from the first moment and its physics comes back with steps granted, which only the started simulation uses up;
+// the server's go-ahead that starts it (engine message 0x2D) waited behind them here: every loaded save in a test stood
+// at its first moment, "Loading complete" on the screen (2026-11-02 .. 11-16, turbo or not).
+internal int sim_started(void) { ee_physics *phys = game_physics(); return phys && physics_get_running(phys); }
 
 // At normal pace (turbo 0) the tick is due by the clock - and under load (8 large games at a time) the simulation falls
 // behind it now and then: the tick went out while the simulation was still in the last one's steps, and a message
@@ -823,6 +828,7 @@ internal int sim_drained(void) {
 // way: for the simulation to have used up every tick sent and for the messages handed since the last one. A test game
 // slower than real time then runs slower instead of moving its inputs.
 internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
+    if (!sim_started()) return WaitForMultipleObjects(n, h, all, ms);   // the game's own wait till the simulation runs
     if (!g_turbo || !game_time()) {
         // turbo off (or switched off over the pipe): the real wait, in slices so "turbo 1" takes effect at once
         DWORD t0 = GetTickCount();
