@@ -60,6 +60,7 @@
 #define BD_UNI_PEND 180000      // ... and the last one laid counts this long (its builder walks there)
 #define BD_HOUSE_EVERY 60000
 #define BD_HOUSE_PEND 180000
+#define BD_PAIR_R 5             // THE PAIR: its first Hospital and Temple this far apart at most (each way, corner to corner)
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
 #define BD_SINK_EVERY 20000
 #define BD_SINK_MAX 3           // of a kind in one territory
@@ -187,6 +188,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static struct { ivec2 p; int max; } town[128];
     int nhouse = 0, ntown = 0, open_house = 0;
     int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 };
+    ivec2 rb_at[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };   // where one of each research building is (THE PAIR)
     const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // what it has: citizens, foundations, granaries, fields, defences, centres
         ee_unit_type *td = unit_get_type_data(u);
@@ -213,7 +215,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (t == UT(B_SETTLEMENT)) open_settle += !done;
         else if (pr_kind(t) >= 0) open_prod += !done;
         open_sink += !done && (pr_kind(t) >= 0 || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
-        for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
+        for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
         if (t == rb[0] && nuni < 256) { int sz = unit_type_get_size(td); uni[nuni++] = iv2(p.x + sz / 2, p.y + sz / 2); }
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += !done; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
@@ -360,6 +362,14 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int j = k ? k - 1 : 0;
         if (wait[3] || have_rb[j] || !ut_has(rb[j]) || !prio_buildable(pl, rb[j])) continue;
         if (!bd_pays(pl, rb[j], com)) { g_rs_want[idx] = rb[j] + 1; saving = 1; continue; }
+        // THE PAIR (the player 2026-11-16: "some asurance that atleast one hospital overlaps with a temple would be
+        // good"): a Hospital keeps the plague's sick alive, a Temple keeps them from infecting others - stations.c's
+        // QUARANTINE stands them beside a Hospital on the side of a Temple that reaches there. Its first Hospital goes
+        // beside a Temple of its, its first Temple beside a Hospital (whichever comes second), BD_PAIR_R tiles at most:
+        // the Temple's reach (8 from its edge) then covers the Hospital's side toward it. The wood sink's others keep
+        // their reach apart (AREA OF EFFECT); no spot there: by a town as before.
+        int other = j == 1 ? 2 : j == 2 ? 1 : -1;
+        if (other > 0 && have_rb[other] && bd_spot(pl, idx, rb[j], rb_at[other], 3, BD_PAIR_R, &at)) { type = rb[j]; what = j == 2 ? "a Temple beside its Hospital" : "a Hospital beside its Temple"; }
         for (int pass = 1; pass <= 3 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++)
                 if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, rb[j], centre[c].p, 4, 10, &at)) { type = rb[j]; what = j == 2 ? "a Temple" : j ? "a Hospital" : "a University"; }
