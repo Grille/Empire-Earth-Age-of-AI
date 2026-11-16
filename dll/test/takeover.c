@@ -46,15 +46,17 @@ internal void takeover_tick(ee_player *pl) {
     }
     player_set_pop_b10(h, player_population(pl, 1, 1));
     // the stand-in itself paces as the human it plays for: following the humans it would follow itself (follow: held
-    // at its own epoch for good, and every AI that follows with it) - independent pacing then, and the game limit
+    // at its own epoch for good, and every AI that follows with it) - its epochs as soon as it can then (rush: as
+    // follow with a human ahead; the player 2026-11-16, after independent pacing's epoch timer had put its next epoch
+    // at minute 63: "the handed over player itself still follows tme and will never age up"), and the game limit
     const struct ai_cfg *c = cfg_of(pl);
     if (c->pacing == PACE_FOLLOW || c->pop_follow) {
         unsigned i = (unsigned)g_ho_ai & 15;
         struct ai_cfg k = *c;
-        if (k.pacing == PACE_FOLLOW) k.pacing = PACE_INDEPENDENT;
+        if (k.pacing == PACE_FOLLOW) k.pacing = PACE_RUSH;
         k.pop_follow = 0;
         g_cfg_pl[i] = k; g_cfg_pl_on[i] = 1;
-        if (g_log) log_locked("# takeover: P%d paces as the human it plays for - %s pacing, the game's population limit\n", g_ho_ai, k.pacing == PACE_INDEPENDENT ? "independent" : "its own");
+        if (g_log) log_locked("# takeover: P%d paces as the human it plays for - %s, the game's population limit\n", g_ho_ai, k.pacing == PACE_RUSH ? "its epochs as soon as it can" : "its own pacing");
     }
 }
 
@@ -175,6 +177,7 @@ internal void cmd_handover(char *out, const char *args) {
     player_set_explore_all(h, 1);
     player_set_civ_chosen(h, 1);   // the skirmish's civ dialog no more: the observer has no civ to choose (the player 2026-11-16: "mark it checked with the handover")
     if (pick >= 0) { persona_assign(p); persona_apply(p, n, pick); }   // assigned first (marked), then the one asked for
+    takeover_tick(p);   // its pacing before its first turn (that turn's epoch plan had it held by follow)
     char gm[REPLY_CAP];
     gm[0] = 0;
     cmd_godmode(gm, "on");

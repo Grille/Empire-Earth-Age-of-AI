@@ -2052,8 +2052,10 @@ internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *
     // game's last 15 minutes with 34000 food and 71000 wood, its gold and iron spent on soldiers as they came in, the
     // next epoch's 1175 of each never saved. His autosave of 152 minutes played on 20 minutes (2 games each): P3's iron
     // 40 / 95 before, 796 / 390 with it (P4's 46 / 175 and 1216 / 57); no AI advanced in either - its iron comes in at
-    // 80 a minute (one mine it can work, 200 citizens on wood)
-    if (cfg_of(pl)->pacing == PACE_FOLLOW && human_count()) remaining = 0;
+    // 80 a minute (one mine it can work, 200 citizens on wood). rush the same (research.c buys it the moment it is in):
+    // with the game's attempt 30 minutes off nothing was held, a handover's stand-in (rush) due at minute 20 still at
+    // its epoch at 35, the food out on citizens as it came in (3790 in 10 minutes, 3746 in)
+    if ((cfg_of(pl)->pacing == PACE_FOLLOW && human_count()) || cfg_of(pl)->pacing == PACE_RUSH) remaining = 0;
     if (remaining > 10 * 60000) return;
     float until = remaining > 0 ? (float)remaining / 60000.0f : 0;   // minutes until the attempt
     for (int r = 2; r < 7; r++) reserve[r] = epoch_cost(pl, next, r);

@@ -220,6 +220,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
                 settings_apply(pl);
             }
         }
+        takeover_tick(pl);   // after the first turn's settings: a handover's stand-in paces as it must from its first turn
         if (now < 5000) dumped[idx] = 0;   // new game in the same session
 
         // Diagnostics: log the managers' one-time setup flags at game start. (An early theory blamed
@@ -268,7 +269,6 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && !game) holy_tick(pl, now);   // holy.c: priests and prophets (the game's computer player off)
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
-    if (pl) takeover_tick(pl);
     if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
     if (pl && !is_vanilla(pl) && !game) citizens_safety(rm, 0);   // attack.c: back from raiders, out of an overrun base (the game's citizen assignment called it)
     // a scenario's AI toggles (player_ai_toggle; the game's own computer player tests its own the same way): Gather off -
