@@ -64,6 +64,7 @@
 #define SN_PUSH 1.5f
 #define SN_BACK 0.8f
 #define SN_PUSH_WAIT 120000
+#define SN_CALL 240000           // THE CALL: how long the called gather before another call
 #define SN_PUSHES 6
 #define SN_SCOUTS 3
 #define SN_SCOUT_GIVE_UP 180000
@@ -81,6 +82,7 @@ internal struct sn_st {
     uint32_t res_t, res_out_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n;   // THE RESERVE: its last look, the last fortress let out; soldiers in, out
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos;   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
+    int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
 internal struct st_side g_sn_own;
@@ -213,6 +215,7 @@ internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, c
                 if (!hard_r && m->moved_t && tnow >= m->moved_t && tnow - m->moved_t < SN_STAY) continue;   // it has just been sent somewhere: it stays (the shares shift with every look - 400 to 680 changes of station a player in 75 minutes)
                 int pushing = 0;
                 for (int p = 0; p < SN_PUSHES; p++) pushing |= z->push[p].on && z->push[p].from == o;
+                pushing |= z->call_t && z->call_r == o && tnow >= z->call_t && tnow - z->call_t < SN_CALL;   // THE CALL: gathering for one
                 if (pushing) break;   // a territory that is pushing gives none
                 m->ter = (short)r; m->order_t = 0; m->moved_t = tnow ? tnow : 1;
                 ac[o]--; ac[r]++; give--; (*budget)--; z->moved++; any = 1;
@@ -480,7 +483,39 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (there * 4 < cn * 3) continue;   // still gathering
         stage_foe(pl, eb[bi].p);
         float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
-        if (ratio < SN_PUSH) continue;
+        // THE CALL (the player 2026-11-16: "yellow just sits there, it has enough soilders to finish red or atleast take
+        // the food source it desperratly needs, instead it seems completly dead" - 53 soldiers over 4 territories, 9 to 16
+        // each, its enemy beside one of them with 2 soldiers and its buildings; a push weighs only the territory's own,
+        // and none started for 25 minutes): too few there, the main force of its quiet territories - no enemy soldiers
+        // there, none pushing, on the same land - is weighed with them, each keeping half its share. Enough together:
+        // they are stationed in this territory (it gives none for SN_CALL meanwhile) and the push starts when three
+        // quarters of them are there and it is still judged to win. One call at a time.
+        if (ratio < SN_PUSH) {
+            if (z->call_t && now >= z->call_t && now - z->call_t < SN_CALL) continue;
+            static short left[PR_T];
+            static int joiner[SN_UNITS];
+            unsigned land = area_id(rally[r], 2);
+            for (int o = 0; o < n; o++) {
+                int po = 0;
+                for (int k = 0; k < SN_PUSHES; k++) po |= z->push[k].on && z->push[k].from == o;
+                left[o] = (short)(o == r || po || g_ter.t[o].water || s->t[o].foe > 0 || s->t[o].state != TV_QUIET ? 0 : ac[o] - (z->tc[o] + 1) / 2);
+            }
+            int nj = 0;
+            for (int i = 0; i < nn; i++) {
+                struct sn_unit *m = &z->m[i];
+                if (m->pool != SNP_MAIN || m->scout || m->ter < 0 || m->ter >= n || left[m->ter] <= 0) continue;
+                if (land && area_id(unit_get_tile(m->u), 2) != land) continue;
+                left[m->ter]--; joiner[nj++] = i;
+                st_side_add(&g_sn_own, m->u);
+            }
+            float all = nj ? st_ratio(&g_sn_own, &g_sgs_foe) : ratio;
+            if (all < SN_PUSH) continue;
+            for (int j = 0; j < nj; j++) { struct sn_unit *m = &z->m[joiner[j]]; ac[m->ter]--; m->ter = (short)r; m->order_t = 0; m->moved_t = now ? now : 1; ac[r]++; z->moved++; }
+            z->call_r = r; z->call_t = now ? now : 1; z->calls++;
+            if (g_log) log_locked("# stations: P%u at %.1f min: territory %d calls %d soldiers from its quiet territories to push into %d (the building at %d,%d) - %d of its own judged %.2f, together %.2f (enemy there: %d)\n",
+                                  idx, now / 60000.0, r, nj, into, eb[bi].p.x, eb[bi].p.y, cn, (double)ratio, (double)all, g_sgs_foe.n);
+            continue;
+        }
         struct sn_push *p = &z->push[slot];
         p->on = 1; p->from = (short)r; p->into = (short)into; p->at = eb[bi].p; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
         z->pushes++;

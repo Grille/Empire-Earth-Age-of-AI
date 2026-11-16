@@ -192,6 +192,7 @@ internal int ap_trains_now(ee_player *pl, int type) {
 }
 // the bank above what is held back pays AP_MORE_UNITS of the type: its production, not its money, is what holds the army back
 #define AP_MORE_UNITS 10
+#define AP_CIT_FOOD 4   // CITIZENS FIRST: the missing citizens whose food the soldiers' orders leave
 internal int ap_pays_more(ee_player *pl, unsigned idx, int type) {
     int res[7] = { 0 };
     const int *stock = player_stock_at(pl);
@@ -411,6 +412,14 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         // to 90, while its own orders for citizens asked for none (cz_wanted: no more than the economy uses). With the
         // game's computer player off the room held is for the citizens its orders still ask for, those inside counted.
         if (off && miss > 0) { int m2 = cz_wanted(pl, idx, um, unit_mgr_citizens_wanted(um)) - unit_mgr_citizens(um); if (m2 < miss) miss = m2; }
+        // CITIZENS FIRST (the player 2026-11-16: "red has a single citecens left that gathers food, but instead of training
+        // citecens to recover its econemy it produces soilders" - 1 citizen bringing 15 food a minute, every 30 of it a
+        // soldier's, the bank never at a citizen's 50): with the game's computer player off, while citizens are missing
+        // the food of the next AP_CIT_FOOD of them is held from the soldiers' orders.
+        if (off && miss > 0) {
+            int hold = (miss < AP_CIT_FOOD ? miss : AP_CIT_FOOD) * unit_cost(pl, UT(CITIZEN), 2);
+            if (vis[2] > stock[2] - hold) vis[2] = stock[2] - hold > 0 ? stock[2] - hold : 0;
+        }
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
         int ft = free <= 0 ? 0 : off ? ap_idle_type(pl, vis) : ap_type(pl, idx, um, vis);
         if (free > 0) ft = ar_fill_type(pl, idx, vis, ft, now);   // armies.c TRAINING BY NEED
