@@ -284,9 +284,10 @@ class ai_base
         /// Tower creep: with its own economy, the AI walks a few citizens up to an enemy building near its own ground
         /// where no enemy soldier has been seen for 2 minutes and few of the owner's citizens are about, and builds a
         /// tower just in range of it - a second if the first can't bring it down; then the next building, from the
-        /// new towers. An enemy tower is taken on from beyond its reach where its own towers outrange it, else with
-        /// 12 citizens to build faster than it kills them, 3 more towers after the first. Off: in 16 games of 4 AIs
-        /// from the first epoch it took 1.5 enemy buildings a game and cost citizens (330 to 361 at minute 60). 1 = on.
+        /// new towers. An enemy tower is taken on from beyond its reach where its own towers outrange it, else from
+        /// the far edge of its own range with 12 citizens building from behind, out of the enemy tower's reach, and 3
+        /// more towers after the first. Off: in 16 games of 4 AIs from the first epoch it took 1.1 enemy buildings a
+        /// game and cost citizens (325 to 342 at minute 60, 83 killed to 59). 1 = on.
         bool tower_creep = false;
         /// Fishing by the sea territory: the AI orders a fishing boat on any map while its food
         /// workers are short and it knows fish in its waters - the sea territories along land it holds - at a dock that
