@@ -104,19 +104,20 @@ internal int hl_cal(ee_player *pl, int k) {   // the power's calamity number, -1
 }
 // the power's own check first (goal.c calamity_check: the caster's power, the tile explored, no enemy Temple's
 // protection there) - without it the first runs gave casts the game dropped at once, every 2 s one
-// ON A UNIT (the first plague asked for the ground and was refused - its check wants the unit clicked, as the
-// right-click's order gives it): the plague, malaria and a hurricane are cast on the enemy unit nearest at within
-// HL_CLUSTER (a ship for a hurricane, a soldier or citizen for the others), the ground's powers on the ground
+// ON A UNIT (the player 2026-11-16: "the only desasters that need a unit target are plaque and fire, the others are
+// cast on the ground"; the plague on the ground was refused by its check and crashed the game's cast code at
+// 0x60E491): the plague on the enemy soldier or citizen nearest at within HL_CLUSTER, fire on the enemy building
+// nearest it; the others on the ground
 enum { HLK_BUILDINGS, HLK_SOLDIERS, HLK_CITIZENS, HLK_SHIPS, HLK_N };   // THE POWERS: the kinds of groups
 internal int hl_kind(ee_unit_type *td);
 internal ee_unit *hl_target(ee_player *pl, ivec2 at, int k) {
-    if (k != HLP_PLAGUE && k != HLP_MALARIA && k != HLP_HURRICANE) return NULL;
+    if (k != HLP_PLAGUE && k != HLP_FIRE) return NULL;
     ee_unit *b = NULL;
     int bd = 0;
     for (struct grid_it it = grid_it_box(at.x, at.y, HL_CLUSTER, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         int kd = o && is_enemy(pl, o) && unit_get_hp(it.u) > 0 && unit_get_x(it.u) >= 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
-        if (k == HLP_HURRICANE ? kd != HLK_SHIPS : kd != HLK_SOLDIERS && kd != HLK_CITIZENS) continue;
+        if (k == HLP_FIRE ? kd != HLK_BUILDINGS : kd != HLK_SOLDIERS && kd != HLK_CITIZENS) continue;
         int d = ivec2_dist2(unit_get_tile(it.u), at);
         if (!b || d < bd) { b = it.u; bd = d; }
     }
