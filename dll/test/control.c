@@ -29,6 +29,7 @@ internal void cmd_landing(char *out, const char *args);
 internal void cmd_vis(char *out, const char *args);
 internal void cmd_intel(char *out, const char *args);
 internal void cmd_calloff(char *out, const char *args);
+internal void cmd_aitoggle(char *out, const char *args);
 internal void cmd_vistrack(char *out, const char *args);
 internal void cmd_terrain(char *out, const char *args);
 internal void cmd_board(char *out, const char *args);
@@ -430,6 +431,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "vis")) cmd_vis(out, args);
     else if (!strcmp(verb, "intel")) cmd_intel(out, args);
     else if (!strcmp(verb, "calloff")) cmd_calloff(out, args);
+    else if (!strcmp(verb, "aitoggle")) cmd_aitoggle(out, args);
     else if (!strcmp(verb, "vistrack")) cmd_vistrack(out, args);
     else if (!strcmp(verb, "terrain")) cmd_terrain(out, args);
     else if (!strcmp(verb, "board")) cmd_board(out, args);

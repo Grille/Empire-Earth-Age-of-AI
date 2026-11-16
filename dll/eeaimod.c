@@ -258,17 +258,21 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl) stage_tick(pl, now);
     if (pl) armies_tick(pl, now);
     if (pl && !is_vanilla(pl)) garrison_tick(pl, now);
-    if (pl && !is_vanilla(pl)) airstrike_tick(pl, now);
+    if (pl && !is_vanilla(pl) && (game || player_ai_toggle(pl, SM_AIT_ATTACK))) airstrike_tick(pl, now);
     if (pl && !is_vanilla(pl) && !game) airguard_tick(pl, now);   // airguard.c: anti-air buildings and fighters (the game's computer player off)
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
     if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
     if (pl && !is_vanilla(pl) && !game) citizens_safety(rm, 0);   // attack.c: back from raiders, out of an overrun base (the game's citizen assignment called it)
-    if (pl && !is_vanilla(pl) && !game) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
-    if (pl && !is_vanilla(pl) && !game) build_tick(pl, rm, now);   // build.c: nor builds anything
+    // a scenario's AI toggles (player_ai_toggle; the game's own computer player tests its own the same way): Gather off -
+    // nobody is sent to work (those working go on), Build/Repair off - nothing built, no town or outpost founded
+    // (expand.c); Attack and Explore: stations.c; Active off: no update of its is called at all
+    int gather = pl && player_ai_toggle(pl, SM_AIT_GATHER), builds = pl && player_ai_toggle(pl, SM_AIT_BUILD_REPAIR);
+    if (pl && !is_vanilla(pl) && !game && gather) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
+    if (pl && !is_vanilla(pl) && !game && builds) build_tick(pl, rm, now);   // build.c: nor builds anything
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch
     if (pl && !is_vanilla(pl) && !game) stations_tick(pl, now);   // stations.c: the soldiers by territory, in place of the one force
-    if (pl) expand_tick(pl, now);
+    if (pl && (game || is_vanilla(pl) || builds)) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
     if (pl) territory_tick(now, g_set.territories_log);

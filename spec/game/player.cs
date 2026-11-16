@@ -275,7 +275,12 @@ unsafe struct EEPlayer
     [offset((ee)0xED8, (aoc)0xF28), found(c)]
     uint32 next_attack;
 
-    [offset((ee)0xEF4, (aoc)0xF44), found(b)]
+    /// the scenario's AI toggles from here (sm_ai_toggle; the scenario editor's player dialog 0x56A60B / 0x56AB3F and
+    /// the trigger Set AI Toggle 0x5B16EF, AoC 0x5C26DA, write them; the computer player's constructor 0x431697 sets
+    /// each 1, ignore 0; saved with the player, vf9 0x43DED9): its first byte the toggle Attack - an attack is due
+    /// (0x43121E) only while it is set; active +0xEF9, cheat +0xEFB, build +0xEFC, explore +0xEFD, gather +0xEFF,
+    /// defend +0xF00, ignore +0xF02. They are EEComputerPlayer's (its constructor's) but kept here with the others
+    [offset((ee)0xEF4, (aoc)0xF44), found(c)]
     block toggles;
 
     [offset((ee)0xEFA, (aoc)0xF4A), found(c)]
@@ -284,7 +289,9 @@ unsafe struct EEPlayer
     [offset((ee)0xEFB, (aoc)0xF4B), found(c)]
     uint8 cheat;
 
-    [offset((ee)0xEFC, (aoc)0xF4C), found(b)]
+    /// the scenario's AI toggle Build/Repair: the civ manager's build planning (0x468540, its timers 0x46E2C7), the
+    /// drop-off check 0x48B367, the wall manager 0x499E20 run only while it is set
+    [offset((ee)0xEFC, (aoc)0xF4C), found(c)]
     uint8 build;
 
     /// the scenario's AI toggle Explore: EECPResourceManager::update 0x48D263 prunes the hunt and fish lists only while
@@ -296,6 +303,14 @@ unsafe struct EEPlayer
     [offset((ee)0xEFF, (aoc)0xF4F), found(c)]
     uint8 gather;
 
+    /// the scenario's AI toggle Defend: the combat manager's defence update 0x476428 (from its tick 0x4720D8) plans only
+    /// while it is set
+    [offset((ee)0xF00, (aoc)0xF50), found(c)]
+    uint8 defend;
+
+    /// the scenario's AI toggle Ignore: the AI's own limits dropped - vf31 0x4311B9 gives the game's population limit,
+    /// update_pop_cap 0x42F7A5 and delete_for_room 0x430D40 skipped, the epoch pacing after the humans
+    /// (set_epoch_time 0x46DE8C) off. Not "the others ignore it"
     [offset((ee)0xF02, (aoc)0xF52), found(c)]
     uint8 ignore;
 
@@ -466,13 +481,14 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xBA8, (aoc)0xBDC), found(c)]
     int32 favorite_land;
 
-    /// its favourite air unit type (default 0xF2)
+    /// its favourite sea unit type (default 0xF2, the War Raft; Set Favorite Units 0x5B152A: a type with movement bit 2)
     [offset((ee)0xBAC, (aoc)0xBE0), found(c)]
-    int32 favorite_air;
-
-    /// its favourite sea unit type (default 0x48; AoC has a fourth at +0xBE8)
-    [offset((ee)0xBB0, (aoc)0xBE4), found(c)]
     int32 favorite_sea;
+
+    /// its favourite air unit type (default 0x48, the Sopwith; Set Favorite Units: movement bit 0; the group request
+    /// builder 0x492FAA reads it for its aircraft; AoC has a fourth at +0xBE8)
+    [offset((ee)0xBB0, (aoc)0xBE4), found(c)]
+    int32 favorite_air;
 
     /// the chance it attacks another computer player instead of a human (record 91 "Computer vs Computer Aggression")
     [offset((ee)0xBB8, (aoc)0xBF0), found(c)]
@@ -1157,7 +1173,9 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xEF8, (aoc)0xF48), found(c)]
     uint8 hit;
 
-    /// the scenario's "Active" AI toggle (0); vf31 recomputes the cap only while it is clear
+    /// the scenario's "Active" AI toggle (0); vf31 recomputes the cap only while it is clear. 0x42F395 calls the
+    /// update (and so the mod's own, hook_cp_update) only while it is set; set through 0x43F3E7 (off: 0x48EE0D frees a
+    /// manager's records, on: 0x48FAB5 rebuilds them)
     [offset((ee)0xEF9, (aoc)0xF49), found(c)]
     uint8 active;
 

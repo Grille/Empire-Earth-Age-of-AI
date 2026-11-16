@@ -1077,6 +1077,19 @@ internal void cmd_calloff(char *out, const char *args) {
     REPLY("P%d calls off its attack on P%d at the next safe point\n", p, t);
 }
 
+// aitoggle P [T 0|1] (test): AI P's scenario AI toggles (sm_ai_toggle: 0 active, 1 cheat, 2 attack, 3 defend, 4
+// build/repair, 5 explore, 6 ignore, 7 gather), or one of them set as the trigger Set AI Toggle sets it (not Active)
+internal void cmd_aitoggle(char *out, const char *args) {
+    static const char *const nm[8] = { "active", "cheat", "attack", "defend", "build_repair", "explore", "ignore", "gather" };
+    int p = 0, t = -1, on = 0, n = sscanf(args, "%d %d %d", &p, &t, &on);
+    ee_player *pl = n >= 1 && p > 0 && p < 16 ? player_at(p) : NULL;
+    if (!pl || (n != 1 && n != 3)) { REPLY("error: aitoggle P [T 0|1]\n"); return; }
+    if (n == 3 && !player_set_ai_toggle(pl, t, on)) { REPLY("error: toggle %d can't be set here (0 active: the trigger's own way)\n", t); return; }
+    REPLY("P%d:", p);
+    for (int i = 0; i < 8; i++) REPLY(" %s %d", nm[i], player_ai_toggle(pl, i));
+    REPLY("\n");
+}
+
 // ---- from offmap.c ----
 // offmap x y (test): the unit nearest x, y (within 5 tiles) to a tile 3 past the map's east edge, through the guard
 // (engine/offmap.c hook_set_tile) - without it the game would crash at 0x628D6F; it should stand on the edge

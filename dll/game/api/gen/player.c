@@ -264,6 +264,11 @@ internal inline int *player_attention_at(const ee_player *o) { return (int *)((u
 internal inline uint32_t player_get_next_attack(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_next_attack); }
 internal inline void player_set_next_attack(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_next_attack) = v; }
 internal inline uint32_t *player_next_attack_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_next_attack); }
+// the scenario's AI toggles from here (sm_ai_toggle; the scenario editor's player dialog 0x56A60B / 0x56AB3F and
+// the trigger Set AI Toggle 0x5B16EF, AoC 0x5C26DA, write them; the computer player's constructor 0x431697 sets
+// each 1, ignore 0; saved with the player, vf9 0x43DED9): its first byte the toggle Attack - an attack is due
+// (0x43121E) only while it is set; active +0xEF9, cheat +0xEFB, build +0xEFC, explore +0xEFD, gather +0xEFF,
+// defend +0xF00, ignore +0xF02. They are EEComputerPlayer's (its constructor's) but kept here with the others
 internal inline uint8_t *player_toggles_at(const ee_player *o) { return (uint8_t *)o + of_player_toggles; }
 internal inline uint8_t player_get_boats_for_food(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_boats_for_food); }
 internal inline void player_set_boats_for_food(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_boats_for_food) = v; }
@@ -271,6 +276,8 @@ internal inline uint8_t *player_boats_for_food_at(const ee_player *o) { return (
 internal inline uint8_t player_get_cheat(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_cheat); }
 internal inline void player_set_cheat(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_cheat) = v; }
 internal inline uint8_t *player_cheat_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_cheat); }
+// the scenario's AI toggle Build/Repair: the civ manager's build planning (0x468540, its timers 0x46E2C7), the
+// drop-off check 0x48B367, the wall manager 0x499E20 run only while it is set
 internal inline uint8_t player_get_build(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_build); }
 internal inline void player_set_build(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_build) = v; }
 internal inline uint8_t *player_build_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_build); }
@@ -283,6 +290,14 @@ internal inline uint8_t *player_explore_at(const ee_player *o) { return (uint8_t
 internal inline uint8_t player_get_gather(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_gather); }
 internal inline void player_set_gather(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_gather) = v; }
 internal inline uint8_t *player_gather_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_gather); }
+// the scenario's AI toggle Defend: the combat manager's defence update 0x476428 (from its tick 0x4720D8) plans only
+// while it is set
+internal inline uint8_t player_get_defend(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_defend); }
+internal inline void player_set_defend(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_defend) = v; }
+internal inline uint8_t *player_defend_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_defend); }
+// the scenario's AI toggle Ignore: the AI's own limits dropped - vf31 0x4311B9 gives the game's population limit,
+// update_pop_cap 0x42F7A5 and delete_for_room 0x430D40 skipped, the epoch pacing after the humans
+// (set_epoch_time 0x46DE8C) off. Not "the others ignore it"
 internal inline uint8_t player_get_ignore(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_ignore); }
 internal inline void player_set_ignore(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_ignore) = v; }
 internal inline uint8_t *player_ignore_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_ignore); }
@@ -454,14 +469,15 @@ internal inline ee_unit ***player_doomed_end_at(const ee_player *o) { return (ee
 internal inline int player_get_favorite_land(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_land); }
 internal inline void player_set_favorite_land(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_land) = v; }
 internal inline int *player_favorite_land_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_land); }
-// its favourite air unit type (default 0xF2)
-internal inline int player_get_favorite_air(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_air); }
-internal inline void player_set_favorite_air(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_air) = v; }
-internal inline int *player_favorite_air_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_air); }
-// its favourite sea unit type (default 0x48; AoC has a fourth at +0xBE8)
+// its favourite sea unit type (default 0xF2, the War Raft; Set Favorite Units 0x5B152A: a type with movement bit 2)
 internal inline int player_get_favorite_sea(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_sea); }
 internal inline void player_set_favorite_sea(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_sea) = v; }
 internal inline int *player_favorite_sea_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_sea); }
+// its favourite air unit type (default 0x48, the Sopwith; Set Favorite Units: movement bit 0; the group request
+// builder 0x492FAA reads it for its aircraft; AoC has a fourth at +0xBE8)
+internal inline int player_get_favorite_air(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_air); }
+internal inline void player_set_favorite_air(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_air) = v; }
+internal inline int *player_favorite_air_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_air); }
 // the chance it attacks another computer player instead of a human (record 91 "Computer vs Computer Aggression")
 internal inline float player_get_cvc_aggression(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_cvc_aggression); }
 internal inline void player_set_cvc_aggression(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_cvc_aggression) = v; }
@@ -1163,7 +1179,9 @@ internal inline uint8_t *player_citizens_hit_at(const ee_player *o) { return (ui
 internal inline uint8_t player_get_hit(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_hit); }
 internal inline void player_set_hit(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_hit) = v; }
 internal inline uint8_t *player_hit_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_hit); }
-// the scenario's "Active" AI toggle (0); vf31 recomputes the cap only while it is clear
+// the scenario's "Active" AI toggle (0); vf31 recomputes the cap only while it is clear. 0x42F395 calls the
+// update (and so the mod's own, hook_cp_update) only while it is set; set through 0x43F3E7 (off: 0x48EE0D frees a
+// manager's records, on: 0x48FAB5 rebuilds them)
 internal inline uint8_t player_get_active(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_active); }
 internal inline void player_set_active(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_active) = v; }
 internal inline uint8_t *player_active_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_active); }
@@ -1332,6 +1350,7 @@ internal int spec_player_select(int build) {
         of_player_build = 0xEFC;
         of_player_explore = 0xEFD;
         of_player_gather = 0xEFF;
+        of_player_defend = 0xF00;
         of_player_ignore = 0xF02;
         of_player_first_attack_done = 0xF05;
         fn_player_resign = (player_resign_fn)0x0055BCEA;
@@ -1375,8 +1394,8 @@ internal int spec_player_select(int build) {
         of_player_doomed_begin = 0xB80;
         of_player_doomed_end = 0xB84;
         of_player_favorite_land = 0xBA8;
-        of_player_favorite_air = 0xBAC;
-        of_player_favorite_sea = 0xBB0;
+        of_player_favorite_sea = 0xBAC;
+        of_player_favorite_air = 0xBB0;
         of_player_cvc_aggression = 0xBB8;
         of_player_carrier_chance = 0xBBC;
         of_player_carrier_pop_share = 0xBC0;
@@ -1644,6 +1663,7 @@ internal int spec_player_select(int build) {
         of_player_build = 0xF4C;
         of_player_explore = 0xF4D;
         of_player_gather = 0xF4F;
+        of_player_defend = 0xF50;
         of_player_ignore = 0xF52;
         of_player_first_attack_done = 0xF55;
         fn_player_resign = (player_resign_fn)0x0056AF5C;
@@ -1687,8 +1707,8 @@ internal int spec_player_select(int build) {
         of_player_doomed_begin = 0xBB4;
         of_player_doomed_end = 0xBB8;
         of_player_favorite_land = 0xBDC;
-        of_player_favorite_air = 0xBE0;
-        of_player_favorite_sea = 0xBE4;
+        of_player_favorite_sea = 0xBE0;
+        of_player_favorite_air = 0xBE4;
         of_player_cvc_aggression = 0xBF0;
         of_player_carrier_chance = 0xBF4;
         of_player_carrier_pop_share = 0xBF8;

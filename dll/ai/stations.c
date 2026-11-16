@@ -31,6 +31,10 @@
 //               to SN_SCOUTS of the main force, the fastest (of equally fast ones the one that sees furthest), go to the nearest of them one after the other (one
 //               not reached in SN_SCOUT_GIVE_UP is given up); none left: they are the main force's again,
 //               stationed where they stand, and none is taken for SN_SCOUT_REST.
+//   A SCENARIO'S AI TOGGLES (the player 2026-11-16: "respecting the ai flags (aktiv, cheat, angreifen, etc)"; the
+//               editor's player dialog and the trigger Set AI Toggle, player_ai_toggle): Attack off - no push, the
+//               ones on are over; Explore off - no scouts, the ones out the main force's again. Active off: the game
+//               calls no update of its at all (nor the mod's); Build/Repair and Gather: eeaimod.c rm_tick.
 //   DEMOLITION - a territory it has taken (its own, no enemy building but walls left, no enemy soldier there, no push
 //               from it) has the enemy's wall pieces and gates in it brought down, a low task: SN_DEMO of its idle
 //               main force and siege stationed there at the piece nearest its place, one after the other (the player
@@ -437,6 +441,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             }
             p->wall = wall;
         }
+        if (!end && !player_ai_toggle(pl, SM_AIT_ATTACK)) end = "the scenario's AI toggle Attack is off";
         if (!end) continue;
         p->on = 0; p->end_t = now ? now : 1;
         for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
@@ -444,7 +449,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     }
     for (int r = 0; r < n; r++) {
         struct tv_terr *t = &s->t[r];
-        if (g_ter.t[r].water || t->role == TVR_NONE || t->state != TV_QUIET || ac[r] < SN_PUSH_MIN) continue;
+        if (g_ter.t[r].water || t->role == TVR_NONE || t->state != TV_QUIET || ac[r] < SN_PUSH_MIN || !player_ai_toggle(pl, SM_AIT_ATTACK)) continue;
         int slot = -1, busy = 0, into = -1, there = 0, cn = 0, bi = -1, bd = 0;
         for (int k = 0; k < SN_PUSHES; k++) {
             struct sn_push *p = &z->push[k];
@@ -485,7 +490,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     // SCOUTS
     int unseen = 0;
     for (int r = 0; r < n; r++) unseen += !g_ter.t[r].water && !g_sn_seen[idx][r];
-    int want_sc = unseen && np[SNP_MAIN] + scouts >= 3 && now >= z->scout_off ? 1 + unseen / 8 : 0;
+    int want_sc = unseen && np[SNP_MAIN] + scouts >= 3 && now >= z->scout_off && player_ai_toggle(pl, SM_AIT_EXPLORE) ? 1 + unseen / 8 : 0;
     if (want_sc > SN_SCOUTS) want_sc = SN_SCOUTS;
     while (scouts < want_sc) {
         int b = -1; float bf = -1.0f;
@@ -519,7 +524,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout && z->m[j].ter == r;
                 if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
             }
-            if (b < 0) {   // none left: the main force's again
+            if (b < 0 || !player_ai_toggle(pl, SM_AIT_EXPLORE)) {   // none left (or the scenario's Explore off): the main force's again
                 unsigned r = ter_near(p.x, p.y);
                 m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0;
                 z->scouted++;

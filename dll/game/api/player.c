@@ -30,6 +30,35 @@ internal inline void player_set_chat_to_player(ee_player *pl, int i, uint8_t v) 
 // +0xEF4.. the AI toggles: Angreifen EF4, Aktiv EF9, Cheat EFB, Bauen EFC, Erkunden EFD, Sammeln EFF, Verteidigen F00,
 // Ignorieren F02 - and +0xEF5 the first update done (0x43F91A), +0xF05 the first attack done, +0xEFA boats instead of fields (a water map with fish)
 internal inline uint8_t player_get_toggle(const ee_player *pl, int i) { return FIELD(pl, of_player_toggles + i, uint8_t); }
+// a scenario's AI toggle (enum sm_ai_toggle: the editor's player dialog, the trigger Set AI Toggle), 1 = on
+internal inline int player_ai_toggle(const ee_player *pl, int t) {
+    switch (t) {
+    case SM_AIT_ACTIVE: return player_get_active(pl) != 0;
+    case SM_AIT_CHEAT: return player_get_cheat(pl) != 0;
+    case SM_AIT_ATTACK: return player_get_toggle(pl, 0) != 0;
+    case SM_AIT_DEFEND: return player_get_defend(pl) != 0;
+    case SM_AIT_BUILD_REPAIR: return player_get_build(pl) != 0;
+    case SM_AIT_EXPLORE: return player_get_explore(pl) != 0;
+    case SM_AIT_IGNORE: return player_get_ignore(pl) != 0;
+    case SM_AIT_GATHER: return player_get_gather(pl) != 0;
+    default: return 0;
+    }
+}
+// one set as the trigger Set AI Toggle sets it (0x5B16EF: a byte each) - not Active, which it sets through 0x43F3E7
+// (a manager's records freed and rebuilt): 0 for Active or no toggle
+internal inline int player_set_ai_toggle(ee_player *pl, int t, int on) {
+    uint8_t v = (uint8_t)(on != 0);
+    switch (t) {
+    case SM_AIT_CHEAT: player_set_cheat(pl, v); return 1;
+    case SM_AIT_ATTACK: FIELD(pl, of_player_toggles, uint8_t) = v; return 1;
+    case SM_AIT_DEFEND: player_set_defend(pl, v); return 1;
+    case SM_AIT_BUILD_REPAIR: player_set_build(pl, v); return 1;
+    case SM_AIT_EXPLORE: player_set_explore(pl, v); return 1;
+    case SM_AIT_IGNORE: player_set_ignore(pl, v); return 1;
+    case SM_AIT_GATHER: player_set_gather(pl, v); return 1;
+    default: return 0;
+    }
+}
 // a player's statistics (player_stats_at): series k {?, begin, end, ..} of 8-byte samples
 internal inline uint8_t *player_stats_get_begin(const ee_player_stats *st, int k) { return FIELD(st, of_player_stats_lists + k * 0x18, uint8_t *); }
 internal inline uint8_t *player_stats_get_end(const ee_player_stats *st, int k) { return FIELD(st, of_player_stats_lists + 0x4 + k * 0x18, uint8_t *); }
