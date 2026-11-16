@@ -40,6 +40,10 @@
 #define HL_HOME_R 15          // AT HOME: within this of a town of its
 #define HL_DEFEND 25          // ... the enemy soldiers within this of it
 #define HL_DEFEND_N 4         // ... this many in a group
+#define HL_FINISH_R 10        // THE POWERS: its own soldiers and towers within this of a group ...
+#define HL_FINISH_N 5         // ... this many - malaria (they finish them off)
+#define HL_VOLCANO_EVERY 5    // ... buildings: a volcano first one look in this many
+#define HL_SHIPS 2            // enemy ships in a group: a hurricane
 #define HL_REACH 14
 #define HL_TOWER_LOOK 16      // THE TOWERS: an enemy tower within this
 #define HL_QUAKE_OFF 3        // ... gets the earthquake this many tiles before it
@@ -100,10 +104,31 @@ internal int hl_cal(ee_player *pl, int k) {   // the power's calamity number, -1
 }
 // the power's own check first (goal.c calamity_check: the caster's power, the tile explored, no enemy Temple's
 // protection there) - without it the first runs gave casts the game dropped at once, every 2 s one
+// ON A UNIT (the first plague asked for the ground and was refused - its check wants the unit clicked, as the
+// right-click's order gives it): the plague, malaria and a hurricane are cast on the enemy unit nearest at within
+// HL_CLUSTER (a ship for a hurricane, a soldier or citizen for the others), the ground's powers on the ground
+enum { HLK_BUILDINGS, HLK_SOLDIERS, HLK_CITIZENS, HLK_SHIPS, HLK_N };   // THE POWERS: the kinds of groups
+internal int hl_kind(ee_unit_type *td);
+internal ee_unit *hl_target(ee_player *pl, ivec2 at, int k) {
+    if (k != HLP_PLAGUE && k != HLP_MALARIA && k != HLP_HURRICANE) return NULL;
+    ee_unit *b = NULL;
+    int bd = 0;
+    for (struct grid_it it = grid_it_box(at.x, at.y, HL_CLUSTER, 1); grid_it_next(&it); ) {
+        ee_player *o = unit_get_owner(it.u);
+        int kd = o && is_enemy(pl, o) && unit_get_hp(it.u) > 0 && unit_get_x(it.u) >= 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
+        if (k == HLP_HURRICANE ? kd != HLK_SHIPS : kd != HLK_SOLDIERS && kd != HLK_CITIZENS) continue;
+        int d = ivec2_dist2(unit_get_tile(it.u), at);
+        if (!b || d < bd) { b = it.u; bd = d; }
+    }
+    return b;
+}
+internal int hl_check(ee_player *pl, ee_unit *u, ivec2 at, int k) { return calamity_check(hl_cal(pl, k), u, hl_target(pl, at, k), at.x, at.y); }
 internal int hl_cast(ee_player *pl, ee_unit *u, ivec2 at, int k) {
-    if (calamity_check(hl_cal(pl, k), u, at.x, at.y) != 0) return 0;
+    ee_unit *tg = hl_target(pl, at, k);
+    if (calamity_check(hl_cal(pl, k), u, tg, at.x, at.y) != 0) return 0;
+    if (tg) at = unit_get_tile(tg);
     void *mem = goal_cast_alloc();
-    ee_goal *g = mem ? goal_cast_init(mem, u, NULL, at.x, at.y, k_hl_tech[k]) : NULL;
+    ee_goal *g = mem ? goal_cast_init(mem, u, tg, at.x, at.y, k_hl_tech[k]) : NULL;
     return g && unit_goal(u, g, 0, 0x1F40);
 }
 internal int hl_walk(ee_unit *u, ivec2 to) {
@@ -119,6 +144,42 @@ internal ivec2 hl_behind(ivec2 front, ivec2 from) {
     if (d < 1.0f) return front;
     return iv2(front.x + (int)(dx / d * HL_BEHIND), front.y + (int)(dy / d * HL_BEHIND));
 }
+// THE POWERS (the player 2026-11-16: "dont just put malaria first, it would always win. malaria: dosnt kill but sets groups
+// to 1 hp, good when own forces a nerby to finish them off. plaque: does spread and kill on its own, the better option
+// when the prophet is alone (parting gift) or strikes citezens. huricane: demages enemy ships, good devensive option for
+// habours. volcano: kinda useless but flashy, might be picked instead as an eartquaqe sometimes just because"): what a
+// group gets, in order - soldiers malaria with HL_FINISH_N of its own soldiers and towers within HL_FINISH_R of them,
+// else the plague; citizens the plague (malaria after it with its own near); ships a hurricane; buildings an earthquake,
+// then fire, one look in HL_VOLCANO_EVERY a volcano first.
+internal int hl_kind(ee_unit_type *td) {
+    int f = unit_type_get_class_id(td), t = unit_type_get_id(td);
+    if ((f == CLS_BUILDING || f == CLS_FORTRESS) && !is_wall(t)) return HLK_BUILDINGS;
+    if (is_citizen_type(t)) return HLK_CITIZENS;
+    if (f == CLS_NAVAL || f == CLS_SUBMERGED_NAVAL || f == CLS_NAVAL_TRANSPORT) return HLK_SHIPS;
+    if (is_soldier(td) && f == CLS_LAND) return HLK_SOLDIERS;
+    return -1;
+}
+internal int hl_own_near(ee_player *pl, ivec2 at, int r) {   // its soldiers and towers within r of at
+    int n = 0;
+    float rr, aa;
+    for (struct grid_it it = grid_it_box(at.x, at.y, r, 1); grid_it_next(&it); ) {
+        if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0 || unit_get_x(it.u) < 0) continue;
+        n += (is_soldier(it.td) && unit_type_get_class_id(it.td) == CLS_LAND) || defence_stats(it.u, &rr, &aa);
+    }
+    return n;
+}
+internal int hl_powers(ee_player *pl, int kind, ivec2 at, uint32_t now, int out[3]) {
+    out[0] = out[1] = out[2] = -1;
+    int own = kind == HLK_SOLDIERS || kind == HLK_CITIZENS ? hl_own_near(pl, at, HL_FINISH_R) >= HL_FINISH_N : 0;
+    if (kind == HLK_BUILDINGS) {
+        int v = (now / HL_EVERY) % HL_VOLCANO_EVERY == 0;
+        out[0] = v ? HLP_VOLCANO : HLP_QUAKE; out[1] = v ? HLP_QUAKE : HLP_FIRE; out[2] = v ? HLP_FIRE : HLP_VOLCANO;
+    } else if (kind == HLK_SOLDIERS) { out[0] = own ? HLP_MALARIA : HLP_PLAGUE; out[1] = own ? HLP_PLAGUE : -1; }
+    else if (kind == HLK_CITIZENS) { out[0] = HLP_PLAGUE; out[1] = own ? HLP_MALARIA : -1; }
+    else if (kind == HLK_SHIPS) out[0] = HLP_HURRICANE;
+    return own;
+}
+internal const char *const k_hl_name[HLP_N] = { "an earthquake", "a fire", "a volcano", "the plague", "a hurricane", "malaria" };
 internal void holy_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct hl_st *h = &g_hl[idx];
@@ -208,48 +269,55 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             }
             if (ns >= HL_CAUGHT || (hurt && ns > 0)) {
                 ivec2 at = iv2((int)(sx / ns), (int)(sy / ns));
-                static const int gift[4] = { HLP_MALARIA, HLP_PLAGUE, HLP_HURRICANE, HLP_VOLCANO };   // malaria first (the player: "a quick way to dispatch an attacking army")
-                for (int j = 0; j < 4 && !casting; j++) {
+                int gift[3];
+                hl_powers(pl, HLK_SOLDIERS, at, now, gift);   // THE POWERS: alone the plague, its own near malaria
+                for (int j = 0; j < 3 && !casting; j++) {
                     int k = gift[j];
-                    if (cost[k] <= 0 || pw < cost[k] || !hl_cast(pl, u, at, k)) continue;
+                    if (k < 0 || cost[k] <= 0 || pw < cost[k] || !hl_cast(pl, u, at, k)) continue;
                     hl_order_note(h, u, now);
                     h->casts[k]++; h->gifts++;
                     strike = iv2(-1, -1); strike_t = 0;
                     if (g_log) log_locked("# holy: P%u at %.1f min: a prophet caught at %d,%d by %d enemy soldiers (hp %d) casts %s on them at %d,%d (power %d)\n",
-                                          idx, now / 60000.0, p.x, p.y, ns, unit_get_hp(u), k == HLP_MALARIA ? "malaria" : k == HLP_PLAGUE ? "the plague" : k == HLP_HURRICANE ? "a hurricane" : "a volcano", at.x, at.y, pw);
+                                          idx, now / 60000.0, p.x, p.y, ns, unit_get_hp(u), k_hl_name[k], at.x, at.y, pw);
                     casting = 1;
                 }
             }
         }
         // AT HOME (the player 2026-11-16: "also malaria is a goo devensive option, in range of own temples the prophet still
         // works, its a quick way to dispatch an attacking army, if an fully charged prophet happens to be in the base"): within
-        // HL_HOME_R of a town of its, the enemy soldiers it knows within HL_DEFEND - the biggest group, HL_DEFEND_N within
-        // HL_CLUSTER of one - get malaria, else the plague, else a hurricane (its own Temple's protection is against the
-        // enemy's powers, not its own).
-        if (!casting && ivec2_dist2(p, home) <= HL_HOME_R * HL_HOME_R && cost[HLP_MALARIA] > 0 && pw >= cost[HLP_MALARIA]) {
+        // HL_HOME_R of a town of its, the enemy soldiers and ships it knows within HL_DEFEND - the biggest group, HL_DEFEND_N
+        // soldiers or HL_SHIPS ships within HL_CLUSTER of one, soldiers first - get what THE POWERS give them: malaria
+        // where its own stand by to finish them, else the plague; ships a hurricane (its own Temple's protection is
+        // against the enemy's powers, not its own).
+        if (!casting && ivec2_dist2(p, home) <= HL_HOME_R * HL_HOME_R) {
             static ivec2 es[HL_SEEN];
+            static uint8_t ek[HL_SEEN];
             int ne = 0;
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_DEFEND, 1); grid_it_next(&it) && ne < HL_SEEN; ) {
                 ee_player *o = unit_get_owner(it.u);
-                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !is_soldier(it.td) || unit_type_get_class_id(it.td) != CLS_LAND || !seen_by(it.u, pl)) continue;
+                int kd = o && is_enemy(pl, o) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
+                if (kd != HLK_SOLDIERS && kd != HLK_SHIPS) continue;
                 ivec2 q = unit_get_tile(it.u);
-                if (ivec2_dist2(q, p) <= HL_DEFEND * HL_DEFEND) es[ne++] = q;
+                if (ivec2_dist2(q, p) <= HL_DEFEND * HL_DEFEND) { ek[ne] = (uint8_t)kd; es[ne++] = q; }
             }
-            int bn = 0; ivec2 bat = p;
+            int bn = 0, bk = -1; ivec2 bat = p;
             for (int a = 0; a < ne; a++) {
                 int c = 0;
-                for (int b2 = 0; b2 < ne; b2++) c += ivec2_dist2(es[b2], es[a]) <= HL_CLUSTER * HL_CLUSTER;
-                if (c > bn) { bn = c; bat = es[a]; }
+                for (int b2 = 0; b2 < ne; b2++) c += ek[b2] == ek[a] && ivec2_dist2(es[b2], es[a]) <= HL_CLUSTER * HL_CLUSTER;
+                if (c < (ek[a] == HLK_SHIPS ? HL_SHIPS : HL_DEFEND_N)) continue;
+                int sa = ek[a] == HLK_SOLDIERS, sb = bk == HLK_SOLDIERS;
+                if (bk < 0 || sa > sb || (sa == sb && c > bn)) { bn = c; bat = es[a]; bk = ek[a]; }
             }
-            static const int def[3] = { HLP_MALARIA, HLP_PLAGUE, HLP_HURRICANE };
-            for (int j = 0; j < 3 && bn >= HL_DEFEND_N && !casting; j++) {
+            int def[3] = { -1, -1, -1 };
+            if (bk >= 0) hl_powers(pl, bk, bat, now, def);
+            for (int j = 0; j < 3 && bk >= 0 && !casting; j++) {
                 int k = def[j];
-                if (cost[k] <= 0 || pw < cost[k] || !hl_cast(pl, u, bat, k)) continue;
+                if (k < 0 || cost[k] <= 0 || pw < cost[k] || !hl_cast(pl, u, bat, k)) continue;
                 hl_order_note(h, u, now);
                 h->casts[k]++; h->defends++;
                 strike = iv2(-1, -1); strike_t = 0;
-                if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at home at %d,%d casts %s on %d enemy soldiers at %d,%d (power %d)\n",
-                                      idx, now / 60000.0, p.x, p.y, k == HLP_MALARIA ? "malaria" : k == HLP_PLAGUE ? "the plague" : "a hurricane", bn, bat.x, bat.y, pw);
+                if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at home at %d,%d casts %s on %d enemy %s at %d,%d (power %d)\n",
+                                      idx, now / 60000.0, p.x, p.y, k_hl_name[k], bn, bk == HLK_SHIPS ? "ships" : "soldiers", bat.x, bat.y, pw);
                 casting = 1;
             }
         }
@@ -271,7 +339,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 if (d > HL_TOWER_LOOK * HL_TOWER_LOOK || (bd >= 0 && d >= bd)) continue;
                 float dx = (float)(p.x - q.x), dy = (float)(p.y - q.y), dl = sqrtf(dx * dx + dy * dy);
                 ivec2 sp = dl < 1.0f ? q : iv2(q.x + (int)(dx / dl * HL_QUAKE_OFF + 0.5f), q.y + (int)(dy / dl * HL_QUAKE_OFF + 0.5f));
-                if (calamity_check(hl_cal(pl, HLP_QUAKE), u, sp.x, sp.y) != 0) { h->refused++; continue; }   // THE REFUSED: the next tower
+                if (hl_check(pl, u, sp, HLP_QUAKE) != 0) { h->refused++; continue; }   // THE REFUSED: the next tower
                 bd = d; tp = q; at = sp;
             }
             if (bd >= 0) {
@@ -293,34 +361,31 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || ivec2_dist2(unit_get_tile(it.u), p) > HL_REACH * HL_REACH) continue;
                 seen[nseen++] = it.u;
             }
-            int best_n[3] = { 0, 0, 0 };   // buildings, soldiers, citizens
-            ivec2 best_at[3];
+            int best_n[HLK_N] = { 0, 0, 0, 0 };   // buildings, soldiers, citizens, ships
+            ivec2 best_at[HLK_N];
             for (int a = 0; a < nseen; a++) {
                 ee_unit_type *ta = unit_get_type_data(seen[a]);
-                int fa = unit_type_get_class_id(ta), t = unit_type_get_id(ta);
-                int kind = (fa == CLS_BUILDING || fa == CLS_FORTRESS) && !is_wall(t) ? 0 : is_citizen_type(t) ? 2 : is_soldier(ta) && fa == CLS_LAND ? 1 : -1;
+                int kind = hl_kind(ta);
                 if (kind < 0) continue;
                 ivec2 q = unit_get_tile(seen[a]);
                 int c = 0;
                 for (int b = 0; b < nseen; b++) {
-                    ee_unit_type *tb = unit_get_type_data(seen[b]);
-                    int fb = unit_type_get_class_id(tb), tt = unit_type_get_id(tb);
-                    int kb = (fb == CLS_BUILDING || fb == CLS_FORTRESS) && !is_wall(tt) ? 0 : is_citizen_type(tt) ? 2 : is_soldier(tb) && fb == CLS_LAND ? 1 : -1;
-                    c += kb == kind && ivec2_dist2(unit_get_tile(seen[b]), q) <= HL_CLUSTER * HL_CLUSTER;
+                    c += hl_kind(unit_get_type_data(seen[b])) == kind && ivec2_dist2(unit_get_tile(seen[b]), q) <= HL_CLUSTER * HL_CLUSTER;
                 }
                 if (c > best_n[kind]) { best_n[kind] = c; best_at[kind] = q; }
             }
             int pick = -1;
             ivec2 at = p;
-            static const int order[3][3] = { { HLP_QUAKE, HLP_FIRE, HLP_VOLCANO }, { HLP_MALARIA, HLP_PLAGUE, HLP_HURRICANE }, { HLP_MALARIA, HLP_PLAGUE, -1 } };   // soldiers: malaria first (AT HOME)
-            static const int need[3] = { HL_BUILDINGS, HL_SOLDIERS, HL_CITIZENS };
-            for (int kind = 1; kind < 4 && pick < 0; kind++) {   // soldiers, then citizens, then buildings
-                int kd = kind == 3 ? 0 : kind;
+            static const int need[HLK_N] = { HL_BUILDINGS, HL_SOLDIERS, HL_CITIZENS, HL_SHIPS };
+            static const int korder[HLK_N] = { HLK_SHIPS, HLK_SOLDIERS, HLK_CITIZENS, HLK_BUILDINGS };
+            for (int ki = 0; ki < HLK_N && pick < 0; ki++) {   // ships, soldiers, citizens, buildings
+                int kd = korder[ki], order[3];
                 if (best_n[kd] < need[kd]) continue;
+                hl_powers(pl, kd, best_at[kd], now, order);   // THE POWERS
                 for (int j = 0; j < 3 && pick < 0; j++) {
-                    int k = order[kd][j];
+                    int k = order[j];
                     if (k < 0 || cost[k] <= 0 || pw < cost[k]) continue;
-                    if (calamity_check(hl_cal(pl, k), u, best_at[kd].x, best_at[kd].y) != 0) { h->refused++; continue; }   // THE REFUSED: a Temple's protection there - the next power or kind
+                    if (hl_check(pl, u, best_at[kd], k) != 0) { h->refused++; continue; }   // THE REFUSED: a Temple's protection there - the next power or kind
                     pick = k; at = best_at[kd];
                 }
             }
@@ -329,9 +394,9 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 h->casts[pick]++;
                 strike = iv2(-1, -1);   // done: home (below, the next look)
                 strike_t = 0;
-                if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d casts %s at %d,%d (power %d, cost %d; %d buildings, %d soldiers, %d citizens of the enemy there)\n",
-                                      idx, now / 60000.0, p.x, p.y, (const char *[]){ "an earthquake", "a fire", "a volcano", "the plague", "a hurricane", "malaria" }[pick],
-                                      at.x, at.y, pw, cost[pick], best_n[0], best_n[1], best_n[2]);
+                if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d casts %s at %d,%d (power %d, cost %d; %d buildings, %d soldiers, %d citizens, %d ships of the enemy there)\n",
+                                      idx, now / 60000.0, p.x, p.y, k_hl_name[pick],
+                                      at.x, at.y, pw, cost[pick], best_n[0], best_n[1], best_n[2], best_n[3]);
                 casting = 1;
             }
         }
@@ -352,7 +417,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                     float rr, aa;
                     int tower = defence_stats(it.u, &rr, &aa);   // THE TOWERS: a tower is struck from outside its reach
                     if (d > HL_STRIKE * HL_STRIKE || (bd >= 0 && d >= bd) || raiders_near(pl, q, 10) || (!tower && wk_danger(idx, q))) continue;
-                    if (calamity_check(hl_cal(pl, HLP_QUAKE), u, q.x, q.y) == 2) { h->refused++; continue; }   // THE REFUSED: under an enemy Temple's protection - another
+                    if (hl_check(pl, u, q, HLP_QUAKE) == 2) { h->refused++; continue; }   // THE REFUSED: under an enemy Temple's protection - another
                     bd = d; strike = q;
                     if (tower) {   // where it stands to cast: the tower's reach + 2 from it, on its side
                         float dx = (float)(p.x - q.x), dy = (float)(p.y - q.y), dl = sqrtf(dx * dx + dy * dy);

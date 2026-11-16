@@ -461,7 +461,8 @@ internal inline ee_calamity ***calamity_mgr_end_at(const ee_calamity_mgr *o) { r
 // EEUGCastCalamity(caster, target or 0, int tile x, int tile y, tech, 1), thiscall on new goal.size_goal_cast
 internal inline uint8_t *goal_fn_goal_cast_ctor_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_goal_cast_ctor; }
 // EEMCastCalamity::vf10's new (AoC 0x4BC8C2 and the AI's 0x40B9C9: 0x34 too)
-// EECalamityClass: thiscall(power, caster, float pos[3], tile x, tile y, 1, 0) - 0 when it may be cast there
+// EECalamityClass: thiscall(power, caster, float pos[3], tile x, tile y, 1, the unit clicked or 0) - 0 when it may
+// be cast there (EEMCastCalamity::vf10's second loop passes its target, +0x14)
 // (the base 0x4A8952: 1 the caster's power short of the cost or the tile unexplored, 2 under an enemy Temple's
 // protection; EEMCastCalamity::vf10 0x4B46A4 asks it before it gives the goal, the AI's analysers before they pick
 // a place; the powers' own classes override it)

@@ -255,7 +255,8 @@ static unsafe class goal
     [value(0x34)]
     static uint32 size_goal_cast;
 
-    /// EECalamityClass: thiscall(power, caster, float pos[3], tile x, tile y, 1, 0) - 0 when it may be cast there
+    /// EECalamityClass: thiscall(power, caster, float pos[3], tile x, tile y, 1, the unit clicked or 0) - 0 when it may
+    /// be cast there (EEMCastCalamity::vf10's second loop passes its target, +0x14)
     /// (the base 0x4A8952: 1 the caster's power short of the cost or the tile unexplored, 2 under an enemy Temple's
     /// protection; EEMCastCalamity::vf10 0x4B46A4 asks it before it gives the goal, the AI's analysers before they pick
     /// a place; the powers' own classes override it)

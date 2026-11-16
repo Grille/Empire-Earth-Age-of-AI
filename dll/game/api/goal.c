@@ -82,16 +82,17 @@ internal inline int goal_garrison_waits(const ee_goal *g) {
 internal inline void *goal_build_alloc(void) { return game_new(value_goal_size_goal_build); }
 internal inline void *goal_attack_alloc(void) { return game_new(value_goal_size_goal_attack); }
 internal inline void *goal_cast_alloc(void) { return game_new(value_goal_size_goal_cast); }
-// whether caster may cast the power of calamity number cal at the tile x, y now: 0 yes (the power's own check, as
-// the right-click's order asks it; 2: under an enemy Temple's protection), -1 unknown power
-internal inline int calamity_check(int cal, ee_unit *caster, int x, int y) {
+// whether caster may cast the power of calamity number cal at the tile x, y - on target, a unit there or 0 - now: 0
+// yes (the power's own check, as the right-click's order asks it with the unit clicked; 2: under an enemy Temple's
+// protection), -1 unknown power
+internal inline int calamity_check(int cal, ee_unit *caster, ee_unit *target, int x, int y) {
     if (!goal_get_calamities()) ((void (*)(void))data_goal_fn_calamities_make)();
     ee_calamity_mgr *m = goal_get_calamities();
     if (!m || cal < 0) return -1;
     ee_calamity **b = calamity_mgr_get_begin(m), **e = calamity_mgr_get_end(m);
     if (!b || e - b <= cal || !b[cal]) return -1;
     float pos[3] = { 0, 0, 0 };
-    return ((int (__thiscall *)(void *, void *, float *, int, int, int, int))(*(void ***)b[cal])[value_goal_slot_calamity_check])(b[cal], caster, pos, x, y, 1, 0);
+    return ((int (__thiscall *)(void *, void *, float *, int, int, int, void *))(*(void ***)b[cal])[value_goal_slot_calamity_check])(b[cal], caster, pos, x, y, 1, target);
 }
 // a power's cost by its calamity number (tech data's calamity), -1 unknown (the powers are made at the first ask, as the game's first cast makes them)
 internal inline int calamity_cost(int cal) {
