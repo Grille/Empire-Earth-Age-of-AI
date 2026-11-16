@@ -215,7 +215,8 @@ internal const char k_rd3_shader[] =
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
-    " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - o.w.z) * shl.y) : 1;"
+    // (a space map's faces hang under the level in no water: rg_space_quad's gt.a -1 - none of the water's own there)
+    " o.q.w = shl.z > 0 && o.gt.a >= 0 ? saturate(1 - (shl.x - o.w.z) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc; o.k = shk.rgb;"   // D3DCOLOR's bytes are B G R A
     // the ground in a shadow keeps its ambient part of the light it faces: a slope turned from the game's light (its
@@ -235,7 +236,7 @@ internal const char k_rd3_shader[] =
     " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = fog_at(z);"
     // what lies under the water takes the fog of the place the line of sight enters it (render_water.c) - the game's
     // own again toward the fog's end, where the ground's mesh stops
-    " if (shp.x > 0 && shl.w > shl.x && o.w.z < shl.x) { float e = fog_at(z * (shl.w - shl.x) / (shl.w - o.w.z));"
+    " if (shp.x > 0 && shl.w > shl.x && o.w.z < shl.x && o.gt.a >= 0) { float e = fog_at(z * (shl.w - shl.x) / (shl.w - o.w.z));"
     "  f = lerp(f, e, saturate(e / 0.7)); }"
     " o.f = f; return o; }\n"   // clamped per pixel, as the driver under a wrapper does (the picture compare)
     // D3DTA_: 0 diffuse, 1 current (the diffuse at stage 0), 2 texture, 3 texture factor; D3DTOP_ 1..8
@@ -302,7 +303,7 @@ internal const char k_rd3_shader[] =
     // after it, from the chunks behind, showed black through it where the game draws all faces first
     " if (i.gt.a < -0.5 && x.a < 0.25) discard;"
     // the seabed loses its texture's detail with the depth, keeping its colour: toward the texture's last mip level
-    " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"
+    " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z && i.gt.a >= 0) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"
     "  sea.x * (1 - exp(-(sea.z - i.w.z) * sea.y)));"
     " if (op.x != 1) { c.rgb = top(op.x, arg(op.y, x, d), arg(op.z, x, d)).rgb;"
     "  if (aop.x != 1) c.a = top(aop.x, arg(aop.y, x, d), arg(aop.z, x, d)).a; }"
@@ -337,7 +338,7 @@ internal const char k_rd3_shader[] =
     // thins out at the shore: by its own alone a line lay on sand the surface no longer covered, a white streak on the beach.
     // Added to each of the ground's layers alike: their blend keeps it. The pattern before (the player: "to uniform", "in
     // realithy they move in one direction, not random cells"): a net of moving cells, bent and broken by noise
-    " if (gnd.x == 1 && wat.x > 0 && cau.x > 0 && sea.w == 0 && i.w.z < sea.z) { float cd = sea.z - i.w.z, cf = cd;"
+    " if (gnd.x == 1 && wat.x > 0 && cau.x > 0 && sea.w == 0 && i.w.z < sea.z && i.gt.a >= 0) { float cd = sea.z - i.w.z, cf = cd;"
     "  if (shh.w > 0) { float2 ch = hm.SampleLevel(hs, i.w.xy * shh.x, 0); cf = min(cf, max(0, sea.z - (ch.x - ch.y))); }"
     "  c.rgb = max(0, c.rgb + i.gl * caus(i.w, cd, cf)); }"
     // and on what stands in the water under the level - a ship's hull, a unit wading (the casters: SH_CAST, SH_TINT, SH_TREE),
