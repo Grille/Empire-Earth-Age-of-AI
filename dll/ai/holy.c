@@ -29,6 +29,9 @@
 #define HL_PROPHETS_MAX 4
 #define HL_PRIESTS 3
 #define HL_BANK 1
+#define HL_LOSSES 8
+#define HL_LOSS_WINDOW 600000   // THE LOST: HL_LOSS_MAX of a kind lost within this - none of that kind trained meanwhile
+#define HL_LOSS_MAX 3
 #define HL_REACH 14
 #define HL_TOWER_LOOK 16      // THE TOWERS: an enemy tower within this
 #define HL_QUAKE_OFF 3        // ... gets the earthquake this many tiles before it
@@ -49,7 +52,8 @@ internal struct hl_st {
     uint32_t t, log_t, train_t;
     struct { int id; ivec2 strike; uint32_t strike_t; } p[HL_UNITS]; int np;   // prophets on a strike: its target, since
     struct { int id; uint32_t t; } ord[2 * HL_UNITS]; int nord;   // its last cast or conversion order, when (A GIVEN ORDER)
-    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers;
+    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused;
+    int last_pro, last_pri; uint32_t lost[2][HL_LOSSES]; unsigned nlost[2];   // THE LOST: the last count of each, when each was lost (a ring)
 } g_hl[16];
 // A GIVEN ORDER: a cast or a conversion walks first - the unit's goal is a move meanwhile (the cast goal's own walk into
 // reach, EEUGLocation) - and is not given again for HL_ORDER_WAIT while the unit has a goal (the first count: 130 to 180
@@ -67,6 +71,11 @@ internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
     h->nord = n;
 }
 internal void holy_new_game(void) { memset(g_hl, 0, sizeof g_hl); }
+internal int hl_lost(struct hl_st *h, int k, uint32_t now) {   // THE LOST: those of kind k (0 prophets, 1 priests) lost within HL_LOSS_WINDOW
+    int n = 0;
+    for (unsigned j = 0; j < HL_LOSSES && j < h->nlost[k]; j++) n += h->lost[k][j] && now >= h->lost[k][j] && now - h->lost[k][j] < HL_LOSS_WINDOW;
+    return n;
+}
 // a power's cost for pl (-1: not its, or unknown)
 internal int hl_cost(ee_player *pl, int k) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
@@ -124,13 +133,22 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             else if (ntown < 64) town[ntown++] = unit_get_tile(u);
         }
     }
+    // THE LOST (the player 2026-11-16, agreeing to it: one AI trained 14 priests in an hour, their conversions walking
+    // into its enemy): a fall in the count is a loss (killed or converted); HL_LOSS_MAX of a kind lost within
+    // HL_LOSS_WINDOW - none of that kind trained until the oldest of them is out of it.
+    for (int k = 0; k < 2; k++) {
+        int now_n = k ? npri : npro, *last = k ? &h->last_pri : &h->last_pro;
+        for (int j = now_n; j < *last; j++) h->lost[k][h->nlost[k]++ % HL_LOSSES] = now ? now : 1;
+        *last = now_n;
+    }
     // TRAINING
     if (temple && (!h->train_t || now < h->train_t || now - h->train_t >= HL_TRAIN_EVERY)) {
         h->train_t = now ? now : 1;
         int wp = HL_PROPHETS + current_epoch(pl) / HL_PROPHET_EPOCHS;
         if (wp > HL_PROPHETS_MAX) wp = HL_PROPHETS_MAX;
-        int type = npro < wp ? UT(PROPHET) : npri < HL_PRIESTS ? UT(PRIEST) : 0;
-        if (type == UT(PROPHET) && hl_cost(pl, HLP_QUAKE) < 0) type = npri < HL_PRIESTS ? UT(PRIEST) : 0;   // no powers for it
+        int want_c = npri < HL_PRIESTS && hl_lost(h, 1, now) < HL_LOSS_MAX;
+        int type = npro < wp && hl_lost(h, 0, now) < HL_LOSS_MAX ? UT(PROPHET) : want_c ? UT(PRIEST) : 0;
+        if (type == UT(PROPHET) && hl_cost(pl, HLP_QUAKE) < 0) type = want_c ? UT(PRIEST) : 0;   // no powers for it
         const int *stock = player_stock_at(pl);
         for (int r = 2; type && r < 7; r++) if (stock[r] < HL_BANK * unit_cost(pl, type, r)) type = 0;
         ee_civ_mgr *cm = player_get_civ_mgr(pl);
@@ -172,7 +190,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         // prophet's side - the prophet casts from its reach of that spot, outside the tower's. One under an enemy Temple's
         // protection fails the power's check and is left.
         if (!casting && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE]) {
-            ivec2 tp = p;
+            ivec2 tp = p, at = p;
             int bd = -1;
             float rr, aa;
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_TOWER_LOOK, 1); grid_it_next(&it); ) {
@@ -181,11 +199,12 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 ivec2 q = unit_get_tile(it.u);
                 int d = ivec2_dist2(q, p);
                 if (d > HL_TOWER_LOOK * HL_TOWER_LOOK || (bd >= 0 && d >= bd)) continue;
-                bd = d; tp = q;
+                float dx = (float)(p.x - q.x), dy = (float)(p.y - q.y), dl = sqrtf(dx * dx + dy * dy);
+                ivec2 sp = dl < 1.0f ? q : iv2(q.x + (int)(dx / dl * HL_QUAKE_OFF + 0.5f), q.y + (int)(dy / dl * HL_QUAKE_OFF + 0.5f));
+                if (calamity_check(hl_cal(pl, HLP_QUAKE), u, sp.x, sp.y) != 0) { h->refused++; continue; }   // THE REFUSED: the next tower
+                bd = d; tp = q; at = sp;
             }
             if (bd >= 0) {
-                float dx = (float)(p.x - tp.x), dy = (float)(p.y - tp.y), dl = sqrtf(dx * dx + dy * dy);
-                ivec2 at = dl < 1.0f ? tp : iv2(tp.x + (int)(dx / dl * HL_QUAKE_OFF + 0.5f), tp.y + (int)(dy / dl * HL_QUAKE_OFF + 0.5f));
                 if (hl_cast(pl, u, at, HLP_QUAKE)) {
                     hl_order_note(h, u, now);
                     h->casts[HLP_QUAKE]++; h->towers++;
@@ -228,7 +247,12 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             for (int kind = 1; kind < 4 && pick < 0; kind++) {   // soldiers, then citizens, then buildings
                 int kd = kind == 3 ? 0 : kind;
                 if (best_n[kd] < need[kd]) continue;
-                for (int j = 0; j < 3 && pick < 0; j++) { int k = order[kd][j]; if (k >= 0 && cost[k] > 0 && pw >= cost[k]) { pick = k; at = best_at[kd]; } }
+                for (int j = 0; j < 3 && pick < 0; j++) {
+                    int k = order[kd][j];
+                    if (k < 0 || cost[k] <= 0 || pw < cost[k]) continue;
+                    if (calamity_check(hl_cal(pl, k), u, best_at[kd].x, best_at[kd].y) != 0) { h->refused++; continue; }   // THE REFUSED: a Temple's protection there - the next power or kind
+                    pick = k; at = best_at[kd];
+                }
             }
             if (pick >= 0 && hl_cast(pl, u, at, pick)) {
                 hl_order_note(h, u, now);
@@ -255,6 +279,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                     float rr, aa;
                     int tower = defence_stats(it.u, &rr, &aa);   // THE TOWERS: a tower is struck from outside its reach
                     if (d > HL_STRIKE * HL_STRIKE || (bd >= 0 && d >= bd) || raiders_near(pl, q, 10) || (!tower && wk_danger(idx, q))) continue;
+                    if (calamity_check(hl_cal(pl, HLP_QUAKE), u, q.x, q.y) == 2) { h->refused++; continue; }   // THE REFUSED: under an enemy Temple's protection - another
                     bd = d; strike = q;
                     if (tower) {   // where it stands to cast: the tower's reach + 2 from it, on its side
                         float dx = (float)(p.x - q.x), dy = (float)(p.y - q.y), dl = sqrtf(dx * dx + dy * dy);
@@ -308,7 +333,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     }
     if (g_log && g_autotest && (!h->log_t || now - h->log_t >= 60000)) {
         h->log_t = now ? now : 1;
-        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u conversions ordered | earthquake costs %d\n",
-                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->converts, hl_cost(pl, HLP_QUAKE));
+        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u refused by the power's check, %u conversions ordered, lost in 10 minutes %d prophets %d priests | earthquake costs %d\n",
+                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->refused, h->converts, hl_lost(h, 0, now), hl_lost(h, 1, now), hl_cost(pl, HLP_QUAKE));
     }
 }
