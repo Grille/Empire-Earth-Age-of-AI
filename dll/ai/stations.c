@@ -84,6 +84,7 @@ internal struct sn_st {
     uint32_t res_t, res_out_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n;   // THE RESERVE: its last look, the last fortress let out; soldiers in, out
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale;   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
+    ivec2 esc_at; uint32_t esc_t; int esc_n; unsigned escorts;   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
@@ -92,6 +93,13 @@ internal struct st_side g_sn_own;
 // against the enemy there): a push's building, else the middle of the enemy soldiers in the territory of its with the
 // most of them, else the enemy building it knows nearest the territory with the largest share. 0: none known.
 internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at; return g_sn[idx & 15].need_on; }
+// AN ESCORT (the player 2026-11-16, agreeing to it: a prophet's strike, holy.c, with soldiers beside it): asked again
+// every look while it is wanted - n soldiers of the main force follow at (the prophet where it stands now), the
+// nearest of territories not pushing and with no enemy soldiers in them, marked as scouts (scout 2: no share, no push
+// takes them); SN_ESC_KEEP after the last ask they are the main force's again, stationed where they stand
+#define SN_ESC_KEEP 10000
+internal void sn_escort(unsigned idx, ivec2 at, int n, uint32_t now) { struct sn_st *z = &g_sn[idx & 15]; z->esc_at = at; z->esc_n = n; z->esc_t = now ? now : 1; }
+internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRST)
 // THE WAY (the player 2026-11-15: "ai attacks dont cope well with walls yet. the attack should actual try to pathfind to
 // the target. maybe 2 paths? on with walls and one ignoring them, if the path with wall is a larger detour the ai bring
 // siege to destroy walls"): from a push's soldiers to its building two ways over the cells of armies.c's route search -
@@ -267,7 +275,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     static int tc[PR_T], ac[PR_T], tcs[PR_T], acs[PR_T], fx[PR_T], fy[PR_T], fn[PR_T];
     static ivec2 rally[PR_T];
     static uint8_t anc[PR_T];
-    static struct { ivec2 p; short ter; } eb[SN_EB];
+    static struct { ivec2 p; short ter; uint8_t temple; } eb[SN_EB];   // temple: TEMPLE FIRST
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct sn_st *z = &g_sn[idx];
     struct tv_st *s = &g_tv[idx];
@@ -319,12 +327,15 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         ivec2 p = unit_get_tile(u);
         unsigned r = ter_near(p.x, p.y);
         if (r >= (unsigned)n) continue;
-        if (fr_building(it.td)) { if (!is_wall(unit_type_get_id(it.td)) && neb < SN_EB) { eb[neb].p = p; eb[neb++].ter = (short)r; } }
+        if (fr_building(it.td)) { if (!is_wall(unit_type_get_id(it.td)) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }
         else if (ms_land_soldier(u, it.td)) { fx[r] += p.x; fy[r] += p.y; fn[r]++; }
     }
     // STATIONS: the shares in soldiers
     int np[SNP_N] = { 0, 0, 0 }, scouts = 0, wsum = 0;
-    for (int i = 0; i < nn; i++) { if (z->m[i].scout) scouts++; else np[z->m[i].pool]++; }
+    for (int i = 0; i < nn; i++) { if (z->m[i].scout) scouts += z->m[i].scout == 1; else np[z->m[i].pool]++; }   // escorts (scout 2) are neither
+    // TEMPLE FIRST (the player 2026-11-16, agreeing to it: an enemy Temple's protection keeps its prophets' powers off
+    // everything in its reach): with prophets of its own a push goes at the Temple in the territory first
+    int pro = holy_prophets(idx) > 0;
     // STEADY (the player 2026-11-15, on the soldiers reshuffled with every look: "yes, continue with steading the
     // shares"): a territory's share in soldiers stays what it was until the new one is off by SN_BAND of it (SN_BAND_MIN
     // soldiers at least) - a soldier trained or lost, a citizen more in a front's guard moved every share by one and a
@@ -420,7 +431,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         for (int e = 0; e < neb; e++) {
             if (eb[e].ter != p->into) continue;
-            int d = ivec2_dist2(eb[e].p, mid);
+            int d = ivec2_dist2(eb[e].p, mid) - (eb[e].temple && pro ? 1 << 24 : 0);   // TEMPLE FIRST
             if (bi < 0 || d < bd) { bi = e; bd = d; }
         }
         int ti = sn_target_in(stg, nst, p->into);   // A SCENARIO'S TARGET there: what it goes at first
@@ -540,7 +551,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (into < 0) continue;
         for (int e = 0; e < neb; e++) {
             if (eb[e].ter != into) continue;
-            int d = ivec2_dist2(eb[e].p, rally[r]);
+            int d = ivec2_dist2(eb[e].p, rally[r]) - (eb[e].temple && pro ? 1 << 24 : 0);   // TEMPLE FIRST
             if (bi < 0 || d < bd) { bi = e; bd = d; }
         }
         // TO LOOK (the player's game of 2026-11-16, "aistuck": yellow's push into red's territory 7 ended "cleared" at
@@ -622,9 +633,36 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         z->m[b].scout = 1; z->m[b].ter = -1; z->m[b].order_t = 0;
         scouts++;
     }
+    // AN ESCORT: given, followed, let go
+    {
+        int esc_on = z->esc_t && now >= z->esc_t && now - z->esc_t < SN_ESC_KEEP, ne = 0;
+        for (int i = 0; i < nn; i++) {
+            struct sn_unit *m = &z->m[i];
+            if (m->scout != 2) continue;
+            ivec2 q = unit_get_tile(m->u);
+            if (!esc_on || ne >= z->esc_n) { unsigned r = ter_near(q.x, q.y); m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0; continue; }
+            ne++;
+            if (ivec2_dist2(q, z->esc_at) > 4 * 4 && (!m->order_t || now - m->order_t >= 5000)) sn_order(z, m, 0, z->esc_at, 1, now);
+        }
+        while (esc_on && ne < z->esc_n) {
+            int b = -1, bd = 0;
+            for (int i = 0; i < nn; i++) {
+                struct sn_unit *m = &z->m[i];
+                if (m->pool != SNP_MAIN || m->scout || m->ter < 0 || m->ter >= n || s->t[m->ter].foe > 0) continue;
+                int pushing = 0;
+                for (int k = 0; k < SN_PUSHES; k++) pushing |= z->push[k].on && z->push[k].from == m->ter;
+                int d = ivec2_dist2(unit_get_tile(m->u), z->esc_at);
+                if (!pushing && (b < 0 || d < bd)) { b = i; bd = d; }
+            }
+            if (b < 0) break;
+            z->m[b].scout = 2; z->m[b].ter = -1; z->m[b].order_t = 0; z->escorts++; ne++;
+            sn_order(z, &z->m[b], 0, z->esc_at, 1, now);
+            if (g_log && ne == z->esc_n) log_locked("# stations: P%u at %.1f min: an escort of %d for the prophet at %d,%d (so far %u soldiers given)\n", idx, now / 60000.0, ne, z->esc_at.x, z->esc_at.y, z->escorts);
+        }
+    }
     for (int i = 0; i < nn; i++) {
         struct sn_unit *m = &z->m[i];
-        if (!m->scout) continue;
+        if (m->scout != 1) continue;
         ivec2 p = unit_get_tile(m->u);
         if (m->ter >= 0 && m->ter < n && !g_sn_seen[idx][m->ter] && m->since && now - m->since > SN_SCOUT_GIVE_UP) g_sn_seen[idx][m->ter] = 2;   // not reached in that time: given up (walled off, held against it)
         if (m->ter < 0 || m->ter >= n || g_sn_seen[idx][m->ter]) {   // the next one: the nearest it has not stood in, on its land, no other scout's
@@ -633,7 +671,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             for (int r = 0; r < n; r++) {
                 if (g_ter.t[r].water || g_sn_seen[idx][r] || (land && area_id(g_ter.t[r].c, 2) != land)) continue;
                 int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p);
-                for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout && z->m[j].ter == r;
+                for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout == 1 && z->m[j].ter == r;
                 if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
             }
             if (b < 0 || !player_ai_toggle(pl, SM_AIT_EXPLORE)) {   // none left (or the scenario's Explore off): the main force's again

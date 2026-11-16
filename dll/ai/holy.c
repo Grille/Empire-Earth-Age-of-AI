@@ -12,11 +12,13 @@
 //               game/api goal.c calamity_cost: earthquake 50, volcano 60, fire 75, hurricane, plague, malaria 100):
 //               enemy buildings (HL_BUILDINGS within HL_CLUSTER of one: earthquake, else fire, else volcano), enemy
 //               soldiers (HL_SOLDIERS: plague, else hurricane), citizens (HL_CITIZENS: malaria, else plague) - what it
-//               knows within HL_REACH of it. With the force meeting the enemy (stations.c sn_need_at) it goes with it:
-//               HL_BEHIND tiles behind that place, as the siege. Else, power for an earthquake at least: A STRIKE -
-//               the nearest enemy building it knows within HL_STRIKE with no enemy soldiers near (raiders_near) and
-//               under no enemy tower (work.c wk_danger) is walked to, cast at, and it walks home again; hurt, or the
-//               target guarded since, it turns home at once.
+//               knows within HL_REACH of it; an enemy tower first (THE TOWERS), the earthquake a few tiles before it.
+//               The first prophet goes with the force while it meets the enemy (stations.c sn_need_at): HL_BEHIND tiles
+//               behind that place, as the siege - a push goes at the enemy's Temple first then (stations.c TEMPLE
+//               FIRST). The others, power for an earthquake at least: A STRIKE - the nearest enemy building it knows
+//               within HL_STRIKE with no enemy soldiers near (raiders_near), under no enemy tower (work.c wk_danger) or a
+//               tower itself, is walked to with HL_ESCORT soldiers beside it (stations.c AN ESCORT), cast at, and it
+//               walks home again; hurt, or the target guarded since, it turns home at once.
 //   PRIESTS   - a conversion (the game's attack order: a priest's attack converts) of an enemy citizen or soldier
 //               within HL_PRIEST_LOOK that stands alone (no other enemy soldier within HL_ALONE of it) and under no
 //               tower, citizens first, the nearest; none near enemy soldiers that outnumber them. Idle: with the force
@@ -24,7 +26,7 @@
 // "# holy:" at every cast and strike, and once a minute in tests.
 #define HL_EVERY 2000
 #define HL_TRAIN_EVERY 20000
-#define HL_PROPHETS 1
+#define HL_PROPHETS 2           // one with the force, one on strikes (WITH THE FORCE, ON ITS OWN)
 #define HL_PROPHET_EPOCHS 4
 #define HL_PROPHETS_MAX 4
 #define HL_PRIESTS 3
@@ -32,6 +34,7 @@
 #define HL_LOSSES 8
 #define HL_LOSS_WINDOW 600000   // THE LOST: HL_LOSS_MAX of a kind lost within this - none of that kind trained meanwhile
 #define HL_LOSS_MAX 3
+#define HL_ESCORT 4          // AN ESCORT: soldiers beside a prophet on a strike (stations.c sn_escort)
 #define HL_REACH 14
 #define HL_TOWER_LOOK 16      // THE TOWERS: an enemy tower within this
 #define HL_QUAKE_OFF 3        // ... gets the earthquake this many tiles before it
@@ -71,6 +74,7 @@ internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
     h->nord = n;
 }
 internal void holy_new_game(void) { memset(g_hl, 0, sizeof g_hl); }
+internal int holy_prophets(unsigned idx) { return g_hl[idx & 15].last_pro; }   // stations.c TEMPLE FIRST
 internal int hl_lost(struct hl_st *h, int k, uint32_t now) {   // THE LOST: those of kind k (0 prophets, 1 priests) lost within HL_LOSS_WINDOW
     int n = 0;
     for (unsigned j = 0; j < HL_LOSSES && j < h->nlost[k]; j++) n += h->lost[k][j] && now >= h->lost[k][j] && now - h->lost[k][j] < HL_LOSS_WINDOW;
@@ -168,6 +172,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     struct { int id; ivec2 strike; uint32_t strike_t; } keep[HL_UNITS];
     int nk = 0;
     static ee_unit *seen[HL_SEEN];
+    int escorted = 0;   // one prophet's strike escorted a look
     for (int i = 0; i < npro; i++) {
         ee_unit *u = pro[i];
         ivec2 p = unit_get_tile(u);
@@ -267,7 +272,10 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         }
         if (!casting) {
             if (strike.x >= 0 && (hurt || cost[HLP_QUAKE] <= 0 || pw < cost[HLP_QUAKE] || raiders_near(pl, strike, 10) || (strike_t && now - strike_t > 300000))) strike = iv2(-1, -1);   // A STRIKE called off
-            if (strike.x < 0 && !hurt && fight) hl_walk(u, hl_behind(front, home));   // with the force, as the siege
+            // WITH THE FORCE, ON ITS OWN (the first test: 0 strikes in 3 games - the force meets the enemy somewhere
+            // nearly all the time, and every prophet went with it): the first prophet goes with the force, the others strike
+            int with = fight && i == 0;
+            if (strike.x < 0 && !hurt && with) hl_walk(u, hl_behind(front, home));   // with the force, as the siege
             else if (strike.x < 0 && !hurt && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE]) {   // A STRIKE: the nearest enemy building unguarded
                 int bd = -1;
                 for (struct grid_it it = grid_it_box(p.x, p.y, HL_STRIKE, 1); grid_it_next(&it); ) {
@@ -291,8 +299,24 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                     if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d strikes at the enemy building at %d,%d (power %d)\n", idx, now / 60000.0, p.x, p.y, strike.x, strike.y, pw);
                 }
             }
-            if (strike.x >= 0) hl_walk(u, strike);
-            else if (!fight || hurt) hl_walk(u, home);
+            // AT ITS TARGET (the second test: 10 strikes, no cast - the clusters want 2 buildings, a strike goes for one):
+            // within HL_REACH of the building struck, the earthquake on it (a tower's strike ends in THE TOWERS above)
+            if (strike.x >= 0 && ivec2_dist2(p, strike) <= HL_REACH * HL_REACH && pw >= cost[HLP_QUAKE]) {
+                int bld = 0;
+                for (struct grid_it it = grid_it_box(strike.x, strike.y, 2, 1); grid_it_next(&it) && !bld; ) {
+                    ee_player *o = unit_get_owner(it.u);
+                    int fa = unit_type_get_class_id(it.td);
+                    bld = o && is_enemy(pl, o) && (fa == CLS_BUILDING || fa == CLS_FORTRESS) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl);
+                }
+                if (bld && hl_cast(pl, u, strike, HLP_QUAKE)) {
+                    hl_order_note(h, u, now);
+                    h->casts[HLP_QUAKE]++;
+                    if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d casts an earthquake at the building it struck at %d,%d (power %d)\n", idx, now / 60000.0, p.x, p.y, strike.x, strike.y, pw);
+                    strike = iv2(-1, -1); strike_t = 0;
+                }
+            }
+            if (strike.x >= 0) { hl_walk(u, strike); if (!escorted) { sn_escort(idx, p, HL_ESCORT, now); escorted = 1; } }   // stations.c AN ESCORT: beside it on the way
+            else if (!with || hurt) hl_walk(u, home);
         }
         if (strike.x >= 0 && nk < HL_UNITS) { keep[nk].id = id; keep[nk].strike = strike; keep[nk++].strike_t = strike_t; }
     }
