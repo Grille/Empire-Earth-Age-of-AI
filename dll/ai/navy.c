@@ -829,6 +829,7 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
     }
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!GAME_AI(idx)) return;   // the game's computer player off: nobody works its queue - fleet.c MORE DOCKS WHEN BUSY lays them
     if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || build_mgr_queued(bm, UT(B_DOCK))) return;
     if (!can_build(pl, UT(B_DOCK))) return;
     build_mgr_request_one(bm, UT(B_DOCK));

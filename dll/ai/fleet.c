@@ -808,13 +808,36 @@ internal int tv_sea_threat(unsigned idx, unsigned sea);
 #define HB_SERVED_MS 300000
 #define HB_YARD_BAD 6
 internal struct { uint32_t t, laid_t; unsigned docks, towers; int yards, yard_tries; struct { unsigned sea; ivec2 at; uint32_t t; } served[HB_SERVED]; int nserved; ivec2 yard_at, yard_bad[HB_YARD_BAD]; int nbad; } g_hb[16];   // yard_at: where the last Navy Yard was laid; yard_bad: spots laid at with none standing after   // laid_t: the last one laid with the game's computer player off (HB_LAID)
+#define HB_BUILDERS 2               // hb_lay: citizens sent to a foundation it lays
 // a harbour's building at q: into the build manager's queue - the game's computer player off (nobody works that queue:
-// the player 2026-11-15, "it dosnt buidl habous and claims water territories yet") laid at once, when it pays
+// the player 2026-11-15, "it dosnt buidl habous and claims water territories yet") laid at once, when it pays: its
+// foundation and HB_BUILDERS of its nearest free citizens sent to it, as bunker.c lays a fortress (build.c's own
+// builders for unfinished buildings came late: a harbour's first dock stood 30 minutes at 1 hit point). Not the
+// game's placement (hook_place, 0x46580A): with no free citizen near the spot it lays nothing and says it did for a
+// Dock (once it has one), a Temple and a few others - 7 harbour docks laid for 2 standing, a dock laid at 57,82 twelve
+// times and never there (Small Islands from epoch 1, 2026-11-16)
 internal int hb_lay(ee_player *pl, unsigned idx, ee_build_mgr *bm, int e, int type, ivec2 q) {
     if (GAME_AI(idx)) { int entry[3] = { type, q.x, q.y }; build_mgr_queue_add(bm, e, entry); return 1; }
     const int *stock = player_stock_at(pl);
     for (int r = 2; r < 7; r++) if (stock[r] - g_bd_com[idx][r] < unit_cost(pl, type, r)) return 0;
-    return hook_place(bm, type, q.x, q.y) != 0;
+    if (prio_refuses(pl, type)) return 0;
+    ee_unit *b = place_foundation(pl, type, q.x, q.y);
+    if (b) bk_builders(pl, b, HB_BUILDERS);
+    return b != NULL;
+}
+// the land a dock at q would touch: the first land tile on the ring round its footprint (0: none) - can_place takes a
+// spot in open water too, which no builder reaches (a dock laid 5 tiles off the shore was gone within half a minute)
+internal unsigned fl_dock_land(ivec2 q) {
+    ee_unit_type *td = type_data(UT(B_DOCK));
+    int sz = td ? unit_type_get_size(td) : 3;
+    for (int ax = -1; ax <= sz; ax++)
+        for (int ay = -1; ay <= sz; ay++) {
+            if (ax >= 0 && ax < sz && ay >= 0 && ay < sz) continue;
+            ivec2 t = iv2(q.x + ax, q.y + ay);
+            unsigned c = area_id(t, 1) ? 0 : cont_at(t);   // a water tile can carry a continent too: land is no ocean
+            if (c) return c;
+        }
+    return 0;
 }
 internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
@@ -905,13 +928,63 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = ivec2_add(shore, iv2(ax, ay));
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q)) continue;
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || !fl_dock_land(q)) continue;
                 if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
                 g_hb[idx].docks++; g_hb[idx].laid_t = now ? now : 1;
                 if (g_hb[idx].nserved < HB_SERVED) { g_hb[idx].served[g_hb[idx].nserved].sea = sea; g_hb[idx].served[g_hb[idx].nserved].at = q; g_hb[idx].served[g_hb[idx].nserved++].t = now ? now : 1; }
                 if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a dock queued at %d,%d for the sea territory %u from the land territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, q.x, q.y, sea, land, shore.x, shore.y, g_fs.nd);
                 return;
             }
+}
+// MORE DOCKS WHEN BUSY (the player 2026-11-16: "doks dont get orderd more of like other production buildings if they
+// working at capacithy yet?"): with the game's computer player off navy.c's one more dock went into the build manager's
+// queue, which nobody works then - his P2 at 2 docks for 100 minutes, its one request standing, 141 warships trained one
+// at a time. Off, as army.c BUILD for the land's production: its finished docks sampled at every look (2 s); every
+// FL_DOCK_LOOK, 7 in 10 of the samples training, warships still missing (the fleet's target) and the navy account
+// holding the price of the warship it asked for last (not when money is what the docks wait for) -> one more beside a
+// dock of its on the fleet's sea (else any), FL_DOCK_MAX at most, none while one is going up or was laid FL_DOCK_LAID ago
+#define FL_DOCK_LOOK 60000
+#define FL_DOCK_MAX 8
+#define FL_DOCK_LAID 90000
+internal struct { uint32_t t, laid_t; unsigned have, busy, laid; } g_fdk[16];
+internal void fl_busy_docks(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now) {
+    if (GAME_AI(idx) || !ut_has(UT(B_DOCK))) return;
+    if (now < g_fdk[idx].t) memset(&g_fdk[idx], 0, sizeof g_fdk[idx]);   // a new game
+    void *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!um || !bm) return;
+    int h = 0, b = 0;
+    am_bld(um, UT(B_DOCK), &h, &b);
+    g_fdk[idx].have += (unsigned)h; g_fdk[idx].busy += (unsigned)b;
+    if (!g_fdk[idx].t) g_fdk[idx].t = now ? now : 1;
+    if (now - g_fdk[idx].t < FL_DOCK_LOOK) return;
+    unsigned have = g_fdk[idx].have, busy = g_fdk[idx].busy;
+    g_fdk[idx].have = g_fdk[idx].busy = 0; g_fdk[idx].t = now ? now : 1;
+    struct nv_orders *o = &g_nv_ord[idx];
+    int want = o->want && now >= o->want_t && now - o->want_t < 120000 ? o->want : 0, price = 0;
+    for (int r = 3; r < 7 && want; r++) if (r != 4) price += unit_cost(pl, want, r);
+    if (!have || busy * 10 < have * 7 || g_nv_target[idx] - g_nv_own[idx].war <= 0 || !want || navy_account(idx, 3) < price ||
+        g_fs.nd >= FL_DOCK_MAX || g_nv_own[idx].docks_built < g_nv_own[idx].docks ||
+        (g_fdk[idx].laid_t && now >= g_fdk[idx].laid_t && now - g_fdk[idx].laid_t < FL_DOCK_LAID) || !can_build(pl, UT(B_DOCK))) return;
+    int e = current_epoch(pl);
+    for (int pass = 0; pass < 2; pass++)   // a dock on the fleet's sea first
+        for (int k = 0; k < g_fs.nd && k < 16; k++) {
+            ivec2 dk = g_fs.dk[k];
+            unsigned land = fl_dock_land(dk);   // ... on the same land as that dock, its edge on it
+            if ((pass == 0 && (int)ocean_near(dk, 4, NULL) != f->ocean) || !land || raiders_near(pl, dk, 10)) continue;
+            for (int r = 3; r <= 10; r++)
+                for (int ax = -r; ax <= r; ax++)
+                    for (int ay = -r; ay <= r; ay++) {
+                        ivec2 q = ivec2_add(dk, iv2(ax, ay));
+                        if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_land(q) != land) continue;
+                        if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
+                        g_fdk[idx].laid++; g_fdk[idx].laid_t = now ? now : 1;
+                        if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks busy %u/%u, %d warships missing - one more dock laid at %d,%d by the dock %d,%d (%d docks, %u laid so far)\n",
+                                           idx, now / 60000.0, busy, have, g_nv_target[idx] - g_nv_own[idx].war, q.x, q.y, dk.x, dk.y, g_fs.nd, g_fdk[idx].laid);
+                        return;
+                    }
+        }
 }
 internal void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now) {
     if (m->rcover || m->rally_towers >= 3 || (m->tower_t && now >= m->tower_t && now - m->tower_t < 120000) || !g_fs.nd) return;
@@ -1506,6 +1579,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     if (!f->ocean) return;
     fl_guard_point(f);
     fl_harbours(pl, idx, now);
+    fl_busy_docks(pl, idx, f, now);
     if (!f->g.x && !f->g.y) return;
     // repaired at the dock: hit points regained by the ships sent there
     for (int j = 0; j < f->ndocked; j++) {
