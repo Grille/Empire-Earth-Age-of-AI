@@ -173,6 +173,7 @@ internal void cmd_handover(char *out, const char *args) {
     // THE HUMAN: an observer, kept in
     g_ho_human = (int)hi; g_ho_ai = (int)n;
     player_set_explore_all(h, 1);
+    player_set_civ_chosen(h, 1);   // the skirmish's civ dialog no more: the observer has no civ to choose (the player 2026-11-16: "mark it checked with the handover")
     if (pick >= 0) { persona_assign(p); persona_apply(p, n, pick); }   // assigned first (marked), then the one asked for
     char gm[REPLY_CAP];
     gm[0] = 0;
