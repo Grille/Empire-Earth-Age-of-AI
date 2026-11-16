@@ -22,7 +22,9 @@
 //                 tower outranges it; else from in it, never where the enemy's outranges its own.
 //   IN A TOWER'S REACH (the player 2026-11-16: "if the tower is placed exactly in range (with the upgrade) the
 //                 citezens can savely build from behind, but you have to activly position them on athe far side"):
-//                 the spot as far out as CR_EDGE past its own range - the farthest by half tiles, then the nearest its
+//                 the spot as far out as CR_EDGE past its own range but no farther than its sight (cr_reach: a tower
+//                 fires on what is seen - range 6 towers of sight 5 stood 6.0 to 6.7 off their targets, ordered onto
+//                 them, and never hurt them; 1.25 past laid them 7.2 off) - the farthest by half tiles, then the nearest its
 //                 own (so the next towers go beside the first, not round the enemy tower) - and its crew builds from
 //                 the far side. A probe (a range 4 Stone Age tower of the enemy's spawned by its base, 12 citizens):
 //                 a tower 3.6 tiles off, its builders on the tiles beside it 4.5 to 5 off, lost 5 of 12; 4.5 off, 5 of
@@ -60,6 +62,12 @@
 // against 195; 10.8 creeps a game, 29 of 86 against a tower, 1.1 targets down (drops: soldiers 25, the owner's
 // citizens 17, no hurt done 12, no tower laid 11, the crew gone 10). The first version (no place behind, its spot by
 // the type's range) 330 against 361 citizens, killed 67 against 53.
+// The Prehistoric stalemate (the player 2026-11-16: "if you try a few epoch 0 games the creep might be the only way to
+// win. When there is no food left and both players lost most of their army alredx"): 2 AIs held in epoch 0
+// ([autotest] end_epoch=0), Continental small, 180 min, seeds 4-13, both creeping against neither: games decided 7
+// against 5 (the decided ones over at 106 against 119 min on average), 5.6 targets down a game, the weaker side's
+// buildings at the end 17 against 21 - but citizens 74 against 117 (both sides creep, both bleed). Drops: the owner's
+// citizens 45, soldiers 24, no hurt done 17 (before the sight cap and the order off other buildings: 32 of 101).
 #define CR_EVERY 4000
 #define CR_REACH 40
 #define CR_FOE_R 12
@@ -67,7 +75,7 @@
 #define CR_MARGIN 1.0f      // ... and this far outside every other enemy defence's reach
 #define CR_BEHIND 2.0f      // the crew's place: this far past the spot's far edge
 #define CR_REPAIR 0.6f      // a standing tower of the creep under this share of its hp is repaired before the next is built
-#define CR_EDGE 1.25f       // in a tower's reach: the spot this far past its own range at most (IN A TOWER'S REACH)
+#define CR_EDGE 1.0f        // in a tower's reach: the spot this far past its own range at most (IN A TOWER'S REACH; 1.25 laid range 6 towers 7.07 and 7.2 off an enemy tower: they never fired)
 #define CR_AT 2             // a crew member this near its place is there
 #define CR_CREW 4
 #define CR_CREW_TOWER 12
@@ -145,15 +153,24 @@ internal float cr_range(ee_player *pl, int ttype) {
     ee_unit_type *td = type_data(ttype);
     return st ? unit_stats_get_range(st) : td ? unit_type_get_range(td) : 0.0f;
 }
+// how far a tower of pl's ttype hits what it doesn't see by others: its range, but no farther than its sight (with
+// its upgrades both) - a tower fires only on what is seen, and its builders behind it see less far than it does
+// (range 6 towers of sight 5 stood 6.0 to 6.7 off their targets, ordered onto them, for minutes without a shot that
+// hurt; one of range 4 hit a tower 5.0 off)
+internal float cr_reach(ee_player *pl, int ttype) {
+    ee_unit_stats *st = player_stats_of(pl, ttype);
+    float rng = cr_range(pl, ttype), sight = st ? unit_stats_get_sight(st) : 0.0f;
+    return sight > 0.0f && sight < rng ? sight : rng;
+}
 // a spot for a tower of ttype within its range of target, nearest to the own buildings own[0..nown), out of the reach
 // of every enemy defence it knows but skip (NULL: every one), with its crew's place behind it (BEHIND); 0 none
 internal int cr_spot(ee_player *pl, unsigned idx, int ttype, ee_unit *target, ee_unit *skip, unsigned land, const ivec2 *own, int nown, ivec2 *out, ivec2 *behind) {
     ee_unit_type *td = type_data(ttype), *gd = unit_get_type_data(target);
     if (!td || !gd) return 0;
-    float rng = cr_range(pl, ttype), half = (float)(unit_type_get_size(gd) - 2) * 0.5f, own_half = (float)unit_type_get_size(td) * 0.5f;
+    float rng = cr_range(pl, ttype), sight = cr_reach(pl, ttype), half = (float)(unit_type_get_size(gd) - 2) * 0.5f, own_half = (float)unit_type_get_size(td) * 0.5f;
     if (!(rng > 2.0f) || rng > 30.0f) return 0;
-    float r1 = rng + (half > 0.0f ? half : 0.0f) - CR_IN, r0 = r1 - 1.5f;   // a ring at the edge of its reach (a building larger than a House: its half beyond)
-    if (skip) { r1 = rng + CR_EDGE; r0 = rng - 0.5f; }   // in the target tower's reach: as far out as its own reaches, its builders beside it on the far side out of the other's
+    float r1 = sight + (half > 0.0f ? half : 0.0f) - CR_IN, r0 = r1 - 1.5f;   // a ring at the edge of its reach (a building larger than a House: its half beyond)
+    if (skip) { r1 = rng + CR_EDGE < sight ? rng + CR_EDGE : sight; r0 = r1 - 1.5f; }   // in the target tower's reach: as far out as its own reaches, its builders beside it on the far side out of the other's
     ivec2 t = unit_get_tile(target);
     int box = (int)r1 + 1, best = 0x7FFFFFFF;
     for (int ax = -box; ax <= box; ax++)
@@ -240,10 +257,19 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
                                       ttype, at.x, at.y, c->ttype, c->tp.x, c->tp.y, c->tower ? "a defence" : "a building", c->ntow, c->ncrew);
             }
         }
-        // ITS TOWERS ON THE TARGET: one standing idle is ordered onto it (a tower 4.5 tiles from a Dock it reached
-        // stood idle beside it for minutes: towers take on units, not every building, by themselves)
-        for (int k = 0; k < c->ntow; k++)
-            if (cr_done(c->tow[k]) && !unit_get_goal(c->tow[k])) unit_goal(c->tow[k], goal_attack(c->tow[k], c->target), 0, 0x1F40);
+        // ITS TOWERS ON THE TARGET: one standing idle or on another building is ordered onto it (a tower 4.5 tiles from
+        // a Dock it reached stood idle beside it for minutes: towers take on units, not every building, by themselves;
+        // others took a House or a Town Center beside the target and stayed on it); one on a unit is left on it (the
+        // enemy's citizens and soldiers at its crew)
+        for (int k = 0; k < c->ntow; k++) {
+            if (!cr_done(c->tow[k])) continue;
+            ee_goal *g = unit_get_goal(c->tow[k]);
+            ee_unit *on = g && goal_is_attack(g) ? attack_goal_get_target((ee_attack_goal *)g) : NULL;
+            ee_unit_type *od = on ? unit_get_type_data(on) : NULL;
+            int fam = od ? unit_type_get_class_id(od) : -1;
+            if (!g || (on != c->target && (fam == CLS_BUILDING || fam == CLS_FORTRESS || fam == CLS_NAVAL_BUILDING || fam == CLS_GATE)))
+                unit_goal(c->tow[k], goal_attack(c->tow[k], c->target), 0, 0x1F40);
+        }
         // the crew: onto a tower of its standing under CR_REPAIR of its hp, else the tower going up, else the most
         // damaged one (a crew on the second tower let the first go from 1500 to 450 under the enemy tower's fire)
         ee_unit *job = NULL;

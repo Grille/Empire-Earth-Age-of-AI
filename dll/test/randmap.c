@@ -11,7 +11,7 @@
 //   difficulty (1 medium), +0x400 option bytes.
 //   Map seed: world (0x91977C) +0x54.
 // Ini keys: random_map=<script name>, map_scale (tiny|small|medium|large|huge|gigantic or 0..5, default small - the
-//   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
+//   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, end_epoch (default 13), seed, teams=ffa|pairs,
 //   citizens, unit_limit (shared by all players, the idle human too; default pop_per_player (300) x the players - the
 //   player 2026-10-27: 200-400 a player is what to expect, some go to 1000, under 100 is rare; until then 500, a cap of
 //   105 an AI with 4 of them), reveal_map (0/1, default 1: the setup's reveal map), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
@@ -28,14 +28,14 @@
 
 internal struct {
     char map[64];
-    int size, scale, ais, start_epoch, seed, pairs, citizens, unit_limit;
+    int size, scale, ais, start_epoch, end_epoch, seed, pairs, citizens, unit_limit;
     int ai_cheat, ai_ignore;   // -1 = leave as the game sets them
     int epoch_min, epoch_max;  // test-only epoch timer in minutes (0 = game setting)
     int difficulty;            // the setup's (every AI), 0..2
     int v_difficulty, v_cheat; // the vanilla players' own (-1: as the others)
     int reveal;                // the setup's reveal map (+0x403: every player starts with the map explored; fog stays)
     int humans;                // the idle humans, players 1 .. humans (a multiplayer test's every PC's, alike on each)
-} g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1, 1, 1 };
+} g_rm = { "", 0, 1, 3, 0, 13, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1, 1, 1 };
 internal const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
 
 internal int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
@@ -63,6 +63,7 @@ internal void randmap_load(const char *ini) {
     if (g_rm.ais < 1) g_rm.ais = 1;
     if (g_rm.ais > 7) g_rm.ais = 7;
     g_rm.start_epoch = ini_int("autotest", "start_epoch", 0, ini);
+    g_rm.end_epoch = ini_int("autotest", "end_epoch", 13, ini);   // the last epoch (0 Prehistoric .. 13 Nano): a game held in an age
     g_rm.seed = ini_int("autotest", "seed", 0, ini);
     char t[16];
     GetPrivateProfileStringA("autotest", "teams", "ffa", t, sizeof t, ini);
@@ -111,7 +112,7 @@ internal void randmap_rewrite(ee_setup *setup) {
     setup_set_speed(setup, 1);
     setup_set_map_scale(setup, g_rm.scale);   // the map size (1 Small: what every test map was before map_scale)
     setup_set_start_epoch(setup, g_rm.start_epoch);
-    setup_set_end_epoch(setup, 13);
+    setup_set_end_epoch(setup, g_rm.end_epoch);
     setup_set_variant(setup, g_rm.size);
     setup_set_resources(setup, 3);
     // the game's most (the world table's: 1200 in both builds' archives) raised to the limit asked for - above it the
@@ -132,8 +133,8 @@ internal void randmap_rewrite(ee_setup *setup) {
     if (world && g_rm.seed) ui_set_seed(world, (unsigned)g_rm.seed);
     if (g_log) {
         ee_game_data *lim = game_data();   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
-        fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
-                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? (int)ui_get_seed(world) : -1, g_rm.difficulty,
+        fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, end epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
+                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, g_rm.end_epoch, world ? (int)ui_get_seed(world) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
                 lim ? game_data_get_unit_limit(lim) : -1, lim ? game_data_get_unit_limit_max(lim) : -1);
         fflush(g_log);
