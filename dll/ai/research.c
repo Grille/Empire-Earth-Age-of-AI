@@ -31,13 +31,17 @@
 // has, the two range upgrades per unit are a must, the others can be random but should be bought still"): the
 // attack, hit points, range, speed and armours a player buys for a unit type (EEUnitClassUpgrade in the spec: a
 // table per type, its max_level buys of an attribute, 10 points a type - an armour 1, the rest 2), for each type it
-// fields (RS_FIELDED, no building) while the setup allows them (game.improvements_allowed): the range ones in rank 2
+// fields (RS_FIELDED) while the setup allows them (game.improvements_allowed): what the player's button offers (its
+// test, EEUIBUpgrade vf38: the table's step above 0, not maxed) - a unit's two of each, a tower's one range
+// (dbupgrade.dat's "Tower" row: range alone, max_level 1; the player 2026-11-16: "towers only allow a single range
+// upgrade (important)"), a building's none (max_level 0) - but never a citizen's (the player 2026-11-16: "as player i
+// cant upgrade them": the game sells them, its panel shows no buttons for them). The range ones in rank 2
 // (the most units first; before the epoch as the lines), the others in rank 4 in an order of its own (a hash of the
 // player, the type and the attribute: the same on every PC, unlike rand) and only with the points the range ones
 // still need left over. Bought as a player buys: EEPlayer.queue_improvement - paid now, in after its research time
 // (24 to 90 s, one after another per type); the queued count as bought. Head-to-head 2026-11-15 (Continental large,
-// 4 AIs from epoch 5, 60 min, seeds 1-5 mirrored; v_unit_improvements=1 against 0): about 50 bought an AI, its
-// citizens' first (cheap: their own price); B - A soldiers -25 (se 12), kills +5 (10), losses -16 (16), razed -7.9
+// 4 AIs from epoch 5, 60 min, seeds 1-5 mirrored; v_unit_improvements=1 against 0; still with the citizens' and
+// without the towers'): about 50 bought an AI, its citizens' first (cheap: their own price); B - A soldiers -25 (se 12), kills +5 (10), losses -16 (16), razed -7.9
 // (4.4), workers -13 (8.6), alive -0.05 - better trades, fewer soldiers. On by the player's call.
 // Never: a hero's upgrade (his list; the AI uses no heroes).
 // A rank buys only with what the ranks above it don't still wait for: the price of the next RS_HOLD1 of rank 1 and
@@ -154,9 +158,8 @@ internal int rs_improvements(ee_player *pl, unsigned idx, ee_tech_tree *tt, cons
     for (int t = 0; t < 768 && nc < RS_CAND; t++) {
         if (cnt[t] < RS_FIELDED) continue;
         ee_unit_type *td = type_data(t);
-        int cls = td ? unit_type_get_class_id(td) : CLS_BUILDING;
         ee_upgrade_table *tab = td ? unit_type_get_upgrades(td) : NULL;
-        if (cls == CLS_BUILDING || cls == CLS_FORTRESS || cls == CLS_NAVAL_BUILDING || is_wall(t) || !tab || upgrade_table_get_max_level(tab) <= 0) continue;
+        if (is_citizen_type(t) || is_wall(t) || !tab || upgrade_table_get_max_level(tab) <= 0) continue;
         ee_tech *ut = tech_tree_lookup(tt, unit_type_get_tech(td));
         ee_tech_data *ud = ut ? tech_get_data(ut) : NULL;
         if (!ud) continue;
