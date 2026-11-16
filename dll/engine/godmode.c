@@ -23,6 +23,13 @@
 // The player played as goes on deciding beside the orders given: its AI may give the units other orders.
 // Not in a multiplayer game (playas: the other PCs would go on with this one as its own player). A save made while
 // switched is saved as this PC's own player (god_save_begin / end round hook_save_game, autosaves too).
+// GODVIEW (`godview [on | off]`, `>godview`; the player 2026-11-16: "split godmode into godview (pure inspection mode)
+// and godmode (plus full control like now)"): godmode's sight and switch - the buttons, the queue, the stock of the
+// player clicked - but this PC's orders are dropped while it plays as another: every message handed to the server
+// from another thread than the simulation's (god_srv_send) but the selections and the chat, the speed. The AIs hand
+// theirs from the simulation's thread (the game's computer players, the mod's, the click's switch, the pipe's
+// commands) - they pass; the player's orders come from the UI's thread (checked 2026-11-16: a right-click's move from
+// a third thread, the panel built on another still). godmode on / godview on switch between the two, off ends either.
 
 // THE SWITCH (`playas [P | back]`, a debug tool of its own - the player 2026-11-11: "make ai units and building
 // controlable like my own"): this PC plays as player P - its selection, orders, top bar and sight. A selection is one
@@ -91,7 +98,9 @@ internal void cmd_playas(char *out, const char *args) {
     REPLY("this PC plays as P%d (was P%u)\n", p, me);
 }
 
-internal int g_god;              // godmode on
+enum { GOD_OFF, GOD_VIEW, GOD_CONTROL };
+internal int g_god;              // GOD_VIEW godview, GOD_CONTROL godmode
+internal volatile DWORD g_god_sim_tid;   // the simulation's thread (godview: orders from others dropped)
 internal ee_player *g_god_home;  // this PC's own player when it was switched on: another game, another load ends it
 internal int g_god_home_i;       // its index
 internal uint8_t g_god_had_all;  // its explore_all before
@@ -112,6 +121,7 @@ internal void god_minimap(void) {
 // building's queue) from the sender's selection after the Execute (0x4B0000's executor: FUN_005F92FF(selected group),
 // the UI's unit): a selection made here for the owner left the panel the old player's, empty
 internal void __thiscall hook_select_unit(ee_player *pl, uint32_t id, uint8_t fog_check, uint8_t clear) {
+    g_god_sim_tid = GetCurrentThreadId();
     if (g_god && god_on() && !g_mp && pl && pl == game_players()[local_player_index()]) {
         ee_unit *u = object_by_id(id);
         ee_player *o = u ? unit_get_owner(u) : NULL;
@@ -138,6 +148,21 @@ internal char __thiscall hook_cp_is_human(ee_player *pl) {
     return (char)yes;
 }
 
+// godview: a message handed from outside the simulation's thread while this PC plays as another is dropped, but for
+// the selections (the click's switch back and forth goes through them), the chat (the console's `>godview off`) and
+// the speed. The simulation's thread: the one godview was switched on from (the pipe's commands and the chat console
+// run there) and the click's (hook_select_unit). Not freed: who holds it after the send isn't known (its ref_count) -
+// a few bytes for each order tried
+internal server_send_fn g_god_send_next;
+internal unsigned g_god_dropped;
+internal void __thiscall god_srv_send(ee_server *srv, ee_msg *msg, int to) {
+    if (g_god == GOD_VIEW && msg && GetCurrentThreadId() != g_god_sim_tid && playas_switched() && !msg_changes_nothing(msg)) {
+        if (g_log && g_god_dropped++ < 50) log_locked("# godview: an order dropped (message kind 0x%02X)\n", msg_get_kind(msg));
+        return;
+    }
+    g_god_send_next(srv, msg, to);
+}
+
 // godmode click P (tests): a click on one of P's units sent as the UI sends it (EEMSelectUnit) - the k-th alive one,
 // k going on from call to call, so that a loop clicks round P's units and buildings
 internal void god_click(char *out, int p) {
@@ -153,44 +178,55 @@ internal void god_click(char *out, int p) {
     REPLY("clicked unit %08X of P%d (%u of %u)\n", (unsigned)unit_get_serial(u), p, want + 1, n);
 }
 
-internal void cmd_godmode(char *out, const char *args) {
+// godmode / godview [on | off | click P] (mode GOD_CONTROL / GOD_VIEW): on switches from the other mode too (the
+// sight and a switch to another player stay), off ends either; a bare word turns its mode on, or everything off
+internal void god_cmd(char *out, const char *args, int mode) {
+    const char *name = mode == GOD_VIEW ? "godview" : "godmode";
     char w[8] = "";
     int cp = -1;
     if (sscanf(args, "click %d", &cp) == 1) { god_click(out, cp); return; }
     sscanf(args, "%7s", w);
-    int on = god_on();
-    if (!w[0]) on = !on;
-    else if (!strcmp(w, "on")) on = 1;
-    else if (!strcmp(w, "off")) on = 0;
-    else { REPLY("error: godmode [on | off]\n"); return; }
-    if (g_mp) { REPLY("error: godmode: not in a multiplayer game\n"); return; }
-    if (!game_map() || !game_player_count()) { REPLY("error: godmode: no game running\n"); return; }
-    if (on && !g_god) {
+    int was = god_on() ? g_god : GOD_OFF, want;
+    if (!w[0]) want = was == mode ? GOD_OFF : mode;
+    else if (!strcmp(w, "on")) want = mode;
+    else if (!strcmp(w, "off")) want = GOD_OFF;
+    else { REPLY("error: %s [on | off]\n", name); return; }
+    if (g_mp) { REPLY("error: %s: not in a multiplayer game\n", name); return; }
+    if (!game_map() || !game_player_count()) { REPLY("error: %s: no game running\n", name); return; }
+    g_god_sim_tid = GetCurrentThreadId();
+    if (want == GOD_VIEW && !g_god_send_next && game_server()) g_god_send_next = patch_server_send(game_server(), god_srv_send);
+    if (want == GOD_VIEW && !g_god_send_next) { REPLY("error: godview: the server's send not hooked\n"); return; }
+    if (want && !was) {
         g_god_home_i = playas_switched() ? g_playas_was : (int)local_player_index();
         g_god_home = game_players()[g_god_home_i];
-        if (!g_god_home) { REPLY("error: godmode: this PC has no player\n"); return; }
+        if (!g_god_home) { REPLY("error: %s: this PC has no player\n", name); return; }
         g_god_had_all = player_get_explore_all(g_god_home);
         player_set_explore_all(g_god_home, 1);
-        g_god = 1;
         god_minimap();
-        if (g_log) log_locked("# godmode: on (this PC's player P%d)\n", g_god_home_i);
-        REPLY("godmode on: the whole map; a click on any player's unit or building plays as its owner, one of yours "
-              "plays as you again, godmode off ends it\n");
+    }
+    if (want && want != was) {
+        g_god = want;
+        if (g_log) log_locked("# %s: on (this PC's player P%d)\n", name, g_god_home_i);
+        REPLY("%s on: the whole map; a click on any player's unit or building plays as its owner%s, one of yours plays "
+              "as you again, %s off ends it\n", name, mode == GOD_VIEW ? " - shown, its orders not carried out" : "", name);
         return;
     }
-    if (!on && g_god) {
-        g_god = 0;
+    if (!want && was) {
+        g_god = GOD_OFF;
         if (playas_switched()) playas_to(g_god_home_i);
         if (g_god_home) player_set_explore_all(g_god_home, g_god_had_all);
         g_god_home = NULL;
         god_minimap();
-        if (g_log) log_locked("# godmode: off\n");
-        REPLY("godmode off: this PC plays as P%u\n", local_player_index());
+        if (g_log) log_locked("# %s: off\n", name);
+        REPLY("%s off: this PC plays as P%u\n", name, local_player_index());
         return;
     }
-    REPLY("godmode %s (this PC plays as P%u; the panel asked %u times, told yes %u)\n", on ? "on" : "off",
-          local_player_index(), g_god_asked, g_god_told);
+    REPLY("%s (this PC plays as P%u; the panel asked %u times, told yes %u; orders dropped %u)\n",
+          was == GOD_VIEW ? "godview on" : was ? "godmode on" : "godmode and godview off", local_player_index(),
+          g_god_asked, g_god_told, g_god_dropped);
 }
+internal void cmd_godmode(char *out, const char *args) { god_cmd(out, args, GOD_CONTROL); }
+internal void cmd_godview(char *out, const char *args) { god_cmd(out, args, GOD_VIEW); }
 
 // a save while switched: written as this PC's own player (the msg_ids and the local index as they were), then switched
 // again - only those, the sight and the screens stay the switched player's. Both are needed: the local index is the game

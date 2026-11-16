@@ -175,7 +175,7 @@ unsafe struct EEMGameSpeed
 /// constructor 0x40337D: this constructor with their kind, then their vtable) differ only in their Execute: kind 0x4E
 /// replaces the sender's selection with the ids (EEPlayer.select), 0x4F (shift) adds them (add_selected), 0x50
 /// (control) toggles each (toggle_selected) - all three take each id that is the player's, built and no path point
-[@base(typeof(EEMessage)), c_type("ee_select_msg"), size((ee)0x138, (aoc)0x138)]
+[@base(typeof(EEMessage)), c_type("ee_select_msg"), size((ee)0x138, (aoc)0x138), vtable((ee)0x00824D1C, (aoc)0x00838CF0)]
 unsafe struct EEMSelectUnits
 {
     [offset(0x10), found(b)]

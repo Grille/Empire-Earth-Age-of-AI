@@ -1323,6 +1323,7 @@ internal int spec_messages_select(int build) {
         fn_chat_msg_init = (chat_msg_init_fn)0x005C2A2F;
         of_speed_msg_speed = 0x10;
         fn_speed_msg_execute = (speed_msg_execute_fn)0x004B6BD4;
+        vt_eem_select_units = 0x00824D1C;
         size_eem_select_units = 0x138;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
@@ -1454,6 +1455,7 @@ internal int spec_messages_select(int build) {
         fn_chat_msg_init = (chat_msg_init_fn)0x005D3196;
         of_speed_msg_speed = 0x10;
         fn_speed_msg_execute = (speed_msg_execute_fn)0x004BEFB9;
+        vt_eem_select_units = 0x00838CF0;
         size_eem_select_units = 0x138;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
@@ -1567,6 +1569,7 @@ internal int spec_messages_check(void) {
     bad += spec_code((uintptr_t)fn_chat_msg_execute, "EEMInGameChat.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_init, "EEMInGameChat.init");
     bad += spec_code((uintptr_t)fn_speed_msg_execute, "EEMGameSpeed.execute");
+    bad += spec_vtable(vt_eem_select_units, ".?AVEEMSelectUnits@@", "EEMSelectUnits [vtable]");
     bad += spec_code((uintptr_t)fn_select_msg_init, "EEMSelectUnits.init");
     bad += spec_vtable(vt_eem_add_units_to_selected_group, ".?AVEEMAddUnitsToSelectedGroup@@", "EEMAddUnitsToSelectedGroup [vtable]");
     bad += spec_vtable(vt_eem_add_and_remove_units_from_selected_group, ".?AVEEMAddAndRemoveUnitsFromSelectedGroup@@", "EEMAddAndRemoveUnitsFromSelectedGroup [vtable]");

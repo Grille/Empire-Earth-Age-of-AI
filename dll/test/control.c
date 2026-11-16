@@ -16,6 +16,7 @@ internal void cmd_train(char *out, const char *args);
 internal void cmd_give(char *out, const char *args);
 internal void cmd_playas(char *out, const char *args);   // engine/godmode.c
 internal void cmd_godmode(char *out, const char *args);  // engine/godmode.c
+internal void cmd_godview(char *out, const char *args);  // engine/godmode.c
 internal void cmd_continent(char *out, const char *args);
 internal void cmd_aigroup(char *out, const char *args);
 internal void cmd_rprobe(char *out, const char *args);   // engine/render_3d.c
@@ -428,6 +429,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "give")) cmd_give(out, args);
     else if (!strcmp(verb, "playas")) cmd_playas(out, args);
     else if (!strcmp(verb, "godmode")) cmd_godmode(out, args);
+    else if (!strcmp(verb, "godview")) cmd_godview(out, args);
     else if (!strcmp(verb, "continent")) cmd_continent(out, args);
     else if (!strcmp(verb, "territories")) cmd_territories(out, args);
     else if (!strcmp(verb, "aigroup")) cmd_aigroup(out, args);

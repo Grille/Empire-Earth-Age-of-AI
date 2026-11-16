@@ -1383,6 +1383,7 @@ internal uint32_t of_unimprove_msg_unit;
 internal uint32_t of_unimprove_msg_attr;
 internal uint32_t of_chat_msg_text;
 internal uint32_t of_speed_msg_speed;
+internal uint32_t vt_eem_select_units;
 internal uint32_t size_eem_select_units;
 internal uint32_t of_select_msg_selection;
 internal uint32_t of_select_msg_ids_begin;
