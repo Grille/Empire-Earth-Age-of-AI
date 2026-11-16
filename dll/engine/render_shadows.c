@@ -232,8 +232,14 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         return SH_RECEIVE;
     }
     // the game's shadows' render object draws the farms' fields too (depth written, alpha tested at 127 - the probe on
-    // "choke wolf", 2026-11-04): those are kept and receive; the blobs (depth not written) aren't drawn
-    if (g_ro_cur == RO_SHADOWS) return d->rs[D3DRENDERSTATE_ZWRITEENABLE] && d->tex[0] ? SH_DECAL : SH_BLOB;
+    // "choke wolf", 2026-11-04): those are kept and receive; the blobs (depth not written, alpha tested at 0: the units'
+    // quads) aren't drawn. An earthquake's strip of cracks (EEE3DEarthquake) is drawn there too, its depth not written
+    // either but alpha tested at 127 - taken for a blob, the quake left no mark on the ground (the player 2026-11-16:
+    // "teh graphical effect on the ground isnt there"; rprobe: blobs v4 ref 0, the strip v45 / v40 ref 127): kept
+    if (g_ro_cur == RO_SHADOWS) {
+        if (d->rs[D3DRENDERSTATE_ZWRITEENABLE] || d->rs[D3DRENDERSTATE_ALPHAREF] != 0) return d->tex[0] ? SH_DECAL : SH_NONE;
+        return SH_BLOB;
+    }
     // the water's surface: in the ground's camera space too (drawn after the units: their camera known - its level)
     if (g_ro_cur == RO_WATER) {
         if (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0) return SH_NONE;
