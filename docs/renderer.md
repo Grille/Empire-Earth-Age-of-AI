@@ -165,7 +165,7 @@ ran). The frame is drawn from the last update's state - the units as they stood,
 The interface's update runs (UIManager::CopyData, under the interface's own lock, and RedrawAll before it - outside
 the world's lock in the game too): skipped at first, the chat lines and buttons over the 3D view were missing from such
 frames and flickered while moving (the player); with it two chat lines in all of six shots while scrolling, two thirds
-of the frames drawn during a step. The water's (its animation) runs too.
+of the frames drawn during a step. The water's (its animation) runs too. Not in a cinematic (game.cinematic): there the frame waits for the step, as the game does - its frames during a step drew the units, buildings and trees wrong or not at all (the device kept the letterbox's camera for the units' draw, which their skipped update sets; with that put back the walls, huts and trees from the steps' copy were still broken), a flicker every few frames and the picture a pixel back (the player, 2026-11-16).
 A simulation that is behind runs its steps back to back, the lock free only for a moment between them - no frame began
 in it, every frame was drawn during a step and the units stood for minutes (10844 units at speed 2, the player
 2026-11-06). So a frame drawn during a step hands off: the simulation's next write lock waits until a frame has

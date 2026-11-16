@@ -1184,9 +1184,13 @@ internal int g_rwl_free = 1;
 internal LONG g_rwl_skips, g_rwl_updates, g_rwl_bare;
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
 internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step (1) or bare (2)
+// A cinematic (a scenario's camera sequence) waits for the step, as the game does: its frames during a step drew the units,
+// buildings and trees wrong or not at all (the player 2026-11-16: "some units also flicker in and out" - the device kept
+// the letterbox's camera for the units' draw, which the skipped update would have set, and with that put back the walls,
+// the huts and the trees still came from the steps' copy broken); nobody scrolls a cinematic, and its steps are short.
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     while (g_rd_rebuild) Sleep(1);
-    int free = g_rwl_updates && g_rwl_free && g_rwl_world, ui = -1;
+    int free = g_rwl_updates && g_rwl_free && g_rwl_world && !*game_cinematic_at(), ui = -1;
     if (free)
         while ((ui = ui_lock_try()) == 0 && !g_rwl_writers) Sleep(0);   // its holder at the interface, not waiting
     if (free && ui != 0) InterlockedExchange(&g_rwl_claim, 1);
