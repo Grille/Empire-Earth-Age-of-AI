@@ -405,6 +405,12 @@ internal inline uint8_t *select_msg_flag_at(const ee_select_msg *o) { return (ui
 typedef void (__thiscall *select_msg_init_fn)(ee_select_msg *, float *, int, int);
 internal select_msg_init_fn fn_select_msg_init;
 internal inline void select_msg_init(ee_select_msg *select_msg, float *rect, int type, int flags) { fn_select_msg_init(select_msg, rect, type, flags); }
+// Execute (vf10, by RTTI in both builds): select for the sender's player. Godview hooks it, and its two derived
+// messages', to tell the PC's own deselect (engine/godmode.c)
+typedef void (__thiscall *select_msg_execute_fn)(ee_select_msg *);
+internal select_msg_execute_fn fn_select_msg_execute;
+internal inline void select_msg_execute(ee_select_msg *select_msg) { fn_select_msg_execute(select_msg); }
+internal inline int patch_select_units_execute(select_msg_execute_fn h) { return patch_vtable(vt_eem_select_units, (int)slot_msg_execute, (uintptr_t)fn_select_msg_execute, (void *)h); }
 
 // class EEMAddUnitsToSelectedGroup (ee_add_select_msg)
 // the shift box's message (EEMAddUnitsToSelectedGroup, kind 0x4F): an EEMSelectUnits whose Execute (0x4B353E, AoC
@@ -465,6 +471,10 @@ internal inline uint8_t *add_select_msg_spare_at(const ee_add_select_msg *o) { r
 internal inline uint8_t add_select_msg_get_sendable_when_out(const ee_add_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline void add_select_msg_set_sendable_when_out(ee_add_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
 internal inline uint8_t *add_select_msg_sendable_when_out_at(const ee_add_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+typedef void (__thiscall *add_select_msg_execute_fn)(ee_add_select_msg *);
+internal add_select_msg_execute_fn fn_add_select_msg_execute;
+internal inline void add_select_msg_execute(ee_add_select_msg *add_select_msg) { fn_add_select_msg_execute(add_select_msg); }
+internal inline int patch_add_selected_execute(add_select_msg_execute_fn h) { return patch_vtable(vt_eem_add_units_to_selected_group, (int)slot_msg_execute, (uintptr_t)fn_add_select_msg_execute, (void *)h); }
 
 // class EEMAddAndRemoveUnitsFromSelectedGroup (ee_toggle_select_msg)
 // the control box's message (EEMAddAndRemoveUnitsFromSelectedGroup, kind 0x50): an EEMSelectUnits whose Execute
@@ -525,6 +535,57 @@ internal inline uint8_t *toggle_select_msg_spare_at(const ee_toggle_select_msg *
 internal inline uint8_t toggle_select_msg_get_sendable_when_out(const ee_toggle_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline void toggle_select_msg_set_sendable_when_out(ee_toggle_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
 internal inline uint8_t *toggle_select_msg_sendable_when_out_at(const ee_toggle_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+typedef void (__thiscall *toggle_select_msg_execute_fn)(ee_toggle_select_msg *);
+internal toggle_select_msg_execute_fn fn_toggle_select_msg_execute;
+internal inline void toggle_select_msg_execute(ee_toggle_select_msg *toggle_select_msg) { fn_toggle_select_msg_execute(toggle_select_msg); }
+internal inline int patch_toggle_selected_execute(toggle_select_msg_execute_fn h) { return patch_vtable(vt_eem_add_and_remove_units_from_selected_group, (int)slot_msg_execute, (uintptr_t)fn_toggle_select_msg_execute, (void *)h); }
+
+// class EEMUnselectAllUnits (ee_unselect_msg)
+// the deselect (EEMUnselectAllUnits, kind 0x4B): the UI's left click on nothing; its Execute (0x4BF9C7) clears the
+// sender's player's selection (0x55C618). Godview lets it through and goes back to this PC's own player on it
+// (engine/godmode.c)
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t unselect_msg_get_ref_count(const ee_unselect_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void unselect_msg_set_ref_count(ee_unselect_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *unselect_msg_ref_count_at(const ee_unselect_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t unselect_msg_get_kind(const ee_unselect_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void unselect_msg_set_kind(ee_unselect_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *unselect_msg_kind_at(const ee_unselect_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t unselect_msg_get_for_slot(const ee_unselect_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void unselect_msg_set_for_slot(ee_unselect_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *unselect_msg_for_slot_at(const ee_unselect_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t unselect_msg_get_from(const ee_unselect_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void unselect_msg_set_from(ee_unselect_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *unselect_msg_from_at(const ee_unselect_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t unselect_msg_get_header_flags(const ee_unselect_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void unselect_msg_set_header_flags(ee_unselect_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *unselect_msg_header_flags_at(const ee_unselect_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t unselect_msg_get_spare(const ee_unselect_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void unselect_msg_set_spare(ee_unselect_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *unselect_msg_spare_at(const ee_unselect_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t unselect_msg_get_sendable_when_out(const ee_unselect_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void unselect_msg_set_sendable_when_out(ee_unselect_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *unselect_msg_sendable_when_out_at(const ee_unselect_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+typedef void (__thiscall *unselect_msg_execute_fn)(ee_unselect_msg *);
+internal unselect_msg_execute_fn fn_unselect_msg_execute;
+internal inline void unselect_msg_execute(ee_unselect_msg *unselect_msg) { fn_unselect_msg_execute(unselect_msg); }
+internal inline int patch_unselect_all_execute(unselect_msg_execute_fn h) { return patch_vtable(vt_eem_unselect_all_units, (int)slot_msg_execute, (uintptr_t)fn_unselect_msg_execute, (void *)h); }
 
 // class EEMLoadTransport (ee_load_msg)
 // the load-into-a-transport message (EEMLoadTransport)
@@ -1332,8 +1393,13 @@ internal int spec_messages_select(int build) {
         of_select_msg_packed = 0x34;
         of_select_msg_flag = 0x134;
         fn_select_msg_init = (select_msg_init_fn)0x004BD072;
+        fn_select_msg_execute = (select_msg_execute_fn)0x004BD35E;
         vt_eem_add_units_to_selected_group = 0x00824CB4;
+        fn_add_select_msg_execute = (add_select_msg_execute_fn)0x004B353E;
         vt_eem_add_and_remove_units_from_selected_group = 0x00824CE8;
+        fn_toggle_select_msg_execute = (toggle_select_msg_execute_fn)0x004B2EE6;
+        vt_eem_unselect_all_units = 0x00825040;
+        fn_unselect_msg_execute = (unselect_msg_execute_fn)0x004BF9C7;
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004B9446;
@@ -1464,8 +1530,13 @@ internal int spec_messages_select(int build) {
         of_select_msg_packed = 0x34;
         of_select_msg_flag = 0x134;
         fn_select_msg_init = (select_msg_init_fn)0x004C5D7F;
+        fn_select_msg_execute = (select_msg_execute_fn)0x004C606B;
         vt_eem_add_units_to_selected_group = 0x00838C88;
+        fn_add_select_msg_execute = (add_select_msg_execute_fn)0x004BB44B;
         vt_eem_add_and_remove_units_from_selected_group = 0x00838CBC;
+        fn_toggle_select_msg_execute = (toggle_select_msg_execute_fn)0x004BADD0;
+        vt_eem_unselect_all_units = 0x00838EAC;
+        fn_unselect_msg_execute = (unselect_msg_execute_fn)0x004C889E;
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004C1B79;
@@ -1571,8 +1642,17 @@ internal int spec_messages_check(void) {
     bad += spec_code((uintptr_t)fn_speed_msg_execute, "EEMGameSpeed.execute");
     bad += spec_vtable(vt_eem_select_units, ".?AVEEMSelectUnits@@", "EEMSelectUnits [vtable]");
     bad += spec_code((uintptr_t)fn_select_msg_init, "EEMSelectUnits.init");
+    bad += spec_code((uintptr_t)fn_select_msg_execute, "EEMSelectUnits.execute");
+    bad += spec_slot(vt_eem_select_units, slot_msg_execute, (uintptr_t)fn_select_msg_execute, "EEMSelectUnits.execute [slot]");
     bad += spec_vtable(vt_eem_add_units_to_selected_group, ".?AVEEMAddUnitsToSelectedGroup@@", "EEMAddUnitsToSelectedGroup [vtable]");
+    bad += spec_code((uintptr_t)fn_add_select_msg_execute, "EEMAddUnitsToSelectedGroup.execute");
+    bad += spec_slot(vt_eem_add_units_to_selected_group, slot_msg_execute, (uintptr_t)fn_add_select_msg_execute, "EEMAddUnitsToSelectedGroup.execute [slot]");
     bad += spec_vtable(vt_eem_add_and_remove_units_from_selected_group, ".?AVEEMAddAndRemoveUnitsFromSelectedGroup@@", "EEMAddAndRemoveUnitsFromSelectedGroup [vtable]");
+    bad += spec_code((uintptr_t)fn_toggle_select_msg_execute, "EEMAddAndRemoveUnitsFromSelectedGroup.execute");
+    bad += spec_slot(vt_eem_add_and_remove_units_from_selected_group, slot_msg_execute, (uintptr_t)fn_toggle_select_msg_execute, "EEMAddAndRemoveUnitsFromSelectedGroup.execute [slot]");
+    bad += spec_vtable(vt_eem_unselect_all_units, ".?AVEEMUnselectAllUnits@@", "EEMUnselectAllUnits [vtable]");
+    bad += spec_code((uintptr_t)fn_unselect_msg_execute, "EEMUnselectAllUnits.execute");
+    bad += spec_slot(vt_eem_unselect_all_units, slot_msg_execute, (uintptr_t)fn_unselect_msg_execute, "EEMUnselectAllUnits.execute [slot]");
     bad += spec_code((uintptr_t)fn_load_msg_execute, "EEMLoadTransport.execute");
     bad += spec_vtable(vt_eem_attack_unit, ".?AVEEMAttackUnit@@", "EEMAttackUnit [vtable]");
     bad += spec_code((uintptr_t)fn_attack_msg_execute, "EEMAttackUnit.execute");

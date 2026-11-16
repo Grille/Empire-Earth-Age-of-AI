@@ -117,12 +117,13 @@ internal inline int select_unit_msg_send(unsigned id) {
     return 1;
 }
 
-// a message that changes nothing of the game: a selection (a click's, a box's, shift's, control's), a chat line, the
+// a message that changes nothing of the game: a selection (a click's, a box's, shift's, control's, the deselect), a chat line, the
 // speed - the only ones godview lets through from the UI (godmode.c god_srv_send)
 internal inline int msg_changes_nothing(const ee_msg *m) {
     uintptr_t vt = *(const uintptr_t *)m;
     return vt == vt_eem_select_unit || vt == vt_eem_select_units || vt == vt_eem_add_units_to_selected_group ||
-           vt == vt_eem_add_and_remove_units_from_selected_group || vt == data_messages_vt_ingame_chat ||
+           vt == vt_eem_add_and_remove_units_from_selected_group || vt == vt_eem_unselect_all_units ||
+           vt == data_messages_vt_ingame_chat ||
            vt == data_messages_vt_game_speed;
 }
 

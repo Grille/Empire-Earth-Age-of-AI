@@ -1393,6 +1393,7 @@ internal uint32_t of_select_msg_packed;
 internal uint32_t of_select_msg_flag;
 internal uint32_t vt_eem_add_units_to_selected_group;
 internal uint32_t vt_eem_add_and_remove_units_from_selected_group;
+internal uint32_t vt_eem_unselect_all_units;
 internal uint32_t of_load_msg_transport;
 internal uint32_t of_load_msg_unit;
 internal uint32_t vt_eem_attack_unit;

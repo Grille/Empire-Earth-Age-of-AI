@@ -202,6 +202,12 @@ unsafe struct EEMSelectUnits
     /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
     [address((ee)0x004BD072, (aoc)0x004C5D7F)]
     extern void init(float32* rect, int32 type, int32 flags);
+
+    /// Execute (vf10, by RTTI in both builds): select for the sender's player. Godview hooks it, and its two derived
+    /// messages', to tell the PC's own deselect (engine/godmode.c)
+    [address((ee)0x004BD35E, (aoc)0x004C606B), overrides(typeof(EEMessage))]
+    [vtable_site("select_units_execute")]
+    extern void execute();
 }
 
 /// the shift box's message (EEMAddUnitsToSelectedGroup, kind 0x4F): an EEMSelectUnits whose Execute (0x4B353E, AoC
@@ -209,6 +215,9 @@ unsafe struct EEMSelectUnits
 [@base(typeof(EEMSelectUnits)), c_type("ee_add_select_msg"), vtable((ee)0x00824CB4, (aoc)0x00838C88)]
 unsafe struct EEMAddUnitsToSelectedGroup
 {
+    [address((ee)0x004B353E, (aoc)0x004BB44B), overrides(typeof(EEMessage))]
+    [vtable_site("add_selected_execute")]
+    extern void execute();
 }
 
 /// the control box's message (EEMAddAndRemoveUnitsFromSelectedGroup, kind 0x50): an EEMSelectUnits whose Execute
@@ -216,6 +225,20 @@ unsafe struct EEMAddUnitsToSelectedGroup
 [@base(typeof(EEMSelectUnits)), c_type("ee_toggle_select_msg"), vtable((ee)0x00824CE8, (aoc)0x00838CBC)]
 unsafe struct EEMAddAndRemoveUnitsFromSelectedGroup
 {
+    [address((ee)0x004B2EE6, (aoc)0x004BADD0), overrides(typeof(EEMessage))]
+    [vtable_site("toggle_selected_execute")]
+    extern void execute();
+}
+
+/// the deselect (EEMUnselectAllUnits, kind 0x4B): the UI's left click on nothing; its Execute (0x4BF9C7) clears the
+/// sender's player's selection (0x55C618). Godview lets it through and goes back to this PC's own player on it
+/// (engine/godmode.c)
+[@base(typeof(EEMessage)), c_type("ee_unselect_msg"), vtable((ee)0x00825040, (aoc)0x00838EAC)]
+unsafe struct EEMUnselectAllUnits
+{
+    [address((ee)0x004BF9C7, (aoc)0x004C889E), overrides(typeof(EEMessage))]
+    [vtable_site("unselect_all_execute")]
+    extern void execute();
 }
 
 /// the load-into-a-transport message (EEMLoadTransport)

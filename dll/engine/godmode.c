@@ -30,6 +30,11 @@
 // theirs from the simulation's thread (the game's computer players, the mod's, the click's switch, the pipe's
 // commands) - they pass; the player's orders come from the UI's thread (checked 2026-11-16: a right-click's move from
 // a third thread, the panel built on another still). godmode on / godview on switch between the two, off ends either.
+// While switched, godview sees through that player's eyes, its fog and what it hasn't explored (god_see_all; the
+// player 2026-11-16: "as long as a unit is selected id like the players view fully ... as soon as i deselect the unit
+// i see evrething again"); a deselect of this PC's - the left click on nothing (EEMUnselectAllUnits), a box or click
+// that selects nothing - makes it itself again (god_deselected, at the message's Execute: the AI selects for its
+// group moves without messages, so its selections don't count).
 
 // THE SWITCH (`playas [P | back]`, a debug tool of its own - the player 2026-11-11: "make ai units and building
 // controlable like my own"): this PC plays as player P - its selection, orders, top bar and sight. A selection is one
@@ -108,13 +113,35 @@ internal int god_on(void) {   // (the render thread too: once an object drawn)
     if (g_god && ((unsigned)g_god_home_i >= game_player_count() || game_players()[g_god_home_i] != g_god_home)) g_god = 0;
     return g_god;
 }
-// the own renderer: no fog - the editor's free camera, or godmode
-internal int god_see_all(void) { return *game_free_camera_at() || (g_god && god_on()); }
+// the own renderer: no fog - the editor's free camera, or godmode; godview only while this PC is itself (switched to
+// another, the view is that player's: its fog, what it hasn't explored)
+internal int god_see_all(void) {
+    return *game_free_camera_at() || (g_god && god_on() && (g_god == GOD_CONTROL || !playas_switched()));
+}
 
 internal void god_minimap(void) {
     ee_minimap *mm = *(ee_minimap **)game_minimap_at();
     if (mm) { minimap_rebuild(mm); minimap_paint_done(mm); }
 }
+
+// godview's deselect: a selection message of this PC's (carried out for the player it plays as; the AIs' selections
+// for their moves are no messages) that leaves the player switched to with nothing selected makes this PC itself
+// again, the whole map in sight
+internal void god_deselected(ee_player *pl) {
+    if (g_god != GOD_VIEW || !god_on() || !pl || pl != game_players()[local_player_index()] || !playas_switched()) return;
+    int *grp = player_get_selected_group(pl);
+    if (grp && group_count(grp)) return;
+    playas_to(g_god_home_i);
+    if (g_log) log_locked("# godview: deselected, this PC is P%d again\n", g_god_home_i);
+}
+internal void god_deselected_by(ee_msg *m) {
+    ee_player *me = game_players()[local_player_index()];
+    if (me && msg_get_from(m) == player_get_msg_id(me)) god_deselected(me);
+}
+internal void __thiscall god_select_units(ee_select_msg *m) { select_msg_execute(m); god_deselected_by((ee_msg *)m); }
+internal void __thiscall god_add_selected(ee_add_select_msg *m) { add_select_msg_execute(m); god_deselected_by((ee_msg *)m); }
+internal void __thiscall god_unselect_all(ee_unselect_msg *m) { unselect_msg_execute(m); god_deselected_by((ee_msg *)m); }
+internal void __thiscall god_toggle_selected(ee_toggle_select_msg *m) { toggle_select_msg_execute(m); god_deselected_by((ee_msg *)m); }
 
 // a click on a unit, carried out for its sender's player: in godmode, another player's unit makes its owner this PC's
 // player, and the click is sent again from it - the server's executor fills the selection panel (its buttons, the
@@ -133,6 +160,7 @@ internal void __thiscall hook_select_unit(ee_player *pl, uint32_t id, uint8_t fo
         }
     }
     player_select_unit(pl, id, fog_check, clear);
+    god_deselected(pl);   // (pl: the sender's - a click on nothing)
 }
 
 // the command panel's question whether a human plays this PC's player (the computer's answer: 0): the buttons of the
@@ -257,6 +285,8 @@ internal void god_save_end(void) {
 
 internal void godmode_install(void) {
     int sel = patch_select_unit(hook_select_unit), panel = patch_cp_is_human(hook_cp_is_human);
-    if (g_log && (!sel || !panel))
-        fprintf(g_log, "# godmode: hooks FAILED (the click's selection %d, the panel's question %d)\n", sel, panel);
+    int box = patch_select_units_execute(god_select_units) && patch_add_selected_execute(god_add_selected) &&
+              patch_toggle_selected_execute(god_toggle_selected) && patch_unselect_all_execute(god_unselect_all);
+    if (g_log && (!sel || !panel || !box))
+        fprintf(g_log, "# godmode: hooks FAILED (the click's selection %d, the panel's question %d, the box's selections %d)\n", sel, panel, box);
 }

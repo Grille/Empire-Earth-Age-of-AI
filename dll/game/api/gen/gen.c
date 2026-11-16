@@ -261,6 +261,7 @@ typedef struct ee_speed_msg ee_speed_msg;
 typedef struct ee_select_msg ee_select_msg;
 typedef struct ee_add_select_msg ee_add_select_msg;
 typedef struct ee_toggle_select_msg ee_toggle_select_msg;
+typedef struct ee_unselect_msg ee_unselect_msg;
 typedef struct ee_load_msg ee_load_msg;
 typedef struct ee_attack_msg ee_attack_msg;
 typedef struct ee_gather_msg ee_gather_msg;
