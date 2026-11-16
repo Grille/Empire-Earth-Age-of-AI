@@ -156,6 +156,14 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
     // lacks to 5, the nearest that work wood, then stone, gold or iron. With each Town Center the bar rises by one
     // producer's food.
     int kick = !GAME_AI(idx) && um && g_rate[idx].rate[2] >= GU_KICK * cz_nonstop_food(pl) && ut_has(UT(B_TOWN_CENTER)) && prio_buildable(pl, UT(B_TOWN_CENTER));
+    // A DRAIN, NOT A COST (the player 2026-11-16: "the ai wastes the limited food in prehistoric and stoneage to
+    // upgrade settlemnts to full 50 capitols, this was menat as a drain for exxcess food an citecens, both clearly not
+    // the case here" - his P2 by minute 31 filled Town Centers towards Capitols with whoever stood idle that moment,
+    // 465 food in the bank; and: "upgrading to towncenters (5) is fine, but 50 was deadly"): with the game's computer
+    // player off a Settlement still gets its 5 as before (it becomes a Town Center), but a Town Center or Capitol gets
+    // citizens only while both are in excess - GU_FOOD in the bank and citizens beyond what the work needs (work.c
+    // wk_pool). The granaries keep their own rule.
+    int sp0[7], rich = GAME_AI(idx) || (player_get_stock(pl, 2) >= GU_FOOD && wk_pool(idx, sp0) > 0);
     // the holder: the most metal mines in reach, a Settlement first
     ee_unit *best = NULL;
     int best_score = 0, best_kind = 0, towns[4] = { 0 };
@@ -176,6 +184,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now) {
         // transport or a fortress meanwhile, or idle: the game's load goals wait for those for ever - engine-notes.md
         // "Transports"), then the holder gets a new one.
         if (room <= 0 || (hg && goal_is_garrison(hg) && (GAME_AI(idx) || gu_held(g, u, hg, now))) || gu_recent(g, gu_key(u), now)) continue;
+        if (!rich && kind != 1) continue;   // A DRAIN, NOT A COST
         int off = !GAME_AI(idx), score = off ? gu_gain(u) : gu_mines(u);   // off: THE MINES' HOLDERS
         if (!off && kick && kind == 1) score = 1000 + unit_get_garrisoned(u) * 10 + score;
         if (!score || raiders_near(pl, unit_get_tile(u), GU_SAFE_R)) continue;
