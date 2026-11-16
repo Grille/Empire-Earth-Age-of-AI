@@ -96,13 +96,46 @@ internal int can_place(ee_player *pl, int type, ivec2 p) {
     }
     return 1;
 }
+// THE GROUND UNDER THE NEIGHBOURS (the player 2026-11-16, a screenshot of buildings on a slope standing askew in each
+// other's ground: "a building shouldt be placable when it changes the terrain under anothers"): a new building levels
+// the ground's corners of its footprint (x .. x + s, y .. y + s); a building beside it that shares one of those corners
+// (footprints side by side or corner to corner - a wall piece or gate too, not a field) had its own ground moved.
+// Beside another building only on ground already level (within GROUND_LEVEL): there the levelling changes nothing;
+// on a slope a tile's gap is left instead.
+#define GROUND_LEVEL 0.05f
+internal int g_ground_rule = 1;
+// a House, granary or tower stands on the ground as it is (the player: "silos and house can be placed on uneven
+// ground"; towers alone on a slope stand on it unlevelled, askew P list) - it levels nothing
+internal int ground_unlevelled(int type) { return type == UT(B_HOUSE) || type == UT(B_GRANARY) || type == UT(B_GRANARY_IMPROVED) || is_tower_type(type); }
+internal int ground_keeps(int x, int y, int s) {
+    ee_map *map = game_map();
+    if (!map || s < 1) return 1;
+    float lo = 1e9f, hi = -1e9f;
+    for (int cy = y; cy <= y + s; cy++)
+        for (int cx = x; cx <= x + s; cx++) {
+            float h = ground_corner(map, cx, cy);
+            if (h != h) continue;   // off the map
+            if (h < lo) lo = h;
+            if (h > hi) hi = h;
+        }
+    if (hi - lo <= GROUND_LEVEL) return 1;
+    for (struct grid_it it = grid_it_box(x + s / 2, y + s / 2, s + 8, 1); grid_it_next(&it); ) {
+        int c = unit_type_get_class_id(it.td), t = unit_type_get_id(it.td);
+        if ((c != CLS_BUILDING && c != CLS_FORTRESS && c != CLS_GATE && c != CLS_NAVAL_BUILDING) || t == UT(B_FARM) || unit_get_hp(it.u) <= 0) continue;
+        int bx = unit_get_x(it.u), by = unit_get_y(it.u), bs = unit_type_get_size(it.td);
+        if (bs < 1) bs = 1;
+        if (bx <= x + s && x <= bx + bs && by <= y + s && y <= by + bs) return 0;   // a corner in common
+    }
+    return 1;
+}
 // can_place, and standing there it shuts nothing in (packing.c NO SHUT-IN PLACES): every spot the mod picks for a
 // building of its own - a field lets everyone pass, a wall is meant to close (the ring has its own check)
 internal int can_place_open(ee_player *pl, int type, ivec2 p) {
     if (!can_place(pl, type, p)) return 0;
     if (type == UT(B_FARM) || is_wall(type)) return 1;
     ee_unit_type *td = type_data(type);
-    return tb_access_ok(pl, p.x, p.y, td ? unit_type_get_size(td) : 1);
+    int sz = td ? unit_type_get_size(td) : 1;
+    return (!g_ground_rule || ground_unlevelled(type) || ground_keeps(p.x, p.y, sz)) && tb_access_ok(pl, p.x, p.y, sz);
 }
 
 struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };   // walls: gate pieces too

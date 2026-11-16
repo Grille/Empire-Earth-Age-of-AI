@@ -299,6 +299,8 @@ internal void retry_note(unsigned idx, int type, uint32_t now) {
     g_retry[idx][f].tries = 0;
 }
 internal int g_place_asked;   // hook_place: the type its placement is laying out (0: none - a foundation of the mod's own)
+internal int ground_unlevelled(int type);           // defence.c THE GROUND UNDER THE NEIGHBOURS
+internal int ground_keeps(int x, int y, int s);
 internal int can_pay(ee_player *pl, int type);   // below
 internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     ee_player *owner = build_mgr_get_player(bm);
@@ -312,6 +314,11 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     // hold is laid out as the real one - every overdraft left after can_pay's first uses was this (18 in 18 games, the
     // wood to -30..-130; with a stock below zero the game trains and researches nothing). Refused: the entry comes again
     if (!can_pay(owner, place_as)) return 0;
+    if (g_log && (x || y) && place_as != UT(B_FARM) && !is_wall(place_as) && !ground_unlevelled(place_as)) {   // one that levels a neighbour's ground (log only)
+        ee_unit_type *gtd = type_data(place_as);
+        if (gtd && !ground_keeps(x, y, unit_type_get_size(gtd)))
+            log_locked("# levelling: P%d at %.1f min: type %d at %d,%d levels ground a neighbour stands on\n", player_get_index(owner), game_time() / 60000.0, place_as, x, y);
+    }
     // A tower queued with its spot (defence.c defence_tick) is laid there unchecked: with a position the placement
     // (0x46580A) only looks for a builder and makes the foundation (0x62EF8A). Another building put on that spot in
     // the meantime blocks it - the build manager's round (0x465C9F) finds the builder waiting at a foundation with
