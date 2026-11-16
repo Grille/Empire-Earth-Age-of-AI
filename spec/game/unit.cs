@@ -366,6 +366,12 @@ unsafe struct EEComplexUnit
     [offset(0x24C), found(c)]
     float32 blocked_ms_prev;
 
+    /// the contagions on it, a bit each (on its physics, +0x30): the contagion helper's infect (EE 0x4AEA34, AoC
+    /// +0x254 in the same code) ORs in its functor's gfx kind's +0xC, the cure clears it - the plague 1
+    /// (unit.contagion_plague: a test game's clubmen 0 before the cast, 1 from it until they died, those kept apart 0)
+    [offset((ee)0x250, (aoc)0x254), found(c)]
+    uint32 contagions;
+
     /// game time (EEPhysics +0xD0): 0x5F0F7E asks its AI state (goalset_ask) while it isn't idle or the time is not
     /// past this, and while idle sets it to now + 350; entering idle (vf29 state 5000) sets -1
     /// (the AoC decompilation: mNextTriggerTime)
@@ -968,6 +974,10 @@ static unsafe class unit
     /// a unit's state at rest (the Halt's set_state, a unit as the editor makes it)
     [value(5000)]
     static uint32 state_idle;
+
+    /// the plague's bit in a unit's contagions (seen in a test game: set by the cast and by the spread)
+    [value(1)]
+    static uint32 contagion_plague;
 
     [address((ee)0x00628BE7, (aoc)0x0063D998)]
     static code call_node_del_1;

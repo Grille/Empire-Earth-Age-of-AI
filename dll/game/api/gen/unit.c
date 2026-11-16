@@ -338,6 +338,12 @@ internal inline float *unit_blocked_ms_at(const ee_unit *o) { return (float *)((
 internal inline float unit_get_blocked_ms_prev(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_blocked_ms_prev); }
 internal inline void unit_set_blocked_ms_prev(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_blocked_ms_prev) = v; }
 internal inline float *unit_blocked_ms_prev_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_blocked_ms_prev); }
+// the contagions on it, a bit each (on its physics, +0x30): the contagion helper's infect (EE 0x4AEA34, AoC
+// +0x254 in the same code) ORs in its functor's gfx kind's +0xC, the cure clears it - the plague 1
+// (unit.contagion_plague: a test game's clubmen 0 before the cast, 1 from it until they died, those kept apart 0)
+internal inline uint32_t unit_get_contagions(const ee_unit *o) { return *(uint32_t *)((uint8_t *)o + of_unit_contagions); }
+internal inline void unit_set_contagions(ee_unit *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unit_contagions) = v; }
+internal inline uint32_t *unit_contagions_at(const ee_unit *o) { return (uint32_t *)((uint8_t *)o + of_unit_contagions); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // game time (EEPhysics +0xD0): 0x5F0F7E asks its AI state (goalset_ask) while it isn't idle or the time is not
 // past this, and while idle sets it to now + 350; entering idle (vf29 state 5000) sets -1
@@ -933,6 +939,7 @@ internal inline int patch_se_ghost_preview(ghost_unit_preview_fn h, int *of) { r
 // static class unit
 // the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
 // a unit's state at rest (the Halt's set_state, a unit as the editor makes it)
+// the plague's bit in a unit's contagions (seen in a test game: set by the cast and by the spread)
 internal inline uint8_t *unit_call_node_del_1_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_1; }
 internal inline uint8_t *unit_call_node_del_2_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_2; }
 internal inline uint8_t *unit_fn_op_delete_at(void) { return (uint8_t *)(uintptr_t)data_unit_fn_op_delete; }
@@ -1203,6 +1210,7 @@ internal int spec_unit_select(int build) {
         of_unit_push = 0x230;
         of_unit_blocked_ms = 0x248;
         of_unit_blocked_ms_prev = 0x24C;
+        of_unit_contagions = 0x250;
         of_unit_idle_ask_until = 0x254;
         of_unit_anim_sound = 0x258;
         of_unit_producing = 0x25C;
@@ -1361,6 +1369,7 @@ internal int spec_unit_select(int build) {
         calls_se_ghost_preview[0] = 0x0058BA2F;
         calls_se_ghost_preview[1] = 0x0058E391;
         value_unit_state_idle = 5000;
+        value_unit_contagion_plague = 1;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
         data_unit_fn_op_delete = 0x006836F0;
@@ -1491,6 +1500,7 @@ internal int spec_unit_select(int build) {
         of_unit_push = 0x230;
         of_unit_blocked_ms = 0x248;
         of_unit_blocked_ms_prev = 0x24C;
+        of_unit_contagions = 0x254;
         of_unit_idle_ask_until = 0x258;
         of_unit_anim_sound = 0x25C;
         of_unit_producing = 0x260;
@@ -1649,6 +1659,7 @@ internal int spec_unit_select(int build) {
         calls_se_ghost_preview[0] = 0x0059BD85;
         calls_se_ghost_preview[1] = 0x0059E7A0;
         value_unit_state_idle = 5000;
+        value_unit_contagion_plague = 1;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
         data_unit_fn_op_delete = 0x0069D150;

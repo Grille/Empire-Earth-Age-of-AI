@@ -87,7 +87,7 @@ internal struct sn_st {
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale;   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
-    ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts;   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
+    ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts, quarantined, cured;   // quarantined, cured: QUARANTINE's so far   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
@@ -665,6 +665,47 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (b < 0) break;
         z->m[b].scout = 1; z->m[b].ter = -1; z->m[b].order_t = 0;
         scouts++;
+    }
+    // QUARANTINE (the player 2026-11-16: "i take it the a ai never heard of quarantine yet? xD to plaque spreads
+    // extremly good, because the ai mixes infected soilders with uninfected ones witout care, it loses whole armies to
+    // that. infected forced need to go to a hospital survive undr a temples influece to prevent spreading"): a soldier
+    // with the plague (unit_plagued) leaves whatever it does - its station, a push, a scout's or an escort's walk -
+    // marked scout 4 (no share, no push takes it), and walks (no attack-move, nothing on the way) to the nearest
+    // finished Hospital or Temple of its, and stands there; cured, it is the main force's again where it stands. No
+    // Hospital or Temple: it stands where it is, away from the others' moves.
+    {
+        int nq = 0;
+        for (int i = 0; i < nn; i++) nq += z->m[i].scout == 4 || unit_plagued(z->m[i].u);
+        static ivec2 cure[64];
+        int ncure = 0, cnt = 0;
+        for (ee_unit *u = nq ? player_get_units(pl) : NULL; u && cnt < 16384 && ncure < 64; u = unit_get_next(u), cnt++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            int t = td ? unit_type_get_id(td) : -1;
+            if ((t == UT(B_HOSPITAL) || t == UT(B_TEMPLE)) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && home_built(u)) cure[ncure++] = unit_get_tile(u);
+        }
+        for (int i = 0; i < nn && nq; i++) {
+            struct sn_unit *m = &z->m[i];
+            ivec2 q = unit_get_tile(m->u);
+            int sick = unit_plagued(m->u);
+            if (m->scout == 4 && !sick) {   // cured
+                unsigned r = ter_near(q.x, q.y); m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0; z->cured++;
+                if (g_log) log_locked("# stations: P%u at %.1f min: a soldier at %d,%d cured - the force's again (%u quarantined, %u cured so far)\n", idx, now / 60000.0, q.x, q.y, z->quarantined, z->cured);
+                continue;
+            }
+            if (!sick) continue;
+            if (m->scout != 4) {
+                if (m->scout == 2 && m->stance0 >= 0) unit_set_stance(m->u, m->stance0);
+                m->scout = 4; m->ter = -1; m->order_t = 0; z->quarantined++;
+                if (g_log) log_locked("# stations: P%u at %.1f min: a soldier at %d,%d has the plague - quarantined (%d Hospitals and Temples to go to; %u so far)\n", idx, now / 60000.0, q.x, q.y, ncure, z->quarantined);
+            }
+            ivec2 to = q;
+            int bd = -1;
+            for (int k = 0; k < ncure; k++) { int d = ivec2_dist2(cure[k], q); if (bd < 0 || d < bd) { bd = d; to = cure[k]; } }
+            if (!m->order_t || now - m->order_t >= 5000) {
+                if (bd >= 0 && bd > 3 * 3) sn_order(z, m, 0, to, 0, now);
+                else if (bd < 0) { ee_goal *g = unit_get_goal(m->u); if (!m->order_t && g) sn_order(z, m, 0, q, 0, now); else m->order_t = now ? now : 1; }   // nowhere to go: it stops where it is
+            }
+        }
     }
     // AN ESCORT: given, followed, let go
     {

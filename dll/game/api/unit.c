@@ -137,3 +137,8 @@ internal inline int patch_unit_node_free(thunk_fn thunk, int *of) {
     return patch_calls(sites, 2, data_unit_fn_op_delete, (void *)thunk, of);
 }
 internal inline uintptr_t game_op_delete(void) { return data_unit_fn_op_delete; }
+// the plague on it (its physics' contagions, spec unit.cs)
+internal inline int unit_plagued(ee_unit *u) {
+    ee_unit *ph = u ? unit_get_physics(u) : NULL;
+    return ph && (unit_get_contagions(ph) & value_unit_contagion_plague) != 0;
+}
