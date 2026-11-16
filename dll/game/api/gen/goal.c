@@ -375,8 +375,102 @@ typedef void *(__thiscall *location_goal_init_fn)(ee_location_goal *, float *, i
 internal location_goal_init_fn fn_location_goal_init;
 internal inline void *location_goal_init(ee_location_goal *location_goal, float *p2, int p3, char p4, char p5, float p6, char p7, char p8) { return fn_location_goal_init(location_goal, p2, p3, p4, p5, p6, p7, p8); }
 
+// class EEUGCastCalamity (ee_cast_goal)
+// the cast-a-power goal (EEUGCastCalamity, new 0x34; its constructor goal.fn_goal_cast_ctor(caster, target unit or
+// 0, the tile x, y as ints - the AI's earthquake analyser 0x40A48E converts them to floats + 0.5 for its own test -, the
+// power's tech, 1) - EEMCastCalamity::vf10 0x4B455D (the right-click with a power button) gives it to
+// the first unit of the selection whose power is the calamity's cost or more, the game's own AI's prophet analysers
+// (AoC 0x40B9C9) the same, then the state 8000)
+// EEUnitGoal's, the base's
+// (aim.c: 2 while it attacks)
+internal inline uint8_t cast_goal_get_state(const ee_cast_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void cast_goal_set_state(ee_cast_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *cast_goal_state_at(const ee_cast_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
+internal inline int cast_goal_get_path_tries(const ee_cast_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void cast_goal_set_path_tries(ee_cast_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *cast_goal_path_tries_at(const ee_cast_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t cast_goal_get_ordered(const ee_cast_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void cast_goal_set_ordered(ee_cast_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *cast_goal_ordered_at(const ee_cast_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t cast_goal_get_no_sectors(const ee_cast_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void cast_goal_set_no_sectors(ee_cast_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *cast_goal_no_sectors_at(const ee_cast_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float cast_goal_get_dest_x(const ee_cast_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void cast_goal_set_dest_x(ee_cast_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *cast_goal_dest_x_at(const ee_cast_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float cast_goal_get_dest_y(const ee_cast_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void cast_goal_set_dest_y(ee_cast_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *cast_goal_dest_y_at(const ee_cast_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float cast_goal_get_dest_z(const ee_cast_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void cast_goal_set_dest_z(ee_cast_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *cast_goal_dest_z_at(const ee_cast_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+// a kind 6 goal's target
+// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
+// only when it is the same
+internal inline void *cast_goal_get_0x38(const ee_cast_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void cast_goal_set_0x38(ee_cast_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **cast_goal_0x38_at(const ee_cast_goal *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+// a kind 4 goal's target
+// a kind 4 goal's target - the same for kind 4
+internal inline void *cast_goal_get_0x3c(const ee_cast_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void cast_goal_set_0x3c(ee_cast_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **cast_goal_0x3c_at(const ee_cast_goal *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *cast_goal_get_holder(const ee_cast_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void cast_goal_set_holder(ee_cast_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **cast_goal_holder_at(const ee_cast_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// the caster, referenced (the constructor's first argument)
+internal inline ee_unit *cast_goal_get_caster(const ee_cast_goal *o) { return *(ee_unit **)((uint8_t *)o + of_cast_goal_caster); }
+internal inline void cast_goal_set_caster(ee_cast_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_cast_goal_caster) = v; }
+internal inline ee_unit **cast_goal_caster_at(const ee_cast_goal *o) { return (ee_unit **)((uint8_t *)o + of_cast_goal_caster); }
+// the power's tech (dbtechtree: the prophets' 1013 fire, 1016 malaria, 1017 volcano, 1018 earthquake, 1019
+// plague, 1022 hurricane), the constructor's fifth argument
+internal inline int cast_goal_get_tech(const ee_cast_goal *o) { return *(int *)((uint8_t *)o + of_cast_goal_tech); }
+internal inline void cast_goal_set_tech(ee_cast_goal *o, int v) { *(int *)((uint8_t *)o + of_cast_goal_tech) = v; }
+internal inline int *cast_goal_tech_at(const ee_cast_goal *o) { return (int *)((uint8_t *)o + of_cast_goal_tech); }
+
+// class EECalamityClass (ee_calamity)
+// a power (a calamity: dbcalamity.dat's record; the manager's list by the tech's calamity, tech data +0x44)
+// the power it costs the caster (vf4 0x4A8A22, AoC 0x4ADCEB: EEMCastCalamity::vf10 casts when the caster's power
+// is this or more); the 2017 update's prophets: earthquake 50, volcano 60, fire 75, hurricane, plague, malaria 100
+internal inline int calamity_get_cost(const ee_calamity *o) { return *(int *)((uint8_t *)o + of_calamity_cost); }
+internal inline void calamity_set_cost(ee_calamity *o, int v) { *(int *)((uint8_t *)o + of_calamity_cost) = v; }
+internal inline int *calamity_cost_at(const ee_calamity *o) { return (int *)((uint8_t *)o + of_calamity_cost); }
+
+// class EECalamityManager (ee_calamity_mgr)
+// the powers ([goal.calamities], made at the first use: 0x40CEBD, AoC 0x40C44D)
+// the powers by calamity number, a vector (0x4A8FB7, AoC 0x4AE749: begin +0x18, end +0x1C)
+internal inline ee_calamity **calamity_mgr_get_begin(const ee_calamity_mgr *o) { return *(ee_calamity ***)((uint8_t *)o + of_calamity_mgr_begin); }
+internal inline void calamity_mgr_set_begin(ee_calamity_mgr *o, ee_calamity **v) { *(ee_calamity ***)((uint8_t *)o + of_calamity_mgr_begin) = v; }
+internal inline ee_calamity ***calamity_mgr_begin_at(const ee_calamity_mgr *o) { return (ee_calamity ***)((uint8_t *)o + of_calamity_mgr_begin); }
+internal inline ee_calamity **calamity_mgr_get_end(const ee_calamity_mgr *o) { return *(ee_calamity ***)((uint8_t *)o + of_calamity_mgr_end); }
+internal inline void calamity_mgr_set_end(ee_calamity_mgr *o, ee_calamity **v) { *(ee_calamity ***)((uint8_t *)o + of_calamity_mgr_end) = v; }
+internal inline ee_calamity ***calamity_mgr_end_at(const ee_calamity_mgr *o) { return (ee_calamity ***)((uint8_t *)o + of_calamity_mgr_end); }
+
 // static class goal
 // goal's data of the game, places in its code and numbers
+// EEUGCastCalamity(caster, target or 0, int tile x, int tile y, tech, 1), thiscall on new goal.size_goal_cast
+internal inline uint8_t *goal_fn_goal_cast_ctor_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_goal_cast_ctor; }
+// EEMCastCalamity::vf10's new (AoC 0x4BC8C2 and the AI's 0x40B9C9: 0x34 too)
+// EECalamityClass: thiscall(power, caster, float pos[3], tile x, tile y, 1, 0) - 0 when it may be cast there
+// (the base 0x4A8952: 1 the caster's power short of the cost or the tile unexplored, 2 under an enemy Temple's
+// protection; EEMCastCalamity::vf10 0x4B46A4 asks it before it gives the goal, the AI's analysers before they pick
+// a place; the powers' own classes override it)
+// makes [goal.calamities] when 0 (EEMCastCalamity::vf10's first call; void(void))
+internal inline uint8_t *goal_fn_calamities_make_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_calamities_make; }
+// the powers, 0 until the first use made them
+internal inline ee_calamity_mgr *goal_get_calamities(void) { return *(ee_calamity_mgr **)(uint8_t *)(uintptr_t)data_goal_calamities; }
+internal inline void goal_set_calamities(ee_calamity_mgr *v) { *(ee_calamity_mgr **)(uint8_t *)(uintptr_t)data_goal_calamities = v; }
+internal inline ee_calamity_mgr **goal_calamities_at(void) { return (ee_calamity_mgr **)(uint8_t *)(uintptr_t)data_goal_calamities; }
 internal inline uint8_t *goal_at_goal_set_read_at(void) { return (uint8_t *)(uintptr_t)data_goal_at_goal_set_read; }
 // EEUGAttack(unit, target, 1); AoC + a byte: attack.c
 internal inline uint8_t *goal_fn_goal_attack_ctor_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_goal_attack_ctor; }
@@ -704,6 +798,19 @@ internal int spec_goal_select(int build) {
         of_location_goal_group_move = 0x33;
         of_location_goal_group_path_state = 0x34;
         fn_location_goal_init = (location_goal_init_fn)0x00614CE6;
+        vt_eeug_cast_calamity = 0x00831A6C;
+        of_cast_goal_caster = 0x20;
+        of_cast_goal_tech = 0x30;
+        vt_ee_calamity_class = 0x00827EA8;
+        of_calamity_cost = 0x20;
+        vt_ee_calamity_manager = 0x00827EF8;
+        of_calamity_mgr_begin = 0x18;
+        of_calamity_mgr_end = 0x1C;
+        data_goal_fn_goal_cast_ctor = 0x0060E2FF;
+        value_goal_size_goal_cast = 52;
+        value_goal_slot_calamity_check = 15;
+        data_goal_fn_calamities_make = 0x0040CEBD;
+        data_goal_calamities = 0x008CF8D0;
         data_goal_at_goal_set_read = 0x005F0634;
         data_goal_fn_goal_attack_ctor = 0x0060AD45;
         value_goal_size_goal_attack = 64;
@@ -786,6 +893,19 @@ internal int spec_goal_select(int build) {
         of_location_goal_group_move = 0x33;
         of_location_goal_group_path_state = 0x34;
         fn_location_goal_init = (location_goal_init_fn)0x006276E1;
+        vt_eeug_cast_calamity = 0x0084748C;
+        of_cast_goal_caster = 0x20;
+        of_cast_goal_tech = 0x30;
+        vt_ee_calamity_class = 0x0083C6C4;
+        of_calamity_cost = 0x20;
+        vt_ee_calamity_manager = 0x0083C714;
+        of_calamity_mgr_begin = 0x18;
+        of_calamity_mgr_end = 0x1C;
+        data_goal_fn_goal_cast_ctor = 0x006209C9;
+        value_goal_size_goal_cast = 52;
+        value_goal_slot_calamity_check = 15;
+        data_goal_fn_calamities_make = 0x0040C44D;
+        data_goal_calamities = 0x008E5FB0;
         data_goal_at_goal_set_read = 0x005FE8DA;
         data_goal_fn_goal_attack_ctor = 0x0061D337;
         value_goal_size_goal_attack = 68;
@@ -852,6 +972,12 @@ internal int spec_goal_check(void) {
     bad += spec_code((uintptr_t)fn_garrison_goal_init, "EEUGLoadGarrison.init");
     bad += spec_vtable(vt_eeug_location, ".?AVEEUGLocation@@", "EEUGLocation [vtable]");
     bad += spec_code((uintptr_t)fn_location_goal_init, "EEUGLocation.init");
+    bad += spec_vtable(vt_eeug_cast_calamity, ".?AVEEUGCastCalamity@@", "EEUGCastCalamity [vtable]");
+    bad += spec_vtable(vt_ee_calamity_class, ".?AVEECalamityClass@@", "EECalamityClass [vtable]");
+    bad += spec_vtable(vt_ee_calamity_manager, ".?AVEECalamityManager@@", "EECalamityManager [vtable]");
+    bad += spec_code(data_goal_fn_goal_cast_ctor, "goal.fn_goal_cast_ctor");
+    bad += spec_code(data_goal_fn_calamities_make, "goal.fn_calamities_make");
+    bad += spec_data(data_goal_calamities, "goal.calamities");
     bad += spec_code(data_goal_at_goal_set_read, "goal.at_goal_set_read");
     bad += spec_code(data_goal_fn_goal_attack_ctor, "goal.fn_goal_attack_ctor");
     bad += spec_data(data_goal_vt_goal_attack, "goal.vt_goal_attack");

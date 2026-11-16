@@ -47,6 +47,11 @@ internal inline ee_goal *goal_attack_init(void *mem, ee_unit *u, ee_unit *target
     if (build_is("aoc")) return ((ee_goal *(__thiscall *)(void *, void *, void *, int, int))data_goal_fn_goal_attack_ctor)(mem, u, target, 1, 0);
     return ((ee_goal *(__thiscall *)(void *, void *, void *, int))data_goal_fn_goal_attack_ctor)(mem, u, target, 1);
 }
+// a power cast (EEUGCastCalamity): caster at the tile x, y - or on target (0: the ground) - the power's tech; the caster's
+// power is the caller's to check (calamity_cost), as the right-click's message does before it gives the goal
+internal inline ee_goal *goal_cast_init(void *mem, ee_unit *caster, ee_unit *target, int x, int y, int tech) {
+    return ((ee_goal *(__thiscall *)(void *, void *, void *, int, int, int, int))data_goal_fn_goal_cast_ctor)(mem, caster, target, x, y, tech, 1);
+}
 // the units of vec (a std::vector) into holder (a transport or a building)
 internal inline ee_goal *goal_load_init(void *mem, ee_unit *holder, void *vec) { return (ee_goal *)fn_load_goal_init(mem, holder, vec, 1); }
 // the citizens of vec into holder for good (a garrison, EEUGLoadGarrison: a Settlement, Town Center or Capitol takes
@@ -68,6 +73,7 @@ internal inline int goal_is_load(const ee_goal *g) { return *(const uintptr_t *)
 internal inline int goal_is_unload(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_unload; }
 internal inline int goal_is_garrison(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_load_garrison; }
 internal inline int goal_is_gather(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_gather; }
+internal inline int goal_is_cast(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_cast_calamity; }   // a power cast (EEUGCastCalamity)
 // a garrison order with units still to come in (its holder keeps an order whose last unit is in, unless that filled it)
 internal inline int goal_garrison_waits(const ee_goal *g) {
     return goal_is_garrison(g) && garrison_goal_get_pending_first((const ee_garrison_goal *)g) != garrison_goal_get_pending_last((const ee_garrison_goal *)g);
@@ -75,6 +81,27 @@ internal inline int goal_garrison_waits(const ee_goal *g) {
 // the memory of a goal the game may free (game_new of its size), then made with its _init
 internal inline void *goal_build_alloc(void) { return game_new(value_goal_size_goal_build); }
 internal inline void *goal_attack_alloc(void) { return game_new(value_goal_size_goal_attack); }
+internal inline void *goal_cast_alloc(void) { return game_new(value_goal_size_goal_cast); }
+// whether caster may cast the power of calamity number cal at the tile x, y now: 0 yes (the power's own check, as
+// the right-click's order asks it; 2: under an enemy Temple's protection), -1 unknown power
+internal inline int calamity_check(int cal, ee_unit *caster, int x, int y) {
+    if (!goal_get_calamities()) ((void (*)(void))data_goal_fn_calamities_make)();
+    ee_calamity_mgr *m = goal_get_calamities();
+    if (!m || cal < 0) return -1;
+    ee_calamity **b = calamity_mgr_get_begin(m), **e = calamity_mgr_get_end(m);
+    if (!b || e - b <= cal || !b[cal]) return -1;
+    float pos[3] = { 0, 0, 0 };
+    return ((int (__thiscall *)(void *, void *, float *, int, int, int, int))(*(void ***)b[cal])[value_goal_slot_calamity_check])(b[cal], caster, pos, x, y, 1, 0);
+}
+// a power's cost by its calamity number (tech data's calamity), -1 unknown (the powers are made at the first ask, as the game's first cast makes them)
+internal inline int calamity_cost(int cal) {
+    if (!goal_get_calamities()) ((void (*)(void))data_goal_fn_calamities_make)();
+    ee_calamity_mgr *m = goal_get_calamities();
+    if (!m || cal < 0) return -1;
+    ee_calamity **b = calamity_mgr_get_begin(m), **e = calamity_mgr_get_end(m);
+    if (!b || e - b <= cal || !b[cal]) return -1;
+    return calamity_get_cost(b[cal]);
+}
 internal inline void *goal_load_alloc(void) { return game_new(value_goal_size_goal_load); }
 internal inline void *goal_garrison_alloc(void) { return game_new(value_goal_size_goal_garrison); }
 internal inline void *goal_unload_alloc(void) { return game_new(value_goal_size_goal_unload); }

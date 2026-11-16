@@ -119,6 +119,8 @@ internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the f
 internal void stations_new_game(void);
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
 internal void airguard_new_game(void);
+internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and prophets
+internal void holy_new_game(void);
 internal void shelf_off_tick(ee_player *pl, uint32_t now);   // bunker.c
 internal void territories_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
@@ -260,6 +262,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl)) garrison_tick(pl, now);
     if (pl && !is_vanilla(pl) && (game || player_ai_toggle(pl, SM_AIT_ATTACK))) airstrike_tick(pl, now);
     if (pl && !is_vanilla(pl) && !game) airguard_tick(pl, now);   // airguard.c: anti-air buildings and fighters (the game's computer player off)
+    if (pl && !is_vanilla(pl) && !game) holy_tick(pl, now);   // holy.c: priests and prophets (the game's computer player off)
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
     if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
@@ -418,6 +421,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     research_new_game();
     stations_new_game();
     airguard_new_game();
+    holy_new_game();
     airstrike_new_game();
     skirmish_new_game();
     spoils_new_game();
@@ -499,6 +503,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
+#include "ai/holy.c"          // priests and prophets while the game's computer player is off
 #include "ai/skirmish.c"
 #include "ai/spoils.c"
 #include "ai/ai_overlay.c"   // the AI's tactical map (the overlay's layer "ai")

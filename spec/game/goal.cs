@@ -204,9 +204,72 @@ unsafe struct EEUGLocation
     extern void* init(float32* p2, int32 p3, char8 p4, char8 p5, float32 p6, char8 p7, char8 p8);
 }
 
+/// the cast-a-power goal (EEUGCastCalamity, new 0x34; its constructor goal.fn_goal_cast_ctor(caster, target unit or
+/// 0, the tile x, y as ints - the AI's earthquake analyser 0x40A48E converts them to floats + 0.5 for its own test -, the
+/// power's tech, 1) - EEMCastCalamity::vf10 0x4B455D (the right-click with a power button) gives it to
+/// the first unit of the selection whose power is the calamity's cost or more, the game's own AI's prophet analysers
+/// (AoC 0x40B9C9) the same, then the state 8000)
+[@base(typeof(EEUnitGoal)), c_type("ee_cast_goal"), vtable((ee)0x00831A6C, (aoc)0x0084748C)]
+unsafe struct EEUGCastCalamity
+{
+    /// the caster, referenced (the constructor's first argument)
+    [offset(0x20), found(c)]
+    EEUnit* caster;
+
+    /// the power's tech (dbtechtree: the prophets' 1013 fire, 1016 malaria, 1017 volcano, 1018 earthquake, 1019
+    /// plague, 1022 hurricane), the constructor's fifth argument
+    [offset(0x30), found(c)]
+    int32 tech;
+}
+
+/// a power (a calamity: dbcalamity.dat's record; the manager's list by the tech's calamity, tech data +0x44)
+[c_type("ee_calamity"), vtable((ee)0x00827EA8, (aoc)0x0083C6C4)]
+unsafe struct EECalamityClass
+{
+    /// the power it costs the caster (vf4 0x4A8A22, AoC 0x4ADCEB: EEMCastCalamity::vf10 casts when the caster's power
+    /// is this or more); the 2017 update's prophets: earthquake 50, volcano 60, fire 75, hurricane, plague, malaria 100
+    [offset(0x20), found(c)]
+    int32 cost;
+}
+
+/// the powers ([goal.calamities], made at the first use: 0x40CEBD, AoC 0x40C44D)
+[c_type("ee_calamity_mgr"), vtable((ee)0x00827EF8, (aoc)0x0083C714)]
+unsafe struct EECalamityManager
+{
+    /// the powers by calamity number, a vector (0x4A8FB7, AoC 0x4AE749: begin +0x18, end +0x1C)
+    [offset(0x18), found(c)]
+    EECalamityClass** begin;
+
+    [offset(0x1C), found(c)]
+    EECalamityClass** end;
+}
+
 /// goal's data of the game, places in its code and numbers
 static unsafe class goal
 {
+    /// EEUGCastCalamity(caster, target or 0, int tile x, int tile y, tech, 1), thiscall on new goal.size_goal_cast
+    [address((ee)0x0060E2FF, (aoc)0x006209C9)]
+    static code fn_goal_cast_ctor;
+
+    /// EEMCastCalamity::vf10's new (AoC 0x4BC8C2 and the AI's 0x40B9C9: 0x34 too)
+    [value(0x34)]
+    static uint32 size_goal_cast;
+
+    /// EECalamityClass: thiscall(power, caster, float pos[3], tile x, tile y, 1, 0) - 0 when it may be cast there
+    /// (the base 0x4A8952: 1 the caster's power short of the cost or the tile unexplored, 2 under an enemy Temple's
+    /// protection; EEMCastCalamity::vf10 0x4B46A4 asks it before it gives the goal, the AI's analysers before they pick
+    /// a place; the powers' own classes override it)
+    [value(15)]
+    static uint32 slot_calamity_check;
+
+    /// makes [goal.calamities] when 0 (EEMCastCalamity::vf10's first call; void(void))
+    [address((ee)0x0040CEBD, (aoc)0x0040C44D)]
+    static code fn_calamities_make;
+
+    /// the powers, 0 until the first use made them
+    [address((ee)0x008CF8D0, (aoc)0x008E5FB0)]
+    static EECalamityManager* calamities;
+
     [address((ee)0x005F0634, (aoc)0x005FE8DA)]
     static code at_goal_set_read;
 
