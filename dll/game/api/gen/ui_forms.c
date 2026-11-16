@@ -210,7 +210,11 @@ internal inline int eeuib_upgrade_get_attr(const eeuib_upgrade *o) { return *(in
 internal inline void eeuib_upgrade_set_attr(eeuib_upgrade *o, int v) { *(int *)((uint8_t *)o + of_eeuib_upgrade_attr) = v; }
 internal inline int *eeuib_upgrade_attr_at(const eeuib_upgrade *o) { return (int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
 // vf37 thiscall(button, EEUnit** unit, UWideString* why): the selection's first unit, and may its owner buy the
-// improvement (game.improvements_allowed, EEPlayer.can_buy_improvement)
+// improvement (game.improvements_allowed, EEPlayer.can_buy_improvement). Two branches by its +0x12C: in the
+// scenario editor only the type's table (0x6266B5: a step for the attribute), every type with one; in a game the
+// player's check. Citizens: the editor raises their levels, a game shows no buttons for them (the player
+// 2026-11-16) although can_buy_improvement accepts them - what hides them there is not found yet (the AI leaves
+// them out: ai/research.c)
 typedef char (__thiscall *eeuib_upgrade_can_buy_fn)(eeuib_upgrade *, ee_unit **, void *);
 internal eeuib_upgrade_can_buy_fn fn_eeuib_upgrade_can_buy;
 internal inline char eeuib_upgrade_can_buy(eeuib_upgrade *eeuib_upgrade, ee_unit **unit, void *why) { return fn_eeuib_upgrade_can_buy(eeuib_upgrade, unit, why); }
