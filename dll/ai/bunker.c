@@ -26,6 +26,20 @@ internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport
     return td && unit_type_get_class_id(td) == CLS_FORTRESS ? unit_type_get_transport_capacity(td) : 0;
 }
 internal int bk_held(ee_unit *u) { return unit_count_inside(u); }   // units inside
+// the room a unit takes inside (its type's transport size: a Phalanx 1, a Bronze Cavalry 2 - read in the player's game
+// of 2026-11-16), and what a holder has left of its capacity by them (a Fortress 40): its head count was no guide -
+// the reserve's Fortresses stood at 23-24 for 10 minutes, the next 5 ordered in every 10 s never got in
+internal int bk_size(ee_unit *u) {
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    int s = td ? unit_type_get_transport_size(td) : 1;
+    return s > 0 ? s : 1;
+}
+internal int bk_space(ee_unit *f) {
+    int n = bk_held(f), used = 0;
+    ee_unit **in = n > 0 ? (ee_unit **)vector_first(unit_inside_at(f) - 4) : NULL;
+    for (int i = 0; in && i < n; i++) used += bk_size(in[i]);
+    return bk_capacity(f) - used;
+}
 
 struct bk_scan { ee_player *pl; ivec2 p; int r, nf, nc; ee_unit *f[8], *c[128]; };
 internal void bk_unit(ee_unit *u, void *ctx) {
@@ -379,6 +393,14 @@ internal int bk_room(ee_player *pl) {   // cap - population on the map (the fort
     int cap = unit_limit(pl);
     return cap - player_population(pl, 0, 0);
 }
+// the room the training still has: the population's less the units its buildings have queued (econ.c units_queued,
+// not the unit manager's count, which drifts). The shelf and the reserve (stations.c) stash and let out by it - by the
+// population's alone the player's game of 2026-11-16 (P2, minute 118-125) put 20 citizens in and let them out
+// again 10-20 s later, before the soldiers ordered into their places came out, every 20 s for 8 minutes: the room
+// the stash makes is the training's, and nobody comes out into places already ordered
+internal int bk_room_free(ee_player *pl) {
+    return bk_room(pl) - units_queued(pl);
+}
 struct bk_free { ee_player *pl; ee_combat_mgr *cm; ivec2 b; int n; ee_unit *u[64]; };
 internal void bk_free_unit(ee_unit *u, void *ctx) {
     struct bk_free *f = ctx;
@@ -546,7 +568,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
     if (!um || !rm) return;
     int *st = player_stock_at(pl), keep = shelf_keep(pl), out = shelf_citizens_out(pl);
-    int room = unit_limit(pl) - player_population(pl, 1, 0), queued = unit_mgr_get_in_production(um);
+    int room = GAME_AI(pi) ? unit_limit(pl) - player_population(pl, 1, 0) : bk_room_free(pl), queued = unit_mgr_get_in_production(um);   // off: the training's room (bk_room_free)
     g_shelf[pi].want = 0;
     // the game's computer player off: a fortress with units inside is the shelf's - nobody else fills one then (the
     // shelter and the reserve are the game's assignment hook's), and which were its is not in a save: after a load

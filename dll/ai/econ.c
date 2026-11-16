@@ -2289,11 +2289,16 @@ internal int units_queued(ee_player *pl) {
 // P6 at 9 in production with 491 units queued, by minute 592 12 stables with about 80 Imperial Cuirassiers each - paid
 // for, and more than its cap of 1156 lets out. Every 10 s it is set to the units the buildings have queued
 // (units_queued) when the two differ.
+// The game's computer player off: always (the player's game of 2026-11-16, both AIs at the cap of 1500 with 60,000+
+// food for 20 minutes, nothing trained: P3's count drifted from 1 against 22 queued at minute 38 to 51 against 31 at
+// minute 99 and stood at 21-27 against 6-13 at minute 125 - the room its orders saw was 0 with 25 places free on the
+// map, so it trained nothing and the reserve, which saw those places, stashed nothing either). Nobody but the mod
+// trains then, and production_sync's measurement (off) was of the game's own computer player.
 internal int g_prod_sync = 0;
 internal unsigned g_prod_synced[16];
 internal void prod_sync(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    if (!g_prod_sync || (last[idx] && now >= last[idx] && now - last[idx] < 10000)) return;
+    if ((!g_prod_sync && GAME_AI(idx)) || (last[idx] && now >= last[idx] && now - last[idx] < 10000)) return;
     last[idx] = now ? now : 1;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
