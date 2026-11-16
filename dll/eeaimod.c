@@ -119,6 +119,7 @@ internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the f
 internal void stations_new_game(void);
 internal void takeover_new_game(void);   // test/takeover.c
 internal void takeover_install(void);
+internal void takeover_tick(ee_player *pl);   // the observer's epoch and population: its stand-in's
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
 internal void airguard_new_game(void);
 internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and prophets
@@ -267,6 +268,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && !game) holy_tick(pl, now);   // holy.c: priests and prophets (the game's computer player off)
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
+    if (pl) takeover_tick(pl);
     if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
     if (pl && !is_vanilla(pl) && !game) citizens_safety(rm, 0);   // attack.c: back from raiders, out of an overrun base (the game's citizen assignment called it)
     // a scenario's AI toggles (player_ai_toggle; the game's own computer player tests its own the same way): Gather off -

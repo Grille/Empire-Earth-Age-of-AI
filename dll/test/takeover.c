@@ -11,6 +11,7 @@
 // raised to 1 for the check). The new player is one of the mod's AIs from its first turn (persona_assign: the
 // personality named here, else one as at a game start). Single player only; a save after it is not tested.
 internal int g_ho_human = -1;   // the player handed over (kept in), -1 none
+internal int g_ho_ai = -1;      // the computer player it was handed to
 internal world_victory_check_fn g_ho_victory;
 internal int __thiscall hook_victory_check(ee_world *w) {
     ee_player *h = g_ho_human > 0 && (unsigned)g_ho_human < game_player_count() ? game_players()[g_ho_human] : NULL;
@@ -25,7 +26,37 @@ internal void takeover_install(void) {
     int ok = patch_victory_check(hook_victory_check);
     if (g_log) fprintf(g_log, "# takeover: the victory check hooked %s (the human handed over stays in)\n", ok ? "ok" : "FAILED");
 }
-internal void takeover_new_game(void) { g_ho_human = -1; }
+internal void takeover_new_game(void) { g_ho_human = g_ho_ai = -1; }
+// WHAT FOLLOWS THE HUMAN FOLLOWS ITS STAND-IN (the player 2026-11-16, of epoch_pacing follow and pop_follow_human: "make
+// it follow the (human) ai"): the game and the mod take the humans' epoch and population from the players the game
+// counts as human (highest_human_epoch: their tech trees' epoch; the AI's population cap 0x42F7A5: their population),
+// and the observer is one of them still. At each of the stand-in's turns the observer's tech tree has its epoch (the
+// game's catch-up of the AIs too when it rises: tech_researched of a human's epoch, as a human's own advance) and its
+// population is the stand-in's (pop_b10: the observer has no units or lists, nothing else counts it).
+internal void takeover_tick(ee_player *pl) {
+    if (g_ho_ai < 0 || player_get_index(pl) != g_ho_ai || (unsigned)g_ho_human >= game_player_count()) return;
+    ee_player *h = game_players()[g_ho_human];
+    ee_tech_tree *ht = h ? player_get_tech_tree(h) : NULL, *tt = player_get_tech_tree(pl);
+    if (!ht || !tt) return;
+    int e = tech_tree_get_epoch(tt), was = tech_tree_get_epoch(ht);
+    if (e != was) {
+        tech_tree_set_epoch(ht, e);
+        if (e > was) player_tech_researched(h, e);
+        if (g_log) log_locked("# takeover: at %.1f min the observer P%d is at epoch %d with its stand-in P%d (was %d)\n", game_time() / 60000.0, g_ho_human, e, g_ho_ai, was);
+    }
+    player_set_pop_b10(h, player_population(pl, 1, 1));
+    // the stand-in itself paces as the human it plays for: following the humans it would follow itself (follow: held
+    // at its own epoch for good, and every AI that follows with it) - independent pacing then, and the game limit
+    const struct ai_cfg *c = cfg_of(pl);
+    if (c->pacing == PACE_FOLLOW || c->pop_follow) {
+        unsigned i = (unsigned)g_ho_ai & 15;
+        struct ai_cfg k = *c;
+        if (k.pacing == PACE_FOLLOW) k.pacing = PACE_INDEPENDENT;
+        k.pop_follow = 0;
+        g_cfg_pl[i] = k; g_cfg_pl_on[i] = 1;
+        if (g_log) log_locked("# takeover: P%d paces as the human it plays for - %s pacing, the game's population limit\n", g_ho_ai, k.pacing == PACE_INDEPENDENT ? "independent" : "its own");
+    }
+}
 
 internal int persona_find(const char *file);
 internal void persona_apply(ee_player *pl, unsigned idx, int pick);
@@ -140,7 +171,7 @@ internal void cmd_handover(char *out, const char *args) {
     player_ai_start(p);
     ai_turns_refresh();
     // THE HUMAN: an observer, kept in
-    g_ho_human = (int)hi;
+    g_ho_human = (int)hi; g_ho_ai = (int)n;
     player_set_explore_all(h, 1);
     if (pick >= 0) { persona_assign(p); persona_apply(p, n, pick); }   // assigned first (marked), then the one asked for
     char gm[REPLY_CAP];

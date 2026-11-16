@@ -393,6 +393,12 @@ unsafe struct EEPlayer
     [slot(1)]
     extern void adopt(int32 ids, char8 refresh);
 
+    /// vf41: a tech researched (the tech tree's 0x5BC3B1 after a grant) - EEPlayer's 0x55A569: a human's epoch (id
+    /// below 14) lets every computer player catch up (EEComputerPlayer.epoch_catch_up); the computer's (0x43DCBF, AoC
+    /// 0x43D45D) tells its research manager and its epoch first
+    [slot(41)]
+    extern void tech_researched(int32 id);
+
     /// thiscall(player, unit, again): a unit off the map dropped from its lists (its released flag set first; again
     /// drops a released one once more) - the scenario's Kill / Remove after EEUnit.destroy left the unit's list_node
     [address((ee)0x0055FD76, (aoc)0x0056F6AE)]

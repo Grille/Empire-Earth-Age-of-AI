@@ -380,6 +380,11 @@ internal inline void player_set_color(ee_player *player, float *rgb) { fn_player
 // then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
 typedef void (__thiscall *player_adopt_fn)(ee_player *, int, char);
 internal inline void player_adopt(ee_player *player, int ids, char refresh) { ((player_adopt_fn)(*(void ***)player)[slot_player_adopt])(player, ids, refresh); }
+// vf41: a tech researched (the tech tree's 0x5BC3B1 after a grant) - EEPlayer's 0x55A569: a human's epoch (id
+// below 14) lets every computer player catch up (EEComputerPlayer.epoch_catch_up); the computer's (0x43DCBF, AoC
+// 0x43D45D) tells its research manager and its epoch first
+typedef void (__thiscall *player_tech_researched_fn)(ee_player *, int);
+internal inline void player_tech_researched(ee_player *player, int id) { ((player_tech_researched_fn)(*(void ***)player)[slot_player_tech_researched])(player, id); }
 // thiscall(player, unit, again): a unit off the map dropped from its lists (its released flag set first; again
 // drops a released one once more) - the scenario's Kill / Remove after EEUnit.destroy left the unit's list_node
 typedef void (__thiscall *player_drop_fn)(ee_player *, ee_unit *, char);
@@ -1396,6 +1401,7 @@ internal int spec_player_select(int build) {
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
         fn_player_set_color = (player_set_color_fn)0x00526B3A;
         slot_player_adopt = 1;
+        slot_player_tech_researched = 41;
         fn_player_drop = (player_drop_fn)0x0055FD76;
         fn_player_queue_improvement = (player_queue_improvement_fn)0x005544D8;
         fn_player_can_buy_improvement = (player_can_buy_improvement_fn)0x00555575;
@@ -1715,6 +1721,7 @@ internal int spec_player_select(int build) {
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
         fn_player_set_color = (player_set_color_fn)0x00531872;
         slot_player_adopt = 1;
+        slot_player_tech_researched = 41;
         fn_player_drop = (player_drop_fn)0x0056F6AE;
         fn_player_queue_improvement = (player_queue_improvement_fn)0x00562694;
         fn_player_can_buy_improvement = (player_can_buy_improvement_fn)0x0056384D;
