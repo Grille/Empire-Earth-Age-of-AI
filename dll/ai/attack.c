@@ -675,7 +675,37 @@ internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
 
 // Art of Conquest's constructor takes a fourth argument, a byte it keeps at the goal's new +0x40: 0 as the AI's own
 // calls pass it
+// NO IMPOSSIBLE ORDERS (the player 2026-11-16: "our unit targeting is a bit fucked, units attack airplanes, figheter
+// planes attack ground units, a priest just converted an animal from nature, i saw helicopters attack fish... none of
+// this should even be possible"): every attack order of the mod's goes through here, so here it is refused - a target
+// of its own side (not an enemy), of nature's (player 0: animals, fish) but for a land animal a citizen or soldier on
+// foot turns on (the first test: citizens against the elephants and hippos that went for them), and one the
+// attacker's weapon cannot hit by the game's own table (attack_bonus 0: ground soldiers at aircraft, fighters at ground
+// units, anti-air at a howitzer). A priest's or prophet's "attack" converts: for them an enemy player's unit only.
+// "# no impossible orders:" names the first callers refused.
+internal unsigned g_ga_refused;
+internal int ga_possible(ee_unit *u, ee_unit *target) {
+    if (!u || !target) return 0;
+    ee_player *uo = unit_get_owner(u), *to = unit_get_owner(target);
+    ee_unit_type *atd = unit_get_type_data(u), *ttd = unit_get_type_data(target);
+    if (!uo || !to || !atd || !ttd) return 0;
+    int af = unit_type_get_class_id(atd), tf = unit_type_get_class_id(ttd), holy = af == CLS_LAND_PRIEST || af == CLS_HELICOPTER_PRIEST || af == CLS_BUILDING_PRIEST || unit_type_get_id(atd) == UT(PROPHET);
+    if (player_get_index(to) <= 0) {   // nature's: a land animal, by one on foot
+        if (holy || (af != CLS_LAND && af != CLS_LAND_CITIZEN && af != CLS_LAND_MILITARY_HERO) || tf == CLS_SEA_ANIMAL || tf == CLS_AIR_ANIMAL) return 0;
+    } else if (!is_enemy(uo, to)) return 0;
+    if (holy) return 1;
+    return attack_bonus(atd, ttd, player_get_index(uo), player_get_index(to)) > 0.0f;
+}
 internal ee_goal *goal_attack(ee_unit *u, ee_unit *target) {
+    if (!ga_possible(u, target)) {
+        if (g_log && g_ga_refused++ < 40) {
+            ee_unit_type *atd = u ? unit_get_type_data(u) : NULL, *ttd = target ? unit_get_type_data(target) : NULL;
+            ee_player *to = target ? unit_get_owner(target) : NULL;
+            log_locked("# no impossible orders: type %d at type %d of P%d refused (caller %p)\n", atd ? unit_type_get_id(atd) : -1, ttd ? unit_type_get_id(ttd) : -1,
+                       to ? player_get_index(to) : -1, __builtin_return_address(0));
+        }
+        return NULL;
+    }
     void *mem = goal_attack_alloc();
     if (!mem) return NULL;
     return goal_attack_init(mem, u, target);

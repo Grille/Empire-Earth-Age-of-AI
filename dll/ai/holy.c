@@ -83,6 +83,8 @@ internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
     h->nord = n;
 }
 internal void holy_new_game(void) { memset(g_hl, 0, sizeof g_hl); }
+// an enemy player's - not nature's (player 0: animals, fish; the player 2026-11-16: "a priest just converted an animal from nature")
+internal int hl_foe(ee_player *pl, ee_player *o) { return o && player_get_index(o) > 0 && is_enemy(pl, o); }
 internal int holy_prophets(unsigned idx) { return g_hl[idx & 15].last_pro; }   // stations.c TEMPLE FIRST
 internal int hl_lost(struct hl_st *h, int k, uint32_t now) {   // THE LOST: those of kind k (0 prophets, 1 priests) lost within HL_LOSS_WINDOW
     int n = 0;
@@ -116,7 +118,7 @@ internal ee_unit *hl_target(ee_player *pl, ivec2 at, int k) {
     int bd = 0;
     for (struct grid_it it = grid_it_box(at.x, at.y, HL_CLUSTER, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
-        int kd = o && is_enemy(pl, o) && unit_get_hp(it.u) > 0 && unit_get_x(it.u) >= 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
+        int kd = o && hl_foe(pl, o) && unit_get_hp(it.u) > 0 && unit_get_x(it.u) >= 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
         if (k == HLP_FIRE ? kd != HLK_BUILDINGS : kd != HLK_SOLDIERS && kd != HLK_CITIZENS) continue;
         int d = ivec2_dist2(unit_get_tile(it.u), at);
         if (!b || d < bd) { b = it.u; bd = d; }
@@ -263,7 +265,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             int ns = 0; long sx = 0, sy = 0;
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_CAUGHT_R, 1); grid_it_next(&it); ) {
                 ee_player *o = unit_get_owner(it.u);
-                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !is_soldier(it.td) || unit_type_get_class_id(it.td) != CLS_LAND || !seen_by(it.u, pl)) continue;
+                if (!o || !hl_foe(pl, o) || unit_get_hp(it.u) <= 0 || !is_soldier(it.td) || unit_type_get_class_id(it.td) != CLS_LAND || !seen_by(it.u, pl)) continue;
                 ivec2 q = unit_get_tile(it.u);
                 if (ivec2_dist2(q, p) > HL_CAUGHT_R * HL_CAUGHT_R) continue;
                 ns++; sx += q.x; sy += q.y;
@@ -296,7 +298,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             int ne = 0;
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_DEFEND, 1); grid_it_next(&it) && ne < HL_SEEN; ) {
                 ee_player *o = unit_get_owner(it.u);
-                int kd = o && is_enemy(pl, o) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
+                int kd = o && hl_foe(pl, o) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
                 if (kd != HLK_SOLDIERS && kd != HLK_SHIPS) continue;
                 ivec2 q = unit_get_tile(it.u);
                 if (ivec2_dist2(q, p) <= HL_DEFEND * HL_DEFEND) { ek[ne] = (uint8_t)kd; es[ne++] = q; }
@@ -334,7 +336,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             float rr, aa;
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_TOWER_LOOK, 1); grid_it_next(&it); ) {
                 ee_player *o = unit_get_owner(it.u);
-                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || !defence_stats(it.u, &rr, &aa)) continue;
+                if (!o || !hl_foe(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || !defence_stats(it.u, &rr, &aa)) continue;
                 ivec2 q = unit_get_tile(it.u);
                 int d = ivec2_dist2(q, p);
                 if (d > HL_TOWER_LOOK * HL_TOWER_LOOK || (bd >= 0 && d >= bd)) continue;
@@ -359,7 +361,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             int nseen = 0;
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_REACH, 1); grid_it_next(&it) && nseen < HL_SEEN; ) {
                 ee_player *o = unit_get_owner(it.u);
-                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || ivec2_dist2(unit_get_tile(it.u), p) > HL_REACH * HL_REACH) continue;
+                if (!o || !hl_foe(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || ivec2_dist2(unit_get_tile(it.u), p) > HL_REACH * HL_REACH) continue;
                 seen[nseen++] = it.u;
             }
             int best_n[HLK_N] = { 0, 0, 0, 0 };   // buildings, soldiers, citizens, ships
@@ -412,7 +414,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 for (struct grid_it it = grid_it_box(p.x, p.y, HL_STRIKE, 1); grid_it_next(&it); ) {
                     ee_player *o = unit_get_owner(it.u);
                     int fa = unit_type_get_class_id(it.td);
-                    if (!o || !is_enemy(pl, o) || (fa != CLS_BUILDING && fa != CLS_FORTRESS) || is_wall(unit_type_get_id(it.td)) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl)) continue;
+                    if (!o || !hl_foe(pl, o) || (fa != CLS_BUILDING && fa != CLS_FORTRESS) || is_wall(unit_type_get_id(it.td)) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl)) continue;
                     ivec2 q = unit_get_tile(it.u);
                     int d = ivec2_dist2(q, p);
                     float rr, aa;
@@ -437,7 +439,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 for (struct grid_it it = grid_it_box(strike.x, strike.y, 2, 1); grid_it_next(&it) && !bld; ) {
                     ee_player *o = unit_get_owner(it.u);
                     int fa = unit_type_get_class_id(it.td);
-                    bld = o && is_enemy(pl, o) && (fa == CLS_BUILDING || fa == CLS_FORTRESS) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl);
+                    bld = o && hl_foe(pl, o) && (fa == CLS_BUILDING || fa == CLS_FORTRESS) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl);
                 }
                 if (bld && hl_cast(pl, u, strike, HLP_QUAKE)) {
                     hl_order_note(h, u, now);
@@ -470,7 +472,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         for (struct grid_it it = grid_it_box(p.x, p.y, HL_PRIEST_LOOK, 1); grid_it_next(&it); ) {
             ee_player *o = unit_get_owner(it.u);
             int t = unit_type_get_id(it.td), cit = is_citizen_type(t);
-            if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || unit_get_x(it.u) < 0) continue;
+            if (!o || !hl_foe(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || unit_get_x(it.u) < 0) continue;
             if (!cit && !(is_soldier(it.td) && unit_type_get_class_id(it.td) == CLS_LAND)) continue;
             ivec2 q = unit_get_tile(it.u);
             int d = ivec2_dist2(q, p);
