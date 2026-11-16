@@ -281,13 +281,14 @@ class ai_base
         /// less than a quarter of the time gets a tower in its middle - from minute 10, one every 2 minutes at most,
         /// none within 8 tiles of a tower of its. 1 = on.
         bool watch_towers = true;
-        /// Tower creep: with its own economy, the AI walks a few citizens up to an enemy building near its own ground
-        /// where no enemy soldier has been seen for 2 minutes and few of the owner's citizens are about, and builds a
-        /// tower just in range of it - a second if the first can't bring it down; then the next building, from the
-        /// new towers. An enemy tower is taken on from beyond its reach where its own towers outrange it, else from
-        /// the far edge of its own range with 12 citizens building from behind, out of the enemy tower's reach, and 3
-        /// more towers after the first. Off: in 16 games of 4 AIs from the first epoch it took 1.1 enemy buildings a
-        /// game and cost citizens (325 to 342 at minute 60, 83 killed to 59). 1 = on.
+        /// Tower creep, a tiebreaker for games without food: once none of its citizens has gathered food for 3
+        /// minutes (before farms the land's food runs out), the AI walks 12 citizens up to an enemy building near its
+        /// own ground where no enemy soldier has been seen for 2 minutes, and builds a tower in range of it - a second
+        /// if the first can't bring it down; then the next building, from the new towers. An enemy tower is taken on
+        /// from beyond its reach where its own towers outrange it, else from the far edge of its own range with the
+        /// citizens building from behind, out of the enemy tower's reach, and 3 more towers after the first. Off: in
+        /// 40 games of 2 AIs held in the Prehistoric age for 300 minutes the creeping side won 8 and lost 9, and it
+        /// costs citizens. 1 = on.
         bool tower_creep = false;
         /// Fishing by the sea territory: the AI orders a fishing boat on any map while its food
         /// workers are short and it knows fish in its waters - the sea territories along land it holds - at a dock that

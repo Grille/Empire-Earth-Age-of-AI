@@ -6,6 +6,11 @@
 // in, it can even be used to take down enemy towers, just bring enough citezens to out repair the other towers demage
 // while building, than add 2 or 3 more towers to overpower the enemy one."
 //
+// THE STALEMATE (the player 2026-11-16: "its a tiebreaker for no food but lots of stone games. (Epoch 0 and 1 only
+// skirmish or special scenarios)"): a creep begins only after CR_STARVED without a citizen of its gathering food
+// (cr_food_gatherers: the food list's gatherers) - before farms the land's food runs out and soldiers can't be paid;
+// its crew is CR_CREW_TOWER whatever the target (its citizens have nothing else to do), and the owner's citizens end a
+// creep only once they have killed one of its crew (idle ones stand about everywhere: 45 of 128 drops before).
 // One creep at a time per AI, every CR_EVERY a look:
 //   THE TARGET  - a finished enemy building it knows (seen_by: seen, or remembered), not a wall's piece, within
 //                 CR_REACH tiles of a finished building of its own (the creep starts from its ground and goes on from
@@ -68,6 +73,11 @@
 // against 5 (the decided ones over at 106 against 119 min on average), 5.6 targets down a game, the weaker side's
 // buildings at the end 17 against 21 - but citizens 74 against 117 (both sides creep, both bleed). Drops: the owner's
 // citizens 45, soldiers 24, no hurt done 17 (before the sight cap and the order off other buildings: 32 of 101).
+// With THE STALEMATE (300 min, seeds 4-23): both creeping against neither - decided 12 against 11, citizens 71
+// against 128, 2.6 targets down a game; one side creeping (P2, then P3, 40 games): the creeping side won 8, lost 9,
+// 23 undecided - seeds its side had won without it were left undecided. Towers do hurt buildings (a Primitive tower 6
+// a shot every 4 s on a Barracks or a Town Center; three or four bring a tower down in two minutes), but a creep
+// costs its side more citizens than it takes from the other: no tiebreaker yet between two of the mod's AIs.
 #define CR_EVERY 4000
 #define CR_REACH 40
 #define CR_FOE_R 12
@@ -94,6 +104,7 @@
 #define CR_BAD_WAIT 600000
 #define CR_AGAIN 20000      // after a creep ends or is dropped, the next look for a target
 #define CR_TRIES 12         // targets tried for a spot a look
+#define CR_STARVED 180000   // THE STALEMATE: this long without a citizen gathering food
 #define CR_OWN 1024
 #define CR_CAND 512
 internal struct cr_st {
@@ -103,6 +114,7 @@ internal struct cr_st {
     int ncrew; ee_unit *crew[CR_CREW_TOWER]; int crew_id[CR_CREW_TOWER];
     struct { int id; uint32_t t; } bad[CR_BAD]; int nbad;
     unsigned started, laid, down, dropped, sends;
+    uint32_t fed_t; int crew0;   // fed_t: the last look with a citizen gathering food (0: none yet); crew0: the crew at the start
 } g_cr[16];
 internal int g_tower_creep = 0, g_v_tower_creep = -1;
 #define TOWER_CREEP(idx) PV(idx, g_v_tower_creep, g_tower_creep)
@@ -197,6 +209,18 @@ internal int cr_to_place(struct cr_st *c, ee_unit *u) {
     unit_goal(u, goal_move(bx, by), 0, 0x1F40);
     return 0;
 }
+// pl's citizens gathering food now (the resource manager's food list, those with a gather goal)
+internal int cr_food_gatherers(ee_civ_mgr *cm) {
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    uint8_t *list = rm ? resource_mgr_list_at(rm, 2) : NULL;
+    int n = 0;
+    for (unsigned k = 0, first = list ? deque_front(list) : 0, cnt = list ? deque_count(list) : 0; k < cnt && k < 1024; k++) {
+        ee_unit *u = deque_at(list, first + k);
+        ee_goal *g = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
+        if (g && goal_is_gather(g)) n++;
+    }
+    return n;
+}
 internal void creep_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct cr_st *c = &g_cr[idx];
@@ -208,6 +232,7 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int ttype = tower_newest(pl);
     if (!bm) return;
+    if (!c->fed_t || cr_food_gatherers(cm)) c->fed_t = now ? now : 1;
     threat_refresh(pl, now);
     // the creep going on: its target, towers and crew as they are
     if (c->target) {
@@ -220,10 +245,13 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
         int stood = 0, going = -1;
         for (int k = 0; k < c->ntow; k++) { if (cr_done(c->tow[k])) stood++; else going = k; }
         if (stood && !c->stood_t) { c->stood_t = now ? now : 1; c->hp_stood = unit_get_hp(c->target); }
+        // the owner's citizens in its towers' reach: they shoot those first (a tower 3.6 off a Barracks, 6 a shot, left
+        // it at full hp for a minute with 9 of the owner's units about) - the minute for the target starts again
+        if (c->stood_t && cr_cits(pl, c->spot, (int)cr_reach(pl, ttype) + 2)) { c->stood_t = now ? now : 1; c->hp_stood = unit_get_hp(c->target); }
         if (!to || unit_get_hp(c->target) <= 0 || !is_enemy(pl, to)) { cr_end(idx, c, now, NULL); return; }
         const char *why = c->ncrew < CR_CREW_MIN && !stood ? "its crew is gone" :
                           !stood && raiders_near(pl, c->spot, CR_FOE_R) ? "enemy soldiers came before a tower stood" :
-                          !stood && cr_cits(pl, c->spot, CR_FOE_R) >= c->ncrew ? "the owner's citizens there outnumber its crew" :
+                          !stood && c->ncrew < c->crew0 && cr_cits(pl, c->spot, CR_FOE_R) >= c->ncrew ? "the owner's citizens there outnumber its crew" :
                           !c->ntow && c->lays >= CR_RELAY ? "its foundations were destroyed" :
                           !c->ntow && c->laid_t && now - c->laid_t >= CR_LAY_WAIT ? (c->lays ? "its towers were destroyed" : "no tower laid") :
                           stood && c->stood_t && now - c->stood_t >= CR_HIT_WAIT && unit_get_hp(c->target) >= c->hp_stood ? "its towers don't hurt it" :
@@ -297,8 +325,8 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
         return;
     }
     // a new creep
-    if (!ttype || !can_build(pl, ttype) || (c->end_t && now >= c->end_t && now - c->end_t < CR_AGAIN)) return;
-    if (prio_refuses(pl, ttype) || !bd_pays(pl, ttype, g_bd_com[idx]) || workforce(pl) < g_min_workforce + CR_CREW) return;
+    if (!ttype || !can_build(pl, ttype) || (c->end_t && now >= c->end_t && now - c->end_t < CR_AGAIN) || now - c->fed_t < CR_STARVED) return;
+    if (prio_refuses(pl, ttype) || !bd_pays(pl, ttype, g_bd_com[idx]) || workforce(pl) < g_min_workforce + CR_CREW_TOWER) return;
     static ivec2 own[CR_OWN];
     static struct { ee_unit *u; int d; } cand[CR_CAND];
     int nown = 0, ncand = 0, count = 0;
@@ -342,7 +370,7 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
         int tower = defence_stats(tg, &r, &a), exposed = 0;
         unsigned tr = ter_near(tp.x, tp.y);
         struct tv_terr *tt = tr < (unsigned)g_tv[idx].n && g_tv[idx].version == g_ter.version ? &g_tv[idx].t[tr] : NULL;
-        if (!tt || tt->foe || (tt->foe_t && now >= tt->foe_t && now - tt->foe_t < CR_QUIET) || raiders_known(pl, tp, CR_FOE_R) || cr_cits(pl, tp, CR_FOE_R) > CR_CITS) continue;   // guarded
+        if (!tt || tt->foe || (tt->foe_t && now >= tt->foe_t && now - tt->foe_t < CR_QUIET) || raiders_known(pl, tp, CR_FOE_R) || cr_cits(pl, tp, CR_FOE_R) > CR_CITS) continue;   // guarded (its citizens: idle without food, they still beat a crew to death)
         // its land: the nearest free citizen's
         int nk = 0;
         for (int k = 1; k < nfree; k++) if (ivec2_dist2(free_[k].p, tp) < ivec2_dist2(free_[nk].p, tp)) nk = k;
@@ -352,7 +380,7 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
             if (!tower || cr_range(pl, ttype) + 0.5f < r || nfree < CR_CREW_TOWER || !cr_spot(pl, idx, ttype, tg, tg, land, own, nown, &at, &bh)) continue;
             exposed = 1;
         }
-        int want = exposed ? CR_CREW_TOWER : CR_CREW;
+        int want = CR_CREW_TOWER;   // the stalemate's crew: every creep with the large one (its citizens have nothing else to do)
         if (nfree < want || workforce(pl) < g_min_workforce + want || raiders_known(pl, at, CR_FOE_R) || cr_cits(pl, at, CR_FOE_R) > CR_CITS) continue;
         memset(c->tow, 0, sizeof c->tow);
         c->target = tg; c->tid = unit_get_serial(tg); c->ttype = unit_type_get_id(unit_get_type_data(tg)); c->tower = tower; c->exposed = exposed; c->lays = 0; c->tp = tp; c->spot = at; c->behind = bh;
@@ -364,7 +392,7 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
                 if (d < bd && (!land || area_id(free_[k].p, 2) == land)) { bd = d; bk = k; }
             }
             if (bk < 0) break;
-            c->crew[c->ncrew] = free_[bk].u; c->crew_id[c->ncrew++] = unit_get_serial(free_[bk].u);
+            c->crew[c->ncrew] = free_[bk].u; c->crew_id[c->ncrew++] = unit_get_serial(free_[bk].u); c->crew0 = c->ncrew;
             free_[bk] = free_[--nfree];
         }
         c->started++;
