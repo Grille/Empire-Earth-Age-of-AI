@@ -576,8 +576,15 @@ internal void cmd_objs(char *out, const char *args) {
         ee_player *owner = unit_get_owner(u);
         if (!td || !owner || player_get_index(owner) != p || (t >= 0 && unit_type_get_id(td) != t) || strlen(out) > 15000) continue;
         if (t < 0) REPLY(" T%d", unit_type_get_id(td));   // all types: each with its type
-        REPLY(" [%d,%d hp %d/%d %s]", unit_get_x(u), unit_get_y(u), unit_get_hp(u),
+        REPLY(" [%d,%d hp %d/%d %s", unit_get_x(u), unit_get_y(u), unit_get_hp(u),
               unit_type_get_hp(td), rtti_name(unit_get_goal(u)));
+        int fam = unit_type_get_class_id(td);
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS || fam == CLS_NAVAL_BUILDING) {   // a building's production: the tech it makes, its queue
+            int cur = unit_get_producing(u), *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u);
+            int nq = qb && qe > qb && qe - qb < 4096 ? (int)(qe - qb) : 0;
+            if ((cur > 0 && cur != 100000) || nq) REPLY(" making %d, queue %d (first %d)", cur, nq, nq ? qb[0] : -1);
+        }
+        REPLY("]");
     }
     REPLY("\n");
 }
