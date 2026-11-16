@@ -1517,7 +1517,10 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
     if (why) ;
     else if (!g_nv_map[idx].done) why = "the map not read yet";   // not by where the enemy is: a free island is worth having with the enemy on its own land too (ex_pick asks for the island, the dock below for the sea)
     else if (!g_landing) why = "landing off (its transport hooks)";
-    else if (current_epoch(pl) < FARM_EPOCH || now < (uint32_t)g_ex_min * 60000u) why = "too early";
+    // before farms, unless the game ends before them (the player 2026-11-16, Small Islands up to epoch 1: "nobody is tring to
+    // expand or linvade other islands" - both AIs "too early" at minute 108 of a game that never has farms, 4 and 23 food;
+    // there the other islands' wild food and mines are all there is to get)
+    else if ((current_epoch(pl) < FARM_EPOCH && end_epoch() >= FARM_EPOCH) || now < (uint32_t)g_ex_min * 60000u) why = "too early";
     if (!why) {
         ex_scan(pl, now, 0);
         struct ex_cont *h = ex_cont_of(hc, 0);
