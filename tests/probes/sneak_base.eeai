@@ -1,0 +1,18 @@
+// A base sneaked into an AI's own ground (ai/watch.c, the player 2026-11-16: "right now its to easy to sneak in and
+// build a whole base witout it ever noticing"): at minute 30 P3 gets a Town Center, two Houses and a Settlement in the
+// middle of the largest patch of a territory P2 holds that P2 has had out of its sight for 4 minutes (fogwatch 2 x / y);
+// then every 10 s whether that tile is in P2's sight (fogwatch 2 seen x y - the log's "# setup: fogwatch 2 seen ... -> 1" the
+// first time it is found). Against fog_patrols=0,watch_towers=0 for the time it goes unnoticed without.
+// Meant for random_map=Continental,map_scale=large,ai_count=4 (P2 and P3 enemies: ai_diplomacy=0).
+
+wait_until(30min)
+let x = int(number(fogwatch(2, "x")) ?? -1)
+let y = int(number(fogwatch(2, "y")) ?? -1)
+if x < 0 { return }
+spawn(3, unit.b_town_center, x, y, 1)
+spawn(3, unit.b_house, x + 5, y, 1)
+spawn(3, unit.b_house, x, y + 5, 1)
+spawn(3, unit.b_settlement, x - 5, y, 1)
+every(10s, 30min, 70min, (run) => {
+    if int(number(fogwatch(2, "seen", x, y)) ?? 0) == 1 { return stop }
+})

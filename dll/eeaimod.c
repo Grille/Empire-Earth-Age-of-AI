@@ -126,6 +126,7 @@ internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and p
 internal void holy_new_game(void);
 internal void shelf_off_tick(ee_player *pl, uint32_t now);   // bunker.c
 internal void territories_new_game(void);
+internal void watch_new_game(void);   // watch.c
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
 internal void skirmish_tick(ee_player *pl, uint32_t now);   // skirmish.c: small parties of long-range units at a position the force can't take
@@ -420,6 +421,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     armies_new_game(mode == 2);
     garrison_new_game();
     territories_new_game();
+    watch_new_game();
     work_new_game();
     build_new_game();
     research_new_game();
@@ -502,6 +504,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/territories.c"   // the territories as an AI sees them: the citizens of one being lost
 #include "ai/work.c"          // the citizens' work by territory: the mod's own, while the game's computer player is off
 #include "ai/produce.c"       // production by territory: which production building, in which territory (build.c lays it)
+#include "ai/watch.c"         // its own ground out of its sight: patrols' patches (stations.c), watch towers' places (build.c)
 #include "ai/build.c"         // building by territory: fields, a Settlement and a tower by every mine - the same
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
 #include "ai/scen_targets.c"   // a scenario's attack and defend targets (the trigger Modify AI Military Target)
@@ -786,6 +789,7 @@ internal void install(HMODULE self) {
     research_install(g_autotest ? g_ini : NULL);
     takeover_install();
     territories_install(g_autotest ? g_ini : NULL);
+    watch_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);
     spoils_install();

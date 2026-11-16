@@ -37,6 +37,7 @@ internal void cmd_terrain(char *out, const char *args);
 internal void cmd_board(char *out, const char *args);
 internal void cmd_transports(char *out, const char *args);
 internal void cmd_bunker(char *out, const char *args);
+internal void cmd_fogwatch(char *out, const char *args);   // ai/watch.c
 internal void cmd_firerate(char *out, const char *args);
 internal void cmd_targets(char *out, const char *args);
 internal void cmd_army(char *out, const char *args);
@@ -441,6 +442,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "board")) cmd_board(out, args);
     else if (!strcmp(verb, "transports")) cmd_transports(out, args);
     else if (!strcmp(verb, "bunker")) cmd_bunker(out, args);
+    else if (!strcmp(verb, "fogwatch")) cmd_fogwatch(out, args);
     else if (!strcmp(verb, "firerate")) cmd_firerate(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);

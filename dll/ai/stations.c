@@ -31,6 +31,8 @@
 //               to SN_SCOUTS of the main force, the fastest (of equally fast ones the one that sees furthest), go to the nearest of them one after the other (one
 //               not reached in SN_SCOUT_GIVE_UP is given up); none left: they are the main force's again,
 //               stationed where they stand, and none is taken for SN_SCOUT_REST.
+//   PATROLS   - single soldiers of the main force at the patches of its own ground it has long had out of sight
+//               (watch.c), patch after patch; the main force's again when none is left (below, [ai_base] fog_patrols).
 //   A SCENARIO'S AI TOGGLES (the player 2026-11-16: "respecting the ai flags (aktiv, cheat, angreifen, etc)"; the
 //               editor's player dialog and the trigger Set AI Toggle, player_ai_toggle): Attack off - no push, the
 //               ones on are over; Explore off - no scouts, the ones out the main force's again. Active off: the game
@@ -73,7 +75,7 @@
 #define SN_SCOUT_REST 300000
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still; };   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
@@ -684,6 +686,55 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             m->ter = (short)b; m->order_t = 0; m->since = now ? now : 1;
         }
         if (!m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
+    }
+    // PATROLS (watch.c: the player 2026-11-16, "it should regulary patrol these alrger unknows patches with single
+    // units"): as many of the main force as watch.c wants (by the army's size, no more than there are dark patches; the
+    // scenario's Explore off: none), each the fastest (of those the one that sees furthest) of a territory with no
+    // enemy soldiers in it and not pushing - marked scout 3: no share, no push takes it. Each walks (no attack-move:
+    // what it finds the view and the pushes answer) to the nearest dark patch no other patrol has, the next one as
+    // soon as that patch's middle is in sight; one not seen WT_GIVE_UP after it was taken is given up (watch_skip).
+    // None left for it, or fewer wanted: the main force's again, stationed where it stands.
+    {
+        watch_tick(pl, idx, now);
+        int want_pt = player_ai_toggle(pl, SM_AIT_EXPLORE) ? watch_patrols_wanted(idx, np[SNP_MAIN]) : 0, npt = 0;
+        for (int i = 0; i < nn; i++) if (z->m[i].scout == 3) npt++;
+        while (npt < want_pt) {
+            int b = -1; float bf = -1.0f;
+            for (int i = 0; i < nn; i++) {
+                struct sn_unit *m = &z->m[i];
+                if (m->pool != SNP_MAIN || m->scout || m->ter < 0 || m->ter >= n || s->t[m->ter].foe > 0) continue;
+                int pushing = 0;
+                for (int p = 0; p < SN_PUSHES; p++) pushing |= z->push[p].on && z->push[p].from == m->ter;
+                ee_unit_stats *mst = unit_get_type_data(m->u) ? unit_get_stats(m->u) : NULL;
+                float f = mst ? unit_stats_get_speed(mst) * 100.0f + unit_stats_get_sight(mst) : 0.0f;
+                if (!pushing && f > bf) { bf = f; b = i; }
+            }
+            if (b < 0) break;
+            struct sn_unit *m = &z->m[b];
+            m->scout = 3; m->ter = -1; m->order_t = 0; m->since = 0; m->look = iv2(-1, -1);
+            npt++; watch_count(idx, 0);
+        }
+        for (int i = 0; i < nn; i++) {
+            struct sn_unit *m = &z->m[i];
+            if (m->scout != 3) continue;
+            ivec2 p = unit_get_tile(m->u);
+            if (!want_pt) m->look = iv2(-1, -1);   // switched off, the scenario's Explore off, too few soldiers: all back
+            if (m->look.x >= 0 && wt_in_sight(pl, m->look)) { m->look = iv2(-1, -1); watch_count(idx, 1); }   // seen: the next one
+            else if (m->look.x >= 0 && m->since && now - m->since > WT_GIVE_UP) { watch_skip(idx, m->look, now); m->look = iv2(-1, -1); watch_count(idx, 2); }
+            if (m->look.x < 0 && npt <= want_pt) {
+                ivec2 others[2 * WT_PATROLS];
+                int no = 0;
+                for (int j = 0; j < nn && no < 2 * WT_PATROLS; j++) if (j != i && z->m[j].scout == 3 && z->m[j].look.x >= 0) others[no++] = z->m[j].look;
+                if (watch_patrol_target(idx, p, area_id(p, 2), others, no, &m->look)) { m->since = now ? now : 1; m->order_t = 0; }
+            }
+            if (m->look.x < 0) {   // nothing left for it (or one too many): the main force's again
+                unsigned r = ter_near(p.x, p.y);
+                m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0;
+                npt--;
+                continue;
+            }
+            if (!m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) sn_order(z, m, 0, m->look, 0, now);
+        }
     }
     // THE RESERVE (the player 2026-11-15: "the ai should never stop training units if it can help it, if its at its pop
     // limit it should train straight into the stash"): units inside a Fortress do not count toward the population.

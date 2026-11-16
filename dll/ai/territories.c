@@ -478,14 +478,20 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int e = current_epoch(pl), ttype = tower_newest(pl), size = g_ter.size;
-    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < BW_STONE || stock[3] < BW_WOOD || tower_queued(bm)) return;
+    // with the game's computer player off nobody works the build manager's queue (build.c): the tower is laid through
+    // the mod's placement as build.c's are (its builders come to the foundation), one going up at a time - before, one
+    // entry was queued, never built, and its being queued (tower_queued) stopped every other for the rest of the game
+    int own = !GAME_AI(idx), open_ = 0;
+    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < BW_STONE || stock[3] < BW_WOOD || (!own && tower_queued(bm))) return;
     g_bw[idx].ntw = 0;   // its towers (and other defences) as they stand
     for (ee_unit *u = player_get_units(pl); u && g_bw[idx].ntw < BW_TOWERS; u = unit_get_next(u)) {
         float rng, att;
         ee_unit_type *td = unit_get_type_data(u);
         int fam = td ? unit_type_get_class_id(td) : 0;
         if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && defence_stats(u, &rng, &att)) g_bw[idx].tw[g_bw[idx].ntw++] = unit_get_tile(u);
+        if (own && td && is_tower_type(unit_type_get_id(td)) && unit_get_hp(u) > 0 && unit_get_physics(u) && !unit_get_finished(unit_get_physics(u))) open_++;
     }
+    if (open_) return;
     ivec2 best = iv2(-1, -1);
     long bd = 0x7FFFFFFF;
     for (int y = 3; y < size - 3; y += 3)
@@ -512,7 +518,8 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
                 ivec2 q = ivec2_add(best, iv2(ax, ay));
                 if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, ttype, q)) continue;
                 int entry[3] = { ttype, q.x, q.y };
-                build_mgr_queue_add(bm, e, entry);
+                if (own) { census_build_ask(bm, ttype); if (!hook_place(bm, ttype, q.x, q.y)) return; }   // not paid now (the priority list's savings): the next look
+                else build_mgr_queue_add(bm, e, entry);
                 g_bw[idx].queued++;
                 g_bw[idx].bad[g_bw[idx].nbad++ & 31].p = best; g_bw[idx].bad[(g_bw[idx].nbad - 1) & 31].t = now ? now : 1;   // not standing yet: the same place was queued three times
                 if (g_log && (g_autotest || !(g_bw[idx].queued % 10))) fprintf(g_log, "# border: P%u at %.1f min: tower %d queued at %d,%d on the outside border of its territory %u (stone %d, wood %d in the bank; %d towers standing, %u queued so far)\n",

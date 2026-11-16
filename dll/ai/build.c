@@ -33,6 +33,8 @@
 //                 Settlement 2 to 6 tiles from it; one going up at a time.
 //   A MINE'S TOWER - a mine with its drop site and no defence of its within BD_GUARD tiles gets the best tower it can
 //                 build, 2 to 5 tiles from it; one going up at a time.
+//   A WATCH TOWER - with nothing else to lay, the largest place of a territory it holds that it rarely has in sight
+//                 (watch.c) gets a tower; one every BD_WATCH_EVERY ([ai_base] watch_towers).
 // One new building a look, through the mod's placement (econ.c hook_place: the priority list's savings, the price in
 // the bank, a builder, the foundation). None of them under raiders (12 tiles), in the reach of an enemy tower it has
 // explored (work.c wk_danger), or in a territory being lost - nor a builder sent there.
@@ -62,9 +64,12 @@
 #define BD_SINK_OPEN 4          // unfinished buildings
 #define BD_SINK_T 4096
 #define BD_CLAIM_GUARD 3        // its soldiers in the held territory a claim starts from
+#define BD_WATCH_EVERY 120000   // A WATCH TOWER: between two
+#define BD_WATCH_NEAR 8         // ... none within this many tiles of a defence of its
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 internal struct bd_st {
     uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
+    uint32_t watch_t;                    // A WATCH TOWER: the last one
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
@@ -407,6 +412,20 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
             if (cb >= 0) {
                 if (bd_spot(pl, idx, ttype, cb == held_r ? held_at : g_ter.t[cb].c, 0, 8, &at)) { type = ttype; what = "a claim: a tower in a territory nobody holds"; b->claim_t = now ? now : 1; b->claims++; } else b->no_spot++;
+            }
+        }
+        // A WATCH TOWER (the player 2026-11-16: "build towers in the long term so it knows whats going on in its own
+        // borders"): with nothing else to lay, a tower in the middle of the largest place of a territory it holds that
+        // it has had in sight less than a quarter of the time (watch.c DIM) with no defence of its within BD_WATCH_NEAR
+        // tiles (one just laid counts: the place stays dim until the tower stands) - one every BD_WATCH_EVERY
+        if (!type && !placed && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
+            (!b->watch_t || now < b->watch_t || now - b->watch_t >= BD_WATCH_EVERY)) {
+            ivec2 w;
+            for (int k = 0; !type && watch_tower_spot(idx, k, &w); k++) {
+                int near_def = 0;
+                for (int j = 0; j < ndef && !near_def; j++) near_def = ivec2_dist2(def[j], w) <= BD_WATCH_NEAR * BD_WATCH_NEAR;
+                if (near_def || raiders_near(pl, w, 12) || wk_danger(idx, w)) continue;
+                if (bd_spot(pl, idx, ttype, w, 0, 4, &at)) { type = ttype; what = "a watch tower over ground of its it rarely sees"; b->watch_t = now ? now : 1; watch_count(idx, 3); }
             }
         }
     }

@@ -4,7 +4,7 @@ internal const char *const k_cmd_verbs[] = {
     "aigroup", "aim", "airraid", "aitoggle", "army", "asgtrace", "attacknow", "attacks", "basemap", "behind",
     "board", "bqadd", "bqueue", "build", "bunker", "calloff", "camera", "camtrace", "canbuild", "charge", "chat",
     "chatme", "continent", "costs", "count", "ddinfo", "ddpoke", "defence", "diplo", "drawcount", "drops",
-    "epochup", "explored", "firerate", "fmove", "foodcheck", "form", "found", "gate", "give", "godmode",
+    "epochup", "explored", "firerate", "fmove", "fogwatch", "foodcheck", "form", "found", "gate", "give", "godmode",
     "gridcheck", "handover", "hurt", "intel", "landing", "lineup", "llm", "lob", "minecheck", "modmsg", "move",
     "navy", "nullmember", "objs", "offmap", "overlay", "palette", "pause", "persona", "picture", "ping", "plan",
     "playas", "quit", "record", "resume", "ringmap", "rlist", "rprobe", "save", "say", "scentarget", "script",

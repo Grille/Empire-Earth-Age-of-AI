@@ -271,6 +271,16 @@ class ai_base
         /// beside it), laid from the stone above 1000 and never so that
         /// something is shut in. Like the border towers nothing the AI against AI games can show. 1 = on
         bool border_walls = true;
+        /// Fog patrols: the AI's own ground - the land territories it holds and the land beside them nobody of its side
+        /// holds - looked at in cells of 4 x 4 tiles; a patch of 4 or more such cells side by side it has not had in
+        /// sight for 4 minutes is visited by a single soldier of the main force (the fastest; of those the one that
+        /// sees furthest), patch after patch, 1 to 4 of them by the army's size; with nothing left to look at they
+        /// rejoin it. So a base sneaked in behind its lines is found. 1 = on.
+        bool fog_patrols = true;
+        /// Watch towers: a patch of 6 or more cells (4 x 4 tiles) of a territory the AI holds that it has had in sight
+        /// less than a quarter of the time gets a tower in its middle - from minute 10, one every 2 minutes at most,
+        /// none within 8 tiles of a tower of its. 1 = on.
+        bool watch_towers = true;
         /// Fishing by the sea territory: the AI orders a fishing boat on any map while its food
         /// workers are short and it knows fish in its waters - the sea territories along land it holds - at a dock that
         /// stands on the sea with the most of it, instead of only where the game calls the map a water map and at
