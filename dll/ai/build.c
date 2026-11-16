@@ -56,6 +56,8 @@
 #define BD_HOUSES_TC 2          // THE MORALE'S HOUSES: the levels a Town Center's morale takes (the game's data)
 #define BD_HOUSES_CAPITOL 4     // ... a Capitol's
 #define BD_HOUSE_REACH 9        // ... a House's tile within this of the building's, each way (the square is 10)
+#define BD_UNI_EVERY 60000      // A UNIVERSITY A TERRITORY: one laid at most this often
+#define BD_UNI_PEND 180000      // ... and the last one laid counts this long (its builder walks there)
 #define BD_HOUSE_EVERY 60000
 #define BD_HOUSE_PEND 180000
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
@@ -78,6 +80,7 @@ internal struct bd_st {
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
+    uint32_t uni_t; unsigned unis; ivec2 uni_at;   // A UNIVERSITY A TERRITORY: the last laid, how many, where
     uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
@@ -158,6 +161,8 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
 }
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static ee_unit *freec[384], *built[192], *openb[96], *openw[256];
+    static ivec2 uni[256];   // its Universities' middles (going up counts): A UNIVERSITY A TERRITORY
+    int nuni = 0;
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
     static struct { ivec2 p; int cost, town; } centre[256];
     static ivec2 dsite[BD_DSITES];   // every Settlement, Town Center and Capitol of its, going up too: a mine's drop site (below)
@@ -209,6 +214,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (pr_kind(t) >= 0) open_prod += !done;
         open_sink += !done && (pr_kind(t) >= 0 || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
         for (int k = 0; k < 3; k++) if (t == rb[k]) have_rb[k]++;   // going up counts
+        if (t == rb[0] && nuni < 256) { int sz = unit_type_get_size(td); uni[nuni++] = iv2(p.x + sz / 2, p.y + sz / 2); }
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += !done; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
@@ -507,6 +513,28 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (near_def || raiders_near(pl, w, 12) || wk_danger(idx, w)) continue;
                 if (bd_spot(pl, idx, ttype, w, 0, 4, &at)) { type = ttype; what = "a watch tower over ground of its it rarely sees"; b->watch_t = now ? now : 1; watch_count(idx, 3); }
             }
+        }
+    }
+    // A UNIVERSITY A TERRITORY (the player 2026-11-16: "it should add universities ... it prevents conversions, so atleast
+    // one per territory as save space isnt a bad idea"): its Universities keep the enemy's priests from converting
+    // within their reach (bd_reach: 8 tiles, 18 with every range upgrade). By each finished Town Center, Capitol or
+    // Settlement no University of its reaches, where its citizens may work, no raiders or enemy towers there: one, a
+    // front territory's first - one at a time, one every BD_UNI_EVERY, with nothing more urgent to lay.
+    if (!type && !placed && have_rb[0] && ut_has(UT(B_UNIVERSITY)) && can_build(pl, UT(B_UNIVERSITY)) && bd_pays(pl, UT(B_UNIVERSITY), com) &&
+        workforce(pl) >= g_min_workforce && (!b->uni_t || now < b->uni_t || now - b->uni_t >= BD_UNI_EVERY)) {
+        int ur = bd_reach(pl, UT(B_UNIVERSITY)), bc = -1, bs = 0;
+        if (b->uni_t && now >= b->uni_t && now - b->uni_t < BD_UNI_PEND && nuni < 256) uni[nuni++] = b->uni_at;   // the last one laid may not show yet
+        for (int j = 0; j < ncen; j++) {
+            int covered = 0;
+            for (int k = 0; k < nuni && !covered; k++) covered = ivec2_dist2(uni[k], centre[j].p) < ur * ur;
+            unsigned r = ter_near(centre[j].p.x, centre[j].p.y);
+            if (covered || r >= (unsigned)s->n || !wk_workable(idx, centre[j].p) || raiders_near(pl, centre[j].p, 12) || wk_danger(idx, centre[j].p)) continue;
+            int sc = (s->t[r].role == TVR_FRONT ? 100 : 0) + (centre[j].town ? 10 : 0);
+            if (bc < 0 || sc > bs) { bc = j; bs = sc; }
+        }
+        if (bc >= 0) {
+            b->uni_t = now ? now : 1;
+            if (bd_spot(pl, idx, UT(B_UNIVERSITY), centre[bc].p, 3, 8, &at)) { b->uni_at = at; b->unis++; type = UT(B_UNIVERSITY); what = "a University for the territory (no conversions within its reach)"; } else b->no_spot++;
         }
     }
     // THE MORALE'S HOUSES (the player 2026-11-15: "the ai dosnt build houses yet in the influence are of its towncenters
