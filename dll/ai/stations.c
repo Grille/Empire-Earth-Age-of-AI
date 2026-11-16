@@ -104,6 +104,8 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 // defend the prophet": fight set (enemy soldiers by the prophet) they attack-move to it; let go, their stance is
 // what it was. sn_escort_near: how many it has, how many of them within r of at (holy.c: the prophet waits for them)
 #define SN_ESC_KEEP 10000
+#define SN_HOSP_SIDE 2       // QUARANTINE: its place this far from a Hospital's middle (its size 3: 0.5 from its edge, in the reach of 2)
+#define SN_TEMPLE_R 9        // ... a Temple's reach from its middle (8 from its edge, without upgrades)
 internal void sn_escort(unsigned idx, ivec2 at, int n, int fight, uint32_t now) { struct sn_st *z = &g_sn[idx & 15]; z->esc_at = at; z->esc_n = n; z->esc_fight = fight; z->esc_t = now ? now : 1; }
 internal int sn_escort_near(unsigned idx, ivec2 at, int r, int *given) {
     struct sn_st *z = &g_sn[idx & 15];
@@ -356,8 +358,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         ivec2 p = unit_get_tile(u);
         unsigned r = ter_near(p.x, p.y);
         if (r >= (unsigned)n) continue;
-        // fronts.c fr_target: the enemy's gates too, no wall pieces
-        if (fr_building(it.td) || unit_type_get_class_id(it.td) == CLS_GATE) { if (fr_target(it.td) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }
+        if (fr_building(it.td)) { if (!is_wall(unit_type_get_id(it.td)) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }
         else if (ms_land_soldier(u, it.td)) { fx[r] += p.x; fy[r] += p.y; fn[r]++; }
     }
     // STATIONS: the shares in soldiers
@@ -671,19 +672,41 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     // extremly good, because the ai mixes infected soilders with uninfected ones witout care, it loses whole armies to
     // that. infected forced need to go to a hospital survive undr a temples influece to prevent spreading"): a soldier
     // with the plague (unit_plagued) leaves whatever it does - its station, a push, a scout's or an escort's walk -
-    // marked scout 4 (no share, no push takes it), and walks (no attack-move, nothing on the way) to the nearest
-    // finished Hospital or Temple of its, and stands there; cured, it is the main force's again where it stands. No
-    // Hospital or Temple: it stands where it is, away from the others' moves.
+    // marked scout 4 (no share, no push takes it), and walks (no attack-move, nothing on the way) to its cure place,
+    // and stands there; the plague gone, it is the main force's again where it stands. THE CURE PLACE (the player:
+    // "the hospital keeps them alive until the plaque times out, if they not in a hospitals influence tehy die. the
+    // temple dosnt heal, but it prevents new infections so they are no danger to othe runits anymore. thats why the
+    // combination is important"): the game's data (dbareaeffect.dat) gives a Hospital SN_HOSP_R tiles from its edge
+    // ("Hospital Rate 2": 2 to 9 with its upgrades) and a Temple SN_TEMPLE_R ("Temple Range 8" to 12) - beside a finished
+    // Hospital with a finished Temple of its within the Temple's reach, on the Temple's side, first; else beside a
+    // Hospital; else by a Temple; none: it stands where it is, away from the others' moves. (A test: clubmen 3 tiles
+    // from a Hospital without upgrades died as fast as ones 21 tiles off.)
     {
         int nq = 0;
         for (int i = 0; i < nn; i++) nq += z->m[i].scout == 4 || unit_plagued(z->m[i].u);
-        static ivec2 cure[64];
-        int ncure = 0, cnt = 0;
-        for (ee_unit *u = nq ? player_get_units(pl) : NULL; u && cnt < 16384 && ncure < 64; u = unit_get_next(u), cnt++) {
+        static ivec2 hosp[64], tmpl[64], cure[64];
+        static int cure_rank[64];
+        int nh = 0, nt = 0, ncure = 0, cnt = 0;
+        for (ee_unit *u = nq ? player_get_units(pl) : NULL; u && cnt < 16384; u = unit_get_next(u), cnt++) {
             ee_unit_type *td = unit_get_type_data(u);
             int t = td ? unit_type_get_id(td) : -1;
-            if ((t == UT(B_HOSPITAL) || t == UT(B_TEMPLE)) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && home_built(u)) cure[ncure++] = unit_get_tile(u);
+            if ((t != UT(B_HOSPITAL) && t != UT(B_TEMPLE)) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !home_built(u)) continue;
+            if (t == UT(B_HOSPITAL) && nh < 64) hosp[nh++] = unit_get_tile(u);
+            else if (t == UT(B_TEMPLE) && nt < 64) tmpl[nt++] = unit_get_tile(u);
         }
+        for (int k = 0; k < nh; k++) {   // beside each Hospital: toward its nearest Temple when that one reaches there (rank 2), else on its own (1)
+            int bt = -1, btd = 0;
+            for (int j = 0; j < nt; j++) { int d = ivec2_dist2(tmpl[j], hosp[k]); if (bt < 0 || d < btd) { bt = j; btd = d; } }
+            ivec2 at = iv2(hosp[k].x, hosp[k].y + SN_HOSP_SIDE);
+            int rank = 1;
+            if (bt >= 0) {
+                float dx = (float)(tmpl[bt].x - hosp[k].x), dy = (float)(tmpl[bt].y - hosp[k].y), dl = sqrtf(dx * dx + dy * dy);
+                if (dl >= 1.0f) at = iv2(hosp[k].x + (int)lroundf(dx / dl * SN_HOSP_SIDE), hosp[k].y + (int)lroundf(dy / dl * SN_HOSP_SIDE));
+                rank = ivec2_dist2(at, tmpl[bt]) <= SN_TEMPLE_R * SN_TEMPLE_R ? 2 : 1;
+            }
+            cure[ncure] = at; cure_rank[ncure++] = rank;
+        }
+        for (int j = 0; j < nt && ncure < 64; j++) { cure[ncure] = tmpl[j]; cure_rank[ncure++] = 0; }
         for (int i = 0; i < nn && nq; i++) {
             struct sn_unit *m = &z->m[i];
             ivec2 q = unit_get_tile(m->u);
@@ -701,9 +724,10 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             }
             ivec2 to = q;
             int bd = -1;
-            for (int k = 0; k < ncure; k++) { int d = ivec2_dist2(cure[k], q); if (bd < 0 || d < bd) { bd = d; to = cure[k]; } }
+            int br = -1;
+            for (int k = 0; k < ncure; k++) { int d = ivec2_dist2(cure[k], q); if (cure_rank[k] > br || (cure_rank[k] == br && d < bd)) { bd = d; br = cure_rank[k]; to = cure[k]; } }
             if (!m->order_t || now - m->order_t >= 5000) {
-                if (bd >= 0 && bd > 3 * 3) sn_order(z, m, 0, to, 0, now);
+                if (bd >= 0 && bd > 1) sn_order(z, m, 0, to, 0, now);
                 else if (bd < 0) { ee_goal *g = unit_get_goal(m->u); if (!m->order_t && g) sn_order(z, m, 0, q, 0, now); else m->order_t = now ? now : 1; }   // nowhere to go: it stops where it is
             }
         }
