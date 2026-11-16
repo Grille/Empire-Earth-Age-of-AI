@@ -43,6 +43,12 @@ class patches
     /// island, as Art of Conquest fixed it (the AI's citizens). 0 = the original
     [title("Overseas mines (from Art of Conquest)"), target(ee)]
     bool overseas_mines = true;
+    /// Queue refunds: an order a building can no longer make when its turn comes (the unit gone obsolete, no longer
+    /// available) is taken out of its queue and its price given back - except the last such order of the queue,
+    /// whose price was lost (both games). 1 = that one is refunded too. In multiplayer every player needs the same
+    /// setting. 0 = the original
+    [title("Refund the last order of a queue")]
+    bool queue_refund = true;
     /// Walls on slopes: a wall piece stood flat at the height of one corner of its tile, so on a hill one end floated
     /// and the other sank into the ground, and neighbours at other heights stuck out of each other in steps; the
     /// game's own sloped pieces fit one steepness and were hardly ever chosen. Each piece now leans along its length

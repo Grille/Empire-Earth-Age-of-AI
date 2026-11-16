@@ -249,6 +249,21 @@ internal int patch_stats_epoch_end(void (*thunk)(void)) {
 // the last epoch the statistics screen has a row for (spec hooks.stats_epoch_last)
 internal inline int stats_epoch_last(void) { return (int)value_hooks_stats_epoch_last; }
 
+// the production start's empty-queue test (spec hooks.production_queue_empty: mov eax, [edi+4]; test eax, eax; je end;
+// mov ecx, [edi+8]; sub ecx, eax; test ecx, mask; je end) a call of thunk - the thunk drops the return and goes on
+// itself: *end the je's target, *next past the test (the refund). Only while both je go to the same end
+internal int patch_queue_empty(void (*thunk)(void), uintptr_t *end, uintptr_t *next) {
+    static const uint8_t test[6] = { 0x8B, 0x47, 0x04, 0x85, 0xC0, 0x74 };
+    const uint8_t *at = (const uint8_t *)data_hooks_production_queue_empty;
+    if (!at || memcmp(at, test, 6) || at[0x12] != 0x74) return 0;
+    uintptr_t e1 = (uintptr_t)(at + 7 + (int8_t)at[6]), e2 = (uintptr_t)(at + 0x14 + (int8_t)at[0x13]);
+    if (e1 != e2) return 0;
+    *end = e1; *next = (uintptr_t)(at + 0x14);
+    return patch_insn6_call((uintptr_t)at, test, (void *)thunk);
+}
+// a production queue's entry, bytes (hooks.production_queue_entry)
+internal inline int production_queue_entry(void) { return (int)value_hooks_production_queue_entry; }
+
 // the 2017 update's four reload stores (hooks.reload_tick_cmp, reload_fire_store) sent to a thunk: unit esi, reload
 // eax; it must store the reload and return with ZF set (the ticks' je then skips their own store). 0..4 patched
 internal int patch_reload_stores(void (*thunk)(void)) {

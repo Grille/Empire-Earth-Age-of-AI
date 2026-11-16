@@ -445,6 +445,12 @@ unsafe struct EEPlayer
     [slot(16), address((ee)0x0055473F, (aoc)0x00562915)]
     extern void refund_improvement(EEUnitClass* type, int32 attr, float32 fraction);
 
+    /// a queued tech's or unit's price given back x fraction, resources 2..6: the node's price (its vf3, by the
+    /// producing building's type id - a price of its own there, else the data's), through the price modifiers (vf27)
+    /// into the stock (vf18) - the production start's (0x5EF9FF) for an order at a queue's front it can't make
+    [slot(17), address((ee)0x005546F5)]
+    extern void refund_tech(EETechTreeNode* node, int32 producer_type, float32 fraction);
+
     /// EEPlayer's own update (vf37; EEComputerPlayer's update is the computer's): the improvement queue among the rest
     [slot(37), address((ee)0x0055C802, (aoc)0x0056BE3F)]
     extern void base_update();

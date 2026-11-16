@@ -540,6 +540,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/asg_queue.c"
 #include "engine/offmap.c"
 #include "engine/reload.c"
+#include "engine/queue_refund.c"   // the last order of a queue refunded too ([patches] queue_refund)
 #include "engine/lob.c"
 #include "engine/data_order.c"
 #include "engine/walls.c"
@@ -827,6 +828,7 @@ internal void install(HMODULE self) {
     asg_queue_install();
     offmap_install();
     reload_install();
+    queue_refund_install();
     lob_install();
     data_order_install();
     walls_install();

@@ -433,6 +433,13 @@ typedef void (__thiscall *player_refund_improvement_fn)(ee_player *, ee_unit_typ
 internal inline void player_refund_improvement(ee_player *player, ee_unit_type *type, int attr, float fraction) { ((player_refund_improvement_fn)(*(void ***)player)[slot_player_refund_improvement])(player, type, attr, fraction); }
 internal player_refund_improvement_fn fn_ee_player_refund_improvement;
 internal inline void ee_player_refund_improvement(ee_player *player, ee_unit_type *type, int attr, float fraction) { fn_ee_player_refund_improvement(player, type, attr, fraction); }
+// a queued tech's or unit's price given back x fraction, resources 2..6: the node's price (its vf3, by the
+// producing building's type id - a price of its own there, else the data's), through the price modifiers (vf27)
+// into the stock (vf18) - the production start's (0x5EF9FF) for an order at a queue's front it can't make
+typedef void (__thiscall *player_refund_tech_fn)(ee_player *, ee_tech *, int, float);
+internal inline void player_refund_tech(ee_player *player, ee_tech *node, int producer_type, float fraction) { ((player_refund_tech_fn)(*(void ***)player)[slot_player_refund_tech])(player, node, producer_type, fraction); }
+internal player_refund_tech_fn fn_ee_player_refund_tech;
+internal inline void ee_player_refund_tech(ee_player *player, ee_tech *node, int producer_type, float fraction) { fn_ee_player_refund_tech(player, node, producer_type, fraction); }
 // EEPlayer's own update (vf37; EEComputerPlayer's update is the computer's): the improvement queue among the rest
 typedef void (__thiscall *player_base_update_fn)(ee_player *);
 internal inline void player_base_update(ee_player *player) { ((player_base_update_fn)(*(void ***)player)[slot_player_base_update])(player); }
@@ -1414,6 +1421,8 @@ internal int spec_player_select(int build) {
         fn_ee_player_pay_improvement = (player_pay_improvement_fn)0x0055BF4A;
         slot_player_refund_improvement = 16;
         fn_ee_player_refund_improvement = (player_refund_improvement_fn)0x0055473F;
+        slot_player_refund_tech = 17;
+        fn_ee_player_refund_tech = (player_refund_tech_fn)0x005546F5;
         slot_player_base_update = 37;
         fn_ee_player_base_update = (player_base_update_fn)0x0055C802;
         slot_player_start_next_improvement = 54;
@@ -1734,6 +1743,8 @@ internal int spec_player_select(int build) {
         fn_ee_player_pay_improvement = (player_pay_improvement_fn)0x0056B3F7;
         slot_player_refund_improvement = 16;
         fn_ee_player_refund_improvement = (player_refund_improvement_fn)0x00562915;
+        slot_player_refund_tech = 17;
+        fn_ee_player_refund_tech = (player_refund_tech_fn)0;
         slot_player_base_update = 37;
         fn_ee_player_base_update = (player_base_update_fn)0x0056BE3F;
         slot_player_start_next_improvement = 54;
@@ -1945,12 +1956,12 @@ internal int spec_player_select(int build) {
         fn_play_local = (play_local_fn)0x0054831C;
         calls_selection_sound[0] = 0x00562AFA;
         calls_selection_sound[1] = 0x005628BD;
-        return 0;
+        return 1;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "EEComputerPlayer.space_docks_max EEComputerPlayer.space_docks_units_each", "" };
+internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "EEComputerPlayer.space_docks_max EEComputerPlayer.space_docks_units_each", "EEPlayer.refund_tech" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_player_check(void) {
     int bad = 0;
@@ -1980,6 +1991,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_remove_queued_improvement, "EEPlayer.remove_queued_improvement");
     bad += spec_code((uintptr_t)fn_ee_player_pay_improvement, "EEPlayer.pay_improvement");
     bad += spec_code((uintptr_t)fn_ee_player_refund_improvement, "EEPlayer.refund_improvement");
+    bad += spec_code((uintptr_t)fn_ee_player_refund_tech, "EEPlayer.refund_tech");
     bad += spec_code((uintptr_t)fn_ee_player_base_update, "EEPlayer.base_update");
     bad += spec_code((uintptr_t)fn_ee_player_start_next_improvement, "EEPlayer.start_next_improvement");
     bad += spec_vtable(vt_ee_computer_player, ".?AVEEComputerPlayer@@", "EEComputerPlayer [vtable]");

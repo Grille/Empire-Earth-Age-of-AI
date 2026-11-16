@@ -237,6 +237,13 @@ internal inline uint8_t *hooks_stats_epoch_end_at(void) { return (uint8_t *)(uin
 // 0x60B34C; a je over the store follows) ...
 // ... and the fire's stores mov [esi+0x2A0], eax (0x61E18E the type's reload while the unit's is 0, 0x61E1C7 1.5 x
 // it with alt_attack) - the unit in esi, the reload in eax at all four
+// the production start (0x5EF9FF / AoC 0x5FDC58): while the order at its queue's front can't be made (the node's
+// vf1: obsolete, no longer available) it takes it off and refunds it (EEPlayer.refund_tech 1.0) - but between the
+// two it tests for an empty queue (mov eax, [edi+4]; test eax, eax; je; mov ecx, [edi+8]; sub ecx, eax; test ecx,
+// ~(entry - 1); je - both je to the loop's end) and leaves without the refund of the one just taken off: the last
+// such order of a queue was paid for nothing (the building in esi, the node in ebx, the queue's vector in edi)
+internal inline uint8_t *hooks_production_queue_empty_at(void) { return (uint8_t *)(uintptr_t)data_hooks_production_queue_empty; }
+// a production queue's entry, bytes (the empty test's mask)
 // the loading splash's start (jne)
 internal inline uint8_t *hooks_code_splash_start_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_start_jne; }
 // the loading splash's stop (jne)
@@ -375,6 +382,8 @@ internal int spec_hooks_select(int build) {
         data_hooks_reload_tick_cmp[1] = 0x0060B34C;
         data_hooks_reload_fire_store[0] = 0x0061E18E;
         data_hooks_reload_fire_store[1] = 0x0061E1C7;
+        data_hooks_production_queue_empty = 0x005EFA7F;
+        value_hooks_production_queue_entry = 4;
         data_hooks_code_splash_start_jne = 0x00534400;
         data_hooks_code_splash_stop_jne = 0x0053443D;
         data_hooks_draw_old = 0x008D2D30;
@@ -508,6 +517,8 @@ internal int spec_hooks_select(int build) {
         data_hooks_reload_tick_cmp[1] = 0;
         data_hooks_reload_fire_store[0] = 0;
         data_hooks_reload_fire_store[1] = 0;
+        data_hooks_production_queue_empty = 0x005FDCEB;
+        value_hooks_production_queue_entry = 8;
         data_hooks_code_splash_start_jne = 0x0053F2FE;
         data_hooks_code_splash_stop_jne = 0x0053F33B;
         data_hooks_draw_old = 0x008E94D0;
@@ -594,6 +605,7 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_reload_tick_cmp[1], "hooks.reload_tick_cmp 1");
     bad += spec_code(data_hooks_reload_fire_store[0], "hooks.reload_fire_store 0");
     bad += spec_code(data_hooks_reload_fire_store[1], "hooks.reload_fire_store 1");
+    bad += spec_code(data_hooks_production_queue_empty, "hooks.production_queue_empty");
     bad += spec_code(data_hooks_code_splash_start_jne, "hooks.code_splash_start_jne");
     bad += spec_code(data_hooks_code_splash_stop_jne, "hooks.code_splash_stop_jne");
     bad += spec_data(data_hooks_draw_old, "hooks.draw_old");

@@ -263,6 +263,18 @@ static unsafe class hooks
     [address((ee)0x0061E1C7, (aoc)none)]
     static code reload_fire_store;
 
+    /// the production start (0x5EF9FF / AoC 0x5FDC58): while the order at its queue's front can't be made (the node's
+    /// vf1: obsolete, no longer available) it takes it off and refunds it (EEPlayer.refund_tech 1.0) - but between the
+    /// two it tests for an empty queue (mov eax, [edi+4]; test eax, eax; je; mov ecx, [edi+8]; sub ecx, eax; test ecx,
+    /// ~(entry - 1); je - both je to the loop's end) and leaves without the refund of the one just taken off: the last
+    /// such order of a queue was paid for nothing (the building in esi, the node in ebx, the queue's vector in edi)
+    [address((ee)0x005EFA7F, (aoc)0x005FDCEB)]
+    static code production_queue_empty;
+
+    /// a production queue's entry, bytes (the empty test's mask)
+    [value((ee)4, (aoc)8)]
+    static int32 production_queue_entry;
+
     /// the loading splash's start (jne)
     [address((ee)0x00534400, (aoc)0x0053F2FE)]
     static code code_splash_start_jne;
