@@ -124,7 +124,10 @@ internal const struct prio_row {
     { "air",       prio_air,      S_AIR | S_FOOD,                                0,              0 },
     { "laid",      prio_laid,     S_AIR,                                         0,              0 },
     { "research",  prio_research, S_TR_ECON | S_FOOD | S_RESEARCH | S_CIT,       0,              0 },
-    { "epoch",     prio_epoch,    S_BUILD,                                       0,              0 },
+    // apart: a warship with a target sees the stock but the rows marked so - the epoch is one (the player 2026-11-16: "p2 spends
+    // all its iron it would need for aging up on ships right now": Islands from epoch 1, P2 due the Copper Age from minute
+    // 108, its food and gold in, iron 2-140 for 50 minutes - 17875 of its 18999 iron paid for 141 warships)
+    { "epoch",     prio_epoch,    S_BUILD,                                       0,              1 },
     { "farms",     prio_farms,    S_TR_ECON | S_BUILD_ECON,                      0,              0 },
     { "wants",     prio_wants,    S_TR_ECON | S_BUILD_ECON | S_WANTED,           0,              0 },
     { "landing",   prio_landing,  S_TR_ECON | S_BUILD,                           0,              0 },
