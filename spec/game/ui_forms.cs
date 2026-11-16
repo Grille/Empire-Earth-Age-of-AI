@@ -134,7 +134,11 @@ unsafe struct EEUIBUpgrade
     int32 attr;
 
     /// vf37 thiscall(button, EEUnit** unit, UWideString* why): the selection's first unit, and may its owner buy the
-    /// improvement (game.improvements_allowed, EEPlayer.can_buy_improvement)
+    /// improvement (game.improvements_allowed, EEPlayer.can_buy_improvement). Two branches by its +0x12C: in the
+    /// scenario editor only the type's table (0x6266B5: a step for the attribute), every type with one; in a game the
+    /// player's check. Citizens: the editor raises their levels, a game shows no buttons for them (the player
+    /// 2026-11-16) although can_buy_improvement accepts them - what hides them there is not found yet (the AI leaves
+    /// them out: ai/research.c)
     [address((ee)0x00640476, (aoc)0x00656B3C)]
     extern char8 can_buy(EEUnit** unit, void* why);
 
