@@ -48,6 +48,11 @@ internal int g_fl_boats = 1, g_fl_coast = 1, g_fl_raid = 130;   // navy_fleet_ra
 #define FL_MAX 64
 #define FL_DZ 384
 #define FL_ES 160
+// the scan's own towers and buildings: all of them (32 towers before - an AI with 49 had those by its dock left out of
+// the first 32 the grid gave, and HARBOURS laid a tower there every 2-3 minutes: 13 in a block by one dock, the player
+// 2026-11-16 "a death blob of towers that can easily be avoided")
+#define FL_TW 2048
+#define FL_BLD 8192
 enum { FT_GUARD, FT_DEFEND, FT_GATHER, FT_HUNT, FT_RETREAT, FT_ESCORT, FT_SUPPORT, FT_RAID, FT_PATROL, FT_SCOUT, FT_MASS, FT_N };
 internal const char *const k_ft[FT_N] = { "guard", "defend", "gather", "hunt", "retreat", "escort", "support", "raid", "patrol", "scout", "mass" };
 internal struct fleet {
@@ -157,10 +162,10 @@ internal struct fl_scan {
     struct fl_ship ec[96]; int nec;                   // enemy units and buildings on the coast of the fleet's sea (seen now)
     struct { ivec2 p; float r; } dz[FL_DZ];           // danger zones (radius incl. the margin)
     ee_unit *boat[96]; int nb;                        // own fishing boats
-    ivec2 b[256]; int nbl;                            // own buildings
+    ivec2 b[FL_BLD]; int nbl;                         // own buildings
     ivec2 dk[16]; int nd;                             // own docks
     ivec2 eb, ed[16]; int eb_known, ned;              // the nearest known enemy building (to the guard base), enemy docks
-    ivec2 tw[32]; int ntw; float twr[32];             // own towers and defence buildings (their range)
+    ivec2 tw[FL_TW]; int ntw; float twr[FL_TW];       // own towers and defence buildings (their range)
 } g_fs;
 internal float fl_dps(ee_unit *u, ee_unit_type *td) {
     ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
@@ -273,8 +278,8 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 if (unit_type_get_id(td) == UT(B_DOCK) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);
                 float tr, ta;
-                if (s->ntw < 32 && defence_stats(u, &tr, &ta)) { s->tw[s->ntw] = iv2(x, y); s->twr[s->ntw++] = tr; }
-                if (s->nbl < 256) s->b[s->nbl++] = iv2(x, y);
+                if (s->ntw < FL_TW && defence_stats(u, &tr, &ta)) { s->tw[s->ntw] = iv2(x, y); s->twr[s->ntw++] = tr; }
+                if (s->nbl < FL_BLD) s->b[s->nbl++] = iv2(x, y);
             }
             continue;
         }
@@ -748,16 +753,22 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
     float best = -1e9f;
     int bc = 0, br = 0;
     unsigned sidx = m >= g_fl && m < g_fl + 16 ? (unsigned)(m - g_fl) : 0, st = HARBOURS(sidx) && FL_STATION(sidx) && g_fl_station_t[sidx] ? g_fl_station_t[sidx] - 1 : TER_NONE;   // HARBOURS: its station's sea
+    static int wet[FL_TW];   // the towers with water within their reach: only they cover a tile of the sea (all its towers, FL_TW)
+    int nwet = 0;
     for (int k = 0; k < g_fs.ntw; k++) {
         int R = (int)g_fs.twr[k] - 1;
-        if (R < 2) continue;
+        if (R >= 2 && ocean_near(g_fs.tw[k], R > 20 ? 20 : R, NULL)) wet[nwet++] = k;
+    }
+    for (int i = 0; i < nwet; i++) {
+        int k = wet[i], R = (int)g_fs.twr[k] - 1;
         if (R > 10) R = 10;
         for (int dx = -R; dx <= R; dx++)
             for (int dy = -R; dy <= R; dy++) {
                 ivec2 q = ivec2_add(g_fs.tw[k], iv2(dx, dy));
                 int cov = 0, dock = 0, cr = 0;
                 if (dx * dx + dy * dy > R * R || (int)area_id(q, 1) != m->ocean || fl_in_danger(q)) continue;
-                for (int j = 0; j < g_fs.ntw; j++) {
+                for (int ii = 0; ii < nwet; ii++) {
+                    int j = wet[ii];
                     float rr = g_fs.twr[j] - 1.0f;
                     if ((float)ivec2_dist2(q, g_fs.tw[j]) <= rr * rr) { cov++; if ((int)g_fs.twr[j] > cr) cr = (int)g_fs.twr[j]; }
                 }
@@ -796,6 +807,7 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 #define HB_EVERY 45000
 #define HB_CITS 3
 #define HB_TOWER_R 8
+#define HB_TOWER_GAP 4              // a harbour's tower no nearer another own tower: two cover more shore than a pair side by side
 #define HB_STONE 600                // stone in the bank from which a harbour gets its second tower unasked
 #define HB_DOCKS 8
 #define HB_LAID 90000
@@ -874,6 +886,9 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
                 for (int ay = -r; ay <= r; ay++) {
                     ivec2 q = ivec2_add(dk, iv2(ax, ay));
                     if ((abs(ax) != r && abs(ay) != r) || !fl_coast(q, oc) || !can_place(pl, ttype, q)) continue;
+                    int close = 0;   // along the shore, not beside another tower (HB_TOWER_GAP)
+                    for (int j = 0; j < g_fs.ntw && !close; j++) close = ivec2_dist2(g_fs.tw[j], q) < HB_TOWER_GAP * HB_TOWER_GAP;
+                    if (close) continue;
                     if (!hb_lay(pl, idx, bm, e, ttype, q)) return;
                     g_hb[idx].towers++; g_hb[idx].laid_t = now ? now : 1;
                     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d of %d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov, want);
