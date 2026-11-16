@@ -11,11 +11,15 @@ internal int is_vanilla(const ee_player *pl);   // below
 // THE GAME'S COMPUTER PLAYER OFF ([ai_base] game_ai; eeaimod.c cp_update_own): the wiring's update in the place of the
 // game's for one of the mod's players - 1 when it played it, the game's is then not called at all
 internal int (*g_cp_update_own)(ee_player *pl, uint32_t now);
+// g_is_scenario is read before the mod's own update: with the game's computer player off it returns first, and the
+// mod's scenario tests (diplo.c scenario_game: diplomacy, surrender, spoils, the LLM's decisions) saw a skirmish in
+// every scenario. The flag itself stays set for the own update: its game routines (a building's queue, research)
+// then follow a scenario's rules as the human player's do.
 internal void __thiscall hook_cp_update(ee_player *pl, uint32_t now) {
-    if (g_cp_update_own && !is_vanilla(pl) && g_cp_update_own(pl, now)) return;
     uint8_t *flag = scenario_flag_var();
     uint8_t saved = *flag;
     g_is_scenario = saved;
+    if (g_cp_update_own && !is_vanilla(pl) && g_cp_update_own(pl, now)) return;
     if (g_fix_scenario_ai && !is_vanilla(pl)) *flag = 0;
     player_update(pl, now);
     *flag = saved;
