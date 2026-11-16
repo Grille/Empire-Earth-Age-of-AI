@@ -64,11 +64,16 @@
 #define BD_SINK_OPEN 4          // unfinished buildings
 #define BD_SINK_T 4096
 #define BD_CLAIM_GUARD 3        // its soldiers in the held territory a claim starts from
+#define BD_CLAIM_MINE 2         // a territory with a mine counts as this many times nearer to the base
+#define BD_CLAIM_OPEN 2         // its claims not holding yet that hold the next back
+#define BD_CLAIM_LONE 360000  // a claim's Settlement still missing holds the next claim back this long at most
 #define BD_WATCH_EVERY 120000   // A WATCH TOWER: between two
 #define BD_WATCH_NEAR 8         // ... none within this many tiles of a defence of its
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 internal struct bd_st {
     uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
+    const char *claim_why; int claim_n[4];   // ... the last look: what held it back; territories nobody holds, quiet, beside a guarded one of its, safe
+    struct { int r; uint32_t t; } claim_open[8]; unsigned nclaim_open;   // ... the last claims: territory, when (CLAIMS GOING UP)
     uint32_t watch_t;                    // A WATCH TOWER: the last one
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
@@ -394,25 +399,71 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         ivec2 held_at = iv2(0, 0);
         for (int r = 0; r < s->n && held_r < 0; r++)
             if (!g_ter.t[r].water && !s->t[r].bld && sn_holding(idx, r, &held_at) && !wk_danger(idx, held_at)) held_r = r;   // by its soldiers; whatever the view still remembers of the enemy's there (3 of 4 holds got no tower: the push sees no building left, the view's count of them lasts)
-        if (!type && !placed && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) && workforce(pl) >= g_min_workforce &&
-            (held_r >= 0 || (lone < 0 && !open_tower && (!b->claim_t || now < b->claim_t || now - b->claim_t >= BD_CLAIM_EVERY)))) {
+        // THE CLAIM'S TURN (the player 2026-11-16, his game at minute 141: "the ai never expands into territoy that have
+        // no resoucres, this causes that it never can close it border, everething is front" - 3 claims each in 141
+        // minutes): with nothing else to lay it hardly ever came (test games, Continental large, 60 min: the mines'
+        // Settlements and towers, granaries, the morale's Houses first in most looks, 0-2 claims) - a claim that is
+        // due takes the look, what else would have been laid waits for the next (BD_EVERY). No tower it can build or
+        // pay (stone): a Barracks claims it instead - it holds (territories.c TV_HOLDS: it trains; a Fortress doesn't)
+        // and costs wood. A claim's Settlement still missing holds the next claim back BD_CLAIM_LONE at most (one
+        // that found no spot held them all for the rest of the game).
+        int ctype = !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com) ? ttype :
+                    !wait[4] && ut_has(UT(B_BARRACKS)) && can_build(pl, UT(B_BARRACKS)) && bd_pays(pl, UT(B_BARRACKS), com) ? UT(B_BARRACKS) : 0;
+        if (lone >= 0 && b->claim_t && now >= b->claim_t && now - b->claim_t >= BD_CLAIM_LONE) lone = -1;
+        // CLAIMS GOING UP: not every tower going up anywhere (a mine's, a watch tower - the rich test games: 50 of 70
+        // looks held back so), only its own claims laid within BD_CLAIM_LONE whose territory it doesn't hold yet,
+        // BD_CLAIM_OPEN of them at most
+        int claims_going = 0;
+        for (unsigned k = 0; k < 8 && k < b->nclaim_open; k++) {
+            int r = b->claim_open[k].r;
+            claims_going += r >= 0 && r < s->n && s->t[r].role == TVR_NONE && now >= b->claim_open[k].t && now - b->claim_open[k].t < BD_CLAIM_LONE;
+        }
+        b->claim_why = placed ? "something else laid" : !ctype ? (wait[2] ? "a tower just laid" : "no tower or Barracks to build or pay") :
+                       workforce(pl) < g_min_workforce ? "too few citizens" : held_r >= 0 ? NULL :
+                       lone >= 0 ? "a claim's Settlement still missing" : claims_going >= BD_CLAIM_OPEN ? "claims still going up" :
+                       b->claim_t && now >= b->claim_t && now - b->claim_t < BD_CLAIM_EVERY ? "the last one too recent" : NULL;
+        memset(b->claim_n, 0, sizeof b->claim_n);
+        if (!b->claim_why) {
+            // a territory with a mine nobody works counts as BD_CLAIM_MINE times nearer: the claims grow towards the mines
+            // (the player, the same game: "it can also not reach some resource nodes on it path trough the map")
+            static uint8_t mine_r[PR_T];
+            memset(mine_r, 0, sizeof mine_r);
+            for (int k = 0; k < g_ter.nsite; k++) {
+                unsigned r = ter_near(g_ter.site[k].x, g_ter.site[k].y);
+                if (g_ter.site[k].res >= 4 && g_ter.site[k].res <= 6 && r < PR_T) mine_r[r] = 1;
+            }
             int cb = held_r, cd = 0;
             for (int r = 0; r < s->n; r++) {
                 struct tv_terr *t = &s->t[r];
-                if (held_r >= 0 || g_ter.t[r].water || t->role != TVR_NONE || t->bld || t->ebld || t->abld || t->state != TV_QUIET) continue;
+                // its own buildings that don't hold (a mine's Settlement, Houses, fields - territories.c TV_HOLDS) no longer
+                // keep a claim off: of 27 territories in the view 2 held, 6 empty, most others with a building of its
+                if (held_r >= 0 || g_ter.t[r].water || t->role != TVR_NONE || t->hold || t->ebld || t->abld) continue;
+                b->claim_n[0]++;
+                if (t->state != TV_QUIET) continue;
+                b->claim_n[1]++;
                 int guarded = 0;
                 for (int k = 0; k < g_ter.t[r].nbn && !guarded; k++) {
                     unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
-                    guarded = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state == TV_QUIET && s->t[o].sold >= BD_CLAIM_GUARD;
+                    // enemy soldiers its guard beats there don't count against it (TV_FOES), only one it is losing (TV_UNSAFE):
+                    // a scout passing kept the claims off for good on a busy map
+                    guarded = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE && s->t[o].sold >= BD_CLAIM_GUARD;
                 }
+                if (!guarded) continue;
+                b->claim_n[2]++;
                 ivec2 c = g_ter.t[r].c;
-                if (!guarded || raiders_near(pl, c, 12) || wk_danger(idx, c)) continue;
-                int d = ivec2_dist2(c, base);
+                if (raiders_near(pl, c, 12) || wk_danger(idx, c)) continue;
+                b->claim_n[3]++;
+                int d = ivec2_dist2(c, base) / (mine_r[r] ? BD_CLAIM_MINE * BD_CLAIM_MINE : 1);
                 if (cb < 0 || d < cd) { cb = r; cd = d; }
             }
-            if (cb >= 0) {
-                if (bd_spot(pl, idx, ttype, cb == held_r ? held_at : g_ter.t[cb].c, 0, 8, &at)) { type = ttype; what = "a claim: a tower in a territory nobody holds"; b->claim_t = now ? now : 1; b->claims++; } else b->no_spot++;
+            ivec2 cat;
+            if (cb < 0) b->claim_why = "no territory to claim";
+            else if (bd_spot(pl, idx, ctype, cb == held_r ? held_at : g_ter.t[cb].c, 0, ctype == ttype ? 8 : 12, &cat)) {
+                at = cat; type = ctype; b->claim_t = now ? now : 1; b->claims++; b->claim_why = "claimed";
+                b->claim_open[b->nclaim_open++ & 7].r = cb; b->claim_open[(b->nclaim_open - 1) & 7].t = now ? now : 1;
+                what = ctype == ttype ? "a claim: a tower in a territory nobody holds" : "a claim: a Barracks in a territory nobody holds (no tower to build or pay)";
             }
+            else { b->no_spot++; b->claim_why = "no spot for the claim"; }
         }
         // A WATCH TOWER (the player 2026-11-16: "build towers in the long term so it knows whats going on in its own
         // borders"): with nothing else to lay, a tower in the middle of the largest place of a territory it holds that
@@ -511,8 +562,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (g_log && (!b->log_t || now - b->log_t >= 60000)) {
         b->log_t = now ? now : 1;
         log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings | mines in reach %d, with a drop site %d, with a defence %d | "
-                   "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u\n",
-                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls);
+                   "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
+                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d)\n",
+                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
+                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3]);
     }
 }
 internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }
