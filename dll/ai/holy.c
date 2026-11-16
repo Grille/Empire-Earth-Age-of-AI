@@ -35,6 +35,11 @@
 #define HL_LOSS_WINDOW 600000   // THE LOST: HL_LOSS_MAX of a kind lost within this - none of that kind trained meanwhile
 #define HL_LOSS_MAX 3
 #define HL_ESCORT 4          // AN ESCORT: soldiers beside a prophet on a strike (stations.c sn_escort)
+#define HL_CAUGHT 4           // A PARTING GIFT: this many enemy soldiers within HL_CAUGHT_R
+#define HL_CAUGHT_R 6
+#define HL_HOME_R 15          // AT HOME: within this of a town of its
+#define HL_DEFEND 25          // ... the enemy soldiers within this of it
+#define HL_DEFEND_N 4         // ... this many in a group
 #define HL_REACH 14
 #define HL_TOWER_LOOK 16      // THE TOWERS: an enemy tower within this
 #define HL_QUAKE_OFF 3        // ... gets the earthquake this many tiles before it
@@ -55,7 +60,7 @@ internal struct hl_st {
     uint32_t t, log_t, train_t;
     struct { int id; ivec2 strike; uint32_t strike_t; } p[HL_UNITS]; int np;   // prophets on a strike: its target, since
     struct { int id; uint32_t t; } ord[2 * HL_UNITS]; int nord;   // its last cast or conversion order, when (A GIVEN ORDER)
-    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused;
+    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused, gifts, defends;
     int last_pro, last_pri; uint32_t lost[2][HL_LOSSES]; unsigned nlost[2];   // THE LOST: the last count of each, when each was lost (a ring)
 } g_hl[16];
 // A GIVEN ORDER: a cast or a conversion walks first - the unit's goal is a move meanwhile (the cast goal's own walk into
@@ -188,6 +193,66 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         int hurt = (float)unit_get_hp(u) < HL_HURT * (float)unit_type_get_hp(td);
         int pw = unit_get_power(u), cost[HLP_N];
         for (int k = 0; k < HLP_N; k++) cost[k] = hl_cost(pl, k);
+        // A PARTING GIFT (the player 2026-11-16: "prophet revange: they often get cought by armies outside of temple range,
+        // the prophet cant escape, but it could give the pest as a parting gift"): HL_CAUGHT enemy soldiers within
+        // HL_CAUGHT_R of it, or hurt with any there - the plague on them, else a hurricane, else a volcano, at the middle of
+        // them, whatever the clusters want; the power's own check as always.
+        if (!casting) {
+            int ns = 0; long sx = 0, sy = 0;
+            for (struct grid_it it = grid_it_box(p.x, p.y, HL_CAUGHT_R, 1); grid_it_next(&it); ) {
+                ee_player *o = unit_get_owner(it.u);
+                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !is_soldier(it.td) || unit_type_get_class_id(it.td) != CLS_LAND || !seen_by(it.u, pl)) continue;
+                ivec2 q = unit_get_tile(it.u);
+                if (ivec2_dist2(q, p) > HL_CAUGHT_R * HL_CAUGHT_R) continue;
+                ns++; sx += q.x; sy += q.y;
+            }
+            if (ns >= HL_CAUGHT || (hurt && ns > 0)) {
+                ivec2 at = iv2((int)(sx / ns), (int)(sy / ns));
+                static const int gift[4] = { HLP_MALARIA, HLP_PLAGUE, HLP_HURRICANE, HLP_VOLCANO };   // malaria first (the player: "a quick way to dispatch an attacking army")
+                for (int j = 0; j < 4 && !casting; j++) {
+                    int k = gift[j];
+                    if (cost[k] <= 0 || pw < cost[k] || !hl_cast(pl, u, at, k)) continue;
+                    hl_order_note(h, u, now);
+                    h->casts[k]++; h->gifts++;
+                    strike = iv2(-1, -1); strike_t = 0;
+                    if (g_log) log_locked("# holy: P%u at %.1f min: a prophet caught at %d,%d by %d enemy soldiers (hp %d) casts %s on them at %d,%d (power %d)\n",
+                                          idx, now / 60000.0, p.x, p.y, ns, unit_get_hp(u), k == HLP_MALARIA ? "malaria" : k == HLP_PLAGUE ? "the plague" : k == HLP_HURRICANE ? "a hurricane" : "a volcano", at.x, at.y, pw);
+                    casting = 1;
+                }
+            }
+        }
+        // AT HOME (the player 2026-11-16: "also malaria is a goo devensive option, in range of own temples the prophet still
+        // works, its a quick way to dispatch an attacking army, if an fully charged prophet happens to be in the base"): within
+        // HL_HOME_R of a town of its, the enemy soldiers it knows within HL_DEFEND - the biggest group, HL_DEFEND_N within
+        // HL_CLUSTER of one - get malaria, else the plague, else a hurricane (its own Temple's protection is against the
+        // enemy's powers, not its own).
+        if (!casting && ivec2_dist2(p, home) <= HL_HOME_R * HL_HOME_R && cost[HLP_MALARIA] > 0 && pw >= cost[HLP_MALARIA]) {
+            static ivec2 es[HL_SEEN];
+            int ne = 0;
+            for (struct grid_it it = grid_it_box(p.x, p.y, HL_DEFEND, 1); grid_it_next(&it) && ne < HL_SEEN; ) {
+                ee_player *o = unit_get_owner(it.u);
+                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !is_soldier(it.td) || unit_type_get_class_id(it.td) != CLS_LAND || !seen_by(it.u, pl)) continue;
+                ivec2 q = unit_get_tile(it.u);
+                if (ivec2_dist2(q, p) <= HL_DEFEND * HL_DEFEND) es[ne++] = q;
+            }
+            int bn = 0; ivec2 bat = p;
+            for (int a = 0; a < ne; a++) {
+                int c = 0;
+                for (int b2 = 0; b2 < ne; b2++) c += ivec2_dist2(es[b2], es[a]) <= HL_CLUSTER * HL_CLUSTER;
+                if (c > bn) { bn = c; bat = es[a]; }
+            }
+            static const int def[3] = { HLP_MALARIA, HLP_PLAGUE, HLP_HURRICANE };
+            for (int j = 0; j < 3 && bn >= HL_DEFEND_N && !casting; j++) {
+                int k = def[j];
+                if (cost[k] <= 0 || pw < cost[k] || !hl_cast(pl, u, bat, k)) continue;
+                hl_order_note(h, u, now);
+                h->casts[k]++; h->defends++;
+                strike = iv2(-1, -1); strike_t = 0;
+                if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at home at %d,%d casts %s on %d enemy soldiers at %d,%d (power %d)\n",
+                                      idx, now / 60000.0, p.x, p.y, k == HLP_MALARIA ? "malaria" : k == HLP_PLAGUE ? "the plague" : "a hurricane", bn, bat.x, bat.y, pw);
+                casting = 1;
+            }
+        }
         // THE TOWERS (the player 2026-11-16: "on towers, that where prophets are espacialy usefull if the enemy forgot its
         // temple. think that the prophet dosnt has to walk up to the tower, casting the earthquake a few tiles before the
         // tower from savethy is enough to bring it down"): the nearest enemy tower it knows within HL_TOWER_LOOK (a
@@ -247,7 +312,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             }
             int pick = -1;
             ivec2 at = p;
-            static const int order[3][3] = { { HLP_QUAKE, HLP_FIRE, HLP_VOLCANO }, { HLP_PLAGUE, HLP_HURRICANE, -1 }, { HLP_MALARIA, HLP_PLAGUE, -1 } };
+            static const int order[3][3] = { { HLP_QUAKE, HLP_FIRE, HLP_VOLCANO }, { HLP_MALARIA, HLP_PLAGUE, HLP_HURRICANE }, { HLP_MALARIA, HLP_PLAGUE, -1 } };   // soldiers: malaria first (AT HOME)
             static const int need[3] = { HL_BUILDINGS, HL_SOLDIERS, HL_CITIZENS };
             for (int kind = 1; kind < 4 && pick < 0; kind++) {   // soldiers, then citizens, then buildings
                 int kd = kind == 3 ? 0 : kind;
@@ -357,7 +422,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     }
     if (g_log && g_autotest && (!h->log_t || now - h->log_t >= 60000)) {
         h->log_t = now ? now : 1;
-        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u refused by the power's check, %u conversions ordered, lost in 10 minutes %d prophets %d priests | earthquake costs %d\n",
-                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->refused, h->converts, hl_lost(h, 0, now), hl_lost(h, 1, now), hl_cost(pl, HLP_QUAKE));
+        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u parting gifts, %u at home, %u refused by the power's check, %u conversions ordered, lost in 10 minutes %d prophets %d priests | earthquake costs %d\n",
+                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->gifts, h->defends, h->refused, h->converts, hl_lost(h, 0, now), hl_lost(h, 1, now), hl_cost(pl, HLP_QUAKE));
     }
 }
