@@ -17,8 +17,10 @@
 //               behind that place, as the siege - a push goes at the enemy's Temple first then (stations.c TEMPLE
 //               FIRST). The others, power for an earthquake at least: A STRIKE - the nearest enemy building it knows
 //               within HL_STRIKE with no enemy soldiers near (raiders_near), under no enemy tower (work.c wk_danger) or a
-//               tower itself, is walked to with HL_ESCORT soldiers beside it (stations.c AN ESCORT), cast at, and it
-//               walks home again; hurt, or the target guarded since, it turns home at once.
+//               tower itself, is walked to with HL_ESCORT soldiers beside it (stations.c AN ESCORT: it waits for them,
+//               HL_ESC_WAIT at most, alone when the force has none to give; they fight only for it), cast at, and it
+//               walks home again with them - AWAY AT ONCE: its power spent, it turns home that look; hurt, or the
+//               target guarded since, it turns home at once.
 //   PRIESTS   - a conversion (the game's attack order: a priest's attack converts) of an enemy citizen or soldier
 //               within HL_PRIEST_LOOK that stands alone (no other enemy soldier within HL_ALONE of it) and under no
 //               tower, citizens first, the nearest; none near enemy soldiers that outnumber them. Idle: with the force
@@ -37,6 +39,9 @@
 #define HL_LOSS_WINDOW 600000   // THE LOST: HL_LOSS_MAX of a kind lost within this - none of that kind trained meanwhile
 #define HL_LOSS_MAX 3
 #define HL_ESCORT 4          // AN ESCORT: soldiers beside a prophet on a strike (stations.c sn_escort)
+#define HL_ESC_NEAR 6        // ... the prophet walks on while half of them are within this of it
+#define HL_ESC_WAIT 90000    // ... and waits for them this long at most from the strike's start (none given in 10 s: alone)
+#define HL_ESC_FOE 8         // ... enemy soldiers within this of the prophet: they fight (else they only walk beside it)
 #define HL_CAUGHT 4           // A PARTING GIFT: this many enemy soldiers within HL_CAUGHT_R
 #define HL_CAUGHT_R 6
 #define HL_HOME_R 15          // AT HOME: within this of a town of its
@@ -65,8 +70,8 @@ enum { HLP_QUAKE, HLP_FIRE, HLP_VOLCANO, HLP_PLAGUE, HLP_HURRICANE, HLP_MALARIA,
 internal struct hl_st {
     uint32_t t, log_t, train_t;
     struct { int id; ivec2 strike; uint32_t strike_t; } p[HL_UNITS]; int np;   // prophets on a strike: its target, since
-    struct { int id; uint32_t t; } ord[2 * HL_UNITS]; int nord;   // its last cast or conversion order, when (A GIVEN ORDER)
-    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused, gifts, defends;
+    struct { int id; uint32_t t; int pw; } ord[2 * HL_UNITS]; int nord;   // its last cast or conversion order, when, its power then (A GIVEN ORDER)
+    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused, gifts, defends, aways;
     int last_pro, last_pri; uint32_t lost[2][HL_LOSSES]; unsigned nlost[2];   // THE LOST: the last count of each, when each was lost (a ring)
 } g_hl[16];
 // A GIVEN ORDER: a cast or a conversion walks first - the unit's goal is a move meanwhile (the cast goal's own walk into
@@ -81,8 +86,17 @@ internal int hl_ordered(struct hl_st *h, ee_unit *u, uint32_t now) {
 internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
     int id = unit_get_id(u), n = 0;
     for (int k = 0; k < h->nord; k++) if (h->ord[k].id != id && now >= h->ord[k].t && now - h->ord[k].t < HL_ORDER_WAIT) h->ord[n++] = h->ord[k];
-    if (n < 2 * HL_UNITS) { h->ord[n].id = id; h->ord[n++].t = now ? now : 1; }
+    if (n < 2 * HL_UNITS) { h->ord[n].id = id; h->ord[n].pw = unit_get_power(u); h->ord[n++].t = now ? now : 1; }
     h->nord = n;
+}
+// AWAY AT ONCE (the player 2026-11-16: "strike prophets stick around to long after their "crimes" the should imediatly
+// turn and get distance after casting"): a cast ordered and its power spent since - the cast is done, the order
+// forgotten (it held the prophet "casting" while it had any goal, the cast's own one stayed on it after the cast)
+internal int hl_cast_spent(struct hl_st *h, ee_unit *u, int pw) {
+    int id = unit_get_id(u);
+    for (int k = 0; k < h->nord; k++)
+        if (h->ord[k].id == id && h->ord[k].t && pw < h->ord[k].pw) { h->ord[k].t = 0; return 1; }
+    return 0;
 }
 internal void holy_new_game(void) { memset(g_hl, 0, sizeof g_hl); }
 // an enemy player's - not nature's (player 0: animals, fish; the player 2026-11-16: "a priest just converted an animal from nature")
@@ -271,13 +285,21 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         ivec2 strike = k0 < h->np ? h->p[k0].strike : iv2(-1, -1);
         uint32_t strike_t = k0 < h->np ? h->p[k0].strike_t : 0;
         ee_goal *g = unit_get_goal(u);
-        int casting = (g && goal_is_cast(g)) || hl_ordered(h, u, now);
+        int pw = unit_get_power(u), cost[HLP_N];
+        int spent = hl_cast_spent(h, u, pw);
+        int casting = !spent && ((g && goal_is_cast(g)) || hl_ordered(h, u, now));
         ivec2 home = p;
         for (int k = 0, bd = -1; k < ntown; k++) { int d = ivec2_dist2(town[k], p); if (bd < 0 || d < bd) { bd = d; home = town[k]; } }
         ee_unit_type *td = unit_get_type_data(u);
         int hurt = (float)unit_get_hp(u) < HL_HURT * (float)unit_type_get_hp(td);
-        int pw = unit_get_power(u), cost[HLP_N];
         for (int k = 0; k < HLP_N; k++) cost[k] = hl_cost(pl, k);
+        if (spent) {   // AWAY AT ONCE: home from where it cast, before anything else (another cast wants power it has not got)
+            hl_walk(u, home);
+            if (!escorted && sn_prophet_escorted(idx)) { sn_escort(idx, p, HL_ESCORT, raiders_near(pl, p, HL_ESC_FOE), now); escorted = 1; }   // its escort home with it
+            h->aways++;
+            if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d has cast (power %d) - away home to %d,%d\n", idx, now / 60000.0, p.x, p.y, pw, home.x, home.y);
+            continue;
+        }
         // A PARTING GIFT (the player 2026-11-16: "prophet revange: they often get cought by armies outside of temple range,
         // the prophet cant escape, but it could give the pest as a parting gift"): HL_CAUGHT enemy soldiers within
         // HL_CAUGHT_R of it, or hurt with any there - the plague on them, else a hurricane, else a volcano, at the middle of
@@ -428,7 +450,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             if (strike.x >= 0 && (hurt || cost[HLP_QUAKE] <= 0 || pw < cost[HLP_QUAKE] || raiders_near(pl, strike, 10) || (strike_t && now - strike_t > 300000))) strike = iv2(-1, -1);   // A STRIKE called off
             // WITH THE FORCE, ON ITS OWN (the first test: 0 strikes in 3 games - the force meets the enemy somewhere
             // nearly all the time, and every prophet went with it): the first prophet goes with the force, the others strike
-            int with = fight && i == 0;
+            int with = fight && i == 0 && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE];   // AWAY AT ONCE: without the power for a cast it stays home, out of the fight, until it has it
             if (strike.x < 0 && !hurt && with) hl_walk(u, hl_behind(front, home));   // with the force, as the siege
             else if (strike.x < 0 && !hurt && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE]) {   // A STRIKE: the nearest enemy building unguarded
                 int bd = -1;
@@ -465,12 +487,35 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 if (bld && hl_cast(pl, u, strike, HLP_QUAKE)) {
                     hl_order_note(h, u, now);
                     h->casts[HLP_QUAKE]++;
-                    if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d casts an earthquake at the building it struck at %d,%d (power %d)\n", idx, now / 60000.0, p.x, p.y, strike.x, strike.y, pw);
+                    int eg = 0, en = sn_escort_near(idx, p, HL_ESC_NEAR, &eg);
+                    if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d casts an earthquake at the building it struck at %d,%d (power %d; its escort %d of %d by it)\n", idx, now / 60000.0, p.x, p.y, strike.x, strike.y, pw, en, eg);
                     strike = iv2(-1, -1); strike_t = 0;
+                    casting = 1;   // it casts where it stands (it walked home in the same look - the cast given up, ordered
+                                   // again at the next: 20 orders in 2.5 minutes at one building, its power 68 to 97)
                 }
             }
-            if (strike.x >= 0) { hl_walk(u, strike); if (!escorted) { sn_escort(idx, p, HL_ESCORT, now); escorted = 1; } }   // stations.c AN ESCORT: beside it on the way
-            else if (!with || hurt) hl_walk(u, home);
+            if (casting) {   // its escort by it while it casts
+                if (!escorted && sn_prophet_escorted(idx)) { sn_escort(idx, p, HL_ESCORT, raiders_near(pl, p, HL_ESC_FOE), now); escorted = 1; }
+            }
+            // AN ESCORT (the player 2026-11-16: "the escort for the strike dosnt seem to work, the prophets always arive
+            // alone, the escort also shoudlnt attack, except to defend the prophet"): the escort followed where the
+            // prophet stood and the prophet walked on at once - it now waits for it (half within HL_ESC_NEAR, HL_ESC_WAIT
+            // at most, alone when none is given in 10 s); the escort fights only with enemy soldiers by the prophet, and
+            // goes home with it after the cast
+            int foe_by = raiders_near(pl, p, HL_ESC_FOE);
+            if (casting) {}
+            else if (strike.x >= 0) {
+                int given = 0, by = 0;
+                if (!escorted) { sn_escort(idx, p, HL_ESCORT, foe_by, now); escorted = 1; by = sn_escort_near(idx, p, HL_ESC_NEAR, &given); }
+                uint32_t waited = strike_t && now >= strike_t ? now - strike_t : 0;
+                int wait = escorted && waited < HL_ESC_WAIT && (given ? 2 * by < given : waited < 10000);
+                if (!wait) hl_walk(u, strike);
+                else if (g && goal_is_location(g)) unit_goal(u, goal_move((float)p.x + 0.5f, (float)p.y + 0.5f), 0, 0x1F40);   // stands for them
+            }
+            else if (!with || hurt) {
+                hl_walk(u, home);
+                if (!escorted && ivec2_dist2(p, home) > HL_HOME_R * HL_HOME_R && sn_prophet_escorted(idx)) { sn_escort(idx, p, HL_ESCORT, foe_by, now); escorted = 1; }   // home with it
+            }
         }
         if (strike.x >= 0 && nk < HL_UNITS) { keep[nk].id = id; keep[nk].strike = strike; keep[nk++].strike_t = strike_t; }
     }

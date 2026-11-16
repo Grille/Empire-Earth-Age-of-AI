@@ -75,7 +75,7 @@
 #define SN_SCOUT_REST 300000
 #define SN_EB 512
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at; uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
@@ -86,7 +86,7 @@ internal struct sn_st {
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
     unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale;   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
-    ivec2 esc_at; uint32_t esc_t; int esc_n; unsigned escorts;   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
+    ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts;   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
@@ -98,9 +98,24 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 // AN ESCORT (the player 2026-11-16, agreeing to it: a prophet's strike, holy.c, with soldiers beside it): asked again
 // every look while it is wanted - n soldiers of the main force follow at (the prophet where it stands now), the
 // nearest of territories not pushing and with no enemy soldiers in them, marked as scouts (scout 2: no share, no push
-// takes them); SN_ESC_KEEP after the last ask they are the main force's again, stationed where they stand
+// takes them); SN_ESC_KEEP after the last ask they are the main force's again, stationed where they stand. They walk
+// (a plain move) and stand their ground (stance 1) - the player 2026-11-16: "the escort also shoudlnt attack, except to
+// defend the prophet": fight set (enemy soldiers by the prophet) they attack-move to it; let go, their stance is
+// what it was. sn_escort_near: how many it has, how many of them within r of at (holy.c: the prophet waits for them)
 #define SN_ESC_KEEP 10000
-internal void sn_escort(unsigned idx, ivec2 at, int n, uint32_t now) { struct sn_st *z = &g_sn[idx & 15]; z->esc_at = at; z->esc_n = n; z->esc_t = now ? now : 1; }
+internal void sn_escort(unsigned idx, ivec2 at, int n, int fight, uint32_t now) { struct sn_st *z = &g_sn[idx & 15]; z->esc_at = at; z->esc_n = n; z->esc_fight = fight; z->esc_t = now ? now : 1; }
+internal int sn_escort_near(unsigned idx, ivec2 at, int r, int *given) {
+    struct sn_st *z = &g_sn[idx & 15];
+    int nr = 0, n = 0;
+    for (int i = 0; i < z->n; i++) {
+        if (z->m[i].scout != 2 || !z->m[i].u) continue;
+        if (unit_get_hp(z->m[i].u) <= 0) continue;
+        n++; nr += ivec2_dist2(unit_get_tile(z->m[i].u), at) <= r * r;
+    }
+    *given = n;
+    return nr;
+}
+internal int sn_prophet_escorted(unsigned idx) { int n = 0; sn_escort_near(idx, iv2(0, 0), 0, &n); return n > 0; }
 internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRST)
 // THE WAY (the player 2026-11-15: "ai attacks dont cope well with walls yet. the attack should actual try to pathfind to
 // the target. maybe 2 paths? on with walls and one ignoring them, if the path with wall is a larger detour the ai bring
@@ -645,9 +660,13 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             struct sn_unit *m = &z->m[i];
             if (m->scout != 2) continue;
             ivec2 q = unit_get_tile(m->u);
-            if (!esc_on || ne >= z->esc_n) { unsigned r = ter_near(q.x, q.y); m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0; continue; }
+            if (!esc_on || ne >= z->esc_n) {
+                unsigned r = ter_near(q.x, q.y); m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0;
+                if (m->stance0 >= 0) unit_set_stance(m->u, m->stance0);
+                continue;
+            }
             ne++;
-            if (ivec2_dist2(q, z->esc_at) > 4 * 4 && (!m->order_t || now - m->order_t >= 5000)) sn_order(z, m, 0, z->esc_at, 1, now);
+            if ((ivec2_dist2(q, z->esc_at) > 3 * 3 || z->esc_fight) && (!m->order_t || now - m->order_t >= 3000)) sn_order(z, m, 0, z->esc_at, z->esc_fight, now);
         }
         while (esc_on && ne < z->esc_n) {
             int b = -1, bd = 0;
@@ -661,7 +680,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             }
             if (b < 0) break;
             z->m[b].scout = 2; z->m[b].ter = -1; z->m[b].order_t = 0; z->escorts++; ne++;
-            sn_order(z, &z->m[b], 0, z->esc_at, 1, now);
+            z->m[b].stance0 = (int8_t)unit_stance(z->m[b].u);
+            unit_set_stance(z->m[b].u, 1);
+            sn_order(z, &z->m[b], 0, z->esc_at, z->esc_fight, now);
             if (g_log && ne == z->esc_n) log_locked("# stations: P%u at %.1f min: an escort of %d for the prophet at %d,%d (so far %u soldiers given)\n", idx, now / 60000.0, ne, z->esc_at.x, z->esc_at.y, z->escorts);
         }
     }
