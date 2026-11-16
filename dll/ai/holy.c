@@ -30,6 +30,8 @@
 #define HL_PRIESTS 3
 #define HL_BANK 1
 #define HL_REACH 14
+#define HL_TOWER_LOOK 16      // THE TOWERS: an enemy tower within this
+#define HL_QUAKE_OFF 3        // ... gets the earthquake this many tiles before it
 #define HL_CLUSTER 4
 #define HL_BUILDINGS 2
 #define HL_SOLDIERS 6
@@ -47,7 +49,7 @@ internal struct hl_st {
     uint32_t t, log_t, train_t;
     struct { int id; ivec2 strike; uint32_t strike_t; } p[HL_UNITS]; int np;   // prophets on a strike: its target, since
     struct { int id; uint32_t t; } ord[2 * HL_UNITS]; int nord;   // its last cast or conversion order, when (A GIVEN ORDER)
-    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c;
+    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers;
 } g_hl[16];
 // A GIVEN ORDER: a cast or a conversion walks first - the unit's goal is a move meanwhile (the cast goal's own walk into
 // reach, EEUGLocation) - and is not given again for HL_ORDER_WAIT while the unit has a goal (the first count: 130 to 180
@@ -163,6 +165,37 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         int hurt = (float)unit_get_hp(u) < HL_HURT * (float)unit_type_get_hp(td);
         int pw = unit_get_power(u), cost[HLP_N];
         for (int k = 0; k < HLP_N; k++) cost[k] = hl_cost(pl, k);
+        // THE TOWERS (the player 2026-11-16: "on towers, that where prophets are espacialy usefull if the enemy forgot its
+        // temple. think that the prophet dosnt has to walk up to the tower, casting the earthquake a few tiles before the
+        // tower from savethy is enough to bring it down"): the nearest enemy tower it knows within HL_TOWER_LOOK (a
+        // building with a ground attack, attack.c defence_stats) gets an earthquake HL_QUAKE_OFF tiles before it on the
+        // prophet's side - the prophet casts from its reach of that spot, outside the tower's. One under an enemy Temple's
+        // protection fails the power's check and is left.
+        if (!casting && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE]) {
+            ivec2 tp = p;
+            int bd = -1;
+            float rr, aa;
+            for (struct grid_it it = grid_it_box(p.x, p.y, HL_TOWER_LOOK, 1); grid_it_next(&it); ) {
+                ee_player *o = unit_get_owner(it.u);
+                if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || !defence_stats(it.u, &rr, &aa)) continue;
+                ivec2 q = unit_get_tile(it.u);
+                int d = ivec2_dist2(q, p);
+                if (d > HL_TOWER_LOOK * HL_TOWER_LOOK || (bd >= 0 && d >= bd)) continue;
+                bd = d; tp = q;
+            }
+            if (bd >= 0) {
+                float dx = (float)(p.x - tp.x), dy = (float)(p.y - tp.y), dl = sqrtf(dx * dx + dy * dy);
+                ivec2 at = dl < 1.0f ? tp : iv2(tp.x + (int)(dx / dl * HL_QUAKE_OFF + 0.5f), tp.y + (int)(dy / dl * HL_QUAKE_OFF + 0.5f));
+                if (hl_cast(pl, u, at, HLP_QUAKE)) {
+                    hl_order_note(h, u, now);
+                    h->casts[HLP_QUAKE]++; h->towers++;
+                    strike = iv2(-1, -1); strike_t = 0;
+                    if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d casts an earthquake at %d,%d before the enemy tower at %d,%d (power %d, cost %d)\n",
+                                          idx, now / 60000.0, p.x, p.y, at.x, at.y, tp.x, tp.y, pw, cost[HLP_QUAKE]);
+                    casting = 1;
+                }
+            }
+        }
         if (!casting) {
             // what it knows within HL_REACH: the best place for each kind of power
             int nseen = 0;
@@ -219,8 +252,14 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                     if (!o || !is_enemy(pl, o) || (fa != CLS_BUILDING && fa != CLS_FORTRESS) || is_wall(unit_type_get_id(it.td)) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl)) continue;
                     ivec2 q = unit_get_tile(it.u);
                     int d = ivec2_dist2(q, p);
-                    if (d > HL_STRIKE * HL_STRIKE || (bd >= 0 && d >= bd) || raiders_near(pl, q, 10) || wk_danger(idx, q)) continue;
+                    float rr, aa;
+                    int tower = defence_stats(it.u, &rr, &aa);   // THE TOWERS: a tower is struck from outside its reach
+                    if (d > HL_STRIKE * HL_STRIKE || (bd >= 0 && d >= bd) || raiders_near(pl, q, 10) || (!tower && wk_danger(idx, q))) continue;
                     bd = d; strike = q;
+                    if (tower) {   // where it stands to cast: the tower's reach + 2 from it, on its side
+                        float dx = (float)(p.x - q.x), dy = (float)(p.y - q.y), dl = sqrtf(dx * dx + dy * dy);
+                        if (dl >= 1.0f) strike = iv2(q.x + (int)(dx / dl * (rr + 2.0f)), q.y + (int)(dy / dl * (rr + 2.0f)));
+                    }
                 }
                 if (strike.x >= 0) {
                     strike_t = now ? now : 1; h->strikes++;
@@ -269,7 +308,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     }
     if (g_log && g_autotest && (!h->log_t || now - h->log_t >= 60000)) {
         h->log_t = now ? now : 1;
-        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u conversions ordered | earthquake costs %d\n",
-                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->converts, hl_cost(pl, HLP_QUAKE));
+        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u conversions ordered | earthquake costs %d\n",
+                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->converts, hl_cost(pl, HLP_QUAKE));
     }
 }
