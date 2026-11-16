@@ -5,7 +5,7 @@
 // priest can be used to snatch away citecens away from the pack or lone soilders").
 // Neither is one of stations.c's soldiers (a priest is of the class Land Priest, a prophet no land soldier: econ.c
 // land_soldier): they are this file's alone. Every HL_EVERY for each AI:
-//   TRAINING  - with a finished Temple: prophets up to HL_PROPHETS (one more every HL_PROPHET_EPOCHS epochs), priests up
+//   TRAINING  - with a finished Temple making no unit: prophets up to HL_PROPHETS (one more every HL_PROPHET_EPOCHS epochs; by the cap: HL_CAP_PROPHET), priests up
 //               to HL_PRIESTS, one at a time, when the bank holds the price (HL_BANK times it; nothing is saved for
 //               them: the priority list knows them not).
 //   PROPHETS  - a power cast where it hits most, the caster's power its cost or more (the calamities' own costs,
@@ -30,6 +30,8 @@
 #define HL_PROPHET_EPOCHS 4
 #define HL_PROPHETS_MAX 4
 #define HL_PRIESTS 3
+#define HL_CAP_PRIEST 40        // BY THE CAP: a priest for this many places of its population cap (one at least)
+#define HL_CAP_PROPHET 150      // ... a prophet (5 places each) for this many (none below)
 #define HL_BANK 1
 #define HL_LOSSES 8
 #define HL_LOSS_WINDOW 600000   // THE LOST: HL_LOSS_MAX of a kind lost within this - none of that kind trained meanwhile
@@ -192,7 +194,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     h->t = now ? now : 1;
     static ee_unit *pro[HL_UNITS], *pri[HL_UNITS];
     static ivec2 town[64];
-    int npro = 0, npri = 0, ntown = 0, temple = 0, count = 0;
+    int npro = 0, npri = 0, ntown = 0, temple = 0, count = 0, making = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -202,7 +204,17 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         else if (t == UT(B_TEMPLE) || t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) {
             ee_unit *st = unit_get_physics(u);
             if (!st || !unit_get_finished(st)) continue;
-            if (t == UT(B_TEMPLE)) temple = 1;
+            if (t == UT(B_TEMPLE)) {
+                int *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u), nq = qb && qe > qb ? (int)(qe - qb) : 0;
+                ee_tech_tree *tt = player_get_tech_tree(pl);
+                temple = 1;
+                for (int j = -1; j < nq && tt; j++) {   // units only, as econ.c units_queued reads it (a Temple researches too)
+                    int id = j < 0 ? unit_get_producing(u) : qb[j];
+                    ee_tech *tc = id > 13 && id != 100000 ? tech_tree_lookup(tt, id) : NULL;
+                    ee_tech_data *d = tc ? tech_get_data(tc) : NULL;
+                    making |= d && tech_data_get_is_object(d);
+                }
+            }
             else if (ntown < 64) town[ntown++] = unit_get_tile(u);
         }
     }
@@ -215,11 +227,20 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         *last = now_n;
     }
     // TRAINING
-    if (temple && (!h->train_t || now < h->train_t || now - h->train_t >= HL_TRAIN_EVERY)) {
+    // ONE AT A TIME: nothing ordered while a Temple of its makes something - the count is of those on the map, and the
+    // one in training was ordered again every HL_TRAIN_EVERY (6-7 priests against HL_PRIESTS in the reserve's tests).
+    // BY THE CAP (the player 2026-11-16: "it should scale with pop a bit ... it should atleast not fill up fully with
+    // priests (alotoug espacialy on low pop they are very usefull, since conversions can exedd pop)"): a priest for
+    // HL_CAP_PRIEST places of the cap, one at least; a prophet, 5 places, for HL_CAP_PROPHET - at a cap of 150 7
+    // priests and 3-4 prophets were 22-26 of its places, the rest its 68 citizens
+    if (temple && !making && (!h->train_t || now < h->train_t || now - h->train_t >= HL_TRAIN_EVERY)) {
         h->train_t = now ? now : 1;
-        int wp = HL_PROPHETS + current_epoch(pl) / HL_PROPHET_EPOCHS;
+        int cap = unit_limit(pl), wc = cap / HL_CAP_PRIEST, wp = HL_PROPHETS + current_epoch(pl) / HL_PROPHET_EPOCHS;
         if (wp > HL_PROPHETS_MAX) wp = HL_PROPHETS_MAX;
-        int want_c = npri < HL_PRIESTS && hl_lost(h, 1, now) < HL_LOSS_MAX;
+        if (wp > cap / HL_CAP_PROPHET) wp = cap / HL_CAP_PROPHET;
+        if (wc > HL_PRIESTS) wc = HL_PRIESTS;
+        if (wc < 1) wc = 1;
+        int want_c = npri < wc && hl_lost(h, 1, now) < HL_LOSS_MAX;
         int type = npro < wp && hl_lost(h, 0, now) < HL_LOSS_MAX ? UT(PROPHET) : want_c ? UT(PRIEST) : 0;
         if (type == UT(PROPHET) && hl_cost(pl, HLP_QUAKE) < 0) type = want_c ? UT(PRIEST) : 0;   // no powers for it
         const int *stock = player_stock_at(pl);
