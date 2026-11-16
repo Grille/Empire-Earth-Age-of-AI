@@ -93,3 +93,17 @@ internal inline int patch_asg_queue_pop(thunk_fn thunk, int *of) {
     return patch_calls(sites, 2, data_attack_fn_asg_queue_pop, (void *)thunk, of);
 }
 internal inline uintptr_t game_asg_queue_pop(void) { return data_attack_fn_asg_queue_pop; }
+// the scenario's military targets (EECPCombatManager.attack_targets_begin, defend_targets_begin): how many of the
+// one or the other, the i-th (records of size_eecpag_task in place)
+internal inline uint8_t *combat_mgr_targets(const ee_combat_mgr *cm, int defend, uint8_t **end) {
+    *end = (uint8_t *)(defend ? combat_mgr_get_defend_targets_end(cm) : combat_mgr_get_attack_targets_end(cm));
+    return (uint8_t *)(defend ? combat_mgr_get_defend_targets_begin(cm) : combat_mgr_get_attack_targets_begin(cm));
+}
+internal inline int combat_mgr_target_count(const ee_combat_mgr *cm, int defend) {
+    uint8_t *e, *b = combat_mgr_targets(cm, defend, &e);
+    return b && e > b && (size_t)(e - b) < 4096u * size_eecpag_task ? (int)((size_t)(e - b) / size_eecpag_task) : 0;
+}
+internal inline ee_task *combat_mgr_target(const ee_combat_mgr *cm, int defend, int i) {
+    uint8_t *e, *b = combat_mgr_targets(cm, defend, &e);
+    return (ee_task *)(b + (size_t)i * size_eecpag_task);
+}

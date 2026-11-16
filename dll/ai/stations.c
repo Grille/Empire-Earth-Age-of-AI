@@ -114,6 +114,19 @@ internal int sn_need_at(unsigned idx, ivec2 *at) { *at = g_sn[idx & 15].need_at;
 #define SN_STUCK_AT 14          // ... and further from it than this (tiles): at it, it fights
 #define SN_STUCK_WALL 12        // the enemy wall to breach then: within this of its soldiers
 #define SN_STUCK_WAIT 600000    // none: before that territory pushes again
+// A SCENARIO'S TARGETS (scen_targets.c: the trigger Modify AI Military Target's lists): an attack target's territory is where
+// a push goes first, at the target (a unit's tile, an area's point; an area reached - SN_TARGET_AT - is pushed as any
+// other: its buildings, or the ground held), and of the neighbours of a territory that may push the one nearest an
+// attack target is taken when none holds one - the way there; a defend target's territory has at least SN_DEFEND
+// percent of the main force (shared by the defend targets), from the territories with the largest shares
+#define SN_TARGETS 32
+#define SN_TARGET_AT 8
+#define SN_DEFEND 40
+// the first attack target in territory r (-1 none)
+internal int sn_target_in(const struct scen_target *st, int nst, int r) {
+    for (int i = 0; i < nst; i++) if (!st[i].defend && ter_near(st[i].at.x, st[i].at.y) == (unsigned)r) return i;
+    return -1;
+}
 internal int sn_way(ee_player *pl, unsigned idx, ivec2 from, ivec2 to, ivec2 *wall, int *round_, int *straight, uint32_t now) {
     static int path[65536];
     ee_map *map = game_map();
@@ -263,6 +276,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     z->t = now ? now : 1;
     int n = s->n < PR_T ? s->n : PR_T;
     if (!n || s->version != g_ter.version) return;
+    static struct scen_target stg[SN_TARGETS];
+    int nst = scen_targets(pl, stg, SN_TARGETS), nat = 0;
+    for (int i = 0; i < nst; i++) nat += !stg[i].defend;
     // its units: the soldiers with their stations, a place to stand in each territory, the territories it has stood in
     int on = z->n, nn = 0, count = 0, neb = 0;
     memcpy(old, z->m, (size_t)on * sizeof *old);
@@ -318,6 +334,22 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         int v = (g_pr_share[idx][r] * np[SNP_MAIN] + 500) / 1000, was = z->tc[r], band = was * SN_BAND > SN_BAND_MIN ? was * SN_BAND : SN_BAND_MIN;
         if (v && was && abs(v - was) < band && !(s->t[r].foe > 0 && s->t[r].role != TVR_NONE)) v = was;
         tc[r] = v; z->tc[r] = (short)(v > 32767 ? 32767 : v);
+    }
+    if (nst > nat) {   // A SCENARIO'S TARGETS: a defend target's share
+        static uint8_t dfl[PR_T];
+        memset(dfl, 0, (size_t)n);
+        for (int i = 0; i < nst; i++) { unsigned dr = ter_near(stg[i].at.x, stg[i].at.y); if (stg[i].defend && dr < (unsigned)n) dfl[dr] = 1; }
+        for (int i = 0; i < nst; i++) {
+            unsigned dr = ter_near(stg[i].at.x, stg[i].at.y);
+            if (!stg[i].defend || dr >= (unsigned)n || g_ter.t[dr].water) continue;
+            int want = np[SNP_MAIN] * SN_DEFEND / 100 / (nst - nat), guard = 0;
+            while (tc[dr] < want && guard++ < 4096) {
+                int b = -1;
+                for (int r = 0; r < n; r++) if (!dfl[r] && tc[r] > 0 && (b < 0 || tc[r] > tc[b])) b = r;
+                if (b < 0) break;
+                tc[b]--; tc[dr]++;
+            }
+        }
     }
     for (int r = 0; r < n; r++) {
         if (tc[r] <= 0 || tc[r] >= SN_MIN || (s->t[r].foe > 0 && s->t[r].role != TVR_NONE)) continue;
@@ -391,9 +423,17 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             int d = ivec2_dist2(eb[e].p, mid);
             if (bi < 0 || d < bd) { bi = e; bd = d; }
         }
+        int ti = sn_target_in(stg, nst, p->into);   // A SCENARIO'S TARGET there: what it goes at first
+        if (ti >= 0 && !stg[ti].u && ivec2_dist2(mid, stg[ti].at) <= SN_TARGET_AT * SN_TARGET_AT) ti = -1;   // an area reached
         const char *end = NULL;
         float ratio = 0;
         if (!cn) end = "nobody left";
+        else if (ti >= 0) {
+            stage_foe(pl, stg[ti].at);
+            ratio = st_ratio(&g_sn_own, &g_sgs_foe);
+            if (ratio < SN_BACK) { end = "losing (at the scenario's target)"; z->lost++; }
+            else { p->at = stg[ti].at; p->hold_t = 0; }
+        }
         else if (bi < 0) {
             // THE CLEARED GROUND (the player 2026-11-15: "the claiming proccess needs some work, right now the army comes,
             // clears evrething and than leaves. leaving the citezens alone to build their tower"): with no building left
@@ -481,6 +521,22 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
             if (o < (unsigned)n && !g_ter.t[o].water && s->t[o].ebld && (into < 0 || s->t[o].ebld > s->t[into].ebld)) into = (int)o;
         }
+        int ti = -1;   // A SCENARIO'S TARGETS: a neighbour with an attack target first, else the enemy's nearest one
+        for (int k = 0; k < g_ter.t[r].nbn && nat && ti < 0; k++) {
+            unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            if (o < (unsigned)n && !g_ter.t[o].water && (ti = sn_target_in(stg, nst, (int)o)) >= 0) into = (int)o;
+        }
+        if (nat && ti < 0 && into >= 0) {
+            long best = -1;
+            for (int k = 0; k < g_ter.t[r].nbn; k++) {
+                unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
+                if (o >= (unsigned)n || g_ter.t[o].water || !s->t[o].ebld) continue;
+                for (int i = 0; i < nst; i++) {
+                    long d = stg[i].defend ? -1 : ivec2_dist2(g_ter.t[o].c, stg[i].at);
+                    if (d >= 0 && (best < 0 || d < best)) { best = d; into = (int)o; }
+                }
+            }
+        }
         if (into < 0) continue;
         for (int e = 0; e < neb; e++) {
             if (eb[e].ter != into) continue;
@@ -492,7 +548,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         // which the view counts (territories.c ebld) and a push does not know; no push started again in 20 minutes):
         // an enemy territory with no building it sees or remembers is pushed into all the same, at its middle - there
         // its soldiers see what stands, and the push goes on at that, or holds the ground as cleared.
-        ivec2 aim = bi >= 0 ? eb[bi].p : g_ter.t[into].c;
+        ivec2 aim = ti >= 0 ? stg[ti].at : bi >= 0 ? eb[bi].p : g_ter.t[into].c;
         st_side_clear(&g_sn_own);
         for (int i = 0; i < nn; i++) {
             if (z->m[i].ter != r || z->m[i].scout || z->m[i].pool == SNP_AA) continue;
@@ -540,8 +596,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         struct sn_push *p = &z->push[slot];
         p->on = 1; p->from = (short)r; p->into = (short)into; p->at = aim; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
         z->pushes++;
-        if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the building at %d,%d, judged %.2f (enemy there: %d)\n",
-                              idx, now / 60000.0, r, into, cn, p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
+        if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the %s at %d,%d, judged %.2f (enemy there: %d)\n",
+                              idx, now / 60000.0, r, into, cn, ti >= 0 ? "scenario's target" : "building", p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
     }
     // SCOUTS
     int unseen = 0;

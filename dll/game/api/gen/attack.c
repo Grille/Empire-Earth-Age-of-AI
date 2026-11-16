@@ -25,6 +25,26 @@ internal inline void attack_group_buy_improvements(ee_attack_group *attack_group
 
 // class EECPCombatManager (ee_combat_mgr)
 // the AI's combat manager, player +0xB8C (EECPCombatManager)
+// the scenario's defend targets, EECPAGTask records of 0x34 bytes in place (the vector object at +0x10: its
+// append 0x472DDF; the trigger Modify AI Military Target 0x5AC03F, AoC 0x5BC333, adds through add_defend_target,
+// removes by area 0x4718BA or by unit 0x4716F9): a unit (target_unit) or an AI area (location.unit_id the area's
+// id, its tile none until EECPILocation.resolve). 0x470160 picks among them. add_defend_target appends to +0x10,
+// add_attack_target to +0x20 (their code: lea ecx at the call of 0x472DDF, both builds)
+internal inline ee_task *combat_mgr_get_defend_targets_begin(const ee_combat_mgr *o) { return *(ee_task **)((uint8_t *)o + of_combat_mgr_defend_targets_begin); }
+internal inline void combat_mgr_set_defend_targets_begin(ee_combat_mgr *o, ee_task *v) { *(ee_task **)((uint8_t *)o + of_combat_mgr_defend_targets_begin) = v; }
+internal inline ee_task **combat_mgr_defend_targets_begin_at(const ee_combat_mgr *o) { return (ee_task **)((uint8_t *)o + of_combat_mgr_defend_targets_begin); }
+// the end of defend_targets_begin's records
+internal inline ee_task *combat_mgr_get_defend_targets_end(const ee_combat_mgr *o) { return *(ee_task **)((uint8_t *)o + of_combat_mgr_defend_targets_end); }
+internal inline void combat_mgr_set_defend_targets_end(ee_combat_mgr *o, ee_task *v) { *(ee_task **)((uint8_t *)o + of_combat_mgr_defend_targets_end) = v; }
+internal inline ee_task **combat_mgr_defend_targets_end_at(const ee_combat_mgr *o) { return (ee_task **)((uint8_t *)o + of_combat_mgr_defend_targets_end); }
+// the scenario's attack targets, the same records (the vector object at +0x20; add_attack_target)
+internal inline ee_task *combat_mgr_get_attack_targets_begin(const ee_combat_mgr *o) { return *(ee_task **)((uint8_t *)o + of_combat_mgr_attack_targets_begin); }
+internal inline void combat_mgr_set_attack_targets_begin(ee_combat_mgr *o, ee_task *v) { *(ee_task **)((uint8_t *)o + of_combat_mgr_attack_targets_begin) = v; }
+internal inline ee_task **combat_mgr_attack_targets_begin_at(const ee_combat_mgr *o) { return (ee_task **)((uint8_t *)o + of_combat_mgr_attack_targets_begin); }
+// the end of attack_targets_begin's records
+internal inline ee_task *combat_mgr_get_attack_targets_end(const ee_combat_mgr *o) { return *(ee_task **)((uint8_t *)o + of_combat_mgr_attack_targets_end); }
+internal inline void combat_mgr_set_attack_targets_end(ee_combat_mgr *o, ee_task *v) { *(ee_task **)((uint8_t *)o + of_combat_mgr_attack_targets_end) = v; }
+internal inline ee_task **combat_mgr_attack_targets_end_at(const ee_combat_mgr *o) { return (ee_task **)((uint8_t *)o + of_combat_mgr_attack_targets_end); }
 // its player: revenge 0x46FFB7 reads its out, stance and chat, 0x471F29 its active toggle
 internal inline ee_player *combat_mgr_get_player(const ee_combat_mgr *o) { return *(ee_player **)((uint8_t *)o + of_combat_mgr_player); }
 internal inline void combat_mgr_set_player(ee_combat_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_combat_mgr_player) = v; }
@@ -45,6 +65,17 @@ internal inline char combat_mgr_attack_plan_ok(ee_combat_mgr *combat_mgr, void *
 typedef void (__thiscall *combat_mgr_revenge_fn)(ee_combat_mgr *, ee_player *);
 internal combat_mgr_revenge_fn fn_combat_mgr_revenge;
 internal inline void combat_mgr_revenge(ee_combat_mgr *combat_mgr, ee_player *target) { fn_combat_mgr_revenge(combat_mgr, target); }
+// thiscall(cm, unit id, area id): a scenario attack target added to attack_targets_begin - the unit (by its id,
+// the serial: unit_by_id; 0 or -1: none) or else the AI area; called only by the trigger Modify AI Military
+// Target (attack, add; 0x5AC2A4, AoC 0x5BC598)
+typedef void (__thiscall *combat_mgr_add_attack_target_fn)(ee_combat_mgr *, uint32_t, int);
+internal combat_mgr_add_attack_target_fn fn_combat_mgr_add_attack_target;
+internal inline void combat_mgr_add_attack_target(ee_combat_mgr *combat_mgr, uint32_t unit_id, int area) { fn_combat_mgr_add_attack_target(combat_mgr, unit_id, area); }
+// thiscall(cm, unit id, area id): a scenario defend target added to defend_targets_begin, the same record;
+// called only by Modify AI Military Target (defend, add; 0x5AC2D9, AoC 0x5BC5CD)
+typedef void (__thiscall *combat_mgr_add_defend_target_fn)(ee_combat_mgr *, uint32_t, int);
+internal combat_mgr_add_defend_target_fn fn_combat_mgr_add_defend_target;
+internal inline void combat_mgr_add_defend_target(ee_combat_mgr *combat_mgr, uint32_t unit_id, int area) { fn_combat_mgr_add_defend_target(combat_mgr, unit_id, area); }
 // the unit (its state, unit +0x30) is one the commander may take: not held (ai_held), a type that fights
 // (0x470823), alive, not chained, moving. No group test: a member of an attack subgroup passes it (army.c
 // ou_members for that). The game's caller 0x471F29 (register_unit)
@@ -397,7 +428,8 @@ internal strategy_reset_fn fn_strategy_reset;
 internal inline void strategy_reset(ee_strategy *strategy) { fn_strategy_reset(strategy); }
 
 // class EECPAGTask (ee_task)
-// an attack task (EECPAGTask)
+// an attack task (EECPAGTask; 0x34 bytes: the combat manager's targets hold them in place, 0x46F289 builds one on
+// the stack from local_50 to the location after it)
 // where it heads (task_init constructs it there)
 internal inline ee_location *task_location_at(const ee_task *o) { return (ee_location *)((uint8_t *)o + of_task_location); }
 // the unit it attacks, referenced (saved as its id)
@@ -440,7 +472,7 @@ internal inline void task_set_target(ee_task *task, ee_unit *t) { fn_task_set_ta
 internal inline ivec2 location_get_tile(const ee_location *o) { return *(ivec2 *)((uint8_t *)o + of_location_tile); }
 internal inline void location_set_tile(ee_location *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_location_tile) = v; }
 internal inline ivec2 *location_tile_at(const ee_location *o) { return (ivec2 *)((uint8_t *)o + of_location_tile); }
-// the unit's id (0: a place)
+// the unit's id (0: a place); a scenario target's AI area: the area's id (EECPCombatManager.attack_targets_begin)
 internal inline int location_get_unit_id(const ee_location *o) { return *(int *)((uint8_t *)o + of_location_unit_id); }
 internal inline void location_set_unit_id(ee_location *o, int v) { *(int *)((uint8_t *)o + of_location_unit_id) = v; }
 internal inline int *location_unit_id_at(const ee_location *o) { return (int *)((uint8_t *)o + of_location_unit_id); }
@@ -454,6 +486,11 @@ internal inline void location_init(ee_location *location) { fn_location_init(loc
 typedef void (__thiscall *location_set_fn)(ee_location *, ee_location *);
 internal location_set_fn fn_location_set;
 internal inline void location_set(ee_location *location, ee_location *from) { fn_location_set(location, from); }
+// 1 when it has a tile: with none and an AI area's id in unit_id (a scenario target's), the tile from the area
+// (0x4111F6 finds the EEAIArea by its id, its vf8 the point) written into tile
+typedef char (__thiscall *location_resolve_fn)(ee_location *);
+internal location_resolve_fn fn_location_resolve;
+internal inline char location_resolve(ee_location *location) { return fn_location_resolve(location); }
 // a player's index in the world's players: 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load
 // (0x47C5F9 / 0x47C680) write it as unit_id, 0x47C6CC looks the player up by it to find its town at the tile (the
 // AoC decompilation: mPlayer)
@@ -511,12 +548,18 @@ internal int spec_attack_select(int build) {
         of_attack_group_target_unit = 0x44;
         of_attack_group_target = 0x48;
         fn_attack_group_buy_improvements = (attack_group_buy_improvements_fn)0x0045720D;
+        of_combat_mgr_defend_targets_begin = 0x14;
+        of_combat_mgr_defend_targets_end = 0x18;
+        of_combat_mgr_attack_targets_begin = 0x24;
+        of_combat_mgr_attack_targets_end = 0x28;
         of_combat_mgr_player = 0x44;
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
         of_combat_mgr_att_62 = 0x62;
         fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047067A;
         fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x0046FFB7;
+        fn_combat_mgr_add_attack_target = (combat_mgr_add_attack_target_fn)0x0046F289;
+        fn_combat_mgr_add_defend_target = (combat_mgr_add_defend_target_fn)0x0046F3A6;
         fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x004707D8;
         fn_combat_mgr_register_unit = (combat_mgr_register_unit_fn)0x00471F29;
         fn_combat_mgr_unregister_unit = (combat_mgr_unregister_unit_fn)0x00471F8E;
@@ -599,6 +642,7 @@ internal int spec_attack_select(int build) {
         fn_strategy_free = (strategy_free_fn)0x00473C99;
         fn_strategy_reset = (strategy_reset_fn)0x00473CA7;
         vt_eecpag_task = 0x008265FC;
+        size_eecpag_task = 0x34;
         of_task_location = 0x4;
         of_task_target_unit = 0x1C;
         of_task_target_player = 0x20;
@@ -616,6 +660,7 @@ internal int spec_attack_select(int build) {
         of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x0047C4E8;
         fn_location_set = (location_set_fn)0x0047C8B7;
+        fn_location_resolve = (location_resolve_fn)0x0047C537;
         of_location_player = 0x14;
         data_attack_asgu_vtables[0] = 0x00827844;
         data_attack_asgu_vtables[1] = 0x008253C0;
@@ -657,12 +702,18 @@ internal int spec_attack_select(int build) {
         of_attack_group_target_unit = 0x44;
         of_attack_group_target = 0x48;
         fn_attack_group_buy_improvements = (attack_group_buy_improvements_fn)0x00458B2E;
+        of_combat_mgr_defend_targets_begin = 0x14;
+        of_combat_mgr_defend_targets_end = 0x18;
+        of_combat_mgr_attack_targets_begin = 0x24;
+        of_combat_mgr_attack_targets_end = 0x28;
         of_combat_mgr_player = 0x44;
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
         of_combat_mgr_att_62 = 0x62;
         fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047360A;
         fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x00472EC3;
+        fn_combat_mgr_add_attack_target = (combat_mgr_add_attack_target_fn)0x00471F16;
+        fn_combat_mgr_add_defend_target = (combat_mgr_add_defend_target_fn)0x0047203A;
         fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x0047377E;
         fn_combat_mgr_register_unit = (combat_mgr_register_unit_fn)0x00474FD8;
         fn_combat_mgr_unregister_unit = (combat_mgr_unregister_unit_fn)0x00475047;
@@ -745,6 +796,7 @@ internal int spec_attack_select(int build) {
         fn_strategy_free = (strategy_free_fn)0x0047716D;
         fn_strategy_reset = (strategy_reset_fn)0x0047717B;
         vt_eecpag_task = 0x0083A6C0;
+        size_eecpag_task = 0x34;
         of_task_location = 0x4;
         of_task_target_unit = 0x1C;
         of_task_target_player = 0x20;
@@ -762,6 +814,7 @@ internal int spec_attack_select(int build) {
         of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x00480873;
         fn_location_set = (location_set_fn)0x00480C42;
+        fn_location_resolve = (location_resolve_fn)0x004808C2;
         of_location_player = 0x14;
         data_attack_asgu_vtables[0] = 0x0083BF4C;
         data_attack_asgu_vtables[1] = 0x0083936C;
@@ -809,6 +862,8 @@ internal int spec_attack_check(void) {
     bad += spec_code((uintptr_t)fn_attack_group_buy_improvements, "EECPAttackGroup.buy_improvements");
     bad += spec_code((uintptr_t)fn_combat_mgr_attack_plan_ok, "EECPCombatManager.attack_plan_ok");
     bad += spec_code((uintptr_t)fn_combat_mgr_revenge, "EECPCombatManager.revenge");
+    bad += spec_code((uintptr_t)fn_combat_mgr_add_attack_target, "EECPCombatManager.add_attack_target");
+    bad += spec_code((uintptr_t)fn_combat_mgr_add_defend_target, "EECPCombatManager.add_defend_target");
     bad += spec_code((uintptr_t)fn_combat_mgr_unit_free, "EECPCombatManager.unit_free");
     bad += spec_code((uintptr_t)fn_combat_mgr_register_unit, "EECPCombatManager.register_unit");
     bad += spec_code((uintptr_t)fn_combat_mgr_unregister_unit, "EECPCombatManager.unregister_unit");
@@ -840,6 +895,7 @@ internal int spec_attack_check(void) {
     bad += spec_vtable(vt_eecpi_location, ".?AVEECPILocation@@", "EECPILocation [vtable]");
     bad += spec_code((uintptr_t)fn_location_init, "EECPILocation.init");
     bad += spec_code((uintptr_t)fn_location_set, "EECPILocation.set");
+    bad += spec_code((uintptr_t)fn_location_resolve, "EECPILocation.resolve");
     bad += spec_data(data_attack_asgu_vtables[0], "attack.asgu_vtables 0");
     bad += spec_data(data_attack_asgu_vtables[1], "attack.asgu_vtables 1");
     bad += spec_data(data_attack_asgu_vtables[2], "attack.asgu_vtables 2");

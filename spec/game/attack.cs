@@ -26,6 +26,26 @@ unsafe struct EECPAttackGroup
 [c_type("ee_combat_mgr")]
 unsafe struct EECPCombatManager
 {
+    /// the scenario's defend targets, EECPAGTask records of 0x34 bytes in place (the vector object at +0x10: its
+    /// append 0x472DDF; the trigger Modify AI Military Target 0x5AC03F, AoC 0x5BC333, adds through add_defend_target,
+    /// removes by area 0x4718BA or by unit 0x4716F9): a unit (target_unit) or an AI area (location.unit_id the area's
+    /// id, its tile none until EECPILocation.resolve). 0x470160 picks among them. add_defend_target appends to +0x10,
+    /// add_attack_target to +0x20 (their code: lea ecx at the call of 0x472DDF, both builds)
+    [offset(0x14), found(c)]
+    EECPAGTask* defend_targets_begin;
+
+    /// the end of defend_targets_begin's records
+    [offset(0x18), found(c)]
+    EECPAGTask* defend_targets_end;
+
+    /// the scenario's attack targets, the same records (the vector object at +0x20; add_attack_target)
+    [offset(0x24), found(c)]
+    EECPAGTask* attack_targets_begin;
+
+    /// the end of attack_targets_begin's records
+    [offset(0x28), found(c)]
+    EECPAGTask* attack_targets_end;
+
     /// its player: revenge 0x46FFB7 reads its out, stance and chat, 0x471F29 its active toggle
     [offset(0x44), found(c)]
     EEPlayer* player;
@@ -45,6 +65,17 @@ unsafe struct EECPCombatManager
 
     [address((ee)0x0046FFB7, (aoc)0x00472EC3)]
     extern void revenge(EEPlayer* target);
+
+    /// thiscall(cm, unit id, area id): a scenario attack target added to attack_targets_begin - the unit (by its id,
+    /// the serial: unit_by_id; 0 or -1: none) or else the AI area; called only by the trigger Modify AI Military
+    /// Target (attack, add; 0x5AC2A4, AoC 0x5BC598)
+    [address((ee)0x0046F289, (aoc)0x00471F16)]
+    extern void add_attack_target(uint32 unit_id, int32 area);
+
+    /// thiscall(cm, unit id, area id): a scenario defend target added to defend_targets_begin, the same record;
+    /// called only by Modify AI Military Target (defend, add; 0x5AC2D9, AoC 0x5BC5CD)
+    [address((ee)0x0046F3A6, (aoc)0x0047203A)]
+    extern void add_defend_target(uint32 unit_id, int32 area);
 
     /// the unit (its state, unit +0x30) is one the commander may take: not held (ai_held), a type that fights
     /// (0x470823), alive, not chained, moving. No group test: a member of an attack subgroup passes it (army.c
@@ -410,8 +441,9 @@ unsafe struct EECPCombatStrategy
     extern void reset();
 }
 
-/// an attack task (EECPAGTask)
-[c_type("ee_task"), vtable((ee)0x008265FC, (aoc)0x0083A6C0)]
+/// an attack task (EECPAGTask; 0x34 bytes: the combat manager's targets hold them in place, 0x46F289 builds one on
+/// the stack from local_50 to the location after it)
+[c_type("ee_task"), size(0x34), vtable((ee)0x008265FC, (aoc)0x0083A6C0)]
 unsafe struct EECPAGTask
 {
     /// where it heads (task_init constructs it there)
@@ -459,7 +491,7 @@ unsafe struct EECPILocation
     [offset(0x4), found(c)]
     ivec2 tile;
 
-    /// the unit's id (0: a place)
+    /// the unit's id (0: a place); a scenario target's AI area: the area's id (EECPCombatManager.attack_targets_begin)
     [offset(0xC), found(c)]
     int32 unit_id;
 
@@ -472,6 +504,11 @@ unsafe struct EECPILocation
 
     [address((ee)0x0047C8B7, (aoc)0x00480C42)]
     extern void set(EECPILocation* from);
+
+    /// 1 when it has a tile: with none and an AI area's id in unit_id (a scenario target's), the tile from the area
+    /// (0x4111F6 finds the EEAIArea by its id, its vf8 the point) written into tile
+    [address((ee)0x0047C537, (aoc)0x004808C2)]
+    extern char8 resolve();
 
     /// a player's index in the world's players: 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load
     /// (0x47C5F9 / 0x47C680) write it as unit_id, 0x47C6CC looks the player up by it to find its town at the tile (the

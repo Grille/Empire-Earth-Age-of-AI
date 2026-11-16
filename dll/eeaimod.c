@@ -495,6 +495,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/produce.c"       // production by territory: which production building, in which territory (build.c lays it)
 #include "ai/build.c"         // building by territory: fields, a Settlement and a tower by every mine - the same
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
+#include "ai/scen_targets.c"   // a scenario's attack and defend targets (the trigger Modify AI Military Target)
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
