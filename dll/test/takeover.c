@@ -1,15 +1,16 @@
 // THE TAKEOVER (the player 2026-11-16: "can you add a command to hand the human player to an ai? even change its colors
 // and select a personalithy? its for quick skirmish ai tests witout having to setup a playerless scenario every
-// time"; the hard way by his choice: a real computer player made in the running game). `handover [personality]
-// [colour]`, from the pipe or the chat (`> handover fuchs 3`): a computer player is made in the first free slot as
+// time"; the hard way by the player's choice: a real computer player made in the running game). `handover
+// [personality]`, from the pipe or the chat (`> handover fuchs`): a computer player is made in the first free slot as
 // the game start makes one (EEComputerPlayer.construct, set_color, the world's set_player and count; the parts sized
 // by the players' count made anew: the map's sight counts, the influence table, the AI's turns), takes the human's
 // epoch, techs, improvements, stock and stances, then every unit and building of the human's (unit_give, the units
 // that walk first: the AI's build manager takes its base from its first one), and its AI starts (ai_start). The human
 // stays in the game as an observer - no fog, godmode on, allied to the new player - and is kept in: the victory
 // check would put out a player without objects, and end the game with no human left (victory_check: its objects
-// raised to 1 for the check). The new player is one of the mod's AIs from its first turn (persona_assign: the
-// personality named here, else one as at a game start). Single player only; a save after it is not tested.
+// raised to 1 for the check). The new player is one of the mod's AIs from the start, its personality the one named
+// here, else one as at a game start, and its colour by that personality's as at a game start (the human's own counts
+// as free). Single player only; a save after it is not tested.
 internal int g_ho_human = -1;   // the player handed over (kept in), -1 none
 internal int g_ho_ai = -1;      // the computer player it was handed to
 internal world_victory_check_fn g_ho_victory;
@@ -60,14 +61,18 @@ internal void takeover_tick(ee_player *pl) {
     }
 }
 
-internal int persona_find(const char *file);
-internal void persona_apply(ee_player *pl, unsigned idx, int pick);
 internal void cmd_godmode(char *out, const char *args);
+// a colour another player has - the human handed over (skip) not counted
+internal int ho_colour_taken(const float *k, unsigned skip) {
+    for (unsigned i = 1; k && i < game_player_count(); i++) {
+        const float *q = i != skip && game_players()[i] ? (const float *)player_color_at(game_players()[i]) : NULL;
+        if (q && q[0] == k[0] && q[1] == k[1] && q[2] == k[2]) return 1;
+    }
+    return !k;
+}
 internal void cmd_handover(char *out, const char *args) {
     char who[64] = "";
-    int colour = -1;
-    sscanf(args, "%63s %d", who, &colour);
-    if (who[0] >= '0' && who[0] <= '9' && colour < 0) { colour = atoi(who); who[0] = 0; }   // handover 3: a colour alone
+    sscanf(args, "%63s", who);
     if (g_mp) { REPLY("error: not in a multiplayer game\n"); return; }
     unsigned hi = local_player_index(), n = game_player_count();
     ee_player *h = hi < n ? game_players()[hi] : NULL;
@@ -76,18 +81,20 @@ internal void cmd_handover(char *out, const char *args) {
     if (n >= 16) { REPLY("error: no free player slot\n"); return; }
     int pick = who[0] ? persona_find(who) : -1;
     if (who[0] && pick < 0) { REPLY("error: no personality '%s'\n", who); return; }
-    // the colour: the one asked for, else the first no player has
+    // ITS PERSONALITY first (the one named, else one as at a game start: the least used so far), then ITS COLOUR as the
+    // game start gives an AI's (persona_new_game): its personality's favoured colours, the first no player has, else
+    // the human's own - free now (the player 2026-11-16: "the ai should try to pick its color based on its own rules,
+    // you can also consider the player color as freed for this since it wont display anywhere important")
+    if (pick < 0 && g_npersonas) { pick = persona_random(); if (pick >= 0) g_persona_used[pick]++; }
+    struct pcolor fav[16];
+    int nfav = pick >= 0 ? persona_colors(&g_personas[pick], fav, 16) : 0;
+    const float *rgbp = NULL;
+    for (int k = 0; k < nfav && !rgbp; k++) if (!ho_colour_taken(pc_rgb(&fav[k]), hi)) rgbp = pc_rgb(&fav[k]);
+    if (!rgbp) rgbp = (const float *)player_color_at(h);
     float rgb[3];
-    if (colour < 0 || colour > 16) {
-        for (int c = 0; c <= 16 && colour < 0; c++) {
-            const float *k = (const float *)game_color_rgb((uint32_t)c);
-            int taken = 0;
-            for (unsigned i = 1; i < n; i++) { const float *q = game_players()[i] ? (const float *)player_color_at(game_players()[i]) : NULL; taken |= q && q[0] == k[0] && q[1] == k[1] && q[2] == k[2]; }
-            if (!taken) colour = c;
-        }
-        if (colour < 0) colour = 0;
-    }
-    memcpy(rgb, game_color_rgb((uint32_t)colour), sizeof rgb);
+    memcpy(rgb, rgbp, sizeof rgb);
+    int colour = -1;   // its index in the game's table, for the reply (-1 a personality's own colour)
+    for (int c = 0; c <= 16 && colour < 0; c++) { const float *k = (const float *)game_color_rgb((uint32_t)c); if (k[0] == rgb[0] && k[1] == rgb[1] && k[2] == rgb[2]) colour = c; }
     ee_world *w = game_state();
     unsigned in = 0;
     for (unsigned i = 1; i < n; i++) in += game_players()[i] && !player_get_out(game_players()[i]);
@@ -176,12 +183,12 @@ internal void cmd_handover(char *out, const char *args) {
     g_ho_human = (int)hi; g_ho_ai = (int)n;
     player_set_explore_all(h, 1);
     player_set_civ_chosen(h, 1);   // the skirmish's civ dialog no more: the observer has no civ to choose (the player 2026-11-16: "mark it checked with the handover")
-    if (pick >= 0) { persona_assign(p); persona_apply(p, n, pick); }   // assigned first (marked), then the one asked for
+    if (pick >= 0) { g_persona_assigned[n & 15] = 1; persona_apply(p, n, pick); }   // marked: its first turn assigns none
     takeover_tick(p);   // its pacing before its first turn (that turn's epoch plan had it held by follow)
     char gm[REPLY_CAP];
     gm[0] = 0;
     cmd_godmode(gm, "on");
     if (g_log) log_locked("# takeover: at %.1f min P%u handed over to the new computer player P%u (colour %d%s%s): %d units and buildings, %d techs, %d improvements, epoch %d\n",
-                          game_time() / 60000.0, hi, n, colour, pick >= 0 ? ", personality " : "", pick >= 0 ? who : "", given, techs, imps, tt ? tech_tree_get_epoch(tt) : -1);
-    REPLY("P%u handed over to the new computer player P%u (colour %d): %d units and buildings, %d techs, %d improvements; you watch with godmode\n", hi, n, colour, given, techs, imps);
+                          game_time() / 60000.0, hi, n, colour, pick >= 0 ? ", personality " : "", pick >= 0 ? g_personas[pick].file : "", given, techs, imps, tt ? tech_tree_get_epoch(tt) : -1);
+    REPLY("P%u handed over to the new computer player P%u (%s, colour %d): %d units and buildings, %d techs, %d improvements; you watch with godmode\n", hi, n, pick >= 0 ? g_personas[pick].file : "no personality", colour, given, techs, imps);
 }
