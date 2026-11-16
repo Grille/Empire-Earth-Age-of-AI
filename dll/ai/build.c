@@ -96,6 +96,35 @@ internal int bd_send(ee_player *pl, ee_unit *cit, ee_unit *building) {
     (*(void (__thiscall **)(void *, void *))(unit_type_get_vtable(td) + 0x74))(td, cit);
     return 1;
 }
+// AREA OF EFFECT (the player 2026-11-16: "placement of hospitals and temples is a bit wastefull right now ... overlapp
+// does nothing. they should have a minimum distance of their current area of affect"): the reach of its Hospital,
+// Temple or University now, in tiles from the middle - the game's circles for them (dbareaeffect's graphics: Hospital
+// Range 3 to 7, Temple Range 8 to 16, University Range 8 to 18) by the range upgrades it has researched: the techs
+// with an effect on the building itself of kind 2, attribute 0x28 (its area effect swapped for the next one; Temple
+// 2051 4060 6061 9060, Hospital 4008 7002 9010 12051, University 4006 6002 8012 10000 13005). 0: none of those.
+#define BD_AOE_ATTR 0x28
+internal int bd_reach(ee_player *pl, int type) {
+    int base = 0, step = 0;
+    if (type == UT(B_HOSPITAL)) { base = 3; step = 1; }
+    else if (type == UT(B_TEMPLE) || type == UT(B_UNIVERSITY)) { base = 8; step = 2; }
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    if (!base || !tt) return base;
+    int level = 0;
+    for (int id = 14; id < 15000; id++) {
+        ee_tech *t = tech_tree_lookup(tt, id);
+        ee_tech_data *d = t && tech_get_researched(t) ? tech_get_data(t) : NULL;
+        int ei = d ? tech_data_get_effects(d) : -1;
+        if (ei < 0 || ei > 0x5DC) continue;
+        ee_epoch_techs *list = epoch_tech_list(ei);
+        unsigned n = epoch_techs_get_count(list), *ids = epoch_techs_get_ids(list);
+        for (unsigned k = 0; ids && k < n && k < 64; k++) {
+            if (ids[k] >= 2000) continue;
+            ee_effect *ef = tech_effect(ids[k]);
+            if (effect_get_type(ef) == type && effect_get_kind(ef) == 2 && effect_get_attr(ef) == BD_AOE_ATTR) { level++; break; }
+        }
+    }
+    return base + step * level;
+}
 // the bank pays one of type with what is laid and not paid yet (com) left alone
 // A GRANARY BEFORE THE NEXT (garrison.c): 1 lay the next granary; 0 one of its has room inside - garrison.c is asked to
 // fill it instead. Asked for BD_GRAN_ASK without the room going (nobody near to send): laid all the same.
@@ -516,14 +545,22 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         kinds[nk++] = rb[1]; kinds[nk++] = rb[2]; kinds[nk++] = UT(B_AIRPORT);   // an Airport near the front: the planes' reach
         for (int k = 0; k < PR_NK; k++) kinds[nk++] = g_ut[PR_KINDS[k]];
         static uint8_t have[BD_SINK_T][3 + PR_NK];
-        int tn = s->n < BD_SINK_T ? s->n : BD_SINK_T, cnt = 0;
+        static ivec2 aoe_at[2][256], place[BD_SINK_T];   // AREA OF EFFECT: its Hospitals' and Temples' middles; each territory's place
+        int tn = s->n < BD_SINK_T ? s->n : BD_SINK_T, cnt = 0, naoe[2] = { 0, 0 }, reach[2] = { bd_reach(pl, kinds[0]), bd_reach(pl, kinds[1]) };
         memset(have, 0, (size_t)tn * sizeof *have);
         for (ee_unit *u = player_get_units(pl); u && cnt < 16384; u = unit_get_next(u), cnt++) {
             ee_unit_type *td = unit_get_type_data(u);
             if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
             unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
             for (int k = 0; r < (unsigned)tn && k < nk; k++) if (kinds[k] >= 0 && unit_type_get_id(td) == kinds[k] && have[r][k] < 255) have[r][k]++;
+            for (int k = 0; k < 2; k++)
+                if (kinds[k] >= 0 && unit_type_get_id(td) == kinds[k] && naoe[k] < 256) {
+                    int sz = unit_type_get_size(td);
+                    aoe_at[k][naoe[k]++] = iv2(unit_get_x(u) + sz / 2, unit_get_y(u) + sz / 2);
+                }
         }
+        for (int r = 0; r < tn; r++) place[r] = g_ter.t[r].c;
+        for (int j = 0; j < ncen; j++) { unsigned r = ter_near(centre[j].p.x, centre[j].p.y); if (r < (unsigned)tn) place[r] = centre[j].p; }
         // no quiet front territory with room: a production building in a quiet backland (the fronts of the player's
         // P4 were all under attack, 100,000 wood in the bank)
         int br = -1, bk = -1, bn = 0;
@@ -533,14 +570,23 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             for (int k = back ? 3 : 0; k < nk; k++) {
                 if (kinds[k] < 0 || have[r][k] >= (k == 2 ? 1 : BD_SINK_MAX) ||   // one Airport a territory (18 of one player's in the player's game)
                      !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
+                int covered = 0;   // AREA OF EFFECT: a Hospital or Temple of its already reaches the territory's place
+                for (int j = 0; k < 2 && j < naoe[k] && !covered; j++) covered = ivec2_dist2(aoe_at[k][j], place[r]) < reach[k] * reach[k];
+                if (covered) continue;
                 if (br < 0 || have[r][k] < bn) { br = r; bk = k; bn = have[r][k]; }
             }
         }
         if (br >= 0) {
-            ivec2 c = g_ter.t[br].c;
-            for (int j = 0; j < ncen; j++) if ((int)ter_near(centre[j].p.x, centre[j].p.y) == br) c = centre[j].p;
-            if (!raiders_near(pl, c, 12) && !wk_danger(idx, c) && bd_spot(pl, idx, kinds[bk], c, 3, 14, &at)) { type = kinds[bk]; what = "the wood sink: one more in a front territory"; b->sink_t = now ? now : 1; b->sinks++; }
-            else b->no_spot++;
+            ivec2 c = place[br];
+            int near_same = 0;
+            if (!raiders_near(pl, c, 12) && !wk_danger(idx, c) && bd_spot(pl, idx, kinds[bk], c, 3, 14, &at)) {
+                ee_unit_type *ktd = type_data(kinds[bk]);
+                int sz = ktd ? unit_type_get_size(ktd) : 0;
+                ivec2 mid = iv2(at.x + sz / 2, at.y + sz / 2);
+                for (int j = 0; bk < 2 && j < naoe[bk] && !near_same; j++) near_same = ivec2_dist2(aoe_at[bk][j], mid) < reach[bk] * reach[bk];   // AREA OF EFFECT: the spot itself too
+                if (!near_same) { type = kinds[bk]; what = "the wood sink: one more in a front territory"; b->sink_t = now ? now : 1; b->sinks++; }
+            }
+            if (!type) { b->no_spot++; if (near_same) b->sink_t = now ? now : 1; }   // too near its own: the next look in BD_SINK_EVERY
         }
     }
     if (type) {
