@@ -260,7 +260,7 @@ internal int sn_group_move(ee_player *pl, uint32_t *ids, int n, ivec2 from, ivec
     static __attribute__((aligned(8))) uint8_t mem[0x40];
     if (n <= 0) return 0;
     uint32_t *sel[3] = { NULL, ids, ids + n };
-    player_select(pl, sel);
+    msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     float x = (float)d.x + 0.5f, y = (float)d.y + 0.5f;
     path_msg_make((ee_path_msg *)mem, msg_as_begin(pl), x, y, 1, 0);
@@ -374,7 +374,7 @@ internal void sn_attack_msg(ee_player *pl, uint32_t id, ee_unit *target) {
     static __attribute__((aligned(8))) uint8_t mem[0x40];
     uint32_t ids[1] = { id };
     uint32_t *sel[3] = { NULL, ids, ids + 1 };
-    player_select(pl, sel);
+    msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     attack_msg_make((ee_attack_msg *)mem, msg_as_begin(pl), (unsigned)unit_get_serial(target), 0);
     msg_execute((ee_msg *)mem);

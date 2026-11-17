@@ -1280,6 +1280,15 @@ internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uin
 typedef void (__thiscall *ai_turns_rebuild_fn)(void *);
 internal ai_turns_rebuild_fn fn_ai_turns_rebuild;
 internal inline void ai_turns_rebuild(void *turns) { fn_ai_turns_rebuild(turns); }
+// thiscall char(?, gatherer): a computer player's gatherer far from its drop site (the step 0x60FDCA: its goal
+// Gather 0xFB5 / 0xFA7, the vf29 of its +0x18 false - not called for a human's, it seems) gets a Town Center laid near its work (player
+// dropoff_distance, build; can_build 0x2B) - and its first act clears its owner's selected_group, whatever it holds
+// (AoC 0x48FD38 the same: +0x9AC, its vf 0x18 count, 0x24 clear). Its object (+0x130 -> +0x4C its player) isn't
+// typed; the owner is the gatherer's
+typedef char (__thiscall *dropoff_check_fn)(void *, ee_unit *);
+internal dropoff_check_fn fn_dropoff_check;
+internal inline char dropoff_check(void *p1, ee_unit *gatherer) { return fn_dropoff_check(p1, gatherer); }
+internal inline int patch_dropoff_check(dropoff_check_fn h) { return patch_call(call_dropoff_check, (uintptr_t)fn_dropoff_check, (void *)h); }
 // cdecl char(player, type, x, y, w, h, 0)
 typedef char (__cdecl *can_place_game_fn)(void *, int, int, int, int, int, int);
 internal can_place_game_fn fn_can_place_game;
@@ -1624,6 +1633,8 @@ internal int spec_player_select(int build) {
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
         fn_ai_turns_rebuild = (ai_turns_rebuild_fn)0x0042F30A;
+        fn_dropoff_check = (dropoff_check_fn)0x0048B367;
+        call_dropoff_check = 0x0060FE16;
         fn_can_place_game = (can_place_game_fn)0x0062E940;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
         calls_place_building[0] = 0x004B3EE3;
@@ -1946,6 +1957,8 @@ internal int spec_player_select(int build) {
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
         fn_ai_turns_rebuild = (ai_turns_rebuild_fn)0x0042CD0E;
+        fn_dropoff_check = (dropoff_check_fn)0x0048FD38;
+        call_dropoff_check = 0x00622667;
         fn_can_place_game = (can_place_game_fn)0x00643CE6;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
         calls_place_building[0] = 0x004BBE04;
@@ -2019,6 +2032,8 @@ internal int spec_player_check(void) {
     bad += spec_code(data_player_panel_is_human_ret, "player.panel_is_human_ret");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
     bad += spec_code((uintptr_t)fn_ai_turns_rebuild, "player_functions.ai_turns_rebuild");
+    bad += spec_code((uintptr_t)fn_dropoff_check, "player_functions.dropoff_check");
+    bad += spec_call(call_dropoff_check, (uintptr_t)fn_dropoff_check, "player_functions.dropoff_check [call_site dropoff_check]");
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
     bad += spec_call(calls_place_building[0], (uintptr_t)fn_place_foundation, "player_functions.place_foundation [call_site place_building 0]");

@@ -1306,6 +1306,15 @@ static unsafe class player_functions
     [address((ee)0x0042F30A, (aoc)0x0042CD0E), thiscall]
     static extern void ai_turns_rebuild(void* turns);
 
+    /// thiscall char(?, gatherer): a computer player's gatherer far from its drop site (the step 0x60FDCA: its goal
+    /// Gather 0xFB5 / 0xFA7, the vf29 of its +0x18 false - not called for a human's, it seems) gets a Town Center laid near its work (player
+    /// dropoff_distance, build; can_build 0x2B) - and its first act clears its owner's selected_group, whatever it holds
+    /// (AoC 0x48FD38 the same: +0x9AC, its vf 0x18 count, 0x24 clear). Its object (+0x130 -> +0x4C its player) isn't
+    /// typed; the owner is the gatherer's
+    [address((ee)0x0048B367, (aoc)0x0048FD38), thiscall]
+    [call_site("dropoff_check", (ee)0x0060FE16, (aoc)0x00622667)]
+    static extern char8 dropoff_check(void* p1, EEUnit* gatherer);
+
     /// cdecl char(player, type, x, y, w, h, 0)
     [address((ee)0x0062E940, (aoc)0x00643CE6), cdecl]
     static extern char8 can_place_game(void* p1, int32 p2, int32 p3, int32 p4, int32 p5, int32 p6, int32 p7);

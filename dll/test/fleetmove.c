@@ -188,7 +188,7 @@ internal void cmd_fmove(char *out, const char *args) {
         }
         if (!qpl || !n) { REPLY("fmove: no order's units of P%d left\n", p); return; }
         uint32_t *sel[3] = { NULL, qids, qids + n };
-        player_select(qpl, sel);
+        msg_as_select(qpl, sel);
         memset(qmem, 0, sizeof qmem);
         path_msg_make((ee_path_msg *)qmem, msg_as_begin(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
         path_msg_set_facing((ee_path_msg *)qmem, atan2f(-((float)x + 0.5f - cx / (float)n), (float)y + 0.5f - cy / (float)n));
@@ -223,7 +223,7 @@ internal void cmd_fmove(char *out, const char *args) {
     if (g_fm_n == first) { REPLY("fmove: no units of P%d within %d of %d,%d\n", p, r, x, y); return; }
     if (add) { REPLY("fmove: %d units of P%d added\n", g_fm_n - first, p); return; }
     uint32_t *sel[3] = { NULL, ids + first, ids + g_fm_n };   // a select message's selection: its ids at +4 .. +8 (only the units just added)
-    player_select(pl, sel);
+    msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     g_fm_tx = (float)tx + 0.5f;
     g_fm_ty = (float)ty + 0.5f;

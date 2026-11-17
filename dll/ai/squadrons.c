@@ -182,7 +182,7 @@ internal void sq_move(ee_player *pl, struct sq *q, ivec2 p, int fight, uint32_t 
     ivec2 c = sq_center(q);
     for (int i = 0; i < q->n; i++) ids[i] = (uint32_t)unit_get_serial(q->u[i]);
     uint32_t *sel[3] = { NULL, ids, ids + q->n };
-    player_select(pl, sel);
+    msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     float x = (float)p.x + 0.5f, y = (float)p.y + 0.5f;
     path_msg_make((ee_path_msg *)mem, msg_as_begin(pl), x, y, 1, 0);

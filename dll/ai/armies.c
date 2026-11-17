@@ -899,7 +899,7 @@ internal int ar_group_move(ee_player *pl, struct armies_st *a, int which, ivec2 
     }
     if (!n) return 0;
     uint32_t *sel[3] = { NULL, ids, ids + n };
-    player_select(pl, sel);
+    msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     float x = (float)d.x + 0.5f, y = (float)d.y + 0.5f;
     path_msg_make((ee_path_msg *)mem, msg_as_begin(pl), x, y, 0, 0);

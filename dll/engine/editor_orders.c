@@ -106,7 +106,7 @@ internal int eo_kind(ee_player *pl, int citizen, ee_unit *t) {
 internal void eo_send(ee_player *pl, uint32_t *ids, int n, int kind, ee_unit *t, vec2 at, float face, int queued, int attack) {
     static __attribute__((aligned(8))) uint8_t mem[0x40];
     uint32_t *sel[3] = { NULL, ids, ids + n };   // a select message's selection: its ids at +4 .. +8
-    player_select(pl, sel);
+    msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     int from = msg_as_begin(pl);
     unsigned id = t ? (unsigned)unit_get_serial(t) : 0;

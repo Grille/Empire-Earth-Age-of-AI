@@ -131,7 +131,7 @@ internal void airbase_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (unit_get_x(u) >= 0 && unit_get_flight_ms(u) > 0) {   // in the air: rebased
             if (hk < 0 && !ours) continue;   // never seen in an Airport of its: a new one on its way out, a carrier's
             uint32_t id1 = (uint32_t)unit_get_serial(u), *sel[3] = { NULL, &id1, &id1 + 1 };
-            player_select(pl, sel);
+            msg_as_select(pl, sel);
             memset(mem, 0, sizeof mem);
             rebase_msg_make((ee_rebase_msg *)mem, msg_as_begin(pl), (unsigned)fser);
             rebase_msg_set_keep((ee_rebase_msg *)mem, (uint8_t)(ours ? 0 : 1));   // a sortie flies on and lands forward; one sent up for the move turns for it at once

@@ -1784,6 +1784,7 @@ internal uint32_t value_player_slot_cp_add_resource;
 internal uint32_t value_player_slot_cp_pay;
 internal uint32_t value_player_slot_player_human;
 internal uint32_t value_player_slot_unit_limit;
+internal uint32_t call_dropoff_check;
 internal uint32_t calls_place_building[2];
 internal uint32_t calls_selection_sound[2];
 

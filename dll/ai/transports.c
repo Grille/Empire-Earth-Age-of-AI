@@ -640,8 +640,9 @@ internal void cmd_transports(char *out, const char *args) {
                 if (tw_kind(tr[j]) == want && tw_kind(tr[j]) != TW_FORT && (!strcmp(what, "load") ? 1 : unit_count_inside(tr[j]) > 0)) sel1 = tr[j];
         for (int i = 0; i < nu; i++) ids[n++] = (uint32_t)unit_get_serial(us[i]);
         uint32_t *sel[3] = { NULL, ids, ids + n };   // a select message's selection: its ids at +4 .. +8
-        player_select(pl, sel);
+        msg_as_select(pl, sel);
         void *grp = player_get_selected_group(pl);
+        unsigned ingrp = grp ? group_count(grp) : 0;   // before msg_as_end gives this PC's selection back
         memset(mem, 0, sizeof mem);
         if (!strcmp(what, "load")) {   // as the click makes it: the clicked one, or the selection's first transport and the clicked one as its unit
             int same = !sel1 || sel1 == click || unit_get_type_data(sel1) == unit_get_type_data(click);
@@ -651,7 +652,7 @@ internal void cmd_transports(char *out, const char *args) {
             msg_as_end(pl);
         }
         else { ee_unload_msg *msg = (ee_unload_msg *)mem; unload_msg_make(msg, msg_as_begin(pl), x, y); hook_msg_unload(msg); msg_as_end(pl); }
-        REPLY("%s by P%d (this PC's P%u): %u selected, %u in the group;", what, p, local_player_index(), n, grp ? group_count(grp) : 0);
+        REPLY("%s by P%d (this PC's P%u): %u selected, %u in the group;", what, p, local_player_index(), n, ingrp);
         for (int k = 0; k < nt; k++) {
             const char *gn = tw_goal_name(unit_get_goal(tr[k]));
             REPLY(" %06x %.*s;", tw_id(tr[k]), tw_goal_len(gn), gn);

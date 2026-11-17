@@ -83,7 +83,34 @@ internal inline int msg_as_begin(ee_player *pl) {
     player_set_msg_id(pl, (int8_t)(0xE0 + player_get_index(pl)));
     return player_get_msg_id(pl);
 }
-internal inline void msg_as_end(ee_player *pl) { player_set_msg_id(pl, g_msg_as_was); }
+// THE PC'S SELECTION KEPT (the player 2026-11-17: "when selecting an unit from an unselected player, the unit often
+// loses focus after a second or two (no health bar or details pannel) i stay in the players view"): such an order is
+// the game's own on a selection of pl's, which msg_as_select puts in the place of pl's selection. Where pl is this PC's
+// player - godview's or playas' switch, the AI played as deciding on - that selection is what the player clicked: kept
+// there, given back at msg_as_end.
+#define MSG_SEL_KEEP 1024
+internal uint32_t g_msg_sel_kept[MSG_SEL_KEEP];
+internal int g_msg_sel_n = -1;   // -1: none kept
+internal ee_player *g_msg_sel_pl;
+internal inline void msg_as_select(ee_player *pl, void *sel) {
+    g_msg_sel_n = -1;
+    void *grp = pl && pl == game_players()[local_player_index()] ? player_get_selected_group(pl) : NULL;
+    if (grp) {
+        g_msg_sel_n = 0; g_msg_sel_pl = pl;
+        for (unsigned i = 0, n = group_count(grp); i < n && g_msg_sel_n < MSG_SEL_KEEP; i++) {
+            ee_unit *u = group_get(grp, i);
+            if (u) g_msg_sel_kept[g_msg_sel_n++] = (uint32_t)unit_get_serial(u);
+        }
+    }
+    player_select(pl, sel);
+}
+internal inline void msg_as_end(ee_player *pl) {
+    player_set_msg_id(pl, g_msg_as_was);
+    if (g_msg_sel_n < 0 || g_msg_sel_pl != pl) return;
+    uint32_t *sel[3] = { NULL, g_msg_sel_kept, g_msg_sel_kept + g_msg_sel_n };
+    g_msg_sel_n = -1;
+    player_select(pl, sel);
+}
 // the game start (EEMStartLoading): +0x14 the game's seed
 
 // FUNCTIONS

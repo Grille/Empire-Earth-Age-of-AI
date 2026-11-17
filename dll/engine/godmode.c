@@ -149,6 +149,35 @@ internal void __thiscall god_add_selected(ee_add_select_msg *m) { add_select_msg
 internal void __thiscall god_unselect_all(ee_unselect_msg *m) { unselect_msg_execute(m); god_deselected_by((ee_msg *)m); }
 internal void __thiscall god_toggle_selected(ee_toggle_select_msg *m) { toggle_select_msg_execute(m); god_deselected_by((ee_msg *)m); }
 
+// THE CLICKED SELECTION KEPT (the player 2026-11-17: "when selecting an unit from an unselected player, the unit often
+// loses focus after a second or two (no health bar or details pannel) i stay in the players view until i left click on
+// floor"): switched (godview, godmode, playas), the selection this PC clicked is that of the player played as, and that
+// player's computer part goes on. Its gatherers' step asks the game's drop-off check (dropoff_check, 0x48B367), whose
+// first act clears the owner's selection, whatever it holds - a click of P2's gone within a second or two in 4 of 4
+// tries (the group's clear hooked: called from 0x48B3FC). Around that call, for the player played as, its selection is
+// kept and given back. (The mod's own group orders keep it themselves - game/api/messages.c msg_as_select.)
+#define GOD_KEEP 1024
+internal unsigned g_god_kept;     // given back
+internal char __thiscall hook_dropoff_check(void *self, ee_unit *u) {
+    ee_player *o = u ? unit_get_owner(u) : NULL;
+    void *grp = o && playas_switched() && o == game_players()[local_player_index()] ? player_get_selected_group(o) : NULL;
+    if (!grp || !group_count(grp)) return dropoff_check(self, u);
+    static uint32_t keep[GOD_KEEP];
+    int n = 0;
+    for (unsigned i = 0, c = group_count(grp); i < c && n < GOD_KEEP; i++) {
+        ee_unit *k = group_get(grp, i);
+        if (k) keep[n++] = (uint32_t)unit_get_serial(k);
+    }
+    char r = dropoff_check(self, u);
+    grp = player_get_selected_group(o);
+    if (grp && (int)group_count(grp) != n) {
+        uint32_t *sel[3] = { NULL, keep, keep + n };
+        player_select(o, sel);
+        g_god_kept++;
+    }
+    return r;
+}
+
 // a click on a unit, carried out for its sender's player: in godmode, another player's unit makes its owner this PC's
 // player, and the click is sent again from it - the server's executor fills the selection panel (its buttons, the
 // building's queue) from the sender's selection after the Execute (0x4B0000's executor: FUN_005F92FF(selected group),
@@ -255,9 +284,9 @@ internal void god_cmd(char *out, const char *args, int mode) {
         REPLY("%s off: this PC plays as P%u\n", name, local_player_index());
         return;
     }
-    REPLY("%s (this PC plays as P%u; the panel asked %u times, told yes %u; orders dropped %u)\n",
+    REPLY("%s (this PC plays as P%u; the panel asked %u times, told yes %u; orders dropped %u; its selection given back %u times)\n",
           was == GOD_VIEW ? "godview on" : was ? "godmode on" : "godmode and godview off", local_player_index(),
-          g_god_asked, g_god_told, g_god_dropped);
+          g_god_asked, g_god_told, g_god_dropped, g_god_kept);
 }
 internal void cmd_godmode(char *out, const char *args) { god_cmd(out, args, GOD_CONTROL); }
 internal void cmd_godview(char *out, const char *args) { god_cmd(out, args, GOD_VIEW); }
@@ -290,9 +319,9 @@ internal void god_save_end(void) {
 }
 
 internal void godmode_install(void) {
-    int sel = patch_select_unit(hook_select_unit), panel = patch_cp_is_human(hook_cp_is_human);
+    int sel = patch_select_unit(hook_select_unit) && patch_dropoff_check(hook_dropoff_check), panel = patch_cp_is_human(hook_cp_is_human);
     int box = patch_select_units_execute(god_select_units) && patch_add_selected_execute(god_add_selected) &&
               patch_toggle_selected_execute(god_toggle_selected) && patch_unselect_all_execute(god_unselect_all);
     if (g_log && (!sel || !panel || !box))
-        fprintf(g_log, "# godmode: hooks FAILED (the click's selection %d, the panel's question %d, the box's selections %d)\n", sel, panel, box);
+        fprintf(g_log, "# godmode: hooks FAILED (the click's selection and the drop-off check %d, the panel's question %d, the box's selections %d)\n", sel, panel, box);
 }
