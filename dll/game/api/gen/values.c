@@ -3433,7 +3433,7 @@ internal uint32_t of_unit_hidden_flags;
 internal uint32_t vt_ee_complex_unit;
 internal uint32_t size_ee_complex_unit;
 internal uint32_t of_unit_queue_begin;
-internal uint32_t of_unit_unknown_60;
+internal uint32_t of_unit_build_queue_map_size;
 internal uint32_t of_unit_busy;
 internal uint32_t of_unit_inside;
 internal uint32_t of_unit_contacts;

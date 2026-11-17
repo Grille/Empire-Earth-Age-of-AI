@@ -215,13 +215,18 @@ unsafe struct EEComplexUnit
     [offset(0x4C), found(c)]
     int32* queue_begin;
 
-    /// (read by the lookup 0x4111F6) not known what it is - not a unit's id (named id before 2026-11-17): not unique, in
-    /// the player's game of that day a citizen and the dead transport whose memory it took both read 0, two soldiers
-    /// 8. A unit's id is its serial (+0x24, object_by_id); a pointer kept across steps is checked by the serial (the
-    /// AI's ferry took a citizen for its transport by this field)
+    /// THE CITIZEN'S BUILD QUEUE, a std::deque<EEUnit*> at +0x58 (the buildings a citizen is to build in turn: the
+    /// shift-queued foundations; the AoC decompilation's mCitizenBuildQueue, its PopBuildTarget 0x5FBF16): the
+    /// library's deque - allocator byte +0x58, block map +0x5C, the map's size +0x60, the front's index +0x64, the
+    /// count +0x68 (EE's own deque iterator 0x5F1BC6 reads a container's +4 / +8 so; the constructor 0x5E8394 zeroes
+    /// the four). The map's size: 0 until the queue is first used, then 8 and on (max(size / 2, 8) more each time it
+    /// grows) - no unit's id (named id until 2026-11-17, unknown_60 after: in the player's game of that day a new
+    /// citizen and the dead transport whose memory it took both read 0, two soldiers 8, and the AI's ferry took the
+    /// citizen for its transport by it). A unit's id is its serial (+0x24, object_by_id)
     [offset(0x60), found(c)]
-    int32 unknown_60;
+    int32 build_queue_map_size;
 
+    /// the citizen's build queue's count (above): buildings still queued for it - the mod's "busy" (a builder kept)
     [offset(0x68), found(c)]
     int32 busy;
 

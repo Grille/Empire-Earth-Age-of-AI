@@ -189,13 +189,18 @@ internal inline uint8_t *unit_hidden_flags_at(const ee_unit *o) { return (uint8_
 internal inline int *unit_get_queue_begin(const ee_unit *o) { return *(int **)((uint8_t *)o + of_unit_queue_begin); }
 internal inline void unit_set_queue_begin(ee_unit *o, int *v) { *(int **)((uint8_t *)o + of_unit_queue_begin) = v; }
 internal inline int **unit_queue_begin_at(const ee_unit *o) { return (int **)((uint8_t *)o + of_unit_queue_begin); }
-// (read by the lookup 0x4111F6) not known what it is - not a unit's id (named id before 2026-11-17): not unique, in
-// the player's game of that day a citizen and the dead transport whose memory it took both read 0, two soldiers
-// 8. A unit's id is its serial (+0x24, object_by_id); a pointer kept across steps is checked by the serial (the
-// AI's ferry took a citizen for its transport by this field)
-internal inline int unit_get_unknown_60(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_unknown_60); }
-internal inline void unit_set_unknown_60(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_unknown_60) = v; }
-internal inline int *unit_unknown_60_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_unknown_60); }
+// THE CITIZEN'S BUILD QUEUE, a std::deque<EEUnit*> at +0x58 (the buildings a citizen is to build in turn: the
+// shift-queued foundations; the AoC decompilation's mCitizenBuildQueue, its PopBuildTarget 0x5FBF16): the
+// library's deque - allocator byte +0x58, block map +0x5C, the map's size +0x60, the front's index +0x64, the
+// count +0x68 (EE's own deque iterator 0x5F1BC6 reads a container's +4 / +8 so; the constructor 0x5E8394 zeroes
+// the four). The map's size: 0 until the queue is first used, then 8 and on (max(size / 2, 8) more each time it
+// grows) - no unit's id (named id until 2026-11-17, unknown_60 after: in the player's game of that day a new
+// citizen and the dead transport whose memory it took both read 0, two soldiers 8, and the AI's ferry took the
+// citizen for its transport by it). A unit's id is its serial (+0x24, object_by_id)
+internal inline int unit_get_build_queue_map_size(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_build_queue_map_size); }
+internal inline void unit_set_build_queue_map_size(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_build_queue_map_size) = v; }
+internal inline int *unit_build_queue_map_size_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_build_queue_map_size); }
+// the citizen's build queue's count (above): buildings still queued for it - the mod's "busy" (a builder kept)
 internal inline int unit_get_busy(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_busy); }
 internal inline void unit_set_busy(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_busy) = v; }
 internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_busy); }
@@ -1179,7 +1184,7 @@ internal int spec_unit_select(int build) {
         vt_ee_complex_unit = 0x00831494;
         size_ee_complex_unit = 0x348;
         of_unit_queue_begin = 0x4C;
-        of_unit_unknown_60 = 0x60;
+        of_unit_build_queue_map_size = 0x60;
         of_unit_busy = 0x68;
         of_unit_inside = 0x70;
         of_unit_contacts = 0xC4;
@@ -1469,7 +1474,7 @@ internal int spec_unit_select(int build) {
         vt_ee_complex_unit = 0x00846DDC;
         size_ee_complex_unit = 0x364;
         of_unit_queue_begin = 0x4C;
-        of_unit_unknown_60 = 0x60;
+        of_unit_build_queue_map_size = 0x60;
         of_unit_busy = 0x68;
         of_unit_inside = 0x70;
         of_unit_contacts = 0xC4;

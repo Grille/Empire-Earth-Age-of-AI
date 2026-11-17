@@ -370,9 +370,9 @@ internal void convoy_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void convoy_new_game(void);
 
 // still the unit it was: by its serial (+0x24, the game's own id of a unit: its player in the top byte), never the
-// complex unit's +0x60 (spec: unknown_60, named id before), which isn't one - the player's game of 2026-11-17 died
-// when P3's transport was gone and its memory a citizen's: +0x60 0 on both, the citizen passed as the ferry's
-// transport and its load goal's start called through the transport class it hasn't (EEUGLoadTransport vf38,
+// complex unit's +0x60 (spec: build_queue_map_size, named id before), which isn't one - the player's game of
+// 2026-11-17 died when P3's transport was gone and its memory a citizen's: +0x60 0 on both, the citizen passed as the
+// ferry's transport and its load goal's start called through the transport class it hasn't (EEUGLoadTransport vf38,
 // 0x61496C); passengers read 8, 8 and 0
 internal int ex_alive(struct ex_unit *e, ee_player *pl) {
     ee_unit *u = e->u;
