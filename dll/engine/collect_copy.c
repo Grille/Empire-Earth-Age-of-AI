@@ -131,8 +131,10 @@ internal uint32_t *cp_seen_slot(ee_unit *u, int *found) {
     return &g_cp_seen[h].i;
 }
 
+// the health bars of the units inside: the holder its owner's or an ally's - in godview / godmode anyone's (godmode.c;
+// the player 2026-11-17: "it should always show the heaalth bars of the units in it like it does for own units")
 internal int uc_shows_bars(ee_unit *cu, ee_player *me) {
-    return unit_count_inside(cu) && (unit_get_owner(cu) == me || player_stance_to(unit_get_owner(cu), player_get_index(me)) == 0);
+    return unit_count_inside(cu) && (god_on() || unit_get_owner(cu) == me || player_stance_to(unit_get_owner(cu), player_get_index(me)) == 0);
 }
 internal ee_tile *uc_tile(ee_map *map, int x, int y) {
     uint32_t n = map_get_size(map);
