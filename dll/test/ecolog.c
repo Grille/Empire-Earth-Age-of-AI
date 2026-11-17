@@ -245,7 +245,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
             int t = unit_type_get_id(td), fam = unit_type_get_class_id(td), is_cit = is_citizen_type(t);
             if (!is_cit && !is_army_family(fam)) continue;
-            if (!eco_new_id(idx, ((uint32_t)unit_get_id(u))) || first) continue;
+            if (!eco_new_id(idx, ((uint32_t)unit_get_serial(u))) || first) continue;
             if (is_cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
             else {
                 sp->ts++; sp->tsF += (unsigned)unit_cost(pl, t, 2);

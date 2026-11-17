@@ -74,7 +74,7 @@ internal int stage_committed(ee_player *pl, ee_unit *u) {
     uint32_t now = game_time();
     if (now >= g_stc[idx].until || g_stc[idx].until - now > SG_COMMIT) { g_stc[idx].n = 0; return 0; }   // over (or a new game)
     ee_unit **f = bsearch(&u, g_stc[idx].u, (size_t)g_stc[idx].n, sizeof *g_stc[idx].u, stc_cmp);
-    return f && g_stc[idx].id[f - g_stc[idx].u] == unit_get_id(u);
+    return f && g_stc[idx].id[f - g_stc[idx].u] == unit_get_serial(u);
 }
 internal void stage_new_game(void) { memset(g_stg, 0, sizeof g_stg); memset(g_stc, 0, sizeof g_stc); wave_focus_new_game(); }
 
@@ -197,7 +197,7 @@ internal void stage_push(ee_player *pl, unsigned idx, struct stage *st, uint32_t
             void *mem = commit ? goal_move_alloc() : NULL;
             ee_goal *g = commit ? (mem ? goal_attack_move_init(mem, xy) : NULL) : goal_move(xy[0], xy[1]);
             st->sent += g && unit_goal(u, g, 0, 0x1F40) != 0;
-            if (commit && nc < SG_NCOMMIT) { c[nc].u = u; c[nc].id = unit_get_id(u); nc++; }
+            if (commit && nc < SG_NCOMMIT) { c[nc].u = u; c[nc].id = unit_get_serial(u); nc++; }
             n++;
         }
     if (commit && nc) {   // the committed: these, sorted by address for stage_committed's search
@@ -227,7 +227,7 @@ internal int stage_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
     stage_note(st, d, now);
     if (!st->on || now - st->ts >= 10000 || stage_danger(idx, st->s)) stage_place(pl, idx, st, now);
     if (!st->on) return 0;
-    int k = unit_get_id(u);
+    int k = unit_get_serial(u);
     goal_set_dest_x(goal, (float)st->s.x + 0.5f + (float)(k % 3) - 1.0f);
     goal_set_dest_y(goal, (float)st->s.y + 0.5f + (float)(k / 3 % 3) - 1.0f);
     st->held++;
@@ -312,7 +312,7 @@ internal struct wv { ee_attack_group *g; ivec2 at; int id; uint32_t t; } g_wv[16
 internal struct { unsigned calls, set, moved, kept, none; uint32_t logged; } g_wvs[16];
 internal int wv_standing(ee_player *pl, ivec2 at, int id) {   // the wave's goal: the enemy building of that id on its tile
     for (struct grid_it it = grid_it_box(at.x, at.y, 1, 1); grid_it_next(&it); )
-        if (it.td && unit_get_id(it.u) == id && unit_get_hp(it.u) > 0 && is_enemy(pl, unit_get_owner(it.u))) return 1;
+        if (it.td && unit_get_serial(it.u) == id && unit_get_hp(it.u) > 0 && is_enemy(pl, unit_get_owner(it.u))) return 1;
     return 0;
 }
 struct wv_pick { ee_player *pl, *target; ivec2 from; short area; ee_unit *best; long bd; };
@@ -347,7 +347,7 @@ internal struct wv *wave_focus(ee_player *pl, unsigned pi, ee_attack_subgroup *s
         grid_each(wv_pick_unit, &s);
         if (!s.best) { g_wvs[pi].none++; return NULL; }
         if (!w) w = old;
-        w->g = g; w->at = unit_get_tile(s.best); w->id = unit_get_id(s.best);
+        w->g = g; w->at = unit_get_tile(s.best); w->id = unit_get_serial(s.best);
         g_wvs[pi].set++;
         if (g_log && now - g_wvs[pi].logged >= 60000) {
             g_wvs[pi].logged = now;

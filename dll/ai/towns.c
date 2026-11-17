@@ -151,7 +151,7 @@ internal PRINTF_LIKE(3, 4) void tn_say(unsigned idx, uint32_t now, const char *f
 }
 internal int tn_alive(struct tn_proj *p) {
     ee_unit *b = p->b;
-    return b && unit_get_type_data(b) && unit_get_hp(b) > 0 && unit_get_id(b) == p->id;
+    return b && unit_get_type_data(b) && unit_get_hp(b) > 0 && unit_get_serial(b) == p->id;
 }
 // its buildings laid but not finished removed (vf24 (0, 0, 0): refunded, as econ.c removes stacked ones): their 1-hp
 // foundations drew the game's repair round's citizens to them (attack.c ONE AT A TIME); the count
@@ -750,7 +750,7 @@ internal void tn_take_cits(ee_player *pl, unsigned idx, struct tn_town *t, int n
     while (t->ncit < n && t->ncit < 12 && nc > 0) {
         int bj = 0;
         for (int j = 1; j < nc; j++) if (cand[j].d < cand[bj].d) bj = j;
-        t->cit[t->ncit] = cand[bj].u; t->cid[t->ncit] = unit_get_id(cand[bj].u); t->sent_mine[t->ncit] = 0; t->ncit++;
+        t->cit[t->ncit] = cand[bj].u; t->cid[t->ncit] = unit_get_serial(cand[bj].u); t->sent_mine[t->ncit] = 0; t->ncit++;
         cand[bj] = cand[--nc];
     }
 }
@@ -769,7 +769,7 @@ internal void tn_crew_alive(ee_player *pl, unsigned idx) {
     struct tn_crew *c = &g_tn_crew[idx];
     int m = 0;
     for (int k = 0; k < c->n; k++)
-        if (c->u[k] && unit_get_hp(c->u[k]) > 0 && unit_get_id(c->u[k]) == c->id[k] && unit_get_owner(c->u[k]) == pl) { c->u[m] = c->u[k]; c->id[m++] = c->id[k]; }
+        if (c->u[k] && unit_get_hp(c->u[k]) > 0 && unit_get_serial(c->u[k]) == c->id[k] && unit_get_owner(c->u[k]) == pl) { c->u[m] = c->u[k]; c->id[m++] = c->id[k]; }
     c->n = m;
 }
 // a push at a drop site by mines sets out: its citizens, the free ones nearest at
@@ -814,7 +814,7 @@ internal void tn_gar_release(ee_player *pl, struct tn_town *t) {
     ee_combat_mgr *cm = player_get_combat_mgr(pl);
     for (int k = 0; k < t->ngar; k++) {
         ee_unit *u = t->gar[k];
-        if (!u || unit_get_hp(u) <= 0 || unit_get_id(u) != t->gid[k] || unit_get_owner(u) != pl) continue;
+        if (!u || unit_get_hp(u) <= 0 || unit_get_serial(u) != t->gid[k] || unit_get_owner(u) != pl) continue;
         unit_set_ai_held(u, 0);
         if (cm) combat_mgr_register_unit(cm, u);
     }
@@ -824,7 +824,7 @@ internal void tn_garrison_run(ee_player *pl, unsigned idx, struct tn_st *s, stru
     int m = 0;
     for (int k = 0; k < t->ngar; k++) {
         ee_unit *u = t->gar[k];
-        if (u && unit_get_hp(u) > 0 && unit_get_id(u) == t->gid[k] && unit_get_owner(u) == pl) { t->gar[m] = u; t->gid[m++] = t->gid[k]; }
+        if (u && unit_get_hp(u) > 0 && unit_get_serial(u) == t->gid[k] && unit_get_owner(u) == pl) { t->gar[m] = u; t->gid[m++] = t->gid[k]; }
     }
     t->ngar = m;
     int foe = raiders_near(pl, t->c, 15);
@@ -862,7 +862,7 @@ internal void tn_garrison_run(ee_player *pl, unsigned idx, struct tn_st *s, stru
                 cand[bj] = cand[--nc];
                 if (unit_get_ai_held(u) ? !ar_take(pl, u) : !am || !combat_mgr_unit_free(am, unit_get_physics(u))) continue;
                 if (!unit_get_ai_held(u)) player_hold_unit(pl, u);
-                t->gar[t->ngar] = u; t->gid[t->ngar++] = unit_get_id(u);
+                t->gar[t->ngar] = u; t->gid[t->ngar++] = unit_get_serial(u);
                 s->guards++; take--;
             }
         }
@@ -931,7 +931,7 @@ internal void tn_escort_run(ee_player *pl, unsigned idx, struct tn_st *s, struct
     int m = 0;
     for (int k = 0; k < t->ngar; k++) {
         ee_unit *u = t->gar[k];
-        if (u && unit_get_hp(u) > 0 && unit_get_id(u) == t->gid[k] && unit_get_owner(u) == pl) { t->gar[m] = u; t->gid[m++] = t->gid[k]; }
+        if (u && unit_get_hp(u) > 0 && unit_get_serial(u) == t->gid[k] && unit_get_owner(u) == pl) { t->gar[m] = u; t->gid[m++] = t->gid[k]; }
     }
     t->ngar = m;
     if (t->ngar < TN_ESCORT && (!t->gar_t || now - t->gar_t >= 20000) && !base_threatened(idx)) {
@@ -961,7 +961,7 @@ internal void tn_escort_run(ee_player *pl, unsigned idx, struct tn_st *s, struct
             cand[bj] = cand[--nc];
             if (unit_get_ai_held(u) ? !ar_take(pl, u) : !am || !combat_mgr_unit_free(am, unit_get_physics(u))) continue;
             if (!unit_get_ai_held(u)) player_hold_unit(pl, u);
-            t->gar[t->ngar] = u; t->gid[t->ngar++] = unit_get_id(u);
+            t->gar[t->ngar] = u; t->gid[t->ngar++] = unit_get_serial(u);
             s->guards++; take--;
         }
     }
@@ -998,7 +998,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
     }
     if (t->forward) drop_ok = 1;   // none: its buildings go up at once
     for (int j = 0; j < t->ncit; j++)   // its citizens alive
-        if (!t->cit[j] || unit_get_hp(t->cit[j]) <= 0 || unit_get_id(t->cit[j]) != t->cid[j]) {
+        if (!t->cit[j] || unit_get_hp(t->cit[j]) <= 0 || unit_get_serial(t->cit[j]) != t->cid[j]) {
             t->cit[j] = t->cit[t->ncit - 1]; t->cid[j] = t->cid[t->ncit - 1]; t->sent_mine[j] = t->sent_mine[t->ncit - 1]; t->ncit--; j--;
             t->hurt_t = now ? now : 1;
         }
@@ -1110,7 +1110,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             if (!tn_spot(pl, idx, t, ty, c, hc, &at)) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
             ee_unit *b = place_foundation(pl, ty, at.x, at.y);
             if (!b) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
-            p->b = b; p->id = unit_get_id(b); p->type = ty; p->p = at; p->state = 1; p->tries++;
+            p->b = b; p->id = unit_get_serial(b); p->type = ty; p->p = at; p->state = 1; p->tries++;
             s->laid++;
             tn_say(idx, now, "%s %d laid at %d,%d (%d citizens)", k_tk[p->kind], ty, at.x, at.y, t->ncit);
             going++;
@@ -1279,7 +1279,7 @@ internal int tn_front(struct tn_world *w, ivec2 base, ivec2 p, int *df) {   // t
     return front;
 }
 internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base, unsigned hc, struct tn_world *w, uint32_t now) {
-    if (s->scout && unit_get_hp(s->scout) > 0 && unit_get_id(s->scout) == s->scout_id && now - s->scout_t < 90000) return;
+    if (s->scout && unit_get_hp(s->scout) > 0 && unit_get_serial(s->scout) == s->scout_id && now - s->scout_t < 90000) return;
     ee_map *map = game_map();
     int size = map ? (int)map_get_size(map) : 0, best = 0x7FFFFFFF;
     ivec2 to = base;
@@ -1303,13 +1303,13 @@ internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base,
         if (v > fast) { fast = v; sc = u; }
     }
     if (!sc || !unit_goal(sc, goal_move((float)to.x + 0.5f, (float)to.y + 0.5f), 0, 0x1F40)) return;
-    s->scout = sc; s->scout_id = unit_get_id(sc); s->scout_t = now ? now : 1; s->scouts++;
+    s->scout = sc; s->scout_id = unit_get_serial(sc); s->scout_t = now ? now : 1; s->scouts++;
     tn_say(idx, now, "scout to %d,%d (unseen land, %d tiles from its nearest town)", to.x, to.y, (int)sqrtf((float)best));
 }
 // the scout on its way: an enemy soldier in sight or a known defence over it - home
 internal void tn_scout_watch(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base) {
     ee_unit *sc = s->scout;
-    if (!sc || unit_get_hp(sc) <= 0 || unit_get_id(sc) != s->scout_id) { s->scout = NULL; return; }
+    if (!sc || unit_get_hp(sc) <= 0 || unit_get_serial(sc) != s->scout_id) { s->scout = NULL; return; }
     ivec2 at = unit_get_tile(sc);
     int seen = threat_at(idx, at) > 0;
     for (struct grid_it it = grid_it_box(at.x, at.y, TN_SCOUT_SIGHT, 1); grid_it_next(&it) && !seen; ) {

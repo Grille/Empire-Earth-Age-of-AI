@@ -103,7 +103,7 @@ internal void airbase_tick(ee_player *pl, unsigned idx, uint32_t now) {
     memset(based, 0, sizeof based);
     for (int i = 0; i < nair; i++) {
         ee_unit *u = air[i];
-        int id = unit_get_id(u), k = 0, home = 0;
+        int id = unit_get_serial(u), k = 0, home = 0;
         uint32_t lt = 0;
         while (k < a->n && a->p[k].id != id) k++;
         if (k < a->n) { home = a->p[k].home; lt = a->p[k].launch_t; }
@@ -242,7 +242,7 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
     int sent = 0;
     for (int i = 0; i < nm && nf; i++) {
         ee_unit *u = mine[i];
-        int id = unit_get_id(u), k = 0;
+        int id = unit_get_serial(u), k = 0;
         while (k < g->nsent && g->sent[k].id != id) k++;
         if (k < g->nsent && now >= g->sent[k].t && now - g->sent[k].t < AG_AGAIN) continue;
         ee_unit_type *td = unit_get_type_data(u);

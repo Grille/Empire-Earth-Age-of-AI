@@ -356,8 +356,8 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
                         unit_type_get_id(unit_get_type_data(u)), player_get_index(unit_get_owner(u)),
                         unit_get_x(u), unit_get_y(u));
             dest[0] = unit_get_x(u); dest[1] = unit_get_y(u);
-            location_set_unit(tg, dest[0], dest[1], unit_get_id(u));
-            if (wave) wave_focus_weak(wave, iv2(dest[0], dest[1]), unit_get_id(u));   // the wave's goal now
+            location_set_unit(tg, dest[0], dest[1], unit_get_serial(u));
+            if (wave) wave_focus_weak(wave, iv2(dest[0], dest[1]), unit_get_serial(u));   // the wave's goal now
         }
     }
     if (pl && start && dest && g_breach) {
@@ -372,7 +372,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
                         pi, dest[0], dest[1], unit_get_x(cross), unit_get_y(cross),
                         threat_at(pi, unit_get_tile(cross)), unit_get_x(w), unit_get_y(w));
             dest[0] = unit_get_x(w); dest[1] = unit_get_y(w);
-            location_set_unit(tg, dest[0], dest[1], unit_get_id(w));
+            location_set_unit(tg, dest[0], dest[1], unit_get_serial(w));
         }
     }
     if (g_log && pl && start && dest) {

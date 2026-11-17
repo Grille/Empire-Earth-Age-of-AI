@@ -46,7 +46,7 @@ internal int counter_fire_unit(ee_player *pl, ee_unit *u) {
     if (!pl || !u || !l->n) return 0;
     struct cf_ent *f = bsearch(&u, l->e, (size_t)l->n, sizeof *l->e, cf_cmp);   // the key and an entry both start with the unit
     uint32_t now = game_time();
-    return f && f->id == unit_get_id(u) && now < f->until && f->until - now <= CF_HOLD;
+    return f && f->id == unit_get_serial(u) && now < f->until && f->until - now <= CF_HOLD;
 }
 
 struct cf_scan {
@@ -139,7 +139,7 @@ internal void counter_fire(ee_player *pl, unsigned idx, uint32_t now) {
             ee_unit *u = cand[k].u;
             if (!unit_goal(u, goal_attack(u, cl[k % ncl]), 0, 0x1F40)) continue;
             sent++;
-            if (l->n + added < CF_N) { l->e[l->n + added] = (struct cf_ent){ u, unit_get_id(u), now + CF_HOLD }; added++; }
+            if (l->n + added < CF_N) { l->e[l->n + added] = (struct cf_ent){ u, unit_get_serial(u), now + CF_HOLD }; added++; }
             for (int j = 0; j < s.no; j++) if (s.own[j] == u) { s.own[j] = NULL; break; }
         }
         g_cf_sent[idx] += (unsigned)sent;

@@ -262,7 +262,7 @@ internal int g_ou_nsent[16];
 internal int ou_sortie(ee_player *pl, ee_unit *u) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     if (!pl || !u || !g_ou_nsent[idx]) return 0;
-    for (int k = 0; k < g_ou_nsent[idx]; k++) if (g_ou_sent[idx][k].u == u) return g_ou_sent[idx][k].id == unit_get_id(u);
+    for (int k = 0; k < g_ou_nsent[idx]; k++) if (g_ou_sent[idx][k].u == u) return g_ou_sent[idx][k].id == unit_get_serial(u);
     return 0;
 }
 // a subgroup of a sortie: one of its members sent
@@ -344,9 +344,9 @@ internal void outdated_attack(ee_player *pl, unsigned idx, uint32_t now) {
         int m = 0;
         for (int k = 0; k < g_ou_nsent[idx]; k++) {
             ee_unit *v = g_ou_sent[idx][k].u;
-            if (unit_get_id(v) == g_ou_sent[idx][k].id && unit_get_owner(v) == pl && unit_get_hp(v) > 0) g_ou_sent[idx][m++] = g_ou_sent[idx][k];
+            if (unit_get_serial(v) == g_ou_sent[idx][k].id && unit_get_owner(v) == pl && unit_get_hp(v) > 0) g_ou_sent[idx][m++] = g_ou_sent[idx][k];
         }
-        for (int k = 0; k < n && m < 256; k++) { g_ou_sent[idx][m].u = sent[k]; g_ou_sent[idx][m].id = unit_get_id(sent[k]); m++; }
+        for (int k = 0; k < n && m < 256; k++) { g_ou_sent[idx][m].u = sent[k]; g_ou_sent[idx][m].id = unit_get_serial(sent[k]); m++; }
         g_ou_nsent[idx] = m;
     }
     if (!g_log) return;

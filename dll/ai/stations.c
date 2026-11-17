@@ -492,8 +492,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (pool < 0 || nn >= SN_UNITS) continue;
         struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
         struct sn_unit *m = &z->m[nn++];
-        if (o && o->id == unit_get_id(u)) *m = *o;
-        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_id(u); m->ter = (short)r; }
+        if (o && o->id == unit_get_serial(u)) *m = *o;
+        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_serial(u); m->ter = (short)r; }
         m->pool = (uint8_t)pool;
         if (!m->scout && (m->ter < 0 || m->ter >= n || g_ter.t[m->ter].water)) m->ter = (short)r;
     }

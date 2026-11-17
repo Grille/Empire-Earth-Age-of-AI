@@ -79,12 +79,12 @@ internal struct hl_st {
 // "casts" an hour, every 2 s one)
 #define HL_ORDER_WAIT 20000
 internal int hl_ordered(struct hl_st *h, ee_unit *u, uint32_t now) {
-    int id = unit_get_id(u);
+    int id = unit_get_serial(u);
     for (int k = 0; k < h->nord; k++) if (h->ord[k].id == id) return now >= h->ord[k].t && now - h->ord[k].t < HL_ORDER_WAIT && unit_get_goal(u);
     return 0;
 }
 internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
-    int id = unit_get_id(u), n = 0;
+    int id = unit_get_serial(u), n = 0;
     for (int k = 0; k < h->nord; k++) if (h->ord[k].id != id && now >= h->ord[k].t && now - h->ord[k].t < HL_ORDER_WAIT) h->ord[n++] = h->ord[k];
     if (n < 2 * HL_UNITS) { h->ord[n].id = id; h->ord[n].pw = unit_get_power(u); h->ord[n++].t = now ? now : 1; }
     h->nord = n;
@@ -93,7 +93,7 @@ internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
 // turn and get distance after casting"): a cast ordered and its power spent since - the cast is done, the order
 // forgotten (it held the prophet "casting" while it had any goal, the cast's own one stayed on it after the cast)
 internal int hl_cast_spent(struct hl_st *h, ee_unit *u, int pw) {
-    int id = unit_get_id(u);
+    int id = unit_get_serial(u);
     for (int k = 0; k < h->nord; k++)
         if (h->ord[k].id == id && h->ord[k].t && pw < h->ord[k].pw) { h->ord[k].t = 0; return 1; }
     return 0;
@@ -280,7 +280,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     for (int i = 0; i < npro; i++) {
         ee_unit *u = pro[i];
         ivec2 p = unit_get_tile(u);
-        int id = unit_get_id(u), k0 = 0;
+        int id = unit_get_serial(u), k0 = 0;
         while (k0 < h->np && h->p[k0].id != id) k0++;
         ivec2 strike = k0 < h->np ? h->p[k0].strike : iv2(-1, -1);
         uint32_t strike_t = k0 < h->np ? h->p[k0].strike_t : 0;

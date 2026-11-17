@@ -431,12 +431,12 @@ internal struct town_home *home_slot(unsigned pi, ee_unit *u) {
 // u's home: its own, or a promise of a town center beside it (taken now), else where it stands
 internal ivec2 home_of(unsigned pi, ee_unit *u) {
     struct town_home *h = home_slot(pi, u);
-    if (h->u == u && h->id == unit_get_id(u)) return h->at;
+    if (h->u == u && h->id == unit_get_serial(u)) return h->at;
     ivec2 at = unit_get_tile(u);
     for (int i = 0; i < PROMISE_TC; i++) {
         struct promise *p = &g_tc_promise[pi][i];
         if (!p->tc || !p->n || ivec2_dist2(unit_get_tile(p->tc), at) > TOWN_BORN_TILES * TOWN_BORN_TILES) continue;
-        h->u = u; h->id = unit_get_id(u); h->at = p->at[0];
+        h->u = u; h->id = unit_get_serial(u); h->at = p->at[0];
         memmove(p->at, p->at + 1, (size_t)--p->n * sizeof *p->at);
         g_town[pi].homed++;
         return h->at;

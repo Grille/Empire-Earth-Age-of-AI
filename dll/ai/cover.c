@@ -78,7 +78,7 @@ internal void cover_new_game(void) { memset(g_cvr, 0, sizeof g_cvr); g_cvr_n = 0
 internal unsigned cv_hash(ee_unit *u) { return ((uint32_t)(uintptr_t)u >> 3) * 2654435761u >> 19; }
 internal struct cv_rec *cv_find(ee_unit *u, int add) {
     unsigned h = cv_hash(u) & (CV_N - 1);
-    int id = unit_get_id(u);
+    int id = unit_get_serial(u);
     struct cv_rec *free_r = NULL;
     for (unsigned k = 0; k < CV_N; k++, h = (h + 1) & (CV_N - 1)) {
         struct cv_rec *r = &g_cvr[h];
@@ -529,7 +529,7 @@ internal int cv_cover(ee_player *pl, struct cv_pl *c, ivec2 p, unsigned a, ivec2
 internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, ivec2 t, uint32_t now, ee_attack_group *g, int home) {
     if (c->nh >= CV_HOLD) return;
     struct cv_hold *h = &c->hold[c->nh++];
-    h->u = u; h->g = g; h->id = unit_get_id(u); h->kind = kind; h->t = t; h->home = home;
+    h->u = u; h->g = g; h->id = unit_get_serial(u); h->kind = kind; h->t = t; h->home = home;
     h->since = now ? now : 1; h->at = 0;
 }
 
@@ -580,7 +580,7 @@ internal void cv_groups(ee_player *pl) {
 }
 // how often u broke off from its attack group g (this one counted); a record older than 10 minutes starts again
 internal int cv_tally(struct cv_pl *c, ee_unit *u, ee_attack_group *g, uint32_t now) {
-    int id = unit_get_id(u), old = 0;
+    int id = unit_get_serial(u), old = 0;
     for (int k = 0; k < 256; k++) {
         struct cv_brk *b = &c->brk[k];
         if (b->u == u && b->id == id) {
@@ -654,7 +654,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
         struct cv_hold *h = &c->hold[k];
         ee_unit *u = h->u;
         int go = 0;
-        if (!cv_alive(u) || unit_get_id(u) != h->id || unit_get_owner(u) != pl) go = 1;
+        if (!cv_alive(u) || unit_get_serial(u) != h->id || unit_get_owner(u) != pl) go = 1;
         else {
             int d2 = ivec2_dist2(unit_get_tile(u), h->t);
             if (d2 <= 9 && !h->at) h->at = now ? now : 1;
