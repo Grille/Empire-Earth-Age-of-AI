@@ -189,7 +189,9 @@ internal inline uint8_t *unit_hidden_flags_at(const ee_unit *o) { return (uint8_
 internal inline int *unit_get_queue_begin(const ee_unit *o) { return *(int **)((uint8_t *)o + of_unit_queue_begin); }
 internal inline void unit_set_queue_begin(ee_unit *o, int *v) { *(int **)((uint8_t *)o + of_unit_queue_begin) = v; }
 internal inline int **unit_queue_begin_at(const ee_unit *o) { return (int **)((uint8_t *)o + of_unit_queue_begin); }
-// (lookup 0x4111F6)
+// (lookup 0x4111F6) NOT A UNIT'S ID: not unique - in the player's game of 2026-11-17 a citizen and the dead
+// transport whose memory it took both read 0, two soldiers 8. A unit's id is its serial (+0x24, object_by_id);
+// a pointer kept across steps is checked by the serial (the AI's ferry took a citizen for its transport by this)
 internal inline int unit_get_id(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_id); }
 internal inline void unit_set_id(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_id) = v; }
 internal inline int *unit_id_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_id); }
