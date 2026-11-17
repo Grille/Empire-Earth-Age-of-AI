@@ -42,6 +42,10 @@
 //   SCOUT - looks into the waters of its sea not seen longest (enemy and unheld ones first; A LOOK AGAIN as the land
 //     scouts), raids enemy fishing boats and transports it sees within SQ_RAID_R where no enemy warship near them beats
 //     it, and runs from warships it doesn't beat to the nearest main squadron.
+//   ESCORT (convoy.c, transport_escort) - a transport about to cross or crossing asks: the nearest scout group on its
+//     sea that isn't running sails SQ_AHEAD tiles ahead of it on its way (it sees what lies ahead first, and runs to the
+//     main squadron from what it doesn't beat), else the nearest main squadron at rest goes with it; a loaded transport
+//     is a HOME point too (the player 2026-11-17: "it should escort its transport and scout ahed with a ship").
 //   CONCENTRATION - Lanchester's square law (fleet.c's fight estimate): split forces lose piece by piece to one fleet
 //     (the first head-to-head against the old fleet, Small Islands large from epoch 9, 12 games mirrored: warships lost
 //     30.5 against 15.3, sunk 19.9 against 25.8, afloat at the end 9.5 against 20.8). So on a sea where all its
@@ -88,20 +92,22 @@
 #define SQ_BEHIND_E 12         //   under fire: an enemy warship seen so near
 #define SQ_BEHIND_M 30         //   a main squadron so near
 #define SQ_HOME_R 15
+#define SQ_AHEAD 10            // ESCORT: the scouts so far ahead of the transport on its way
+#define SQ_ESC_NEAR 14         //   with it: its escort's middle so near
 #define SQ_SEAS 64
 #define SQ_T 4096
 enum { SQK_MAIN, SQK_SCOUT, SQK_HUNT };
 internal const char *const k_sqk[3] = { "main", "scouts", "hunters" };
-enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_N };
-internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting" };
+enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_N };
+internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting" };
 struct sq {
     int on, kind, ocean, anchor;          // anchor: the zone's water territory (main)
     ivec2 zc, go, ordered;                // the anchor's middle, where it goes, where it was sent last
-    int want, n, state, help, target_r, call;   // call: it asks for help; help: whom it helps (+1)
+    int want, n, state, help, target_r, call, escort;   // call: it asks for help; help: whom it helps (+1); escort: convoy.c's wish (+1)
     ee_unit *u[FL_MAX];
     float ratio, zvalue;
     uint32_t order_t, state_t, target_t;
-    unsigned engages, holds, helps, pushes, raids, scouted, flees;
+    unsigned engages, holds, helps, pushes, raids, scouted, flees, escorted;
 };
 internal struct sq_st {
     struct sq s[SQ_MAX];
@@ -204,6 +210,7 @@ internal void sq_state(struct sq *q, int st, uint32_t now) {
     else if (st == SQS_RAID) q->raids++;
     else if (st == SQS_FLEE) q->flees++;
     else if (st == SQS_HUNT) q->raids++;
+    else if (st == SQS_ESCORT) q->escorted++;
 }
 // a ship of the role a squadron of kind k takes (main: all but the hunters; scouts: frigates; hunters: submarines and galleys)
 internal int sq_hunter(int role) { return role == NR_SUB || role == NR_ANTI; }
@@ -415,6 +422,43 @@ internal void sq_care(unsigned idx, struct fleet *f) {
         z->drops++;
     }
 }
+// ESCORT (convoy.c): each transport that asked within CY_WISH - the nearest scout group on its sea not running, else
+// the nearest main squadron at rest (or escorting); the answer back to it (0 none, 1 on its way, 2 with it)
+internal void sq_convoys(unsigned idx, uint32_t now) {
+    struct sq_st *z = &g_sq[idx];
+    struct cy_st *c = &g_cy[idx];
+    for (int i = 0; i < SQ_MAX; i++) z->s[i].escort = 0;
+    for (int k = 0; k < c->nw; k++) {
+        struct cy_wish *w = &c->w[k];
+        w->state = 0;
+        if (!w->t || now - w->t >= CY_WISH || !w->u || unit_get_serial(w->u) != w->id || unit_get_hp(w->u) <= 0) continue;
+        ivec2 p = unit_get_tile(w->u);
+        int oc = fl_ship_ocean(w->u), best = -1, bd = 0x7FFFFFFF;
+        for (int pass = 0; pass < 2 && best < 0; pass++)
+            for (int i = 0; i < SQ_MAX; i++) {
+                struct sq *q = &z->s[i];
+                if (!q->on || !q->n || q->escort || q->ocean != oc) continue;
+                if (pass == 0 ? q->kind != SQK_SCOUT || q->state == SQS_FLEE : q->kind != SQK_MAIN || (q->state != SQS_REST && q->state != SQS_ESCORT)) continue;
+                int d = ivec2_dist2(sq_center(q), p);
+                if (d < bd) { bd = d; best = i; }
+            }
+        if (best < 0) continue;
+        z->s[best].escort = k + 1;
+        w->state = bd <= SQ_ESC_NEAR * SQ_ESC_NEAR ? 2 : 1;
+    }
+}
+// ESCORT: scouts SQ_AHEAD ahead of the transport on its way, a main squadron with it
+internal void sq_escort(ee_player *pl, unsigned idx, struct sq *q, uint32_t now) {
+    struct cy_wish *w = &g_cy[idx].w[q->escort - 1];
+    ivec2 p = unit_get_tile(w->u), c = sq_center(q), to = p;
+    float dx = (float)(w->dest.x - p.x), dy = (float)(w->dest.y - p.y), len = sqrtf(dx * dx + dy * dy);
+    if (q->kind == SQK_SCOUT && len > 0.5f) {
+        float a = len < (float)SQ_AHEAD ? len : (float)SQ_AHEAD;
+        to = iv2(p.x + (int)(dx / len * a), p.y + (int)(dy / len * a));
+    }
+    sq_state(q, SQS_ESCORT, now);
+    sq_go(pl, q, sq_safe(c, to, q->ocean), 1, now);
+}
 internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     struct sq *q = &z->s[i];
@@ -423,10 +467,15 @@ internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
     q->call = 0;
     int threat = sq_enemies(q->ocean, home, SQ_REACH, sel);
     if (!threat) {   // HOME: enemy warships by a dock or fishing boat of its on this sea, this the nearest main squadron to it
-        int bd = 0x7FFFFFFF;
+        int bd = 0x7FFFFFFF, nt = 0;
         ivec2 hp = iv2(0, 0);
-        for (int k = 0; k < g_fs.nd + g_fs.nb; k++) {
-            ivec2 b = k < g_fs.nd ? g_fs.dk[k] : unit_get_tile(g_fs.boat[k - g_fs.nd]);
+        static ivec2 tp[CY_SHIPS];   // ESCORT: its loaded transports
+        for (int j = 0; CONVOY_ESCORT(idx) && j < g_cy[idx].n; j++) {
+            struct cy_ship *e = &g_cy[idx].s[j];
+            if (e->aboard > 0 && unit_get_serial(e->u) == e->id && unit_get_hp(e->u) > 0) tp[nt++] = unit_get_tile(e->u);
+        }
+        for (int k = 0; k < g_fs.nd + g_fs.nb + nt; k++) {
+            ivec2 b = k < g_fs.nd ? g_fs.dk[k] : k < g_fs.nd + g_fs.nb ? unit_get_tile(g_fs.boat[k - g_fs.nd]) : tp[k - g_fs.nd - g_fs.nb];
             if (k < g_fs.nd ? (int)ocean_near(b, 4, NULL) != q->ocean : (int)area_id(b, 1) != q->ocean) continue;
             int d = ivec2_dist2(b, c);
             if (d >= bd || !sq_enemies(q->ocean, b, SQ_HOME_R, sel)) continue;
@@ -458,6 +507,7 @@ internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
         sq_go(pl, q, sq_safe(c, sq_center(h), q->ocean), 1, now);
         return;
     }
+    if (q->escort) { sq_escort(pl, idx, q, now); return; }   // ESCORT: its zone quiet, with the transport
     // A PUSH: clearly the stronger against the enemy warships known within 2 x SQ_REACH of its zone - after them -, and
     // not weaker than all it knows on the sea (CONCENTRATION)
     float whole = 99.0f;
@@ -535,6 +585,7 @@ internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
         sq_go(pl, q, sq_to_main(z, q, c), 0, now);
         return;
     }
+    if (q->escort) { sq_escort(pl, idx, q, now); return; }   // ESCORT: ahead of the transport
     // A RAID: an enemy fishing boat or transport within SQ_RAID_R, no warship near it that beats the group, no danger
     int bp = -1, bd = 0x7FFFFFFF;
     for (int k = 0; k < g_fs.nev; k++) {
@@ -591,9 +642,9 @@ internal void sq_log(unsigned idx, uint32_t now) {
         ivec2 c = sq_center(q);
         size_t l = strlen(b);
         if (l < sizeof b - 160)
-            snprintf(b + l, sizeof b - l, " | %s %d (sea %d%s%d): %d ships of %d at %d,%d, %s, ratio %.2f, so far fought %u held %u helped %u pushed %u raided/hunted %u ran %u looked %u",
+            snprintf(b + l, sizeof b - l, " | %s %d (sea %d%s%d): %d ships of %d at %d,%d, %s, ratio %.2f, so far fought %u held %u helped %u pushed %u raided/hunted %u ran %u looked %u escorted %u",
                      k_sqk[q->kind], i, q->ocean, q->anchor >= 0 ? ", zone " : ", no zone ", q->anchor, q->n, q->want, c.x, c.y, k_sqs[q->state],
-                     (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted);
+                     (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted, q->escorted);
     }
     char lb[200];
     snprintf(lb, sizeof lb, "lost: main %u scouts %u hunters %u, sent to repair %u, landings' escorts %u, in none %u; by what they did:", z->lost_kind[SQK_MAIN],
@@ -647,6 +698,7 @@ internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now
     }
     if (!z->zone_t || now - z->zone_t >= SQ_ZONES) sq_zones(idx, oceans, nship, nfrig, nsub, noc, now);
     sq_assign(idx, f, now);
+    sq_convoys(idx, now);
     for (int i = 0; i < SQ_MAX; i++) {
         struct sq *q = &z->s[i];
         if (!q->on || !q->n) continue;

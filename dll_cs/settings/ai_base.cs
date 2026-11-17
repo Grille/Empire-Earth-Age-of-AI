@@ -687,6 +687,15 @@ class ai_base
         /// another has citizens idle or on wood - by one of its transports on a sea both lands touch (one trained when
         /// none is free). 0 = off
         bool ferry_service = true;
+        /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
+        /// beach and puts them off there (the game's computer player off). 0 = off
+        [advanced]
+        bool transport_lifeboat = true;
+        /// Crossings ask the squadrons (sea_squadrons) for an escort: scouts sail ahead of the transport, else a main
+        /// squadron goes with it; a crossing waits a minute at most for it and is no longer called off when the sea on the
+        /// way is held (the game's computer player off). 0 = off
+        [advanced]
+        bool transport_escort = false;
         struct towns_fields
         {
             /// a resource town once the mines near its drop sites are full (fewer than 4 free places) and its

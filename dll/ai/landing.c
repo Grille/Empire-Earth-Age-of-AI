@@ -752,6 +752,7 @@ internal int ld_open_water(ivec2 p, unsigned ocean, ivec2 *o) {
 }
 
 internal void ld_fu_forget(ee_goal *g);   // below (the game's unload orders to landing transports)
+internal int convoy_lifeboat(ee_player *pl, ee_unit *sh);   // convoy.c LIFEBOAT: under fire, to a beach - left alone
 internal void ld_fu_check(uint32_t now);
 internal ee_goal *ld_unload(ee_unit *sh, ivec2 p) {
     ee_goal *g = goal_unload(sh, p.x, p.y, g_land_flag);
@@ -1207,7 +1208,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
             ee_unit *sh = l->ships[k];
             ee_goal *g = unit_get_goal(sh);
             ivec2 w;
-            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || unit_count_inside(sh) <= 0) continue;
+            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || unit_count_inside(sh) <= 0 || convoy_lifeboat(pl, sh)) continue;
             if (g && goal_is_unload(g) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
                         pi, now / 60000.0, k, unit_count_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
@@ -1850,7 +1851,7 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
         for (int k = 0; k < l->nships; k++) {
             ee_unit *sh = l->ships[k];
             ee_goal *g = unit_get_goal(sh);
-            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || unit_count_inside(sh) <= 0) continue;
+            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || unit_count_inside(sh) <= 0 || convoy_lifeboat(pl, sh)) continue;
             ivec2 w;
             if (g && goal_is_unload(g) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",

@@ -118,7 +118,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, int kind, un
     f->kind = kind; f->from = a; f->to = b; f->ocean = seas[bs].oc;
     f->pick = seas[bs].pick; f->pick_w = seas[bs].pick_w; f->drop = seas[bs].drop; f->dest = dest;
     f->ship.u = best; f->ship.id = unit_get_serial(best);
-    f->phase = 1; f->since = now ? now : 1; f->load_t = 0; f->reissue = 0; f->trips++;
+    f->phase = 1; f->since = now ? now : 1; f->load_t = 0; f->reissue = 0; f->esc_t = 0; f->trips++;
     f->last[kind].from = a; f->last[kind].to = b; f->last[kind].t = now ? now : 1;
     unit_goal(best, goal_move((float)f->pick_w.x + 0.5f, (float)f->pick_w.y + 0.5f), 0, 0x1F40);
     for (int k = 0; k < f->npass; k++)   // to the shore meanwhile
@@ -172,8 +172,8 @@ internal void fy_minute(unsigned idx, struct fy_st *f, uint32_t now) {
     size_t l = strlen(b);
     snprintf(b + l, sizeof b - l, " | citizens land:spare/free places");
     for (int k = 0; k < W->n; k++) { l = strlen(b); if (l < sizeof b - 40) snprintf(b + l, sizeof b - l, " %u:%d/%d", W->l[k].land, W->l[k].spare, W->l[k].free); }
-    fy_say(idx, now, "%u trips (%u soldiers, %u citizens put off; %u given up, %u transports sunk), %u transports trained, looks without a free transport %u, with none between the lands %u, trips back refused %u; %s | soldiers land:stationed/share%s",
-           f->trips, f->soldiers, f->citizens, f->failed, f->sunk, f->trained, f->no_ship, f->no_shore, f->back,
+    fy_say(idx, now, "%u trips (%u soldiers, %u citizens put off; %u given up, %u transports sunk, %u put off on a beach under fire), %u transports trained, looks without a free transport %u, with none between the lands %u, trips back refused %u; %s | soldiers land:stationed/share%s",
+           f->trips, f->soldiers, f->citizens, f->failed, f->sunk, f->beached, f->trained, f->no_ship, f->no_shore, f->back,
            f->phase ? (f->phase == 1 ? "a transport on its way" : f->phase == 2 ? "boarding" : "crossing") : "nothing on", b);
 }
 internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
@@ -191,6 +191,8 @@ internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
         return;
     }
     ee_unit *sh = f->ship.u;
+    if (convoy_lifeboat(pl, sh)) return;   // LIFEBOAT (convoy.c): under fire, to the nearest beach - stands back meanwhile
+    if (f->phase >= 2 && convoy_beached(idx, sh, f->since)) { f->beached++; fy_end(pl, idx, f, now, "the transport was under fire - its passengers put off on the nearest beach"); return; }
     int n = 0, aboard = 0;
     for (int k = 0; k < f->npass; k++) if (ex_alive(&f->pass[k], pl)) f->pass[n++] = f->pass[k];
     f->npass = n;
@@ -207,7 +209,9 @@ internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
             }
             f->phase = 2; f->load_t = now ? now : 1;
         }
+        int esc = f->phase == 2 && aboard ? convoy_escort(idx, sh, f->drop, now) : 0;   // ESCORT (convoy.c): asked for once someone is aboard
         if (aboard == f->npass || (aboard && now - f->load_t >= FY_LOAD)) {
+            if (esc == 1 && (!f->esc_t || now - f->esc_t < CY_WAIT)) { if (!f->esc_t) f->esc_t = now ? now : 1; return; }   // its escort on the way
             int m = 0;   // those left behind are the others' again
             for (int k = 0; k < f->npass; k++) if (unit_get_x(f->pass[k].u) < 0) f->pass[m++] = f->pass[k];
             f->npass = m;
@@ -239,6 +243,7 @@ internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
         return;
     }
     if (now - f->since >= FY_SEA) { f->failed++; fy_end(pl, idx, f, now, "not across in 6 minutes - put off where it is"); return; }
+    convoy_escort(idx, sh, f->drop, now);   // ESCORT (convoy.c)
     ee_goal *cur = unit_get_goal(sh);
     if (!cur || !goal_is_unload(cur)) unit_goal(sh, ld_unload(sh, f->drop), 0, 0x1F40);
 }

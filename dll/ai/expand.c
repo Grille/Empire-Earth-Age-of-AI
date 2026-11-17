@@ -331,6 +331,7 @@ internal struct ex_st {
     struct sfort fort; int fort_set;      // FORT: its square (defence.c), walls ordered every wall_t
     int guard_only; uint32_t wall_t;      // FORT: this boat takes soldiers only
     int gun_trip;                         // FORT'S GUNS: and the battery's guns first
+    uint32_t esc_t;                       // ESCORT (convoy.c): waiting for its escort since
 } g_xs[16];
 // STRANDED CITIZENS (below, rescue_citizens): the transport that fetches them and its passengers - kept from the
 // landing, the subgroups and the transport manager as the ferry's (expand_ship, expand_refuses, expand_leads, expand_has)
@@ -348,11 +349,25 @@ internal struct fy_st {
     struct ex_unit ship, pass[16]; int npass;
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
     uint32_t since, load_t, reissue, look_t, train_t, want_t, log_t;   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold)
-    unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, back;
+    uint32_t esc_t;                       // ESCORT (convoy.c): waiting for its escort since
+    unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, back, beached;
     struct { unsigned from, to; uint32_t t; } last[3];   // by kind: the last trip's lands and its start (NOT BACK AGAIN, ferry.c)
 } g_fy[16];
 internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now);   // ferry.c
 internal int g_ferry = 1;
+// convoy.c THE CONVOYS: its settings, what the managers ask of it
+internal int g_cy_life = 0, g_v_cy_life = -1, g_cy_esc = 0, g_v_cy_esc = -1;   // [ai_base] transport_lifeboat, transport_escort
+#define LIFEBOAT(idx) PV(idx, g_v_cy_life, g_cy_life)
+#define CONVOY_ESCORT(idx) PV(idx, g_v_cy_esc, g_cy_esc)
+#define CY_WISHES 4
+#define CY_WISH 5000       // an escort asked for within this
+#define CY_WAIT 60000      // a crossing waits this long at most for its escort on the way
+struct cy_wish { ee_unit *u; int id; ivec2 dest; uint32_t t; int state; };   // state: squadrons.c's answer - 0 none, 1 on its way, 2 with it
+internal int convoy_lifeboat(ee_player *pl, ee_unit *sh);   // under fire, to a beach: its manager stands back
+internal int convoy_beached(unsigned idx, ee_unit *sh, uint32_t since);   // its passengers put off on a beach since then (once)
+internal int convoy_escort(unsigned idx, ee_unit *sh, ivec2 dest, uint32_t now);
+internal void convoy_tick(ee_player *pl, unsigned idx, uint32_t now);
+internal void convoy_new_game(void);
 
 // still the unit it was: by its serial (+0x24, the game's own id of a unit: its player in the top byte), never the
 // complex unit's +0x60 (spec: unknown_60, named id before), which isn't one - the player's game of 2026-11-17 died
@@ -521,7 +536,7 @@ internal void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_
             x->orders += unit_goal(sh, ld_unload(sh, t), 0, 0x1F40);
     }
     if (why) ex_say(idx, now, "%s", why);
-    x->guard_only = 0; x->gun_trip = 0; x->held_trip = 0;
+    x->guard_only = 0; x->gun_trip = 0; x->held_trip = 0; x->esc_t = 0;
     x->fphase = 0; x->npass = 0; x->ship.u = NULL;
 }
 
@@ -697,7 +712,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     {   struct ex_cont *c = ex_cont_of(x->cont, 0);   // an island it has hardly looked at: scouted first, empty
         if (x->scouted != x->cont && c && c->mexp[idx] * 2 < c->mn) {
             float risk = ex_sea_risk(pl, x, unit_get_type_data(best), (float)unit_get_hp(best));
-            if (risk > 0.4f) {   // as the ferry's crossing (2 of 3 scouting transports were sunk without the check)
+            if (risk > 0.4f && (!CONVOY_ESCORT(idx) || x->air)) {   // as the ferry's crossing (2 of 3 scouting transports were sunk without the check); ESCORT: with one instead (ex_ferry_scout)
                 ex_say(idx, now, "won't scout the island %u - the sea on the way held (risk %.2f)", x->cont, risk);
                 x->ship.u = NULL; x->fphase = 0; x->active = 0; x->next_try = now + 180000;
                 return;
@@ -769,6 +784,7 @@ internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, f
 // island never again; looked at - back to the home shore for the passengers (phase 1 again); 4 minutes: given up
 internal void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     ee_unit *sh = x->ship.u;
+    if (!x->air) convoy_escort(idx, sh, ex_tp_isle(x), now);   // ESCORT (convoy.c)
     ex_scan(pl, now, 0);
     struct ex_cont *c = ex_cont_of(x->cont, 0);
     // looked at: half its mines (intel.c), or the transport 10 s at the island's shore water (it sees the shore and
@@ -829,7 +845,12 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         }
         ee_unit_type *td = unit_get_type_data(sh);
         float risk = ex_sea_risk(pl, x, td, (float)unit_get_hp(sh));
-        if (risk > 0.4f) {   // the sea held: unloaded at home at once (waiting loaded at the shore, 9 of 10 such transports were sunk with everyone aboard)
+        if (risk > 0.4f && CONVOY_ESCORT(idx) && !x->air) {   // ESCORT (convoy.c): not called off - its escort on the way waited for CY_WAIT at most, then it sails
+            if (convoy_escort(idx, sh, x->unload, now) == 1 && (!x->esc_t || now - x->esc_t < CY_WAIT)) {
+                if (!x->esc_t) { x->esc_t = now ? now : 1; ex_say(idx, now, "the sea on the way held (risk %.2f) - waits for its escort", risk); }
+                return;
+            }
+        } else if (risk > 0.4f) {   // the sea held: unloaded at home at once (waiting loaded at the shore, 9 of 10 such transports were sunk with everyone aboard)
             char why[96];
             snprintf(why, sizeof why, "the sea on the way held (risk %.2f) - called off, unloaded at home", risk);
             ex_ferry_end(pl, idx, x, now, why); x->next_try = now + 180000; if (!x->ever_ashore) x->active = 0;
@@ -840,7 +861,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         x->npass = n;
         ee_goal *g = ld_unload(sh, x->unload);
         x->orders += unit_goal(sh, g, 0, 0x1F40);
-        x->fphase = 3; x->fsince = now; x->sails++;
+        x->fphase = 3; x->fsince = now; x->sails++; x->esc_t = 0;
         ex_say(idx, now, "sails with %d aboard (%d citizens) to %d,%d", aboard, cits, x->unload.x, x->unload.y);
         return;
     }
@@ -893,6 +914,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
 // phase 3: at sea - unloaded again where it stopped with someone aboard; all ashore: the transport back, the ferry ends
 internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     ee_unit *sh = x->ship.u;
+    if (!x->air) convoy_escort(idx, sh, x->unload, now);   // ESCORT (convoy.c)
     ee_goal *cur = unit_get_goal(sh);
     int n = ex_cargo(sh);
     if (n <= 0) {
@@ -1620,13 +1642,22 @@ internal void expand_act(ee_player *pl, unsigned idx, uint32_t now) {
     // (landing.c ld_air_want)
     if ((x->active || x->fphase) && ld_air_want(pl, idx, now))
         ex_say(idx, now, "wants an Airport - the transport helicopter (type %d) flies the ferry once it stands", ld_air_transport_type(pl));
-    if (x->fphase == 1) ex_ferry_ship(pl, idx, x, now);
-    else if (x->fphase == 2) { g_sg_order = x->gun_trip; ex_ferry_board(pl, idx, x, now); g_sg_order = 0; }   // the guns are held: only these orders reach them
-    else if (x->fphase == 3) ex_ferry_sail(pl, idx, x, now);
-    else if (x->fphase == 4) ex_ferry_scout(pl, idx, x, now);
-    else if (x->fphase == 5) ex_beach_wait(pl, idx, x, now);
-    else if (x->fphase == 6) ex_beach_board(pl, idx, x, now);
-    else if (x->fphase == 7) ex_beach_home(pl, idx, x, now);
+    if (x->fphase >= 2 && ex_alive(&x->ship, pl) && convoy_beached(idx, x->ship.u, x->fsince)) {   // LIFEBOAT (convoy.c): put off on a beach under fire
+        ex_say(idx, now, "the transport was under fire - its passengers put off on the nearest beach");
+        x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->guard_only = 0; x->gun_trip = 0; x->held_trip = 0; x->esc_t = 0; x->next_try = now + 120000;
+        if (!x->ever_ashore) x->active = 0;
+    }
+    int lifeboat = x->fphase >= 2 && ex_alive(&x->ship, pl) && convoy_lifeboat(pl, x->ship.u);   // LIFEBOAT: stands back meanwhile
+    switch (lifeboat ? 0 : x->fphase) {
+    case 1: ex_ferry_ship(pl, idx, x, now); break;
+    case 2: g_sg_order = x->gun_trip; ex_ferry_board(pl, idx, x, now); g_sg_order = 0; break;   // the guns are held: only these orders reach them
+    case 3: ex_ferry_sail(pl, idx, x, now); break;
+    case 4: ex_ferry_scout(pl, idx, x, now); break;
+    case 5: ex_beach_wait(pl, idx, x, now); break;
+    case 6: ex_beach_board(pl, idx, x, now); break;
+    case 7: ex_beach_home(pl, idx, x, now); break;
+    default: break;
+    }
     if (x->active && x->ever_ashore) ex_outpost(pl, idx, x, now);
     if (!x->fphase && now >= x->next_try && (!x->plan_t || x->active || now - x->plan_t >= 30000)) {
         if (!x->active) x->plan_t = now ? now : 1;
@@ -1759,6 +1790,8 @@ internal void rs_act(ee_player *pl, unsigned idx, uint32_t now) {
     }
     if (!ex_alive(&r->ship, pl)) { rs_end(pl, idx, r, now, "the transport is gone"); r->failed++; return; }
     ee_unit *sh = r->ship.u;
+    if (convoy_lifeboat(pl, sh)) return;   // LIFEBOAT (convoy.c): stands back meanwhile
+    if (r->phase >= 2 && convoy_beached(idx, sh, r->since)) { rs_end(pl, idx, r, now, "the transport was under fire - put off on the nearest beach"); r->failed++; return; }
     int n = 0, aboard = 0;
     for (int k = 0; k < r->npass; k++) if (ex_alive(&r->pass[k], pl)) r->pass[n++] = r->pass[k];
     r->npass = n;
@@ -1800,6 +1833,7 @@ internal void rs_act(ee_player *pl, unsigned idx, uint32_t now) {
         return;
     }
     if (now - r->since >= 360000) { rs_end(pl, idx, r, now, "not home in 6 minutes - unloaded where it is"); r->failed++; return; }
+    convoy_escort(idx, sh, r->drop, now);   // ESCORT (convoy.c)
     ee_goal *cur = unit_get_goal(sh);
     if (!cur || !goal_is_unload(cur)) unit_goal(sh, ld_unload(sh, r->drop), 0, 0x1F40);
 }
@@ -1866,6 +1900,7 @@ internal void expand_new_game(void) {
     memset(&g_exs, 0, sizeof g_exs);
     memset(g_rs, 0, sizeof g_rs);
     memset(g_fy, 0, sizeof g_fy);
+    convoy_new_game();
     memset(g_ex_log_t, 0, sizeof g_ex_log_t);
     memset(g_xs, 0, sizeof g_xs);
     g_ex_map_logged = 0;
@@ -1884,6 +1919,7 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
     if (!is_vanilla(pl) && (g_expand || g_v_expand > 0)) expand_act(pl, idx, now);
     if (!is_vanilla(pl) && g_rescue) rs_act(pl, idx, now);
     if (!is_vanilla(pl) && g_ferry && !GAME_AI(idx)) ferry_act(pl, idx, now);
+    if (!is_vanilla(pl) && !GAME_AI(idx)) convoy_tick(pl, idx, now);
     if (!is_vanilla(pl)) towns_act(pl, idx, now);
     if (!is_vanilla(pl)) fronts_tick(pl, idx, now);
 }
@@ -1892,6 +1928,10 @@ internal void expand_install(const char *autotest_ini) {
     g_ex_fguard = g_set_ai[1].front_guards;
     g_rescue = g_set_ai[1].rescue_citizens;
     g_ferry = g_set_ai[1].ferry_service;
+    g_cy_life = g_set_ai[1].transport_lifeboat;
+    g_cy_esc = g_set_ai[1].transport_escort;
+    if (autotest_ini) g_v_cy_life = ini_int("autotest", "v_transport_lifeboat", -1, autotest_ini);
+    if (autotest_ini) g_v_cy_esc = ini_int("autotest", "v_transport_escort", -1, autotest_ini);
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
