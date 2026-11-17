@@ -40,8 +40,11 @@
 //     the sea are the nearest main squadron's threat, wherever its zone lies (the first head-to-heads: 15 of the 23
 //     warships a squadron AI lost went down on the way to the dock or at it, nobody came).
 //   SCOUT - looks into the waters of its sea not seen longest (enemy and unheld ones first; A LOOK AGAIN as the land
-//     scouts), raids enemy fishing boats and transports it sees within SQ_RAID_R where no enemy warship near them beats
-//     it, and runs from warships it doesn't beat to the nearest main squadron.
+//     scouts), raids enemy fishing boats and transports it sees within SQ_RAID_R where no enemy warship within 12 tiles of
+//     them stands a fight with it (SQ_SCOUT_FIGHT), and runs from warships within SQ_SCOUT_FLEE it doesn't beat as
+//     clearly to the nearest main squadron: raiders, not fighters (the player: frigates hunt fishing boats and
+//     transports) - at 1.2 and 14 tiles the scouts' frigates were most of the hurt ships lost from epoch 5 (255 of 467,
+//     92% with an enemy warship within 10 tiles: the Middle Ages' frigate has 540 hit points and 25 attack).
 //   ESCORT (convoy.c, transport_escort) - a transport about to cross or crossing asks: the nearest scout group on its
 //     sea that isn't running sails SQ_AHEAD tiles ahead of it on its way (it sees what lies ahead first, and runs to the
 //     main squadron from what it doesn't beat), else the nearest main squadron at rest goes with it; a loaded transport
@@ -72,6 +75,10 @@
 // the end 24.5 against 23.1, sunk - lost +1.5 against -1.6; epoch 5 (24) kills +2.6 (3.1), losses +2.0 (4.1), sunk -
 // lost -0.6 against +0.6 (fewer hulls, 11.7 against 14.4: its battleships, 4 frigates' hit points at 2 frigates'
 // price). The old mix (frigates 2, battleships 1) with it: epoch 11 sunk - lost -4.2 against +4.2. On since then.
+// Then the scouts raiders only (SQ_SCOUT_FIGHT 2.0, SQ_SCOUT_FLEE 16; were 1.2 and 14), against the old fleet: epoch 5
+// (24 games) sunk - lost +2.4 per AI against -2.4 (before -0.6 against +0.6), afloat 13.9 against 13.7 (11.7 against
+// 14.4), kills +3.3 (se 2.7); epoch 9 (24) +1.7 against -1.7 (+0.6 against -0.5), kills +7.5 (4.2); epoch 11 (12) +2.2
+// against -2.2 (+1.5 against -1.6), kills +9.2 (5.4).
 #define SQ_MAX 8
 #define SQ_MAIN_MIN 5
 #define SQ_REACH 40
@@ -83,6 +90,8 @@
 #define SQ_FRIG_R 12
 #define SQ_RESCOUT 300000
 #define SQ_RAID_R 40
+#define SQ_SCOUT_FIGHT 2.0f    // SCOUT: a fight only this clearly the stronger
+#define SQ_SCOUT_FLEE 16       //   warships so near looked at
 #define SQ_HOLD 1.0f
 #define SQ_ENGAGE 1.3f
 #define SQ_PUSH 1.5f
@@ -580,7 +589,7 @@ internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
     struct tv_st *s = &g_tv[idx];
     static unsigned char sel[FL_ES];
     ivec2 c = sq_center(q);
-    if (sq_enemies(q->ocean, c, 14, sel) && (q->ratio = sq_ratio(q, sel)) < 1.2f) {   // warships it doesn't beat: to the nearest main squadron
+    if (sq_enemies(q->ocean, c, SQ_SCOUT_FLEE, sel) && (q->ratio = sq_ratio(q, sel)) < SQ_SCOUT_FIGHT) {   // warships it doesn't beat: to the nearest main squadron
         sq_state(q, SQS_FLEE, now);
         sq_go(pl, q, sq_to_main(z, q, c), 0, now);
         return;
@@ -593,7 +602,7 @@ internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
         if ((int)area_id(e->p, 1) != q->ocean || fl_in_danger(e->p)) continue;
         int d = ivec2_dist2(e->p, c);
         if (d > SQ_RAID_R * SQ_RAID_R || d >= bd) continue;
-        if (sq_enemies(q->ocean, e->p, 10, sel) && sq_ratio(q, sel) < 1.2f) continue;
+        if (sq_enemies(q->ocean, e->p, 12, sel) && sq_ratio(q, sel) < SQ_SCOUT_FIGHT) continue;
         bd = d; bp = k;
     }
     if (bp >= 0) {
