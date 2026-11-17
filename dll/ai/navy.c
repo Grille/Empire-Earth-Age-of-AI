@@ -103,7 +103,7 @@ internal void navy_fish(void) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         if (unit_type_get_id(it.td) != UT(RES_FISH)) continue;
         ee_unit *u = it.u;
-        int id = unit_get_id(u), amt = unit_get_amount(u), owner = -1, k;
+        int id = unit_get_serial(u), amt = unit_get_amount(u), owner = -1, k;
         left += amt > 0 ? amt : 0;
         for (int g = 0; g < ng; g++) if (gath[g].site == u) { owner = gath[g].owner; break; }
         for (k = 0; k < g_nv_nfish; k++) if (g_nv_fish[k].u == u && g_nv_fish[k].id == id) break;

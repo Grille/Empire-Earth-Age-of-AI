@@ -309,7 +309,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
     for (int k = 0; k < f->n; k++) {
         ee_unit *u = f->u[k];
         was[k] = -1;
-        for (int j = 0; j < z->nm; j++) if (z->m[j].u == u && z->m[j].id == unit_get_id(u)) { was[k] = z->m[j].sq; break; }
+        for (int j = 0; j < z->nm; j++) if (z->m[j].u == u && z->m[j].id == unit_get_serial(u)) { was[k] = z->m[j].sq; break; }
     }
     int nm = 0;
     memset(kept, 0, sizeof kept);
@@ -344,7 +344,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
             kept[k] = pass == 0;
             struct sq *t = &z->s[q];
             if (t->n < FL_MAX) t->u[t->n++] = u;
-            if (nm < FL_MAX) { z->m[nm].u = u; z->m[nm].id = unit_get_id(u); z->m[nm++].sq = (signed char)q; }
+            if (nm < FL_MAX) { z->m[nm].u = u; z->m[nm].id = unit_get_serial(u); z->m[nm++].sq = (signed char)q; }
         }
     z->nm = nm;
     (void)now;
@@ -406,7 +406,7 @@ internal void sq_care(unsigned idx, struct fleet *f) {
         ee_unit *t = fl_target_of(u);
         if (!t || !fl_in_danger_m(unit_get_tile(t), 1.0f)) continue;
         ivec2 back = f->g;
-        int id = unit_get_id(u);
+        int id = unit_get_serial(u);
         for (int j = 0; j < z->nm; j++)
             if (z->m[j].u == u && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX && z->s[(int)z->m[j].sq].on) { back = z->s[(int)z->m[j].sq].go; break; }
         if (!back.x && !back.y) back = f->g;
@@ -671,7 +671,7 @@ internal void sq_lost(unsigned idx, ee_unit *dead) {   // diplo.c's kill hook, e
         }
     ee_player *o = unit_get_owner(dead);
     if (o && landing_has_unit(o, dead)) { z->lost_landing++; return; }   // landing.c's: not the fleet's
-    int id = unit_get_id(dead);
+    int id = unit_get_serial(dead);
     for (int j = 0; j < z->nm; j++)
         if (z->m[j].u == dead && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX) {
             struct sq *q = &z->s[(int)z->m[j].sq];

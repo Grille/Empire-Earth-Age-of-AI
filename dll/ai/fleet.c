@@ -676,7 +676,7 @@ internal void fl_targets(struct fleet *f) {
     f->ntgt = 0;
     for (int i = 0; i < f->n; i++) {
         ee_unit *t = fl_target_of(f->u[i]);
-        if (t && f->ntgt < FL_MAX) { f->tgt[f->ntgt] = t; f->tgt_id[f->ntgt++] = unit_get_id(t); }
+        if (t && f->ntgt < FL_MAX) { f->tgt[f->ntgt] = t; f->tgt_id[f->ntgt++] = unit_get_serial(t); }
     }
 }
 // the minute ring of warships lost and sunk (stage 4: losing at sea)
@@ -696,7 +696,7 @@ internal void fl_ring(struct fleet *m, int sunk) {
 internal void fleet_kill(int k, ee_unit *dead, int n) {
     if (k <= 0 || k >= 16 || !dead || !g_fl[k].n || !fleet_on((unsigned)k)) return;
     ee_unit_type *td = unit_get_type_data(dead);
-    int id = unit_get_id(dead), c = 5;
+    int id = unit_get_serial(dead), c = 5;
     if (n == 2) c = 4;
     else if (td) {
         int nk = navy_kind(td);
@@ -715,7 +715,7 @@ internal void sq_lost(unsigned idx, ee_unit *dead);   // squadrons.c: where its 
 internal void fleet_lost(int v, ee_unit *dead) {
     if (v > 0 && v < 16 && dead && SQUADRONS((unsigned)v)) sq_lost((unsigned)v, dead);
     if (v <= 0 || v >= 16 || !dead || !fleet_builds((unsigned)v)) return;
-    int id = unit_get_id(dead);
+    int id = unit_get_serial(dead);
     for (int j = 0; j < g_ntfm[v]; j++)
         if (g_tfm[v][j].u == dead && g_tfm[v][j].id == id) {
             struct fleet *f = &g_tf[v][(int)g_tfm[v][j].tf];
@@ -1435,7 +1435,7 @@ internal void tf_assign(unsigned idx, struct fleet *m, const int want[TF_N]) {
     int cnt[TF_N] = { 0 };
     for (int i = 0; i < m->n; i++) {
         ee_unit *u = m->u[i];
-        int id = unit_get_id(u);
+        int id = unit_get_serial(u);
         of[i] = -1;
         for (int j = 0; j < g_ntfm[idx]; j++) if (g_tfm[idx][j].u == u && g_tfm[idx][j].id == id) { of[i] = g_tfm[idx][j].tf; break; }
         if (of[i] >= 0) cnt[(int)of[i]]++;
@@ -1466,7 +1466,7 @@ internal void tf_assign(unsigned idx, struct fleet *m, const int want[TF_N]) {
         if (of[i] < 0) of[i] = want[TF_HUNT] ? TF_HUNT : TF_HOME;
         struct fleet *f = &g_tf[idx][(int)of[i]];
         f->u[f->n++] = m->u[i];
-        g_tfm[idx][g_ntfm[idx]].u = m->u[i]; g_tfm[idx][g_ntfm[idx]].id = unit_get_id(m->u[i]); g_tfm[idx][g_ntfm[idx]++].tf = of[i];
+        g_tfm[idx][g_ntfm[idx]].u = m->u[i]; g_tfm[idx][g_ntfm[idx]].id = unit_get_serial(m->u[i]); g_tfm[idx][g_ntfm[idx]++].tf = of[i];
     }
 }
 internal void tf_log(unsigned idx, int k, struct fleet *f, uint32_t now) {
