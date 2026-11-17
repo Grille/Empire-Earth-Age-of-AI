@@ -56,8 +56,6 @@
 #define BD_HOUSES_TC 2          // THE MORALE'S HOUSES: the levels a Town Center's morale takes (the game's data)
 #define BD_HOUSES_CAPITOL 4     // ... a Capitol's
 #define BD_HOUSE_REACH 9        // ... a House's tile within this of the building's, each way (the square is 10)
-#define BD_UNI_EVERY 60000      // A UNIVERSITY A TERRITORY: one laid at most this often
-#define BD_UNI_PEND 180000      // ... and the last one laid counts this long (its builder walks there)
 #define BD_HOUSE_EVERY 60000
 #define BD_HOUSE_PEND 180000
 #define BD_PAIR_R 5             // THE PAIR: its first Hospital and Temple this far apart at most (each way, corner to corner)
@@ -66,6 +64,7 @@
 #define BD_SINK_MAX 3           // of a kind in one territory
 #define BD_SINK_OPEN 4          // unfinished buildings
 #define BD_SINK_T 4096
+#define BD_AOE 3                // the wood sink's kinds with an area of effect: Hospital, Temple, University (its first three)
 #define BD_CLAIM_GUARD 3        // its soldiers in the held territory a claim starts from
 #define BD_CLAIM_MINE 2         // a territory with a mine counts as this many times nearer to the base
 #define BD_CLAIM_OPEN 2         // its claims not holding yet that hold the next back
@@ -81,7 +80,6 @@ internal struct bd_st {
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
-    uint32_t uni_t; unsigned unis; ivec2 uni_at;   // A UNIVERSITY A TERRITORY: the last laid, how many, where
     uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
@@ -162,8 +160,6 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
 }
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static ee_unit *freec[384], *built[192], *openb[96], *openw[256];
-    static ivec2 uni[256];   // its Universities' middles (going up counts): A UNIVERSITY A TERRITORY
-    int nuni = 0;
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
     static struct { ivec2 p; int cost, town; } centre[256];
     static ivec2 dsite[BD_DSITES];   // every Settlement, Town Center and Capitol of its, going up too: a mine's drop site (below)
@@ -214,9 +210,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
         else if (t == UT(B_SETTLEMENT)) open_settle += !done;
         else if (pr_kind(t) >= 0) open_prod += !done;
-        open_sink += !done && (pr_kind(t) >= 0 || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
+        open_sink += !done && (pr_kind(t) >= 0 || t == rb[0] || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
-        if (t == rb[0] && nuni < 256) { int sz = unit_type_get_size(td); uni[nuni++] = iv2(p.x + sz / 2, p.y + sz / 2); }
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += !done; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
@@ -525,28 +520,6 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
         }
     }
-    // A UNIVERSITY A TERRITORY (the player 2026-11-16: "it should add universities ... it prevents conversions, so atleast
-    // one per territory as save space isnt a bad idea"): its Universities keep the enemy's priests from converting
-    // within their reach (bd_reach: 8 tiles, 18 with every range upgrade). By each finished Town Center, Capitol or
-    // Settlement no University of its reaches, where its citizens may work, no raiders or enemy towers there: one, a
-    // front territory's first - one at a time, one every BD_UNI_EVERY, with nothing more urgent to lay.
-    if (!type && !placed && have_rb[0] && ut_has(UT(B_UNIVERSITY)) && can_build(pl, UT(B_UNIVERSITY)) && bd_pays(pl, UT(B_UNIVERSITY), com) &&
-        workforce(pl) >= g_min_workforce && (!b->uni_t || now < b->uni_t || now - b->uni_t >= BD_UNI_EVERY)) {
-        int ur = bd_reach(pl, UT(B_UNIVERSITY)), bc = -1, bs = 0;
-        if (b->uni_t && now >= b->uni_t && now - b->uni_t < BD_UNI_PEND && nuni < 256) uni[nuni++] = b->uni_at;   // the last one laid may not show yet
-        for (int j = 0; j < ncen; j++) {
-            int covered = 0;
-            for (int k = 0; k < nuni && !covered; k++) covered = ivec2_dist2(uni[k], centre[j].p) < ur * ur;
-            unsigned r = ter_near(centre[j].p.x, centre[j].p.y);
-            if (covered || r >= (unsigned)s->n || !wk_workable(idx, centre[j].p) || raiders_near(pl, centre[j].p, 12) || wk_danger(idx, centre[j].p)) continue;
-            int sc = (s->t[r].role == TVR_FRONT ? 100 : 0) + (centre[j].town ? 10 : 0);
-            if (bc < 0 || sc > bs) { bc = j; bs = sc; }
-        }
-        if (bc >= 0) {
-            b->uni_t = now ? now : 1;
-            if (bd_spot(pl, idx, UT(B_UNIVERSITY), centre[bc].p, 3, 8, &at)) { b->uni_at = at; b->unis++; type = UT(B_UNIVERSITY); what = "a University for the territory (no conversions within its reach)"; } else b->no_spot++;
-        }
-    }
     // THE MORALE'S HOUSES (the player 2026-11-15: "the ai dosnt build houses yet in the influence are of its towncenters
     // and capitols (the morale bonus)"): the game's data (dbareaeffect.dat "TC Morale Bonus Rng 10", "Capitol Morale
     // Bonus Rng 10": a square 10 tiles each way, the most 2 and 4) and its count (the owner's finished Houses whose
@@ -577,21 +550,26 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // asked) above 10k wood it should try to get rid of it"): BD_SINK wood in the bank and nothing else to lay - a
     // Hospital, a Temple or a production building in a quiet front territory of its, the kind that territory has the
     // fewest of (BD_SINK_MAX of a kind in one at most), one every BD_SINK_EVERY while fewer than BD_SINK_OPEN of its
-    // buildings stand unfinished.
+    // buildings stand unfinished. Its kinds with an area of effect (AREA OF EFFECT below) go only where none of its kind
+    // reaches yet - the University among them (the player 2026-11-16: "it should add universities ... it prevents
+    // conversions, so atleast one per territory as save space isnt a bad idea"; its own step at first, every minute
+    // with the money, made it the first building beside every new Settlement - the player 2026-11-17: "a bit agressive
+    // ... i also fear it got a bit of a sepcial case isntead of being part of teh regular systems"). No front territory
+    // to build in: a University or a production building in a quiet backland.
     if (!type && !placed && player_stock_at(pl)[3] >= BD_SINK && open_sink < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
-        int kinds[3 + PR_NK], nk = 0;
-        kinds[nk++] = rb[1]; kinds[nk++] = rb[2]; kinds[nk++] = UT(B_AIRPORT);   // an Airport near the front: the planes' reach
+        int kinds[4 + PR_NK], nk = 0;
+        kinds[nk++] = rb[1]; kinds[nk++] = rb[2]; kinds[nk++] = rb[0]; kinds[nk++] = UT(B_AIRPORT);   // the area's three (BD_AOE), an Airport near the front: the planes' reach
         for (int k = 0; k < PR_NK; k++) kinds[nk++] = g_ut[PR_KINDS[k]];
-        static uint8_t have[BD_SINK_T][3 + PR_NK];
-        static ivec2 aoe_at[2][256], place[BD_SINK_T];   // AREA OF EFFECT: its Hospitals' and Temples' middles; each territory's place
-        int tn = s->n < BD_SINK_T ? s->n : BD_SINK_T, cnt = 0, naoe[2] = { 0, 0 }, reach[2] = { bd_reach(pl, kinds[0]), bd_reach(pl, kinds[1]) };
+        static uint8_t have[BD_SINK_T][4 + PR_NK];
+        static ivec2 aoe_at[BD_AOE][256], place[BD_SINK_T];   // AREA OF EFFECT: its Hospitals', Temples' and Universities' middles; each territory's place
+        int tn = s->n < BD_SINK_T ? s->n : BD_SINK_T, cnt = 0, naoe[BD_AOE] = { 0, 0, 0 }, reach[BD_AOE] = { bd_reach(pl, kinds[0]), bd_reach(pl, kinds[1]), bd_reach(pl, kinds[2]) };
         memset(have, 0, (size_t)tn * sizeof *have);
         for (ee_unit *u = player_get_units(pl); u && cnt < 16384; u = unit_get_next(u), cnt++) {
             ee_unit_type *td = unit_get_type_data(u);
             if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
             unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
             for (int k = 0; r < (unsigned)tn && k < nk; k++) if (kinds[k] >= 0 && unit_type_get_id(td) == kinds[k] && have[r][k] < 255) have[r][k]++;
-            for (int k = 0; k < 2; k++)
+            for (int k = 0; k < BD_AOE; k++)
                 if (kinds[k] >= 0 && unit_type_get_id(td) == kinds[k] && naoe[k] < 256) {
                     int sz = unit_type_get_size(td);
                     aoe_at[k][naoe[k]++] = iv2(unit_get_x(u) + sz / 2, unit_get_y(u) + sz / 2);
@@ -599,17 +577,17 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
         for (int r = 0; r < tn; r++) place[r] = g_ter.t[r].c;
         for (int j = 0; j < ncen; j++) { unsigned r = ter_near(centre[j].p.x, centre[j].p.y); if (r < (unsigned)tn) place[r] = centre[j].p; }
-        // no quiet front territory with room: a production building in a quiet backland (the fronts of the player's
-        // P4 were all under attack, 100,000 wood in the bank)
+        // no quiet front territory with room: a University or a production building in a quiet backland (the fronts of
+        // the player's P4 were all under attack, 100,000 wood in the bank)
         int br = -1, bk = -1, bn = 0;
         for (int back = 0; back < 2 && br < 0; back++)
         for (int r = 0; r < tn; r++) {
             if (g_ter.t[r].water || s->t[r].role != (back ? TVR_BACK : TVR_FRONT) || s->t[r].state != TV_QUIET) continue;
-            for (int k = back ? 3 : 0; k < nk; k++) {
-                if (kinds[k] < 0 || have[r][k] >= (k == 2 ? 1 : BD_SINK_MAX) ||   // one Airport a territory (18 of one player's in the player's game)
+            for (int k = back ? 2 : 0; k < nk; k++) {
+                if (kinds[k] < 0 || (back && k == 3) || have[r][k] >= (k == 3 ? 1 : BD_SINK_MAX) ||   // one Airport a territory (18 of one player's in the player's game)
                      !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
-                int covered = 0;   // AREA OF EFFECT: a Hospital or Temple of its already reaches the territory's place
-                for (int j = 0; k < 2 && j < naoe[k] && !covered; j++) covered = ivec2_dist2(aoe_at[k][j], place[r]) < reach[k] * reach[k];
+                int covered = 0;   // AREA OF EFFECT: one of its kind already reaches the territory's place
+                for (int j = 0; k < BD_AOE && j < naoe[k] && !covered; j++) covered = ivec2_dist2(aoe_at[k][j], place[r]) < reach[k] * reach[k];
                 if (covered) continue;
                 if (br < 0 || have[r][k] < bn) { br = r; bk = k; bn = have[r][k]; }
             }
@@ -621,8 +599,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 ee_unit_type *ktd = type_data(kinds[bk]);
                 int sz = ktd ? unit_type_get_size(ktd) : 0;
                 ivec2 mid = iv2(at.x + sz / 2, at.y + sz / 2);
-                for (int j = 0; bk < 2 && j < naoe[bk] && !near_same; j++) near_same = ivec2_dist2(aoe_at[bk][j], mid) < reach[bk] * reach[bk];   // AREA OF EFFECT: the spot itself too
-                if (!near_same) { type = kinds[bk]; what = "the wood sink: one more in a front territory"; b->sink_t = now ? now : 1; b->sinks++; }
+                for (int j = 0; bk < BD_AOE && j < naoe[bk] && !near_same; j++) near_same = ivec2_dist2(aoe_at[bk][j], mid) < reach[bk] * reach[bk];   // AREA OF EFFECT: the spot itself too
+                if (!near_same) { type = kinds[bk]; what = s->t[br].role == TVR_FRONT ? "the wood sink: one more in a front territory" : "the wood sink: one more in a backland"; b->sink_t = now ? now : 1; b->sinks++; }
             }
             if (!type) { b->no_spot++; if (near_same) b->sink_t = now ? now : 1; }   // too near its own: the next look in BD_SINK_EVERY
         }
