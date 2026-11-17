@@ -341,6 +341,18 @@ internal struct rs_st {
     uint32_t since, load_t, reissue, look_t, seen_t; unsigned seen_cont;
     unsigned trips, brought, failed;
 } g_rs[16];
+// THE FERRY SERVICE (ferry.c): its transport and passengers - kept from the landing, the subgroups and the transport
+// manager as the outposts' ferry's (expand_ship, expand_refuses, expand_has, expand_unload_ok)
+internal struct fy_st {
+    int phase, kind;                      // phase 0 none, 1 the transport to the pick-up, 2 boarding, 3 crossing; kind 1 soldiers, 2 citizens
+    struct ex_unit ship, pass[16]; int npass;
+    unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
+    uint32_t since, load_t, reissue, look_t, train_t, want_t, log_t;   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold)
+    unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, back;
+    struct { unsigned from, to; uint32_t t; } last[3];   // by kind: the last trip's lands and its start (NOT BACK AGAIN, ferry.c)
+} g_fy[16];
+internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now);   // ferry.c
+internal int g_ferry = 1;
 
 internal int ex_alive(struct ex_unit *e, ee_player *pl) {
     ee_unit *u = e->u;
@@ -362,7 +374,7 @@ internal int ex_cargo(ee_unit *sh) { return unit_count_inside(sh); }
 // the ferry's transport and passengers, and soldiers on an outpost's island (landing.c's order hooks)
 internal int expand_ship(ee_unit *u) {
     if (!u) return 0;
-    for (int p = 1; p < 16; p++) if ((g_xs[p].fphase && g_xs[p].ship.u == u) || (g_rs[p].phase && g_rs[p].ship.u == u)) return p;
+    for (int p = 1; p < 16; p++) if ((g_xs[p].fphase && g_xs[p].ship.u == u) || (g_rs[p].phase && g_rs[p].ship.u == u) || (g_fy[p].phase && g_fy[p].ship.u == u)) return p;
     return 0;
 }
 internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
@@ -373,6 +385,10 @@ internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
     if (u && r->phase) {   // the rescue's transport and passengers
         if (r->ship.u == u) return 1;
         for (int k = 0; k < r->npass; k++) if (r->pass[k].u == u) return 1;
+    }
+    if (u && g_fy[pi].phase) {   // the ferry service's
+        if (g_fy[pi].ship.u == u) return 1;
+        for (int k = 0; k < g_fy[pi].npass; k++) if (g_fy[pi].pass[k].u == u) return 1;
     }
     if (!u || (!x->fphase && !x->active)) return 0;
     if (x->fphase) {
@@ -390,6 +406,8 @@ internal int expand_has(ee_player *pl, ee_unit *u) {
     struct rs_st *r = &g_rs[(unsigned)player_get_index(pl) & 15];
     for (int k = 0; x->fphase && k < x->npass; k++) if (x->pass[k].u == u) return 1;
     for (int k = 0; r->phase && k < r->npass; k++) if (r->pass[k].u == u) return 1;
+    struct fy_st *f = &g_fy[(unsigned)player_get_index(pl) & 15];
+    for (int k = 0; f->phase && k < f->npass; k++) if (f->pass[k].u == u) return 1;
     return 0;
 }
 // the drop site and a tower an outpost waits for (planned and short of them, or ashore with them not laid yet): held
@@ -408,7 +426,8 @@ internal void expand_reserve(ee_player *pl, int reserve[7]) {
 internal void expand_transport_hold(ee_player *pl, int reserve[7]) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct ex_st *x = &g_xs[idx];
-    if (!EXPAND(idx) || GAME_AI(idx) || x->fphase != 1 || g_landing_order) return;
+    int fy = g_ferry && !GAME_AI(idx) && g_fy[idx].want_t && game_time() - g_fy[idx].want_t < 15000;   // THE FERRY SERVICE's (ferry.c), the same row
+    if (GAME_AI(idx) || g_landing_order || !((EXPAND(idx) && x->fphase == 1) || fy)) return;
     int tt = ld_transport_type(pl);
     for (int r = 2; r < 7 && tt; r++) reserve[r] += unit_cost(pl, tt, r);
 }
@@ -444,6 +463,7 @@ internal int expand_leads(ee_attack_subgroup *sg) {   // a subgroup holding the 
 internal int expand_unload_ok(ee_unit *u, int gx, int gy) {
     int p = expand_ship(u);
     if (p && g_rs[p].phase && g_rs[p].ship.u == u) return abs(gx - g_rs[p].drop.x) <= 4 && abs(gy - g_rs[p].drop.y) <= 4;   // the rescue's
+    if (p && g_fy[p].phase && g_fy[p].ship.u == u) return g_fy[p].phase == 3 && abs(gx - g_fy[p].drop.x) <= 4 && abs(gy - g_fy[p].drop.y) <= 4;   // the ferry service's
     return p && g_xs[p].fphase == 3 && abs(gx - g_xs[p].unload.x) <= 4 && abs(gy - g_xs[p].unload.y) <= 4;
 }
 
@@ -1840,6 +1860,7 @@ internal void expand_new_game(void) {
     territory_new_game();
     memset(&g_exs, 0, sizeof g_exs);
     memset(g_rs, 0, sizeof g_rs);
+    memset(g_fy, 0, sizeof g_fy);
     memset(g_ex_log_t, 0, sizeof g_ex_log_t);
     memset(g_xs, 0, sizeof g_xs);
     g_ex_map_logged = 0;
@@ -1857,6 +1878,7 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
     }
     if (!is_vanilla(pl) && (g_expand || g_v_expand > 0)) expand_act(pl, idx, now);
     if (!is_vanilla(pl) && g_rescue) rs_act(pl, idx, now);
+    if (!is_vanilla(pl) && g_ferry && !GAME_AI(idx)) ferry_act(pl, idx, now);
     if (!is_vanilla(pl)) towns_act(pl, idx, now);
     if (!is_vanilla(pl)) fronts_tick(pl, idx, now);
 }
@@ -1864,6 +1886,7 @@ internal void expand_install(const char *autotest_ini) {
     g_expand = SETTING_BITS(g_set_ai[1].expand_islands);
     g_ex_fguard = g_set_ai[1].front_guards;
     g_rescue = g_set_ai[1].rescue_citizens;
+    g_ferry = g_set_ai[1].ferry_service;
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);

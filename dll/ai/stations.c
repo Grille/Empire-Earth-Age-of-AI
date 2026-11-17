@@ -315,6 +315,45 @@ internal int sn_form_spot(struct sn_unit *m, int r, ivec2 at, ivec2 p, ivec2 *q,
     *q = iv2(at.x + g_sn_form[m->slot - 1].dx, at.y + g_sn_form[m->slot - 1].dy);
     return 1;
 }
+// THE FERRY SERVICE (expand.c): the main force's share and those stationed, by land - sn_give walks the land only, so a
+// territory across the water keeps short of its share, however many stand spare at home. at: the place of the land's
+// territory shortest of its share. Each look; sn_ferry_pick takes the spare ones of a land for the transport.
+#define SN_LANDS 16
+struct sn_land { unsigned land; int want, have, gap; ivec2 at; };
+internal struct { uint32_t t; int n; struct sn_land l[SN_LANDS]; } g_snl[16];
+internal unsigned sn_land_of(int r, ivec2 rally) {
+    unsigned a = area_id(rally, 2);
+    return a ? a : area_id(g_ter.t[r].c, 2);
+}
+// the soldiers of land `land` beyond their territories' shares (not a push's, not where the enemy is), nearest to
+// `near` first, into out (at most max): how many
+internal int expand_has(ee_player *pl, ee_unit *u);   // expand.c: a passenger of one of its ferries
+internal int sn_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit **out, int max) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct sn_st *z = &g_sn[idx];
+    struct tv_st *s = &g_tv[idx];
+    static short cnt[PR_T];
+    static int dist[SN_UNITS];
+    int n = s->n < PR_T ? s->n : PR_T, got = 0;
+    memset(cnt, 0, (size_t)n * sizeof *cnt);
+    for (int i = 0; i < z->n; i++) if (z->m[i].pool == SNP_MAIN && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) cnt[z->m[i].ter]++;
+    for (int i = 0; i < z->n; i++) {
+        struct sn_unit *m = &z->m[i];
+        dist[i] = -1;
+        if (m->pool != SNP_MAIN || m->scout || m->ter < 0 || m->ter >= n || cnt[m->ter] <= z->tc[m->ter] || s->t[m->ter].foe > 0) continue;
+        if (unit_get_hp(m->u) <= 0 || unit_get_x(m->u) < 0 || area_id(unit_get_tile(m->u), 2) != land || expand_has(pl, m->u)) continue;
+        int pushing = 0;
+        for (int k = 0; k < SN_PUSHES; k++) pushing |= z->push[k].on && z->push[k].from == m->ter;
+        if (!pushing) dist[i] = ivec2_dist2(unit_get_tile(m->u), toward);
+    }
+    while (got < max) {
+        int b = -1;
+        for (int i = 0; i < z->n; i++) if (dist[i] >= 0 && cnt[z->m[i].ter] > z->tc[z->m[i].ter] && (b < 0 || dist[i] < dist[b])) b = i;
+        if (b < 0) break;
+        out[got++] = z->m[b].u; cnt[z->m[b].ter]--; dist[b] = -1;
+    }
+    return got;
+}
 // the stationed of a pool counted by territory into ac; then the territories short of tc are given those of the
 // nearest with more: 1 where anything moved
 internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, const struct tv_st *s, int *budget) {
@@ -409,6 +448,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             continue;
         }
         // the class Land only: a wall piece is of the army's families too (the first look: 252 "soldiers" with 131 there, the walls stationed with them)
+        if (expand_has(pl, u)) continue;   // a ferry's passenger (expand.c): the ferry's until it is put off
         int pool = fam != CLS_LAND ? -1 : is_aa(u) ? SNP_AA : is_siege(t) || is_ram(t) ? SNP_SIEGE : land_soldier(t) ? SNP_MAIN : -1;
         if (pool < 0 || nn >= SN_UNITS) continue;
         struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
@@ -487,6 +527,22 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     }
     int budget = SN_MOVES;
     sn_give(z, SNP_MAIN, n, tc, ac, s, &budget);
+    {   // THE FERRY SERVICE: by land
+        typeof(&g_snl[0]) L = &g_snl[idx];
+        int worst[SN_LANDS];
+        L->n = 0; L->t = now ? now : 1;
+        for (int r = 0; r < n; r++) {
+            if (g_ter.t[r].water || (!tc[r] && !ac[r])) continue;
+            unsigned a = sn_land_of(r, rally[r]);
+            if (!a) continue;
+            int k = 0;
+            while (k < L->n && L->l[k].land != a) k++;
+            if (k == L->n) { if (k == SN_LANDS) continue; L->l[k].land = a; L->l[k].want = L->l[k].have = 0; L->l[k].gap = 0; L->l[k].at = rally[r]; worst[k] = -0x7FFFFFFF; L->n++; }
+            L->l[k].want += tc[r]; L->l[k].have += ac[r];
+            if (tc[r] - ac[r] > worst[k]) { worst[k] = tc[r] - ac[r]; L->l[k].at = rally[r]; }
+        }
+        for (int k = 0; k < L->n; k++) L->l[k].gap = L->l[k].want - L->l[k].have;
+    }
     if (wsum > 0) {
         for (int r = 0; r < n; r++) tcs[r] = (tcs[r] * np[SNP_SIEGE] + wsum / 2) / wsum;
         sn_give(z, SNP_SIEGE, n, tcs, acs, s, &budget);

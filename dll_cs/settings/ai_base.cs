@@ -676,6 +676,11 @@ class ai_base
         /// Idle citizens stranded on land without a drop site of their AI (a transport put them off there) are fetched home by
         /// one of its transports - the game gives a citizen work only on its own land. 0 = off
         bool rescue_citizens = true;
+        /// The ferry service (the game's computer player off): soldiers to a land whose territories are short of their share
+        /// while another land of its has more than its share, citizens to a land with free mine places it wants while
+        /// another has citizens idle or on wood - by one of its transports on a sea both lands touch (one trained when
+        /// none is free). 0 = off
+        bool ferry_service = true;
         struct towns_fields
         {
             /// a resource town once the mines near its drop sites are full (fewer than 4 free places) and its

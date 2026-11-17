@@ -360,6 +360,42 @@ internal int wk_reach(struct tv_st *s, int home, short *out, int max) {
     }
     return n;
 }
+// THE FERRY SERVICE (expand.c), by land: the free places at the mines of the resources it wants more citizens on
+// (want over have) and the citizens there on wood or idle - work.c sends a citizen to sites on its own land only, so
+// free mines across the water stay free however many cut wood at home. at: the mine with the most free places.
+#define WK_LANDS 16
+struct wk_land { unsigned land; int free, spare; ivec2 at; };
+internal struct { uint32_t t; int n; struct wk_land l[WK_LANDS]; } g_wkl[16];
+internal struct wk_land *wk_land_at(unsigned idx, unsigned land) {
+    typeof(&g_wkl[0]) L = &g_wkl[idx & 15];
+    int k = 0;
+    while (k < L->n && L->l[k].land != land) k++;
+    if (k == L->n) { if (k == WK_LANDS) return NULL; memset(&L->l[k], 0, sizeof L->l[k]); L->l[k].land = land; L->n++; }
+    return &L->l[k];
+}
+// citizens of land `land` free to cross - idle first, then those on wood - nearest to `toward`, into out (at most max)
+internal int expand_has(ee_player *pl, ee_unit *u);   // expand.c: a passenger of one of its ferries
+internal int wk_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit **out, int max) {
+    static ee_unit *c[WK_CITS];
+    static int d[WK_CITS];
+    int nc = 0, count = 0, got = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384 && nc < WK_CITS; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
+        if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) || expand_has(pl, u) || area_id(unit_get_tile(u), 2) != land) continue;
+        ee_goal *g = unit_get_goal(u);
+        ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
+        if (g && !(site && unit_get_amount(site) > 0 && unit_get_resource(site) == 3)) continue;   // idle, or on wood
+        c[nc] = u; d[nc++] = ivec2_dist2(unit_get_tile(u), toward) / 4 + (g ? 0x10000000 : 0);
+    }
+    while (got < max) {
+        int b = -1;
+        for (int k = 0; k < nc; k++) if (c[k] && (b < 0 || d[k] < d[b])) b = k;
+        if (b < 0) break;
+        out[got++] = c[b]; c[b] = NULL;
+    }
+    return got;
+}
 internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static struct wk_cit cit[WK_CITS];
     struct wk_site *mine = g_wks.mine, *bush = g_wks.bush;
@@ -419,6 +455,10 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             for (int j = 0; o < 0 && j < w->nh; j++) if (w->home[j].u == u) o = j;
             ivec2 hp = unit_get_tile(u);
             home = o >= 0 && w->home[o].id == (int)unit_get_serial(u) ? w->home[o].ter : (int)ter_near(hp.x, hp.y);
+            if (home >= 0 && home < s->n) {   // across the water (a ferry put it off there): the territory it stands in
+                unsigned hl = area_id(g_ter.t[home].c, 2), ul = area_id(hp, 2);
+                if (hl && ul && hl != ul) home = (int)ter_near(hp.x, hp.y);
+            }
             if (home < 0 || home >= s->n || !wk_cost(s, (unsigned)home)) {
                 int b = -1, bd = 0;
                 for (int r = 0; r < s->n; r++) {
@@ -430,7 +470,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
             hk = nhn; nhome[nhn].u = u; nhome[nhn].id = (int)unit_get_serial(u); nhome[nhn++].ter = (short)home;
         }
-        if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u)) { w->busy++; continue; }   // held for a landing or an outpost, building
+        if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) || expand_has(pl, u)) { w->busy++; continue; }   // held for a landing or an outpost, building, a ferry's passenger (expand.c)
         ee_goal *g = unit_get_goal(u);
         int gather = g && !strcmp(rtti_name(g), "EEUGGather@@");
         if (g && !gather) { w->busy++; continue; }   // building, repairing, walking on an order
@@ -534,6 +574,24 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 done = 1;
             }
         }
+    {   // THE FERRY SERVICE: by land
+        typeof(&g_wkl[0]) L = &g_wkl[idx];
+        int most[WK_LANDS] = { 0 };
+        L->n = 0; L->t = now ? now : 1;
+        for (int k = 0; k < nm; k++) {
+            int fr = (int)g_wks.cap - mine[k].n;
+            if (fr <= 0 || w->want[mine[k].res] <= w->have[mine[k].res]) continue;
+            struct wk_land *l = wk_land_at(idx, area_id(unit_get_tile(mine[k].u), 2));
+            if (!l || !l->land) continue;
+            l->free += fr;
+            if (fr > most[l - L->l]) { most[l - L->l] = fr; l->at = unit_get_tile(mine[k].u); }
+        }
+        for (int i = 0; i < nc; i++) {
+            if (cit[i].res != 0 && cit[i].res != 3) continue;
+            struct wk_land *l = wk_land_at(idx, area_id(unit_get_tile(cit[i].u), 2));
+            if (l && l->land) l->spare++;
+        }
+    }
     if (g_log && (!w->log_t || now - w->log_t >= 60000)) {
         w->log_t = now ? now : 1;
         int worked = 0;
