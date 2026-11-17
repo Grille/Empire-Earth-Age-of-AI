@@ -81,14 +81,14 @@
 #define SN_SCOUT_REST 300000
 #define SN_RESCOUT 600000       // A LOOK AGAIN: a territory it doesn't hold, this long after a unit of its last stood in it
 #define SN_EB 512
-#define SN_FORM_GAP 2            // A STANDING FORMATION: tiles from one soldier's spot to the next
-#define SN_FORM_HOLE 4           // ... none nearer the station's point than this (its foundation, its builders' way)
-#define SN_FORM_R 20             // ... none farther
-#define SN_FORM_IN 24            // ... taken by a soldier within this of the point (farther: the march there first)
-#define SN_FORM_N 512
-#define SN_FORM_HASH 8192
+#define SN_FORM_IN 16            // A STANDING FORMATION: a soldier within this of its patch is the formation's (farther: the march there)
+#define SN_FORM_FAR 18           // ... the patch searched within this of the station's point
+#define SN_FORM_LOOK 60000       // ... looked for again after this
+#define SN_FORM_AGAIN 20000      // ... laid out again at most this often
+#define SN_FORM_MAX 512          // ... soldiers at rest a look
+#define SN_FC 256                // ... territories a player remembers a patch for
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; short slot, slot_r; };   // slot: its spot + 1 in slot_r's formation (A STANDING FORMATION)     // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int mn;   // mmid, mn: the middle of its soldiers (no siege), how many (THE SIEGE'S ESCORT)
                  uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 internal struct sn_st {
@@ -98,7 +98,7 @@ internal struct sn_st {
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
-    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale, formed, blocked; int due;   // formed: orders to a formation spot, blocked: spots given up for the next (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
+    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale, formed; int due;   // formed: formations laid out at rest (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
     ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts, quarantined, cured;   // quarantined, cured: QUARANTINE's so far   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
@@ -266,54 +266,63 @@ internal int sn_group_move(ee_player *pl, uint32_t *ids, int n, ivec2 from, ivec
 }
 // A STANDING FORMATION (the player 2026-11-17: "the unit holding a territory should stand in formation at the center,
 // its not just looks, being spread in the formation is saver and allows the builders to reach their foundation. right
-// now they all deathball to the same spot, blocking builders and make an easy target for area demage"): every soldier
-// of a station at rest (no push from there, no enemy soldiers in its territory) has a spot of its own around the
-// station's point - its town's building, else the territory's middle, where a claim lays its tower -, SN_FORM_GAP
-// tiles apart in rings from SN_FORM_HOLE out: the middle open for the foundation and the builders, a lane between any
-// two. Spots on its own land only (another island, the sea: the next one), nearest the point first; a soldier keeps
-// its spot while it stays there (a dead one's left open rather than everyone shifting), a new one takes the nearest
-// open. It goes there when it stands idle (back from a fight too); the march to the station stays the group's, and
-// the enemy in the territory or a push calls them off their spots. Before: one point for all, a 5 x 5 tiles' spread.
-internal struct { int8_t dx, dy; } g_sn_form[SN_FORM_N];
-internal int g_sn_form_n;
-internal uint32_t g_sn_taken[SN_FORM_HASH];
-internal int sn_form_cmp(const void *a, const void *b) {
-    const typeof(g_sn_form[0]) *x = a, *y = b;
-    int dx = x->dx * x->dx + x->dy * x->dy, dy = y->dx * y->dx + y->dy * y->dy;
-    return dx != dy ? dx - dy : x->dy != y->dy ? x->dy - y->dy : x->dx - y->dx;
-}
-internal void sn_form_init(void) {
-    if (g_sn_form_n) return;
-    for (int y = -SN_FORM_R; y <= SN_FORM_R; y += SN_FORM_GAP)
-        for (int x = -SN_FORM_R; x <= SN_FORM_R; x += SN_FORM_GAP)
-            if ((abs(x) >= SN_FORM_HOLE || abs(y) >= SN_FORM_HOLE) && x * x + y * y <= SN_FORM_R * SN_FORM_R && g_sn_form_n < SN_FORM_N) {
-                g_sn_form[g_sn_form_n].dx = (int8_t)x; g_sn_form[g_sn_form_n++].dy = (int8_t)y;
-            }
-    qsort(g_sn_form, (size_t)g_sn_form_n, sizeof *g_sn_form, sn_form_cmp);
-}
-internal int sn_taken(int r, int k, int take) {   // spot k of territory r's formation taken this look (take: take it)
-    uint32_t key = (uint32_t)r * SN_FORM_N + (uint32_t)k + 1;
-    unsigned h = (key * 2654435761u) & (SN_FORM_HASH - 1);
-    while (g_sn_taken[h]) { if (g_sn_taken[h] == key) return 1; h = (h + 1) & (SN_FORM_HASH - 1); }
-    if (take) g_sn_taken[h] = key;
-    return 0;
-}
-internal int sn_form_spot(struct sn_unit *m, int r, ivec2 at, ivec2 p, ivec2 *q, int from) {   // m's spot round at (p: where it stands), a new one from spot `from` on; 0: none
-    if (!m->slot || m->slot_r != r) {
-        ee_map *map = game_map();
-        int size = map ? (int)map_get_size(map) : 0;
-        unsigned land = area_id(p, 2);
-        m->slot = 0;
-        for (int k = from; k < g_sn_form_n && !m->slot; k++) {
-            ivec2 c = iv2(at.x + g_sn_form[k].dx, at.y + g_sn_form[k].dy);
-            if (c.x < 2 || c.y < 2 || c.x >= size - 2 || c.y >= size - 2 || sn_taken(r, k, 0) || !land || area_id(c, 2) != land) continue;
-            sn_taken(r, k, 1);
-            m->slot = (short)(k + 1); m->slot_r = (short)r;
-        }
-        if (!m->slot) return 0;
+// now they all deathball to the same spot, blocking builders and make an easy target for area demage"; and, of a grid
+// of spots tried first: "i ment that the units in the territory should reform with the alredy existing formations
+// (the ones alredy used for moving by players) onto a somewhat free space, not spread tile for tile"): a station at
+// rest (no push from there, no enemy soldiers in its territory) stands on a patch near its point - the first, from the
+// point outwards, of a box its number needs (2 + its root, 3 to 12 tiles each way) on its land with no building, field,
+// wall, gate, tree or mine in it; where the point is the territory's empty middle (a claim lays its tower there) the
+// box leaves it free. The march there is the group's as before (AS A GROUP); once there, whenever soldiers have joined
+// or one stands idle well off the block (back from a fight), all its idle soldiers there get one group move to the
+// patch - the game's own move on a selection, so the mod's formations lay them out as a player's click would, the
+// ranged behind -, facing where the force meets the enemy next (THE NEED'S PLACE). Not more often than SN_FORM_AGAIN.
+// Before: one point for all, each soldier sent alone within 5 x 5 tiles of it - a clump on the claim's foundation.
+struct sn_fc { short r; ivec2 spot, at; uint32_t spot_t, form_t; int form_n, box; };
+internal struct sn_fc g_snfc[16][SN_FC];
+internal struct sn_fc *sn_fc_at(unsigned idx, int r) {   // territory r's entry (a new one takes the oldest place)
+    struct sn_fc *c = g_snfc[idx & 15], *old = &c[0];
+    for (int k = 0; k < SN_FC; k++) {
+        if (c[k].spot_t && c[k].r == r) return &c[k];
+        if (!c[k].spot_t || (old->spot_t && c[k].spot_t < old->spot_t)) old = &c[k];
     }
-    *q = iv2(at.x + g_sn_form[m->slot - 1].dx, at.y + g_sn_form[m->slot - 1].dy);
+    memset(old, 0, sizeof *old); old->r = (short)r;
+    return old;
+}
+internal int sn_box_free(ivec2 q, int rr, unsigned land) {   // a box of rr each way round q: open ground of land
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0;
+    if (q.x - rr < 2 || q.y - rr < 2 || q.x + rr >= size - 2 || q.y + rr >= size - 2) return 0;
+    for (int dy = -rr; dy <= rr; dy += rr > 4 ? 2 : 1)
+        for (int dx = -rr; dx <= rr; dx += rr > 4 ? 2 : 1) {
+            ivec2 t = iv2(q.x + dx, q.y + dy);
+            if (area_id(t, 2) != land || area_id(t, 1)) return 0;
+        }
+    for (struct grid_it it = grid_it_box(q.x, q.y, rr + 1, 1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (abs(unit_get_x(u) - q.x) > rr || abs(unit_get_y(u) - q.y) > rr || unit_get_hp(u) <= 0) continue;
+        int fam = unit_type_get_class_id(it.td);
+        ee_player *o = unit_get_owner(u);
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS || fam == CLS_GATE || (o && player_get_index(o) == 0 && unit_type_get_attack(it.td) <= 0)) return 0;   // nature's trees and mines, not its animals
+    }
     return 1;
+}
+// territory r's patch round its point at, for n soldiers (open: the point is its empty middle - kept free); none
+// found: the point itself
+internal void sn_fc_spot(struct sn_fc *c, ivec2 at, int open, int n, uint32_t now) {
+    int rr = 2 + (int)sqrtf((float)(n > 0 ? n : 1));
+    if (rr > 12) rr = 12;
+    if (c->spot_t && now >= c->spot_t && now - c->spot_t < SN_FORM_LOOK && ivec2_eq(c->at, at) && rr <= c->box + 1) return;
+    c->spot_t = now ? now : 1; c->at = at; c->box = rr; c->spot = at;
+    unsigned land = area_id(at, 2);
+    for (int d = 0; land && d <= SN_FORM_FAR; d += 2)
+        for (int dx = -d; dx <= d; dx += 2)
+            for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 2 : 2 * d)) {
+                ivec2 q = iv2(at.x + dx, at.y + dy);
+                if (open && abs(q.x - at.x) <= rr + 2 && abs(q.y - at.y) <= rr + 2) continue;   // the claim's foundation left free
+                if (!sn_box_free(q, rr, land)) continue;
+                c->spot = q;
+                return;
+            }
 }
 // THE FERRY SERVICE (expand.c): the main force's share and those stationed, by land - sn_give walks the land only, so a
 // territory across the water keeps short of its share, however many stand spare at home. at: the place of the land's
@@ -1107,14 +1116,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (td && z->m[i].ter >= 0 && z->m[i].ter < n && (is_wall(unit_type_get_id(td)) || unit_type_get_class_id(td) == CLS_GATE)) dn[z->m[i].ter]++;
         }
     }
-    // ORDERS - A STANDING FORMATION's spots kept first: whoever holds one keeps it
-    sn_form_init();
-    memset(g_sn_taken, 0, sizeof g_sn_taken);
-    for (int i = 0; i < nn; i++) {
-        struct sn_unit *m = &z->m[i];
-        if (!m->slot || m->scout || m->slot_r != m->ter || sn_taken(m->ter, m->slot - 1, 0)) { m->slot = 0; continue; }
-        sn_taken(m->ter, m->slot - 1, 1);
-    }
+    // ORDERS
+    static struct { short r, i; } fm[SN_FORM_MAX];   // A STANDING FORMATION: the idle at rest on their patch
+    int nf = 0;
     static struct { short r, cur; uint8_t fight, urgent; ivec2 d; int n; long sx, sy; uint32_t oldest; uint32_t ids[SN_GROUP_MAX]; short mi[SN_GROUP_MAX]; } grp[SN_GROUPS];
     int ngrp = 0;
     for (int i = 0; i < nn; i++) {
@@ -1141,25 +1145,13 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = unit_get_tile(demo[r]); m->wait_t = 0; dn[r]++; z->orders++; z->demos++; continue; }
             }
         }
-        if (!pu && !(fn[r] > 0 && s->t[r].role != TVR_NONE) && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE) && ivec2_dist2(p, d) <= SN_FORM_IN * SN_FORM_IN) {
-            ivec2 q;   // A STANDING FORMATION: at rest, to its spot
-            if (sn_form_spot(m, r, d, p, &q, 0)) {
+        if (!pu && !(fn[r] > 0 && s->t[r].role != TVR_NONE) && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE)) {   // A STANDING FORMATION: at rest
+            struct sn_fc *fc = sn_fc_at(idx, r);
+            sn_fc_spot(fc, d, !anc[r], ac[r] + acs[r], now);
+            d = fc->spot;
+            if (ivec2_dist2(p, d) <= SN_FORM_IN * SN_FORM_IN) {   // there: the formation's (below)
                 m->wait_t = 0;
-                if (ivec2_dist2(p, q) <= 2) continue;
-                int idle = ar_idle(m->u);
-                if (idle && m->order_t && ivec2_eq(m->to, q) && ivec2_dist2(p, q) <= 9) continue;   // as near as it got
-                if (idle && m->order_t && ivec2_eq(m->to, q) && now - m->order_t < 10000) continue;   // just sent
-                if (idle && m->order_t && ivec2_eq(m->to, q)) {   // stopped short of it (a building, a farm on the spot): the next one out
-                    int k = m->slot;
-                    m->slot = 0;
-                    if (!sn_form_spot(m, r, d, p, &q, k)) continue;
-                    z->blocked++;
-                }
-                if (!idle && !(m->order_t && now - m->order_t > SN_REORDER && sn_idle(z, m, now))) continue;   // on its way, in a fight
-                float xy[2] = { (float)q.x + 0.5f, (float)q.y + 0.5f };
-                void *mem = m->pool == SNP_SIEGE ? NULL : goal_move_alloc();
-                ee_goal *g = m->pool == SNP_SIEGE ? goal_move(xy[0], xy[1]) : mem ? goal_attack_move_init(mem, xy) : NULL;
-                if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = q; z->orders++; z->formed++; }
+                if (ar_idle(m->u) && nf < SN_FORM_MAX) { fm[nf].r = (short)r; fm[nf++].i = (short)i; }
                 continue;
             }
         }
@@ -1204,6 +1196,32 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         z->orders++; z->groups++; z->grouped += (unsigned)grp[k].n;
         for (int j = 0; j < grp[k].n; j++) { struct sn_unit *m = &z->m[grp[k].mi[j]]; m->order_t = now ? now : 1; m->to = grp[k].d; m->wait_t = 0; }
     }
+    for (int a = 0; a < nf; a++) {   // A STANDING FORMATION: each territory's idle at rest, laid out again when due
+        if (fm[a].r < 0) continue;
+        int r = fm[a].r, cnt = 0, off = 0;
+        struct sn_fc *fc = sn_fc_at(idx, r);
+        static uint32_t ids[SN_FORM_MAX];
+        static short mi[SN_FORM_MAX];
+        int tight = 3 + 2 * fc->box;   // off the block: farther than this from the patch
+        for (int b = a; b < nf; b++) {
+            if (fm[b].r != r) continue;
+            struct sn_unit *m = &z->m[fm[b].i];
+            ids[cnt] = (uint32_t)unit_get_serial(m->u); mi[cnt++] = fm[b].i;
+            off |= ivec2_dist2(unit_get_tile(m->u), fc->spot) > tight * tight;
+            fm[b].r = -1;
+        }
+        if (cnt < fc->form_n) fc->form_n = cnt;   // some left or fell: the rest stands
+        if (!(cnt > fc->form_n || off) || (fc->form_t && now >= fc->form_t && now - fc->form_t < SN_FORM_AGAIN)) continue;
+        ivec2 from = rally[r];   // facing: the enemy's way (THE NEED'S PLACE, the last look's), else out from the point
+        if (z->need_on) from = iv2(2 * fc->spot.x - z->need_at.x, 2 * fc->spot.y - z->need_at.y);
+        if (cnt == 1) sn_order(z, &z->m[mi[0]], 0, fc->spot, 1, now);
+        else {
+            sn_group_move(pl, ids, cnt, from, fc->spot, 1);
+            z->orders++;
+            for (int k = 0; k < cnt; k++) { struct sn_unit *m = &z->m[mi[k]]; m->order_t = now ? now : 1; m->to = fc->spot; }
+        }
+        fc->form_t = now ? now : 1; fc->form_n = cnt; z->formed++;
+    }
     z->need_on = 0;   // THE NEED'S PLACE
     for (int k = 0; k < SN_PUSHES && !z->need_on; k++) if (z->push[k].on) { z->need_at = z->push[k].at; z->need_on = 1; }
     if (!z->need_on) {
@@ -1229,9 +1247,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
                    "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
-                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u to formation spots, %u spots blocked), %u scouts back, %u set at enemy walls, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
+                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u set at enemy walls, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
                    idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
-                   z->moved, z->orders, z->groups, z->grouped, z->formed, z->blocked, z->scouted, z->demos, z->stale, buf);
+                   z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->demos, z->stale, buf);
     }
 }
 internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }
