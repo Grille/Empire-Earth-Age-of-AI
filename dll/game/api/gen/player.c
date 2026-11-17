@@ -54,6 +54,14 @@ internal inline ee_player_stats *player_stats_at(const ee_player *o) { return (e
 internal inline const char *player_get_civ_name_en(const ee_player *o) { return *(const char **)((uint8_t *)o + of_player_civ_name_en); }
 internal inline void player_set_civ_name_en(ee_player *o, const char *v) { *(const char **)((uint8_t *)o + of_player_civ_name_en) = v; }
 internal inline const char **player_civ_name_en_at(const ee_player *o) { return (const char **)((uint8_t *)o + of_player_civ_name_en); }
+// the world player's (index 0) animal herds, a vector's begin and end: its update (vf37 0x55C802) runs each one's
+// (0x49E158) when its timer +0xD4 is due; 0x4A0007 (AoC 0x4A5313, the same offsets) walks them too
+internal inline ee_herd **player_get_herds_begin(const ee_player *o) { return *(ee_herd ***)((uint8_t *)o + of_player_herds_begin); }
+internal inline void player_set_herds_begin(ee_player *o, ee_herd **v) { *(ee_herd ***)((uint8_t *)o + of_player_herds_begin) = v; }
+internal inline ee_herd ***player_herds_begin_at(const ee_player *o) { return (ee_herd ***)((uint8_t *)o + of_player_herds_begin); }
+internal inline ee_herd **player_get_herds_end(const ee_player *o) { return *(ee_herd ***)((uint8_t *)o + of_player_herds_end); }
+internal inline void player_set_herds_end(ee_player *o, ee_herd **v) { *(ee_herd ***)((uint8_t *)o + of_player_herds_end) = v; }
+internal inline ee_herd ***player_herds_end_at(const ee_player *o) { return (ee_herd ***)((uint8_t *)o + of_player_herds_end); }
 internal inline uint8_t *player_type_stats_at(const ee_player *o) { return (uint8_t *)o + of_player_type_stats; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // int32 kinds: 0x5564FB adds a finished building's type +0x5B4 (dbobjects' "Wonder bonus") here; set_diplomacy
@@ -338,6 +346,13 @@ internal inline void player_toggle_selected(ee_player *player, void *selection) 
 typedef void (__thiscall *player_view_sight_copy_fn)(ee_player *);
 internal player_view_sight_copy_fn fn_player_view_sight_copy;
 internal inline void player_view_sight_copy(ee_player *player) { fn_player_view_sight_copy(player); }
+// thiscall(world player): a game's start puts the map's animals into herds - every unit of the world's list (+0x450)
+// that may have one (family 17 or 18, a type of the animal list 0x8CFA3C, on the map) and is in none of its herds
+// goes into one of its kind near it, else a new one (0x554BFD, AoC 0x562E22). The two game starts (0x65F4C6,
+// 0x65F6CD; AoC 0x670000.c's) call it; an animal already in a herd is left as it is
+typedef void (__thiscall *player_herds_start_fn)(ee_player *);
+internal player_herds_start_fn fn_player_herds_start;
+internal inline void player_herds_start(ee_player *player) { fn_player_herds_start(player); }
 // thiscall(player, on player, 1): calls off its attack groups on that player
 typedef void (__thiscall *player_call_off_attacks_fn)(ee_player *, ee_player *, int);
 internal player_call_off_attacks_fn fn_player_call_off_attacks;
@@ -1338,6 +1353,8 @@ internal int spec_player_select(int build) {
         of_player_shows_name = 0x4A5;
         of_player_stats = 0x4A8;
         of_player_civ_name_en = 0x7B0;
+        of_player_herds_begin = 0x7E0;
+        of_player_herds_end = 0x7E4;
         of_player_type_stats = 0x874;
         of_player_wonder_bonuses = 0x8EC;
         of_player_improvement_queue = 0x91C;
@@ -1406,6 +1423,7 @@ internal int spec_player_select(int build) {
         fn_player_add_selected = (player_add_selected_fn)0x00554887;
         fn_player_toggle_selected = (player_toggle_selected_fn)0x00554640;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0055BC4E;
+        fn_player_herds_start = (player_herds_start_fn)0x005560C3;
         fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0043033E;
         slot_player_hold_unit = 19;
         fn_ee_player_hold_unit = (player_hold_unit_fn)0x005553DE;
@@ -1662,6 +1680,8 @@ internal int spec_player_select(int build) {
         of_player_shows_name = 0x4A5;
         of_player_stats = 0x4A8;
         of_player_civ_name_en = 0x7B0;
+        of_player_herds_begin = 0x7E0;
+        of_player_herds_end = 0x7E4;
         of_player_type_stats = 0x884;
         of_player_wonder_bonuses = 0x8EC;
         of_player_improvement_queue = 0x90C;
@@ -1730,6 +1750,7 @@ internal int spec_player_select(int build) {
         fn_player_add_selected = (player_add_selected_fn)0x00562A5D;
         fn_player_toggle_selected = (player_toggle_selected_fn)0x00562816;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0056AEC0;
+        fn_player_herds_start = (player_herds_start_fn)0x00564453;
         fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0042DCA6;
         slot_player_hold_unit = 19;
         fn_ee_player_hold_unit = (player_hold_unit_fn)0x0056367B;
@@ -1985,6 +2006,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_add_selected, "EEPlayer.add_selected");
     bad += spec_code((uintptr_t)fn_player_toggle_selected, "EEPlayer.toggle_selected");
     bad += spec_code((uintptr_t)fn_player_view_sight_copy, "EEPlayer.view_sight_copy");
+    bad += spec_code((uintptr_t)fn_player_herds_start, "EEPlayer.herds_start");
     bad += spec_code((uintptr_t)fn_player_call_off_attacks, "EEPlayer.call_off_attacks");
     bad += spec_code((uintptr_t)fn_ee_player_hold_unit, "EEPlayer.hold_unit");
     bad += spec_code((uintptr_t)fn_player_delete_for_room, "EEPlayer.delete_for_room");

@@ -59,6 +59,14 @@ unsafe struct EEPlayer
     [offset(0x7B0), found(c)]
     cstr civ_name_en;
 
+    /// the world player's (index 0) animal herds, a vector's begin and end: its update (vf37 0x55C802) runs each one's
+    /// (0x49E158) when its timer +0xD4 is due; 0x4A0007 (AoC 0x4A5313, the same offsets) walks them too
+    [offset(0x7E0), found(c)]
+    EEHerd** herds_begin;
+
+    [offset(0x7E4), found(c)]
+    EEHerd** herds_end;
+
     [offset((ee)0x874, (aoc)0x884), found(b)]
     block type_stats;
 
@@ -350,6 +358,13 @@ unsafe struct EEPlayer
     /// changed
     [address((ee)0x0055BC4E, (aoc)0x0056AEC0)]
     extern void view_sight_copy();
+
+    /// thiscall(world player): a game's start puts the map's animals into herds - every unit of the world's list (+0x450)
+    /// that may have one (family 17 or 18, a type of the animal list 0x8CFA3C, on the map) and is in none of its herds
+    /// goes into one of its kind near it, else a new one (0x554BFD, AoC 0x562E22). The two game starts (0x65F4C6,
+    /// 0x65F6CD; AoC 0x670000.c's) call it; an animal already in a herd is left as it is
+    [address((ee)0x005560C3, (aoc)0x00564453)]
+    extern void herds_start();
 
     /// thiscall(player, on player, 1): calls off its attack groups on that player
     [address((ee)0x0043033E, (aoc)0x0042DCA6)]

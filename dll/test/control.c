@@ -570,6 +570,7 @@ internal void ff_linger_tick(void);     // groupmove.c: units of an arrived form
 internal void build_retry_tick(void);   // buildretry.c: citizens that stopped a tile off a building site sent again
 internal void walls_safe_point(void);   // walls.c: the scenario editor's walls, after its place actions
 internal void units_first_tick(void);   // unitsfirst.c: a unit shooting a building looks for an enemy unit between shots
+internal void herds_tick(void);   // engine/herds.c: the map's animals into herds where a game start left them out
 internal void answer_fire_tick(void);   // unitsfirst.c: an idle unit shot from beyond its reply range goes for its attacker
 internal void spoils_tick(void);        // spoils.c: a resigned player's buildings and units
 internal void system_line(const char *text, int ms);   // voice/chat.c
@@ -658,6 +659,7 @@ internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *
     build_retry_tick();
     walls_safe_point();
     units_first_tick();
+    herds_tick();
     answer_fire_tick();
     spoils_tick();
     fm_tick();

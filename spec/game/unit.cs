@@ -1058,6 +1058,28 @@ unsafe struct EEUnitAction
     extern int32 ask(EEUnit* u, int32* @out);
 }
 
+/// an animal herd (EEHerd; the world player's herds_begin lists them, a member's +0x200 points at it): its update
+/// (0x49E158; AoC's reads the same offsets) walks its animals about and has one more born (0x49EB14, AoC 0x4A3D9C: a copy
+/// of a member beside it) while births is set and it has fewer members than size, after the birth timer +0xCC
+[c_type("ee_herd"), vtable((ee)0x00827B00, (aoc)0x0083C2E8)]
+unsafe struct EEHerd
+{
+    /// its animals: a vector's begin and end (0x49E158 counts them as (end - begin) >> 2, the birth's parent picked from them)
+    [offset(0x78), found(c)]
+    EEUnit** members_begin;
+
+    [offset(0x7C), found(c)]
+    EEUnit** members_end;
+
+    /// how many it grows to: a birth only while it has fewer members
+    [offset(0xF0), found(c)]
+    uint32 size;
+
+    /// births on (0x49E158 asks it before 0x49EB14)
+    [offset(0xF8), found(c)]
+    uint8 births;
+}
+
 /// the auto-target search's state: 0x62E99D's local, filled by 0x62EA64 (AoC's the same), that target_ok and the
 /// scorer 0x6399CA run on
 [c_type("ee_target_search")]

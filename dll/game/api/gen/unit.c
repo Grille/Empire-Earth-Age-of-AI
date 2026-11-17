@@ -1007,6 +1007,26 @@ internal ai_state_ask_fn fn_ai_state_ask;
 internal inline int ai_state_ask(ee_ai_state *ai_state, ee_unit *u, int *out) { return fn_ai_state_ask(ai_state, u, out); }
 internal inline int patch_goalset_ask(ai_state_ask_fn h, int *of) { return patch_calls(calls_goalset_ask, 2, (uintptr_t)fn_ai_state_ask, (void *)h, of); }
 
+// class EEHerd (ee_herd)
+// an animal herd (EEHerd; the world player's herds_begin lists them, a member's +0x200 points at it): its update
+// (0x49E158; AoC's reads the same offsets) walks its animals about and has one more born (0x49EB14, AoC 0x4A3D9C: a copy
+// of a member beside it) while births is set and it has fewer members than size, after the birth timer +0xCC
+// its animals: a vector's begin and end (0x49E158 counts them as (end - begin) >> 2, the birth's parent picked from them)
+internal inline ee_unit **herd_get_members_begin(const ee_herd *o) { return *(ee_unit ***)((uint8_t *)o + of_herd_members_begin); }
+internal inline void herd_set_members_begin(ee_herd *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_herd_members_begin) = v; }
+internal inline ee_unit ***herd_members_begin_at(const ee_herd *o) { return (ee_unit ***)((uint8_t *)o + of_herd_members_begin); }
+internal inline ee_unit **herd_get_members_end(const ee_herd *o) { return *(ee_unit ***)((uint8_t *)o + of_herd_members_end); }
+internal inline void herd_set_members_end(ee_herd *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_herd_members_end) = v; }
+internal inline ee_unit ***herd_members_end_at(const ee_herd *o) { return (ee_unit ***)((uint8_t *)o + of_herd_members_end); }
+// how many it grows to: a birth only while it has fewer members
+internal inline uint32_t herd_get_size(const ee_herd *o) { return *(uint32_t *)((uint8_t *)o + of_herd_size); }
+internal inline void herd_set_size(ee_herd *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_herd_size) = v; }
+internal inline uint32_t *herd_size_at(const ee_herd *o) { return (uint32_t *)((uint8_t *)o + of_herd_size); }
+// births on (0x49E158 asks it before 0x49EB14)
+internal inline uint8_t herd_get_births(const ee_herd *o) { return *(uint8_t *)((uint8_t *)o + of_herd_births); }
+internal inline void herd_set_births(ee_herd *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_herd_births) = v; }
+internal inline uint8_t *herd_births_at(const ee_herd *o) { return (uint8_t *)((uint8_t *)o + of_herd_births); }
+
 // class EETargetSearch (ee_target_search)
 // the auto-target search's state: 0x62E99D's local, filled by 0x62EA64 (AoC's the same), that target_ok and the
 // scorer 0x6399CA run on
@@ -1395,6 +1415,11 @@ internal int spec_unit_select(int build) {
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
         calls_goalset_ask[0] = 0x005F0FFA;
         calls_goalset_ask[1] = 0x005F1029;
+        vt_ee_herd = 0x00827B00;
+        of_herd_members_begin = 0x78;
+        of_herd_members_end = 0x7C;
+        of_herd_size = 0xF0;
+        of_herd_births = 0xF8;
         of_target_search_player = 0x20;
         fn_target_ok = (target_ok_fn)0x00639993;
         calls_target_ok[0] = 0x00639918;
@@ -1685,6 +1710,11 @@ internal int spec_unit_select(int build) {
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
         calls_goalset_ask[0] = 0x005FF364;
         calls_goalset_ask[1] = 0x005FF393;
+        vt_ee_herd = 0x0083C2E8;
+        of_herd_members_begin = 0x78;
+        of_herd_members_end = 0x7C;
+        of_herd_size = 0xF0;
+        of_herd_births = 0xF8;
         of_target_search_player = 0x20;
         fn_target_ok = (target_ok_fn)0x0064FFCA;
         calls_target_ok[0] = 0x0064FF4F;
@@ -1840,6 +1870,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ai_state_ask, "EEUnitAction.ask");
     bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 0]");
     bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 1]");
+    bad += spec_vtable(vt_ee_herd, ".?AVEEHerd@@", "EEHerd [vtable]");
     bad += spec_code((uintptr_t)fn_target_ok, "unit_functions.target_ok");
     bad += spec_call(calls_target_ok[0], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 0]");
     bad += spec_call(calls_target_ok[1], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 1]");

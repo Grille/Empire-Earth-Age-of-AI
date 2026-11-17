@@ -14,6 +14,14 @@ class patches
     /// big armies. 1 = the whole count kept (up to 65000); 0 = the original
     [advanced, title("Sight counts over 254 units")]
     bool sight_counts = true;
+    /// The map's herds: a herd is the animals' own AI - it walks them about and breeds them back up to its size. A
+    /// game puts the map's animals into herds as it starts, but started as a scenario, from the scenario editor's test
+    /// play (unless a skirmish was played before) or after a saved game was loaded, the map's animals got none: they
+    /// stood where the map put them and never bred. 1 = the game's own start pass is run again 2 seconds into every
+    /// game (it changes nothing where the herds are there). In multiplayer every player needs the same setting.
+    /// 0 = the original
+    [title("Herds for the map's animals")]
+    bool map_herds = true;
     /// Turn fix: Art of Conquest's fix brought back - units that turn with momentum (ships, helicopters, tanks ...)
     /// stop on their heading instead of swinging past it and back. 0 = the original
     [title("Turn fix (from Art of Conquest)"), target(ee)]
