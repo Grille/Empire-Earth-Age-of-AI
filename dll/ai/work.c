@@ -270,6 +270,51 @@ internal ee_unit *wk_tree(ee_player *pl, struct tv_st *s, ivec2 p, int reach, in
 #define WK_ANIMALS 2048
 struct wk_animal { ee_unit *u; int d2; uint16_t ter; short area; };
 internal struct { int n, built; struct wk_animal e[WK_ANIMALS]; } g_wka;
+// HERDS KEPT ([ai_base] herd_keep; the player 2026-11-16: "right now the ai hunts animals to extinction, but in the
+// first two epochs it shoudl always leave two animals per herd alive so it can reproduce, that way its always guranted
+// food, after the first farm it dosnt matter anymore"; 2026-11-18: one left is enough - "if i than kill one animal an
+// small one imediatly spawn from one of the remaining" - and "leave atlest one alive and only hunt grown up animals"):
+// before farms (FARM_EPOCH, or never in a game that ends before them) a living animal is listed only when it is grown
+// (its scale 1: a herd's young grow up to it) and its herd (spec EEHerd, the animal's +0x200; the world player's list)
+// keeps herd_keep living ones besides those being hunted - those stay listed, more may join them. Dead ones (their
+// meat) and the animals of no herd (they don't breed) always.
+#define WK_HERDS 512
+internal struct { ee_herd *h; int allow; } g_wkh[WK_HERDS];
+internal int g_wkh_n;
+internal unsigned g_wkh_kept, g_wkh_young;   // left out of a look's list: for their herd, as young (the log)
+internal int wk_herd_takes(ee_unit *a) {
+    if (unit_get_hp(a) <= 0) return 1;
+    ee_herd *h = unit_get_herd(a);
+    if (!h) return 1;
+    if (unit_get_scale(a) < 1.0f) { g_wkh_young++; return 0; }
+    int k = 0;
+    while (k < g_wkh_n && g_wkh[k].h != h) k++;
+    if (k == g_wkh_n) {
+        if (k == WK_HERDS) return 0;
+        int alive = 0, hunted = 0;
+        ee_unit **b = herd_get_members_begin(h), **e = herd_get_members_end(h);
+        for (ee_unit **m = b; b && m < e && m - b < 256; m++)
+            if (*m && unit_get_hp(*m) > 0 && unit_get_x(*m) >= 0) { alive++; hunted += site_gatherers(*m) > 0; }
+        g_wkh[k].h = h; g_wkh[k].allow = alive - g_herd_keep - hunted; g_wkh_n++;
+        if (alive <= g_herd_keep) g_wkh[k].allow = -1000;   // none of it: those already on one finish it
+    }
+    if (g_wkh[k].allow <= -1000) { g_wkh_kept++; return 0; }
+    if (site_gatherers(a) > 0) return 1;   // being hunted: more may join it
+    if (g_wkh[k].allow <= 0) { g_wkh_kept++; return 0; }
+    g_wkh[k].allow--;
+    return 1;
+}
+internal void wk_herds_keep(ee_player *pl) {
+    if (!g_herd_keep || (current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH)) return;
+    g_wkh_n = 0;
+    int m = 0;
+    for (int i = 0; i < g_wka.n; i++) {   // in the look's order (nearest first): the nearest of a herd are the ones taken
+        int dup = 0;
+        for (int j = 0; j < m && !dup; j++) dup = g_wka.e[j].u == g_wka.e[i].u;   // in reach of two drop sites: once
+        if (!dup && wk_herd_takes(g_wka.e[i].u)) g_wka.e[m++] = g_wka.e[i];
+    }
+    g_wka.n = m;
+}
 internal int wk_animal_order(const void *a, const void *b) {
     const struct wk_animal *x = a, *y = b;
     return x->ter != y->ter ? (int)x->ter - (int)y->ter : x->d2 != y->d2 ? x->d2 - y->d2 : (x->u > y->u) - (x->u < y->u);
@@ -299,6 +344,7 @@ internal void wk_animals(ee_player *pl, ee_resource_mgr *rm) {
         }
     }
     qsort(g_wka.e, (size_t)g_wka.n, sizeof *g_wka.e, wk_animal_order);
+    wk_herds_keep(pl);   // HERDS KEPT
 }
 // an animal in territory ter for the citizen cu: the nearest to its drop site with under 3 hunters, on the citizen's land
 internal ee_unit *wk_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *cu, int ter) {
@@ -600,6 +646,18 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                    "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, %u given another territory, %u back from one not to be worked, no site for food %u wood %u stone %u gold %u iron %u\n",
                    idx, now / 60000.0, nc, w->idle, w->busy, w->by_need ? "by need" : "by the plain rule", w->have[2], w->have[3], w->have[4], w->have[5], w->have[6], w->want[2], w->want[3], w->want[4], w->want[5], w->want[6],
                    nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->xfers, w->retreats, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6]);
+        static uint32_t wild_t;
+        if (g_autotest && (!wild_t || now < wild_t || now - wild_t >= 60000)) {   // HERDS KEPT's measure: the map's living food animals once a minute
+            wild_t = now ? now : 1;
+            int alive = 0, young = 0, inh = 0, carc = 0;
+            for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+                if (unit_type_get_family(it.td) != KIND_ANIMAL || unit_get_resource(it.u) != 2) continue;
+                if (unit_get_hp(it.u) <= 0) { carc += unit_get_amount(it.u) > 0; continue; }
+                alive++; young += unit_get_scale(it.u) < 1.0f; inh += unit_get_herd(it.u) != NULL;
+            }
+            log_locked("# wild: at %.1f min: %d food animals alive (%d young, %d in a herd), %d carcasses with food | herd_keep %d: left out %u times for their herd, %u as young\n",
+                       now / 60000.0, alive, young, inh, carc, g_herd_keep, g_wkh_kept, g_wkh_young);
+        }
     }
 }
 // the citizens it found without work at its last look, -1 while it does not run (the game's computer player on)

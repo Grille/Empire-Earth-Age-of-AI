@@ -674,7 +674,8 @@ unsafe struct EEComplexUnit
     /// tiles/s (0 standing)
     [offset(0x238), found(c)]
     float32 speed;
-    /// its scale (1 normal): size = type +0x474 x scale, height = its stats' height x scale
+    /// its scale (1 normal): size = type +0x474 x scale, height = its stats' height x scale. A herd's animal grows by it:
+    /// born small, grown at 1 (the herd's update 0x49E158 compares it with 1.0, AoC's the same)
     [offset(0x240), found(c)]
     float32 scale;
 

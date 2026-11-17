@@ -31,6 +31,7 @@
 // food gathered by minute 20 rose 5% with twice the food gatherers - the walk decides wild food's rate. NEAR and CAMP
 // (below) gave more workers but no better fights. Off.
 internal int g_food_plan = 3, g_v_food_plan = -1, g_hunt_range = 15;   // [ai_base] food_hunt_range: tiles from a drop site
+internal int g_herd_keep;   // [ai_base] herd_keep: work.c HERDS KEPT
 #define FOOD_PLAN(idx) PV(idx, g_v_food_plan, g_food_plan)
 internal struct { unsigned pulled, hunt_sent, near_pick; } g_fd[16];
 
@@ -277,6 +278,7 @@ internal void food_log(ee_player *pl, unsigned idx, uint32_t now) {
 internal void food_install(const char *autotest_ini) {
     g_food_plan = SETTING_BITS(g_set_ai[1].food_plan);
     g_hunt_range = g_set_ai[1].food_hunt_range;
+    g_herd_keep = g_set_ai[1].herd_keep;   // work.c HERDS KEPT
     if (autotest_ini) g_v_food_plan = ini_int("autotest", "v_food_plan", -1, autotest_ini);
 }
 // 16 WILD (econ_fields, from the Copper Age on): no builders for field foundations while wild food is free in reach -

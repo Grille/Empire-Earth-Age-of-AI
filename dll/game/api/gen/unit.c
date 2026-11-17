@@ -664,7 +664,8 @@ internal inline float *unit_speed_min_at(const ee_unit *o) { return (float *)((u
 internal inline float unit_get_speed(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_speed); }
 internal inline void unit_set_speed(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_speed) = v; }
 internal inline float *unit_speed_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_speed); }
-// its scale (1 normal): size = type +0x474 x scale, height = its stats' height x scale
+// its scale (1 normal): size = type +0x474 x scale, height = its stats' height x scale. A herd's animal grows by it:
+// born small, grown at 1 (the herd's update 0x49E158 compares it with 1.0, AoC's the same)
 internal inline float unit_get_scale(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_scale); }
 internal inline void unit_set_scale(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_scale) = v; }
 internal inline float *unit_scale_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_scale); }
