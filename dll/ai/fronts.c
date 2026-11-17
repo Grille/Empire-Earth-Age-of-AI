@@ -40,11 +40,11 @@ internal int fr_building(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td);   // the class (attack.c), not the family field
     return fam == CLS_BUILDING || fam == CLS_FORTRESS || is_tower_type(unit_type_get_id(td));
 }
-// an enemy building an attack goes at: a building, a fortress, a tower - no wall piece, but a gate (the player
-// 2026-11-16: "walls are excluded from attack targets right? makes sence, but gates should be readded, leaving an wide
-// opening only the enemy can use is a bad idea"; a gate is of the walls' family, its class CLS_GATE)
+// an enemy building an attack goes at: a building, a fortress, a tower - no wall piece, and no gate either (the player
+// 2026-11-17, after gates had been made targets the day before: "dosnt work since gates arent attacked by units
+// automaticly (good, it would bind them for to long) ... ignored like other walls, but siege shoulkd take intrest in
+// them and attack them directly" - stations.c SIEGE AT THE GATES)
 internal int fr_target(ee_unit_type *td) {
-    if (unit_type_get_class_id(td) == CLS_GATE) return 1;
     return fr_building(td) && !is_wall(unit_type_get_id(td));
 }
 // territory: distance in cells from the seeds marked 1 in m, along land, up to FR_TERR (m: 0 none, else 1 + distance)

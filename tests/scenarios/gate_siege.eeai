@@ -1,0 +1,25 @@
+// Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
+// No gap: the wall whole, a gate of P3 laid over its pieces at 60,46 the game's way (build_gate): only P3 passes -
+// P2's siege should take it down (stations.c SIEGE AT THE GATES).
+// Three towers behind the gate on P3's side; P2's force close enough to see them (it pushes: stations.c).
+
+// Armies: P2 attacks with a real force (incl. 8 catapults), P3 has a few defenders behind the gate.
+spawnline(3, unit.b_wall_bronze, 60, 0, 60, 115)
+spawn(3, unit.b_guard_tower_bronze, 57, 43)
+spawn(3, unit.b_guard_tower_bronze, 57, 49)
+spawn(3, unit.b_guard_tower_bronze, 55, 46)
+spawn(2, unit.inf02_spearman, 68, 46, 20)
+spawn(2, unit.arch03_simple_bowman, 68, 50, 10)
+spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 6)
+spawn(2, unit.gun_siege04_catapult, 70, 48, 8)
+spawn(3, unit.inf02_spearman, 50, 44, 8)
+spawn(3, unit.arch03_simple_bowman, 50, 49, 6)
+wait_until(20s)   // the wall queued at the start stands by then
+cmd("gate 3 454 60 46 2")   // 454: b_gate_bronze
+// 2026-11-17 (game_ai=0, game_seed 1-3): siege at the gate in all 3, the gate down by minute 10 in one (the push
+// won); before SIEGE AT THE GATES never
+let gates = [unit.b_gate_copper, unit.b_gate_bronze, unit.b_gate_middle]
+wait_until(10min)
+ping("gate pieces of P3 at 10 min: {player(3).count(gates)}")
+wait_until(19min)
+ping("gate pieces of P3 at 19 min: {player(3).count(gates)}")

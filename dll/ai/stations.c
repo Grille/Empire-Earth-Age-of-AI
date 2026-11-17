@@ -98,7 +98,7 @@ internal struct sn_st {
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
-    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale, formed; int due;   // formed: formations laid out at rest (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
+    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale, formed, gates; int due;   // gates: siege set at an enemy gate (SIEGE AT THE GATES)   // formed: formations laid out at rest (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
     ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts, quarantined, cured;   // quarantined, cured: QUARANTINE's so far   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
@@ -164,6 +164,12 @@ internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRS
 // SN_SIEGE_ESCORT soldiers stationed there, else it stands at the station's place
 #define SN_SIEGE_ESCORT 3
 #define SN_SIEGE_NEAR 12
+// SIEGE AT THE GATES (the player 2026-11-17: gates as the force's targets did nothing - "gates arent attacked by units
+// automaticly (good, it would bind them for to long) ... ignored like other walls, but siege shoulkd take intrest in them
+// and attack them directly"): a siege weapon in a push, or in a territory of its with enemies, attacks the nearest enemy
+// gate it knows (seen or remembered, attack.c seen_by) within SN_GATE_R of it - escorted as THE SIEGE'S ESCORT has it:
+// the push's soldiers within SN_SIEGE_NEAR, SN_SIEGE_ESCORT stationed in the territory. The soldiers leave gates alone.
+#define SN_GATE_R 12
 #define SN_RES_ODDS 3           // ... unless its soldiers stationed there are this many times as many
 #define SN_RES_LOOK 120         // ... at most this many a look (several Fortresses)
 #define SN_RES_AHEAD 2          // ... Fortress room wanted ahead: this many units per production building
@@ -363,6 +369,30 @@ internal int sn_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit *
     }
     return got;
 }
+// SIEGE AT THE GATES: unit id attacks target, by the player's attack message on a selection of it (engine/editor_orders.c's way)
+internal void sn_attack_msg(ee_player *pl, uint32_t id, ee_unit *target) {
+    static __attribute__((aligned(8))) uint8_t mem[0x40];
+    uint32_t ids[1] = { id };
+    uint32_t *sel[3] = { NULL, ids, ids + 1 };
+    player_select(pl, sel);
+    memset(mem, 0, sizeof mem);
+    attack_msg_make((ee_attack_msg *)mem, msg_as_begin(pl), (unsigned)unit_get_serial(target), 0);
+    msg_execute((ee_msg *)mem);
+    msg_as_end(pl);
+}
+// SIEGE AT THE GATES: the nearest enemy gate pl knows within r of p
+internal ee_unit *sn_gate_near(ee_player *pl, ivec2 p, int r) {
+    ee_unit *best = NULL;
+    int bd = 0x7FFFFFFF;
+    for (struct grid_it it = grid_it_box(p.x, p.y, r, 1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (unit_type_get_class_id(it.td) != CLS_GATE || unit_get_hp(u) <= 0 || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        int d = ivec2_dist2(unit_get_tile(u), p);
+        if (d <= r * r && d < bd) { bd = d; best = u; }
+    }
+    return best;
+}
 // the stationed of a pool counted by territory into ac; then the territories short of tc are given those of the
 // nearest with more: 1 where anything moved
 internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, const struct tv_st *s, int *budget) {
@@ -479,8 +509,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         ivec2 p = unit_get_tile(u);
         unsigned r = ter_near(p.x, p.y);
         if (r >= (unsigned)n) continue;
-        // fronts.c fr_target: the enemy's gates too, no wall pieces
-        if (fr_building(it.td) || unit_type_get_class_id(it.td) == CLS_GATE) { if (fr_target(it.td) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }
+        if (fr_building(it.td)) { if (fr_target(it.td) && neb < SN_EB) { eb[neb].p = p; eb[neb].temple = unit_type_get_id(it.td) == UT(B_TEMPLE); eb[neb++].ter = (short)r; } }   // fronts.c fr_target: no wall piece, no gate
         else if (ms_land_soldier(u, it.td)) { fx[r] += p.x; fy[r] += p.y; fn[r]++; }
     }
     // STATIONS: the shares in soldiers
@@ -1155,6 +1184,18 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 continue;
             }
         }
+        if (m->pool == SNP_SIEGE && (pu ? ivec2_dist2(pu->mmid, p) <= SN_SIEGE_NEAR * SN_SIEGE_NEAR && pu->mn >= SN_SIEGE_ESCORT :
+                                     fn[r] > 0 && s->t[r].role != TVR_NONE && ac[r] >= SN_SIEGE_ESCORT)) {   // SIEGE AT THE GATES
+            ee_goal *cg = unit_get_goal(m->u);
+            ee_unit *tg = cg && goal_is_attack(cg) ? goal_get_target(cg) : NULL;
+            if (tg && unit_get_hp(tg) > 0 && unit_type_get_class_id(unit_get_type_data(tg)) == CLS_GATE) { m->wait_t = 0; continue; }   // at one
+            ee_unit *gate = sn_gate_near(pl, p, SN_GATE_R);
+            if (gate && (!m->order_t || now - m->order_t >= 3000)) {   // as a player's right-click: an attack goal made on a gate here crashed the game (its walls-family piece lookup, 0x6311A8, has none for a gate)
+                sn_attack_msg(pl, (uint32_t)unit_get_serial(m->u), gate);
+                m->order_t = now ? now : 1; m->to = unit_get_tile(gate); m->wait_t = 0; z->orders++; z->gates++;
+                continue;
+            }
+        }
         if (pu && pu->breach) {   // A BREACH: the siege (everybody when it has none there) at the piece, the rest by it
             ee_unit *piece = sn_wall_at(pl, pu->wall);
             int escorted = ivec2_dist2(pu->mmid, pu->wall) <= SN_SIEGE_NEAR * SN_SIEGE_NEAR;   // THE SIEGE'S ESCORT: its soldiers by the wall
@@ -1247,9 +1288,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
                    "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
-                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u set at enemy walls, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
+                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u set at enemy walls, %u siege at enemy gates, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
                    idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
-                   z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->demos, z->stale, buf);
+                   z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->demos, z->gates, z->stale, buf);
     }
 }
 internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }
