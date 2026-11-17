@@ -385,6 +385,7 @@ internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *
 internal int g_fl_station = 0, g_v_fl_station = -1;
 internal int g_squadrons = 0, g_v_squadrons = -1;   // squadrons.c THE SQUADRONS ([ai_base] sea_squadrons)
 #define SQUADRONS(idx) PV(idx, g_v_squadrons, g_squadrons)
+internal int squadrons_lead(unsigned idx) { return SQUADRONS(idx & 15) && !GAME_AI(idx & 15); }
 internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now);   // squadrons.c
 internal void squadrons_new_game(void);
 #define FL_STATION(idx) PV(idx, g_v_fl_station, g_fl_station)

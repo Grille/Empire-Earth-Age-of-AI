@@ -40,7 +40,9 @@
 // cant upgrade them": the game sells them, its panel shows no buttons for them). The range ones in rank 2
 // (the most units first; before the epoch as the lines), the others in rank 4 in an order of its own (a hash of the
 // player, the type and the attribute: the same on every PC, unlike rand) and only with the points the range ones
-// still need left over. Bought as a player buys: EEPlayer.queue_improvement - paid now, in after its research time
+// still need left over. A frigate's speed (navy.c NR_FRIG) with the range ones while squadrons lead the warships
+// (squadrons.c; the player 2026-11-17: "freggates get 2 speedupgrades to hunt fishers and transports, and galleys"):
+// its scouts and raiders outrun what they don't beat. Bought as a player buys: EEPlayer.queue_improvement - paid now, in after its research time
 // (24 to 90 s, one after another per type); the queued count as bought. Head-to-head 2026-11-15 (Continental large,
 // 4 AIs from epoch 5, 60 min, seeds 1-5 mirrored; v_unit_improvements=1 against 0; still with the citizens' and
 // without the towers'): about 50 bought an AI, its citizens' first (cheap: their own price); B - A soldiers -25 (se 12), kills +5 (10), losses -16 (16), razed -7.9
@@ -171,14 +173,17 @@ internal int rs_improvements(ee_player *pl, unsigned idx, ee_tech_tree *tt, cons
             if (lv[a] > 1) used += (lv[a] - 1) * improvement_points(a);
         }
         if (lv[IMP_RANGE] > 0 && lv[IMP_RANGE] <= max) range_left = (max - lv[IMP_RANGE] + 1) * improvement_points(IMP_RANGE);
+        int fast = squadrons_lead(idx) && nv_role(td) == NR_FRIG && lv[IMP_SPEED] > 0;   // a frigate's speed: as its range
+        if (fast && lv[IMP_SPEED] <= max) range_left += (max - lv[IMP_SPEED] + 1) * improvement_points(IMP_SPEED);
         for (int a = 0; a < 16 && nc < RS_CAND; a++) {
             if (lv[a] <= 0 || lv[a] > max) continue;   // not offered, or all its buys made
             int pts = improvement_points(a);
-            if (used + pts + (a == IMP_RANGE ? range_left - pts : range_left) > cap) continue;   // the range ones' points kept
+            int first = a == IMP_RANGE || (fast && a == IMP_SPEED);
+            if (used + pts + (first ? range_left - pts : range_left) > cap) continue;   // the range ones' points kept
             struct rs_cand c = { .id = RS_IMP_IDS + t * 16 + a, .ut = (short)(t + 1), .attr = (short)a };
             float f = upgrade_table_price(tab, a) * (float)lv[a];
             for (int r = 2; r < 7; r++) { int base = tech_data_get_cost(ud, r); c.cost[r] = base > 0 ? (int)((float)base * f + 0.0001f) : 0; }
-            if (a == IMP_RANGE) { c.rank = RS_LINE; c.score = -cnt[t]; }
+            if (first) { c.rank = RS_LINE; c.score = -cnt[t]; }
             else { c.rank = RS_REST; c.score = (int)(((idx * 7919u + (unsigned)t * 131u + (unsigned)a * 2654435761u) >> 8) & 0xFFFFFF); }
             cand[nc++] = c;
         }

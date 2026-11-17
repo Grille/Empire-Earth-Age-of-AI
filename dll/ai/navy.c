@@ -48,6 +48,7 @@ internal int nv_role(ee_unit_type *td);
 internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
 internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=big) for this AI - the fleet's size target below
 internal int fleet_own(unsigned idx);      // fleet.c EVERY WARSHIP THE MOD'S: the game's requests train none
+internal int squadrons_lead(unsigned idx);  // fleet.c: squadrons.c THE SQUADRONS lead its warships (the mix by their roles)
 internal void boats_tick(ee_player *pl, uint32_t now);
 internal int fleet_need(unsigned idx);     // the enemy warships it knows in its sea (without the navy account)
 // THE FLEET'S SIZE (stage 4, navy_fleet=big; docs/navy.md): the playtester expects 20+ warships at a low population
@@ -545,7 +546,10 @@ internal int navy_room_reserve(ee_player *pl) {
 //   Missile subs (hit no ship) and carriers stay out (a carrier the game asks for stays its own).
 // - The base mix (the playtester): frigates first, a battleship per 2 frigates, galleys or catapult ships 0.5 - or,
 //   once an attack submarine is available (e10), submarines 1 instead (they beat battleships and galleys and are hit
-//   only by frigates and towers).
+//   only by frigates and towers). Led by squadrons (squadrons.c), by the player's roles of 2026-11-17 ("warships are
+//   usualy my slow demage dealers an tanks, while freggates get 2 speedupgrades to hunt fishers and transports, and
+//   galleys, later to escort warships against subs"): battleships 2 - the main squadrons' core -, frigates 1.5 - the
+//   scout groups' and the escort.
 // - The enemy fleet seen (intel memory, 10 minutes - honest vision; with honest_vision 0 what it sees now): + 0.5
 //   frigates per galley or submarine seen, + 0.25 battleships per frigate, + 0.75 galleys/subs per battleship;
 //   cruisers only with aircraft seen (a carrier counts 3): 0.5 + aircraft / 8, at most 2. Battleships x the share of
@@ -678,8 +682,9 @@ internal void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t 
         }
     int afloat = pk->e[NR_FRIG] + pk->e[NR_LINE] + pk->e[NR_ANTI] + pk->e[NR_AA];
     float air = (float)(pk->air + 3 * pk->carriers);
-    pk->w[NR_FRIG] = 2.0f + 0.5f * (float)(pk->e[NR_ANTI] + pk->e[NR_SUB]);
-    pk->w[NR_LINE] = (1.0f + 0.25f * (float)pk->e[NR_FRIG]) * (float)(1 + afloat) / (float)(1 + afloat + pk->e[NR_SUB]) * 4.0f / (4.0f + (float)pk->coast);
+    int sq = squadrons_lead(idx);
+    pk->w[NR_FRIG] = (sq ? 1.5f : 2.0f) + 0.5f * (float)(pk->e[NR_ANTI] + pk->e[NR_SUB]);
+    pk->w[NR_LINE] = (sq ? 2.0f : 1.0f) * (1.0f + 0.25f * (float)pk->e[NR_FRIG]) * (float)(1 + afloat) / (float)(1 + afloat + pk->e[NR_SUB]) * 4.0f / (4.0f + (float)pk->coast);
     pk->w[NR_ANTI] = 0.5f + 0.75f * (float)pk->e[NR_LINE];
     pk->w[NR_SUB] = 1.0f + 0.75f * (float)pk->e[NR_LINE];
     pk->w[NR_AA] = air > 0 ? (0.5f + air / 8.0f > 2.0f ? 2.0f : 0.5f + air / 8.0f) : 0.0f;

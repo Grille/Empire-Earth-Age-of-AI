@@ -4,7 +4,9 @@
 // hardcode single fleet tough, the fleet is slow, on large maps its be to late to matter if not near alredy. it needs
 // multiple fleets that can hold on their own for a bit until the other fleets come for help if needed"; frigates (with
 // their speed upgrades) hunt fishing boats and transports, warships are the slow damage dealers and tanks, galleys and
-// later submarines hunt warships.
+// later submarines hunt warships; "galleys are a middle ground to me, mostly warship hunter wich is the role of subs
+// later". navy.c trains by these roles while squadrons lead (battleships the core), research.c buys the frigates'
+// speed with their range.
 // The old fleet (fleet.c) is one force with one guard point; its task forces split only when it is far the stronger,
 // and its massing gathers everything at one rally first. Here, by sea (the game's connected water, area_id 1):
 //   ZONES (every SQ_ZONES) - the sea territories that matter to it: its coast along land it holds (THE SEAS' coast),
@@ -14,17 +16,24 @@
 //     squadron per stretch of coast on a large one - each near enough to matter where it is.
 //   SHIPS - frigates (navy.c NR_FRIG) first to the scout groups (SQ_SCOUT_N each, one more group with two zones), the
 //     rest to the main squadrons by their zones' worth (SQ_MAIN_MIN at least); a ship keeps its squadron, one is moved
-//     a look while one squadron is 2+ over its share and another 2+ under. Hurt ships (under SQ_REPAIR of their hit
-//     points) go to the nearest dock until they have 80% again (fleet.c counts the repair).
+//     a look while one squadron is 2+ over its share and another 2+ under.
+//   EACH SHIP (every fleet look, 2 s - the squadrons' own looks are every SQ_LOOK) as the old fleet's: one in a danger
+//     zone out of it at once (fleet.c fl_flee), one whose target is in one back to its squadron's point - the group's
+//     attack-move let them chase into the coastal guns (a third of the warships the squadrons lost in fights went down
+//     inside a danger zone) -, a hurt one (under SQ_REPAIR of its hit points, the old fleet's half) to the nearest
+//     dock until it has 80% again (fleet.c counts the repair); under fire it waits behind the nearest main squadron
+//     first (BEHIND THE SQUADRON), its mates between it and the chasers. At 40% and every 4 s most were sent at 5-25%
+//     and sunk within 15 s and 10 tiles of where they turned - in the fight still, not on the way.
 //   MAIN - at rest at its zone's anchor, out of every danger zone (fleet.c: coastal defences, siege); enemy warships in
 //     its zone: it fights them when not losing (SQ_HOLD on the fight estimate, fleet.c fl_ratio), else it holds under
 //     its own towers in the zone (or by its dock) and calls for help; a quiet squadron on the same sea with half its hit
 //     points or more answers - sails there and fights with it - until the caller's zone is quiet again. Quiet and
 //     clearly stronger (SQ_PUSH) than the enemy warships known within 2 x SQ_REACH: it goes after them, back at 1.1.
-//   HUNT - the submarines (navy.c NR_SUB), in groups of SQ_HUNT_N at most (the player, the same day: "subs in the later
-//     ages are also very (lone, small group) good hunters, as long as they avoid fregattes"): after the nearest enemy
-//     warship known within SQ_HUNT_R that no enemy frigate is near (SQ_FRIG_R) and whose company they beat; any enemy
-//     frigate within SQ_FRIG_R of them: away to the nearest main squadron. Nothing to hunt: with the nearest one.
+//   HUNT - the submarines and galleys (navy.c NR_SUB, NR_ANTI: both hit battleships hard and lose to frigates), in
+//     groups of SQ_HUNT_N at most (the player, the same day: "subs in the later ages are also very (lone, small group)
+//     good hunters, as long as they avoid fregattes"): after the nearest enemy warship known within SQ_HUNT_R that no
+//     enemy frigate is near (SQ_FRIG_R) and whose company they beat; any enemy frigate within SQ_FRIG_R of them: away
+//     to the nearest main squadron. Nothing to hunt: with the nearest one.
 //   HOME - enemy warships within SQ_HOME_R of one of its docks (where the hurt ones are repaired) or fishing boats on
 //     the sea are the nearest main squadron's threat, wherever its zone lies (the first head-to-heads: 15 of the 23
 //     warships a squadron AI lost went down on the way to the dock or at it, nobody came).
@@ -45,8 +54,12 @@
 // 4 AIs, 2 with squadrons; B - A per game): kills +12.6 (se 4.4), losses +0.8 (6.4), soldiers -3.3 (6.9), workers -0.9
 // (3.0); at sea per AI warships lost 22.4 against 14.0, sunk 16.6 against 19.7, afloat at the end 16.5 against 22.5,
 // fishing boats lost 1.4 against 2.7 and sunk 2.9 against 1.2. Of its warships lost: 13.6 hurt ones on the way to the
-// dock, 5.8 between squadrons, 2.8 in them. So built off (sea_squadrons): the way to the dock and the composition
-// (frigates' speed, his roles) come next.
+// dock, 5.8 between squadrons, 2.8 in them. So built off (sea_squadrons).
+// Then EACH SHIP's care, BEHIND THE SQUADRON, the roles (navy.c's mix, research.c's frigate speed, galleys hunting) and
+// a ship no longer in two squadrons at once (sq_assign: up to 1570 moves a game, two sets of orders each look) - the
+// same test, 24 games: kills +7.0 (se 2.1), losses -5.0 (4.9), soldiers -1.5 (5.6), workers -1.8 (2.6); at sea per AI
+// warships afloat at the end 20.2 against 19.8, lost 18.0 against 17.5, sunk 19.1 against 16.4, fishing boats lost 1.7
+// against 2.8, transports sunk 3.8 against 1.7, boats fishing 13.3 against 10.0.
 #define SQ_MAX 8
 #define SQ_MAIN_MIN 5
 #define SQ_REACH 40
@@ -61,7 +74,10 @@
 #define SQ_HOLD 1.0f
 #define SQ_PUSH 1.5f
 #define SQ_SPLIT 1.3f          // CONCENTRATION: the whole sea's ratio from which it splits into zones (together under 1.0)
-#define SQ_REPAIR 0.4f
+#define SQ_REPAIR 0.5f
+#define SQ_BEHIND 10           // BEHIND THE SQUADRON: so far past the main squadron's middle a hurt ship under fire waits
+#define SQ_BEHIND_E 12         //   under fire: an enemy warship seen so near
+#define SQ_BEHIND_M 30         //   a main squadron so near
 #define SQ_HOME_R 15
 #define SQ_SEAS 64
 #define SQ_T 4096
@@ -83,9 +99,9 @@ internal struct sq_st {
     struct { int oc, split; float ratio; } sea[4]; int nsea;   // CONCENTRATION: per sea, the whole fleets' ratio and whether it is split
     struct { ee_unit *u; int id; signed char sq; } m[FL_MAX]; int nm;
     uint32_t t, zone_t, log_t;
-    unsigned repairs, moved;
-    unsigned lost_kind[3], lost_state[SQS_N], lost_repair, lost_none, lost_at_dock;   // lost_at_dock: of lost_repair, within 6 tiles of a dock
-    int free_nosea, free_nofit, docked;   // the last look: ships in no squadron - on no sea, none that takes them; at the dock   // its warships sunk: by squadron kind, by what it did then, on the way to repair, in none
+    unsigned repairs, moved, flees, drops, behind;   // flees: ships out of a danger zone; drops: a target in one given up
+    unsigned lost_kind[3], lost_state[SQS_N], lost_repair, lost_landing, lost_none;   // its warships sunk: by squadron kind, by what it did then, sent to repair, a landing's escort, in none
+    int free_nosea, free_nofit, docked;   // the last look: ships in no squadron - on no sea, none that takes them; at the dock
 } g_sq[16];
 internal uint32_t g_sq_look[16][SQ_T];   // a water territory last seen by one of its warships (A LOOK AGAIN at sea)
 internal struct fleet g_sqf;   // a squadron as fleet.c's fight estimate reads one (its ships only)
@@ -180,8 +196,9 @@ internal void sq_state(struct sq *q, int st, uint32_t now) {
     else if (st == SQS_FLEE) q->flees++;
     else if (st == SQS_HUNT) q->raids++;
 }
-// a ship of the role a squadron of kind k takes (main: all but the submarines; scouts: frigates; hunters: submarines)
-internal int sq_fits(int k, int role) { return k == SQK_HUNT ? role == NR_SUB : k == SQK_SCOUT ? role == NR_FRIG : role != NR_SUB; }
+// a ship of the role a squadron of kind k takes (main: all but the hunters; scouts: frigates; hunters: submarines and galleys)
+internal int sq_hunter(int role) { return role == NR_SUB || role == NR_ANTI; }
+internal int sq_fits(int k, int role) { return k == SQK_HUNT ? sq_hunter(role) : k == SQK_SCOUT ? role == NR_FRIG : !sq_hunter(role); }
 // ZONES: the main squadrons' anchors per sea, scout groups - squadrons kept where their anchor stays
 internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const int *nfrig, const int *nsub, int noc, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
@@ -265,6 +282,7 @@ internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const 
 internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     static signed char was[FL_MAX];
+    static uint8_t kept[FL_MAX];   // taken in pass 0 (asked again in pass 1, the squadron filled since: in two squadrons, ordered twice a look)
     for (int i = 0; i < SQ_MAX; i++) z->s[i].n = 0;
     // the main squadrons' shares on each sea by their zones' worth
     for (int i = 0; i < SQ_MAX; i++) {
@@ -273,7 +291,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
         float sum = 0; int ships = 0, scouts = 0;
         for (int j = 0; j < SQ_MAX; j++) if (z->s[j].on && z->s[j].ocean == q->ocean && z->s[j].kind == SQK_MAIN) sum += z->s[j].zvalue;
         for (int j = 0; j < SQ_MAX; j++) if (z->s[j].on && z->s[j].ocean == q->ocean && z->s[j].kind == SQK_SCOUT) scouts += SQ_SCOUT_N;
-        for (int k = 0; k < f->n; k++) ships += fl_ship_ocean(f->u[k]) == q->ocean && nv_role(unit_get_type_data(f->u[k])) != NR_SUB;
+        for (int k = 0; k < f->n; k++) ships += fl_ship_ocean(f->u[k]) == q->ocean && !sq_hunter(nv_role(unit_get_type_data(f->u[k])));
         ships -= scouts;
         q->want = sum > 0 ? (int)((float)ships * q->zvalue / sum + 0.5f) : ships;
         if (q->want < SQ_MAIN_MIN) q->want = SQ_MAIN_MIN;
@@ -285,6 +303,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
         for (int j = 0; j < z->nm; j++) if (z->m[j].u == u && z->m[j].id == unit_get_id(u)) { was[k] = z->m[j].sq; break; }
     }
     int nm = 0;
+    memset(kept, 0, sizeof kept);
     z->free_nosea = z->free_nofit = 0; z->docked = f->ndocked;
     for (int k = 0; k < f->n; k++) {
         int oc = fl_ship_ocean(f->u[k]), role = nv_role(unit_get_type_data(f->u[k])), fit = 0;
@@ -302,7 +321,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
                 q = was[k];
                 if (q < 0 || q >= SQ_MAX || !z->s[q].on || z->s[q].ocean != oc || !sq_fits(z->s[q].kind, role) || z->s[q].n >= z->s[q].want + 2) continue;
             } else {
-                if (was[k] >= 0 && was[k] < SQ_MAX && z->s[was[k]].on && z->s[was[k]].ocean == oc && z->s[was[k]].n < z->s[was[k]].want + 2 && sq_fits(z->s[was[k]].kind, role)) continue;   // taken in pass 0
+                if (kept[k]) continue;
                 float best = -1e9f;
                 for (int i = 0; i < SQ_MAX; i++) {
                     struct sq *s2 = &z->s[i];
@@ -313,6 +332,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
                 if (q < 0) continue;
                 if (was[k] >= 0) z->moved++;
             }
+            kept[k] = pass == 0;
             struct sq *t = &z->s[q];
             if (t->n < FL_MAX) t->u[t->n++] = u;
             if (nm < FL_MAX) { z->m[nm].u = u; z->m[nm].id = unit_get_id(u); z->m[nm++].sq = (signed char)q; }
@@ -323,9 +343,10 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
 // hurt ships to the dock (fleet.c's list: the repair counted there); back with 80%. To the water beside the dock the old
 // fleet uses (fl_repair_dock: out of danger, one with a tower near counting half the way; ocean_near within 4 tiles)
 // and sent again while it is farther than 4 tiles - open water off the dock healed nothing (900 hit points regained a
-// game against 11 000-18 000; most of the squadrons' warships were sunk on that way). Still 12-23 a game are sunk on the
-// way (all but one far from the dock); kept with its squadron while an enemy warship is near, they went down in the
-// squadrons instead and more of them (27 lost against 22)
+// game against 11 000-18 000). Kept with its squadron while an enemy warship is near, they went down in the squadrons
+// instead and more of them (27 lost against 22). Of those sunk after they were sent (most of its losses), a look at each
+// (6 games): 87 of 122 within 15 s, 97 within 10 tiles of where they turned, 106 with an enemy warship within 10 tiles
+// - lost in the fight they were leaving, not on a long way
 internal void sq_repair(ee_player *pl, unsigned idx, struct fleet *f) {
     struct sq_st *z = &g_sq[idx];
     for (int k = 0; k < f->n; k++) {
@@ -337,9 +358,53 @@ internal void sq_repair(ee_player *pl, unsigned idx, struct fleet *f) {
         ivec2 w;
         if (d < 0 || (int)ocean_near(g_fs.dk[d], 4, &w) != fl_ship_ocean(u)) continue;
         if (j == f->ndocked) { if (j >= FL_MAX) continue; f->docked[j] = u; f->docked_hp[j] = unit_get_hp(u); f->ndocked++; z->repairs++; }
-        if (ivec2_dist2(g_fs.dk[d], unit_get_tile(u)) > 16) unit_goal(u, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
+        // BEHIND THE SQUADRON: under fire (an enemy warship seen within SQ_BEHIND_E), first behind the nearest main
+        // squadron within SQ_BEHIND_M - SQ_BEHIND tiles past its middle, away from the enemy -, the dock once none is near
+        ivec2 up = unit_get_tile(u), e = iv2(0, 0);
+        int ne = 0;
+        for (int x = 0; x < g_fs.ne; x++)
+            if (g_fs.es[x].seen && ivec2_dist2(g_fs.es[x].p, up) <= SQ_BEHIND_E * SQ_BEHIND_E) { e.x += g_fs.es[x].p.x; e.y += g_fs.es[x].p.y; ne++; }
+        if (ne) {
+            e = iv2(e.x / ne, e.y / ne);
+            ivec2 mc = iv2(0, 0);
+            int md = SQ_BEHIND_M * SQ_BEHIND_M + 1;
+            for (int i = 0; i < SQ_MAX; i++) {
+                struct sq *q = &z->s[i];
+                if (!q->on || q->kind != SQK_MAIN || q->ocean != fl_ship_ocean(u) || q->n < 2) continue;
+                ivec2 c = sq_center(q);
+                int dd = ivec2_dist2(c, up);
+                if (dd < md) { md = dd; mc = c; }
+            }
+            float dx = (float)(mc.x - e.x), dy = (float)(mc.y - e.y), len = sqrtf(dx * dx + dy * dy);
+            if (md <= SQ_BEHIND_M * SQ_BEHIND_M && len > 0.5f) {
+                ivec2 b = iv2(mc.x + (int)(dx / len * SQ_BEHIND), mc.y + (int)(dy / len * SQ_BEHIND)), o;
+                if (fl_water(b, (unsigned)fl_ship_ocean(u), &o) && !fl_in_danger(o)) { fl_move(f, u, o, 0); z->behind++; continue; }
+            }
+        }
+        if (ivec2_dist2(g_fs.dk[d], up) > 16) fl_move(f, u, w, 0);   // round a danger zone on the way, not again while it goes
     }
     (void)pl;
+}
+// EACH SHIP: out of a danger zone, no target in one (fleet.c fl_flee, fl_orders' rules)
+internal void sq_care(unsigned idx, struct fleet *f) {
+    struct sq_st *z = &g_sq[idx];
+    for (int k = 0; k < f->n; k++) {
+        ee_unit *u = f->u[k];
+        int docked = 0;
+        for (int j = 0; j < f->ndocked; j++) docked |= f->docked[j] == u;
+        if (docked) continue;
+        if (fl_flee(f, u)) { z->flees++; continue; }
+        ee_unit *t = fl_target_of(u);
+        if (!t || !fl_in_danger_m(unit_get_tile(t), 1.0f)) continue;
+        ivec2 back = f->g;
+        int id = unit_get_id(u);
+        for (int j = 0; j < z->nm; j++)
+            if (z->m[j].u == u && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX && z->s[(int)z->m[j].sq].on) { back = z->s[(int)z->m[j].sq].go; break; }
+        if (!back.x && !back.y) back = f->g;
+        if (fl_in_danger(back)) continue;
+        unit_goal(u, goal_move((float)back.x + 0.5f, (float)back.y + 0.5f), 0, 0x1F40);
+        z->drops++;
+    }
 }
 internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
@@ -522,11 +587,11 @@ internal void sq_log(unsigned idx, uint32_t now) {
                      (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted);
     }
     char lb[200];
-    snprintf(lb, sizeof lb, "lost: main %u scouts %u hunters %u, on the way to repair %u (at the dock %u), in none %u; by what they did:", z->lost_kind[SQK_MAIN], z->lost_kind[SQK_SCOUT],
-             z->lost_kind[SQK_HUNT], z->lost_repair, z->lost_at_dock, z->lost_none);
+    snprintf(lb, sizeof lb, "lost: main %u scouts %u hunters %u, sent to repair %u, landings' escorts %u, in none %u; by what they did:", z->lost_kind[SQK_MAIN],
+             z->lost_kind[SQK_SCOUT], z->lost_kind[SQK_HUNT], z->lost_repair, z->lost_landing, z->lost_none);
     for (int k = 0; k < SQS_N; k++) if (z->lost_state[k]) { size_t l = strlen(lb); snprintf(lb + l, sizeof lb - l, " %s %u", k_sqs[k], z->lost_state[k]); }
-    log_locked("# squadrons: P%u at %.1f min: %d squadrons, %u ships moved between them, %u sent to repair (%d at the dock now), in no squadron now: on no sea %d, none takes them %d; %s%s\n",
-               idx, now / 60000.0, nsq, z->moved, z->repairs, z->docked, z->free_nosea, z->free_nofit, lb, b);
+    log_locked("# squadrons: P%u at %.1f min: %d squadrons, %u ships moved between them, %u sent to repair (%d at the dock now), %u out of a danger zone, %u targets in one given up, %u hurt ones behind a squadron (looks), in no squadron now: on no sea %d, none takes them %d; %s%s\n",
+               idx, now / 60000.0, nsq, z->moved, z->repairs, z->docked, z->flees, z->drops, z->behind, z->free_nosea, z->free_nofit, lb, b);
 }
 internal void av_fleet_sync(unsigned idx, int sub, ee_unit *const *u, int n, const char *what, const char *task, uint32_t now);   // army_view.c
 // fleet.c fleet_tick, after its scan, the fleet's ships in f (all its warships afloat)
@@ -540,10 +605,11 @@ internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now
         unsigned r = ter_near(p.x, p.y);
         if (r < (unsigned)n) g_sq_look[idx][r] = now ? now : 1;
     }
+    sq_repair(pl, idx, f);   // EACH SHIP, every look of the fleet's
+    sq_care(idx, f);
     if (z->t && now - z->t < SQ_LOOK) return;
     z->t = now ? now : 1;
     if (!n || s->version != g_ter.version) return;
-    sq_repair(pl, idx, f);
     int oceans[4], nship[4] = { 0 }, nfrig[4] = { 0 }, nsub[4] = { 0 }, noc = 0;
     for (int k = 0; k < f->n; k++) {
         int oc = fl_ship_ocean(f->u[k]), o = 0;
@@ -551,7 +617,7 @@ internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now
         while (o < noc && oceans[o] != oc) o++;
         if (o == noc) { if (noc == 4) continue; oceans[noc++] = oc; }
         int role = nv_role(unit_get_type_data(f->u[k]));
-        nship[o]++; nfrig[o] += role == NR_FRIG; nsub[o] += role == NR_SUB;
+        nship[o]++; nfrig[o] += role == NR_FRIG; nsub[o] += sq_hunter(role);
     }
     {   // CONCENTRATION: each sea's whole ratio - split from SQ_SPLIT, together under 1.0 (at once: the zones anew)
         static unsigned char sel[FL_ES];
@@ -592,9 +658,10 @@ internal void sq_lost(unsigned idx, ee_unit *dead) {   // diplo.c's kill hook, e
     for (int j = 0; j < f->ndocked; j++)
         if (f->docked[j] == dead) {
             z->lost_repair++;
-            for (int d = 0; d < g_fs.nd; d++) if (ivec2_dist2(g_fs.dk[d], unit_get_tile(dead)) <= 36) { z->lost_at_dock++; break; }
             return;
         }
+    ee_player *o = unit_get_owner(dead);
+    if (o && landing_has_unit(o, dead)) { z->lost_landing++; return; }   // landing.c's: not the fleet's
     int id = unit_get_id(dead);
     for (int j = 0; j < z->nm; j++)
         if (z->m[j].u == dead && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX) {
