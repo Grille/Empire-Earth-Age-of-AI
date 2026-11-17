@@ -515,6 +515,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/scen_targets.c"   // a scenario's attack and defend targets (the trigger Modify AI Military Target)
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/ferry.c"         // the ferry service: soldiers and citizens to the lands across the water that want them
+#include "ai/squadrons.c"     // the warships by sea: main squadrons by zone, scouts and raiders, submarine hunters
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
 #include "ai/holy.c"          // priests and prophets while the game's computer player is off

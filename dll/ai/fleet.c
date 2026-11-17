@@ -383,6 +383,10 @@ internal float fl_hp_max(ee_unit *u) {
 // defence of boats and buildings and the hunt are as they were.
 internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *terr);   // territories.c
 internal int g_fl_station = 0, g_v_fl_station = -1;
+internal int g_squadrons = 0, g_v_squadrons = -1;   // squadrons.c THE SQUADRONS ([ai_base] sea_squadrons)
+#define SQUADRONS(idx) PV(idx, g_v_squadrons, g_squadrons)
+internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now);   // squadrons.c
+internal void squadrons_new_game(void);
 #define FL_STATION(idx) PV(idx, g_v_fl_station, g_fl_station)
 #define HB_RALLY 3                 // HARBOURS (below): a place in the station's sea counts as so many towers more for the rally
 internal int g_harbours = 0, g_v_harbours = -1;
@@ -706,7 +710,9 @@ internal void fleet_kill(int k, ee_unit *dead, int n) {
 
 // one of the AI's own ships sunk (diplo.c hook_kill_stat, v the victim's index): counted for its force and the task
 // that force had (stage 4) - where the fleet loses its ships
+internal void sq_lost(unsigned idx, ee_unit *dead);   // squadrons.c: where its squadrons lose their ships
 internal void fleet_lost(int v, ee_unit *dead) {
+    if (v > 0 && v < 16 && dead && SQUADRONS((unsigned)v)) sq_lost((unsigned)v, dead);
     if (v <= 0 || v >= 16 || !dead || !fleet_builds((unsigned)v)) return;
     int id = unit_get_id(dead);
     for (int j = 0; j < g_ntfm[v]; j++)
@@ -1570,6 +1576,15 @@ internal void fl_armies(unsigned idx, struct fleet *f, int forces, uint32_t now)
         av_fleet_sync(idx, t, x ? x->u : NULL, x ? x->n : 0, forces ? k_tf[t] : NULL, x && x->n ? k_ft[x->task] : NULL, now);
     }
 }
+// EVERY WARSHIP THE MOD'S, without the navy account: by need (navy.c navy_tick: the target)
+internal void fl_need_build(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now) {
+    if (!fleet_own(idx)) return;
+    int e = 0;
+    for (int k = 0; k < g_fs.ne; k++) e += (int)area_id(g_fs.es[k].p, 1) == f->ocean;
+    if (e) { if (e > f->need || now - f->need_t > 600000) f->need = e; f->need_t = now ? now : 1; }
+    else if (f->need && now - f->need_t > 600000) f->need = 0;
+    fl_build(pl, idx, f, now);
+}
 internal void fleet_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct fleet *f = &g_fl[idx];
@@ -1609,6 +1624,15 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     ivec2 c = fl_center(f);
     fl_boats(f, c);
     fl_home_threats(f);
+    if (SQUADRONS(idx) && !GAME_AI(idx)) {   // squadrons.c THE SQUADRONS lead them; the training as before
+        sq_tick(pl, idx, f, now);
+        if (fleet_builds(idx)) fl_build(pl, idx, f, now);
+        else fl_need_build(pl, idx, f, now);
+        f->task = FT_GUARD; f->why = "squadrons"; f->go = c;
+        fl_strength(f, c);
+        if (now - f->log_t >= 60000) { f->log_t = now; fl_log(pl, idx, f, now, c); }
+        return;
+    }
     if (fleet_builds(idx)) {   // stage 4: task forces
         // SHELTER (fleet in being): against an enemy fleet known that is much stronger (ratio < 0.6, 3+ warships) the
         // ships went out one by one and were sunk at the guard point - against the sea opponent (16 warships) the
@@ -1641,13 +1665,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
         fl_armies(idx, f, 1, now);
         return;
     }
-    if (fleet_own(idx)) {   // EVERY WARSHIP THE MOD'S, without the navy account: by need (navy.c navy_tick: the target)
-        int e = 0;
-        for (int k = 0; k < g_fs.ne; k++) e += (int)area_id(g_fs.es[k].p, 1) == f->ocean;
-        if (e) { if (e > f->need || now - f->need_t > 600000) f->need = e; f->need_t = now ? now : 1; }
-        else if (f->need && now - f->need_t > 600000) f->need = 0;
-        fl_build(pl, idx, f, now);
-    }
+    fl_need_build(pl, idx, f, now);
     int changed = fl_decide(idx, f, now, 0);
     fl_targets(f);
     if (changed || now - f->log_t >= 60000) { f->log_t = now; fl_log(pl, idx, f, now, c); }
@@ -1785,11 +1803,13 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     if (g_log && g_autotest && got) log_locked("# fishing: P%u at %.1f min: the mod orders a boat (type %d) - %u ordered so far (%u asked; not: %u a boat idle, %u in the making, %u no fish, %u a boat pulled back); sea %u with %d food in fish, the game's list %s\n",
                                               idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger, sea, sea_food, fish ? "has fish" : "has none");
 }
-internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
+internal void fleet_new_game(void) { squadrons_new_game(); memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
 internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
     g_fl_station = g_set_ai[1].fleet_station;
+    g_squadrons = g_set_ai[1].sea_squadrons;
+    if (autotest_ini) g_v_squadrons = ini_int("autotest", "v_sea_squadrons", -1, autotest_ini);
     g_harbours = g_set_ai[1].harbours;
     if (autotest_ini) g_v_harbours = ini_int("autotest", "v_harbours", -1, autotest_ini);
     if (autotest_ini) g_v_fl_station = ini_int("autotest", "v_fleet_station", -1, autotest_ini);

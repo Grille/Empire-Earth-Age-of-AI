@@ -254,6 +254,11 @@ class ai_base
         /// longest shore along land the AI holds, the more so where enemy warships were seen - holding that sea is what
         /// turns an island into backland. 1 = on.
         bool fleet_station = true;
+        /// Squadrons (the game's computer player off): the warships as several squadrons instead of one fleet - a main
+        /// squadron per stretch of valuable water (its coast, fish, enemy warships seen) that holds it on its own and calls
+        /// the others for help, scout and raid groups of frigates, hunter groups of submarines. 1 = on.
+        [advanced]
+        bool sea_squadrons = false;
         /// Harbours: every sea territory that borders land the AI holds gets one harbour - a dock from
         /// the held territory with the longest shore there, a tower by it, a second where enemy warships were seen on that
         /// sea or with 600 stone in the bank - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
