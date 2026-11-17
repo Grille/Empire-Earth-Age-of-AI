@@ -93,7 +93,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
             // # isl new: off its home continent, first seen - on land with sites (a dock stands in its shore area, a
             // continent of its own)
             if (new_log && g_players[pi] && c->id != (unsigned)ex_home(g_players[pi]) && (c->site[2] || c->mn)) {
-                int id = unit_get_id(u), j;
+                int id = unit_get_serial(u), j;
                 for (j = 0; j < g_ex_nseen && !(g_ex_seen[j].id == id && g_ex_seen[j].p == pi); j++) ;
                 if (j == g_ex_nseen && g_ex_nseen < 512) {
                     g_ex_seen[g_ex_nseen].id = id; g_ex_seen[g_ex_nseen].t = now; g_ex_seen[g_ex_nseen].known = 0; g_ex_seen[g_ex_nseen++].p = pi;
@@ -354,10 +354,14 @@ internal struct fy_st {
 internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now);   // ferry.c
 internal int g_ferry = 1;
 
+// still the unit it was: by its serial (+0x24, the game's own id of a unit: its player in the top byte), never the
+// complex unit's +0x60 (unit_get_id), which isn't one - the player's game of 2026-11-17 died when P3's transport was
+// gone and its memory a citizen's: +0x60 0 on both, the citizen passed as the ferry's transport and its load goal's
+// start called through the transport class it hasn't (EEUGLoadTransport vf38, 0x61496C); passengers read 8, 8 and 0
 internal int ex_alive(struct ex_unit *e, ee_player *pl) {
     ee_unit *u = e->u;
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-    return td && unit_get_hp(u) > 0 && unit_get_id(u) == e->id && unit_get_owner(u) == pl;
+    return td && unit_get_hp(u) > 0 && unit_get_serial(u) == e->id && unit_get_owner(u) == pl;
 }
 internal PRINTF_LIKE(3, 4) void ex_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
@@ -641,7 +645,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         if (ex_cargo(u) > 0) { nld++; continue; }
         if (!air && (int)ocean_near(unit_get_tile(u), 2, NULL) != x->ocean) { no++; continue; }
         int d = ivec2_dist2(unit_get_tile(u), air ? x->home : x->home_w);
-        if (u == x->last.u && unit_get_id(u) == x->last.id) d = -1;   // the last trip's
+        if (u == x->last.u && unit_get_serial(u) == x->last.id) d = -1;   // the last trip's
         if (air) d -= 0x40000000;   // one that flies first
         if (d < bd) { bd = d; best = u; }
     }
@@ -685,7 +689,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         }
         return;
     }
-    x->ship.u = best; x->ship.id = unit_get_id(best);
+    x->ship.u = best; x->ship.id = unit_get_serial(best);
     x->air = ld_is_air_transport(unit_get_type_data(best));
     if (x->air && !unit_get_ai_held(best)) player_hold_unit(pl, best);   // out of the game's air transport groups (their update isn't hooked)
     ex_scan(pl, now, 0);
@@ -729,14 +733,14 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     for (int k = 0; k < cits && x->npass < 16; k++) {
         int b = ex_take(p.c, p.cd, p.nc);
         if (b < 0) break;
-        x->pass[x->npass].u = p.c[b]; x->pass[x->npass++].id = unit_get_id(p.c[b]); p.c[b] = NULL;
+        x->pass[x->npass].u = p.c[b]; x->pass[x->npass++].id = unit_get_serial(p.c[b]); p.c[b] = NULL;
     }
     int nc = x->npass;
-    for (int k = 0; k < ngun && x->npass < 16; k++) { x->pass[x->npass].u = guns[k]; x->pass[x->npass++].id = unit_get_id(guns[k]); }
+    for (int k = 0; k < ngun && x->npass < 16; k++) { x->pass[x->npass].u = guns[k]; x->pass[x->npass++].id = unit_get_serial(guns[k]); }
     for (int k = 0; k < guard && x->npass < 16; k++) {
         int b = ex_take(p.s, p.sd, p.ns);
         if (b < 0) break;
-        x->pass[x->npass].u = p.s[b]; x->pass[x->npass++].id = unit_get_id(p.s[b]); p.s[b] = NULL;
+        x->pass[x->npass].u = p.s[b]; x->pass[x->npass++].id = unit_get_serial(p.s[b]); p.s[b] = NULL;
         int g = 0;   // FORWARD: the guard list (the dead ones' places reused)
         while (g < x->nguard && ex_alive(&x->guard[g], pl)) g++;
         if (g < 4) { x->guard[g] = x->pass[x->npass - 1]; if (g == x->nguard) x->nguard++; }
@@ -1027,8 +1031,8 @@ internal void ex_beach_wait(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     int cap = td ? unit_type_get_transport_capacity(td) : 0;
     if (cap <= 0 || cap > 16) cap = 16;
     x->npass = 0;
-    for (int k = 0; k < e.nc && x->npass < cap; k++) { x->pass[x->npass].u = e.c[k]; x->pass[x->npass++].id = unit_get_id(e.c[k]); }
-    for (int k = 0; k < e.ns && x->npass < cap; k++) { x->pass[x->npass].u = e.s[k]; x->pass[x->npass++].id = unit_get_id(e.s[k]); }
+    for (int k = 0; k < e.nc && x->npass < cap; k++) { x->pass[x->npass].u = e.c[k]; x->pass[x->npass++].id = unit_get_serial(e.c[k]); }
+    for (int k = 0; k < e.ns && x->npass < cap; k++) { x->pass[x->npass].u = e.s[k]; x->pass[x->npass++].id = unit_get_serial(e.s[k]); }
     x->fphase = 6; x->fsince = now; x->freissue = 0; x->escapes++;
     ex_say(idx, now, "the island %u is not safe - %d enemies seen by its %d citizens and %d soldiers (ratio %.2f), no tower up: back aboard, %d of them",
            x->cont, e.foe, e.nc, e.ns, (double)ratio, x->npass);
@@ -1115,7 +1119,7 @@ internal int ex_spot(ee_player *pl, unsigned idx, struct ex_st *x, int type, ive
 internal int ex_proj_alive(struct ex_proj *p) {
     ee_unit *b = p->b;
     ee_unit_type *td = b ? unit_get_type_data(b) : NULL;
-    return td && unit_get_hp(b) > 0 && unit_get_id(b) == p->id;
+    return td && unit_get_hp(b) > 0 && unit_get_serial(b) == p->id;
 }
 // the free mine of the island nearest to p: its gatherers below the cap
 internal ee_unit *ex_free_mine(ee_player *pl, struct ex_st *x, ivec2 p) {
@@ -1327,7 +1331,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
             if (!ex_spot(pl, idx, x, t, c, &at)) { if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: no spot for it by %d,%d", k_xk[p->kind], c.x, c.y); if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
             ee_unit *b = place_foundation(pl, t, at.x, at.y);
             if (!b) { if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: its foundation at %d,%d refused", k_xk[p->kind], at.x, at.y); if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
-            p->b = b; p->id = unit_get_id(b); p->type = t; p->p = at; p->state = 1; p->tries++;
+            p->b = b; p->id = unit_get_serial(b); p->type = t; p->p = at; p->state = 1; p->tries++;
             ex_say(idx, now, "%s %d laid at %d,%d (%d citizens, %d soldiers on the island)", k_xk[p->kind], t, at.x, at.y, e.nc, e.ns);
             going++;
             if (p->kind == XK_DROP) break;   // the drop site alone first
@@ -1735,9 +1739,9 @@ internal void rs_look(ee_player *pl, unsigned idx, struct rs_st *r, uint32_t now
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(it.td)) || unit_get_goal(u) ||
             landing_has_unit(pl, u) || expand_has(pl, u) || area_id(unit_get_tile(u), 2) != lands[b].cont) continue;
-        r->pass[r->npass].u = u; r->pass[r->npass++].id = unit_get_id(u);
+        r->pass[r->npass].u = u; r->pass[r->npass++].id = unit_get_serial(u);
     }
-    r->ship.u = sh; r->ship.id = unit_get_id(sh);
+    r->ship.u = sh; r->ship.id = unit_get_serial(sh);
     r->cont = lands[b].cont; r->ocean = oc; r->pick = lands[b].p; r->pick_w = w; r->drop = drop;
     r->phase = 1; r->since = now ? now : 1; r->load_t = 0; r->reissue = 0; r->trips++;
     unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);

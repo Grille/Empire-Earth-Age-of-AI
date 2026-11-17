@@ -112,12 +112,12 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, int kind, un
         int sz = tw_size(pass[k]);
         if (room + sz > cap) continue;
         room += sz;
-        f->pass[f->npass].u = pass[k]; f->pass[f->npass++].id = unit_get_id(pass[k]);
+        f->pass[f->npass].u = pass[k]; f->pass[f->npass++].id = unit_get_serial(pass[k]);
     }
     if (f->npass < (kind == 1 ? FY_MIN : FY_MIN_CIT)) { f->npass = 0; return 0; }
     f->kind = kind; f->from = a; f->to = b; f->ocean = seas[bs].oc;
     f->pick = seas[bs].pick; f->pick_w = seas[bs].pick_w; f->drop = seas[bs].drop; f->dest = dest;
-    f->ship.u = best; f->ship.id = unit_get_id(best);
+    f->ship.u = best; f->ship.id = unit_get_serial(best);
     f->phase = 1; f->since = now ? now : 1; f->load_t = 0; f->reissue = 0; f->trips++;
     f->last[kind].from = a; f->last[kind].to = b; f->last[kind].t = now ? now : 1;
     unit_goal(best, goal_move((float)f->pick_w.x + 0.5f, (float)f->pick_w.y + 0.5f), 0, 0x1F40);
