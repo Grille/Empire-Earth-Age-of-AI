@@ -566,14 +566,14 @@ internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op,
 // view moved the order (the player, 2026-11-17: "ships disaper on death instead of sinking, some remains appear/disaper
 // based on view angle").
 #define UD_CLIPS 1024
-typedef struct { const void *rec; uint32_t gen, serial; int half; float pl[4], lo, hi; float deck; } ud_clip;
+typedef struct { const void *rec; uint32_t gen, serial, cuts; int half; float pl[4], lo, hi; float deck; } ud_clip;
 internal ud_clip g_ud_clip[UD_CLIPS];
 internal uint32_t ud_clip_hash(const void *rec) { return ((uint32_t)(uintptr_t)rec >> 3) * 2654435761u & (UD_CLIPS - 1); }
-internal void ud_clip_tag(const void *rec, uint32_t gen, uint32_t serial, int half, const float *pl, float lo, float hi, float deck) {
+internal void ud_clip_tag(const void *rec, uint32_t gen, uint32_t serial, uint32_t cuts, int half, const float *pl, float lo, float hi, float deck) {
     uint32_t h = ud_clip_hash(rec);
     for (int n = 0; n < 16; n++, h = (h + 1) & (UD_CLIPS - 1))
         if (g_ud_clip[h].rec == rec || g_ud_clip[h].gen != gen) {
-            g_ud_clip[h].rec = rec, g_ud_clip[h].gen = gen, g_ud_clip[h].serial = serial, g_ud_clip[h].half = half, g_ud_clip[h].deck = deck;
+            g_ud_clip[h].rec = rec, g_ud_clip[h].gen = gen, g_ud_clip[h].serial = serial, g_ud_clip[h].cuts = cuts, g_ud_clip[h].half = half, g_ud_clip[h].deck = deck;
             g_ud_clip[h].lo = lo, g_ud_clip[h].hi = hi;
             memcpy(g_ud_clip[h].pl, pl, sizeof g_ud_clip[h].pl);
             return;
@@ -607,10 +607,18 @@ internal int ud_cuts(void) { return g_sil_hooked && ud_mode() == 1 && in_on() &&
 #define UH_CAP_SHADE 0.8f  // the filling's colour over the death texture
 #define UH_CAP_UV 2.0f     // ... and its texture's repeats over the ship's length
 enum { UH_NEW, UH_OK, UH_NOT };
-typedef struct { ee_model *m; ee_material *mat; float *v; WORD *idx; uint32_t nv, ni, cap_at; } uh_piece;
+// a piece: its part's vertices kept (n0 of them, the part's own) and the cut's corners after them, each a blend of two
+// before it (rlo, rhi at ru: a middle piece's second cut blends corners of the first) - so any frame of the part's
+// animation gives the piece's vertices (fr, made at a frame's first draw); v the frame it was cut at
+typedef struct {
+    ee_model *m; ee_material *mat; float *v; WORD *idx; uint32_t nv, ni, cap_at;
+    uint32_t n0; WORD *rlo, *rhi; float *ru;
+    float **fr; uint32_t nfr;
+} uh_piece;
 typedef struct { ee_model *m; ee_material *mat; D3DMATRIX w; const float *v; const WORD *idx; uint32_t n, ni; } uh_taken;
 typedef struct {
-    uint32_t serial; int half;    // half 0: a free slot
+    uint32_t serial; int half;    // half 0: a free slot; serial: the ship it was made of (the log's)
+    uint32_t cuts;                // its cuts' places along the hull (ud_clip.cuts): with root and half, what it is
     ee_model *root; ee_material *root_mat;
     uint32_t seen; LONG starts;   // the walk it was drawn in last; the game's
     int state, cap_drawn;
@@ -625,18 +633,42 @@ internal struct {
     uint8_t segb[UH_SEGS];                  // ... at which of the two cuts (0 the stern-ward, 1 the bow-ward)
     LONG made, failed, caps, parts_cut, too_big, full;
 } g_uh;
+internal void uh_piece_free(uh_piece *pc) {
+    for (uint32_t f = 0; pc->fr && f < pc->nfr; f++) free(pc->fr[f]);
+    free(pc->fr), free(pc->v), free(pc->idx), free(pc->rlo), free(pc->rhi), free(pc->ru);
+    memset(pc, 0, sizeof *pc);
+}
+// a piece's vertices at frame f of its part (its own once made; the cut's frame's when f is past the part's frames or
+// no memory)
+internal const float *uh_piece_frame(uh_piece *pc, uint32_t f) {
+    if (!pc->fr || f >= pc->nfr) return pc->v;
+    if (pc->fr[f]) return pc->fr[f];
+    float *v = malloc((size_t)pc->nv * 8 * sizeof *v);
+    if (!v) return pc->v;
+    memcpy(v, (const float *)vertices_get_data(model_get_vertices(pc->m)[f]) + material_get_vertex_first(pc->mat) * 8, (size_t)pc->n0 * 8 * sizeof *v);
+    for (uint32_t i = pc->n0; i < pc->nv; i++) {   // (as uh_cut made them: blended, the normal made whole again)
+        const float *pl = v + pc->rlo[i - pc->n0] * 8, *ph = v + pc->rhi[i - pc->n0] * 8;
+        float u = pc->ru[i - pc->n0], *x = v + i * 8;
+        for (int j = 0; j < 8; j++) x[j] = pl[j] + u * (ph[j] - pl[j]);
+        float nl = sqrtf(x[3] * x[3] + x[4] * x[4] + x[5] * x[5]);
+        if (nl > 1e-6f) x[3] /= nl, x[4] /= nl, x[5] /= nl;
+    }
+    return pc->fr[f] = v;
+}
 internal void uh_free(uh_half *h) {
-    for (int i = 0; i < h->np; i++) free(h->piece[i].v), free(h->piece[i].idx);
+    for (int i = 0; i < h->np; i++) uh_piece_free(&h->piece[i]);
     free(h->cv), free(h->ci);
     memset(h, 0, sizeof *h);
 }
-// the half's model (made when new: UH_NEW); NULL when every slot is drawn this walk
-internal uh_half *uh_find(uint32_t serial, int half, ee_model *root) {
+// the half's model (made when new: UH_NEW); NULL when every slot is drawn this walk. One of a model's halves cut at the
+// same places is the same for every ship of it (the cuts on a few places: collect_remains_physics.c US_CUTS) - made of
+// the first ship drawn so, it stands for all of them
+internal uh_half *uh_find(uint32_t serial, uint32_t cuts, int half, ee_model *root) {
     uh_half *spare = NULL, *old = NULL;
     for (int i = 0; i < UH_HALVES; i++) {
         uh_half *h = &g_uh.h[i];
         if (h->half && (h->starts != g_game_starts || g_sil_gen - h->seen > UH_UNSEEN)) uh_free(h);
-        if (h->half && h->serial == serial && h->half == half && h->root == root) { h->seen = g_sil_gen; return h; }
+        if (h->half && h->cuts == cuts && h->half == half && h->root == root) { h->seen = g_sil_gen; return h; }
         if (!h->half) { if (!spare) spare = h; }
         else if (h->seen != g_sil_gen && (!old || g_sil_gen - h->seen > g_sil_gen - old->seen)) old = h;
     }
@@ -646,7 +678,7 @@ internal uh_half *uh_find(uint32_t serial, int half, ee_model *root) {
         return NULL;
     }
     uh_free(h);
-    h->serial = serial, h->half = half, h->root = root, h->seen = g_sil_gen, h->starts = g_game_starts, h->state = UH_NEW;
+    h->serial = serial, h->cuts = cuts, h->half = half, h->root = root, h->seen = g_sil_gen, h->starts = g_game_starts, h->state = UH_NEW;
     return h;
 }
 // a part of the walk (render_instance.c in_part while g_uh_on): taken, or drawn from the half's own lists; 1 always
@@ -669,7 +701,11 @@ internal int uh_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex, 
     for (int i = 0; i < h->np; i++) {
         const uh_piece *e = &h->piece[i];
         if (e->m != m || e->mat != mat) continue;
-        if (e->ni) in_draw(c, tex, material_get_colour(mat), p->alpha * material_get_alpha(mat), world, e->v, e->v, 0.0f, e->nv, e->idx, e->ni, e->cap_at);
+        if (e->ni) {   // (at the record's frames, as the whole ship: its oars, its sails go on)
+            uh_piece *pc = &h->piece[i];
+            const float *pa = uh_piece_frame(pc, p->frame), *pb = p->frac != 0 ? uh_piece_frame(pc, p->next) : pa;
+            in_draw(c, tex, material_get_colour(mat), p->alpha * material_get_alpha(mat), world, pa, pb, pb == pa ? 0.0f : p->frac, e->nv, e->idx, e->ni, e->cap_at);
+        }
         if (m == h->root && mat == h->root_mat && h->cni && !h->cap_drawn) {
             vec3 col = { UH_CAP_SHADE, UH_CAP_SHADE, UH_CAP_SHADE };
             h->cap_drawn = 1;
@@ -712,11 +748,13 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
     if (vmax > MO_MAX_VERTS) vmax = MO_MAX_VERTS;
     float *v = malloc((size_t)vmax * 8 * sizeof *v), *fv = malloc((size_t)vmax * sizeof *fv), *qv = malloc((size_t)vmax * 3 * sizeof *qv);
     WORD *norm = malloc(cn * 3 * sizeof *norm), *bot = malloc(cn * 3 * sizeof *bot);
+    WORD *rlo = malloc((vmax - n + 1) * sizeof *rlo), *rhi = malloc((vmax - n + 1) * sizeof *rhi);   // the corners' recipe
+    float *ru = malloc((vmax - n + 1) * sizeof *ru);
     uint32_t eh = 1;
     while (eh < 4 * cn) eh <<= 1;
     uint64_t *ekey = calloc(eh, sizeof *ekey);   // an edge's corner at a cut: ((lo << 16 | hi) << 1 | cut) + 1, its vertex beside
     WORD *ev = malloc(eh * sizeof *ev);
-    int ok = v && fv && qv && norm && bot && ekey && ev;
+    int ok = v && fv && qv && norm && bot && ekey && ev && rlo && rhi && ru && vmax >= n;
     uint32_t nv = n, nn = 0, nb = 0;
     if (ok) memcpy(v, e->v, (size_t)n * 8 * sizeof *v), memcpy(fv, F, n * sizeof *fv), memcpy(qv, q, (size_t)n * 3 * sizeof *qv);
     for (DWORD t = 0; ok && t + 2 < cn; t += 3) {
@@ -752,6 +790,7 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
                     if (nl > 1e-6f) x[3] /= nl, x[4] /= nl, x[5] /= nl;
                     for (int j = 0; j < 3; j++) qv[nv * 3 + j] = qv[lo * 3 + j] + u * (qv[hi * 3 + j] - qv[lo * 3 + j]);
                     fv[nv] = fv[lo] + u * (fv[hi] - fv[lo]);
+                    rlo[nv - n] = lo, rhi[nv - n] = hi, ru[nv - n] = u;
                     ekey[sl] = key, ev[sl] = (WORD)nv++;
                 }
                 if (ia) out_at = nn2;   // (leaving: the cut's edge runs from this corner to the next)
@@ -776,10 +815,12 @@ internal int uh_cut(const uh_frame *f, const uh_taken *e, const float *q, const 
     if (ok) {
         out->m = e->m, out->mat = e->mat, out->nv = nv, out->ni = nn + nb, out->cap_at = nn;
         out->v = v, out->idx = malloc((nn + nb + 1) * sizeof *out->idx);
-        if (out->idx) { memcpy(out->idx, norm, nn * sizeof *norm); memcpy(out->idx + nn, bot, nb * sizeof *bot); v = NULL; }
-        else ok = 0;
+        out->n0 = n, out->nfr = model_get_frames(e->m), out->fr = out->nfr ? calloc(out->nfr, sizeof *out->fr) : NULL;
+        out->rlo = rlo, out->rhi = rhi, out->ru = ru;
+        if (out->idx) { memcpy(out->idx, norm, nn * sizeof *norm); memcpy(out->idx + nn, bot, nb * sizeof *bot); v = NULL, rlo = rhi = NULL, ru = NULL; }
+        else { out->rlo = out->rhi = NULL, out->ru = NULL; free(out->fr), out->fr = NULL, out->nfr = 0; ok = 0; }
     }
-    free(v), free(fv), free(qv), free(norm), free(bot), free(ekey), free(ev);
+    free(v), free(fv), free(qv), free(norm), free(bot), free(ekey), free(ev), free(rlo), free(rhi), free(ru);
     return ok;
 }
 // the ears of an outline in the plane (p: its corners' u, w): triangles of its corner numbers into out; their count
@@ -1099,7 +1140,7 @@ internal int ud_draw(void *rec) {
     if (!cl) return ud_draw_whole(rec);
     ee_dmg_model *g = draw_record_get_gfx(rec);
     ee_model *m = g ? graphics_anim_model(g, draw_record_get_anim(rec)) : NULL;
-    uh_half *h = m ? uh_find(cl->serial, cl->half, m) : NULL;
+    uh_half *h = m ? uh_find(cl->serial, cl->cuts, cl->half, m) : NULL;
     if (!h) return 1;
     g_uh.cur = h, g_uh_on = 1;
     if (h->state == UH_NEW) {

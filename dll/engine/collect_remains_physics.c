@@ -58,6 +58,9 @@
 // BREAKING); one met already sinking stays whole.
 #define US_SNAP 0.3f
 #define US_SNAP_LEN 1.5f
+#define US_CUTS 4         // the places a hull breaks at, evenly over its range: ships of a kind broken at the same place
+                          // share their halves' models (render_units.c uh_find; the player, 2026-11-17: "shouldnt the broken
+                          // ship model be reused?")
 #define US_SNAP_AT 0.25f
 #define US_SNAP_AT_RND 0.15f
 #define US_SNAP_DROP 0.3f   // tiles/s
@@ -275,6 +278,8 @@ internal int uc_is_ship(const ee_unit_type *ty) {
     return (class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || uc_is_aircraft(k) || uc_is_space(k)) && unit_type_get_family(ty) != KIND_FISH;
 }
 internal float us_rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(*s >> 8) / 16777216.0f; }
+// a break's place in its range (0 .. 1) by the stream: one of US_CUTS
+internal float us_cut_at(uint32_t *s) { return floorf(us_rnd(s) * (float)US_CUTS) / (float)(US_CUTS - 1); }
 // a stream's start by a serial, its bits mixed whole (salt: the stream's own): a product alone drew alike for ids a power
 // of two or a few apart - the leaks' plan climbed evenly with the id and wrapped round, three neighbours the same way
 // down and ids 32 or 64 apart dozens alike (the player, 2026-11-12: "it seems ships of the same type nerly always pick
@@ -566,14 +571,14 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         float drawn = us_rnd(&ss);
         if (g_us_snap > 0 || (!g_us_snap && drawn < (sub ? US_SNAP_SUB : US_SNAP))) {
             k->snap_t = US_SNAP_AT + US_SNAP_AT_RND * us_rnd(&ss);
-            k->cut = k->cut2 = k->ends[0] + (0.45f + 0.1f * us_rnd(&ss)) * (k->ends[1] - k->ends[0]);
+            k->cut = k->cut2 = k->ends[0] + (0.45f + 0.1f * us_cut_at(&ss)) * (k->ends[1] - k->ends[0]);
             for (int i = 0; i < 4 && !sub; i++)   // (a submarine's own leaks kept: it hangs at its depth as it would)
                 k->leak[i][0] = 0.6f + 0.25f * us_rnd(&ss), k->leak[i][1] = 1.0f + 2.0f * us_rnd(&ss), k->leak[i][2] = 6.0f + 6.0f * us_rnd(&ss),
                 k->leak[i][3] = k->lift;
         } else {   // on the seabed, by a stream of its own (its leaks as any ship's)
             uint32_t sf = us_seed(o->serial, 0x165667B1u);
             if (g_us_floor > 0 || (!g_us_floor && us_rnd(&sf) < (sub ? US_SNAP_FLOOR_SUB : US_SNAP_FLOOR)))
-                k->floor_snap = 1, k->cut = k->ends[0] + (0.45f + 0.1f * us_rnd(&sf)) * (k->ends[1] - k->ends[0]), k->cut2 = k->cut;
+                k->floor_snap = 1, k->cut = k->ends[0] + (0.45f + 0.1f * us_cut_at(&sf)) * (k->ends[1] - k->ends[0]), k->cut2 = k->cut;
         }
     }
     if (space && !late) {   // (A SPACESHIP'S WRECK) its blast whole, unless it breaks (each piece its own then)
@@ -582,8 +587,8 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         if (ud_cuts()) {
             float span = k->ends[1] - k->ends[0];
             k->snap_t = US_SNAP_AT + US_SNAP_AT_RND * us_rnd(&ss);
-            if (len >= US_SPACE_LEN3) k->cut = k->ends[0] + (0.3f + 0.08f * us_rnd(&ss)) * span, k->cut2 = k->ends[0] + (0.62f + 0.08f * us_rnd(&ss)) * span;
-            else k->cut = k->cut2 = k->ends[0] + (0.4f + 0.2f * us_rnd(&ss)) * span;
+            if (len >= US_SPACE_LEN3) k->cut = k->ends[0] + (0.3f + 0.08f * us_cut_at(&ss)) * span, k->cut2 = k->ends[0] + (0.62f + 0.08f * us_cut_at(&ss)) * span;
+            else k->cut = k->cut2 = k->ends[0] + (0.4f + 0.2f * us_cut_at(&ss)) * span;
         }
     }
     // never pushed up out of the bottom where the game had it - a submarine in the shallows (0.4 under the water) stood
@@ -1094,7 +1099,9 @@ internal void us_clip_tag(const void *rec, const uc_corpse *k, const float *t) {
     pl[3] = -nt;   // (along . (x - its place), turned into the world: the cuts are on it)
     float lo = k->half == 2 ? -1e30f : k->half == 1 ? k->cut2 : k->cut, hi = k->half == 1 ? 1e30f : k->half == 2 ? k->cut : k->cut2;
     us_death_texture(k->owner);   // (the filling's)
-    ud_clip_tag(rec, g_uc_walk_gen, (uint32_t)k->serial, k->half, pl, lo, hi, k->deck);
+    float span = k->ends[1] - k->ends[0];   // (the cuts' places as shares of the hull: what the half is, with its model)
+    uint32_t cuts = span > 0.0f ? (uint32_t)lrintf((k->cut - k->ends[0]) / span * 1000.0f) << 16 | (uint32_t)lrintf((k->cut2 - k->ends[0]) / span * 1000.0f) : 0;
+    ud_clip_tag(rec, g_uc_walk_gen, (uint32_t)k->serial, cuts, k->half, pl, lo, hi, k->deck);
 }
 internal int us_burnt(const uc_corpse *k);   // below: a crashed aircraft drawn burnt out
 // a shattering flier's animation, frame, next frame and fraction now, and its pose t upright on the ground once it
