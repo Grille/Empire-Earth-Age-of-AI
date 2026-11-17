@@ -355,9 +355,10 @@ internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now);   // ferry.c
 internal int g_ferry = 1;
 
 // still the unit it was: by its serial (+0x24, the game's own id of a unit: its player in the top byte), never the
-// complex unit's +0x60 (unit_get_id), which isn't one - the player's game of 2026-11-17 died when P3's transport was
-// gone and its memory a citizen's: +0x60 0 on both, the citizen passed as the ferry's transport and its load goal's
-// start called through the transport class it hasn't (EEUGLoadTransport vf38, 0x61496C); passengers read 8, 8 and 0
+// complex unit's +0x60 (spec: unknown_60, named id before), which isn't one - the player's game of 2026-11-17 died
+// when P3's transport was gone and its memory a citizen's: +0x60 0 on both, the citizen passed as the ferry's
+// transport and its load goal's start called through the transport class it hasn't (EEUGLoadTransport vf38,
+// 0x61496C); passengers read 8, 8 and 0
 internal int ex_alive(struct ex_unit *e, ee_player *pl) {
     ee_unit *u = e->u;
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;

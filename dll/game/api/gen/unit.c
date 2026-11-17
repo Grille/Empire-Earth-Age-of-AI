@@ -189,12 +189,13 @@ internal inline uint8_t *unit_hidden_flags_at(const ee_unit *o) { return (uint8_
 internal inline int *unit_get_queue_begin(const ee_unit *o) { return *(int **)((uint8_t *)o + of_unit_queue_begin); }
 internal inline void unit_set_queue_begin(ee_unit *o, int *v) { *(int **)((uint8_t *)o + of_unit_queue_begin) = v; }
 internal inline int **unit_queue_begin_at(const ee_unit *o) { return (int **)((uint8_t *)o + of_unit_queue_begin); }
-// (lookup 0x4111F6) NOT A UNIT'S ID: not unique - in the player's game of 2026-11-17 a citizen and the dead
-// transport whose memory it took both read 0, two soldiers 8. A unit's id is its serial (+0x24, object_by_id);
-// a pointer kept across steps is checked by the serial (the AI's ferry took a citizen for its transport by this)
-internal inline int unit_get_id(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_id); }
-internal inline void unit_set_id(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_id) = v; }
-internal inline int *unit_id_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_id); }
+// (read by the lookup 0x4111F6) not known what it is - not a unit's id (named id before 2026-11-17): not unique, in
+// the player's game of that day a citizen and the dead transport whose memory it took both read 0, two soldiers
+// 8. A unit's id is its serial (+0x24, object_by_id); a pointer kept across steps is checked by the serial (the
+// AI's ferry took a citizen for its transport by this field)
+internal inline int unit_get_unknown_60(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_unknown_60); }
+internal inline void unit_set_unknown_60(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_unknown_60) = v; }
+internal inline int *unit_unknown_60_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_unknown_60); }
 internal inline int unit_get_busy(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_busy); }
 internal inline void unit_set_busy(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_busy) = v; }
 internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_busy); }
@@ -1178,7 +1179,7 @@ internal int spec_unit_select(int build) {
         vt_ee_complex_unit = 0x00831494;
         size_ee_complex_unit = 0x348;
         of_unit_queue_begin = 0x4C;
-        of_unit_id = 0x60;
+        of_unit_unknown_60 = 0x60;
         of_unit_busy = 0x68;
         of_unit_inside = 0x70;
         of_unit_contacts = 0xC4;
@@ -1468,7 +1469,7 @@ internal int spec_unit_select(int build) {
         vt_ee_complex_unit = 0x00846DDC;
         size_ee_complex_unit = 0x364;
         of_unit_queue_begin = 0x4C;
-        of_unit_id = 0x60;
+        of_unit_unknown_60 = 0x60;
         of_unit_busy = 0x68;
         of_unit_inside = 0x70;
         of_unit_contacts = 0xC4;

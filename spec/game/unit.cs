@@ -215,11 +215,12 @@ unsafe struct EEComplexUnit
     [offset(0x4C), found(c)]
     int32* queue_begin;
 
-    /// (lookup 0x4111F6) NOT A UNIT'S ID: not unique - in the player's game of 2026-11-17 a citizen and the dead
-    /// transport whose memory it took both read 0, two soldiers 8. A unit's id is its serial (+0x24, object_by_id);
-    /// a pointer kept across steps is checked by the serial (the AI's ferry took a citizen for its transport by this)
+    /// (read by the lookup 0x4111F6) not known what it is - not a unit's id (named id before 2026-11-17): not unique, in
+    /// the player's game of that day a citizen and the dead transport whose memory it took both read 0, two soldiers
+    /// 8. A unit's id is its serial (+0x24, object_by_id); a pointer kept across steps is checked by the serial (the
+    /// AI's ferry took a citizen for its transport by this field)
     [offset(0x60), found(c)]
-    int32 id;
+    int32 unknown_60;
 
     [offset(0x68), found(c)]
     int32 busy;
