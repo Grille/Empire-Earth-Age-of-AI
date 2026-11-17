@@ -25,7 +25,9 @@
 //     first (BEHIND THE SQUADRON), its mates between it and the chasers. At 40% and every 4 s most were sent at 5-25%
 //     and sunk within 15 s and 10 tiles of where they turned - in the fight still, not on the way.
 //   MAIN - at rest at its zone's anchor, out of every danger zone (fleet.c: coastal defences, siege); enemy warships in
-//     its zone: it fights them when not losing (SQ_HOLD on the fight estimate, fleet.c fl_ratio), else it holds under
+//     its zone: it fights them when clearly the stronger (SQ_ENGAGE on the fight estimate, fleet.c fl_ratio) and on
+//     while not losing (SQ_HOLD) - from an even estimate half the ships it sent to repair were sunk leaving the fight,
+//     nearly all its losses -, else it holds under
 //     its own towers in the zone (or by its dock) and calls for help; a quiet squadron on the same sea with half its hit
 //     points or more answers - sails there and fights with it - until the caller's zone is quiet again. Quiet and
 //     clearly stronger (SQ_PUSH) than the enemy warships known within 2 x SQ_REACH: it goes after them, back at 1.1.
@@ -44,7 +46,7 @@
 //     (the first head-to-head against the old fleet, Small Islands large from epoch 9, 12 games mirrored: warships lost
 //     30.5 against 15.3, sunk 19.9 against 25.8, afloat at the end 9.5 against 20.8). So on a sea where all its
 //     warships do not beat all the enemy's it knows there (seen, remembered 5 minutes; SQ_SPLIT, back together under
-//     1.0) there is one main squadron; a squadron fights in its zone only when not losing there (SQ_HOLD 1.0), and
+//     1.0) there is one main squadron; a squadron fights in its zone only when the stronger there (SQ_ENGAGE), and
 //     pushes only when it beats what the enemy is known to have on the whole sea too.
 //   Every move is the game's group move on the squadron (the formations; the slow set the pace) - a move or a hold,
 //   an attack-move otherwise - and goes to the nearest safe water toward its goal (fleet.c fl_safe_toward).
@@ -59,7 +61,13 @@
 // a ship no longer in two squadrons at once (sq_assign: up to 1570 moves a game, two sets of orders each look) - the
 // same test, 24 games: kills +7.0 (se 2.1), losses -5.0 (4.9), soldiers -1.5 (5.6), workers -1.8 (2.6); at sea per AI
 // warships afloat at the end 20.2 against 19.8, lost 18.0 against 17.5, sunk 19.1 against 16.4, fishing boats lost 1.7
-// against 2.8, transports sunk 3.8 against 1.7, boats fishing 13.3 against 10.0.
+// against 2.8, transports sunk 3.8 against 1.7, boats fishing 13.3 against 10.0. But from epoch 5 and 11 (12 games each)
+// even, at sea a little behind (sunk - lost -0.8 and -1.9 per AI, the old fleet +0.8 and +1.9).
+// Then a fight begun only from SQ_ENGAGE 1.3 (was SQ_HOLD 1.0): epoch 9 (24 games) kills +7.1 (se 2.9), losses -0.8
+// (4.4), at sea sunk - lost +0.6 against -0.5; epoch 11 (12) kills +8.3 (4.9), losses -3.3 (4.3), warships afloat at
+// the end 24.5 against 23.1, sunk - lost +1.5 against -1.6; epoch 5 (24) kills +2.6 (3.1), losses +2.0 (4.1), sunk -
+// lost -0.6 against +0.6 (fewer hulls, 11.7 against 14.4: its battleships, 4 frigates' hit points at 2 frigates'
+// price). The old mix (frigates 2, battleships 1) with it: epoch 11 sunk - lost -4.2 against +4.2. On since then.
 #define SQ_MAX 8
 #define SQ_MAIN_MIN 5
 #define SQ_REACH 40
@@ -72,6 +80,7 @@
 #define SQ_RESCOUT 300000
 #define SQ_RAID_R 40
 #define SQ_HOLD 1.0f
+#define SQ_ENGAGE 1.3f
 #define SQ_PUSH 1.5f
 #define SQ_SPLIT 1.3f          // CONCENTRATION: the whole sea's ratio from which it splits into zones (together under 1.0)
 #define SQ_REPAIR 0.5f
@@ -434,7 +443,7 @@ internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
         int ne = 0;
         for (int j = 0; j < g_fs.ne; j++) if (sel[j]) { e.x += g_fs.es[j].p.x; e.y += g_fs.es[j].p.y; ne++; }
         e = iv2(e.x / ne, e.y / ne);
-        if (q->state == SQS_HELP || q->ratio >= SQ_HOLD) { sq_state(q, SQS_ENGAGE, now); sq_go(pl, q, sq_safe(c, e, q->ocean), 1, now); }
+        if (q->state == SQS_HELP || q->ratio >= SQ_ENGAGE || (q->state == SQS_ENGAGE && q->ratio >= SQ_HOLD)) { sq_state(q, SQS_ENGAGE, now); sq_go(pl, q, sq_safe(c, e, q->ocean), 1, now); }
         else { sq_state(q, SQS_HOLD, now); q->call = 1; sq_go(pl, q, sq_haven(q, e), 0, now); }
         return;
     }

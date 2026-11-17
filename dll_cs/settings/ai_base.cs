@@ -256,9 +256,10 @@ class ai_base
         bool fleet_station = true;
         /// Squadrons (the game's computer player off): the warships as several squadrons instead of one fleet - a main
         /// squadron per stretch of valuable water (its coast, fish, enemy warships seen) that holds it on its own and calls
-        /// the others for help, scout and raid groups of frigates, hunter groups of submarines. 1 = on.
+        /// the others for help, scout and raid groups of frigates, hunter groups of submarines and galleys; battleships the
+        /// core of what is trained, the frigates' speed bought with their range. 1 = on.
         [advanced]
-        bool sea_squadrons = false;
+        bool sea_squadrons = true;
         /// Harbours: every sea territory that borders land the AI holds gets one harbour - a dock from
         /// the held territory with the longest shore there, a tower by it, a second where enemy warships were seen on that
         /// sea or with 600 stone in the bank - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
