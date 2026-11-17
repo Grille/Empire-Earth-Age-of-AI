@@ -560,7 +560,11 @@ internal int ud_set(void *rec, ee_dmg_model *g, ee_model *m, int anim, float op,
 // (collect_remains.c us_death_texture), facing out of the half. From then on its parts are drawn from its own lists,
 // frozen at the frame of the break (instanced: the record draw's walk gives each its place, uh_part swaps the lists), a
 // part not in it left out; never drawn whole. A half's model is kept while it is drawn (UH_HALVES at a time, the one
-// unseen longest given up for a new one; made again from the same plane when it comes back).
+// unseen longest given up for a new one; made again from the same plane when it comes back) and let go when it hasn't
+// been for UH_UNSEEN walks. There were 48 slots: a naval battle's wrecks in one channel (45 ships broken, 90 halves on the
+// screen) left every half past the 48th of the walk out - ships gone at their break, others coming and going as the
+// view moved the order (the player, 2026-11-17: "ships disaper on death instead of sinking, some remains appear/disaper
+// based on view angle").
 #define UD_CLIPS 1024
 typedef struct { const void *rec; uint32_t gen, serial; int half; float pl[4], lo, hi; float deck; } ud_clip;
 internal ud_clip g_ud_clip[UD_CLIPS];
@@ -586,7 +590,8 @@ internal const ud_clip *ud_clip_of(const void *rec) {
 // whether a half can be drawn at all: the records drawn by the mod, instanced, their frames on the GPU (else the game's
 // draw has them, and drew each half whole) - collect_remains_physics.c breaks no ship otherwise
 internal int ud_cuts(void) { return g_sil_hooked && ud_mode() == 1 && in_on() && g_mo.on && !g_mo_off; }
-#define UH_HALVES 48
+#define UH_HALVES 1024
+#define UH_UNSEEN 3600     // walks (half a minute at 120 frames a second)
 #define UH_PARTS 48        // a half's parts at most (more: left out)
 #define UH_SEGS 8192       // the cut's edges
 #define UH_LOOP 1024       // an outline's corners at most
@@ -618,7 +623,7 @@ internal struct {
     uh_taken t[UH_PARTS]; int nt;
     float seg[UH_SEGS][6]; int nseg;        // the cut's edges (root space), the way the triangles kept run along them
     uint8_t segb[UH_SEGS];                  // ... at which of the two cuts (0 the stern-ward, 1 the bow-ward)
-    LONG made, failed, caps, parts_cut, too_big;
+    LONG made, failed, caps, parts_cut, too_big, full;
 } g_uh;
 internal void uh_free(uh_half *h) {
     for (int i = 0; i < h->np; i++) free(h->piece[i].v), free(h->piece[i].idx);
@@ -630,13 +635,16 @@ internal uh_half *uh_find(uint32_t serial, int half, ee_model *root) {
     uh_half *spare = NULL, *old = NULL;
     for (int i = 0; i < UH_HALVES; i++) {
         uh_half *h = &g_uh.h[i];
-        if (h->half && h->starts != g_game_starts) uh_free(h);
+        if (h->half && (h->starts != g_game_starts || g_sil_gen - h->seen > UH_UNSEEN)) uh_free(h);
         if (h->half && h->serial == serial && h->half == half && h->root == root) { h->seen = g_sil_gen; return h; }
         if (!h->half) { if (!spare) spare = h; }
         else if (h->seen != g_sil_gen && (!old || g_sil_gen - h->seen > g_sil_gen - old->seen)) old = h;
     }
     uh_half *h = spare ? spare : old;
-    if (!h) return NULL;
+    if (!h) {   // (every slot drawn in this walk: this half is left out)
+        if (InterlockedIncrement(&g_uh.full) == 1 && g_log) log_locked("# wrecks: more than %d ships' halves in one picture - the rest left out\n", UH_HALVES);
+        return NULL;
+    }
     uh_free(h);
     h->serial = serial, h->half = half, h->root = root, h->seen = g_sil_gen, h->starts = g_game_starts, h->state = UH_NEW;
     return h;
