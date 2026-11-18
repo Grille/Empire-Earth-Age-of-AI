@@ -845,8 +845,9 @@ internal int uc_in_bar_ids(int32_t serial) {
 }
 internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec, void *sort_map, uc_info *info) {
     sil_tag(rec, g_uc_walk_gen, o->has_cu && o->cloakable && !o->rotting && o->cu_opacity < 1.0f && !god_see_all() ? SIL_CLOAKED :
-            unit_type_is_land_building(o->ty) ? SIL_BUILDING : o->has_cu && !o->tree && o->owner_index && !o->rotting ? SIL_UNIT : 0);
-    // (a corpse no silhouette - the player, 2026-11-11: "dead units should no longer have silluetes")
+            unit_type_is_land_building(o->ty) ? SIL_BUILDING : o->has_cu && !o->tree && !o->rotting ? SIL_UNIT : 0);
+    // (a corpse no silhouette - the player, 2026-11-11: "dead units should no longer have silluetes"; the world's animals
+    // one - the player, 2026-11-18: "animals should have silluetes too")
     opacity_consts oc = opacity_consts_now();
     fill_consts fc = fill_consts_now();
     ee_map *map = game_map();
