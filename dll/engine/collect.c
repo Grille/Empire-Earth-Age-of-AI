@@ -971,10 +971,16 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         }
         // a shot come down in the water lies on the seabed: the game lays it where it came down, on the water's level
         // (EEUCProjectile::down), and it lay there on the surface until it went (the player 2026-11-16: "projectiles
-        // like stones or arrows shouldnt get stuck on the water surface"). One in flight is above the level.
+        // like stones or arrows shouldnt get stuck on the water surface"). One in flight is above the level. The ground
+        // asked only under a tile of its mesh: a shot past the map's edge had the engine read outside it (GetMeshZ,
+        // engine+3b72c - the crash of about one island game in 24 from that day on, 2026-11-18)
         if (unit_type_get_class_id(cty) == CLS_PROJECTILE && g_sh.water_on) {
-            float *t = draw_record_transform_at(rec), bed = uc_mesh_z(mesh, t[3], t[7]);
-            if (t[11] < g_sh.level + 0.05f && bed < t[11] - 0.05f) t[11] = bed;
+            float *t = draw_record_transform_at(rec);
+            if (t[11] < g_sh.level + 0.05f && fabsf(t[3]) < 65536.0f && fabsf(t[7]) < 65536.0f &&
+                mesh_has_tile(mesh, (int)floorf(t[3]), (int)floorf(t[7]))) {
+                float bed = uc_mesh_z(mesh, t[3], t[7]);
+                if (bed < t[11] - 0.05f) t[11] = bed;
+            }
         }
         draw_record_set_state(rec, o->ai_state);
         draw_record_set_anim(rec, o->anim);
