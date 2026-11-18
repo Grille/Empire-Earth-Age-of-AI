@@ -343,14 +343,29 @@ internal struct rs_st {
 } g_rs[16];
 // THE FERRY SERVICE (ferry.c): its transport and passengers - kept from the landing, the subgroups and the transport
 // manager as the outposts' ferry's (expand_ship, expand_refuses, expand_has, expand_unload_ok)
-internal struct fy_st {
+#define FY_TRIPS 16   // trips on at once, each its own transport
+struct fy_trip {
     int phase, kind;                      // phase 0 none, 1 the transport to the pick-up, 2 boarding, 3 crossing; kind 1 soldiers, 2 citizens
     struct ex_unit ship, pass[16]; int npass;
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
-    uint32_t since, load_t, reissue, look_t, train_t, want_t, log_t;   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold)
-    unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, back, beached;
-    struct { unsigned from, to; uint32_t t; } last[3];   // by kind: the last trip's lands and its start (NOT BACK AGAIN, ferry.c)
+    uint32_t since, load_t, reissue;
+};
+internal struct fy_st {
+    struct fy_trip t[FY_TRIPS];
+    uint32_t look_t, want_t, log_t, order_t[4];   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold); order_t: transports ordered and not come yet
+    int last_kind;                        // the kind of the last trip started (TURNS, ferry.c)
+    unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, beached;
 } g_fy[16];
+// the ferry service's trip that has u as its transport (pass: or as a passenger), NULL: none
+internal struct fy_trip *fy_trip_of(unsigned pi, ee_unit *u, int pass) {
+    for (int i = 0; u && i < FY_TRIPS; i++) {
+        struct fy_trip *t = &g_fy[pi & 15].t[i];
+        if (!t->phase) continue;
+        if (t->ship.u == u) return t;
+        for (int k = 0; pass && k < t->npass; k++) if (t->pass[k].u == u) return t;
+    }
+    return NULL;
+}
 internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now);   // ferry.c
 internal int g_ferry = 1;
 // convoy.c THE CONVOYS: its settings, what the managers ask of it
@@ -391,7 +406,7 @@ internal int ex_cargo(ee_unit *sh) { return unit_count_inside(sh); }
 // the ferry's transport and passengers, and soldiers on an outpost's island (landing.c's order hooks)
 internal int expand_ship(ee_unit *u) {
     if (!u) return 0;
-    for (int p = 1; p < 16; p++) if ((g_xs[p].fphase && g_xs[p].ship.u == u) || (g_rs[p].phase && g_rs[p].ship.u == u) || (g_fy[p].phase && g_fy[p].ship.u == u)) return p;
+    for (int p = 1; p < 16; p++) if ((g_xs[p].fphase && g_xs[p].ship.u == u) || (g_rs[p].phase && g_rs[p].ship.u == u) || fy_trip_of((unsigned)p, u, 0)) return p;
     return 0;
 }
 internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
@@ -403,10 +418,7 @@ internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
         if (r->ship.u == u) return 1;
         for (int k = 0; k < r->npass; k++) if (r->pass[k].u == u) return 1;
     }
-    if (u && g_fy[pi].phase) {   // the ferry service's
-        if (g_fy[pi].ship.u == u) return 1;
-        for (int k = 0; k < g_fy[pi].npass; k++) if (g_fy[pi].pass[k].u == u) return 1;
-    }
+    if (fy_trip_of(pi, u, 1)) return 1;   // the ferry service's
     if (!u || (!x->fphase && !x->active)) return 0;
     if (x->fphase) {
         if (x->ship.u == u) return 1;
@@ -423,9 +435,7 @@ internal int expand_has(ee_player *pl, ee_unit *u) {
     struct rs_st *r = &g_rs[(unsigned)player_get_index(pl) & 15];
     for (int k = 0; x->fphase && k < x->npass; k++) if (x->pass[k].u == u) return 1;
     for (int k = 0; r->phase && k < r->npass; k++) if (r->pass[k].u == u) return 1;
-    struct fy_st *f = &g_fy[(unsigned)player_get_index(pl) & 15];
-    for (int k = 0; f->phase && k < f->npass; k++) if (f->pass[k].u == u) return 1;
-    return 0;
+    return fy_trip_of((unsigned)player_get_index(pl) & 15, u, 1) != NULL;
 }
 // the drop site and a tower an outpost waits for (planned and short of them, or ashore with them not laid yet): held
 // back from every unit order (econ.c train_budget, as a landing's transports) - the AI spends its stock as it comes,
@@ -480,7 +490,8 @@ internal int expand_leads(ee_attack_subgroup *sg) {   // a subgroup holding the 
 internal int expand_unload_ok(ee_unit *u, int gx, int gy) {
     int p = expand_ship(u);
     if (p && g_rs[p].phase && g_rs[p].ship.u == u) return abs(gx - g_rs[p].drop.x) <= 4 && abs(gy - g_rs[p].drop.y) <= 4;   // the rescue's
-    if (p && g_fy[p].phase && g_fy[p].ship.u == u) return g_fy[p].phase == 3 && abs(gx - g_fy[p].drop.x) <= 4 && abs(gy - g_fy[p].drop.y) <= 4;   // the ferry service's
+    struct fy_trip *ft = p ? fy_trip_of((unsigned)p, u, 0) : NULL;
+    if (ft) return ft->phase == 3 && abs(gx - ft->drop.x) <= 4 && abs(gy - ft->drop.y) <= 4;   // the ferry service's
     return p && g_xs[p].fphase == 3 && abs(gx - g_xs[p].unload.x) <= 4 && abs(gy - g_xs[p].unload.y) <= 4;
 }
 
