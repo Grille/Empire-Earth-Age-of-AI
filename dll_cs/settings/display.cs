@@ -254,7 +254,8 @@ class display
         /// pipe: water edges on / off):
         bool unit_soft_edges = true;
         /// The own renderer, with units_smooth: buildings stay whole, and units behind one are seen through it as a shape
-        /// in their player's colour, lit as they are (the control pipe: picture sil on / off):
+        /// in their player's colour, lit as they are; the game's show hidden units button (F5) then
+        /// chooses no silhouettes, silhouettes or every building see-through (the control pipe: picture sil on / off):
         bool unit_silhouettes = true;
         /// With units_smooth: the dead sink slowly into the ground instead of fading out, every kind the same time - the
         /// game's own fade takes from a few seconds to minutes by the unit's kind:

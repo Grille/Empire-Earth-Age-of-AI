@@ -36,7 +36,10 @@ internal struct {
     ID3D11RenderTargetView *cr;
     UINT w, h;
 } g_sl = { .force = -1, .fs = -1, .fe = -1 };
-internal int sil_on(void) { return g_sl.force < 0 ? g_set.unit_silhouettes : g_sl.force; }
+// The game's "show hidden units" button (F5, under the minimap) chooses them: 0 none and nothing see-through, 1 the
+// silhouettes (the game's default), 2 every building see-through as the game has it (the player, 2026-11-18: "with
+// sillouetes enabled it should change its meaning [no silluetes, silluetes (default), all buildings transparent]").
+internal int sil_on(void) { return (g_sl.force < 0 ? g_set.unit_silhouettes : g_sl.force) && show_hidden_mode() == 1; }
 internal uint32_t sil_hash(const void *rec) { return ((uint32_t)(uintptr_t)rec >> 3) * 2654435761u & (SIL_TABLE - 1); }
 // the fill: this walk's record is of this kind (0: of neither)
 internal void sil_tag(const void *rec, uint32_t gen, int tag) {
