@@ -1131,6 +1131,17 @@ static unsafe class unit_functions
     [address((ee)0x005FF597, (aoc)0x0060C6B3), thiscall]
     static extern EEUnit* citizen_find_storage(EEUnitClass* type, EEUnit* u, char8 any);
 
+    /// EEUCBasicCitizen: the next resource of a kind for citizen u when its own is gone or out of reach - the nearest
+    /// within five times its sight, round its gather goal's resource first, then round itself, none of the units in
+    /// excluded (a std::vector of EEUnit*), a carcass at once (the AoC decompilation: FindNextResource over
+    /// FindResourceOfKind 0x5FEF27); NULL none. A hunter whose carcass is eaten takes its next animal from it - the
+    /// gather goal's destination (GetDestination 0x60F76D, its loop past resources without a free spot) and its
+    /// FindNewResource state (0x60FCB8)
+    [address((ee)0x005FF50C, (aoc)0x0060C631), thiscall]
+    [call_site("citizen_next_resource", (ee)0x0060F925, (aoc)0x0062216D)]
+    [call_site("citizen_next_resource", (ee)0x0060FD27, (aoc)0x0062256F)]
+    static extern EEUnit* citizen_next_resource(EEUnitClass* type, EEUnit* u, EEUnit* resource, int32 kind, void* excluded);
+
     /// cdecl(unit, its attack goal, the new target): the goal's target changed in place (its vf27 +0x6C, the old one's
     /// reference released) and the unit sent to CheckRange (2013) as after a new order - the goals under it (an
     /// attack-move) stay

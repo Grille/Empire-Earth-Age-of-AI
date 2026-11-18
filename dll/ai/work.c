@@ -353,6 +353,31 @@ internal ee_unit *wk_hunted(ee_player *pl, ee_unit *u, ee_goal *g) {   // the li
     if (ag && goal_is_attack(ag) && goal_get_target(ag) == u) return NULL;   // it fights this citizen: its fight
     return a;
 }
+// THE HUNTER'S OWN NEXT ANIMAL, at its source (the player 2026-11-18, a Stone Age game: "all animals killed by minute
+// 24"): the turn's check takes a hunter off an animal only after its first blows - a herd's last grown giraffe stood at
+// 5 of 15 hit points beside its young, and the next round killed it. So the game's own choice of a citizen's next
+// resource (unit_functions.citizen_next_resource: a hunter whose carcass is eaten) gives a mod's player no animal
+// HERDS KEPT leaves: none instead - the citizen stands idle with its load, and the next look gives it work, its load's
+// resource first (ITS LOAD FIRST)
+internal unsigned g_wkh_source;   // next animals refused at the game's choice (the log)
+internal ee_unit *__thiscall hook_citizen_next_resource(ee_unit_type *td, ee_unit *u, ee_unit *res, int kind, void *excluded) {
+    ee_unit *n = citizen_next_resource(td, u, res, kind, excluded);
+    if (!n || !g_herd_keep || unit_get_hp(n) <= 0) return n;
+    ee_player *pl = unit_get_owner(u);
+    int pi = pl ? player_get_index(pl) : 0;
+    if (pi <= 0 || pi >= 16 || !g_players[pi] || is_vanilla_idx(pi)) return n;   // a mod's player only
+    if (current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH) return n;
+    ee_unit_type *nt = unit_get_type_data(n);
+    ee_player *o = unit_get_owner(n);
+    if (!nt || !o || player_get_index(o) != 0 || unit_type_get_family(nt) != KIND_ANIMAL) return n;
+    if (wk_hunt_ok(n)) return n;
+    g_wkh_source++;
+    return NULL;
+}
+internal void work_install(void) {
+    int of = 0, ok = patch_citizen_next_resource(hook_citizen_next_resource, &of);
+    if (g_log) fprintf(g_log, "# work: the hunters' next animal hook %d/%d\n", ok, of);
+}
 // every turn of the player (a young deer dies to 3 hunters within a look's 3 s): its hunters on an animal not to be
 // had are given another site by the game's own hand-out (resource_mgr_assign, as the look does) - food first, so the
 // meat it carries stays (ITS LOAD FIRST): an animal of the look's list in its territory (built anew), a free bush;
@@ -780,8 +805,8 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (unit_get_hp(it.u) <= 0) { carc += unit_get_amount(it.u) > 0; continue; }
                 alive++; young += unit_get_scale(it.u) < 1.0f; inh += unit_get_herd(it.u) != NULL;
             }
-            log_locked("# wild: at %.1f min: %d food animals alive (%d young, %d in a herd), %d carcasses with food | herd_keep %d: left out %u times for their herd, %u as young; %u hunters given another site on their own next animal (an animal %u, a bush %u, a tree %u)\n",
-                       now / 60000.0, alive, young, inh, carc, g_herd_keep, g_wkh_kept, g_wkh_young, g_wkh_stopped, g_wkh_to[0], g_wkh_to[1], g_wkh_to[2]);
+            log_locked("# wild: at %.1f min: %d food animals alive (%d young, %d in a herd), %d carcasses with food | herd_keep %d: left out %u times for their herd, %u as young; %u hunters given another site on their own next animal (an animal %u, a bush %u, a tree %u), %u next animals refused at the game's choice\n",
+                       now / 60000.0, alive, young, inh, carc, g_herd_keep, g_wkh_kept, g_wkh_young, g_wkh_stopped, g_wkh_to[0], g_wkh_to[1], g_wkh_to[2], g_wkh_source);
         }
     }
 }

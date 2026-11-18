@@ -1068,6 +1068,16 @@ internal inline ee_unit *find_target(ee_unit *u) { return fn_find_target(u); }
 typedef ee_unit *(__thiscall *citizen_find_storage_fn)(ee_unit_type *, ee_unit *, char);
 internal citizen_find_storage_fn fn_citizen_find_storage;
 internal inline ee_unit *citizen_find_storage(ee_unit_type *type, ee_unit *u, char any) { return fn_citizen_find_storage(type, u, any); }
+// EEUCBasicCitizen: the next resource of a kind for citizen u when its own is gone or out of reach - the nearest
+// within five times its sight, round its gather goal's resource first, then round itself, none of the units in
+// excluded (a std::vector of EEUnit*), a carcass at once (the AoC decompilation: FindNextResource over
+// FindResourceOfKind 0x5FEF27); NULL none. A hunter whose carcass is eaten takes its next animal from it - the
+// gather goal's destination (GetDestination 0x60F76D, its loop past resources without a free spot) and its
+// FindNewResource state (0x60FCB8)
+typedef ee_unit *(__thiscall *citizen_next_resource_fn)(ee_unit_type *, ee_unit *, ee_unit *, int, void *);
+internal citizen_next_resource_fn fn_citizen_next_resource;
+internal inline ee_unit *citizen_next_resource(ee_unit_type *type, ee_unit *u, ee_unit *resource, int kind, void *excluded) { return fn_citizen_next_resource(type, u, resource, kind, excluded); }
+internal inline int patch_citizen_next_resource(citizen_next_resource_fn h, int *of) { return patch_calls(calls_citizen_next_resource, 2, (uintptr_t)fn_citizen_next_resource, (void *)h, of); }
 // cdecl(unit, its attack goal, the new target): the goal's target changed in place (its vf27 +0x6C, the old one's
 // reference released) and the unit sent to CheckRange (2013) as after a new order - the goals under it (an
 // attack-move) stay
@@ -1446,6 +1456,9 @@ internal int spec_unit_select(int build) {
         calls_target_ok[3] = 0x0063A145;
         fn_find_target = (find_target_fn)0x0062EBD2;
         fn_citizen_find_storage = (citizen_find_storage_fn)0x005FF597;
+        fn_citizen_next_resource = (citizen_next_resource_fn)0x005FF50C;
+        calls_citizen_next_resource[0] = 0x0060F925;
+        calls_citizen_next_resource[1] = 0x0060FD27;
         fn_attack_retarget = (attack_retarget_fn)0x0062CD12;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_line_of_fire_game = (line_of_fire_game_fn)0x00637F5A;
@@ -1744,6 +1757,9 @@ internal int spec_unit_select(int build) {
         calls_target_ok[3] = 0x0065079F;
         fn_find_target = (find_target_fn)0x00643F78;
         fn_citizen_find_storage = (citizen_find_storage_fn)0x0060C6B3;
+        fn_citizen_next_resource = (citizen_next_resource_fn)0x0060C631;
+        calls_citizen_next_resource[0] = 0x0062216D;
+        calls_citizen_next_resource[1] = 0x0062256F;
         fn_attack_retarget = (attack_retarget_fn)0x00641BC9;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_line_of_fire_game = (line_of_fire_game_fn)0x0064DF23;
@@ -1901,6 +1917,9 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_target_ok[3], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 3]");
     bad += spec_code((uintptr_t)fn_find_target, "unit_functions.find_target");
     bad += spec_code((uintptr_t)fn_citizen_find_storage, "unit_functions.citizen_find_storage");
+    bad += spec_code((uintptr_t)fn_citizen_next_resource, "unit_functions.citizen_next_resource");
+    bad += spec_call(calls_citizen_next_resource[0], (uintptr_t)fn_citizen_next_resource, "unit_functions.citizen_next_resource [call_site citizen_next_resource 0]");
+    bad += spec_call(calls_citizen_next_resource[1], (uintptr_t)fn_citizen_next_resource, "unit_functions.citizen_next_resource [call_site citizen_next_resource 1]");
     bad += spec_code((uintptr_t)fn_attack_retarget, "unit_functions.attack_retarget");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_line_of_fire_game, "unit_functions.line_of_fire_game");

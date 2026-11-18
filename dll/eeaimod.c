@@ -137,6 +137,7 @@ internal void skirmish_new_game(void);
 internal void armies_install(const char *autotest_ini);
 internal void spoils_new_game(void);   // spoils.c: a resigned player's buildings and units
 internal void spoils_install(void);
+internal void work_install(void);   // work.c: the hunters' next animal (citizen_next_resource)
 internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 internal void expand_new_game(void);
 internal void expand_install(const char *autotest_ini);
@@ -809,6 +810,7 @@ internal void install(HMODULE self) {
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);
     spoils_install();
+    work_install();   // work.c: the hunters' next animal
     expand_install(g_autotest ? g_ini : NULL);
     tw_install(g_autotest ? g_ini : NULL);
     attack_install();
