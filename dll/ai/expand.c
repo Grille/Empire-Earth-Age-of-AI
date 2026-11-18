@@ -349,11 +349,13 @@ struct fy_trip {
     struct ex_unit ship, pass[16]; int npass;
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
     uint32_t since, load_t, reissue;
+    ivec2 drop_w, via, at; int has_via, via_done, imp; float risk; uint32_t rate_t; unsigned no;   // THE CROSSING (crossing.c): the water off the drop, the point off the line it goes through, where the transport was last; an important delivery, its risk
 };
 internal struct fy_st {
     struct fy_trip t[FY_TRIPS];
     uint32_t look_t, want_t, log_t, order_t[4];   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold); order_t: transports ordered and not come yet
     int last_kind;                        // the kind of the last trip started (TURNS, ferry.c)
+    uint32_t risky_t[3];                  // by kind: since when no trip of it went for the risk (THE CROSSING: the longer, the more it takes)
     unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, beached;
 } g_fy[16];
 // the ferry service's trip that has u as its transport (pass: or as a passenger), NULL: none
@@ -368,6 +370,7 @@ internal struct fy_trip *fy_trip_of(unsigned pi, ee_unit *u, int pass) {
 }
 internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now);   // ferry.c
 internal int g_ferry = 1;
+internal int g_cx = 0, g_v_cx = -1;   // crossing.c THE CROSSING: [ai_base] ferry_safety, [autotest] v_ferry_safety
 // convoy.c THE CONVOYS: its settings, what the managers ask of it
 internal int g_cy_life = 0, g_v_cy_life = -1, g_cy_esc = 0, g_v_cy_esc = -1;   // [ai_base] transport_lifeboat, transport_escort
 #define LIFEBOAT(idx) PV(idx, g_v_cy_life, g_cy_life)
@@ -1935,6 +1938,8 @@ internal void expand_install(const char *autotest_ini) {
     g_ex_fguard = g_set_ai[1].front_guards;
     g_rescue = g_set_ai[1].rescue_citizens;
     g_ferry = g_set_ai[1].ferry_service;
+    g_cx = g_set_ai[1].ferry_safety;
+    if (autotest_ini) g_v_cx = ini_int("autotest", "v_ferry_safety", -1, autotest_ini);
     g_cy_life = g_set_ai[1].transport_lifeboat;
     g_cy_esc = g_set_ai[1].transport_escort;
     if (autotest_ini) g_v_cy_life = ini_int("autotest", "v_transport_lifeboat", -1, autotest_ini);

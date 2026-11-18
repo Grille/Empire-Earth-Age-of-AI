@@ -335,7 +335,7 @@ internal void sn_fc_spot(struct sn_fc *c, ivec2 at, int open, int n, uint32_t no
 // territory shortest of its share; gap: what its territories are short of as GIVING counts it, less what they have
 // beyond their shares (> 0 short, < 0 spare). Each look; sn_ferry_pick takes the spare ones of a land for the transport.
 #define SN_LANDS 16
-struct sn_land { unsigned land; int want, have, gap; ivec2 at; };
+struct sn_land { unsigned land; int want, have, gap, hot; ivec2 at; };   // hot: a territory of its under attack (the crossing: an important delivery)
 internal struct { uint32_t t; int n; struct sn_land l[SN_LANDS]; } g_snl[16];
 internal unsigned sn_land_of(int r, ivec2 rally) {
     unsigned a = area_id(rally, 2);
@@ -576,12 +576,13 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (!a) continue;
             int k = 0;
             while (k < L->n && L->l[k].land != a) k++;
-            if (k == L->n) { if (k == SN_LANDS) continue; L->l[k].land = a; L->l[k].want = L->l[k].have = 0; L->l[k].gap = 0; L->l[k].at = rally[r]; worst[k] = -0x7FFFFFFF; L->n++; }
+            if (k == L->n) { if (k == SN_LANDS) continue; L->l[k].land = a; L->l[k].want = L->l[k].have = 0; L->l[k].gap = L->l[k].hot = 0; L->l[k].at = rally[r]; worst[k] = -0x7FFFFFFF; L->n++; }
             L->l[k].want += tc[r]; L->l[k].have += ac[r];
             // short as GIVING has it over land (sn_give: by SN_BAND of its share, SN_BAND_MIN at least, or by any under
             // attack) - a land short by a soldier or two at every change of the shares sent 2.5 trips an AI back the
             // way one had come within 10 minutes (Small Islands large, 10 seeds); spare: any beyond the share
             int df = tc[r] - ac[r], hard = s->t[r].foe > 0 && s->t[r].role != TVR_NONE;
+            L->l[k].hot |= hard;
             if (df < 0) L->l[k].gap += df;
             else if (hard || df >= (tc[r] * SN_BAND > SN_BAND_MIN ? tc[r] * SN_BAND : SN_BAND_MIN)) L->l[k].gap += df;
             if (df > worst[k]) { worst[k] = df; L->l[k].at = rally[r]; }

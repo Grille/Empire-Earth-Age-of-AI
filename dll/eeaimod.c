@@ -517,6 +517,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
 #include "ai/scen_targets.c"   // a scenario's attack and defend targets (the trigger Modify AI Military Target)
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
+#include "ai/crossing.c"      // the crossing: what a transport risks on its way over, and the way it takes
 #include "ai/ferry.c"         // the ferry service: soldiers and citizens to the lands across the water that want them
 #include "ai/convoy.c"        // the transports at sea: to a beach under fire (lifeboat), escorts asked of the squadrons
 #include "ai/squadrons.c"     // the warships by sea: main squadrons by zone, scouts and raiders, submarine hunters
