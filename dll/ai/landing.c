@@ -2082,10 +2082,14 @@ internal void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_un
     }
     if (!foe && !l->obj) ld_release(pi, "nothing left to attack ashore", now);
 }
+internal int g_sn_across, g_v_sn_across;   // expand.c: [ai_base] push_across, [autotest] v_push_across
 internal void landing_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     struct landing *l = &g_ld[pi];
     if (!g_landing || !PV(pi, g_v_landing, 1)) return;   // [autotest] v_landing=0: none for the variant's players
+    // the game's computer player off: stations.c's pushes across take the landings' place (push_across; the player
+    // 2026-11-19, after e7bb1f2f's head-to-head: "yes turn it on")
+    if (!GAME_AI(pi) && PV(pi, g_v_sn_across, g_sn_across)) return;
     if (now < l->last) memset(l, 0, sizeof *l);   // a new game
     ld_fu_check(now);
     if (now - l->last < (l->phase == 3 ? 500u : 2000u)) {   // sailing: a transport stalled off the beach is sunk

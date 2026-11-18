@@ -713,11 +713,12 @@ class ai_base
         [advanced]
         bool expand_across = true;
         /// Pushes across the water as over land (the game's computer player off): a territory with no enemy neighbour over
-        /// land pushes into an enemy territory across a sea (or two seas side by side) - the ferry service carries its
-        /// soldiers, every free transport at once, to a beach near the target out of the enemy towers' reach; they hold
-        /// it till three quarters are over, then go in together. 0 = off
+        /// land pushes into an enemy territory across a sea (or two seas side by side) - sized to win with a transport or
+        /// two lost, the whole push in its first wave, a main squadron ahead to the water off a beach out of the enemy
+        /// towers' reach, a last look at the beach before it sails; its citizens build towers, a Hospital, a Temple and
+        /// production by the beach. It takes the place of the landings (landing), which don't run then. 0 = off
         [advanced]
-        bool push_across = false;
+        bool push_across = true;
         /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]
@@ -1031,7 +1032,8 @@ class ai_base
         /// Landings: the AI plans a landing behind your lines across the sea - the weakest defended beach next to your
         /// buildings, warships ahead, its transports gather and run in together, a bridgehead with towers and a forward base,
         /// then waves. landing_transports = the most transports (the size follows the beach), landing_citizens = citizens
-        /// for the forward base, landing_waves = waves after the first. 1 = on
+        /// for the forward base, landing_waves = waves after the first. With the game's computer player off and push_across
+        /// on the pushes across take their place. 1 = on
         bool landing = true;
         /// Air transport: where an Airport stands, a landing and an outpost order transport helicopters before ships and take
         /// the ones they have first - no dock, no sea to hold, ashore in seconds; with a helicopter to be had and no
