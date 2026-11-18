@@ -109,7 +109,7 @@ internal struct bd_st {
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls, across;   // walls: builders sent to unfinished wall pieces
-    int open, mines, mines_drop, mines_guard;   // the last look: unfinished buildings; mines in reach, those with a drop site, with a defence
+    int open, lost_ground, mines, mines_drop, mines_guard;   // the last look: unfinished buildings, those of them LEFT ON LOST GROUND; mines in reach, those with a drop site, with a defence
 } g_bd[16];
 // a herd's living grown animals (A HERD'S SETTLEMENT: more than HERDS KEPT leaves, one to hunt)
 internal int bd_herd_grown(ee_herd *h) {
@@ -217,7 +217,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static ivec2 house[512];
     static struct { ivec2 p; int max; } town[128];
     int nhouse = 0, ntown = 0, open_house = 0;
-    int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 };
+    int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 }, lost_ground = 0;
     ivec2 rb_at[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };   // where one of each research building is (THE PAIR)
     const int rb[3] = { UT(B_UNIVERSITY), UT(B_HOSPITAL), UT(B_TEMPLE) };
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // what it has: citizens, foundations, granaries, fields, defences, centres
@@ -239,26 +239,34 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         ee_unit *st = unit_get_physics(u);
         int done = st && unit_get_finished(st);
         ivec2 p = unit_get_tile(u);
+        // LEFT ON LOST GROUND (the player's game 2026-11-18: "p2 never expanded" - its Settlement by a herd and a mine's
+        // tower laid across the water in a territory the other AI then settled stood at 1 hp from minute 10 and 31 to the
+        // end, and one of each going up at a time held every later Settlement and tower back: none laid for 55 minutes,
+        // across the water or at home, 236 citizens idle): a foundation where its citizens don't work (work.c wk_cost 0:
+        // another's buildings there, a territory being lost or out of reach) no longer counts as going up. It stays laid,
+        // built once the ground is workable again (the builders' care below keeps them off it meanwhile).
+        int going = !done && wk_cost(s, ter_near(p.x, p.y));
+        lost_ground += !done && !going;
         if (t == UT(B_DOCK) && ndock < 32) dock[ndock++] = p;   // A FISHING DOCK: its docks, going up too
         float rng, att;
         if (t == UT(B_FARM)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }
-        else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
-        else if (t == UT(B_SETTLEMENT)) open_settle += !done;
-        else if (pr_kind(t) >= 0) open_prod += !done;
-        open_sink += !done && (pr_kind(t) >= 0 || t == rb[0] || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
+        else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += going; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
+        else if (t == UT(B_SETTLEMENT)) open_settle += going;
+        else if (pr_kind(t) >= 0) open_prod += going;
+        open_sink += going && (pr_kind(t) >= 0 || t == rb[0] || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
-        if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += !done; }
+        if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
-        if (is_tower_type(t)) open_tower += !done;
+        if (is_tower_type(t)) open_tower += going;
         if ((is_tower_type(t) || defence_stats(u, &rng, &att)) && ndef < 512) def[ndef++] = p;
-        if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && nds < BD_DSITES) dsite[nds++] = p;
+        if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && (done || going) && nds < BD_DSITES) dsite[nds++] = p;
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && ncen < 256) {
             centre[ncen].p = p; centre[ncen].town = t != UT(B_SETTLEMENT); centre[ncen++].cost = wk_cost(s, ter_near(p.x, p.y));
         }
         if (!done && st && no < 96) openb[no++] = u;
     }
-    b->open = no;
+    b->open = no; b->lost_ground = lost_ground;
     int sends = 0, pile = no - open_fields;   // the unfinished that are no fields (a row of new fields is no pile)
     g_bd_wait[idx].n = 0; g_bd_wait[idx].t = now ? now : 1;
     for (int i = 0; i < no && sends < (pile >= BD_PILE ? 2 * BD_SENDS : BD_SENDS) && nf; i++) {   // BUILDERS
@@ -743,10 +751,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     }
     if (g_log && (!b->log_t || now - b->log_t >= 60000)) {
         b->log_t = now ? now : 1;
-        log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings | mines in reach %d, with a drop site %d, with a defence %d | "
+        log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings (%d left on lost ground) | mines in reach %d, with a drop site %d, with a defence %d | "
                    "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
                    "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, fishing docks %u, laid across the water %u\n",
-                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
+                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->lost_ground, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
                    b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->fdocks, b->across);
     }
 }
