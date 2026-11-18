@@ -9,15 +9,15 @@ Since Empire Earth was one of my favorite (yet flawed) games since childhood, it
 
 The result of more than a month of full-time work by now, is a near full overhaul, no part of the game is untouched: 
 
-- Old bugs fixed. 
-- All new non cheating AI 
+- Old bugs fixed
+- All new non cheating AI
 - Improved Graphics (subtle changes that don't touch the vibe of the game) 
-- Quality of live improvements. 
-- New bugs to find and enjoy 
+- Quality of live improvements
+- New bugs to find and enjoy
 
 This project is still very WIP, and while most of my own time spend on this is QA, some issues surely slipped through (or are known but low on the list of things to work on) 
 
-If you encounter a problem or want to suggest something, feel free to open an issue
+If you encounter a problem or want to suggest something, feel free to open an issue.
 
 ## Introduction
 **Computer players worth playing against.** The original Empire Earth AI only keeps up because it cheats: it pays
