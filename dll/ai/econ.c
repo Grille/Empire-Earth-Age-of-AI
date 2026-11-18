@@ -2011,12 +2011,19 @@ internal void rates_update(ee_player *pl, unsigned idx, uint32_t now) {
 internal int g_reserve_window_ms = 5 * 60000;   // ageofai.ini [budget] reserve_window_min
 internal void budget_reserve(ee_player *pl, int reserve[7]) {
     memset(reserve, 0, 7 * sizeof *reserve);
-    if (follow_held(pl)) return;   // epoch_pacing=follow: nothing held while it may not advance
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     if (!tt || !cm) return;
     int next = tech_tree_get_epoch(tt) + 1;
     if (next > 13 || next > end_epoch()) return;   // end epoch of this game
+    // epoch_pacing=follow: nothing held while it may not advance - but the next epoch's food before the farms (FINITE
+    // FOOD, the player's Stone Age game of 2026-11-18 on an islands map: following him, his AIs held nothing and trained
+    // citizens with all the food the island's herds gave; when he advanced at minute 23 the herds were eaten, the epoch
+    // cost food it never had again - no Stone Age, so no dock and no fishing boat, 155 of 215 citizens idle at minute 89)
+    if (follow_held(pl)) {
+        if (copper_mode(pl) && next <= FARM_EPOCH && !g_rs_econ_first[(unsigned)player_get_index(pl) & 15]) reserve[2] = epoch_cost(pl, next, 2);
+        return;
+    }
     ee_tech_data *data = tt_epoch_get_tech_data(tech_tree_epoch_rec_at(tt, next));
     if (!data) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=next_epoch: only the next epoch's
@@ -2045,13 +2052,13 @@ internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *
     if (horizon) *horizon = -1;
     if (!g_reserve_plan) { budget_reserve(pl, reserve); return; }
     memset(reserve, 0, 7 * sizeof *reserve);
-    if (follow_held(pl)) return;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     if (!tt || !cm) return;
     int ep = tech_tree_get_epoch(tt), next = ep + 1;
     if (next > 13 || next > end_epoch() || !epoch_tech(pl, next)) return;
-    if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
+    if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }   // following too: its FINITE FOOD
+    if (follow_held(pl)) return;
     int remaining = (int)(civ_mgr_get_timer(cm, 0) - game_time());
     // epoch_pacing=follow with a human ahead: the attempt is now (econ_tick pulls it up the moment the cost is in). The
     // game's own attempt - 20-50 minutes after the last advance, redrawn only when someone reaches a new epoch - held
