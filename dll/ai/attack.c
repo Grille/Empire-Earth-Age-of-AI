@@ -985,13 +985,24 @@ internal int hurt_live(typeof(&g_hurt[0].h[0]) r, uint32_t now, uint32_t ms) {  
     return r->t && now >= r->t && now - r->t <= (r->seen && g_hurt_short ? HURT_SEEN_MS : ms);
 }
 internal int raiders_near(ee_player *pl, ivec2 p, int r0);
+// a wild animal (nature's, player 0) within 3 tiles fights u: it fights only the citizen that hit it (the player
+// 2026-11-18), so the spot is no danger to the others - a woodcutter its hunter had been before marked the trees, and
+// the citizens there were sent back from them (Small Islands: 18 in a minute, the hippo's carcasses among them)
+internal int hurt_by_animal(ee_unit *u) {
+    for (struct grid_it it = grid_it_box(unit_get_x(u), unit_get_y(u), 3, 1); grid_it_next(&it); ) {
+        ee_player *o = unit_get_owner(it.u);
+        ee_goal *g = unit_get_goal(it.u);
+        if (o && player_get_index(o) == 0 && unit_get_hp(it.u) > 0 && g && goal_is_attack(g) && goal_get_target(g) == u) return 1;
+    }
+    return 0;
+}
 internal void hurt_note(ee_player *pl, unsigned pi, ee_unit *u, uint32_t now, int mark) {   // remembers u's hit points; a loss marks its spot
     int hp = unit_get_hp(u);
     unsigned h = (unsigned)((uintptr_t)u >> 4) & 511;
     for (int k = 0; k < 512; k++) {
         typeof(&g_cit_hp[0][0]) e = &g_cit_hp[pi][(h + k) & 511];
         if (e->u == u) {
-            if (hp < e->hp && mark) {
+            if (hp < e->hp && mark && !hurt_by_animal(u)) {
                 typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[g_hurt[pi].at++ % HURT_N];
                 r->x = unit_get_x(u); r->y = unit_get_y(u); r->t = now ? now : 1;
                 r->seen = (uint8_t)(g_hurt_short && raiders_near(pl, iv2(r->x, r->y), 6));

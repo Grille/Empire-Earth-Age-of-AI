@@ -1634,12 +1634,31 @@ internal float unit_power(ee_unit *u) {   // hit points x attack (live stats), a
 }
 internal struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/ai/stats.c)
 internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // citizens -> t; returns the number ordered
-    int x = unit_get_x(t), y = unit_get_y(t), enemies = 0, ordered = 0;
+    int x = unit_get_x(t), y = unit_get_y(t), enemies = 0, ordered = 0, have = 0;   // have: citizens on an animal already
     float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
     unsigned pi = (unsigned)player_get_index(s->pl) & 15;
     int est = g_fight_est || g_militia_est || EARLY(pi, early_militia), soldiers = 0;
     if (est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
-    for (int k = 0; k < s->nu; k++) {
+    // AN ANIMAL'S FIGHT (the player 2026-11-18: "an animal only attacks the citezen that attacked it, the hunter
+    // probably becoame a woodcuter after"): a wild animal (nature's, player 0) fights the one citizen that hit it, its
+    // herd stays out - so it alone is answered, by 3 citizens (a hunt's party). Counted with the herd round it, a hippo
+    // that followed its hunter to the trees drew 9 citizens a time, 39 at once, and the herd died to its last young.
+    // One fighting back its hunter is the hunt's (it fights one at a time, the work's look sends up to 3); the 3 count
+    // those already on it - else every 2 s check pulled 3 more from their work (an elephant drew 23 answers)
+    ee_player *towner = unit_get_owner(t);
+    int animal = towner && player_get_index(towner) == 0;
+    if (animal) {
+        ee_goal *tg = unit_get_goal(t);
+        ee_unit *victim = tg && goal_is_attack(tg) ? goal_get_target(tg) : NULL;
+        ee_goal *vg = victim ? unit_get_goal(victim) : NULL;
+        if (vg && goal_is_attack(vg) && goal_get_target(vg) == t) return 0;   // its hunter's fight
+        for (int c = 0; c < s->nc; c++) {
+            ee_goal *g = s->civ[c] ? unit_get_goal(s->civ[c]) : NULL;
+            if (g && goal_is_attack(g) && goal_get_target(g) == t) have++;
+        }
+        if (have >= 3) return 0;
+    }
+    for (int k = 0; k < s->nu && !animal; k++) {
         ee_unit *e = s->eu[k];
         if (unit_get_hp(e) <= 0 || abs(unit_get_x(e) - x) > 6 || abs(unit_get_y(e) - y) > 6) continue;
         enemies++;
@@ -1647,7 +1666,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
         if (est) st_side_add(&g_mil_foe, e);
         if (is_soldier(unit_get_type_data(e))) { soldiers++; if (st_speed(e) < fast) fast = st_speed(e); }
     }
-    if (enemies < 1) {   // a foundation: no fight, only its hit points
+    if (enemies < 1) {   // a foundation (no fight, only its hit points), an animal: it alone
         enemies = 1; epow = unit_power(t);
         if (est) st_side_add(&g_mil_foe, t);
     }
@@ -1694,7 +1713,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
         float stand = g_fight_est ? st_ratio(&g_mil_own, &g_mil_foe) : (epow > 0 ? cpow / epow : 1e6f);
         if (stand < 3.0f) return 0;   // citizens beat clubmen and builders, not real soldiers
     }
-    for (int c = 0; c < s->nc && ordered < 3 * enemies; c++) {
+    for (int c = 0; c < s->nc && ordered + have < 3 * enemies; c++) {
         ee_unit *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
         ee_goal *g = unit_get_goal(u);
