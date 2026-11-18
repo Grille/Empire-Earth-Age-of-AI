@@ -37,4 +37,6 @@ internal const struct { const char *tag; uint32_t hash; } k_layout[] = {
     { "g_nv_acc", 0x550446E8U },
     { "g_intel", 0xB4521967U },
     { "g_armies", 0x17A77F4AU },
+    { "g_ho_human", 0x58F5A717U },
+    { "g_ho_ai", 0x1D864008U },
 };
