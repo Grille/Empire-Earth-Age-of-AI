@@ -1,6 +1,25 @@
 ![Empire Earth: Age of AI](docs/assets/title.jpg)
 *An unofficial fan mod. Not affiliated with or endorsed by the rights holders of Empire Earth.*
 
+## Human Foreword 
+
+This started as an experiment since I heard that Claude is very good at reverse engineering... well, that turned out the be a bit of an understatement, the fucking thing walks through binaries like its open code. 
+
+Since Empire Earth was one of my favorite (yet flawed) games since childhood, it was a prime target to aim this new technology at.
+
+The result of more than a month of full-time work by now, is a near full overhaul, no part of the game is untouched: 
+
+- Old bugs fixed. 
+- All new non cheating AI 
+- Improved Graphics (subtle changes that don't touch the vibe of the game) 
+- Quality of live improvements. 
+- New bugs to find and enjoy 
+
+This project is still very WIP, and while most of my own time spend on this is QA, some issues surely slipped through (or are known but low on the list of things to work on) 
+
+If you encounter a problem or want to suggest something, feel free to open an issue
+
+## Introduction
 **Computer players worth playing against.** The original Empire Earth AI only keeps up because it cheats: it pays
 about 1% of the real prices. Take that away and it can't run an economy. Age of AI gives the computer players a
 brain of their own - they pay what you pay, see only what you could see, and still build, expand, defend and attack
