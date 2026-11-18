@@ -19,6 +19,7 @@ on_game() {
 }
 
 on_skirmish() {
+    herds()   // the map's animals into herds - they walk and breed (a skirmish from the menu has them already)
 }
 
 on_scenario() {

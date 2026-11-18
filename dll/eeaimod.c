@@ -544,7 +544,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/groupmove.c"
 #include "engine/buildretry.c"
 #include "engine/unitsfirst.c"
-#include "engine/herds.c"         // the map's animals into herds (their AI: walking, breeding) where a game start left them out
+#include "engine/herds.c"         // the pipe's and scripts' herds: the map's animals into herds (their AI: walking, breeding)
 #include "engine/drawlist.c"
 #include "engine/collect.c"
 #include "engine/sight.c"
@@ -832,7 +832,6 @@ internal void install(HMODULE self) {
     groupmove_install();
     build_retry_install();
     units_first_install();
-    herds_install();
     shiproute_install(g_autotest ? g_ini : NULL);
     drawlist_install();
     draw_many_install();

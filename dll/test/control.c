@@ -100,6 +100,7 @@ internal void cmd_spawn(char *out, const char *args);
 internal void cmd_airraid(char *out, const char *args);   // testcmd.c
 internal void cmd_modmsg(char *out, const char *args);   // testcmd.c: the mod's own message
 internal void cmd_spawnline(char *out, const char *args);
+internal void herds_make(char *out, size_t cap);   // engine/herds.c: the map's animals into herds now
 internal void cmd_script(char *out, const char *args);   // scripts.c: script dryrun <file> <out>
 internal volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 internal void cmd_scrolltest(char *out, const char *args);
@@ -498,6 +499,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "diplo")) cmd_diplo(out, args);
     else if (!strcmp(verb, "persona")) cmd_persona(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
+    else if (!strcmp(verb, "herds")) herds_make(out, REPLY_CAP);
     else if (!strcmp(verb, "cast")) cmd_cast(out, args);
     else if (!strcmp(verb, "airraid")) cmd_airraid(out, args);
     else if (!strcmp(verb, "modmsg")) cmd_modmsg(out, args);
@@ -570,7 +572,6 @@ internal void ff_linger_tick(void);     // groupmove.c: units of an arrived form
 internal void build_retry_tick(void);   // buildretry.c: citizens that stopped a tile off a building site sent again
 internal void walls_safe_point(void);   // walls.c: the scenario editor's walls, after its place actions
 internal void units_first_tick(void);   // unitsfirst.c: a unit shooting a building looks for an enemy unit between shots
-internal void herds_tick(void);   // engine/herds.c: the map's animals into herds where a game start left them out
 internal void answer_fire_tick(void);   // unitsfirst.c: an idle unit shot from beyond its reply range goes for its attacker
 internal void spoils_tick(void);        // spoils.c: a resigned player's buildings and units
 internal void system_line(const char *text, int ms);   // voice/chat.c
@@ -659,7 +660,6 @@ internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *
     build_retry_tick();
     walls_safe_point();
     units_first_tick();
-    herds_tick();
     answer_fire_tick();
     spoils_tick();
     fm_tick();
