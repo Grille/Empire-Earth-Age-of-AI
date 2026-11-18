@@ -2,8 +2,8 @@
 
 A test run's `setup=<file>` (autotest, `run_test.py -IniExtra "setup=tests/scenarios/bombing.eeai"` - relative to the repository) is a script in
 the text language of the personalities ([config/personalities/README.md](../config/personalities/README.md)): the same
-expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
-bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
+expressions, plus statements, variables, functions and the pipe's commands. It runs from the game's first step (until 2026-11-18:
+from 2 s), top to bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
 A script is compiled to instructions when it is read and run by a machine of its own (`dll/script/expr.c` SCRIPTS
 COMPILED): its turns come between the simulation's steps, where the pipe's commands run - a spawned unit is there at
 once - and a wait is that machine stopping where it is. The texts (a personality's lines, names, functions and
@@ -411,7 +411,7 @@ game.timer(20s, () => {
 
 `game.setup(() => { ... })`, a statement at the script's top, runs before the game starts - when the game makes its
 players, before the personalities and colours are planned - in a new game only (a saved game's ran when it began).
-The rest of the script runs from 2 s as always; the setup's statement is nothing there. Its function sees none of the
+The rest of the script runs from the game's start as always; the setup's statement is nothing there. Its function sees none of the
 script's names (they don't exist yet) - only its own `let`s, and the players to be:
 
 | | |
@@ -466,7 +466,7 @@ on_campaign() { }                    // a campaign's scenario
 
 A hook takes nothing and runs statements (`on_game() { ... }`); one that isn't needed is left out. Another `on_...`
 name at the file's top is a mistake - a hook's name mistyped would never run. The file's top runs first, then
-`on_game()`, then the game type's hook when `on_game()` has ended (its waits too) - from 2 s game time, as a script:
+`on_game()`, then the game type's hook when `on_game()` has ended (its waits too) - from the game's start, as a script:
 waits, triggers, timers, the players' members, the pipe's commands. Its `game.setup` blocks run before the game starts
 as any script's, in every kind of game - and the slots' personalities and colours are a random-map game's, so one
 there ends the script in a scenario.
@@ -520,6 +520,6 @@ there) ends it: `# setup: <file>:<line>: stopped - <what>`. A script that ends l
 ## A dry run
 
 `script dryrun <file> <out>` (a pipe command, or `script("dryrun", ...)` in a script) runs a script without the game:
-waiting moves the clock (from 2 s), every command goes into `<out>` as `<ms> <command>` instead of being run (its reply
+waiting moves the clock (from 0), every command goes into `<out>` as `<ms> <command>` instead of being run (its reply
 is "ok"). The setup files of before 2026-10-20 (`@<minutes> <command>` lines) were converted this way: every converted
 file issued the same 905 commands at the same times (to 1 ms) as the old runner would have.

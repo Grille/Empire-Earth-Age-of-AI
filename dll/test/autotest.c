@@ -92,7 +92,7 @@ internal int __cdecl hook_load_saved(void *name) {
     return r;
 }
 
-// Autotest setup=<file>[;<file>...] (paths relative to the game folder): scripts run from 2 s game time (scripts.c)
+// Autotest setup=<file>[;<file>...] (paths relative to the game folder): scripts run from the game's start (scripts.c THE SCRIPTS' START)
 internal void run_setup(uint32_t now);
 
 // The lockstep server tunes its pace to the machine (NESynchronousServer::TuneForSlowCPU, Low-Level Engine rva 0x55099):

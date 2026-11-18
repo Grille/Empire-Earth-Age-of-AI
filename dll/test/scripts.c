@@ -1,5 +1,5 @@
 // SCRIPTS (autotest setup=<file>[;<file>...]; setup.eeai): scripts in the text language (expr.c; docs/scripts.md) -
-// statements one a line, top to bottom, from 2 s game time: the pipe's commands as functions (spawn(3,
+// statements one a line, top to bottom, from the game's start (THE SCRIPTS' START): the pipe's commands as functions (spawn(3,
 // unit.b_guard_tower_bronze, 51, 44), stats("engage", ...)), variables (let), functions ((i) => ...), if, while, for,
 // and the waiting ones: wait(20s), wait_until(19.5min), every(20s, from, until, (run) => ...). A script is compiled
 // to instructions and run by a machine of its own (expr.c SCRIPTS COMPILED): waiting stops the machine where it is
@@ -36,6 +36,7 @@ internal struct script g_scripts[SCRIPTS_MAX];
 internal int g_nscripts = -1;
 internal struct script g_own;   // setup.eeai of this game (SETUP.EEAI below; no text: none)
 internal int g_own_fresh;       // this game's clock seen before 2 s (scripts_turns)
+internal int g_scripts_go;      // this game's scripts and triggers have started (THE SCRIPTS' START)
 internal int g_scripts_restored;   // g_scripts are a saved game's (THE SCRIPTS IN A SAVED GAME), not a test's setup=
 internal struct script *g_cur_script;
 internal uint32_t g_script_now;
@@ -206,7 +207,7 @@ internal void script_setup_blocks(struct script *s) {
 //   on_campaign()   a campaign's scenario (mode 4)
 //   on_scenario()   a scenario (1; the editor's test play, 3, is one)
 // Its top runs first (its lets are the hooks' shared names; its game.setup blocks before the game starts, as any
-// script's), then the hooks - from 2 s game time.
+// script's), then the hooks - from the game's start (THE SCRIPTS' START).
 // No hook is called in a saved game that is loaded (they ran when the game began; the save carries on what they
 // started: THE SCRIPTS IN A SAVED GAME), none in a multiplayer game (each PC would run its own
 // file: a desync, as a console command there), no turn while the scenario editor is on. No file, no script.
@@ -235,7 +236,7 @@ internal void own_new_game(ee_setup *setup) {
     if (g_cur_script == &g_own || (g_own.text && g_nscripts > 0)) return;
     script_end(&g_own);   // the last game's: over where it waited
     g_script_now = 0;
-    g_own_fresh = 0;
+    g_own_fresh = g_scripts_go = 0;
     if (g_nscripts <= 0) { x_triggers_reset(); x_units_reset(); }   // its triggers and timers, the units it spawned
     int mode = setup_get_mode(setup), humans = 0, have = 0, line;
     if (mode == 2) return;
@@ -268,15 +269,24 @@ internal void scripts_new_game(ee_setup *setup) {
     for (int i = 0; i < g_nscripts; i++) script_setup_blocks(&g_scripts[i]);
     g_x_setup = NULL;
 }
+// THE SCRIPTS' START: at the first safe point after the game's first step (its clock past 0: before it the game says
+// none runs - game_time() 0). Until 2026-11-18 every script waited 2 s of game time (the player: "setup.eeai triggers
+// with a noticable delay, why isnt it run with the first step"; the 2 s came with the first test setups, 2026-10-11).
+// The AIs' first turns come later, spread over the first seconds (three AIs: 34, 375, 715 ms) - what a script gives them
+// before is theirs from it: a personality (persona: g_persona_given), units, stock; nothing a script calls sets what
+// their first turn's settings_apply does. A loaded game's scripts go on at once
 // The scripts' turns (script_triggers, the safe point): setup.eeai's, then the test's (or a saved game's) in their
-// order - from 2 s on each goes on until it waits again. Only once this game's clock was seen before 2 s (a later game
-// of the session: while it loads the last game's time may still stand there; a loaded game's scripts are fresh as they
-// are restored), not while the scenario editor is on
-internal void scripts_turns(uint32_t now) {
-    if (now < 2000) { g_own_fresh = 1; return; }
-    if (!g_own_fresh || !game_map() || editor_is_on()) return;
+// order - from THE SCRIPTS' START on each goes on until it waits again. Only once this game's clock was seen before 2 s
+// (a later game of the session: while it loads the last game's time may still stand there; a loaded game's scripts are
+// fresh as they are restored), not while the scenario editor is on. 1: they have started
+internal int scripts_turns(uint32_t now) {
+    if (now < 2000) g_own_fresh = 1;
+    if (!g_own_fresh || !game_map() || editor_is_on() || !now) return g_scripts_go;
+    if (!g_scripts_go && (g_own.text || g_nscripts > 0)) log_line("# setup: the scripts start at %u ms\n", now);
+    g_scripts_go = 1;
     script_turn(&g_own, now);
     for (int i = 0; i < g_nscripts; i++) script_turn(&g_scripts[i], now);
+    return 1;
 }
 internal void run_setup(uint32_t now) { (void)now; scripts_load(); }   // (autotest_tick's: the turns are the safe point's)
 // the scripts' and the triggers' turn: at every safe point between the simulation's steps (control.c hook_sim_receive,
@@ -285,8 +295,7 @@ internal void run_setup(uint32_t now) { (void)now; scripts_load(); }   // (autot
 // (relations.c x_effects_flush: the game's resign path wants this point), and their spawned units made
 internal void script_triggers(uint32_t now) {
     x_effects_flush();
-    scripts_turns(now);
-    if ((g_nscripts <= 0 && !g_own.text) || now < 2000) return;
+    if (!scripts_turns(now) || (g_nscripts <= 0 && !g_own.text)) return;
     if (now > g_script_now) g_script_now = now;
     g_x_hooks.now = script_now; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
     g_x_safe = 1;   // (a trigger's spawns made at once: units.c)
@@ -414,7 +423,7 @@ internal void scripts_state_load(const uint8_t *p, uint32_t size) {
     log_line("# persist: scripts restored: %d (%d going on), %d triggers and timers, %d after's, %d spawned units' handles\n", n, waiting,
              g_xt_n, g_xa_n, g_xslot_n);
 }
-// THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 2 s), the
+// THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 0), the
 // commands are written to <out> ("<ms> <command>") and answered "ok" (tests: a converted scenario issues the same
 // commands at the same times as before). Its triggers have their turns on the way, every 500 ms up to where the
 // script waits last (a script that tests triggers ends with a wait); they and its after's go when it is done
@@ -475,7 +484,7 @@ internal void cmd_script(char *out, const char *args) {
     struct xregion reg = { 0 }, *r0 = g_xr;
     reg.busy = 1;
     g_xr = &reg;
-    g_dry_now = 2.0;
+    g_dry_now = 0.0;
     __typeof__(g_x_hooks) h0 = g_x_hooks;   // (a script may run this: its own are back after)
     g_x_hooks.now = dry_now; g_x_hooks.wait = NULL; g_x_hooks.command = dry_command; g_x_hooks.did = dry_did; g_x_hooks.note = NULL;
     static struct xtrig keep_t[XT_MAX];   // a game's own triggers set aside meanwhile: the dry run has none but its own
