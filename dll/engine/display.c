@@ -825,6 +825,9 @@ internal void os_cursor_visible(void) {   // display count back to 0 for this th
 // read during the change). Resize runs on DPI-unaware threads, so for a DPI-aware window its SetWindowPos is
 // wrapped (hook_set_window_pos): the requested client size is kept in real pixels.
 #define WM_AIMOD_MODE (WM_APP + 0x2E45)
+#define WM_AIMOD_INPUT (WM_APP + 0x2E47)   // input_front: keyboard and mouse acquired again, the first time in front
+internal int g_input_fronted;
+internal void input_front(HWND h);
 typedef UINT (WINAPI *GetDpiFn)(HWND);
 typedef BOOL (WINAPI *AdjustForDpiFn)(RECT *, DWORD, BOOL, DWORD, UINT);
 internal GetDpiFn g_get_dpi;
@@ -959,7 +962,9 @@ internal void play_windows(void) {
 }
 // the first frame: the game window to the front, once (the probes before ageofai.dll loaded may have taken it away)
 internal void play_front(HWND h) {
-    if (g_headless || !g_play_cbt) return;
+    if (g_headless) return;
+    PostMessageA(h, WM_AIMOD_INPUT, 0, 0);   // in front already or brought there below: its devices acquired again (input_front)
+    if (!g_play_cbt) return;
     char parts[64] = "";
     setting_text(&k_settings[SETTING_display_start], (const uint8_t *)&g_set.display_start, parts, sizeof parts);
     if (!g_set.display_start.front || GetForegroundWindow() == h) {
@@ -1034,8 +1039,12 @@ internal LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     case WM_ACTIVATE: {   // the original returns without DefWindowProc, which would set the keyboard focus
         LRESULT r = CallWindowProcA(g_game_wndproc, h, msg, w, l);
         if (LOWORD(w) != WA_INACTIVE && GetFocus() != h) SetFocus(h);
+        if (LOWORD(w) != WA_INACTIVE && !g_input_fronted) PostMessageA(h, WM_AIMOD_INPUT, 0, 0);   // once the activation is done
         return r;
     }
+    case WM_AIMOD_INPUT:
+        input_front(h);
+        return 0;
     case WM_ACTIVATEAPP:
         if (!w) ClipCursor(NULL);
         break;
@@ -1172,6 +1181,28 @@ internal int suspend_if_resumed(void *d) {   // the mouse or the keyboard: Suspe
     if (!d || input_mouse_get_suspended(d)) return 0;
     ((ThisFn)(*(void ***)d)[6])(d);
     return 1;
+}
+
+// THE FIRST TIME IN FRONT (the player, 2026-11-19: with the intro on, Esc and clicks didn't skip it until an Alt+Tab):
+// the intro (0x538867) resumes keyboard and mouse as it starts - DirectInput's Acquire in foreground mode - before the
+// window is in front (play_front brings it there at the first frame: the intro's first movie frame), so the Acquire
+// fails while the game takes both devices for on, and its resume at WM_ACTIVATE leaves a device it thinks on alone; the
+// intro's loop reads Esc, Space and a click from them. Once the window is in front the first time, each device is
+// suspended and resumed again, on the window's thread (the intro's own: no race with its reads) - the Acquire then
+// succeeds. Once a start: every later activation follows a suspend (WM_ACTIVATEAPP(0), suspend_if_resumed), and its
+// resume works.
+internal void input_front(HWND h) {
+    if (g_input_fronted || GetForegroundWindow() != h) return;
+    g_input_fronted = 1;
+    void *dev[2] = { input_keyboard(), input_mouse() };
+    int cycled = 0, resumed = 0;
+    for (int i = 0; i < 2; i++) {
+        if (!dev[i]) continue;
+        cycled += suspend_if_resumed(dev[i]);
+        ((ThisFn)(*(void ***)dev[i])[4])(dev[i]);   // Resume (vtable +0x10): Acquire, now in front
+        resumed++;
+    }
+    if (g_log) log_locked("# focus: first time in front - keyboard and mouse acquired again (%d resumed, %d of them on before)\n", resumed, cycled);
 }
 
 // Focus in by a click (the player: the click that brings the game back should count). Its press came before the
