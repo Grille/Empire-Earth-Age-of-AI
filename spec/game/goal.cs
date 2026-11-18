@@ -402,4 +402,10 @@ unsafe struct EEUGGather
     /// returns it (the AoC decompilation: mWaiting)
     [offset(0x41), found(c)]
     uint8 waiting;
+
+    /// its storage, where its citizen unloads (+0x3C: the old one's reference released, the new one's taken; the AoC
+    /// decompilation: SetStorage) - the AI's assignment (0x48C81C) makes the goal with none, the citizen's FindStorage
+    /// state sets it once it is full; the player's drop-off order sets its building
+    [address((ee)0x0061135D, (aoc)0x00623C5E)]
+    extern void store_at(EEUnit* storage);
 }

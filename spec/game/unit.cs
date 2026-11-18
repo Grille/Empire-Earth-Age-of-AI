@@ -165,6 +165,12 @@ unsafe struct EEUnit
     [address((ee)0x005EFCF0, (aoc)0x005FDFA5)]
     extern void set_state(int32 state);
 
+    /// thiscall(unit, resource or 0): the resource it works (+0x1F8, referenced), the one before released and a citizen
+    /// waiting for it sent in (the AoC decompilation: EEComplexUnit::SetGatheredResource) - the player's drop-off order
+    /// (the group's plan, case 0xFAB at 0x5DD463) passes 0 before it sends a loaded citizen to its storage
+    [address((ee)0x005F007A, (aoc)0x005FE372)]
+    extern void set_gathered(EEUnit* resource);
+
     /// thiscall(unit, slot): every goal of its goal slot dropped, each told so (its orders: slot 0) - the player's Halt
     /// (EEMHaltSelectedGroup::vf10 0x4B73C9, AoC 0x4BF8C8) does it with 0 for each unit of the group, then
     /// set_state(unit.state_idle) and its type's vf29 (its next behaviour)
@@ -984,6 +990,11 @@ static unsafe class unit
     [value(5000)]
     static uint32 state_idle;
 
+    /// a gatherer's state on its way to its gather goal's storage to unload (MoveToStorage: the player's drop-off order
+    /// sets it on a loaded citizen keeping its gathering, which then goes back to its resource)
+    [value(0x1F49)]
+    static uint32 state_to_storage;
+
     /// the plague's bit in a unit's contagions (seen in a test game: set by the cast and by the spread)
     [value(1)]
     static uint32 contagion_plague;
@@ -1112,6 +1123,13 @@ static unsafe class unit_functions
     /// goal's constructor takes
     [address((ee)0x0062EBD2, (aoc)0x00643F78), cdecl]
     static extern EEUnit* find_target(EEUnit* u);
+
+    /// EEUCBasicCitizen (a citizen's type data, its class not described yet): where citizen u drops its load - its
+    /// gather goal's storage while it stands (any 0), else its owner's nearest built drop site that takes the load
+    /// (a farm's first drop site within 20; docks for boats); NULL none. The gather goal's FindStorage state (0x60FDCA)
+    /// asks it with any = state FindNewStorage
+    [address((ee)0x005FF597, (aoc)0x0060C6B3), thiscall]
+    static extern EEUnit* citizen_find_storage(EEUnitClass* type, EEUnit* u, char8 any);
 
     /// cdecl(unit, its attack goal, the new target): the goal's target changed in place (its vf27 +0x6C, the old one's
     /// reference released) and the unit sent to CheckRange (2013) as after a new order - the goals under it (an

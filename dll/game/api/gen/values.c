@@ -3572,6 +3572,7 @@ internal uint32_t of_ghost_unit_can_place;
 internal uint32_t of_ghost_unit_stands_on;
 internal uint32_t calls_se_ghost_preview[2];
 internal uint32_t value_unit_state_idle;
+internal uint32_t value_unit_state_to_storage;
 internal uint32_t value_unit_contagion_plague;
 internal uint32_t data_unit_call_node_del_1;
 internal uint32_t data_unit_call_node_del_2;

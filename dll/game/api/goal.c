@@ -74,6 +74,25 @@ internal inline int goal_is_unload(const ee_goal *g) { return *(const uintptr_t 
 internal inline int goal_is_garrison(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_load_garrison; }
 internal inline int goal_is_gather(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_gather; }
 internal inline int goal_is_cast(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_cast_calamity; }   // a power cast (EEUGCastCalamity)
+// a gather goal's storage, where its citizen unloads (+0x3C; the constructor's second argument, the player's drop-off
+// order's building)
+internal inline ee_unit *goal_get_storage(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x1C, ee_unit *); }
+// the player's drop-off order for one citizen, as the group's plan gives it (0x5DD463, case 0xFAB) to a loaded citizen
+// that keeps its gathering: its resource let go, on its way to the storage - its goal's, else the one its type finds
+// (the AI's assignment leaves a new goal without one until the citizen is full) -, its type told (vf29); it unloads
+// there and goes back to its resource. 0: not done (no load, no gathering, no drop site that takes the load)
+internal inline int unit_drop_off(ee_unit *u) {
+    ee_goal *g = unit_get_goal(u);
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!g || !td || !goal_is_gather(g) || unit_get_amount(u) <= 0) return 0;
+    ee_unit *st = citizen_find_storage(td, u, 0);
+    if (!st || unit_get_hp(st) <= 0) return 0;
+    if (st != goal_get_storage(g)) eeug_gather_store_at((eeug_gather *)g, st);
+    unit_set_gathered(u, NULL);
+    unit_set_state(u, (int)value_unit_state_to_storage);
+    unit_type_goal_assigned(td, u);
+    return 1;
+}
 // a garrison order with units still to come in (its holder keeps an order whose last unit is in, unless that filled it)
 internal inline int goal_garrison_waits(const ee_goal *g) {
     return goal_is_garrison(g) && garrison_goal_get_pending_first((const ee_garrison_goal *)g) != garrison_goal_get_pending_last((const ee_garrison_goal *)g);

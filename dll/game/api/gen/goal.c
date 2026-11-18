@@ -744,6 +744,12 @@ internal inline uint8_t *eeug_gather_gathering_at(const eeug_gather *o) { return
 internal inline uint8_t eeug_gather_get_waiting(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_waiting); }
 internal inline void eeug_gather_set_waiting(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_waiting) = v; }
 internal inline uint8_t *eeug_gather_waiting_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_waiting); }
+// its storage, where its citizen unloads (+0x3C: the old one's reference released, the new one's taken; the AoC
+// decompilation: SetStorage) - the AI's assignment (0x48C81C) makes the goal with none, the citizen's FindStorage
+// state sets it once it is full; the player's drop-off order sets its building
+typedef void (__thiscall *eeug_gather_store_at_fn)(eeug_gather *, ee_unit *);
+internal eeug_gather_store_at_fn fn_eeug_gather_store_at;
+internal inline void eeug_gather_store_at(eeug_gather *eeug_gather, ee_unit *storage) { fn_eeug_gather_store_at(eeug_gather, storage); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_goal_select(int build) {
@@ -842,6 +848,7 @@ internal int spec_goal_select(int build) {
         vt_eeug_gather = 0x00831B80;
         of_eeug_gather_gathering = 0x40;
         of_eeug_gather_waiting = 0x41;
+        fn_eeug_gather_store_at = (eeug_gather_store_at_fn)0x0061135D;
         return 0;
     case 1:   // aoc
         of_goal_state = 0x5;
@@ -937,6 +944,7 @@ internal int spec_goal_select(int build) {
         vt_eeug_gather = 0x008475A8;
         of_eeug_gather_gathering = 0x40;
         of_eeug_gather_waiting = 0x41;
+        fn_eeug_gather_store_at = (eeug_gather_store_at_fn)0x00623C5E;
         return 0;
     }
     return 0;
@@ -992,5 +1000,6 @@ internal int spec_goal_check(void) {
     bad += spec_vtable(vt_eeug_unload_transport, ".?AVEEUGUnloadTransport@@", "EEUGUnloadTransport [vtable]");
     bad += spec_vtable(vt_eeug_explore, ".?AVEEUGExplore@@", "EEUGExplore [vtable]");
     bad += spec_vtable(vt_eeug_gather, ".?AVEEUGGather@@", "EEUGGather [vtable]");
+    bad += spec_code((uintptr_t)fn_eeug_gather_store_at, "EEUGGather.store_at");
     return bad;
 }

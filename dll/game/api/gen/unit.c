@@ -144,6 +144,12 @@ internal inline float unit_max_turn(ee_unit *unit) { return fn_unit_max_turn(uni
 typedef void (__thiscall *unit_set_state_fn)(ee_unit *, int);
 internal unit_set_state_fn fn_unit_set_state;
 internal inline void unit_set_state(ee_unit *unit, int state) { fn_unit_set_state(unit, state); }
+// thiscall(unit, resource or 0): the resource it works (+0x1F8, referenced), the one before released and a citizen
+// waiting for it sent in (the AoC decompilation: EEComplexUnit::SetGatheredResource) - the player's drop-off order
+// (the group's plan, case 0xFAB at 0x5DD463) passes 0 before it sends a loaded citizen to its storage
+typedef void (__thiscall *unit_set_gathered_fn)(ee_unit *, ee_unit *);
+internal unit_set_gathered_fn fn_unit_set_gathered;
+internal inline void unit_set_gathered(ee_unit *unit, ee_unit *resource) { fn_unit_set_gathered(unit, resource); }
 // thiscall(unit, slot): every goal of its goal slot dropped, each told so (its orders: slot 0) - the player's Halt
 // (EEMHaltSelectedGroup::vf10 0x4B73C9, AoC 0x4BF8C8) does it with 0 for each unit of the group, then
 // set_state(unit.state_idle) and its type's vf29 (its next behaviour)
@@ -948,6 +954,8 @@ internal inline int patch_se_ghost_preview(ghost_unit_preview_fn h, int *of) { r
 // static class unit
 // the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
 // a unit's state at rest (the Halt's set_state, a unit as the editor makes it)
+// a gatherer's state on its way to its gather goal's storage to unload (MoveToStorage: the player's drop-off order
+// sets it on a loaded citizen keeping its gathering, which then goes back to its resource)
 // the plague's bit in a unit's contagions (seen in a test game: set by the cast and by the spread)
 internal inline uint8_t *unit_call_node_del_1_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_1; }
 internal inline uint8_t *unit_call_node_del_2_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_2; }
@@ -1053,6 +1061,13 @@ internal inline int patch_target_ok(target_ok_fn h, int *of) { return patch_call
 typedef ee_unit *(__cdecl *find_target_fn)(ee_unit *);
 internal find_target_fn fn_find_target;
 internal inline ee_unit *find_target(ee_unit *u) { return fn_find_target(u); }
+// EEUCBasicCitizen (a citizen's type data, its class not described yet): where citizen u drops its load - its
+// gather goal's storage while it stands (any 0), else its owner's nearest built drop site that takes the load
+// (a farm's first drop site within 20; docks for boats); NULL none. The gather goal's FindStorage state (0x60FDCA)
+// asks it with any = state FindNewStorage
+typedef ee_unit *(__thiscall *citizen_find_storage_fn)(ee_unit_type *, ee_unit *, char);
+internal citizen_find_storage_fn fn_citizen_find_storage;
+internal inline ee_unit *citizen_find_storage(ee_unit_type *type, ee_unit *u, char any) { return fn_citizen_find_storage(type, u, any); }
 // cdecl(unit, its attack goal, the new target): the goal's target changed in place (its vf27 +0x6C, the old one's
 // reference released) and the unit sent to CheckRange (2013) as after a new order - the goals under it (an
 // attack-move) stay
@@ -1195,6 +1210,7 @@ internal int spec_unit_select(int build) {
         fn_unit_accel = (unit_accel_fn)0x0054A4CA;
         fn_unit_max_turn = (unit_max_turn_fn)0x0054A4E7;
         fn_unit_set_state = (unit_set_state_fn)0x005EFCF0;
+        fn_unit_set_gathered = (unit_set_gathered_fn)0x005F007A;
         fn_unit_drop_goals = (unit_drop_goals_fn)0x005EAE25;
         fn_unit_clear_goals = (unit_clear_goals_fn)0x005E9664;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
@@ -1398,6 +1414,7 @@ internal int spec_unit_select(int build) {
         calls_se_ghost_preview[0] = 0x0058BA2F;
         calls_se_ghost_preview[1] = 0x0058E391;
         value_unit_state_idle = 5000;
+        value_unit_state_to_storage = 8009;
         value_unit_contagion_plague = 1;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
@@ -1428,6 +1445,7 @@ internal int spec_unit_select(int build) {
         calls_target_ok[2] = 0x0063A072;
         calls_target_ok[3] = 0x0063A145;
         fn_find_target = (find_target_fn)0x0062EBD2;
+        fn_citizen_find_storage = (citizen_find_storage_fn)0x005FF597;
         fn_attack_retarget = (attack_retarget_fn)0x0062CD12;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_line_of_fire_game = (line_of_fire_game_fn)0x00637F5A;
@@ -1490,6 +1508,7 @@ internal int spec_unit_select(int build) {
         fn_unit_accel = (unit_accel_fn)0x00554C95;
         fn_unit_max_turn = (unit_max_turn_fn)0x0055463E;
         fn_unit_set_state = (unit_set_state_fn)0x005FDFA5;
+        fn_unit_set_gathered = (unit_set_gathered_fn)0x005FE372;
         fn_unit_drop_goals = (unit_drop_goals_fn)0x005F88FE;
         fn_unit_clear_goals = (unit_clear_goals_fn)0x005F6FBC;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
@@ -1693,6 +1712,7 @@ internal int spec_unit_select(int build) {
         calls_se_ghost_preview[0] = 0x0059BD85;
         calls_se_ghost_preview[1] = 0x0059E7A0;
         value_unit_state_idle = 5000;
+        value_unit_state_to_storage = 8009;
         value_unit_contagion_plague = 1;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
@@ -1723,6 +1743,7 @@ internal int spec_unit_select(int build) {
         calls_target_ok[2] = 0x006506CC;
         calls_target_ok[3] = 0x0065079F;
         fn_find_target = (find_target_fn)0x00643F78;
+        fn_citizen_find_storage = (citizen_find_storage_fn)0x0060C6B3;
         fn_attack_retarget = (attack_retarget_fn)0x00641BC9;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_line_of_fire_game = (line_of_fire_game_fn)0x0064DF23;
@@ -1767,6 +1788,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_accel, "EEUnit.accel");
     bad += spec_code((uintptr_t)fn_unit_max_turn, "EEUnit.max_turn");
     bad += spec_code((uintptr_t)fn_unit_set_state, "EEUnit.set_state");
+    bad += spec_code((uintptr_t)fn_unit_set_gathered, "EEUnit.set_gathered");
     bad += spec_code((uintptr_t)fn_unit_drop_goals, "EEUnit.drop_goals");
     bad += spec_code((uintptr_t)fn_unit_clear_goals, "EEUnit.clear_goals");
     bad += spec_code((uintptr_t)fn_unit_turn_accel, "EEUnit.turn_accel");
@@ -1878,6 +1900,7 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_target_ok[2], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 2]");
     bad += spec_call(calls_target_ok[3], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 3]");
     bad += spec_code((uintptr_t)fn_find_target, "unit_functions.find_target");
+    bad += spec_code((uintptr_t)fn_citizen_find_storage, "unit_functions.citizen_find_storage");
     bad += spec_code((uintptr_t)fn_attack_retarget, "unit_functions.attack_retarget");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_line_of_fire_game, "unit_functions.line_of_fire_game");

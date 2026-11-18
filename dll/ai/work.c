@@ -509,6 +509,46 @@ internal int wk_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit *
     }
     return got;
 }
+// ITS LOAD FIRST, the drop-off: a citizen to be moved to another resource while it carries a load is sent to unload
+// first, as the player's right-click on a drop site does (game/api unit_drop_off: it keeps its gathering), and given
+// its new site by the first turn of its player that finds it empty - on its way back to its old resource. The game's
+// own assignment (0x48C81C) sets a load to 0 when the new site is of another resource. Given up after WK_DROP_WAIT
+// (still loaded: the look tries again) or when it takes another order meanwhile
+#define WK_DROPS 128
+#define WK_DROP_WAIT 60000
+internal struct { int n; struct { int id, site; uint32_t t; uint8_t r; } e[WK_DROPS]; } g_wkdrop[16];
+internal unsigned g_wkd_sent[16], g_wkd_moved[16], g_wkd_lapsed[16];   // the log
+internal int wk_drop_at(unsigned idx, int id) {
+    for (int k = 0; k < g_wkdrop[idx].n; k++) if (g_wkdrop[idx].e[k].id == id) return k;
+    return -1;
+}
+internal int wk_drop(unsigned idx, ee_unit *u, ee_unit *site, int r, uint32_t now) {
+    typeof(&g_wkdrop[0]) D = &g_wkdrop[idx];
+    int id = unit_get_serial(u);
+    if (D->n >= WK_DROPS || wk_drop_at(idx, id) >= 0 || !unit_drop_off(u)) return 0;
+    D->e[D->n].id = id; D->e[D->n].site = unit_get_serial(site); D->e[D->n].t = now ? now : 1; D->e[D->n].r = (uint8_t)r; D->n++;
+    g_wkd_sent[idx]++;
+    return 1;
+}
+internal void wk_drops_check(ee_player *pl, ee_resource_mgr *rm, unsigned idx, uint32_t now) {
+    typeof(&g_wkdrop[0]) D = &g_wkdrop[idx];
+    int m = 0;
+    for (int k = 0; k < D->n; k++) {
+        ee_unit *u = unit_by_id((unsigned)D->e[k].id);
+        if (!u || unit_get_serial(u) != D->e[k].id || unit_get_hp(u) <= 0 || unit_get_owner(u) != pl) continue;
+        ee_goal *g = unit_get_goal(u);
+        if (!g || !goal_is_gather(g)) continue;   // another order meanwhile: that one stands
+        if (unit_get_amount(u) > 0) {
+            if (now - D->e[k].t < WK_DROP_WAIT) D->e[m++] = D->e[k]; else g_wkd_lapsed[idx]++;
+            continue;
+        }
+        ee_unit *site = object_by_id((unsigned)D->e[k].site);
+        if (!site) continue;   // gone meanwhile: the next look finds it work
+        resource_mgr_assign(rm, u, site);
+        g_wkd_moved[idx]++;
+    }
+    D->n = m;
+}
 internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static struct wk_cit cit[WK_CITS];
     struct wk_site *mine = g_wks.mine, *bush = g_wks.bush;
@@ -516,7 +556,8 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct wk_st *w = &g_wk[idx];
     struct tv_st *s = &g_tv[idx];
-    if (now < w->t) memset(w, 0, sizeof *w);
+    if (now < w->t) { memset(w, 0, sizeof *w); g_wkdrop[idx].n = 0; g_wkd_sent[idx] = g_wkd_moved[idx] = g_wkd_lapsed[idx] = 0; }
+    wk_drops_check(pl, rm, idx, now);   // ITS LOAD FIRST, the drop-off
     wk_hunters_check(pl, rm);   // THE HUNTER'S OWN NEXT ANIMAL
     if (w->t && now - w->t < WK_EVERY) return;
     w->t = now ? now : 1;
@@ -585,6 +626,8 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             hk = nhn; nhome[nhn].u = u; nhome[nhn].id = (int)unit_get_serial(u); nhome[nhn++].ter = (short)home;
         }
         if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) || expand_has(pl, u)) { w->busy++; continue; }   // held for a landing or an outpost, building, a ferry's passenger (expand.c)
+        int dk = wk_drop_at(idx, (int)unit_get_serial(u));
+        if (dk >= 0) { w->have[g_wkdrop[idx].e[dk].r]++; continue; }   // on its way to unload: counted at its new resource, not moved again
         ee_goal *g = unit_get_goal(u);
         int gather = g && !strcmp(rtti_name(g), "EEUGGather@@");
         if (g && !gather) { w->busy++; continue; }   // building, repairing, walking on an order
@@ -664,9 +707,9 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             // noticed that in other areas alredy. if its asigned a new task on a difrent resource it should deliver what
             // it holds first to avoid waste"): a citizen carries what it gathered (unit +0x40, of the resource +0x38) until
             // its drop-off, and a gather of another resource starts it at 0. An idle one with a load asks for its load's
-            // resource first; one to be moved off its resource while it carries some of it stays until a look finds it
-            // empty, on its way back from the drop-off (its gather goal's gathering flag set to 0 doesn't send it there:
-            // it went on gathering)
+            // resource first; one to be moved off its resource while it carries some of it is sent to unload first and
+            // moved once empty (wk_drop, the drop-off above; its gather goal's gathering flag set to 0 didn't send it
+            // there: it went on gathering) - with no drop site to take its load it stays until a look finds it empty
             int load = unit_get_amount(c->u), lr = unit_get_resource(c->u);
             if (load <= 0 || lr < 2 || lr > 6) load = 0;
             for (int attempt = 0; attempt < 5 && !done; attempt++) {
@@ -690,10 +733,11 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 }
                 if (!site) { w->none[r]++; w->food_short += r == 2; continue; }
                 ee_goal *cg = unit_get_goal(c->u);
-                if (load && lr != r && cg && !strcmp(rtti_name(cg), "EEUGGather@@")) { w->delivering++; break; }   // ITS LOAD FIRST: moved once empty
-                if (load && lr != r) w->load_lost += (unsigned)load;   // idle with a load, none of its resource to be had
+                int drop = load && lr != r && cg && goal_is_gather(cg);   // ITS LOAD FIRST: sent to unload, moved once empty
+                if (drop && !wk_drop(idx, c->u, site, r, now)) { w->delivering++; break; }   // no drop site for it: held until a look finds it empty
+                if (load && lr != r && !drop) w->load_lost += (unsigned)load;   // idle with a load, none of its resource to be had
                 if (bk >= 0) bush[bk].n++;
-                resource_mgr_assign(rm, c->u, site);
+                if (!drop) resource_mgr_assign(rm, c->u, site);
                 if (c->res) { w->have[c->res]--; w->moved++; moves++; } else { w->idle--; w->assigned++; }
                 w->have[r]++;
                 if (mk >= 0 && mine[mk].n < 255) mine[mk].n++;
@@ -724,9 +768,9 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int worked = 0;
         for (int r = 0; r < s->n; r++) worked += !g_ter.t[r].water && s->t[r].bld >= 1 && s->t[r].state != TV_UNSAFE;
         log_locked("# work: P%u at %.1f min: %d citizens free for work (%d idle, %d more building or held), shares %s | at food %d wood %d stone %d gold %d iron %d | wanted %d %d %d %d %d | "
-                   "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, %u given another territory, %u back from one not to be worked, no site for food %u wood %u stone %u gold %u iron %u | its load first: %u moves held for a load, %u lost\n",
+                   "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, %u given another territory, %u back from one not to be worked, no site for food %u wood %u stone %u gold %u iron %u | its load first: %u sent to unload before a move (%u moved once empty, %u still loaded after a minute), %u moves held for a load, %u lost\n",
                    idx, now / 60000.0, nc, w->idle, w->busy, w->by_need ? "by need" : "by the plain rule", w->have[2], w->have[3], w->have[4], w->have[5], w->have[6], w->want[2], w->want[3], w->want[4], w->want[5], w->want[6],
-                   nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->xfers, w->retreats, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6], w->delivering, w->load_lost);
+                   nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->xfers, w->retreats, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6], g_wkd_sent[idx], g_wkd_moved[idx], g_wkd_lapsed[idx], w->delivering, w->load_lost);
         static uint32_t wild_t;
         if (g_autotest && (!wild_t || now < wild_t || now - wild_t >= 60000)) {   // HERDS KEPT's measure: the map's living food animals once a minute
             wild_t = now ? now : 1;
