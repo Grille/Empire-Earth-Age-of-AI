@@ -75,11 +75,39 @@ internal float fy_tolerance(const struct fy_st *f, int kind, int imp, uint32_t n
     return tol < CX_GO_WAIT ? tol : CX_GO_WAIT;
 }
 internal int sn_push_pick(ee_player *pl, int k, ivec2 toward, ee_unit **out, int max);   // stations.c ACROSS
+internal void squadrons_support(unsigned idx, int k, ivec2 at, int oc, uint32_t now);   // squadrons.c THE SQUADRON AHEAD
+internal int squadrons_support_state(unsigned idx, int k);
+#define FY_BH_TRIP 2   // THE BRIDGEHEAD (stations.c): a push's citizens a transport of its first wave takes at most
+internal int fy_is_cit(const struct ex_unit *e) {   // a passenger that is a citizen (a push's bridgehead)
+    ee_unit_type *td = e->u && unit_get_serial(e->u) == e->id ? unit_get_type_data(e->u) : NULL;
+    return td && is_citizen_type(unit_type_get_id(td));
+}
+internal int fy_trip_cits(const struct fy_trip *t) {
+    int n = 0;
+    for (int k = 0; k < t->npass; k++) n += fy_is_cit(&t->pass[k]);
+    return n;
+}
+internal int fy_push_cits(unsigned idx, int k) {   // push k's citizens with a trip
+    int n = 0;
+    for (int i = 0; i < FY_TRIPS; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 3 && t->push == k) n += fy_trip_cits(t); }
+    return n;
+}
 internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
     int np = kind == 1 ? sn_ferry_pick(pl, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind == 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
     if (kind == 4 && push >= 0 && push < SN_SX && g_sn_sx[idx & 15][push].u && !expand_has(pl, g_sn_sx[idx & 15][push].u) && unit_get_hp(g_sn_sx[idx & 15][push].u) > 0) { pass[0] = g_sn_sx[idx & 15][push].u; np = 1; }   // SCOUTS ACROSS
+    if (kind == 3 && np > 0) {   // THE BRIDGEHEAD: its first wave's citizens first, FY_BH_TRIP a transport
+        int wc = sn_push_cits(idx, push) - fy_push_cits(idx, push);
+        ee_unit *cits[FY_BH_TRIP];
+        int nc = wc > 0 ? wk_ferry_pick(pl, a, dest, cits, wc < FY_BH_TRIP ? wc : FY_BH_TRIP) : 0;
+        if (nc) {
+            if (np + nc > 16) np = 16 - nc;
+            memmove(pass + nc, pass, (size_t)np * sizeof *pass);
+            memcpy(pass, cits, (size_t)nc * sizeof *pass);
+            np += nc;
+        }
+    }
     if (np < 1) return 0;
     long sx = 0, sy = 0;
     for (int k = 0; k < np; k++) { sx += unit_get_x(pass[k]); sy += unit_get_y(pass[k]); }
@@ -153,6 +181,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         else t->has_via = 0;
     }
     t->kind = kind; t->from = a; t->to = b; t->ocean = seas[bs].oc;
+    if (kind == 3 && push >= 0 && push < SN_PUSHES) { g_sn[idx & 15].push[push].sup_at = t->drop_w; g_sn[idx & 15].push[push].sup_oc = t->ocean; }   // THE SQUADRON AHEAD
     t->pick = seas[bs].pick; t->pick_w = seas[bs].pick_w; t->drop = seas[bs].drop; t->dest = dest;
     t->ship.u = best; t->ship.id = unit_get_serial(best);
     t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0;
@@ -165,9 +194,14 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
            t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "");
     return 1;
 }
-internal int fy_push_transit(unsigned idx, int k) {   // stations.c ACROSS: push k's soldiers with a trip
+internal int fy_push_transit(unsigned idx, int k) {   // stations.c ACROSS: push k's soldiers with a trip (its citizens not)
     int n = 0;
-    for (int i = 0; i < FY_TRIPS; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 3 && t->push == k) n += t->npass; }
+    for (int i = 0; i < FY_TRIPS; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 3 && t->push == k) n += t->npass - fy_trip_cits(t); }
+    return n;
+}
+internal int fy_push_trips(unsigned idx, int k) {
+    int n = 0;
+    for (int i = 0; i < FY_TRIPS; i++) n += g_fy[idx & 15].t[i].phase && g_fy[idx & 15].t[i].kind == 3 && g_fy[idx & 15].t[i].push == k;
     return n;
 }
 internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted, uint32_t now) {   // MORE TRANSPORTS
@@ -205,7 +239,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         else for (int k = 0; k < W->n; k++) if (W->l[k].land == t->to) cfree[k] -= t->npass;
     }
     drops_cached(pl);
-    int blocked[3] = { 0, !sfresh, !wfresh }, unserved = 0;
+    int blocked[3] = { 0, !sfresh, !wfresh }, unserved = 0, held = 0;
     // ACROSS (stations.c push_across): a push's soldiers first - every free transport at once, important ones (the
     // transports may be lost once they are over); those taken leave the push's count of soldiers still to cross
     // ONE WAVE AT A TIME (the player 2026-11-18, of the pushes across against landing.c's landings: "unifing the systems
@@ -221,8 +255,25 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         int room = 0, tt = ld_transport_type(pl), cap = tt ? ld_cap(tt) : 10;
         if (p->waves && left0 < (cap + 1) / 2) { p->wave_t = 0; continue; }
         if (!p->wave_t) p->wave_t = now ? now : 1;
+        if (!p->waves && !p->cits_want) {   // THE BRIDGEHEAD: 2 citizens a transport of the first wave, SN_CITS at most
+            int cw = 2 * ((left0 + cap - 1) / (cap > 0 ? cap : 10));
+            p->cits_want = cw < SN_CITS ? cw : SN_CITS;
+        }
+        // IN PLACES: a rider or a gun takes more than one of a transport's (tw_size) - counted by soldiers, the first waves
+        // with room for all of them took 18.8 of 31.1 on average, and THE LAST WORD called off 36 of 51
+        static ee_unit *lp[128];
+        int nl = sn_push_pick(pl, k, p->beach, lp, 128), places = 0;
+        for (int j = 0; j < nl; j++) places += tw_size(lp[j]);
+        int need = (places > left0 ? places : left0) + (p->waves ? 0 : p->cits_want - p->ncit);
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) if (fy_free_ship(pl, it.u, it.td)) room += ld_cap(unit_type_get_id(it.td));
-        if (room * 4 < left0 * 3 && now - p->wave_t < FY_GATHER) { int want = (left0 * 3 / 4 - room + cap - 1) / (cap > 0 ? cap : 10); unserved += want > 0 ? want : 1; continue; }
+        // THE WHOLE PUSH FIRST: its first wave waits for room for all of it (a later one for three quarters) - the push
+        // was judged with all its soldiers, its losses planned for; with three quarters the first waves took 19.6 of 32.9
+        // soldiers on average, and THE LAST WORD found 42 of 51 too weak and called them off
+        int share = p->waves ? 3 : 4;
+        // THE TRANSPORTS HELD: while a push gathers them nobody else takes a free one - the soldiers' and citizens' trips
+        // took each new one as it came (one AI trained 30, its pushes waited 3 minutes and sailed with one: 9 of 57
+        // soldiers, called off by THE LAST WORD; 23 of 54 first waves so)
+        if (room * 4 < need * share && now - p->wave_t < FY_GATHER) { int want = (need * share / 4 - room + cap - 1) / (cap > 0 ? cap : 10); unserved += want > 0 ? want : 1; held = 1; continue; }
         int ships = 0, set = 0;
         for (int left = left0; left > 0; ) {
             struct fy_trip *t = NULL;
@@ -231,7 +282,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
             int r = fy_start(pl, idx, f, t, 3, 1, p->from_land, p->to_land, left, p->beach, k, now);
             if (r == -1) unserved++;
             if (r <= 0) break;
-            left -= t->npass; set += t->npass; ships++;
+            left -= t->npass - fy_trip_cits(t); set += t->npass - fy_trip_cits(t); ships++;
         }
         if (ships) {
             p->waves++;
@@ -240,7 +291,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
             p->wave_t = 0;
         }
     }
-    for (int tries = 0; tries < FY_TRIPS; tries++) {
+    for (int tries = 0; tries < FY_TRIPS && !held; tries++) {
         struct fy_trip *t = NULL;
         for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
         if (!t) break;
@@ -275,7 +326,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
             if (r == -1) unserved++;
         }
     }
-    for (int k = 0; k < SN_SX && EXPAND_ACROSS(idx); k++) {   // SCOUTS ACROSS (stations.c): one transport a scout
+    for (int k = 0; k < SN_SX && EXPAND_ACROSS(idx) && !held; k++) {   // SCOUTS ACROSS (stations.c): one transport a scout
         if (!g_sn_sx[idx][k].t || now - g_sn_sx[idx][k].t > 10000 || !g_sn_sx[idx][k].u || expand_has(pl, g_sn_sx[idx][k].u)) continue;
         struct fy_trip *t = NULL;
         for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
@@ -304,6 +355,28 @@ internal void fy_minute(unsigned idx, struct fy_st *f, uint32_t now) {
         fy_say(idx, now, "the crossing: %u ways rated (%u off the line), trips held for the risk %u, for a load too small for it %u, important ones that went into danger %u; threats known %d",
                c->rated, c->detours, c->held, c->held_load, c->gone_high, c->n);
     }
+}
+// THE LAST WORD (stations.c sn_last_word): push k's first wave aboard - its soldiers against the beach and the target,
+// their losses planned for; called off: every transport of it unloads where it boarded. 1 go, 0 wait, -1 called off
+internal int fy_last_word(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, uint32_t now) {
+    static ee_unit *u[FY_TRIPS * 16];
+    int n = 0;
+    for (int i = 0; i < FY_TRIPS; i++) {
+        struct fy_trip *o = &f->t[i];
+        if (o->phase != 2 || o->kind != 3 || o->push != t->push) continue;
+        for (int k = 0; k < o->npass; k++) if (unit_get_x(o->pass[k].u) < 0 && !fy_is_cit(&o->pass[k])) u[n++] = o->pass[k].u;
+    }
+    int r = sn_last_word(pl, idx, t->push, u, n, now), k = t->push;
+    if (r >= 0) return r;
+    for (int i = 0; i < FY_TRIPS; i++) {
+        struct fy_trip *o = &f->t[i];
+        if (!o->phase || o->phase == 3 || o->kind != 3 || o->push != k) continue;
+        if (ex_alive(&o->ship, pl) && ex_cargo(o->ship.u) > 0) unit_goal(o->ship.u, ld_unload(o->ship.u, o->pick), 0, 0x1F40);
+        fy_say(idx, now, "trip %u (risk %.2f): called off - too strong a beach, unloaded at home", o->no, (double)o->risk);
+        o->phase = 0; o->npass = 0; o->ship.u = NULL;
+    }
+    sn_push_off(idx, k, "too strong a beach - called off, unloaded at home", now);
+    return -1;
 }
 // one trip's step
 internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, uint32_t now) {
@@ -358,6 +431,11 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
                 if (!o->ready_t) wait = 1; else if (o->ready_t < first) first = o->ready_t;
             }
             if (wait && now - first < FY_TOGETHER) ready = 0;
+            if (ready) {   // THE LAST WORD
+                int lw = fy_last_word(pl, idx, f, t, now);
+                if (lw < 0) return;
+                if (!lw) ready = 0;
+            }
         }
         if (ready) {
             int m = 0;   // those left behind are the others' again
@@ -381,12 +459,14 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
     }
     // phase 3: across
     if (ex_cargo(sh) <= 0) {
-        int off = 0;
-        for (int k = 0; k < t->npass; k++) off += unit_get_x(t->pass[k].u) >= 0;
-        if (t->kind != 2) f->soldiers += (unsigned)off; else f->citizens += (unsigned)off;
-        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d", t->no, (double)t->risk, off, t->kind == 4 ? "scouts" : t->kind != 2 ? "soldiers" : "citizens", t->to, t->drop.x, t->drop.y);
+        int off = 0, offc = 0;
+        for (int k = 0; k < t->npass; k++) if (unit_get_x(t->pass[k].u) >= 0) { off++; offc += t->kind == 3 && fy_is_cit(&t->pass[k]); }
+        if (t->kind != 2) { f->soldiers += (unsigned)(off - offc); f->citizens += (unsigned)offc; } else f->citizens += (unsigned)off;
+        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d%s", t->no, (double)t->risk, off, t->kind == 4 ? "scouts" : t->kind != 2 ? "soldiers" : "citizens", t->to, t->drop.x, t->drop.y,
+               offc ? " - citizens for the bridgehead among them" : "");
         if (t->kind != 2)   // on to where they are wanted; the stations take them there - a push's back to its push (stations.c ACROSS)
             for (int k = 0; k < t->npass; k++) {
+                if (t->kind == 3 && fy_is_cit(&t->pass[k])) { sn_bh_land(idx, t->push, t->pass[k].u); continue; }   // THE BRIDGEHEAD
                 unit_goal(t->pass[k].u, goal_move((float)t->dest.x + 0.5f, (float)t->dest.y + 0.5f), 0, 0x1F40);
                 if ((t->kind == 3 || t->kind == 4) && t->push_ter >= 0) sn_ferried(idx, t->pass[k].u, t->push_ter, t->kind == 4);
             }
@@ -404,7 +484,8 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
             if (o->phase != 3 || o->kind != 3 || o->push != t->push) continue;
             if (!o->meet_t) all = 0; else if (o->meet_t < first) first = o->meet_t;
         }
-        if (all || now - first >= FY_MEET)
+        // THE SQUADRON AHEAD (squadrons.c) on its way to the water off the beach: the wave waits for it here too
+        if ((all && squadrons_support_state(idx, t->push) != 1) || now - first >= FY_MEET)
             for (int i = 0; i < FY_TRIPS; i++) if (f->t[i].phase == 3 && f->t[i].kind == 3 && f->t[i].push == t->push && f->t[i].meet_t) f->t[i].via_done = 1;
         if (!t->via_done) return;
     }
@@ -421,6 +502,10 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
 internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
     struct fy_st *f = &g_fy[idx];
     fy_minute(idx, f, now);
+    for (int k = 0; k < SN_PUSHES; k++) {   // THE SQUADRON AHEAD (squadrons.c): from a push's first transport on until it is over
+        struct sn_push *p = &g_sn[idx].push[k];
+        if (p->on && p->across && p->sup_oc && (p->over || fy_push_trips(idx, k))) squadrons_support(idx, k, p->sup_at, p->sup_oc, now);
+    }
     for (int i = 0; i < FY_TRIPS; i++) if (f->t[i].phase) fy_trip_act(pl, idx, f, &f->t[i], now);
     if (f->look_t && now >= f->look_t && now - f->look_t < FY_LOOK) return;
     f->look_t = now ? now : 1;

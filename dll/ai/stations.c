@@ -89,9 +89,19 @@
 #define SN_FC 256                // ... territories a player remembers a patch for
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+#define SN_CITS 6                // THE BRIDGEHEAD: the citizens a push across takes along at most
+#define SN_BH 8                  // ... the buildings it lays by the beach (A BASE OVER THERE)
+#define SN_BH_JOIN 12            // ... a soldier new this near a production building of it joins the push
+#define SN_BH_EVERY 10000        // ... one laid this often at most
+#define SN_BH_PAY 180000         // ... one it can't build or pay this long: dropped
+#define SN_LAST 1.0f             // THE LAST WORD: what is aboard, its losses planned for, judged at least this against the beach and the target
+#define SN_LAST_WEAK 20000       // ... judged less this long: called off
+#define SN_CALLED_OFF 600000     // ... then no push from that territory this long
+struct sn_bh { int kind, type, state, bid; ee_unit *b; ivec2 p; uint32_t t; };   // kind 0 a tower, 1 a Hospital, 2 a Temple, 3 a production building, 4 a Town Center (else a Settlement); state 0 to lay (t: since), 1 going up, 2 standing, 3 dropped or destroyed
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int mn;   // mmid, mn: the middle of its soldiers (no siege), how many (THE SIEGE'S ESCORT)
                  int across, left, over, waves; unsigned from_land, to_land; ivec2 beach; uint32_t start_t, wave_t;   // waves: set out so far, wave_t: the next one waits for transports since then (ferry.c ONE WAVE AT A TIME); ACROSS: over the water - its lands, the beach; soldiers of it still on the land it left, and over on the other
-                 uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
+                 uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at;   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
+                 struct ex_unit cit[SN_CITS]; int ncit, cits_want, nbh, sup_oc, recruits; struct sn_bh bh[SN_BH]; uint32_t bh_t, weak_t, judge_t; float judge_r; ivec2 sup_at; };   // THE BRIDGEHEAD: its citizens ashore, how many it takes along, its buildings, the last laid; THE LAST WORD: judged too weak since weak_t, last at judge_t (judge_r); THE SQUADRON AHEAD: the water off its beach, that sea
 // ACROSS (push_across, OFF): a push into a territory across the water - the ferry (ferry.c) carries its soldiers.
 // MEASURED 2026-11-18 (head-to-head, mirrored, 12 seeds, both sides expand_across without the outposts): soldiers -21.6
 // (se 4.2), kills -17.5 (7.8) - 159 pushes, 109 not carried over in 8 minutes; every one judged against nothing (an
@@ -110,7 +120,16 @@ struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int m
 // 67 pushes, 39 not carried over in time, 2 claimed; of 248 trips 106 put off, 57 put on a beach under fire, 74 sunk.
 // The landings themselves, against none (v_landing=0): soldiers +7.0 (4.4), kills +4.5 (6.4), razed -0.6 (0.3), and
 // more held across the water without them (citizens off the home island 17.2 -> 24.6, buildings there 5.6 -> 8.0).
-// Still OFF. Aboard a
+// Then what landing.c did and the pushes didn't (the player: "yes do that"): PLANNED FOR LOSSES, THE LAST WORD, THE
+// SQUADRON AHEAD (squadrons.c), THE BRIDGEHEAD and A BASE OVER THERE (its citizens), and in ferry.c THE WHOLE PUSH FIRST
+// (in places: IN PLACES) and THE TRANSPORTS HELD - the same test, 24 games: soldiers +8.9 (se 5.1), kills +9.7 (7.9),
+// losses -7.6 (8.0), razed +0.0 (0.4); held at the end, the pushes against the landings: islands 1.33 against 1.15,
+// citizens off the home island 25.2 against 16.2, miners there 8.8 against 6.4, drop sites 4.8 against 3.5, buildings 8.9
+// against 6.1; territories cleared and claimed 11 against 4. 45 pushes, 24 still called off by THE LAST WORD (the first
+// waves 17.4 of 24.7 soldiers on 2.1 transports, none on one), 11 not carried over in time, 9 losing; the bridgehead
+// laid 12 towers, 8 production buildings, 4 Hospitals, 2 Temples, a town building - 16 of them standing at the end, 7
+// destroyed. Better than landing.c in its place - the switch (landings off, pushes across on, the game's computer
+// player off) the player's call; OFF until then. Aboard a
 // unit is on no tile and leaves the look's list; put off it is new to it - so the ferry hands its passengers back here
 // (sn_ferried) and a new one of them takes the push's territory as its station again
 #define PUSH_ACROSS(idx) PV(idx, g_v_sn_across, g_sn_across)
@@ -393,6 +412,193 @@ internal int sn_beach(unsigned idx, unsigned land, ivec2 aim, ivec2 *out) {
             }
     return 0;
 }
+// PLANNED FOR LOSSES (the player 2026-11-18, of the sea round an enemy's land: "a landing will always be dangerus, it also
+// should plan it push strength with the asumption that 1-2 transport be lost"): a push over the water is judged without
+// the soldiers of its lost transports - one, two from 4 transports on, full loads of its transport type - and against
+// the enemy at its beach as well as at its target (the weaker of the two). All of it lost: judged 0, whatever stands
+// there (a push across has a second transport's worth at least). No wait for a safe sea (landing.c waited 3 minutes for
+// one, then called it off): round an enemy's land there is none - the losses are planned for instead.
+internal int sn_loss(ee_player *pl, int n) {
+    int tt = ld_transport_type(pl), cap = tt ? ld_cap(tt) : 10;
+    if (cap < 1) cap = 10;
+    int ships = (n + cap - 1) / cap, lost = (ships > 3 ? 2 : 1) * cap;
+    return lost < n ? lost : n;
+}
+// the soldiers u (n) against the enemy at aim - over the water (across) their losses planned for, and the beach too
+internal float sn_judge(ee_player *pl, ee_unit *const *u, int n, int across, ivec2 aim, ivec2 beach) {
+    int skip = across ? sn_loss(pl, n) : 0;
+    if (across && skip >= n) return 0.0f;
+    st_side_clear(&g_sn_own);
+    for (int k = skip; k < n; k++) st_side_add(&g_sn_own, u[k]);
+    stage_foe(pl, aim);
+    float r = st_ratio(&g_sn_own, &g_sgs_foe);
+    if (across && ivec2_dist2(aim, beach) > SG_FOE * SG_FOE) {
+        stage_foe(pl, beach);
+        float rb = st_ratio(&g_sn_own, &g_sgs_foe);
+        if (rb < r) r = rb;
+    }
+    return r;
+}
+// THE BRIDGEHEAD (the player 2026-11-18: "part of a push should be defensive infrastructure like towers, hospitals and
+// temples"): the citizens a push across takes along (its first wave, 2 a transport, SN_CITS at most - ferry.c) build by
+// its beach on the land it pushes into, in this order: a tower, a Hospital (the wounded heal there), a second tower, a
+// Temple (the enemy's prophets' disasters, the plague's spread kept off) - the newest tower it can build, each when it
+// can pay it, at the spot nearest the citizens' middle out of every enemy defence's reach it knows (work.c wk_danger),
+// 3 tiles from the others; one laid every SN_BH_EVERY, all of them on the one going up; one it can't build or pay for
+// SN_BH_PAY is dropped. A finished tower holds the ground (territories.c TV_HOLDS). All done, or the push over: the
+// citizens are work.c's again where they stand (build.c's claim, the mines over there). Before, a push took no citizens:
+// what it cleared got its tower once build.c's claim found a builder - one the ferry brought when none stood there.
+// A BASE OVER THERE (the player, the same day: "the push citezens should start building up a full base when they have
+// nothing better to do, production buildings are extremly valuable on enemy land since they can supply the fight directly
+// and cut out the dangerus crossing"): after the first tower a production building, after the Temple a second one of
+// another kind, a Town Center (a Settlement when it can't pay one: a drop site for those who work there after), a third
+// tower - SN_BH in all. The production building: the first of produce.c's kinds the game offers that the bridgehead
+// hasn't got. A soldier new within SN_BH_JOIN of a standing one (the game trains at the building it picks) is the push's
+// (sn_bh_recruit): over there already, no crossing.
+internal int sn_bh_has(ee_player *pl, ee_unit *u) {   // a citizen of a push's bridgehead (expand_has: work.c leaves it alone)
+    struct sn_st *z = &g_sn[(unsigned)player_get_index(pl) & 15];
+    for (int k = 0; k < SN_PUSHES; k++)
+        for (int j = 0; z->push[k].on && j < z->push[k].ncit; j++) if (z->push[k].cit[j].u == u) return 1;
+    return 0;
+}
+internal int sn_push_cits(unsigned idx, int k) {   // ferry.c: the citizens push k still wants taken along (its first wave)
+    if (k < 0 || k >= SN_PUSHES) return 0;
+    struct sn_push *p = &g_sn[idx & 15].push[k];
+    return p->on && p->across && !p->waves ? p->cits_want - p->ncit : 0;
+}
+internal void sn_bh_land(unsigned idx, int k, ee_unit *u) {   // ferry.c: a citizen of push k put off by its beach
+    if (k < 0 || k >= SN_PUSHES) return;
+    struct sn_push *p = &g_sn[idx & 15].push[k];
+    if (!p->on || p->ncit >= SN_CITS) return;
+    p->cit[p->ncit].u = u; p->cit[p->ncit++].id = unit_get_serial(u);
+}
+internal int sn_bh_type(ee_player *pl, const struct sn_push *p, int kind) {
+    static const int none[7];
+    int t = kind == 0 ? tower_newest(pl) : kind == 1 ? UT(B_HOSPITAL) : kind == 2 ? UT(B_TEMPLE) : 0;
+    if (kind == 3)   // A BASE OVER THERE: the first production kind it can build and hasn't got here
+        for (int k = 0; k < PR_NK && !t; k++) {
+            int c = g_ut[PR_KINDS[k]], had = 0;
+            for (int j = 0; j < p->nbh; j++) had |= (p->bh[j].state == 1 || p->bh[j].state == 2) && p->bh[j].type == c;
+            if (!had && ld_can_build(pl, c)) t = c;
+        }
+    if (kind == 4) t = ld_can_build(pl, UT(B_TOWN_CENTER)) && bd_pays(pl, UT(B_TOWN_CENTER), none) ? UT(B_TOWN_CENTER) : UT(B_SETTLEMENT);
+    return t && ld_can_build(pl, t) ? t : 0;
+}
+// A BASE OVER THERE: a soldier new to the stations (m: its territory where it stands) by a production building of a
+// push's bridgehead joins that push
+internal void sn_bh_recruit(unsigned idx, struct sn_unit *m, uint32_t now) {
+    ivec2 q = unit_get_tile(m->u);
+    for (int k = 0; k < SN_PUSHES; k++) {
+        struct sn_push *p = &g_sn[idx & 15].push[k];
+        if (!p->on || !p->across || area_id(q, 2) != p->to_land) continue;
+        for (int j = 0; j < p->nbh; j++) {
+            if (p->bh[j].state != 2 || p->bh[j].kind != 3 || ivec2_dist2(q, p->bh[j].p) > SN_BH_JOIN * SN_BH_JOIN) continue;
+            m->ter = p->from; p->recruits++;
+            if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - a soldier trained at its bridgehead joins it (%d so far)\n", idx, now / 60000.0, p->into, p->recruits);
+            return;
+        }
+    }
+}
+internal int sn_bh_spot(ee_player *pl, unsigned idx, struct sn_push *p, int type, ivec2 c, ivec2 *out) {
+    ee_unit_type *td = type_data(type);
+    int sz = td ? unit_type_get_size(td) : 1;
+    if (sz < 1) sz = 1;
+    for (int d = 2; d <= 12; d++)
+        for (int dx = -d; dx <= d; dx++)
+            for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
+                ivec2 q = iv2(c.x + dx, c.y + dy);
+                int ok = area_id(q, 2) == p->to_land && !area_id(q, 1);
+                for (int j = 0; j < p->nbh && ok; j++)   // room between them: a way through
+                    if ((p->bh[j].state == 1 || p->bh[j].state == 2) && abs(p->bh[j].p.x - q.x) < sz + 3 && abs(p->bh[j].p.y - q.y) < sz + 3) ok = 0;
+                if (!ok || !can_place_open(pl, type, q) || wk_danger(idx, q)) continue;
+                *out = q;
+                return 1;
+            }
+    return 0;
+}
+internal void sn_bridgehead(ee_player *pl, unsigned idx, struct sn_push *p, uint32_t now) {
+    static const char *const nm[5] = { "tower", "Hospital", "Temple", "production building", "town building" };
+    long sx = 0, sy = 0;
+    int n = 0;
+    for (int k = 0; k < p->ncit; k++) {
+        if (!ex_alive(&p->cit[k], pl)) { p->cit[k--] = p->cit[--p->ncit]; continue; }
+        if (unit_get_x(p->cit[k].u) >= 0 && area_id(unit_get_tile(p->cit[k].u), 2) == p->to_land) { sx += unit_get_x(p->cit[k].u); sy += unit_get_y(p->cit[k].u); n++; }
+    }
+    if (!n) return;
+    if (!p->nbh) {
+        static const int plan[SN_BH] = { 0, 3, 1, 0, 2, 3, 4, 0 };
+        for (int j = 0; j < SN_BH; j++) { memset(&p->bh[j], 0, sizeof p->bh[j]); p->bh[j].kind = plan[j]; }
+        p->nbh = SN_BH;
+    }
+    ivec2 c = iv2((int)(sx / n), (int)(sy / n));
+    int going = -1, left = 0;
+    for (int j = 0; j < p->nbh; j++) {   // going up: finished or destroyed
+        struct sn_bh *h = &p->bh[j];
+        if (h->state != 1) continue;
+        if (!h->b || unit_get_serial(h->b) != h->bid || unit_get_hp(h->b) <= 0) { h->state = 3; h->b = NULL; }
+        else if (unit_get_physics(h->b) && unit_get_finished(unit_get_physics(h->b))) h->state = 2;
+        else { going = j; continue; }
+        if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - the bridgehead's %s at %d,%d %s\n", idx, now / 60000.0, p->into, nm[h->kind], h->p.x, h->p.y, h->state == 2 ? "stands" : "is destroyed");
+    }
+    for (int j = 0; j < p->nbh && going < 0 && (!p->bh_t || now - p->bh_t >= SN_BH_EVERY); j++) {   // the next, in order
+        struct sn_bh *h = &p->bh[j];
+        if (h->state) continue;
+        if (!h->t) h->t = now ? now : 1;
+        static const int none[7];
+        int t = sn_bh_type(pl, p, h->kind);
+        if (!t || !bd_pays(pl, t, none)) {
+            if (now - h->t < SN_BH_PAY) break;
+            h->state = 3;
+            if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - no %s for the bridgehead it can build and pay in %d s, dropped\n", idx, now / 60000.0, p->into, nm[h->kind], SN_BH_PAY / 1000);
+            continue;
+        }
+        ivec2 at;
+        ee_unit *b = sn_bh_spot(pl, idx, p, t, c, &at) ? place_foundation(pl, t, at.x, at.y) : NULL;
+        p->bh_t = now ? now : 1;
+        if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - the bridgehead's %s (type %d) %s, %d citizens ashore\n", idx, now / 60000.0, p->into, nm[h->kind], t,
+                              b ? "laid" : "has no room", n);
+        if (!b) { h->state = 3; continue; }
+        h->b = b; h->bid = unit_get_serial(b); h->type = t; h->p = at; h->state = 1; going = j;
+    }
+    for (int j = 0; j < p->nbh; j++) left += p->bh[j].state < 2;
+    if (!left) {
+        if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - the bridgehead done, %d citizens back to work\n", idx, now / 60000.0, p->into, p->ncit);
+        p->ncit = 0;
+        return;
+    }
+    if (going < 0) return;
+    ee_unit *b = p->bh[going].b;
+    for (int k = 0; k < p->ncit; k++) {   // all of them on the one going up
+        ee_unit *u = p->cit[k].u;
+        ee_goal *g = unit_get_goal(u);
+        if (unit_get_x(u) < 0 || (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && goal_get_building(g) == b)) continue;
+        bd_send(pl, u, b);
+    }
+}
+// THE LAST WORD (ferry.c, as landing.c's before it sails): push k's first wave aboard, soldiers u (n) - judged at once
+// against the beach and the target, its losses planned for; under SN_LAST for SN_LAST_WEAK it is called off (unloaded at
+// home): 1 go, 0 wait, -1 called off
+internal int sn_last_word(ee_player *pl, unsigned idx, int k, ee_unit *const *u, int n, uint32_t now) {
+    if (k < 0 || k >= SN_PUSHES) return 1;
+    struct sn_push *p = &g_sn[idx & 15].push[k];
+    if (!p->on || p->over || p->waves > 1) return 1;   // a later wave goes to those over
+    if (!p->judge_t || now - p->judge_t >= 2000) { p->judge_r = sn_judge(pl, u, n, 1, p->at, p->beach); p->judge_t = now ? now : 1; }
+    if (p->judge_r >= SN_LAST) { p->weak_t = 0; return 1; }
+    if (!p->weak_t) {
+        p->weak_t = now ? now : 1;
+        if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - %d soldiers aboard judged %.2f at the beach and the target, their losses planned for (enemy there: %d)\n",
+                              idx, now / 60000.0, p->into, n, (double)p->judge_r, g_sgs_foe.n);
+    }
+    if (now - p->weak_t < SN_LAST_WEAK) return 0;
+    return -1;
+}
+internal void sn_push_off(unsigned idx, int k, const char *why, uint32_t now) {   // ferry.c: push k called off
+    struct sn_st *z = &g_sn[idx & 15];
+    struct sn_push *p = &z->push[k];
+    p->on = 0; p->end_t = now ? now : 1; p->wait = SN_CALLED_OFF; p->ncit = 0;
+    for (int i = 0; i < z->n; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
+    if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (judged %.2f)\\n", idx, now / 60000.0, p->from, p->into, why, (double)p->judge_r);
+}
 // ACROSS: the soldiers of push k still on the land it left (siege too), nearest `toward` first, into out (max): how many
 internal int expand_has(ee_player *pl, ee_unit *u);
 internal int sn_push_pick(ee_player *pl, int k, ivec2 toward, ee_unit **out, int max) {
@@ -582,7 +788,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
         struct sn_unit *m = &z->m[nn++];
         if (o && o->id == unit_get_serial(u)) *m = *o;
-        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_serial(u); m->ter = (short)r; sn_rejoin(idx, m); }
+        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_serial(u); m->ter = (short)r; sn_rejoin(idx, m); if (m->ter == (short)r) sn_bh_recruit(idx, m, now); }
         m->pool = (uint8_t)pool;
         if (!m->scout && (m->ter < 0 || m->ter >= n || g_ter.t[m->ter].water)) m->ter = (short)r;
     }
@@ -723,6 +929,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     for (int k = 0; k < SN_PUSHES; k++) {
         struct sn_push *p = &z->push[k];
         if (!p->on) continue;
+        if (p->across && p->ncit) sn_bridgehead(pl, idx, p, now);   // THE BRIDGEHEAD
         long sx = 0, sy = 0, msx = 0, msy = 0;
         int cn = 0, bi = -1, bd = 0;
         st_side_clear(&g_sn_own);
@@ -837,7 +1044,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         if (!end && !player_ai_toggle(pl, SM_AIT_ATTACK)) end = "the scenario's AI toggle Attack is off";
         if (!end) continue;
-        p->on = 0; p->end_t = now ? now : 1;
+        p->on = 0; p->end_t = now ? now : 1; p->ncit = 0;   // THE BRIDGEHEAD's citizens work.c's again
         for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
         if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (%d soldiers, judged %.2f)\n", idx, now / 60000.0, p->from, p->into, end, cn, (double)ratio);
     }
@@ -898,17 +1105,15 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         // its soldiers see what stands, and the push goes on at that, or holds the ground as cleared.
         ivec2 aim = ti >= 0 ? stg[ti].at : bi >= 0 ? eb[bi].p : g_ter.t[into].c, beach = aim;
         if (across && !sn_beach(idx, area_id(g_ter.t[into].c, 2), aim, &beach)) continue;   // no beach out of its towers' reach
-        st_side_clear(&g_sn_own);
+        static ee_unit *cand[SN_UNITS];   // its soldiers, then THE CALL's: judged together (PLANNED FOR LOSSES)
         for (int i = 0; i < nn; i++) {
             if (z->m[i].ter != r || z->m[i].scout || z->m[i].pool == SNP_AA) continue;
             ivec2 q = unit_get_tile(z->m[i].u);
-            cn++;
+            cand[cn++] = z->m[i].u;
             there += ter_near(q.x, q.y) == (unsigned)r || ivec2_dist2(q, rally[r]) <= 15 * 15;
-            st_side_add(&g_sn_own, z->m[i].u);
         }
         if (there * 4 < cn * 3) continue;   // still gathering
-        stage_foe(pl, aim);
-        float ratio = st_ratio(&g_sn_own, &g_sgs_foe);
+        float ratio = sn_judge(pl, cand, cn, across, aim, beach);
         // THE CALL (the player 2026-11-16: "yellow just sits there, it has enough soilders to finish red or atleast take
         // the food source it desperratly needs, instead it seems completly dead" - 53 soldiers over 4 territories, 9 to 16
         // each, its enemy beside one of them with 2 soldiers and its buildings; a push weighs only the territory's own,
@@ -931,10 +1136,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 struct sn_unit *m = &z->m[i];
                 if (m->pool != SNP_MAIN || m->scout || m->ter < 0 || m->ter >= n || left[m->ter] <= 0) continue;
                 if (land && area_id(unit_get_tile(m->u), 2) != land) continue;
-                left[m->ter]--; joiner[nj++] = i;
-                st_side_add(&g_sn_own, m->u);
+                left[m->ter]--; joiner[nj] = i; cand[cn + nj++] = m->u;
             }
-            float all = nj ? st_ratio(&g_sn_own, &g_sgs_foe) : ratio;
+            float all = nj ? sn_judge(pl, cand, cn + nj, across, aim, beach) : ratio;
             if (all < SN_PUSH) continue;
             for (int j = 0; j < nj; j++) { struct sn_unit *m = &z->m[joiner[j]]; ac[m->ter]--; m->ter = (short)r; m->order_t = 0; m->moved_t = now ? now : 1; ac[r]++; z->moved++; }
             z->call_r = r; z->call_t = now ? now : 1; z->calls++;
@@ -945,6 +1149,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         struct sn_push *p = &z->push[slot];
         p->on = 1; p->from = (short)r; p->into = (short)into; p->at = aim; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
         p->across = across; p->from_land = area_id(rally[r], 2); p->to_land = area_id(g_ter.t[into].c, 2); p->beach = beach; p->left = cn; p->over = 0; p->start_t = now ? now : 1; p->waves = 0; p->wave_t = 0;
+        p->ncit = p->cits_want = p->nbh = p->sup_oc = p->recruits = 0; p->bh_t = p->weak_t = p->judge_t = 0; p->judge_r = ratio;
         z->pushes++;
         if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d%s - %d soldiers and siege at the %s at %d,%d, judged %.2f (enemy there: %d)%s\n",
                               idx, now / 60000.0, r, into, across ? " across the water" : "", cn, ti >= 0 ? "scenario's target" : "building", p->at.x, p->at.y, (double)ratio, g_sgs_foe.n,

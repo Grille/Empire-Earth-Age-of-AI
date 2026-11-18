@@ -439,12 +439,13 @@ internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
     for (int k = 0; k < x->nguard; k++) if (x->guard[k].u == u) return 1;   // FORWARD: its guard only
     return 0;
 }
+internal int sn_bh_has(ee_player *pl, ee_unit *u);   // stations.c THE BRIDGEHEAD
 internal int expand_has(ee_player *pl, ee_unit *u) {
     struct ex_st *x = &g_xs[(unsigned)player_get_index(pl) & 15];
     struct rs_st *r = &g_rs[(unsigned)player_get_index(pl) & 15];
     for (int k = 0; x->fphase && k < x->npass; k++) if (x->pass[k].u == u) return 1;
     for (int k = 0; r->phase && k < r->npass; k++) if (r->pass[k].u == u) return 1;
-    return fy_trip_of((unsigned)player_get_index(pl) & 15, u, 1) != NULL;
+    return fy_trip_of((unsigned)player_get_index(pl) & 15, u, 1) != NULL || sn_bh_has(pl, u);
 }
 // the drop site and a tower an outpost waits for (planned and short of them, or ashore with them not laid yet): held
 // back from every unit order (econ.c train_budget, as a landing's transports) - the AI spends its stock as it comes,

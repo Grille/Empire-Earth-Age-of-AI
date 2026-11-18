@@ -117,12 +117,12 @@
 #define SQ_T 4096
 enum { SQK_MAIN, SQK_SCOUT, SQK_HUNT };
 internal const char *const k_sqk[3] = { "main", "scouts", "hunters" };
-enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_N };
-internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening" };
+enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_SUPPORT, SQS_N };
+internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening", "ahead of a push's landing" };
 struct sq {
     int on, kind, ocean, anchor;          // anchor: the zone's water territory (main)
     ivec2 zc, go, ordered;                // the anchor's middle, where it goes, where it was sent last
-    int want, n, state, help, target_r, call, escort;   // call: it asks for help; help: whom it helps (+1); escort: convoy.c's wish (+1)
+    int want, n, state, help, target_r, call, escort, support;   // call: it asks for help; help: whom it helps (+1); escort: convoy.c's wish (+1); support: the push it goes ahead of (+1, THE SQUADRON AHEAD)
     ee_unit *u[FL_MAX];
     float ratio, zvalue;
     uint32_t order_t, state_t, target_t;
@@ -444,6 +444,71 @@ internal void sq_care(unsigned idx, struct fleet *f) {
 }
 // ESCORT (convoy.c): each transport that asked within CY_WISH - the nearest scout group on its sea not running, else
 // the nearest main squadron at rest (or escorting, screening); the answer back to it (0 none, 1 on its way, 2 with it)
+// THE SQUADRON AHEAD (stations.c ACROSS, ferry.c - as landing.c's warships went ahead; the player 2026-11-18: "unifing
+// the systems dosnt mean throwing out what worked"): from a push's first transport on until the push is over, the
+// nearest main squadron on that sea not fighting in its zone goes ahead to the water off the push's beach and takes on
+// the enemy warships within SQ_SCREEN_R of it or of itself, THE SCREEN's way - whatever the odds: it draws the fire the
+// transports would take; the wave's transports wait for it at their meeting point (ferry.c TOGETHER, FY_MEET at most).
+// Out of the coast's guns as every move (sq_safe): the beach lies out of every tower's reach it knows (stations.c
+// sn_beach), and what stands on it is the soldiers' to take.
+#define SQ_SUP_FRESH 10000
+internal struct { ivec2 at; int oc, state; uint32_t t; } g_sq_sup[16][SN_PUSHES];
+internal void squadrons_support(unsigned idx, int k, ivec2 at, int oc, uint32_t now) {
+    if (k < 0 || k >= SN_PUSHES) return;
+    g_sq_sup[idx & 15][k].at = at; g_sq_sup[idx & 15][k].oc = oc; g_sq_sup[idx & 15][k].t = now ? now : 1;
+}
+internal int squadrons_support_state(unsigned idx, int k) {   // 0 none to be had, 1 on its way, 2 there
+    uint32_t now = game_time();
+    if (k < 0 || k >= SN_PUSHES || !g_sq_sup[idx & 15][k].t || now - g_sq_sup[idx & 15][k].t >= SQ_SUP_FRESH) return 0;
+    return g_sq_sup[idx & 15][k].state;
+}
+internal void sq_supports(unsigned idx, uint32_t now) {
+    struct sq_st *z = &g_sq[idx];
+    int had[SN_PUSHES];
+    for (int k = 0; k < SN_PUSHES; k++) had[k] = -1;
+    for (int i = 0; i < SQ_MAX; i++) { if (z->s[i].support) had[z->s[i].support - 1] = i; z->s[i].support = 0; }
+    for (int k = 0; k < SN_PUSHES; k++) {
+        typeof(&g_sq_sup[0][0]) w = &g_sq_sup[idx][k];
+        w->state = 0;
+        if (!w->t || now - w->t >= SQ_SUP_FRESH) continue;
+        int best = -1, bd = 0x7FFFFFFF;
+        for (int i = 0; i < SQ_MAX; i++) {
+            struct sq *q = &z->s[i];
+            if (!q->on || !q->n || q->kind != SQK_MAIN || q->ocean != w->oc || q->support) continue;
+            if (i != had[k] && (q->state == SQS_ENGAGE || q->state == SQS_HOLD)) continue;   // fighting in its zone
+            int d = i == had[k] ? -1 : ivec2_dist2(sq_center(q), w->at);   // the one it had keeps it
+            if (d < bd) { bd = d; best = i; }
+        }
+        if (best < 0) continue;
+        struct sq *q = &z->s[best];
+        q->support = k + 1;
+        ivec2 c = sq_center(q), to = sq_safe(c, w->at, q->ocean);
+        w->state = ivec2_dist2(c, to) <= SQ_ESC_NEAR * SQ_ESC_NEAR ? 2 : 1;
+        if (best != had[k] && g_log)
+            log_locked("# squadrons: P%u at %.1f min: main squadron %d (%d ships) goes ahead of a push's landing to %d,%d\n", idx, now / 60000.0, best, q->n, w->at.x, w->at.y);
+    }
+}
+internal void sq_support(ee_player *pl, unsigned idx, struct sq *q, uint32_t now) {
+    ivec2 at = g_sq_sup[idx][q->support - 1].at, c = sq_center(q);
+    int best = -1, bd = 0x7FFFFFFF, r2 = SQ_SCREEN_R * SQ_SCREEN_R;
+    for (int j = 0; j < g_fs.ne; j++) {
+        struct fl_ship *e = &g_fs.es[j];
+        if ((int)area_id(e->p, 1) != q->ocean || fl_in_danger(e->p)) continue;
+        int d = ivec2_dist2(e->p, at);
+        if ((d > r2 && ivec2_dist2(e->p, c) > r2) || d >= bd) continue;
+        bd = d; best = j;
+    }
+    sq_state(q, SQS_SUPPORT, now);
+    if (best >= 0) {   // the nearest to the beach's water, as THE SCREEN
+        struct fl_ship *e = &g_fs.es[best];
+        if (e->seen && e->u && now - q->order_t >= 3000) {
+            for (int k = 0; k < q->n; k++) { ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
+            q->go = q->ordered = e->p; q->order_t = now ? now : 1;
+        } else if (!e->seen) sq_go(pl, q, e->p, 1, now);
+        return;
+    }
+    sq_go(pl, q, sq_safe(c, at, q->ocean), 1, now);
+}
 internal void sq_convoys(unsigned idx, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     struct cy_st *c = &g_cy[idx];
@@ -511,6 +576,7 @@ internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
     ivec2 c = sq_center(q), home = q->anchor >= 0 ? q->zc : c;
     q->call = 0;
     if (sq_escort_sea(idx, q)) { sq_escort(pl, idx, q, now); return; }   // THE SCREEN: its transport at sea first
+    if (q->support) { sq_support(pl, idx, q, now); return; }   // THE SQUADRON AHEAD
     int threat = sq_enemies(q->ocean, home, SQ_REACH, sel);
     if (!threat) {   // HOME: enemy warships by a dock or fishing boat of its on this sea, this the nearest main squadron to it
         int bd = 0x7FFFFFFF, nt = 0;
@@ -746,6 +812,7 @@ internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now
     if (!z->zone_t || now - z->zone_t >= SQ_ZONES) sq_zones(idx, oceans, nship, nfrig, nsub, noc, now);
     sq_assign(idx, f, now);
     sq_convoys(idx, now);
+    sq_supports(idx, now);
     for (int i = 0; i < SQ_MAX; i++) {
         struct sq *q = &z->s[i];
         if (!q->on || !q->n) continue;
@@ -779,4 +846,4 @@ internal void sq_lost(unsigned idx, ee_unit *dead) {   // diplo.c's kill hook, e
         }
     z->lost_none++;
 }
-internal void squadrons_new_game(void) { memset(g_sq, 0, sizeof g_sq); memset(g_sq_look, 0, sizeof g_sq_look); }
+internal void squadrons_new_game(void) { memset(g_sq, 0, sizeof g_sq); memset(g_sq_sup, 0, sizeof g_sq_sup); memset(g_sq_look, 0, sizeof g_sq_look); }
