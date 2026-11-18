@@ -52,7 +52,7 @@ struct wk_site { ee_unit *u; uint16_t terr; uint8_t res, n, cost, cap; };   // n
 internal struct wk_st {
     uint32_t t, log_t;
     int need_c[7];   // THE POOL: the citizens each resource needs (wk_needs' count and a margin, a mine's no more than its places)
-    int have[7], want[7], places[7], idle, busy, n, food_short, by_need;   // food_short: citizens wanted on food that found no site at the last look
+    int have[7], want[7], places[7], idle, busy, n, food_short, by_need, crowd;   // food_short: citizens wanted on food that found no site at the last look; crowd: of the idle, those beyond an animal's WK_HUNTERS
     unsigned assigned, moved, pulled, none[7];   // none: no site found for a citizen wanted on that resource; pulled: looks a citizen's site lay under an enemy tower
     unsigned xfers, retreats;   // ITS TERRITORY: citizens given another territory for a site, given one it holds because theirs may not be worked
     unsigned delivering, load_lost;   // ITS LOAD FIRST: moves held while the citizen carries a load; loads lost (idle, none of its resource)
@@ -397,8 +397,8 @@ internal int wk_hunt_ok(ee_unit *a) {
     }
     return alive - 1 >= g_herd_keep;
 }
-internal ee_unit *wk_hunted(ee_player *pl, ee_unit *u, ee_goal *g) {   // the living wild animal u hunts by its goal, else NULL
-    if (!g_herd_keep || (current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH) || !g) return NULL;
+internal ee_unit *wk_hunted(ee_unit *u, ee_goal *g) {   // the living wild animal u hunts by its goal, else NULL
+    if (!g) return NULL;
     const char *gn = rtti_name(g);
     ee_unit *a = !strcmp(gn, "EEUGGather@@") ? goal_get_site(g) : goal_is_attack(g) ? goal_get_target(g) : NULL;
     ee_unit_type *td = a ? unit_get_type_data(a) : NULL;
@@ -415,17 +415,57 @@ internal ee_unit *wk_hunted(ee_player *pl, ee_unit *u, ee_goal *g) {   // the li
 // HERDS KEPT leaves: none instead - the citizen stands idle with its load, and the next look gives it work, its load's
 // resource first (ITS LOAD FIRST)
 internal unsigned g_wkh_source;   // next animals refused at the game's choice (the log)
+// A CROWD ON ONE ANIMAL (the player 2026-11-18, his Stone Age game at 95 min: "100 citezens walking up to a single dear
+// isnt usefull" - the game's next animal is the nearest, however many already went for it; 208 of the other AI's
+// citizens on food, the island's last animals among them; "a single animal should maximal get 4 citezens"): an animal
+// takes WK_HUNTERS of its citizens at most - the game's choice of one that has them is none (the citizen waits for the
+// look, which gives it work), and the hunters' check below gives those beyond them another site. Those it finds none
+// for count as idle at the look ("the citezens also drop out of idel to hunt, fasly making them look like they have
+// something to do"): other work for them, the ferry's spare. Every epoch: a crowd is as useless after the farms.
+#define WK_HUNTERS 4
+#define WK_PREY 256
+internal struct { ee_unit *a; int n; } g_wkp[WK_PREY];   // the look's animals and the hunters counted on each
+internal int g_wkp_n;
+internal int wk_animal_site(ee_unit *site) {   // a wild animal, living or its meat
+    ee_unit_type *td = site ? unit_get_type_data(site) : NULL;
+    ee_player *o = site ? unit_get_owner(site) : NULL;
+    return td && o && player_get_index(o) == 0 && unit_type_get_family(td) == KIND_ANIMAL;
+}
+// one more citizen of the look on site: is it beyond WK_HUNTERS (an animal only)
+internal int wk_crowd(ee_unit *site) {
+    if (!wk_animal_site(site)) return 0;
+    int k = 0;
+    while (k < g_wkp_n && g_wkp[k].a != site) k++;
+    if (k == g_wkp_n) { if (k == WK_PREY) return 0; g_wkp[k].a = site; g_wkp[k].n = 0; g_wkp_n++; }
+    return ++g_wkp[k].n > WK_HUNTERS;
+}
+// the hunters on animal a: the game's count knows those gathering only - the look's count (wk_crowd) and those it sent
+// meanwhile (wk_prey_add) also the ones still on their way: by the game's alone the look sent a dozen to one animal
+// and the check took all but four off again, 13091 orders in an hour for one AI
+internal int wk_prey_n(ee_unit *a) {
+    int k = 0, n = (int)site_gatherers(a);
+    while (k < g_wkp_n && g_wkp[k].a != a) k++;
+    return k < g_wkp_n && g_wkp[k].n > n ? g_wkp[k].n : n;
+}
+internal void wk_prey_add(ee_unit *a) {
+    if (!wk_animal_site(a)) return;
+    int k = 0;
+    while (k < g_wkp_n && g_wkp[k].a != a) k++;
+    if (k == g_wkp_n) { if (k == WK_PREY) return; g_wkp[k].a = a; g_wkp[k].n = (int)site_gatherers(a); g_wkp_n++; }
+    g_wkp[k].n++;
+}
+internal unsigned g_wkh_crowd[2];   // next animals refused for their crowd, hunters taken off a crowd (the log)
 internal ee_unit *__thiscall hook_citizen_next_resource(ee_unit_type *td, ee_unit *u, ee_unit *res, int kind, void *excluded) {
     ee_unit *n = citizen_next_resource(td, u, res, kind, excluded);
-    if (!n || !g_herd_keep || unit_get_hp(n) <= 0) return n;
+    if (!n || unit_get_hp(n) <= 0) return n;
     ee_player *pl = unit_get_owner(u);
     int pi = pl ? player_get_index(pl) : 0;
     if (pi <= 0 || pi >= 16 || !g_players[pi] || is_vanilla_idx(pi)) return n;   // a mod's player only
-    if (current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH) return n;
     ee_unit_type *nt = unit_get_type_data(n);
     ee_player *o = unit_get_owner(n);
     if (!nt || !o || player_get_index(o) != 0 || unit_type_get_family(nt) != KIND_ANIMAL) return n;
-    if (wk_hunt_ok(n)) return n;
+    if ((int)site_gatherers(n) >= WK_HUNTERS) { g_wkh_crowd[0]++; return NULL; }
+    if (!g_herd_keep || (current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH) || wk_hunt_ok(n)) return n;
     g_wkh_source++;
     return NULL;
 }
@@ -443,23 +483,44 @@ internal void wk_animals(ee_player *pl, ee_resource_mgr *rm);
 internal ee_unit *wk_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *cu, int ter);
 internal unsigned g_wkh_to[3];   // stopped hunters sent to an animal, a bush, a tree (the log)
 internal void wk_hunters_check(ee_player *pl, ee_resource_mgr *rm) {
-    if (!g_herd_keep || (current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH)) return;
+    int herds = g_herd_keep && !(current_epoch(pl) >= FARM_EPOCH && end_epoch() >= FARM_EPOCH);
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     int count = 0, fresh = 0;
+    // A CROWD ON ONE ANIMAL: its hunters counted first, by gather and by attack (site_gatherers knows the gathering only)
+    static struct { ee_unit *a; int n; } prey_n[WK_PREY];
+    int np = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
-        ee_unit *prey = wk_hunted(pl, u, unit_get_goal(u));
-        if (!prey || wk_hunt_ok(prey)) continue;
+        ee_unit *prey = wk_hunted(u, unit_get_goal(u));
+        if (!prey) continue;
+        int k = 0;
+        while (k < np && prey_n[k].a != prey) k++;
+        if (k == np) { if (np == WK_PREY) continue; prey_n[np].a = prey; prey_n[np++].n = 0; }
+        prey_n[k].n++;
+    }
+    count = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384 && np; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
+        ee_unit *prey = wk_hunted(u, unit_get_goal(u));
+        if (!prey) continue;
+        int pk = 0;
+        while (pk < np && prey_n[pk].a != prey) pk++;
+        int crowd = pk < np && prey_n[pk].n > WK_HUNTERS;
+        if (!crowd && (!herds || wk_hunt_ok(prey))) continue;
         if (!fresh) { wk_animals(pl, rm); fresh = 1; }   // the list of this moment: the last look's may hold the dead
         ivec2 p = unit_get_tile(u);
         int ter = (int)ter_near(p.x, p.y), k = 0;
         ee_unit *to = ter >= 0 ? wk_animal(pl, rm, u, ter) : NULL;
+        if (to == prey) to = NULL;
         if (!to && (to = food_bush(pl, rm, u, 60 * 60))) k = 1;
         if (!to && ter >= 0 && g_tv[idx].n && (to = wk_tree(pl, &g_tv[idx], p, 40, ter))) k = 2;
         if (!to) continue;   // nothing to give it: it goes on
         resource_mgr_assign(rm, u, to);
-        g_wkh_stopped++; g_wkh_to[k]++;
+        wk_prey_add(to);
+        if (crowd) { prey_n[pk].n--; g_wkh_crowd[1]++; }   // those beyond the places only: the others stay on it
+        else { g_wkh_stopped++; g_wkh_to[k]++; }
     }
 }
 internal int wk_animal_order(const void *a, const void *b) {
@@ -500,7 +561,7 @@ internal ee_unit *wk_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *cu, int
     while (lo < hi) { int m = (lo + hi) / 2; if ((int)g_wka.e[m].ter < ter) lo = m + 1; else hi = m; }
     short ur = (short)map_area(unit_get_tile(cu), 2);
     for (int k = lo; k < g_wka.n && (int)g_wka.e[k].ter == ter; k++)
-        if (g_wka.e[k].area == ur && site_gatherers(g_wka.e[k].u) < 3) return g_wka.e[k].u;
+        if (g_wka.e[k].area == ur && wk_prey_n(g_wka.e[k].u) < 3) return g_wka.e[k].u;
     return NULL;
 }
 // a site of resource r in territory ter for the citizen cu at p (land: its land): the nearest mine with a place, a
@@ -578,7 +639,8 @@ internal int wk_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit *
         if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) || expand_has(pl, u) || area_id(unit_get_tile(u), 2) != land) continue;
         ee_goal *g = unit_get_goal(u);
         ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
-        if (g && !(site && unit_get_amount(site) > 0 && unit_get_resource(site) == 3)) continue;   // idle, or on wood
+        int crowd = site && wk_animal_site(site) && (int)site_gatherers(site) > WK_HUNTERS;   // A CROWD ON ONE ANIMAL: as idle
+        if (g && !crowd && !(site && unit_get_amount(site) > 0 && unit_get_resource(site) == 3)) continue;   // idle, or on wood
         c[nc] = u; d[nc++] = ivec2_dist2(unit_get_tile(u), toward) / 4 + (g ? 0x10000000 : 0);
     }
     while (got < max) {
@@ -680,6 +742,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
     }
     int count = 0, nhn = 0;
+    g_wkp_n = 0; w->crowd = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {   // its citizens: what each does
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
@@ -715,6 +778,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int field = site && unit_get_type_data(site) && unit_type_get_id(unit_get_type_data(site)) == UT(B_FARM) && unit_get_hp(site) > 0;
         int r = field ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
         if (r < 2 || r > 6) { r = 0; site = NULL; }
+        if (r == 2 && wk_crowd(site)) { r = 0; site = NULL; w->crowd++; }   // A CROWD ON ONE ANIMAL: one beyond its places is idle
         if (site && wk_danger(idx, unit_get_tile(site))) { r = 0; site = NULL; w->pulled++; }   // its site under an enemy tower it has seen: to another
         if (nc >= WK_CITS) { w->busy++; continue; }
         cit[nc].u = u; cit[nc].site = site; cit[nc].home = (short)home; cit[nc].hk = (short)hk; cit[nc++].res = (uint8_t)r;
@@ -817,7 +881,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (drop && !wk_drop(idx, c->u, site, r, now)) { w->delivering++; break; }   // no drop site for it: held until a look finds it empty
                 if (load && lr != r && !drop) w->load_lost += (unsigned)load;   // idle with a load, none of its resource to be had
                 if (bk >= 0) bush[bk].n++;
-                if (!drop) resource_mgr_assign(rm, c->u, site);
+                if (!drop) { resource_mgr_assign(rm, c->u, site); wk_prey_add(site); }
                 if (c->res) { w->have[c->res]--; w->moved++; moves++; } else { w->idle--; w->assigned++; }
                 w->have[r]++;
                 if (mk >= 0 && mine[mk].n < 255) mine[mk].n++;
@@ -831,7 +895,10 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         L->n = 0; L->t = now ? now : 1;
         for (int k = 0; k < nm; k++) {
             int fr = (int)g_wks.cap - mine[k].n;
-            if (fr <= 0 || w->want[mine[k].res] <= w->have[mine[k].res]) continue;
+            // IDLE ABROAD (the player 2026-11-18: his AI's island bare of food and wood, 232 citizens idle while the mines
+            // across the water had 22 places free - "they should be agressivly shiped off to other territoes instead"):
+            // while citizens stand idle after the look, every free place counts, not only those of a resource under its share
+            if (fr <= 0 || (w->want[mine[k].res] <= w->have[mine[k].res] && w->idle <= 0)) continue;
             struct wk_land *l = wk_land_at(idx, area_id(unit_get_tile(mine[k].u), 2));
             if (!l || !l->land) continue;
             l->free += fr;
@@ -848,9 +915,9 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int worked = 0;
         for (int r = 0; r < s->n; r++) worked += !g_ter.t[r].water && s->t[r].bld >= 1 && s->t[r].state != TV_UNSAFE;
         log_locked("# work: P%u at %.1f min: %d citizens free for work (%d idle, %d more building or held), shares %s | at food %d wood %d stone %d gold %d iron %d | wanted %d %d %d %d %d | "
-                   "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, %u given another territory, %u back from one not to be worked, no site for food %u wood %u stone %u gold %u iron %u | its load first: %u sent to unload before a move (%u moved once empty, %u still loaded after a minute), %u moves held for a load, %u lost\n",
+                   "%d mines and %d bushes in reach of %d worked territories (places stone %d gold %d iron %d) | so far %u sent to work, %u moved, %u given another territory, %u back from one not to be worked, no site for food %u wood %u stone %u gold %u iron %u | its load first: %u sent to unload before a move (%u moved once empty, %u still loaded after a minute), %u moves held for a load, %u lost | a crowd on one animal: %d of the idle, so far %u next animals refused, %u hunters taken off\n",
                    idx, now / 60000.0, nc, w->idle, w->busy, w->by_need ? "by need" : "by the plain rule", w->have[2], w->have[3], w->have[4], w->have[5], w->have[6], w->want[2], w->want[3], w->want[4], w->want[5], w->want[6],
-                   nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->xfers, w->retreats, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6], g_wkd_sent[idx], g_wkd_moved[idx], g_wkd_lapsed[idx], w->delivering, w->load_lost);
+                   nm, nb, worked, w->places[4], w->places[5], w->places[6], w->assigned, w->moved, w->xfers, w->retreats, w->none[2], w->none[3], w->none[4], w->none[5], w->none[6], g_wkd_sent[idx], g_wkd_moved[idx], g_wkd_lapsed[idx], w->delivering, w->load_lost, w->crowd, g_wkh_crowd[0], g_wkh_crowd[1]);
         static uint32_t wild_t;
         if (g_autotest && (!wild_t || now < wild_t || now - wild_t >= 60000)) {   // HERDS KEPT's measure: the map's living food animals once a minute
             wild_t = now ? now : 1;
