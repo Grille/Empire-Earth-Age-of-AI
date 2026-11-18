@@ -355,7 +355,7 @@ struct fy_trip {
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
     uint32_t since, load_t, reissue;
     ivec2 drop_w, via, at; int has_via, via_done, imp; float risk; uint32_t rate_t; unsigned no; int push, push_ter;   // kind 3: the push (stations.c ACROSS) and its territory
-    uint32_t meet_t;   // kind 3: at the push's meeting point since then (TOGETHER, ferry.c)   // THE CROSSING (crossing.c): the water off the drop, the point off the line it goes through, where the transport was last; an important delivery, its risk
+    uint32_t meet_t, ready_t;   // kind 3: at the push's meeting point since then (TOGETHER, ferry.c); all aboard since then (BOARD TOGETHER)   // THE CROSSING (crossing.c): the water off the drop, the point off the line it goes through, where the transport was last; an important delivery, its risk
 };
 internal struct fy_st {
     struct fy_trip t[FY_TRIPS];
@@ -1955,6 +1955,7 @@ internal void expand_install(const char *autotest_ini) {
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
     if (autotest_ini) g_v_ex_fguard = ini_int("autotest", "v_front_guards", -1, autotest_ini);
     if (autotest_ini) g_v_air_tr = ini_int("autotest", "v_air_transport", -1, autotest_ini);   // landing.c AIR TRANSPORT (its install has no test ini)
+    if (autotest_ini) g_v_landing = ini_int("autotest", "v_landing", -1, autotest_ini);   // landing.c, the same
     g_ex_cits = g_set_ai[1].expand_citizens;
     g_ex_guard = g_set_ai[1].expand_guard;
     g_ex_min = g_set_ai[1].expand_minute;

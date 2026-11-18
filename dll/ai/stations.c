@@ -90,7 +90,7 @@
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int mn;   // mmid, mn: the middle of its soldiers (no siege), how many (THE SIEGE'S ESCORT)
-                 int across, left, over; unsigned from_land, to_land; ivec2 beach; uint32_t start_t;   // ACROSS: over the water - its lands, the beach; soldiers of it still on the land it left, and over on the other
+                 int across, left, over, waves; unsigned from_land, to_land; ivec2 beach; uint32_t start_t, wave_t;   // waves: set out so far, wave_t: the next one waits for transports since then (ferry.c ONE WAVE AT A TIME); ACROSS: over the water - its lands, the beach; soldiers of it still on the land it left, and over on the other
                  uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
 // ACROSS (push_across, OFF): a push into a territory across the water - the ferry (ferry.c) carries its soldiers.
 // MEASURED 2026-11-18 (head-to-head, mirrored, 12 seeds, both sides expand_across without the outposts): soldiers -21.6
@@ -100,7 +100,17 @@ struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int m
 // ferrys too"; "landings into hostile situations should be coordinated to arrive in parallel"): only into a territory a
 // unit of its stood in lately (SCOUTS ACROSS bring them over), its transports gathered first and meeting off the beach
 // (ferry.c GATHERED FIRST, TOGETHER) - soldiers -14.3 (3.8), kills +0.1 (9.2), losses +9.3 (6.9), razed +0.7 (0.65);
-// 83 pushes: 35 not carried over in time, 23 losing, 5 claimed. Still more cost than gain: OFF. Aboard a
+// 83 pushes: 35 not carried over in time, 23 losing, 5 claimed. Still more cost than gain: OFF. Why worse than
+// landing.c's landings (the player: "look why its still worse than the old landings"): the push's soldiers went over one
+// by one as they were trained (504 trips for 53 pushes, 196 with one soldier, 5.5 minutes from the first to the last),
+// each late transport alone at the meeting point, which waited for trips still loading at home - and landing.c took the
+// same soldiers and transports meanwhile. Now as a landing (ferry.c ONE WAVE AT A TIME, BOARD TOGETHER, the meeting
+// point by crossing.c cx_meet), measured in the landings' place (v_landing=0 v_push_across=1 against the defaults, same
+// test): trips of 8-12 mostly, but still soldiers -10.1 (4.2), kills -1.4 (7.3), losses +9.5 (7.4), razed -0.3 (0.4);
+// 67 pushes, 39 not carried over in time, 2 claimed; of 248 trips 106 put off, 57 put on a beach under fire, 74 sunk.
+// The landings themselves, against none (v_landing=0): soldiers +7.0 (4.4), kills +4.5 (6.4), razed -0.6 (0.3), and
+// more held across the water without them (citizens off the home island 17.2 -> 24.6, buildings there 5.6 -> 8.0).
+// Still OFF. Aboard a
 // unit is on no tile and leaves the look's list; put off it is new to it - so the ferry hands its passengers back here
 // (sn_ferried) and a new one of them takes the push's territory as its station again
 #define PUSH_ACROSS(idx) PV(idx, g_v_sn_across, g_sn_across)
@@ -934,7 +944,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         struct sn_push *p = &z->push[slot];
         p->on = 1; p->from = (short)r; p->into = (short)into; p->at = aim; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
-        p->across = across; p->from_land = area_id(rally[r], 2); p->to_land = area_id(g_ter.t[into].c, 2); p->beach = beach; p->left = cn; p->over = 0; p->start_t = now ? now : 1;
+        p->across = across; p->from_land = area_id(rally[r], 2); p->to_land = area_id(g_ter.t[into].c, 2); p->beach = beach; p->left = cn; p->over = 0; p->start_t = now ? now : 1; p->waves = 0; p->wave_t = 0;
         z->pushes++;
         if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d%s - %d soldiers and siege at the %s at %d,%d, judged %.2f (enemy there: %d)%s\n",
                               idx, now / 60000.0, r, into, across ? " across the water" : "", cn, ti >= 0 ? "scenario's target" : "building", p->at.x, p->at.y, (double)ratio, g_sgs_foe.n,

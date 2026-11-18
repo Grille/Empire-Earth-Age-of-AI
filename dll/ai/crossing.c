@@ -211,6 +211,33 @@ internal float crossing_rate(ee_player *pl, unsigned idx, ee_unit *sh, ivec2 a, 
     g_cx_top = top; g_cx_top_dmg = tdmg;
     return best;
 }
+// TOGETHER (ferry.c): where a push's transports wait for each other off the water b they unload at, coming from a - as
+// landing.c's staging: open water of the sea 10-18 tiles out towards a, 8 to either side too, the least damage a second
+// a transport waiting there would take of what it knows (a ship's reach and sight, a defence's or coast gun's reach;
+// one busy with its warships a quarter). 0: b is near enough - they come together anyway
+internal int cx_meet(ee_player *pl, unsigned idx, ee_unit *sh, ivec2 a, ivec2 b, unsigned ocean, ivec2 *o) {
+    struct cx_st *c = &g_cx_st[idx & 15];
+    cx_scan(pl, idx, unit_get_type_data(sh), game_time());
+    float dx = (float)(a.x - b.x), dy = (float)(a.y - b.y), len = sqrtf(dx * dx + dy * dy), best = 1e9f;
+    if (len < 20.0f) return 0;
+    dx /= len; dy /= len;
+    int found = 0;
+    for (int r = 10; r <= 18; r += 4)
+        for (int s = -1; s <= 1; s++) {
+            ivec2 w, q = iv2(b.x + (int)(dx * (float)r - dy * (float)(8 * s)), b.y + (int)(dy * (float)r + dx * (float)(8 * s)));
+            if (!fl_water(q, ocean, &w) || ivec2_dist2(w, b) < 64) continue;
+            float dps = 0;
+            for (int i = 0; i < c->n; i++) {
+                const struct cx_threat *e = &c->th[i];
+                if (e->v > 0 && !e->air && ocean && area_id(e->p, 1) != ocean) continue;   // a ship on another sea
+                float reach = e->r + (e->v > 0 ? CX_NOTICE : 0);
+                if ((float)ivec2_dist2(w, e->p) <= reach * reach) dps += e->dps * (e->busy ? 0.25f : 1.0f);
+            }
+            float sc = dps + 0.01f * (float)r + (s ? 0.005f : 0);   // alike: the nearer, on the line
+            if (sc < best) { best = sc; *o = w; found = 1; }
+        }
+    return found;
+}
 // the log's word on the threat g_cx_top of AI idx's last rating
 internal void cx_top_text(unsigned idx, char *b, size_t n) {
     const struct cx_st *c = &g_cx_st[idx & 15];

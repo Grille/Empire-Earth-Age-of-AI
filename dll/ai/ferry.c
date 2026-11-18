@@ -37,6 +37,8 @@
 #define FY_FRESH 15000    // the lands' tables older than this: no trip
 #define FY_GATHER 180000  // GATHERED FIRST: a push waits this long at most for transports enough
 #define FY_MEET 75000     // TOGETHER: at the meeting point this long at most for the push's other transports
+#define FY_MEET_SAIL 150000   // ... a transport at sea this long counts as there (one that stopped short of the point waited till it was sunk)
+#define FY_TOGETHER 90000 // BOARD TOGETHER: a push's loaded transport waits this long at most for the wave's others
 internal PRINTF_LIKE(3, 4) void fy_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
     char buf[400];
@@ -139,11 +141,16 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     }
     f->risky_t[kind] = 0;
     t->imp = imp; t->risk = risk; t->has_via = hv; t->via = via; t->via_done = 0; t->drop_w = seas[bs].drop_w; t->rate_t = now ? now : 1;
-    t->push = push; t->push_ter = kind == 3 && push >= 0 && push < SN_PUSHES ? g_sn[idx & 15].push[push].from : kind == 4 && push >= 0 && push < SN_SX ? g_sn_sx[idx & 15][push].ter : -1; t->meet_t = 0;
-    if (kind == 3) {   // TOGETHER: the meeting point off the beach, 14 tiles toward where they came from, on its water
-        float mx = (float)(seas[bs].pick_w.x - seas[bs].drop_w.x), my = (float)(seas[bs].pick_w.y - seas[bs].drop_w.y), ml = sqrtf(mx * mx + my * my);
+    t->push = push; t->push_ter = kind == 3 && push >= 0 && push < SN_PUSHES ? g_sn[idx & 15].push[push].from : kind == 4 && push >= 0 && push < SN_SX ? g_sn_sx[idx & 15][push].ter : -1; t->meet_t = t->ready_t = 0;
+    if (kind == 3) {   // TOGETHER: the wave's meeting point off the beach (crossing.c cx_meet) - one for all its transports
         ivec2 w;
-        if (ml > 20.0f && fl_water(iv2(seas[bs].drop_w.x + (int)(mx / ml * 14.0f), seas[bs].drop_w.y + (int)(my / ml * 14.0f)), (unsigned)seas[bs].oc, &w)) { t->via = w; t->has_via = 1; t->via_done = 0; }
+        int got = 0;
+        for (int i = 0; i < FY_TRIPS && !got; i++) {
+            const struct fy_trip *o = &f->t[i];
+            if (o != t && o->phase && o->phase < 3 && o->kind == 3 && o->push == push && o->has_via) { w = o->via; got = 1; }
+        }
+        if (got || cx_meet(pl, idx, best, seas[bs].pick_w, seas[bs].drop_w, (unsigned)seas[bs].oc, &w)) { t->via = w; t->has_via = 1; t->via_done = 0; }
+        else t->has_via = 0;
     }
     t->kind = kind; t->from = a; t->to = b; t->ocean = seas[bs].oc;
     t->pick = seas[bs].pick; t->pick_w = seas[bs].pick_w; t->drop = seas[bs].drop; t->dest = dest;
@@ -201,16 +208,22 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
     int blocked[3] = { 0, !sfresh, !wfresh }, unserved = 0;
     // ACROSS (stations.c push_across): a push's soldiers first - every free transport at once, important ones (the
     // transports may be lost once they are over); those taken leave the push's count of soldiers still to cross
+    // ONE WAVE AT A TIME (the player 2026-11-18, of the pushes across against landing.c's landings: "unifing the systems
+    // dosnt mean throwing out what worked"): a push's soldiers set out as one wave, as a landing's - none while a wave of
+    // it is on its way, its free transports taking three quarters of it first (GATHERED FIRST: "landings into hostile
+    // situations should be coordinated to arrive in parallel"), a later wave half a transport at least. Without: every
+    // soldier trained into the push's territory set out on a transport of its own - 504 trips for 53 pushes, 196 of them
+    // with one soldier, the first to the last 5.5 minutes apart, the first put off after 5.3; a landing's 87% ashore at once
     for (int k = 0; k < SN_PUSHES && PUSH_ACROSS(idx); k++) {
         struct sn_push *p = &g_sn[idx].push[k];
         int left0 = p->on && p->across ? p->left - fy_push_transit(idx, k) : 0;
-        if (left0 > 0 && !fy_push_transit(idx, k) && now - p->start_t < FY_GATHER) {   // GATHERED FIRST (the player 2026-11-18: "landings into hostile
-            // situations should be coordinated to arrive in parallel"): no trip of it before its free transports take three quarters of it
-            int room = 0, cap = 0, tt = ld_transport_type(pl);
-            for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) if (fy_free_ship(pl, it.u, it.td)) room += ld_cap(unit_type_get_id(it.td));
-            cap = tt ? ld_cap(tt) : 10;
-            if (room * 4 < left0 * 3) { int want = (left0 * 3 / 4 - room + cap - 1) / (cap > 0 ? cap : 10); unserved += want > 0 ? want : 1; continue; }
-        }
+        if (left0 <= 0 || fy_push_transit(idx, k)) { p->wave_t = 0; continue; }
+        int room = 0, tt = ld_transport_type(pl), cap = tt ? ld_cap(tt) : 10;
+        if (p->waves && left0 < (cap + 1) / 2) { p->wave_t = 0; continue; }
+        if (!p->wave_t) p->wave_t = now ? now : 1;
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) if (fy_free_ship(pl, it.u, it.td)) room += ld_cap(unit_type_get_id(it.td));
+        if (room * 4 < left0 * 3 && now - p->wave_t < FY_GATHER) { int want = (left0 * 3 / 4 - room + cap - 1) / (cap > 0 ? cap : 10); unserved += want > 0 ? want : 1; continue; }
+        int ships = 0, set = 0;
         for (int left = left0; left > 0; ) {
             struct fy_trip *t = NULL;
             for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
@@ -218,7 +231,13 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
             int r = fy_start(pl, idx, f, t, 3, 1, p->from_land, p->to_land, left, p->beach, k, now);
             if (r == -1) unserved++;
             if (r <= 0) break;
-            left -= t->npass;
+            left -= t->npass; set += t->npass; ships++;
+        }
+        if (ships) {
+            p->waves++;
+            fy_say(idx, now, "a push's wave %d: %d of %d soldiers set out on %d transports (room %d, waited %.0f s for transports)", p->waves, set, left0, ships, room,
+                   (double)(now - p->wave_t) / 1000.0);
+            p->wave_t = 0;
         }
     }
     for (int tries = 0; tries < FY_TRIPS; tries++) {
@@ -328,7 +347,19 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
             t->phase = 2; t->load_t = now ? now : 1;
         }
         convoy_escort(idx, sh, t->pick_w, t->drop, 0, now);   // ESCORT (convoy.c): asked for from the start - the scouts sweep the way while it comes and boards
-        if (aboard == t->npass || (aboard && now - t->load_t >= FY_LOAD)) {
+        int ready = aboard == t->npass || (aboard && now - t->load_t >= FY_LOAD);
+        if (ready && t->kind == 3) {   // BOARD TOGETHER (as a landing's): a push's wave sails when all of it is aboard, FY_TOGETHER at most
+            if (!t->ready_t) t->ready_t = now ? now : 1;
+            int wait = 0;
+            uint32_t first = t->ready_t;
+            for (int i = 0; i < FY_TRIPS; i++) {
+                const struct fy_trip *o = &f->t[i];
+                if (o == t || !o->phase || o->phase == 3 || o->kind != 3 || o->push != t->push) continue;
+                if (!o->ready_t) wait = 1; else if (o->ready_t < first) first = o->ready_t;
+            }
+            if (wait && now - first < FY_TOGETHER) ready = 0;
+        }
+        if (ready) {
             int m = 0;   // those left behind are the others' again
             for (int k = 0; k < t->npass; k++) if (unit_get_x(t->pass[k].u) < 0) t->pass[m++] = t->pass[k];
             t->npass = m;
@@ -364,13 +395,13 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
     }
     if (now - t->since >= FY_SEA) { f->failed++; fy_end(pl, idx, t, now, "not across in 6 minutes - put off where it is"); return; }
     convoy_escort(idx, sh, t->pick_w, t->drop, 1, now);   // ESCORT (convoy.c)
-    if (t->kind == 3 && t->has_via && !t->via_done && ivec2_dist2(unit_get_tile(sh), t->via) <= 25) {   // TOGETHER: the push's transports meet off the beach, then run in at once
+    if (t->kind == 3 && t->has_via && !t->via_done && (ivec2_dist2(unit_get_tile(sh), t->via) <= 36 || now - t->since >= FY_MEET_SAIL)) {   // TOGETHER: the push's transports meet off the beach, then run in at once
         if (!t->meet_t) t->meet_t = now ? now : 1;
         int all = 1;
         uint32_t first = t->meet_t;
-        for (int i = 0; i < FY_TRIPS; i++) {
+        for (int i = 0; i < FY_TRIPS; i++) {   // those at sea: one still at home is no reason to wait off the enemy's beach
             struct fy_trip *o = &f->t[i];
-            if (!o->phase || o->kind != 3 || o->push != t->push) continue;
+            if (o->phase != 3 || o->kind != 3 || o->push != t->push) continue;
             if (!o->meet_t) all = 0; else if (o->meet_t < first) first = o->meet_t;
         }
         if (all || now - first >= FY_MEET)

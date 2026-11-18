@@ -32,7 +32,7 @@
 //   by the size; soldiers trained there join, ld_capture). Waves: the transports bring the soldiers
 //   at home over while it holds (ld_wave, landing_waves 3). A quarter left: released to the game.
 internal int g_land_bombard = 0;   // [ai_base] landing_bombard (below: BOMBARD)
-internal int g_landing = 1, g_land_ships = 8;   // ageofai.ini [ai_base] landing, landing_transports (the most; the size follows the beach)
+internal int g_landing = 1, g_v_landing = -1, g_land_ships = 8;   // ageofai.ini [ai_base] landing, landing_transports (the most; the size follows the beach)
 internal int g_land_waves = 3;   // [ai_base] landing_waves: how often the transports bring more soldiers over (0-10)
 internal int g_land_cits = 10;   // [ai_base] landing_citizens: the most citizens along to build the forward base (0-10)
 internal int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
@@ -2085,7 +2085,7 @@ internal void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_un
 internal void landing_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     struct landing *l = &g_ld[pi];
-    if (!g_landing) return;
+    if (!g_landing || !PV(pi, g_v_landing, 1)) return;   // [autotest] v_landing=0: none for the variant's players
     if (now < l->last) memset(l, 0, sizeof *l);   // a new game
     ld_fu_check(now);
     if (now - l->last < (l->phase == 3 ? 500u : 2000u)) {   // sailing: a transport stalled off the beach is sunk
