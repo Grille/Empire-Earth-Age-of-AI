@@ -263,6 +263,19 @@ internal inline uint8_t *hooks_float_1_600_at(void) { return (uint8_t *)(uintptr
 internal inline uint8_t *hooks_float_1_800_at(void) { return (uint8_t *)(uintptr_t)data_hooks_float_1_800; }
 internal inline uint8_t *hooks_iat_srand_at(void) { return (uint8_t *)(uintptr_t)data_hooks_iat_srand; }
 // call AddMovie(path) in PlayIntro 0x538867
+// the setup screen's population limit in steps of 50 from the world table's record 26 (its default +0x10, its most
+// +0x14: game_data unit_limit, unit_limit_max) - five places, each replaced by a call of the mod's steps
+// (engine/pop_limit.c): the list's loop end (0x5CE77D: add [ebp+8], 0x32 and the compare with the most)
+internal inline uint8_t *hooks_limit_list_step_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_list_step; }
+// EEUIELEGameUnitLimit::vf1, the list's choice: the setting's position (setting - default) / 50 to compare with
+// the chosen one (EE: the setting in edi; AoC: in eax, the default read from the game data here)
+internal inline uint8_t *hooks_limit_click_index_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_click_index; }
+// EEUIELEGameUnitLimit::vf1: the chosen position's value, position * 50 + default, for the options message
+internal inline uint8_t *hooks_limit_click_value_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_click_value; }
+// EEUIELEGameUnitLimit::vf1: the chosen position's value again, into the setting (game_options.unit_limit)
+internal inline uint8_t *hooks_limit_click_set_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_click_set; }
+// 0x5CD0F3 (the setup screen shown from the setup): the setup's limit (+0x3F0) as the list's position
+internal inline uint8_t *hooks_limit_shown_index_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_shown_index; }
 // the minimap's operands of hooks.float_1_800
 // the minimap's operands of hooks.float_1_600
 // GEFontBitmap::Draw (both overloads): movsx of a character
@@ -413,6 +426,11 @@ internal int spec_hooks_select(int build) {
         data_hooks_intro_calls[0] = 0x00538909;
         data_hooks_intro_calls[1] = 0x0053892A;
         data_hooks_intro_calls[2] = 0x00538945;
+        data_hooks_limit_list_step = 0x005CE9D3;
+        data_hooks_limit_click_index = 0x005CF823;
+        data_hooks_limit_click_value = 0x005CF877;
+        data_hooks_limit_click_set = 0x005CF8C5;
+        data_hooks_limit_shown_index = 0x005CD69B;
         data_hooks_minimap_fx_ops[0] = 0x0065E01D;
         data_hooks_minimap_fx_ops[1] = 0x0065E8A3;
         data_hooks_minimap_fx_ops[2] = 0x0065EB3E;
@@ -548,6 +566,11 @@ internal int spec_hooks_select(int build) {
         data_hooks_intro_calls[0] = 0x00543A57;
         data_hooks_intro_calls[1] = 0x00543A78;
         data_hooks_intro_calls[2] = 0x00543A93;
+        data_hooks_limit_list_step = 0x005DF6E2;
+        data_hooks_limit_click_index = 0x005E0520;
+        data_hooks_limit_click_value = 0x005E0561;
+        data_hooks_limit_click_set = 0x005E0595;
+        data_hooks_limit_shown_index = 0x005DE3AA;
         data_hooks_minimap_fx_ops[0] = 0x00675618;
         data_hooks_minimap_fx_ops[1] = 0x00675E95;
         data_hooks_minimap_fx_ops[2] = 0x00676130;
@@ -635,6 +658,11 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_intro_calls[0], "hooks.intro_calls 0");
     bad += spec_code(data_hooks_intro_calls[1], "hooks.intro_calls 1");
     bad += spec_code(data_hooks_intro_calls[2], "hooks.intro_calls 2");
+    bad += spec_code(data_hooks_limit_list_step, "hooks.limit_list_step");
+    bad += spec_code(data_hooks_limit_click_index, "hooks.limit_click_index");
+    bad += spec_code(data_hooks_limit_click_value, "hooks.limit_click_value");
+    bad += spec_code(data_hooks_limit_click_set, "hooks.limit_click_set");
+    bad += spec_code(data_hooks_limit_shown_index, "hooks.limit_shown_index");
     bad += spec_code(data_hooks_minimap_fx_ops[0], "hooks.minimap_fx_ops 0");
     bad += spec_code(data_hooks_minimap_fx_ops[1], "hooks.minimap_fx_ops 1");
     bad += spec_code(data_hooks_minimap_fx_ops[2], "hooks.minimap_fx_ops 2");

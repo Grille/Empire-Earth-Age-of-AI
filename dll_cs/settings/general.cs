@@ -26,10 +26,11 @@ class general
         bool auto_victory = true;
         /// Skip the intro movies at game start. 1 = skip, 0 = play them (original)
         bool skip_intro = false;
-        /// Population limit: the most the game's setup offers for its population limit (all players together, in steps
-        /// of 50; the game's own data: 1200 - 150 each with 8 players). A higher limit in the game's data (a loose
-        /// Data\DB\dbworld.dat) is kept; 0 = the game's own. In multiplayer every player needs the same setting: a PC
-        /// with a lower one starts the game at the default of 50
+        /// Population limit: the most the game's setup offers for its population limit (all players together; the
+        /// game's own data: 1200 - 150 each with 8 players), its list in steps of 50 to 200, 100 to 1500, then 500 (the
+        /// game's: 50 all the way). A higher limit in the game's data (a loose Data\DB\dbworld.dat) is kept; 0 = the
+        /// game's own, its steps too. The multiplayer lobby keeps the game's list. In multiplayer every player needs the
+        /// same setting: a PC with a lower one starts the game at the default of 50
         [range(0, 100000), game("the population limit's most", "1200", 1200)]
         int population_limit_max = 4000;
     }

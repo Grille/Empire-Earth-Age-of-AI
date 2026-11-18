@@ -827,6 +827,7 @@ internal void install(HMODULE self) {
     diplo_install(g_autotest ? g_ini : NULL);
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
+    pop_limit_install();   // the setup screen's population steps (pop_limit.c)
     display_install(g_autotest ? g_ini : NULL);
     hold_profile_install();   // after it: the own renderer or not (g_rd_on)
     camera_install();   // after it: the own renderer or not (g_rd_on)

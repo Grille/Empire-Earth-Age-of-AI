@@ -340,6 +340,29 @@ static unsafe class hooks
     [address((ee)0x00538945, (aoc)0x00543A93)]
     static code intro_calls;
 
+    /// the setup screen's population limit in steps of 50 from the world table's record 26 (its default +0x10, its most
+    /// +0x14: game_data unit_limit, unit_limit_max) - five places, each replaced by a call of the mod's steps
+    /// (engine/pop_limit.c): the list's loop end (0x5CE77D: add [ebp+8], 0x32 and the compare with the most)
+    [address((ee)0x005CE9D3, (aoc)0x005DF6E2)]
+    static code limit_list_step;
+
+    /// EEUIELEGameUnitLimit::vf1, the list's choice: the setting's position (setting - default) / 50 to compare with
+    /// the chosen one (EE: the setting in edi; AoC: in eax, the default read from the game data here)
+    [address((ee)0x005CF823, (aoc)0x005E0520)]
+    static code limit_click_index;
+
+    /// EEUIELEGameUnitLimit::vf1: the chosen position's value, position * 50 + default, for the options message
+    [address((ee)0x005CF877, (aoc)0x005E0561)]
+    static code limit_click_value;
+
+    /// EEUIELEGameUnitLimit::vf1: the chosen position's value again, into the setting (game_options.unit_limit)
+    [address((ee)0x005CF8C5, (aoc)0x005E0595)]
+    static code limit_click_set;
+
+    /// 0x5CD0F3 (the setup screen shown from the setup): the setup's limit (+0x3F0) as the list's position
+    [address((ee)0x005CD69B, (aoc)0x005DE3AA)]
+    static code limit_shown_index;
+
     /// the minimap's operands of hooks.float_1_800
     [address((ee)0x0065E01D, (aoc)0x00675618)]
     [address((ee)0x0065E8A3, (aoc)0x00675E95)]

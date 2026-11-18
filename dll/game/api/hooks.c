@@ -208,6 +208,65 @@ internal inline int patch_skip_intro(void) {
     FlushInstructionCache(GetCurrentProcess(), NULL, 0);
     return TRUE;
 }
+// THE SETUP'S POPULATION STEPS (engine/pop_limit.c): the five places of the setup screen's step of 50 each a call of
+// the mod's steps instead - fastcall, the value or position in ecx, the answer in eax (they keep ebx, esi, edi, ebp;
+// every place's eax, ecx and edx are free or set anew after it). Each place's bytes are checked first, in both builds:
+// all five or none. next(value): the list's value after it, 0 past the most; index(value): its position; value(pos).
+typedef int (__attribute__((fastcall)) *limit_step_fn)(int);
+struct limit_site { uintptr_t at; uint8_t n; uint8_t was[20]; uint8_t mask[20]; uint8_t put[8]; uint8_t put_n; uint8_t call_at; int which; };
+internal int limit_site_holds(const struct limit_site *s) {
+    const uint8_t *p = (const uint8_t *)s->at;
+    for (int i = 0; i < s->n; i++) if (!s->mask[i] && p[i] != s->was[i]) return 0;
+    return 1;
+}
+internal inline int patch_limit_steps(limit_step_fn next, limit_step_fn index, limit_step_fn value) {
+    int aoc = build_is("aoc");
+    limit_step_fn fn[3] = { next, index, value };
+    // the list's loop end: mov ecx, [ebp+8]; call next; mov [ebp+8], eax; test eax, eax; jnz <its loop> (the original
+    // jbe's target, rel8 from the end)
+    struct limit_site s[5] = {
+        { data_hooks_limit_list_step, 20,
+          { 0x83, 0x45, 0x08, 0x32, 0xA1, 0, 0, 0, 0, 0x8B, 0x4D, 0x08, 0x3B, 0x88, 0xEC, 0x02, 0x00, 0x00, 0x76, 0 },
+          { 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 }, { 0x8B, 0x4D, 0x08 }, 3, 3, 0 },
+        aoc ? (struct limit_site){ data_hooks_limit_click_index, 13,   // the setting in eax
+                                   { 0x2B, 0x81, 0xE8, 0x02, 0x00, 0x00, 0x6A, 0x32, 0x33, 0xD2, 0x59, 0xF7, 0xF1 }, { 0 },
+                                   { 0x8B, 0xC8 }, 2, 2, 1 }
+            : (struct limit_site){ data_hooks_limit_click_index, 12,   // the setting in edi
+                                   { 0x8B, 0xC7, 0x2B, 0x41, 0x10, 0x6A, 0x32, 0x33, 0xD2, 0x59, 0xF7, 0xF1 }, { 0 },
+                                   { 0x8B, 0xCF }, 2, 2, 1 },
+        { data_hooks_limit_click_value, 8, { 0x8B, 0xC6, 0x6B, 0xC0, 0x32, 0x03, 0xC7, 0x50 }, { 0 }, { 0x8B, 0xCE }, 2, 2, 2 },
+        aoc ? (struct limit_site){ data_hooks_limit_click_set, 16,
+                                   { 0x6B, 0xF6, 0x32, 0xA1, 0, 0, 0, 0, 0x8B, 0x80, 0xE8, 0x02, 0x00, 0x00, 0x03, 0xC6 },
+                                   { 0, 0, 0, 0, 1, 1, 1, 1 }, { 0x8B, 0xCE }, 2, 2, 2 }
+            : (struct limit_site){ data_hooks_limit_click_set, 10, { 0x6B, 0xF6, 0x32, 0x8B, 0x00, 0x8B, 0x40, 0x10, 0x03, 0xC6 },
+                                   { 0 }, { 0x8B, 0xCE }, 2, 2, 2 },
+        { data_hooks_limit_shown_index, 15, { 0x8B, 0x48, 0x10, 0x8B, 0x45, 0x08, 0x2B, 0xC1, 0x6A, 0x32, 0x59, 0x33, 0xD2, 0xF7, 0xF1 },
+          { 0 }, { 0x8B, 0x4D, 0x08 }, 3, 3, 1 },
+    };
+    for (int i = 0; i < 5; i++) if (!limit_site_holds(&s[i])) return 0;
+    uintptr_t loop = s[0].at + 20 + (uintptr_t)(intptr_t)*(int8_t *)(s[0].at + 19);   // the list's loop top
+    for (int i = 0; i < 5; i++) {
+        uint8_t b[20];
+        memset(b, 0x90, sizeof b);   // nops after what is put
+        memcpy(b, s[i].put, s[i].put_n);
+        uintptr_t at = s[i].at + s[i].call_at;
+        b[s[i].call_at] = 0xE8;
+        *(int32_t *)(b + s[i].call_at + 1) = (int32_t)((uintptr_t)fn[s[i].which] - (at + 5));
+        int end = s[i].call_at + 5;
+        if (i == 0) {   // mov [ebp+8], eax; test eax, eax; jnz the loop's top
+            const uint8_t tail[5] = { 0x89, 0x45, 0x08, 0x85, 0xC0 };
+            memcpy(b + end, tail, 5);
+            b[end + 5] = 0x75;
+            b[end + 6] = (uint8_t)(int8_t)((intptr_t)loop - (intptr_t)(s[i].at + end + 7));
+        } else if (s[i].was[s[i].n - 1] == 0x50 && s[i].n == 8) b[end] = 0x50;   // click_value: its push eax kept
+        DWORD old;
+        VirtualProtect((void *)s[i].at, s[i].n, PAGE_EXECUTE_READWRITE, &old);
+        memcpy((void *)s[i].at, b, s[i].n);
+        VirtualProtect((void *)s[i].at, s[i].n, old, &old);
+    }
+    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
+    return 1;
+}
 // the network ports (UDP 33334, TCP 33335: TCP Protocol.dll's immediates, the module m) moved: those it listens on
 // and broadcasts to by add, those it connects to by add_connect (a joining test slot: the host slot's) - how many of 8
 internal inline int patch_tcp_ports(HMODULE m, int add, int add_connect) {
