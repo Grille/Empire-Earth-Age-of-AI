@@ -5,7 +5,7 @@
 // capitals: the docs and the code find each other.
 #define UT_TYPES(X) \
     X(CITIZEN, "citizen") X(FEMALE_CITIZEN, "female_citizen") X(PRIEST, "priest") X(PROPHET, "prophet") \
-    X(INF01_CLUBMAN, "inf01_clubman") \
+    X(INF01_CLUBMAN, "inf01_clubman") X(HURRICANE, "hurricane") X(ANTI_MATTER_STORM, "anti_matter_storm") \
     X(B_TOWN_CENTER, "b_town_center") X(B_CAPITOL, "b_capitol") X(B_SETTLEMENT, "b_settlement") X(B_HOUSE, "b_house") \
     X(X_SINGLE_PLAYER_SETTLEMENT, "x_single_player_settlement") \
     X(B_FARM, "b_farm") X(B_GRANARY, "b_granary") X(B_GRANARY_IMPROVED, "b_granary_improved") \

@@ -140,6 +140,7 @@ internal void spoils_install(void);
 internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 internal void expand_new_game(void);
 internal void expand_install(const char *autotest_ini);
+internal void storm_tick(ee_player *pl, uint32_t now);   // storms.c: ships out of an enemy's storm - after every manager that orders ships
 internal void tw_tick(ee_player *pl, uint32_t now);   // transports.c: the transports' script states (a test's log)
 internal void tw_new_game(void);
 internal void tw_install(const char *autotest_ini);
@@ -285,6 +286,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch
     if (pl && !is_vanilla(pl) && !game) stations_tick(pl, now);   // stations.c: the soldiers by territory, in place of the one force
     if (pl && (game || is_vanilla(pl) || builds)) expand_tick(pl, now);
+    if (pl && !is_vanilla(pl) && !game) storm_tick(pl, now);   // storms.c: last, its order the one a ship in a storm carries out
     if (pl) tw_tick(pl, now);
     if (pl) ai_overlay_tick(pl, now);
     if (pl) territory_tick(now, g_set.territories_log);
@@ -517,6 +519,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/ferry.c"         // the ferry service: soldiers and citizens to the lands across the water that want them
 #include "ai/convoy.c"        // the transports at sea: to a beach under fire (lifeboat), escorts asked of the squadrons
 #include "ai/squadrons.c"     // the warships by sea: main squadrons by zone, scouts and raiders, submarine hunters
+#include "ai/storms.c"        // ships out of an enemy's storm (the prophet's hurricane)
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
 #include "ai/holy.c"          // priests and prophets while the game's computer player is off

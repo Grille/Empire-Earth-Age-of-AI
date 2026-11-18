@@ -260,6 +260,11 @@ class ai_base
         /// core of what is trained, the frigates' speed bought with their range. 1 = on.
         [advanced]
         bool sea_squadrons = true;
+        /// Storms (the game's computer player off): the AI's ships within reach of an enemy's storm - the prophet's
+        /// hurricane sinks a frigate in seconds - sail straight out of it, whatever they were doing, and the squadrons
+        /// send nobody into one. 1 = on.
+        [advanced]
+        bool storm_dodge = true;
         /// Harbours: every sea territory that borders land the AI holds gets one harbour - a dock from
         /// the held territory with the longest shore there, a tower by it, a second where enemy warships were seen on that
         /// sea or with 600 stone in the bank - so each sea by its land is covered once, for the fleet to fall back to and for the fishing, on every kind
@@ -697,9 +702,10 @@ class ai_base
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]
         bool transport_lifeboat = true;
-        /// Crossings ask the squadrons (sea_squadrons) for an escort: scouts sail ahead of the transport, else a main
-        /// squadron goes with it; a crossing waits a minute at most for it and is no longer called off when the sea on the
-        /// way is held (the game's computer player off). 0 = off
+        /// Crossings ask the squadrons (sea_squadrons) for an escort from the start of a trip: scouts sweep the way and sail
+        /// ahead of the transport, else a main squadron goes with it; at sea the escort goes at enemy warships near the
+        /// transport; nobody waits for it, and a crossing is no longer called off when the sea on the way is held (the
+        /// game's computer player off). 0 = off
         [advanced]
         bool transport_escort = false;
         struct towns_fields

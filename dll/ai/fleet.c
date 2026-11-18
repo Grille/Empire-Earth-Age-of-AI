@@ -167,6 +167,11 @@ internal struct fl_scan {
     ivec2 eb, ed[16]; int eb_known, ned;              // the nearest known enemy building (to the guard base), enemy docks
     ivec2 tw[FL_TW]; int ntw; float twr[FL_TW];       // own towers and defence buildings (their range)
 } g_fs;
+// storms.c STORMS ([ai_base] storm_dodge): a storm's reach - its 5 tiles, a ship's size and the second it takes to turn
+internal int g_storm = 0, g_v_storm = -1;
+#define STORM_DODGE(idx) PV(idx, g_v_storm, g_storm)
+#define ST_R 8
+internal int is_storm(int t) { return t == UT(HURRICANE) || t == UT(ANTI_MATTER_STORM); }
 internal float fl_dps(ee_unit *u, ee_unit_type *td) {
     ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
     float a = st ? unit_stats_get_attack(st) : (float)unit_type_get_attack(td);
@@ -268,6 +273,10 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
         ee_player *o = unit_get_owner(u);
         int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_class_id(td);
         if (!o || unit_get_hp(u) <= 0 || x < 0) continue;
+        if (is_storm(unit_type_get_id(td))) {   // STORMS (storms.c): an enemy's in reach a danger zone (fl_dz_add's margin makes it ST_R)
+            if (STORM_DODGE(idx) && is_enemy(o, pl) && seen_by(u, pl)) fl_dz_add(s, iv2(x, y), (float)(ST_R - 2));
+            continue;
+        }
         int k = navy_kind(td);
         if (o == pl) {
             if ((k == NV_WAR || k == NV_SUB) && f->n < FL_MAX && !landing_has_unit(pl, u)) {
@@ -1811,6 +1820,8 @@ internal void fleet_install(const char *autotest_ini) {
     g_fl_station = g_set_ai[1].fleet_station;
     g_squadrons = g_set_ai[1].sea_squadrons;
     if (autotest_ini) g_v_squadrons = ini_int("autotest", "v_sea_squadrons", -1, autotest_ini);
+    g_storm = g_set_ai[1].storm_dodge;
+    if (autotest_ini) g_v_storm = ini_int("autotest", "v_storm_dodge", -1, autotest_ini);
     g_harbours = g_set_ai[1].harbours;
     if (autotest_ini) g_v_harbours = ini_int("autotest", "v_harbours", -1, autotest_ini);
     if (autotest_ini) g_v_fl_station = ini_int("autotest", "v_fleet_station", -1, autotest_ini);
