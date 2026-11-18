@@ -70,10 +70,11 @@ internal float fy_tolerance(const struct fy_st *f, int kind, int imp, uint32_t n
     if (f->risky_t[kind] && now >= f->risky_t[kind]) tol += (float)(now - f->risky_t[kind]) / 60000.0f * CX_GO_STEP;
     return tol < CX_GO_WAIT ? tol : CX_GO_WAIT;
 }
-internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, uint32_t now) {
+internal int sn_push_pick(ee_player *pl, int k, ivec2 toward, ee_unit **out, int max);   // stations.c ACROSS
+internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
-    int np = kind == 1 ? sn_ferry_pick(pl, a, dest, pass, n) : wk_ferry_pick(pl, a, dest, pass, n);
+    int np = kind == 1 ? sn_ferry_pick(pl, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : wk_ferry_pick(pl, a, dest, pass, n);
     if (np < 1) return 0;
     long sx = 0, sy = 0;
     for (int k = 0; k < np; k++) { sx += unit_get_x(pass[k]); sy += unit_get_y(pass[k]); }
@@ -123,7 +124,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
             if (!(c->held++ % 10)) {   // every tenth: what holds it
                 char w[160];
                 cx_top_text(idx, w, sizeof w);
-                fy_say(idx, now, "the crossing: %d %s from land %u to land %u held - risk %.2f over %.2f%s; the worst: %s", t->npass, kind == 1 ? "soldiers" : "citizens", a, b,
+                fy_say(idx, now, "the crossing: %d %s from land %u to land %u held - risk %.2f over %.2f%s; the worst: %s", t->npass, kind != 2 ? "soldiers" : "citizens", a, b,
                        (double)risk, (double)fy_tolerance(f, kind, imp, now), imp ? " (important)" : "", w);
             }
             t->npass = 0;
@@ -135,6 +136,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     }
     f->risky_t[kind] = 0;
     t->imp = imp; t->risk = risk; t->has_via = hv; t->via = via; t->via_done = 0; t->drop_w = seas[bs].drop_w; t->rate_t = now ? now : 1;
+    t->push = push; t->push_ter = push >= 0 && push < SN_PUSHES ? g_sn[idx & 15].push[push].from : -1;
     t->kind = kind; t->from = a; t->to = b; t->ocean = seas[bs].oc;
     t->pick = seas[bs].pick; t->pick_w = seas[bs].pick_w; t->drop = seas[bs].drop; t->dest = dest;
     t->ship.u = best; t->ship.id = unit_get_serial(best);
@@ -144,9 +146,14 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     for (int k = 0; k < t->npass; k++)   // to the shore meanwhile
         unit_goal(t->pass[k].u, goal_move((float)t->pick.x + 0.5f, (float)t->pick.y + 0.5f), 0, 0x1F40);
     fy_say(idx, now, "trip %u: %d %s from land %u (by %d,%d) to land %u (wanted at %d,%d) - the transport at %d,%d, boarding at %d,%d, off at %d,%d%s; risk %.2f%s",
-           t->no, t->npass, kind == 1 ? "soldiers" : "citizens", a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
+           t->no, t->npass, kind != 2 ? "soldiers" : "citizens", a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
            t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "");
     return 1;
+}
+internal int fy_push_transit(unsigned idx, int k) {   // stations.c ACROSS: push k's soldiers with a trip
+    int n = 0;
+    for (int i = 0; i < FY_TRIPS; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 3 && t->push == k) n += t->npass; }
+    return n;
 }
 internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted, uint32_t now) {   // MORE TRANSPORTS
     int coming = 0, slot = -1;
@@ -184,6 +191,20 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
     }
     drops_cached(pl);
     int blocked[3] = { 0, !sfresh, !wfresh }, unserved = 0;
+    // ACROSS (stations.c push_across): a push's soldiers first - every free transport at once, important ones (the
+    // transports may be lost once they are over); those taken leave the push's count of soldiers still to cross
+    for (int k = 0; k < SN_PUSHES && PUSH_ACROSS(idx); k++) {
+        struct sn_push *p = &g_sn[idx].push[k];
+        for (int left = p->on && p->across ? p->left - fy_push_transit(idx, k) : 0; left > 0; ) {
+            struct fy_trip *t = NULL;
+            for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
+            if (!t) break;
+            int r = fy_start(pl, idx, f, t, 3, 1, p->from_land, p->to_land, left, p->beach, k, now);
+            if (r == -1) unserved++;
+            if (r <= 0) break;
+            left -= t->npass;
+        }
+    }
     for (int tries = 0; tries < FY_TRIPS; tries++) {
         struct fy_trip *t = NULL;
         for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
@@ -200,7 +221,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         }
         // citizens: the land with most free places (a drop site of its there), from the one with most to spare
         int bc = -1, ac = -1;
-        for (int k = 0; !blocked[2] && k < W->n; k++) if (cfree[k] >= 1 && rs_drop_land(idx, W->l[k].land) && (bc < 0 || cfree[k] > cfree[bc])) bc = k;
+        for (int k = 0; !blocked[2] && k < W->n; k++) if (cfree[k] >= 1 && (rs_drop_land(idx, W->l[k].land) || bd_waits(idx, W->l[k].land, NULL)) && (bc < 0 || cfree[k] > cfree[bc])) bc = k;   // ACROSS THE WATER: a foundation waiting for builders there (build.c)
         for (int k = 0; bc >= 0 && k < W->n; k++) if (k != bc && cspare[k] >= 1 && (ac < 0 || cspare[k] > cspare[ac])) ac = k;
         int can[3] = { 0, bs >= 0, bc >= 0 && ac >= 0 };
         if (!can[1] && !can[2]) break;
@@ -208,8 +229,8 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         for (int j = 0; j < 2; j++) {
             int kind = j ? 3 - first : first;
             if (!can[kind]) continue;
-            int r = kind == 1 ? fy_start(pl, idx, f, t, 1, S->l[bs].hot, S->l[as].land, S->l[bs].land, bn, S->l[bs].at, now)
-                              : fy_start(pl, idx, f, t, 2, 0, W->l[ac].land, W->l[bc].land, cfree[bc] < cspare[ac] ? cfree[bc] : cspare[ac], W->l[bc].at, now);
+            int r = kind == 1 ? fy_start(pl, idx, f, t, 1, S->l[bs].hot, S->l[as].land, S->l[bs].land, bn, S->l[bs].at, -1, now)
+                              : fy_start(pl, idx, f, t, 2, 0, W->l[ac].land, W->l[bc].land, cfree[bc] < cspare[ac] ? cfree[bc] : cspare[ac], W->l[bc].at, -1, now);
             if (r > 0) {
                 if (kind == 1) { sgap[bs] -= t->npass; sgap[as] += t->npass; }
                 else { cfree[bc] -= t->npass; cspare[ac] -= t->npass; }
@@ -305,10 +326,13 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
     if (ex_cargo(sh) <= 0) {
         int off = 0;
         for (int k = 0; k < t->npass; k++) off += unit_get_x(t->pass[k].u) >= 0;
-        if (t->kind == 1) f->soldiers += (unsigned)off; else f->citizens += (unsigned)off;
-        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d", t->no, (double)t->risk, off, t->kind == 1 ? "soldiers" : "citizens", t->to, t->drop.x, t->drop.y);
-        if (t->kind == 1)   // on to where they are wanted; the stations take them there
-            for (int k = 0; k < t->npass; k++) unit_goal(t->pass[k].u, goal_move((float)t->dest.x + 0.5f, (float)t->dest.y + 0.5f), 0, 0x1F40);
+        if (t->kind != 2) f->soldiers += (unsigned)off; else f->citizens += (unsigned)off;
+        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d", t->no, (double)t->risk, off, t->kind != 2 ? "soldiers" : "citizens", t->to, t->drop.x, t->drop.y);
+        if (t->kind != 2)   // on to where they are wanted; the stations take them there - a push's back to its push (stations.c ACROSS)
+            for (int k = 0; k < t->npass; k++) {
+                unit_goal(t->pass[k].u, goal_move((float)t->dest.x + 0.5f, (float)t->dest.y + 0.5f), 0, 0x1F40);
+                if (t->kind == 3 && t->push_ter >= 0) sn_ferried(idx, t->pass[k].u, t->push_ter);
+            }
         fy_end(pl, idx, t, now, NULL);
         return;
     }

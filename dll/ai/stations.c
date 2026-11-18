@@ -90,7 +90,28 @@
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
 struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int mn;   // mmid, mn: the middle of its soldiers (no siege), how many (THE SIEGE'S ESCORT)
+                 int across, left, over; unsigned from_land, to_land; ivec2 beach; uint32_t start_t;   // ACROSS: over the water - its lands, the beach; soldiers of it still on the land it left, and over on the other
                  uint32_t way_t; int breach, round_, straight; ivec2 wall; uint32_t near_t, force_t, wait, hold_t; int near_d; ivec2 near_at; };   // hold_t: THE CLEARED GROUND is held since then   // STUCK: near_d the nearest its middle came to near_at (squared), at near_t; force_t: a breach THE WAY did not find, since then; wait: before the next push from there (0: SN_PUSH_WAIT)   // THE WAY: looked at way_t; breach: a wall to bring down at `wall`; the walk round and through, in cells
+// ACROSS (push_across, OFF): a push into a territory across the water - the ferry (ferry.c) carries its soldiers.
+// MEASURED 2026-11-18 (head-to-head, mirrored, 12 seeds, both sides expand_across without the outposts): soldiers -21.6
+// (se 4.2), kills -17.5 (7.8) - 159 pushes, 109 not carried over in 8 minutes; every one judged against nothing (an
+// enemy home island it had never looked at: its towers and army unknown), 6 to 24 soldiers, the transports few and
+// trained one by one (trips of 1 to 3). Wanted before it goes on: a look at the target first (no enemy known must mean
+// looked and found none), a force sized to what holds it, the transports gathered first so it lands together. Aboard a
+// unit is on no tile and leaves the look's list; put off it is new to it - so the ferry hands its passengers back here
+// (sn_ferried) and a new one of them takes the push's territory as its station again
+#define PUSH_ACROSS(idx) PV(idx, g_v_sn_across, g_sn_across)
+#define SN_JOIN 128
+internal struct { int id; short ter; uint32_t t; } g_sn_join[16][SN_JOIN];
+internal void sn_ferried(unsigned idx, ee_unit *u, int ter) {
+    int k = 0;
+    uint32_t now = game_time();
+    for (int j = 1; j < SN_JOIN; j++) if (g_sn_join[idx & 15][j].t < g_sn_join[idx & 15][k].t) k = j;
+    g_sn_join[idx & 15][k].id = unit_get_serial(u); g_sn_join[idx & 15][k].ter = (short)ter; g_sn_join[idx & 15][k].t = now ? now : 1;
+}
+struct sn_unit;
+internal void sn_rejoin(unsigned idx, struct sn_unit *m);
+internal int fy_push_transit(unsigned idx, int k);   // ferry.c: push k's soldiers the ferry has taken (to the shore, aboard)
 internal struct sn_st {
     uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
     int n;
@@ -330,6 +351,52 @@ internal void sn_fc_spot(struct sn_fc *c, ivec2 at, int open, int n, uint32_t no
                 return;
             }
 }
+internal void sn_rejoin(unsigned idx, struct sn_unit *m) {
+    uint32_t now = game_time();
+    for (int j = 0; j < SN_JOIN; j++)
+        if (g_sn_join[idx & 15][j].t && g_sn_join[idx & 15][j].id == m->id && now - g_sn_join[idx & 15][j].t < 120000) { m->ter = g_sn_join[idx & 15][j].ter; g_sn_join[idx & 15][j].t = 0; return; }
+}
+// ACROSS: the beach for a push into land `land` aimed at `aim` - its tile nearest the aim with a sea within 2 tiles and
+// no enemy defence it has seen in reach (work.c wk_danger), within SN_BEACH_R; 0: none
+#define SN_BEACH_R 40
+#define SN_ISLE_GUARD 5          // ISLAND GUARD: the least of the main force a territory of its across the water holds
+#define SN_CROSS_T 480000        // ACROSS: a push with none of it over this long is given up
+internal int sn_beach(unsigned idx, unsigned land, ivec2 aim, ivec2 *out) {
+    for (int r = 0; r <= SN_BEACH_R; r++)
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = -r; dy <= r; dy += (abs(dx) == r || !r ? 1 : 2 * r)) {
+                ivec2 q = iv2(aim.x + dx, aim.y + dy);
+                if (area_id(q, 2) != land || !ocean_near(q, 2, NULL) || wk_danger(idx, q)) continue;
+                *out = q;
+                return 1;
+            }
+    return 0;
+}
+// ACROSS: the soldiers of push k still on the land it left (siege too), nearest `toward` first, into out (max): how many
+internal int expand_has(ee_player *pl, ee_unit *u);
+internal int sn_push_pick(ee_player *pl, int k, ivec2 toward, ee_unit **out, int max) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct sn_st *z = &g_sn[idx];
+    static int d[SN_UNITS];
+    int got = 0;
+    if (k < 0 || k >= SN_PUSHES) return 0;
+    struct sn_push *p = &z->push[k];
+    if (!p->on || !p->across) return 0;
+    for (int i = 0; i < z->n; i++) {
+        struct sn_unit *m = &z->m[i];
+        d[i] = -1;
+        if (m->ter != p->from || m->scout || m->pool == SNP_AA || unit_get_hp(m->u) <= 0 || unit_get_x(m->u) < 0) continue;
+        if (area_id(unit_get_tile(m->u), 2) != p->from_land || expand_has(pl, m->u)) continue;
+        d[i] = ivec2_dist2(unit_get_tile(m->u), toward);
+    }
+    while (got < max) {
+        int b = -1;
+        for (int i = 0; i < z->n; i++) if (d[i] >= 0 && (b < 0 || d[i] < d[b])) b = i;
+        if (b < 0) break;
+        out[got++] = z->m[b].u; d[b] = -1;
+    }
+    return got;
+}
 // THE FERRY SERVICE (expand.c): the main force's share and those stationed, by land - sn_give walks the land only, so a
 // territory across the water keeps short of its share, however many stand spare at home. at: the place of the land's
 // territory shortest of its share; gap: what its territories are short of as GIVING counts it, less what they have
@@ -494,7 +561,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
         struct sn_unit *m = &z->m[nn++];
         if (o && o->id == unit_get_serial(u)) *m = *o;
-        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_serial(u); m->ter = (short)r; }
+        else { memset(m, 0, sizeof *m); m->u = u; m->id = unit_get_serial(u); m->ter = (short)r; sn_rejoin(idx, m); }
         m->pool = (uint8_t)pool;
         if (!m->scout && (m->ter < 0 || m->ter >= n || g_ter.t[m->ter].water)) m->ter = (short)r;
     }
@@ -528,6 +595,21 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         int v = (g_pr_share[idx][r] * np[SNP_MAIN] + 500) / 1000, was = z->tc[r], band = was * SN_BAND > SN_BAND_MIN ? was * SN_BAND : SN_BAND_MIN;
         if (v && was && abs(v - was) < band && !(s->t[r].foe > 0 && s->t[r].role != TVR_NONE)) v = was;
         tc[r] = v; z->tc[r] = (short)(v > 32767 ? 32767 : v);
+    }
+    if (EXPAND_ACROSS(idx)) {   // ISLAND GUARD (work.c ACROSS THE WATER): a territory off its home land with a building of its there
+        // (a foundation too) holds SN_ISLE_GUARD of the main force at least, taken from the home territory with the most -
+        // without, its first settlements across the water stood alone: 33 citizens of it killed a game against the
+        // outposts' 10 (their guard and towers), 17 of them by enemy soldiers, 13 by ships (head-to-head, 12 seeds)
+        unsigned home = (unsigned)ex_home(pl);
+        for (int r = 0; r < n && home; r++) {
+            if (g_ter.t[r].water || s->t[r].bld < 1 || tc[r] >= SN_ISLE_GUARD || area_id(g_ter.t[r].c, 2) == home || s->t[r].state == TV_UNSAFE) continue;
+            int h = -1;
+            for (int o = 0; o < n; o++) if (!g_ter.t[o].water && area_id(g_ter.t[o].c, 2) == home && (h < 0 || tc[o] > tc[h])) h = o;
+            int give = h >= 0 ? SN_ISLE_GUARD - tc[r] : 0;
+            if (h >= 0 && tc[h] - give < SN_MIN) give = tc[h] - SN_MIN;
+            if (give <= 0) continue;
+            tc[h] -= give; tc[r] += give; z->tc[h] = (short)tc[h]; z->tc[r] = (short)tc[r];
+        }
     }
     if (nst > nat) {   // A SCENARIO'S TARGETS: a defend target's share
         static uint8_t dfl[PR_T];
@@ -622,9 +704,14 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         int cn = 0, bi = -1, bd = 0;
         st_side_clear(&g_sn_own);
         p->mn = 0;
+        // those the ferry has taken (walking to its shore, aboard) are left out of the look (expand_has) but still of
+        // the push: counted as still to cross - without, a push whose every soldier was with the ferry was "nobody
+        // left", 130 of 190 pushes across, and those put off came back to a push that was over
+        p->left = p->across ? fy_push_transit(idx, k) : 0; p->over = 0;
         for (int i = 0; i < nn; i++) {
             if (z->m[i].ter != p->from || z->m[i].scout || z->m[i].pool == SNP_AA) continue;
             ivec2 q = unit_get_tile(z->m[i].u);
+            if (p->across) { unsigned ql = area_id(q, 2); if (ql == p->to_land) p->over++; else { p->left++; continue; } }   // ACROSS: the middle and the strength of those over
             sx += q.x; sy += q.y; cn++;
             if (z->m[i].pool == SNP_MAIN) { msx += q.x; msy += q.y; p->mn++; }
             st_side_add(&g_sn_own, z->m[i].u);
@@ -646,7 +733,12 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (ti >= 0 && !stg[ti].u && ivec2_dist2(mid, stg[ti].at) <= SN_TARGET_AT * SN_TARGET_AT) ti = -1;   // an area reached
         const char *end = NULL;
         float ratio = 0;
-        if (!cn) end = "nobody left";
+        if (p->across && p->left && (!p->over || p->left * 4 > p->left + p->over)) {   // ACROSS: the ferry still at it - the beach held meanwhile
+            if (now - p->start_t < SN_CROSS_T) continue;
+            if (!p->over) end = "not carried over in time";
+        }
+        if (end) { }
+        else if (!cn && !p->left) end = "nobody left";
         else if (p->mn < SN_SIEGE_ESCORT) end = "too few soldiers left for its siege";   // siege alone is no push (the player 2026-11-16: "sometimes siege attacks completly alone")
         else if (ti >= 0) {
             stage_foe(pl, stg[ti].at);
@@ -741,6 +833,14 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
             if (o < (unsigned)n && !g_ter.t[o].water && s->t[o].ebld && (into < 0 || s->t[o].ebld > s->t[into].ebld)) into = (int)o;
         }
+        int across = 0;
+        if (into < 0 && PUSH_ACROSS(idx)) {   // ACROSS: no enemy beside it over land - one across the water
+            wk_across_build();
+            for (int q = 0; r < g_wkx.n && q < g_wkx.no[r]; q++) {
+                unsigned o = g_wkx.o[r][q];
+                if (o < (unsigned)n && s->t[o].ebld && (into < 0 || s->t[o].ebld > s->t[into].ebld)) { into = (int)o; across = 1; }
+            }
+        }
         int ti = -1;   // A SCENARIO'S TARGETS: a neighbour with an attack target first, else the enemy's nearest one
         for (int k = 0; k < g_ter.t[r].nbn && nat && ti < 0; k++) {
             unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
@@ -768,7 +868,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         // which the view counts (territories.c ebld) and a push does not know; no push started again in 20 minutes):
         // an enemy territory with no building it sees or remembers is pushed into all the same, at its middle - there
         // its soldiers see what stands, and the push goes on at that, or holds the ground as cleared.
-        ivec2 aim = ti >= 0 ? stg[ti].at : bi >= 0 ? eb[bi].p : g_ter.t[into].c;
+        ivec2 aim = ti >= 0 ? stg[ti].at : bi >= 0 ? eb[bi].p : g_ter.t[into].c, beach = aim;
+        if (across && !sn_beach(idx, area_id(g_ter.t[into].c, 2), aim, &beach)) continue;   // no beach out of its towers' reach
         st_side_clear(&g_sn_own);
         for (int i = 0; i < nn; i++) {
             if (z->m[i].ter != r || z->m[i].scout || z->m[i].pool == SNP_AA) continue;
@@ -815,9 +916,11 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         struct sn_push *p = &z->push[slot];
         p->on = 1; p->from = (short)r; p->into = (short)into; p->at = aim; p->end_t = 0; p->way_t = 0; p->breach = 0; p->near_t = p->force_t = p->wait = p->hold_t = 0;
+        p->across = across; p->from_land = area_id(rally[r], 2); p->to_land = area_id(g_ter.t[into].c, 2); p->beach = beach; p->left = cn; p->over = 0; p->start_t = now ? now : 1;
         z->pushes++;
-        if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d - %d soldiers and siege at the %s at %d,%d, judged %.2f (enemy there: %d)\n",
-                              idx, now / 60000.0, r, into, cn, ti >= 0 ? "scenario's target" : "building", p->at.x, p->at.y, (double)ratio, g_sgs_foe.n);
+        if (g_log) log_locked("# stations: P%u at %.1f min: territory %d pushes into %d%s - %d soldiers and siege at the %s at %d,%d, judged %.2f (enemy there: %d)%s\n",
+                              idx, now / 60000.0, r, into, across ? " across the water" : "", cn, ti >= 0 ? "scenario's target" : "building", p->at.x, p->at.y, (double)ratio, g_sgs_foe.n,
+                              across ? " - the ferry carries them to the beach" : "");
     }
     // SCOUTS
     int unseen = 0, due = 0;
@@ -1202,6 +1305,15 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 m->order_t = now ? now : 1; m->to = unit_get_tile(gate); m->wait_t = 0; z->orders++; z->gates++;
                 continue;
             }
+        }
+        if (pu && pu->across && area_id(p, 2) != pu->to_land) {   // ACROSS: not over yet - at its station till the ferry takes it
+            if (ivec2_dist2(p, d) <= SN_NEAR * SN_NEAR || (m->order_t && ivec2_dist2(m->to, d) <= 36 && now - m->order_t < SN_REORDER)) { m->wait_t = 0; continue; }
+            sn_order(z, m, i, d, 1, now); m->wait_t = 0; continue;
+        }
+        if (pu && pu->across && pu->left * 4 > pu->left + pu->over) {   // ACROSS: over, three quarters of them not yet - the beach held
+            d = pu->beach;
+            if (ivec2_dist2(p, d) <= 6 * 6 || (m->order_t && ivec2_dist2(m->to, d) <= 36 && now - m->order_t < SN_REORDER)) { m->wait_t = 0; continue; }
+            sn_order(z, m, i, d, 1, now); m->wait_t = 0; continue;
         }
         if (pu && pu->breach) {   // A BREACH: the siege (everybody when it has none there) at the piece, the rest by it
             ee_unit *piece = sn_wall_at(pl, pu->wall);

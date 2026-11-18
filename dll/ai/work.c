@@ -80,9 +80,60 @@ internal int wk_danger(unsigned idx, ivec2 p) {
     }
     return 0;
 }
+// ACROSS THE WATER ([ai_base] expand_across; the player 2026-11-18: expansion and pushes across water "should make
+// expansion and pushes across water possible by drawing from the ferry pool, not be a separate system"): a land
+// territory is beside another land's territory that touches the same sea territory, or one of two seas side by side -
+// as a territory over land is beside its neighbour. The ferry (ferry.c) carries what goes over. With it build.c lays a
+// Settlement and a tower by the mines there (TOWER FIRST; on a land with none of its citizens the foundation laid as its
+// own - the game's placement makes none without a builder), the ferry brings builders to it (bd_waits) and miners to the
+// free places, the stations an ISLAND GUARD.
+// MEASURED 2026-11-18 against the outposts (expand.c; head-to-head, mirrored, 12 seeds, Small Islands large, 4 AIs, epoch
+// 5, 60 min; with expand_islands=0 for this side), per AI outposts -> this: islands held besides home 0.40 -> 0.96, drop
+// sites there 2.8 -> 4.6, citizens there 14 -> 25, miners 8 -> 10, citizens ferried 20 -> 53; soldiers +2.7 (se 3.5),
+// kills +1.8 (6.2), workers +3.5 (2.3), losses +18 (5.7): citizens killed 11 -> 27 (enemy soldiers 6.5 -> 17, ships 3.5 ->
+// 8). Before the guard and the tower first 33 were killed; before the foundation laid as its own nothing settled at all.
+// More ground held and worked for more citizens lost: OFF, the player's call.
+#define WK_ACROSS 16
+internal struct { unsigned version; int n; uint16_t (*o)[WK_ACROSS]; uint8_t *no; } g_wkx;
+#define EXPAND_ACROSS(idx) PV(idx, g_v_wk_across, g_wk_across)
+internal void wk_across_build(void) {
+    if (g_wkx.o && g_wkx.version == g_ter.version && g_wkx.n == g_ter.n) return;
+    free(g_wkx.o); free(g_wkx.no);
+    g_wkx.n = g_ter.n; g_wkx.version = g_ter.version;
+    g_wkx.o = calloc((size_t)g_ter.n + 1, sizeof *g_wkx.o); g_wkx.no = calloc((size_t)g_ter.n + 1, 1);
+    if (!g_wkx.o || !g_wkx.no) { g_wkx.n = 0; return; }
+    for (int r = 0; r < g_ter.n; r++) {
+        if (g_ter.t[r].water) continue;
+        unsigned land = area_id(g_ter.t[r].c, 2);
+        for (int i = 0; i < g_ter.t[r].nbn; i++) {
+            unsigned w1 = g_ter.nb[g_ter.t[r].nb0 + i].to;
+            if (w1 >= (unsigned)g_ter.n || !g_ter.t[w1].water) continue;
+            for (int j = -1; j < g_ter.t[w1].nbn; j++) {   // the sea itself (-1), then the seas beside it
+                unsigned w = j < 0 ? w1 : g_ter.nb[g_ter.t[w1].nb0 + j].to;
+                if (w >= (unsigned)g_ter.n || !g_ter.t[w].water) continue;
+                for (int k = 0; k < g_ter.t[w].nbn; k++) {
+                    unsigned o = g_ter.nb[g_ter.t[w].nb0 + k].to, q;
+                    if (o >= (unsigned)g_ter.n || g_ter.t[o].water || area_id(g_ter.t[o].c, 2) == land) continue;
+                    for (q = 0; q < g_wkx.no[r] && g_wkx.o[r][q] != o; q++) ;
+                    if (q == g_wkx.no[r] && g_wkx.no[r] < WK_ACROSS) g_wkx.o[r][g_wkx.no[r]++] = (uint16_t)o;
+                }
+            }
+        }
+    }
+}
+// is land territory r across the water from one it holds (safe)
+internal int wk_across_held(struct tv_st *s, unsigned r) {
+    wk_across_build();
+    if (r >= (unsigned)g_wkx.n) return 0;
+    for (int q = 0; q < g_wkx.no[r]; q++) {
+        unsigned o = g_wkx.o[r][q];
+        if (o < (unsigned)s->n && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE) return 1;
+    }
+    return 0;
+}
 // what a site's distance is multiplied by, by its territory: 1 backland, 2 a front it holds; beside one it holds
-// (WITHIN REASON, below) 3 one it has a building in, 6 one nobody has a building in; 0: not to be worked (water, being lost,
-// another's, far from everything of its)
+// (WITHIN REASON, below) 3 one it has a building in, 6 one nobody has a building in; across the water from one it holds
+// (ACROSS THE WATER) 5 and 10; 0: not to be worked (water, being lost, another's, far from everything of its)
 internal int wk_cost(struct tv_st *s, unsigned r) {
     if (r >= (unsigned)s->n || g_ter.t[r].water || s->t[r].state == TV_UNSAFE) return 0;
     if (s->t[r].role == TVR_BACK) return 1;
@@ -94,11 +145,12 @@ internal int wk_cost(struct tv_st *s, unsigned r) {
     // does not hold is worked only beside one it holds, with no enemy soldier seen in it and no building of another's -
     // a building of its own there changes the price, not that.
     if (s->t[r].ebld || s->t[r].state != TV_QUIET) return 0;
-    int held = 0;
+    int held = 0, across = 0;
     for (int k = 0; k < g_ter.t[r].nbn && !held; k++) {
         unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
         held = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE;
     }
+    if (!held && EXPAND_ACROSS((unsigned)(s - g_tv) & 15) && wk_across_held(s, r)) held = across = 1;   // ACROSS THE WATER
     if (!held) {   // it holds nothing yet (the start: a Capitol is one building, TV_HELD make a territory its own): where it has a building, and beside
         for (int o = 0; o < s->n; o++) if (!g_ter.t[o].water && s->t[o].role != TVR_NONE) return 0;
         held = s->t[r].bld >= 1;
@@ -108,9 +160,9 @@ internal int wk_cost(struct tv_st *s, unsigned r) {
         }
         if (!held) return 0;
     }
-    if (s->t[r].bld >= 1) return 3;
+    if (s->t[r].bld >= 1) return across ? 5 : 3;
     if (s->t[r].ebld || s->t[r].abld) return 0;   // somebody lives there: no ground to walk into or settle (an AI's Settlement and tower by a mine in its neighbour's home shot that neighbour's citizens at their work: 34 to 52 of an AI's dead in 40 minutes)
-    return 6;
+    return across ? 10 : 6;
 }
 internal int wk_workable(unsigned idx, ivec2 p) { return wk_cost(&g_tv[idx & 15], ter_near(p.x, p.y)) > 0; }   // garrison.c: a place its citizens may go to
 internal int wk_beside(ivec2 a, ivec2 b) {   // garrison.c: the same territory, or two side by side

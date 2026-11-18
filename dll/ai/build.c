@@ -77,6 +77,24 @@
 #define BD_WATCH_EVERY 120000   // A WATCH TOWER: between two
 #define BD_WATCH_NEAR 8         // ... none within this many tiles of a defence of its
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
+// ACROSS THE WATER (work.c): the lands where a foundation of its found no free citizen on its land to build it - the
+// ferry (ferry.c) brings citizens there as to free places at mines, with no drop site of its there yet
+#define BD_WAIT_LANDS 8
+internal struct { uint32_t t; int n; unsigned land[BD_WAIT_LANDS]; ivec2 at[BD_WAIT_LANDS]; } g_bd_wait[16];
+internal int bd_waits(unsigned idx, unsigned land, ivec2 *at) {
+    uint32_t now = game_time();
+    if (!g_bd_wait[idx & 15].t || now < g_bd_wait[idx & 15].t || now - g_bd_wait[idx & 15].t > 3 * BD_EVERY) return 0;
+    for (int k = 0; k < g_bd_wait[idx & 15].n; k++) if (g_bd_wait[idx & 15].land[k] == land) { if (at) *at = g_bd_wait[idx & 15].at[k]; return 1; }
+    return 0;
+}
+internal int bd_citizen_on(ee_player *pl, unsigned land) {   // a citizen of its stands on that land
+    int count = 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (td && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_citizen_type(unit_type_get_id(td)) && area_id(unit_get_tile(u), 2) == land) return 1;
+    }
+    return 0;
+}
 internal struct bd_st {
     uint32_t claim_t; unsigned claims;   // A CLAIM: the last one, how many
     const char *claim_why; int claim_n[4];   // ... the last look: what held it back; territories nobody holds, quiet, beside a guarded one of its, safe
@@ -90,7 +108,7 @@ internal struct bd_st {
     uint32_t fdock_t; unsigned fdocks;   // A FISHING DOCK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
-    unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls;   // walls: builders sent to unfinished wall pieces
+    unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls, across;   // walls: builders sent to unfinished wall pieces
     int open, mines, mines_drop, mines_guard;   // the last look: unfinished buildings; mines in reach, those with a drop site, with a defence
 } g_bd[16];
 // a herd's living grown animals (A HERD'S SETTLEMENT: more than HERDS KEPT leaves, one to hunt)
@@ -242,6 +260,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     }
     b->open = no;
     int sends = 0, pile = no - open_fields;   // the unfinished that are no fields (a row of new fields is no pile)
+    g_bd_wait[idx].n = 0; g_bd_wait[idx].t = now ? now : 1;
     for (int i = 0; i < no && sends < (pile >= BD_PILE ? 2 * BD_SENDS : BD_SENDS) && nf; i++) {   // BUILDERS
         ee_unit *site = field_site(openb[i]);
         // MORE BUILDERS WHEN THEY PILE UP: one citizen a building, as before, while few stand unfinished; 2 a building
@@ -262,6 +281,11 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
         // nor along a way with enemy soldiers on it (P2's builders walked through P4's army to a foundation behind
         // it, 36 dead: attack.c citizens_safety)
+        if (bk < 0 && land && g_bd_wait[idx].n < BD_WAIT_LANDS) {   // ACROSS THE WATER: nobody of its on that land to build it
+            int k = 0;
+            while (k < g_bd_wait[idx].n && g_bd_wait[idx].land[k] != land) k++;
+            if (k == g_bd_wait[idx].n) { g_bd_wait[idx].land[k] = land; g_bd_wait[idx].at[k] = p; g_bd_wait[idx].n++; }
+        }
         if (bk < 0 || path_raided(pl, unit_get_x(freec[bk]), unit_get_y(freec[bk]), p.x, p.y) || !bd_send(pl, freec[bk], openb[i])) continue;
         freec[bk] = freec[--nf];
         sends++; b->sent++;
@@ -424,7 +448,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             for (int j = 0; j < ndef && !guard; j++) guard = abs(def[j].x - p.x) <= BD_GUARD && abs(def[j].y - p.y) <= BD_GUARD;
             b->mines_drop += has_drop; b->mines_guard += guard;
             if (raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // not a mine under an enemy tower it has seen
-            if (!has_drop) { if (score < sbest) { sbest = score; sp = p; smetal = r >= 5; } }
+            // TOWER FIRST across the water (c 5 or 10: work.c ACROSS THE WATER; the player 2026-11-14: "the citezens
+            // imediatly start building a tower ... than a towncenter"): its mine gets its tower before its Settlement
+            if ((c == 5 || c == 10) && !guard) { if (score < tbest) { tbest = score; tp = p; } }
+            else if (!has_drop) { if (score < sbest) { sbest = score; sp = p; smetal = r >= 5; } }
             else if (!guard && score < tbest) { tbest = score; tp = p; }
         }
         if (!type && !placed && sbest < 0x7FFFFFFF && !open_settle && !wait[1] && ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
@@ -695,7 +722,12 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     }
     if (type) {
         census_build_ask(bm, type);   // the test log's count: the mod's, not the game's entry
-        ok = hook_place(bm, type, at.x, at.y);
+        // ACROSS THE WATER: on a land with no citizen of its the game's placement makes no foundation (it looks for a
+        // builder first): laid every minute from 43 to 59, it stood once the outposts' citizens came - laid as its own,
+        // a builder's start pays it, and BUILDERS above has the ferry bring citizens to it
+        unsigned aland = area_id(at, 2);
+        if (EXPAND_ACROSS(idx) && aland && !bd_citizen_on(pl, aland)) { ok = place_foundation(pl, type, at.x, at.y) != NULL; if (ok) b->across++; }
+        else ok = hook_place(bm, type, at.x, at.y);
         if (!ok) b->refused++;
         else {
             int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : pr_kind(type) >= 0 ? 4 : 2;
@@ -713,9 +745,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         b->log_t = now ? now : 1;
         log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings | mines in reach %d, with a drop site %d, with a defence %d | "
                    "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
-                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, fishing docks %u\n",
+                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, fishing docks %u, laid across the water %u\n",
                    idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
-                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->fdocks);
+                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->fdocks, b->across);
     }
 }
 internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }

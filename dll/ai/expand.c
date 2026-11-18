@@ -345,17 +345,17 @@ internal struct rs_st {
 // manager as the outposts' ferry's (expand_ship, expand_refuses, expand_has, expand_unload_ok)
 #define FY_TRIPS 16   // trips on at once, each its own transport
 struct fy_trip {
-    int phase, kind;                      // phase 0 none, 1 the transport to the pick-up, 2 boarding, 3 crossing; kind 1 soldiers, 2 citizens
+    int phase, kind;                      // phase 0 none, 1 the transport to the pick-up, 2 boarding, 3 crossing; kind 1 soldiers, 2 citizens, 3 a push's soldiers
     struct ex_unit ship, pass[16]; int npass;
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
     uint32_t since, load_t, reissue;
-    ivec2 drop_w, via, at; int has_via, via_done, imp; float risk; uint32_t rate_t; unsigned no;   // THE CROSSING (crossing.c): the water off the drop, the point off the line it goes through, where the transport was last; an important delivery, its risk
+    ivec2 drop_w, via, at; int has_via, via_done, imp; float risk; uint32_t rate_t; unsigned no; int push, push_ter;   // kind 3: the push (stations.c ACROSS) and its territory   // THE CROSSING (crossing.c): the water off the drop, the point off the line it goes through, where the transport was last; an important delivery, its risk
 };
 internal struct fy_st {
     struct fy_trip t[FY_TRIPS];
     uint32_t look_t, want_t, log_t, order_t[4];   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold); order_t: transports ordered and not come yet
     int last_kind;                        // the kind of the last trip started (TURNS, ferry.c)
-    uint32_t risky_t[3];                  // by kind: since when no trip of it went for the risk (THE CROSSING: the longer, the more it takes)
+    uint32_t risky_t[4];                  // by kind: since when no trip of it went for the risk (THE CROSSING: the longer, the more it takes)
     unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, beached;
 } g_fy[16];
 // the ferry service's trip that has u as its transport (pass: or as a passenger), NULL: none

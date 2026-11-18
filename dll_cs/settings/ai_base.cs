@@ -706,6 +706,18 @@ class ai_base
         /// danger with a full load only; held, the transport waits off the shore unloaded. 0 = off
         [advanced]
         bool ferry_safety = true;
+        /// Expansion across the water as over land (the game's computer player off): a territory across a sea (or two seas
+        /// side by side) from one the AI holds counts as beside it - a Settlement and a tower by its mines as by a
+        /// neighbour's, after the mines over land; the ferry service brings the builders, the miners and the soldiers.
+        /// 0 = off
+        [advanced]
+        bool expand_across = false;
+        /// Pushes across the water as over land (the game's computer player off): a territory with no enemy neighbour over
+        /// land pushes into an enemy territory across a sea (or two seas side by side) - the ferry service carries its
+        /// soldiers, every free transport at once, to a beach near the target out of the enemy towers' reach; they hold
+        /// it till three quarters are over, then go in together. 0 = off
+        [advanced]
+        bool push_across = false;
         /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]

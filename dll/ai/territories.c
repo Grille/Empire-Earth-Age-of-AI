@@ -125,6 +125,7 @@ internal struct tv_st {
     unsigned turned, sheltered, refuge, refused, kept_in;   // the log's: territories turned unsafe, citizens into a fortress, sent to a refuge, sites refused, fortresses kept shut
 } g_tv[16];
 internal int g_ter_shelter = 0, g_v_ter_shelter = -1;
+internal int g_wk_across = 0, g_v_wk_across = -1, g_sn_across = 0, g_v_sn_across = -1;   // + stations.c ACROSS: [ai_base] push_across   // work.c ACROSS THE WATER: [ai_base] expand_across, [autotest] v_expand_across
 #define TER_SHELTER(idx) PV(idx, g_v_ter_shelter, g_ter_shelter)
 internal struct st_side g_tv_own, g_tv_foe;
 internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now);   // BORDER TOWERS (below)
@@ -1082,6 +1083,10 @@ internal int tv_outpost_fortress(unsigned idx) { return TER_SHELTER(idx & 15) >=
 internal void territories_install(const char *autotest_ini) {
     g_ter_shelter = g_set_ai[1].territory_shelter ? 1 : 0;
     g_border_towers = g_set_ai[1].border_towers;
+    g_wk_across = g_set_ai[1].expand_across;
+    g_sn_across = g_set_ai[1].push_across;
+    if (autotest_ini) g_v_sn_across = ini_int("autotest", "v_push_across", -1, autotest_ini);
+    if (autotest_ini) g_v_wk_across = ini_int("autotest", "v_expand_across", -1, autotest_ini);
     g_border_walls = g_set_ai[1].border_walls;
     if (autotest_ini) g_v_border_walls = ini_int("autotest", "v_border_walls", -1, autotest_ini);
     if (autotest_ini) g_v_sea_island = ini_int("autotest", "v_sea_island", -1, autotest_ini);
