@@ -590,6 +590,7 @@ internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
     g_render_thread = GetCurrentThreadId();
     g_show_tick = GetTickCount();
     frame_watch();
+    pop_limit_frame();   // pop_limit.c: the setup's most population, once the game data is there
     camera_frame(g_rd_on);
     camtrace_frame();
     // headless: nobody watches, so only a few frames a second (the CPU for the simulation, the graphics card for

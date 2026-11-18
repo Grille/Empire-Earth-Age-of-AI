@@ -536,6 +536,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/camera.c"
 #include "engine/godmode.c"   // godmode: the whole map, any player's units and buildings as this PC's own (playas)
 #include "base/headless_win.c"
+#include "engine/pop_limit.c"   // [general] population_limit_max: the setup's most raised in the game data (display.c's frame hook)
 #include "engine/display.c"
 #include "engine/quake_shake.c"    // an earthquake shakes the view, not the camera ([camera] quake_shake)
 #include "engine/crash_box.c"   // [general] crash_dialog: a crash stays open in a box, a memory dump of it
