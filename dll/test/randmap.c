@@ -179,7 +179,17 @@ internal void randmap_ai_toggles(ee_player *pl) {
         if (g_log) fprintf(g_log, "# test epoch timer: P%d %d-%d min, first attempt at %.1f min\n", idx,
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }
-    if (!g_rm.map[0]) return;
+    if (!g_rm.map[0]) {
+        // a save or a scenario: its idle human's civilization chosen too - else the civ-selection timer's dialog at
+        // about 5 minutes stops the game time until the run's timeout: every test on the default aitest.ees did
+        // (2026-11-18: at 6.1 min after 11 s, then 8 minutes still - the random maps mark it below)
+        ee_player *me = game_players()[local_player_index()];
+        if (me && me != pl && !player_get_civ_chosen(me)) {
+            player_set_civ_chosen(me, 1);
+            if (g_log) fprintf(g_log, "# test: human P%u's civilization counts as chosen (no civ dialog)\n", local_player_index());
+        }
+        return;
+    }
     // The idle human slots, players 1 .. g_rm.humans (a multiplayer test's every PC's - never "the local player": it
     // differs per PC, and AIs allied with another human on each PC parted the game once they defeated the other):
     // civilization counts as chosen (else the civ-selection timer opens a dialog that freezes the game), and allied
