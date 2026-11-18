@@ -1,9 +1,5 @@
-# Empire Earth: Age of AI
-
+![Empire Earth: Age of AI](docs/assets/title.jpg)
 *An unofficial fan mod. Not affiliated with or endorsed by the rights holders of Empire Earth.*
-
-> **[Image: banner]** A wide shot of a big late-game battle - two armies clashing in front of a walled town, towers
-> firing, zoomed out far enough to show the scale. The mod's name over it.
 
 **Computer players worth playing against.** The original Empire Earth AI only keeps up because it cheats: it pays
 about 1% of the real prices. Take that away and it can't run an economy. Age of AI gives the computer players a
@@ -34,12 +30,6 @@ the game's code was reverse-engineered and the mod written largely with AI codin
 - **It understands scenarios.** In a scenario the AI follows the trigger system's attack and defend targets and
   respects the AI settings the map gives it.
 
-> **[Image: AI town]** An AI's base mid-game: fields round a granary, a Settlement with a tower by a gold mine, a
-> wall with towers at the front facing the enemy.
-
-> **[Image: territories]** The AI's plan drawn on the map (the debug overlay): territories outlined, which ones it
-> works, where its soldiers are stationed and where it pushes.
-
 ### Diplomacy and personalities
 
 - The AIs answer when you declare war, make peace and alliances, capitulate and sometimes betray you. They remember
@@ -48,9 +38,7 @@ the game's code was reverse-engineered and the mod written largely with AI codin
   PC lets you actually chat with them.
 - Personalities are plain text files you can edit or write yourself.
 
-> **[Image: chat]** The in-game chat with an AI answering a declaration of war in its personality's voice.
-
-### A better game for everyone
+### Graphics and QoL
 
 - **Windowed and borderless mode**, drawn by the mod's own renderer (Direct3D 11): sharp at high resolutions, with
   shadows and smoothed edges, and screenshots and recording work.
@@ -61,17 +49,15 @@ the game's code was reverse-engineered and the mod written largely with AI codin
   that share out their load.
 - **Walls** that follow the ground, a **scenario editor** that works at high resolutions, **more sound channels**.
 
-> **[Image: zoomed out]** The same spot at the game's furthest zoom and at the mod's, side by side.
-
-> **[Image: big selection]** A box selection of a few hundred soldiers, all of them selected.
+![Image: zoomed out](docs/assets/farview.jpg)
+![Ships](docs/assets/ships.jpg)
 
 ### Easy to set up
 
 Every feature has its own switch. `ageofai_config.exe` shows all of them in one window, each with its explanation
 and default, so there's no need to edit files by hand.
 
-> **[Image: settings window]** ageofai_config.exe open on the AI's page, a setting selected with its explanation
-> shown.
+![Image: settings window](docs/assets/config.jpg)
 
 ## Installing
 
