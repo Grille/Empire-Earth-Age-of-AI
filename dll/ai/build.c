@@ -57,6 +57,11 @@
 #define BD_HOUSES_CAPITOL 4     // ... a Capitol's
 #define BD_HOUSE_REACH 9        // ... a House's tile within this of the building's, each way (the square is 10)
 #define BD_HOUSE_EVERY 60000
+#define BD_HERD_EVERY 120000   // A HERD'S SETTLEMENT: between two
+#define BD_FISH_EVERY 120000   // A FISHING DOCK: between two
+#define BD_FISH_DOCKS 4        // ... while it has fewer docks (going up too)
+#define BD_FISH_NEAR 30        // ... the fish this near a drop site of its
+#define BD_FISH_R 16           // ... and no dock of its this near the fish
 #define BD_HOUSE_PEND 180000
 #define BD_PAIR_R 5             // THE PAIR: its first Hospital and Temple this far apart at most (each way, corner to corner)
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
@@ -81,11 +86,20 @@ internal struct bd_st {
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
+    uint32_t herd_t; unsigned herds;     // A HERD'S SETTLEMENT: the last laid, how many
+    uint32_t fdock_t; unsigned fdocks;   // A FISHING DOCK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls;   // walls: builders sent to unfinished wall pieces
     int open, mines, mines_drop, mines_guard;   // the last look: unfinished buildings; mines in reach, those with a drop site, with a defence
 } g_bd[16];
+// a herd's living grown animals (A HERD'S SETTLEMENT: more than HERDS KEPT leaves, one to hunt)
+internal int bd_herd_grown(ee_herd *h) {
+    ee_unit **b = herd_get_members_begin(h), **e = herd_get_members_end(h);
+    int n = 0;
+    for (ee_unit **m = b; b && m < e && m - b < 256; m++) n += *m && unit_get_hp(*m) > 0 && unit_get_x(*m) >= 0 && unit_get_scale(*m) >= 1.0f;
+    return n;
+}
 // a citizen sent to build (as econ.c's field pass does it: a BuildRepair goal, the builder's state, its script told)
 internal int sn_holding(unsigned idx, int r, ivec2 *at);   // stations.c: a push of its holds the territory it cleared
 internal int bd_send(ee_player *pl, ee_unit *cit, ee_unit *building) {
@@ -179,6 +193,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
     int nairport = 0;
+    static ivec2 dock[32];
+    int ndock = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
     static ivec2 house[512];
     static struct { ivec2 p; int max; } town[128];
@@ -205,6 +221,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         ee_unit *st = unit_get_physics(u);
         int done = st && unit_get_finished(st);
         ivec2 p = unit_get_tile(u);
+        if (t == UT(B_DOCK) && ndock < 32) dock[ndock++] = p;   // A FISHING DOCK: its docks, going up too
         float rng, att;
         if (t == UT(B_FARM)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += !done; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
@@ -416,6 +433,77 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!type && !placed && tbest < 0x7FFFFFFF && !open_tower && !wait[2] && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, com)) {
             if (bd_spot(pl, idx, ttype, tp, 2, 5, &at)) { type = ttype; what = "a tower by a mine"; } else b->no_spot++;
         }
+        // A HERD'S SETTLEMENT (the player 2026-11-18, a Stone Age game whose AIs had hunted bare the ground round their
+        // drop sites while a herd of 8 grazed 50 tiles off: "yes, drop settlemts near heards"): before farms, while
+        // citizens wanted on food find no site (work.c food_short), a wild herd with more grown animals than HERDS KEPT
+        // leaves (one to hunt) out of every drop site's hunting reach ([ai_base] food_hunt_range) gets a Settlement 2
+        // to 6 tiles from it - in a territory its citizens work or beside one, the cheapest first, then the nearest to
+        // the base; one going up at a time, one every BD_HERD_EVERY (a herd walks: one laid where it stood is soon off)
+        if (!type && !placed && !open_settle && !wait[1] && g_wk[idx].food_short > 0 && g_herd_keep >= 0 &&
+            (current_epoch(pl) < FARM_EPOCH || end_epoch() < FARM_EPOCH) &&
+            (!b->herd_t || now < b->herd_t || now - b->herd_t >= BD_HERD_EVERY) &&
+            ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
+            int hbest = 0x7FFFFFFF, reach2 = g_hunt_range * g_hunt_range;
+            ivec2 hp = iv2(0, 0);
+            for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+                ee_unit *a = it.u;
+                ee_player *o = unit_get_owner(a);
+                if (!o || player_get_index(o) != 0 || unit_type_get_family(it.td) != KIND_ANIMAL || unit_get_resource(a) != 2 ||
+                    unit_get_hp(a) <= 0 || unit_get_scale(a) < 1.0f || food_fierce(unit_type_get_id(it.td))) continue;
+                ee_herd *h = unit_get_herd(a);
+                if (!h || bd_herd_grown(h) <= g_herd_keep) continue;
+                ivec2 p = unit_get_tile(a);
+                int c = wk_cost(s, ter_near(p.x, p.y)), reached = 0;
+                if (!c) continue;
+                int score = c * 1000000 + ivec2_dist2(p, base);
+                if (score >= hbest) continue;
+                for (int j = 0; j < nds && !reached; j++) reached = ivec2_dist2(dsite[j], p) <= reach2;
+                if (reached || raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;
+                hbest = score; hp = p;
+            }
+            if (hbest < 0x7FFFFFFF) {
+                if (bd_spot(pl, idx, UT(B_SETTLEMENT), hp, 2, 6, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by a herd"; b->herd_t = now ? now : 1; b->herds++; }
+                else b->no_spot++;
+            }
+        }
+        // A FISHING DOCK (the player 2026-11-18: "improve fishing" - his Stone Age game had 75 fish nobody worked: a dock
+        // came only as a harbour, and the harbours run only while the fleet does, which wants an enemy across the water):
+        // while citizens wanted on food find no site and the seas are fished (sea_fishing), the fish nearest a drop site
+        // of its - BD_FISH_NEAR tiles at most, no dock of its within BD_FISH_R of it - gets a dock on the shore beside it,
+        // on that drop site's land; BD_FISH_DOCKS docks at most, one every BD_FISH_EVERY. Laid as a harbour's dock is
+        // (fleet.c hb_lay: the game's placement says it laid a dock it didn't); fleet.c boats_tick trains the boats there
+        if (!type && !placed && g_wk[idx].food_short > 0 && SEA_FISHING(idx) && ndock < BD_FISH_DOCKS && nds &&
+            (!b->fdock_t || now < b->fdock_t || now - b->fdock_t >= BD_FISH_EVERY) &&
+            ut_has(UT(B_DOCK)) && can_build(pl, UT(B_DOCK))) {
+            int fbest = BD_FISH_NEAR * BD_FISH_NEAR + 1;
+            ivec2 fp = iv2(0, 0);
+            unsigned fland = 0;
+            for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+                if (unit_type_get_id(it.td) != UT(RES_FISH) || unit_get_amount(it.u) <= 0) continue;
+                ivec2 p = unit_get_tile(it.u);
+                int d = 0x7FFFFFFF, dj = -1, docked = 0;
+                for (int j = 0; j < nds; j++) { int dd = ivec2_dist2(dsite[j], p); if (dd < d) { d = dd; dj = j; } }
+                if (dj < 0 || d >= fbest) continue;
+                for (int j = 0; j < ndock && !docked; j++) docked = ivec2_dist2(dock[j], p) <= BD_FISH_R * BD_FISH_R;
+                if (docked || raiders_near(pl, p, 12) || wk_danger(idx, p)) continue;
+                fbest = d; fp = p; fland = area_id(dsite[dj], 2);
+            }
+            if (fland) {
+                int laid = 0, tried = 0;
+                for (int r = 1; r <= 8 && !laid && !tried; r++)
+                    for (int ax = -r; ax <= r && !laid && !tried; ax++)
+                        for (int ay = -r; ay <= r && !laid && !tried; ay++) {
+                            ivec2 q = iv2(fp.x + ax, fp.y + ay);
+                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_land(q) != fland || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                            tried = 1;   // the spot: laid now, or the price not there yet (the next look)
+                            if (!hb_lay(pl, idx, bm, current_epoch(pl), UT(B_DOCK), q)) break;
+                            laid = 1; placed = 1; b->fdock_t = now ? now : 1; b->fdocks++;
+                            for (int rr = 2; rr < 7; rr++) g_bd_com[idx][rr] += unit_cost(pl, UT(B_DOCK), rr);
+                            if (g_log) log_locked("# build: P%u at %.1f min: a fishing dock - %d at %d,%d by the fish at %d,%d: laid\n", idx, now / 60000.0, UT(B_DOCK), q.x, q.y, fp.x, fp.y);
+                        }
+                if (!tried) b->no_spot++;
+            }
+        }
         // A CLAIM (the player 2026-11-15: "controlling the whole map is the endgoal ... but within reason"; "the ai also
         // dosnt yet clam territoires that have no resources in it, they are still needed for map control"): a tower in
         // the middle of a territory nobody has a building in, beside one it holds where BD_CLAIM_GUARD of its soldiers
@@ -625,9 +713,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         b->log_t = now ? now : 1;
         log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings | mines in reach %d, with a drop site %d, with a defence %d | "
                    "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
-                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d)\n",
+                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, fishing docks %u\n",
                    idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
-                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3]);
+                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->fdocks);
     }
 }
 internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }
