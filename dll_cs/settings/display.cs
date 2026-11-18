@@ -7,7 +7,8 @@ class display
 {
     enum mode_choice
     {
-        /// fullscreen (original)
+        /// fullscreen (original) - the game's own DirectDraw draws: the mod's renderer, its shadows, water and
+        /// smooth units need windowed or borderless
         native,
         /// a normal window with the resolution chosen in the game settings
         windowed,
@@ -17,7 +18,7 @@ class display
         borderless,
     }
     /// Display mode (in windowed and borderless mode Alt+Enter switches between the two):
-    mode_choice display_mode = mode_choice.native;
+    mode_choice display_mode = mode_choice.borderless;
     enum lock_mouse_choice
     {
         /// never
@@ -97,19 +98,18 @@ class display
     {
         enum renderer_choice
         {
-            /// own when the game folder has no ddraw.dll (Windows' own DirectDraw can't run the game windowed),
-            /// else wrapper
-            auto,
-            /// the game draws through the ddraw.dll in its folder (DDrawCompat, dgVoodoo ...)
+            /// the game draws through the ddraw.dll in its folder (DDrawCompat, dgVoodoo ...); the settings
+            /// below marked "the own renderer only" do nothing then
             wrapper,
             /// the mod's own renderer on Direct3D 11 (screenshots, recording and the game's warning dialogs work;
-            /// its picture matches DDrawCompat's)
+            /// its picture matches DDrawCompat's). A ddraw.dll in the game folder - the wrapper GOG and NeoEE ship -
+            /// stays where it is and is not loaded: the mod loads Windows' own ddraw.dll first
             own,
         }
         ///
         /// --- Renderer ---
-        /// Windowed/borderless only: what draws the picture (with own, keep wrapper DLLs out of the game folder):
-        renderer_choice renderer = renderer_choice.auto;
+        /// Windowed/borderless only (fullscreen always draws through the game's DirectDraw): what draws the picture:
+        renderer_choice renderer = renderer_choice.own;
         /// [display] overlay - the debug overlay's layers by the names their producers give them
         ///
         struct overlay_fields

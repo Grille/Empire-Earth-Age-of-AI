@@ -10,14 +10,19 @@ changes the simulation: in a lockstep game different values make the PCs' games 
 - `[display] display_mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the
   mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor). The window
   has the game resolution from the game settings (scaled down if it doesn't fit the screen).
-- `[display] display_mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
-  (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`), so
-  Windows display scaling doesn't blur it; `smooth_scaling=1` filters the scaled image.
-- `[display] renderer=auto` (both window modes): what draws the picture. Windows' own DirectDraw can't run the game
-  in a window, so either a DirectDraw wrapper (`ddraw.dll` in the game folder) or the mod's own renderer on
-  Direct3D 11 (`own`; screenshots, recording and the game's warning dialogs work with it - docs/renderer.md) does.
-  `auto` takes the own renderer when the folder has no `ddraw.dll`, else the wrapper. Wrappers the mod was tested
-  with:
+- `[display] display_mode=borderless` (default since 2026-11-18; `native`, the game's fullscreen, before): a frameless
+  window over the whole monitor, the game image scaled to it (aspect kept). Alt+Enter switches between window and
+  borderless. The window is DPI-aware (`dpi_aware`), so Windows display scaling doesn't blur it; `smooth_scaling=1`
+  filters the scaled image. The mod's own renderer (below) runs only in the two window modes: `native` draws through
+  the game's DirectDraw, without the renderer's shadows, water, smooth units and the rest.
+- `[display] renderer=own` (default; both window modes): what draws the picture. Windows' own DirectDraw can't run
+  the game in a window, so either the mod's own renderer on Direct3D 11 (`own`; screenshots, recording and the game's
+  warning dialogs work with it - docs/renderer.md) or a DirectDraw wrapper (`wrapper`: the `ddraw.dll` in the game
+  folder) does. With `own` a `ddraw.dll` in the game folder - GOG and NeoEE ship dgVoodoo there - stays where it is
+  and is never loaded: the mod loads Windows' own `ddraw.dll` first and hands it to the engine's DLL scan too (the
+  start's log: `# render: Windows' ddraw.dll loaded - the game folder's ddraw.dll (a wrapper) stays out`). Until
+  2026-11-18 the default was `auto`, which took the wrapper whenever the file was there - most players had one and
+  never saw the own renderer. Wrappers the mod was tested with:
   - [DDrawCompat](https://github.com/narzoul/DDrawCompat): fast (2560x1440: ~4.5 ms per frame vs ~10 with
     dgVoodoo). Put `CpuAffinity = all` into `DDrawCompat-Empire Earth.ini` next to the exe (its default runs the
     whole game on one CPU core). The window gets a classic (Windows 98 style) frame, which DDrawCompat draws itself.

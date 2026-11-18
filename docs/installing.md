@@ -71,8 +71,10 @@ uninstall (with the settings in a file: switch that off first - the engine won't
 missing from an older `ageofai.ini` takes its built-in default. The DLL writes a log to
 `ageofai\ageofai_log.csv`.
 
-For windowed or borderless play set `[display] display_mode`; the mod draws the picture itself or through a
-DirectDraw wrapper such as DDrawCompat ([game-fixes.md](game-fixes.md#window-and-picture)).
+The game starts borderless (`[display] display_mode`; Alt+Enter for a window, `native` for the game's fullscreen),
+and the mod draws the picture itself (`[display] renderer = own`). A `ddraw.dll` wrapper in the game folder - GOG and
+NeoEE ship dgVoodoo - needn't be removed: the mod doesn't load it unless `renderer = wrapper`
+([game-fixes.md](game-fixes.md#window-and-picture)).
 
 ## NeoEE
 

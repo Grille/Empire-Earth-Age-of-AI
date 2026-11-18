@@ -1198,18 +1198,64 @@ internal void rd_trace_install(void) {
         }
     FlushInstructionCache(GetCurrentProcess(), code, 8192);
 }
-// [display] renderer: auto 0 (own without a ddraw.dll in the game folder - the system's crashes in the T&L display DLL
-// at its start), wrapper 1, own 2 (rows.h)
-internal int render_wanted(void) {
-    if (g_set.renderer != 0) return g_set.renderer == 2;
-    char path[MAX_PATH];
-    DWORD n = GetModuleFileNameA(NULL, path, MAX_PATH);
-    char *slash = n && n < MAX_PATH ? strrchr(path, '\\') : NULL;
-    if (!slash || (size_t)(slash - path) + sizeof "\\ddraw.dll" > MAX_PATH) return 0;
+// THE GAME FOLDER'S ddraw.dll KEPT OUT ([display] renderer = own): GOG and NeoEE ship a wrapper there (dgVoodoo), and a
+// player who once set up DDrawCompat has one too - before 2026-11-18 its mere presence made the default take the wrapper,
+// and the player never knew what the own renderer gives. The display DLLs' DirectDraw goes to the mod at their load
+// anyway (render_display_loaded), but a wrapper does its own work as it loads (DDrawCompat hooks the window and GDI),
+// so it must not load at all: Windows' own ddraw.dll is loaded first - the display DLLs' imports of ddraw.dll bind to
+// the module of that name loaded already (no KnownDLL) - and the engine's DLL scan, which LoadLibrary()s every DLL of
+// the folder, gets Windows' too for that file (its LoadLibraryA / LoadLibraryExA imports; it frees what isn't a
+// plugin, the count stays even). A wrapper loaded before the mod (the scan reached it first) can't be undone: it
+// draws then, and the log says so.
+internal char g_rd_sys_ddraw[MAX_PATH];
+internal uintptr_t *g_rd_scan_slot[2], g_rd_scan_real[2];
+internal int rd_is_ddraw(const char *name) {   // a path or name whose file is ddraw.dll
+    if (!name) return 0;
+    const char *a = strrchr(name, '\\'), *s = strrchr(name, '/');
+    if (s > a) a = s;
+    return !lstrcmpiA(a ? a + 1 : name, "ddraw.dll");
+}
+internal HMODULE WINAPI rd_scan_load(LPCSTR name) {
+    return ((HMODULE (WINAPI *)(LPCSTR))g_rd_scan_real[0])(rd_is_ddraw(name) ? g_rd_sys_ddraw : name);
+}
+internal HMODULE WINAPI rd_scan_load_ex(LPCSTR name, HANDLE file, DWORD flags) {
+    return ((HMODULE (WINAPI *)(LPCSTR, HANDLE, DWORD))g_rd_scan_real[1])(rd_is_ddraw(name) ? g_rd_sys_ddraw : name, file, flags);
+}
+// 1: the own renderer may go on - Windows' ddraw.dll is the one loaded; 0: a wrapper from the game folder is in already
+internal int rd_wrapper_kept_out(void) {
+    char folder[MAX_PATH], had[MAX_PATH];
+    DWORD n = GetModuleFileNameA(NULL, folder, MAX_PATH);
+    char *slash = n && n < MAX_PATH ? strrchr(folder, '\\') : NULL;
+    if (!slash || (size_t)(slash - folder) + sizeof "\\ddraw.dll" > MAX_PATH) return 1;
     lstrcpyA(slash, "\\ddraw.dll");
-    int wrapper = GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
-    if (g_log) fprintf(g_log, "# render: renderer auto - %s\n", wrapper ? "the game folder's ddraw.dll" : "no ddraw.dll in the game folder: the own renderer");
-    return !wrapper;
+    int there = GetFileAttributesA(folder) != INVALID_FILE_ATTRIBUTES;
+    HMODULE in = GetModuleHandleA("ddraw.dll");
+    if (in && GetModuleFileNameA(in, had, MAX_PATH) && !lstrcmpiA(had, folder)) {
+        if (g_log) fprintf(g_log, "# render: the game folder's ddraw.dll (a wrapper) was loaded before the mod - it draws;"
+                                  " the own renderer needs it moved out of the folder\n");
+        return 0;
+    }
+    UINT s = GetSystemDirectoryA(g_rd_sys_ddraw, MAX_PATH);
+    if (!s || s + sizeof "\\ddraw.dll" > MAX_PATH) return 1;
+    lstrcatA(g_rd_sys_ddraw, "\\ddraw.dll");
+    HMODULE sys = LoadLibraryA(g_rd_sys_ddraw);   // kept for the game's life
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    static const char *const k_fn[2] = { "LoadLibraryA", "LoadLibraryExA" };
+    static void *const k_hook[2] = { (void *)rd_scan_load, (void *)rd_scan_load_ex };
+    int put = 0;
+    for (int i = 0; i < 2 && lle && sys; i++) {
+        g_rd_scan_slot[i] = gs_iat_slot(lle, "KERNEL32.dll", k_fn[i]);
+        if (!g_rd_scan_slot[i]) continue;
+        g_rd_scan_real[i] = *g_rd_scan_slot[i];   // whatever is there (another program's hook too): called on
+        put += gs_slot_write(g_rd_scan_slot[i], (uintptr_t)k_hook[i]);
+    }
+    if (g_log) fprintf(g_log, "# render: Windows' ddraw.dll %s%s, the engine's DLL scan given it %d/2\n", sys ? "loaded" : "NOT loaded",
+                       there ? " - the game folder's ddraw.dll (a wrapper) stays out; renderer = wrapper draws with it" : "", put);
+    return 1;
+}
+// [display] renderer: wrapper 0, own 1 (rows.h)
+internal int render_wanted(void) {
+    return g_set.renderer == 1 && rd_wrapper_kept_out();
 }
 // autotest wrapper_dll=<path>: a ddraw.dll from outside the game folder (DDrawCompat for the picture compare - the
 // player's folder holds none). Loaded before the display DLLs, their imports of ddraw.dll bind to it: a module of that

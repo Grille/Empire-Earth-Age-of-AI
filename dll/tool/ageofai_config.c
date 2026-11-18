@@ -510,6 +510,20 @@ internal void game_show(void) {
              st < 0 ? "Low-Level Engine.dll isn't there or can't be read"
                     : st ? "in ageofai\\eesettings.ini - ageofai.dll is loaded with the engine"
                          : "in the registry (the game's own way)");
+    // the picture: a wrapper's ddraw.dll in the folder is no longer what draws (render.c THE GAME FOLDER'S ddraw.dll
+    // KEPT OUT) - said here, as a player who set one up would expect it to
+    char dd[MAX_PATH + 16];
+    snprintf(dd, sizeof dd, "%sddraw.dll", dir);
+    int wrapper = GetFileAttributesA(dd) != INVALID_FILE_ATTRIBUTES;
+    o = strlen(t);
+    snprintf(t + o, sizeof t - o,
+             "\r\nPicture:  %s\r\n"
+             "          In windowed and borderless mode the mod draws the picture itself on Direct3D 11 (Display:\r\n"
+             "          renderer = own, the default) - its shadows, water and smooth units need it. Fullscreen\r\n"
+             "          (display_mode = native) always draws through the game's DirectDraw.\r\n",
+             wrapper ? "a ddraw.dll is in the game folder (a DirectDraw wrapper: GOG and NeoEE ship dgVoodoo).\r\n"
+                       "          With renderer = own it is not loaded - nothing to remove; renderer = wrapper draws with it."
+                     : "no ddraw.dll in the game folder - the mod's own renderer draws.");
     SetWindowTextA(g_game_text, t);
     EnableWindow(g_game_apply, laa == 0 && g_exe_build >= 0);
     EnableWindow(g_game_restore, backup);
