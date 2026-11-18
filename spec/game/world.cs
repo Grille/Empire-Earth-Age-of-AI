@@ -275,6 +275,14 @@ unsafe struct EEWorld
     [offset(0xCC), found(c)]
     uint32 players_n;
 
+    /// the players' count the game started with (the world's setup 0x52E7C8 sets it from the game state's +0x4F0, both
+    /// builds): a save's players block (0x53EE8A, AoC the same offset) records it, and the load (0x53E2A3) takes the
+    /// players past it for players added later - each pushed onto the game state's list with a setup slot of its own
+    /// (type 4), its stances made anew - which the world's setup then can't use: its tech tree's upgrades found no
+    /// player in game.players (EECBProcessUpgrade's +4, 0x66A091). 0x52E6B0 copies this many players
+    [offset(0xB8C), found(c)]
+    uint32 players_start;
+
     /// the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
     /// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409 (the AoC decompilation: mGameOptions)
     [offset(0x110), found(c), guess]

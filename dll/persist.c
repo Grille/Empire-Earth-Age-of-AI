@@ -31,6 +31,7 @@ internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_nv_acc),   // navy.c: the navy account (the map kind is found again)
     B(g_intel),   // intel.c: what each AI remembers (honest_vision) - unit pointers dropped on load, buildings matched again
     B(g_armies),  // armies.c: the force - its members and whether it is out (the game saves only their ai_held); pointers found again by id
+    B(g_ho_human), B(g_ho_ai),   // test/takeover.c: a handover's observer (kept in) and its stand-in
 #undef B
 };
 internal uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)

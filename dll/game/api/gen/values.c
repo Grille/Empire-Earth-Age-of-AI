@@ -3768,6 +3768,7 @@ internal uint32_t of_world_pop_total;
 internal uint32_t of_world_pop_each;
 internal uint32_t of_world_influence;
 internal uint32_t of_world_players_n;
+internal uint32_t of_world_players_start;
 internal uint32_t of_world_setup;
 internal uint32_t of_world_setup_2;
 internal uint32_t of_world_gatherer_counts;

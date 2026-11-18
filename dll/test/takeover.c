@@ -11,9 +11,11 @@
 // check would put out a player without objects, and end the game with no human left (victory_check: its objects
 // raised to 1 for the check). The new player is one of the mod's AIs from the start, its personality the one named
 // here, else one as at a game start, and its colour by that personality's as at a game start (the human's own counts
-// as free). Single player only; a save after it is not tested.
+// as free). Single player only; a save after it loads (the game's count of players from the start raised).
 internal int g_ho_human = -1;   // the player handed over (kept in), -1 none
 internal int g_ho_ai = -1;      // the computer player it was handed to
+internal void cmd_godview(char *out, const char *args);
+internal int g_ho_view_due;     // a save after a handover loaded: godview on again at the stand-in's first turn
 internal world_victory_check_fn g_ho_victory;
 internal int __thiscall hook_victory_check(ee_world *w) {
     ee_player *h = g_ho_human > 0 && (unsigned)g_ho_human < game_player_count() ? game_players()[g_ho_human] : NULL;
@@ -29,6 +31,8 @@ internal void takeover_install(void) {
     if (g_log) fprintf(g_log, "# takeover: the victory check hooked %s (the human handed over stays in)\n", ok ? "ok" : "FAILED");
 }
 internal void takeover_new_game(void) { g_ho_human = g_ho_ai = -1; }
+// a saved game loaded: both restored with the mod's state (persist.c) - the observer kept in again, watched with godview
+internal void takeover_loaded(void) { g_ho_view_due = g_ho_human >= 0; }
 // WHAT FOLLOWS THE HUMAN FOLLOWS ITS STAND-IN (the player 2026-11-16, of epoch_pacing follow and pop_follow_human: "make
 // it follow the (human) ai"): the game and the mod take the humans' epoch and population from the players the game
 // counts as human (highest_human_epoch: their tech trees' epoch; the AI's population cap 0x42F7A5: their population),
@@ -37,6 +41,12 @@ internal void takeover_new_game(void) { g_ho_human = g_ho_ai = -1; }
 // population is the stand-in's (pop_b10: the observer has no units or lists, nothing else counts it).
 internal void takeover_tick(ee_player *pl) {
     if (g_ho_ai < 0 || player_get_index(pl) != g_ho_ai || (unsigned)g_ho_human >= game_player_count()) return;
+    if (g_ho_view_due) {
+        char gm[REPLY_CAP];
+        gm[0] = 0;
+        g_ho_view_due = 0;
+        cmd_godview(gm, "on");
+    }
     ee_player *h = game_players()[g_ho_human];
     ee_tech_tree *ht = h ? player_get_tech_tree(h) : NULL, *tt = player_get_tech_tree(pl);
     if (!ht || !tt) return;
@@ -62,7 +72,6 @@ internal void takeover_tick(ee_player *pl) {
     }
 }
 
-internal void cmd_godview(char *out, const char *args);
 // a colour another player has - the human handed over (skip) not counted
 internal int ho_colour_taken(const float *k, unsigned skip) {
     for (unsigned i = 1; k && i < game_player_count(); i++) {
@@ -110,6 +119,10 @@ internal void cmd_handover(char *out, const char *args) {
     player_set_color(p, rgb);
     world_set_player(w, (int)n, p);
     world_set_player_count(w, n + 1);   // before any unit is its: unit_by_id bounds the ids by the count
+    // one of the game's players from the start too: a save counts the players past the start's count as added later,
+    // and its load can't set such a one up - a save after the handover crashed when it was loaded (the player's
+    // autosaves 2026-11-18, EECBProcessUpgrade's player not in game.players; EEWorld.players_start)
+    world_set_players_start(w, n + 1);
     world_change_pop_total(w, each * (in + 1));   // every player's share as it was
     world_recount(w, 0);
     map_sight_players(map, n + 1);

@@ -118,6 +118,7 @@ internal void research_install(const char *autotest_ini);   // research.c: unit_
 internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the force by territory
 internal void stations_new_game(void);
 internal void takeover_new_game(void);   // test/takeover.c
+internal void takeover_loaded(void);     // test/takeover.c
 internal void takeover_install(void);
 internal void takeover_tick(ee_player *pl);   // the observer's epoch and population: its stand-in's
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
@@ -447,7 +448,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     defence_new_game();
     counter_fire_new_game();
     sites_new_game();
-    if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .ageofai file
+    if (mode == 2) { persist_load(name); takeover_loaded(); }   // a saved game: the mod's state from its .ageofai file
     char r = game_state_start(state, setup, p2);
     // counted again once the new world is there: the render thread can draw the old one between the load's steps and
     // keep what it made then (the bent objects, the kept records) under the count from above - and the new map often

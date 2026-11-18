@@ -252,6 +252,14 @@ internal inline ee_influence **world_influence_at(const ee_world *o) { return (e
 internal inline uint32_t world_get_players_n(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_players_n); }
 internal inline void world_set_players_n(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_players_n) = v; }
 internal inline uint32_t *world_players_n_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_players_n); }
+// the players' count the game started with (the world's setup 0x52E7C8 sets it from the game state's +0x4F0, both
+// builds): a save's players block (0x53EE8A, AoC the same offset) records it, and the load (0x53E2A3) takes the
+// players past it for players added later - each pushed onto the game state's list with a setup slot of its own
+// (type 4), its stances made anew - which the world's setup then can't use: its tech tree's upgrades found no
+// player in game.players (EECBProcessUpgrade's +4, 0x66A091). 0x52E6B0 copies this many players
+internal inline uint32_t world_get_players_start(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_players_start); }
+internal inline void world_set_players_start(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_players_start) = v; }
+internal inline uint32_t *world_players_start_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_players_start); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
 // game.end_epoch is its +0x3E4, game.scenario_flag its +0x409 (the AoC decompilation: mGameOptions)
@@ -444,6 +452,7 @@ internal int spec_world_select(int build) {
         of_world_pop_each = 0xD4;
         of_world_influence = 0xB20;
         of_world_players_n = 0xCC;
+        of_world_players_start = 0xB8C;
         of_world_setup = 0x110;
         of_world_setup_2 = 0x51C;
         of_world_gatherer_counts = 0x9A4;
@@ -534,6 +543,7 @@ internal int spec_world_select(int build) {
         of_world_pop_each = 0xD4;
         of_world_influence = 0xB20;
         of_world_players_n = 0xCC;
+        of_world_players_start = 0xB8C;
         of_world_setup = 0x110;
         of_world_setup_2 = 0x51C;
         of_world_gatherer_counts = 0x9A4;
