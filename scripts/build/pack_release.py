@@ -2,6 +2,11 @@
 Empire Earth.exe) it is the mod as docs/installing.md "Installing" lays it out:
     ageofai.dll, ageofai_config.exe            beside the game
     ageofai/ageofai.ini, ageofai/personalities/ the mod's folder: the shipped settings and personalities
+    ageofai/README.txt, ageofai/LICENSE.txt     for the player (config/README.txt, the repository's LICENSE: the GPL
+                                                asks its text to go with the binaries); not in the game folder's root
+                                                (the player 2026-10-27: only the DLL and the config exe there). A
+                                                changelog goes beside them from the second release on (the player
+                                                2026-11-18: the first binary release needs none)
 and beside the zip ageofai_check.exe, the .eeai checker - a download of its own on the release page, never in the zip
 (the player 2026-11-02: for modders). The game's settings in a file are ageofai_config.exe's to switch on (Game).
 Built from the committed state - a clean `git archive HEAD` built anew (as scripts/build/install.sh), never the
@@ -38,6 +43,8 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
     z.write(os.path.join(build, 'config', 'texfix.eeai'), 'ageofai/texfix.eeai')
     z.write(os.path.join(build, 'config', 'language.eeai'), 'ageofai/language.eeai')
     z.write(os.path.join(build, 'config', 'setup.eeai'), 'ageofai/setup.eeai')
+    z.write(os.path.join(build, 'config', 'README.txt'), 'ageofai/README.txt')
+    z.write(os.path.join(build, 'LICENSE'), 'ageofai/LICENSE.txt')
     pers = os.path.join(build, 'config', 'personalities')
     for d, _, files in os.walk(pers):
         for f in sorted(files):
