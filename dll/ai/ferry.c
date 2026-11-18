@@ -118,7 +118,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, int kind, un
     f->kind = kind; f->from = a; f->to = b; f->ocean = seas[bs].oc;
     f->pick = seas[bs].pick; f->pick_w = seas[bs].pick_w; f->drop = seas[bs].drop; f->dest = dest;
     f->ship.u = best; f->ship.id = unit_get_serial(best);
-    f->phase = 1; f->since = now ? now : 1; f->load_t = 0; f->reissue = 0; f->esc_t = 0; f->trips++;
+    f->phase = 1; f->since = now ? now : 1; f->load_t = 0; f->reissue = 0; f->trips++;
     f->last[kind].from = a; f->last[kind].to = b; f->last[kind].t = now ? now : 1;
     unit_goal(best, goal_move((float)f->pick_w.x + 0.5f, (float)f->pick_w.y + 0.5f), 0, 0x1F40);
     for (int k = 0; k < f->npass; k++)   // to the shore meanwhile
@@ -203,15 +203,15 @@ internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
         if (f->phase == 1) {
             int there = ivec2_dist2(unit_get_tile(sh), f->pick_w) <= 49;
             if (!there && now - f->since < 120000) {
+                convoy_escort(idx, sh, f->pick_w, f->drop, 0, now);
                 if (!goal_near(sh, (float)f->pick_w.x + 0.5f, (float)f->pick_w.y + 0.5f, 2.0f))
                     unit_goal(sh, goal_move((float)f->pick_w.x + 0.5f, (float)f->pick_w.y + 0.5f), 0, 0x1F40);
                 return;
             }
             f->phase = 2; f->load_t = now ? now : 1;
         }
-        int esc = f->phase == 2 && aboard ? convoy_escort(idx, sh, f->drop, now) : 0;   // ESCORT (convoy.c): asked for once someone is aboard
+        convoy_escort(idx, sh, f->pick_w, f->drop, 0, now);   // ESCORT (convoy.c): asked for from the start - the scouts sweep the way while it comes and boards
         if (aboard == f->npass || (aboard && now - f->load_t >= FY_LOAD)) {
-            if (esc == 1 && (!f->esc_t || now - f->esc_t < CY_WAIT)) { if (!f->esc_t) f->esc_t = now ? now : 1; return; }   // its escort on the way
             int m = 0;   // those left behind are the others' again
             for (int k = 0; k < f->npass; k++) if (unit_get_x(f->pass[k].u) < 0) f->pass[m++] = f->pass[k];
             f->npass = m;
@@ -243,7 +243,7 @@ internal void ferry_act(ee_player *pl, unsigned idx, uint32_t now) {
         return;
     }
     if (now - f->since >= FY_SEA) { f->failed++; fy_end(pl, idx, f, now, "not across in 6 minutes - put off where it is"); return; }
-    convoy_escort(idx, sh, f->drop, now);   // ESCORT (convoy.c)
+    convoy_escort(idx, sh, f->pick_w, f->drop, 1, now);   // ESCORT (convoy.c)
     ee_goal *cur = unit_get_goal(sh);
     if (!cur || !goal_is_unload(cur)) unit_goal(sh, ld_unload(sh, f->drop), 0, 0x1F40);
 }

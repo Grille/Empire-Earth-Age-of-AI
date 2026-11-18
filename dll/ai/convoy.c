@@ -11,21 +11,26 @@
 // (convoy_lifeboat; the unload is given again while another order took its place) until it is empty or CY_LIFE has
 // passed; then the passengers are the others' where they landed (the stations count a soldier where it stands, work.c
 // gives a citizen the territory it stands in) and the manager ends the trip (convoy_beached).
-// ESCORT: a manager about to cross - the ferry, the outposts' ferry and its scouting, the rescue - asks each look while
-// it boards and sails (convoy_escort, renewed within CY_WISH); squadrons.c sends one: the nearest scout group on that
-// sea ahead of the transport on its way (it sees the enemy first and runs to the main squadron from what it doesn't
-// beat), else the nearest main squadron at rest with it; and enemy warships near a loaded transport are the nearest
-// main squadron's own threat (squadrons.c HOME). The answer: 0 none to be had, 1 on its way, 2 with it. A crossing
-// waits CY_WAIT at most for one on its way and sails - the outposts' ferry called a trip off when the sea on the way was
-// held (landing.c ld_sea_risk), and didn't scout an island then: no more with the escort on.
-// "# convoy:" lines: each lifeboat, each minute the counts.
+// ESCORT: a manager's transport - the ferry's, the outposts' ferry's and its scouting, the rescue's - asks each look
+// from the start of its trip, on its way to the boarding shore, boarding and crossing (convoy_escort: the crossing's
+// two ends, whether it is loaded at sea; renewed within CY_WISH); squadrons.c sends one (ESCORT there: the scouts sweep
+// the way before, at sea ahead of it and THE SCREEN). The answer: 0 none to be had, 1 on its way, 2 with it. Nobody
+// waits for it: a transport's best defence is getting there before it is sunk (the player 2026-11-18). The outposts'
+// ferry called a trip off when the sea on the way was held (landing.c ld_sea_risk), and didn't scout an island then:
+// no more with the escort on.
+// "# convoy:" lines: each lifeboat, each minute the counts (sunk escorted: loaded and sunk with its escort with it).
 // MEASURED 2026-11-17, head-to-head (Small Islands large from epoch 9, 4 AIs, 60 min, seeds 1-12 mirrored, 24 games;
 // squadrons on for all): the LIFEBOAT alone - units lost aboard sunk transports 5.0 per AI against 13.3, loaded
 // transports sunk without one 0.25 against 1.29 (1.35 lifeboats a game, 9.6 put off, 0.21 sunk on the way to the
 // beach); B - A per game losses -7.8 (se 4.0), soldiers +5.7 (5.1), kills -3.8 (3.4), workers -3.5 (2.0). On. The
 // ESCORT alone - lost aboard 11.7 against 12.3, kills -4.3 (2.8), losses -1.3 (4.5), soldiers +7.1 (5.1); the old
 // refusals 17-28 in those games, a crossing waited for its escort once: no gain shown - off. Both (and epoch 11, 12
-// games): lost aboard 8.0 against 13.9 and 6.8 against 10.8.
+// games): lost aboard 8.0 against 13.9 and 6.8 against 10.8. That first escort came when the transport was loaded
+// and its scouts ran from what they didn't beat; the escort now (asked for from the start, the sweep, nobody waiting,
+// THE SCREEN - squadrons.c), 2026-11-18, the same games with the lifeboat on for all, from epoch 9 and from 5 (24 each):
+// lost aboard 4.5 against 6.4 and 5.4 against 7.8, crossings as fast (at sea 73 s against 70 s, 71 against 63; loading
+// 68 against 69, 65 against 63), about 2.5 screens an AI a game and no warship lost screening; B - A soldiers -5.1
+// (se 3.8) and -3.2 (4.5), kills -3.0 (3.2) and -2.2 (4.3): the gain within noise - off.
 #define CY_LOOK 1000
 #define CY_WIN 6000        // the hit points' loss over this
 #define CY_MARGIN 1.25f    // it makes it: sunk later than this x the time to where it goes (+ 2 s)
@@ -38,7 +43,7 @@ internal struct cy_st {
     struct cy_wish w[CY_WISHES]; int nw;
     struct { ee_unit *u; int id; uint32_t t; } done[4]; int di;   // put off by a lifeboat lately (convoy_beached)
     uint32_t t, log_t;
-    unsigned lifeboats, saved, sunk_life, sunk_loaded, lost_aboard, escorts;
+    unsigned lifeboats, saved, sunk_life, sunk_loaded, lost_aboard, escorts, sunk_esc;
 } g_cy[16];
 internal PRINTF_LIKE(3, 4) void cy_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
@@ -64,7 +69,7 @@ internal int convoy_beached(unsigned idx, ee_unit *sh, uint32_t since) {   // on
         }
     return 0;
 }
-internal int convoy_escort(unsigned idx, ee_unit *sh, ivec2 dest, uint32_t now) {
+internal int convoy_escort(unsigned idx, ee_unit *sh, ivec2 from, ivec2 dest, int sea, uint32_t now) {
     struct cy_st *c = &g_cy[idx & 15];
     if (!CONVOY_ESCORT(idx) || !sh) return 0;
     int id = unit_get_serial(sh), k = 0;
@@ -74,7 +79,7 @@ internal int convoy_escort(unsigned idx, ee_unit *sh, ivec2 dest, uint32_t now) 
         if (k == c->nw) { if (c->nw == CY_WISHES) return 0; c->nw++; }
         c->w[k].u = sh; c->w[k].id = id; c->w[k].state = 0; c->escorts++;
     }
-    c->w[k].dest = dest; c->w[k].t = now ? now : 1;
+    c->w[k].from = from; c->w[k].dest = dest; c->w[k].sea = sea; c->w[k].t = now ? now : 1;
     return c->w[k].state;
 }
 // the nearest free land tile by the sea oc within CY_BEACH_R of p (rings outwards)
@@ -167,12 +172,13 @@ internal void convoy_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (c->s[k].aboard > 0) c->lost_aboard += (unsigned)c->s[k].aboard;
         if (c->s[k].life) { c->sunk_life++; cy_say(idx, now, "transport sunk on its way to the beach at %d,%d with %d aboard", c->s[k].beach.x, c->s[k].beach.y, c->s[k].aboard); }
         else if (c->s[k].aboard > 0) c->sunk_loaded++;
+        for (int j = 0; c->s[k].aboard > 0 && j < c->nw; j++) if (c->w[j].u == c->s[k].u && c->w[j].id == c->s[k].id && c->w[j].state == 2 && now - c->w[j].t < CY_WISH) c->sunk_esc++;
         c->s[k--] = c->s[--c->n];
     }
     if (g_log && (!c->log_t || now - c->log_t >= 60000) && (c->lifeboats || c->escorts || c->sunk_loaded)) {
         c->log_t = now ? now : 1;
-        cy_say(idx, now, "lifeboats %u (put off %u aboard, sunk on the way to the beach %u), loaded transports sunk otherwise %u, lost aboard %u, escorts asked for %u",
-               c->lifeboats, c->saved, c->sunk_life, c->sunk_loaded, c->lost_aboard, c->escorts);
+        cy_say(idx, now, "lifeboats %u (put off %u aboard, sunk on the way to the beach %u), loaded transports sunk otherwise %u, lost aboard %u, escorts asked for %u, sunk escorted %u",
+               c->lifeboats, c->saved, c->sunk_life, c->sunk_loaded, c->lost_aboard, c->escorts, c->sunk_esc);
     }
 }
 internal void convoy_new_game(void) { memset(g_cy, 0, sizeof g_cy); }
