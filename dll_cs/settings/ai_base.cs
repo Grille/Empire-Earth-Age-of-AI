@@ -708,10 +708,10 @@ class ai_base
         bool ferry_safety = true;
         /// Expansion across the water as over land (the game's computer player off): a territory across a sea (or two seas
         /// side by side) from one the AI holds counts as beside it - a Settlement and a tower by its mines as by a
-        /// neighbour's, after the mines over land; the ferry service brings the builders, the miners and the soldiers.
-        /// 0 = off
+        /// neighbour's, after the mines over land; the ferry service brings the builders, the miners and the soldiers. It
+        /// takes the place of the outposts (expand_islands), which don't run then. 0 = off
         [advanced]
-        bool expand_across = false;
+        bool expand_across = true;
         /// Pushes across the water as over land (the game's computer player off): a territory with no enemy neighbour over
         /// land pushes into an enemy territory across a sea (or two seas side by side) - the ferry service carries its
         /// soldiers, every free transport at once, to a beach near the target out of the enemy towers' reach; they hold

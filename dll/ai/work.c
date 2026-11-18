@@ -92,10 +92,13 @@ internal int wk_danger(unsigned idx, ivec2 p) {
 // sites there 2.8 -> 4.6, citizens there 14 -> 25, miners 8 -> 10, citizens ferried 20 -> 53; soldiers +2.7 (se 3.5),
 // kills +1.8 (6.2), workers +3.5 (2.3), losses +18 (5.7): citizens killed 11 -> 27 (enemy soldiers 6.5 -> 17, ships 3.5 ->
 // 8). Before the guard and the tower first 33 were killed; before the foundation laid as its own nothing settled at all.
-// More ground held and worked for more citizens lost: OFF, the player's call.
+// More ground held and worked for more citizens lost - the player: "dosnt matter if the islands can be hold in the end",
+// and a small escort for every settling of unclaimed ground, over land too (stations.c THE ESCORT). With it, against the
+// outposts again: islands held at the end 0.44 -> 0.96, drop sites there 3.4 -> 4.3, workers +6.8 (se 1.6), razed +0.5
+// (0.3), soldiers -3.5 (3.5), kills -5.8 (7.8), losses +24.8 (7.9), citizens killed 9 -> 29. ON, the outposts off with it
+// for the game's computer player off (expand.c EXPAND).
 #define WK_ACROSS 16
 internal struct { unsigned version; int n; uint16_t (*o)[WK_ACROSS]; uint8_t *no; } g_wkx;
-#define EXPAND_ACROSS(idx) PV(idx, g_v_wk_across, g_wk_across)
 internal void wk_across_build(void) {
     if (g_wkx.o && g_wkx.version == g_ter.version && g_wkx.n == g_ter.n) return;
     free(g_wkx.o); free(g_wkx.no);

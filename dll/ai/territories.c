@@ -125,7 +125,6 @@ internal struct tv_st {
     unsigned turned, sheltered, refuge, refused, kept_in;   // the log's: territories turned unsafe, citizens into a fortress, sent to a refuge, sites refused, fortresses kept shut
 } g_tv[16];
 internal int g_ter_shelter = 0, g_v_ter_shelter = -1;
-internal int g_wk_across = 0, g_v_wk_across = -1, g_sn_across = 0, g_v_sn_across = -1;   // + stations.c ACROSS: [ai_base] push_across   // work.c ACROSS THE WATER: [ai_base] expand_across, [autotest] v_expand_across
 #define TER_SHELTER(idx) PV(idx, g_v_ter_shelter, g_ter_shelter)
 internal struct st_side g_tv_own, g_tv_foe;
 internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now);   // BORDER TOWERS (below)

@@ -96,19 +96,26 @@ struct sn_push { short from, into; int on; uint32_t end_t; ivec2 at, mmid; int m
 // MEASURED 2026-11-18 (head-to-head, mirrored, 12 seeds, both sides expand_across without the outposts): soldiers -21.6
 // (se 4.2), kills -17.5 (7.8) - 159 pushes, 109 not carried over in 8 minutes; every one judged against nothing (an
 // enemy home island it had never looked at: its towers and army unknown), 6 to 24 soldiers, the transports few and
-// trained one by one (trips of 1 to 3). Wanted before it goes on: a look at the target first (no enemy known must mean
-// looked and found none), a force sized to what holds it, the transports gathered first so it lands together. Aboard a
+// trained one by one (trips of 1 to 3). Then (the player: "the territory system has scouts, they should be able to use
+// ferrys too"; "landings into hostile situations should be coordinated to arrive in parallel"): only into a territory a
+// unit of its stood in lately (SCOUTS ACROSS bring them over), its transports gathered first and meeting off the beach
+// (ferry.c GATHERED FIRST, TOGETHER) - soldiers -14.3 (3.8), kills +0.1 (9.2), losses +9.3 (6.9), razed +0.7 (0.65);
+// 83 pushes: 35 not carried over in time, 23 losing, 5 claimed. Still more cost than gain: OFF. Aboard a
 // unit is on no tile and leaves the look's list; put off it is new to it - so the ferry hands its passengers back here
 // (sn_ferried) and a new one of them takes the push's territory as its station again
 #define PUSH_ACROSS(idx) PV(idx, g_v_sn_across, g_sn_across)
 #define SN_JOIN 128
-internal struct { int id; short ter; uint32_t t; } g_sn_join[16][SN_JOIN];
-internal void sn_ferried(unsigned idx, ee_unit *u, int ter) {
+internal struct { int id; short ter; uint8_t scout; uint32_t t; } g_sn_join[16][SN_JOIN];
+internal void sn_ferried(unsigned idx, ee_unit *u, int ter, int scout) {
     int k = 0;
     uint32_t now = game_time();
     for (int j = 1; j < SN_JOIN; j++) if (g_sn_join[idx & 15][j].t < g_sn_join[idx & 15][k].t) k = j;
-    g_sn_join[idx & 15][k].id = unit_get_serial(u); g_sn_join[idx & 15][k].ter = (short)ter; g_sn_join[idx & 15][k].t = now ? now : 1;
+    g_sn_join[idx & 15][k].id = unit_get_serial(u); g_sn_join[idx & 15][k].ter = (short)ter; g_sn_join[idx & 15][k].scout = (uint8_t)scout; g_sn_join[idx & 15][k].t = now ? now : 1;
 }
+// SCOUTS ACROSS (expand_across): a scout whose next territory lies across the water asks the ferry (trip kind 4) - one
+// transport for it, a crossing that is no important one (ferry_safety: it waits for a safe sea)
+#define SN_SX 4
+internal struct { ee_unit *u; int id; unsigned from, to; ivec2 at; int ter; uint32_t t; } g_sn_sx[16][SN_SX];
 struct sn_unit;
 internal void sn_rejoin(unsigned idx, struct sn_unit *m);
 internal int fy_push_transit(unsigned idx, int k);   // ferry.c: push k's soldiers the ferry has taken (to the shore, aboard)
@@ -354,7 +361,11 @@ internal void sn_fc_spot(struct sn_fc *c, ivec2 at, int open, int n, uint32_t no
 internal void sn_rejoin(unsigned idx, struct sn_unit *m) {
     uint32_t now = game_time();
     for (int j = 0; j < SN_JOIN; j++)
-        if (g_sn_join[idx & 15][j].t && g_sn_join[idx & 15][j].id == m->id && now - g_sn_join[idx & 15][j].t < 120000) { m->ter = g_sn_join[idx & 15][j].ter; g_sn_join[idx & 15][j].t = 0; return; }
+        if (g_sn_join[idx & 15][j].t && g_sn_join[idx & 15][j].id == m->id && now - g_sn_join[idx & 15][j].t < 120000) {
+            m->ter = g_sn_join[idx & 15][j].ter; g_sn_join[idx & 15][j].t = 0;
+            if (g_sn_join[idx & 15][j].scout) { m->scout = 1; m->since = now ? now : 1; }   // SCOUTS ACROSS: on with its look
+            return;
+        }
 }
 // ACROSS: the beach for a push into land `land` aimed at `aim` - its tile nearest the aim with a sea within 2 tiles and
 // no enemy defence it has seen in reach (work.c wk_danger), within SN_BEACH_R; 0: none
@@ -602,7 +613,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         // outposts' 10 (their guard and towers), 17 of them by enemy soldiers, 13 by ships (head-to-head, 12 seeds)
         unsigned home = (unsigned)ex_home(pl);
         for (int r = 0; r < n && home; r++) {
-            if (g_ter.t[r].water || s->t[r].bld < 1 || tc[r] >= SN_ISLE_GUARD || area_id(g_ter.t[r].c, 2) == home || s->t[r].state == TV_UNSAFE) continue;
+            // THE ESCORT (the player 2026-11-18: "both on land and now across water a small escort for assumed unclaimed land
+            // expansion is reasonable"): one it settles over land without holding it yet too
+            if (g_ter.t[r].water || s->t[r].bld < 1 || tc[r] >= SN_ISLE_GUARD || (area_id(g_ter.t[r].c, 2) == home && s->t[r].role != TVR_NONE) || s->t[r].state == TV_UNSAFE) continue;
             int h = -1;
             for (int o = 0; o < n; o++) if (!g_ter.t[o].water && area_id(g_ter.t[o].c, 2) == home && (h < 0 || tc[o] > tc[h])) h = o;
             int give = h >= 0 ? SN_ISLE_GUARD - tc[r] : 0;
@@ -838,6 +851,11 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             wk_across_build();
             for (int q = 0; r < g_wkx.n && q < g_wkx.no[r]; q++) {
                 unsigned o = g_wkx.o[r][q];
+                // LOOKED AT FIRST (the player 2026-11-18: "the territory system has scouts, they should be able to use
+                // ferrys too for these jobs"): only one a unit of its stood in lately - what it knows there is then
+                // what holds it, and the judging below sizes the push by it (blind, every push went at an enemy home
+                // island never looked at: soldiers -21.6 a game)
+                if (!g_sn_seen[idx][o] || now < g_sn_look[idx][o] || now - g_sn_look[idx][o] >= SN_RESCOUT) continue;
                 if (o < (unsigned)n && s->t[o].ebld && (into < 0 || s->t[o].ebld > s->t[into].ebld)) { into = (int)o; across = 1; }
             }
         }
@@ -1054,13 +1072,14 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (m->ter < 0 || m->ter >= n || !sn_due(idx, m->ter, s, now)) {   // the next one: the nearest due (never stood in first), on its land, no other scout's
             unsigned land = area_id(p, 2);
             int b = -1, bd = 0;
-            for (int r = 0; r < n; r++) {
-                int du = sn_due(idx, r, s, now);
-                if (!du || (land && area_id(g_ter.t[r].c, 2) != land)) continue;
-                int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p) / (du == 2 ? 4 : 1);
-                for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout == 1 && z->m[j].ter == r;
-                if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
-            }
+            for (int pass = 0; pass < 2 && b < 0; pass++)   // SCOUTS ACROSS: none left on its land - one across the water (the ferry takes it)
+                for (int r = 0; r < n; r++) {
+                    int du = sn_due(idx, r, s, now);
+                    if (!du || (land && (area_id(g_ter.t[r].c, 2) == land) != !pass) || (pass && !EXPAND_ACROSS(idx))) continue;
+                    int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p) / (du == 2 ? 4 : 1);
+                    for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout == 1 && z->m[j].ter == r;
+                    if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
+                }
             if (b < 0 || !player_ai_toggle(pl, SM_AIT_EXPLORE)) {   // none left (or the scenario's Explore off): the main force's again
                 unsigned r = ter_near(p.x, p.y);
                 m->scout = 0; m->ter = (short)(r < (unsigned)n ? (int)r : 0); m->order_t = 0;
@@ -1069,6 +1088,15 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 continue;
             }
             m->ter = (short)b; m->order_t = 0; m->since = now ? now : 1;
+        }
+        unsigned tl = area_id(g_ter.t[m->ter].c, 2), pl_ = area_id(p, 2);
+        if (tl && pl_ && tl != pl_) {   // SCOUTS ACROSS: the ferry's (asked each look; its give-up time from when it is over)
+            int k = 0, f = -1;
+            while (k < SN_SX && !(g_sn_sx[idx][k].u == m->u && g_sn_sx[idx][k].id == m->id)) { if (f < 0 && (!g_sn_sx[idx][k].t || now - g_sn_sx[idx][k].t > 15000)) f = k; k++; }
+            if (k == SN_SX) k = f;
+            if (k >= 0) { g_sn_sx[idx][k].u = m->u; g_sn_sx[idx][k].id = m->id; g_sn_sx[idx][k].from = pl_; g_sn_sx[idx][k].to = tl; g_sn_sx[idx][k].at = g_ter.t[m->ter].c; g_sn_sx[idx][k].ter = m->ter; g_sn_sx[idx][k].t = now ? now : 1; }
+            m->since = now ? now : 1;
+            continue;
         }
         if (!m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) sn_order(z, m, 0, g_ter.t[m->ter].c, 0, now);
     }
