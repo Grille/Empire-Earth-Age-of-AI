@@ -913,8 +913,9 @@ internal RECT window_rect_for(HWND h) {
 // headless one: the probes never activate, show no taskbar button and stay off-screen; the game window (the first
 // other top-level one) gets a black background instead of white and, borderless, its final style and the monitor
 // at its creation instead of at the first frame; the first frame brings it to the front once (window_hook). Each part
-// on its own ([display] display_start = probes, black, popup, front; none by default): all four together left the player's
-// borderless window without a picture (a still of the moment it appeared) - the starts tell which part.
+// on its own ([display] display_start = probes, black, popup, front; all four by default since 2026-11-18, the player's
+// own ini had them): all four together once left the player's borderless window without a picture (a still of the
+// moment it appeared) - a start like that: one part out at a time tells which.
 internal HHOOK g_play_cbt;
 internal int g_play_probes;
 internal HWND g_play_game;

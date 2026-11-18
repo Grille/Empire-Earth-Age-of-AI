@@ -62,8 +62,8 @@ class display
     /// Windowed/borderless only: 1 = the window uses real screen pixels at Windows display scaling of 125/150 %
     /// (no blur from Windows stretching it), 0 = Windows enlarges it like other old programs
     bool dpi_aware = true;
-    /// [display] display_start - the parts of the quiet windowed start, each on its own until the player's starts show which work
-    /// (engine/display.c play_cbt, play_front)
+    /// [display] display_start - the parts of the quiet windowed start, all on by default since 2026-11-18 (the player's
+    /// own ini had all four; engine/display.c play_cbt, play_front)
     struct display_start_fields
     {
         /// the display DLLs' ~15 test windows take no focus and no taskbar button
@@ -75,9 +75,9 @@ class display
         /// the window to the front at its first picture
         bool front;
     }
-    /// Windowed/borderless only, being tried out: the parts of a quieter start (the window white for a moment, then
-    /// behind other programs) - words apart by commas, all = every part, empty = none (default):
-    [advanced]
+    /// Windowed/borderless only: the parts of a quiet start (without them the window is white for a moment, then
+    /// behind other programs) - words apart by commas, all = every part (default), empty = none:
+    [advanced, on("probes, black, popup, front")]
     display_start_fields display_start;
     enum frame_wait_choice
     {
