@@ -2,7 +2,7 @@
 // The game's finished frame (the locked back buffer of its DirectDraw device) is uploaded to a texture and drawn
 // into the window by a flip-model swap chain: scaling and filtering on the GPU, no GDI composition (which held
 // a visible 2560x1440 window at 60 fps on a 120 Hz screen). Bars around the image are cleared black.
-// vsync = 1 waits for the screen; 0 (default) presents immediately, tearing allowed where Windows supports it
+// vsync = 1 (default since 2026-11-18) waits for the screen; 0 presents immediately, tearing allowed where Windows supports it
 // (borderless). Everything runs on the render thread; any failure falls back to GDI for good.
 // d3d11.dll and d3dcompiler_47.dll are loaded from the system directory (the game folder may hold wrappers).
 // The device lives on its own (d3d_device) apart from the window's swap chain (d3d_window): the mod's own renderer

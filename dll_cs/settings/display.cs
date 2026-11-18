@@ -35,11 +35,12 @@ class display
     /// 512; in big fights and at high resolutions the farthest objects blinked out. 0 = the original 512
     [advanced, range(0, 1000000), game("the objects the game draws per frame", "512", 0), also("patches")]
     int draw_limit = 16384;
-    /// Windowed/borderless only: smooth (bilinear) scaling when the image is scaled; 0 = sharp pixels
-    bool smooth_scaling = false;
-    /// Windowed/borderless only: 1 = wait for the screen refresh (no tearing, fps capped at the refresh rate),
-    /// 0 = as fast as possible
-    bool vsync = false;
+    /// Windowed/borderless only: smooth (bilinear) scaling when the image is scaled - the game's resolution not the
+    /// screen's (default); 0 = sharp but uneven pixels
+    bool smooth_scaling = true;
+    /// Windowed/borderless only: 1 = wait for the screen refresh (no tearing, fps capped at the refresh rate; a load
+    /// doesn't wait), 0 = as fast as possible (tearing)
+    bool vsync = true;
     /// Frame watch (window modes): a line with the frame rate every minute of a game in ageofai_log.csv, and when it
     /// stays under this many frames per second for 10 s, a profile of where the time goes (at most 5 a session).
     /// A diagnostic (it times every frame and the profile pauses the drawing thread): 0 = off (default), e.g. 35
