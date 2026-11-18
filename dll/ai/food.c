@@ -38,6 +38,22 @@ internal struct { unsigned pulled, hunt_sent, near_pick; } g_fd[16];
 internal void food_new_game(void);
 
 internal int food_fierce(int t) { return t == UT(RES_TIGER) || t == UT(RES_WOLF); }
+// AN ANIMAL'S LAND: the land area (map_area kind 2) an animal is hunted from - its own tile's, else the first of the
+// tiles round it. A carcass's tile is mostly of none (0: 4 of 6 killed animals, Continental 101, 2026-11-18), so the
+// hunt's look, which gives a citizen an animal of its own land only, never gave one again - the carcasses of a hunt
+// whose hunters had been called away rotted by the town (the player's game 2026-11-18, Small Islands: three hippos
+// 11 tiles from its drop site, 214 food each, while 41 citizens were wanted on food and 12 had work)
+internal short food_area(ivec2 p) {
+    unsigned short a = map_area(p, 2);
+    int size = game_map() ? (int)map_get_size(game_map()) : 0;
+    for (int r = 1; !a && r <= 2; r++)
+        for (int dy = -r; dy <= r && !a; dy++)
+            for (int dx = -r; dx <= r && !a; dx++) {
+                ivec2 q = iv2(p.x + dx, p.y + dy);
+                if ((abs(dx) == r || abs(dy) == r) && q.x >= 0 && q.y >= 0 && q.x < size && q.y < size) a = map_area(q, 2);
+            }
+    return (short)a;
+}
 // a free animal to hunt for unit u (NULL: the best for any): within food_hunt_range tiles of a non-granary drop site, food left,
 // not fierce, under 3 hunters, explored, the unit's continent, no enemy near, no known towers on the way
 internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
@@ -61,7 +77,7 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
             int d2 = ivec2_dist2(pos, d->p);
             if (d2 >= bd) continue;
             if (site_gatherers(a) >= 3) continue;
-            if (u && (short)map_area(pos, 2) != ur) continue;
+            if (u && food_area(pos) != ur) continue;   // AN ANIMAL'S LAND
             if (build_mgr_enemy_near(bm, pos.x, pos.y) || site_danger(pl, a, 1)) continue;
             best = a; bd = d2;
         }

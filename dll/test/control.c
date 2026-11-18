@@ -74,6 +74,7 @@ internal void cmd_bqadd(char *out, const char *args);
 internal void cmd_plan(char *out, const char *args);
 internal void cmd_hurt(char *out, const char *args);
 internal void cmd_drops(char *out, const char *args);
+internal void cmd_huntcheck(char *out, const char *args);   // testcmd.c: the hunt list's filters on the animals at a spot
 internal void cmd_bqueue(char *out, const char *args);
 internal void cmd_canbuild(char *out, const char *args);
 internal void cmd_tech(char *out, const char *args);
@@ -480,6 +481,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "plan")) cmd_plan(out, args);
     else if (!strcmp(verb, "hurt")) cmd_hurt(out, args);
     else if (!strcmp(verb, "drops")) cmd_drops(out, args);
+    else if (!strcmp(verb, "huntcheck")) cmd_huntcheck(out, args);
     else if (!strcmp(verb, "bqueue")) cmd_bqueue(out, args);
     else if (!strcmp(verb, "canbuild")) cmd_canbuild(out, args);
     else if (!strcmp(verb, "tech")) cmd_tech(out, args);

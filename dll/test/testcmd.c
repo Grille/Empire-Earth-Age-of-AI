@@ -162,6 +162,35 @@ internal void cmd_tinfo(char *out, const char *args) {
 }
 
 // drops P: the player's drop sites (x,y; g = granary, food only)
+// huntcheck P x y [r]: the food animals within r tiles of x,y as work.c's hunt list judges them for AI player P - each
+// filter of wk_animals (fierce, food left, the nearest drop site that takes hunters within food_hunt_range, the game's
+// enemy_near, site_danger), HERDS KEPT's, the hunters on it and whether the last look listed it
+internal void cmd_huntcheck(char *out, const char *args) {
+    int p = -1, x = 0, y = 0, r = 6;
+    if (sscanf(args, "%d %d %d %d", &p, &x, &y, &r) < 3) { REPLY("error: usage: huntcheck P x y [r]\n"); return; }
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    if (!pl) { REPLY("error: no AI player %d\n", p); return; }
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    void *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    static struct drop d[64];
+    int nd = drop_sites(pl, d, 64);
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
+        ee_unit *a = it.u;
+        if (!it.td || unit_type_get_family(it.td) != KIND_ANIMAL) continue;
+        ivec2 pos = unit_get_tile(a);
+        int best = -1;
+        for (int i = 0; i < nd; i++) if (!d[i].food && (best < 0 || ivec2_dist2(pos, d[i].p) < best)) best = ivec2_dist2(pos, d[i].p);
+        g_wkh_n = 0;
+        int listed = 0;
+        for (int k = 0; k < g_wka.n; k++) listed |= g_wka.e[k].u == a;
+        REPLY("%p type %d at %d,%d hp %d res %d amount %d scale %.2f herd %p | fierce %d, drop d2 %d (reach %d), enemy_near %d, site_danger %d, herd takes %d, hunters %u, area %d | listed %d\n",
+              (void *)a, unit_type_get_id(it.td), pos.x, pos.y, unit_get_hp(a), unit_get_resource(a), unit_get_amount(a), unit_get_scale(a),
+              (void *)unit_get_herd(a), food_fierce(unit_type_get_id(it.td)), best, g_hunt_range * g_hunt_range,
+              bm ? build_mgr_enemy_near(bm, pos.x, pos.y) : -1, site_danger(pl, a, 1), wk_herd_takes(a), site_gatherers(a),
+              food_area(pos), listed);
+    }
+    g_wkh_n = 0;
+}
 internal void cmd_drops(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;

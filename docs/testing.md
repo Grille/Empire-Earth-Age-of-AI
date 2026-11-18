@@ -348,6 +348,7 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 | `bqueue P` | the build manager's queues per epoch (building types; `$` = can be built now) |
 | `canbuild P` | every type the game lets player P build or train now (available, affordable, a builder) |
 | `drops P` | drop sites of player P (Town Center, Capitol, Settlement; `g` = granary) |
+| `huntcheck P x y [r]` | the animals within r tiles (default 6) of x,y as AI player P's hunt list judges them (work.c wk_animals): food left, fierce, the nearest drop site for hunters against food_hunt_range, the game's enemy_near, site_danger, HERDS KEPT, hunters on it, its land (food.c AN ANIMAL'S LAND) and whether the last look listed it |
 | `tech P id...` | tech records of player P: state bytes (+4 researched, +6 available), cost, effects |
 | `wallghost P T x0 y0 x1 y1` | the placement preview of player P's wall of type T dragged from x0, y0 to x1, y1 (the game's wall_preview, as the mouse moves make it; engine/walls.c THE PREVIEW), the ghosts it made printed: tile, animation, whether it can be placed, its matrix's turn and place, height scale, z. It stays on the screen until another preview replaces it |
 | `wallplace P T x0 y0 x1 y1 [editor]` | player P's wall of type T laid from x0, y0 to x1, y1 by the game's own placing, finished and free: the tiles the player's wall takes, to hold `wallghost` against; `editor` 1 in the scenario editor, as its own wall action passes the placement test (with 0 nothing is laid there) |

@@ -340,7 +340,7 @@ internal void wk_animals(ee_player *pl, ee_resource_mgr *rm) {
             if (d2 > reach2) continue;
             if (build_mgr_enemy_near(bm, pos.x, pos.y) || site_danger(pl, a, 1)) continue;
             struct wk_animal *e = &g_wka.e[g_wka.n++];
-            e->u = a; e->d2 = d2; e->ter = (uint16_t)ter_near(pos.x, pos.y); e->area = (short)map_area(pos, 2);
+            e->u = a; e->d2 = d2; e->ter = (uint16_t)ter_near(pos.x, pos.y); e->area = food_area(pos);   // food.c AN ANIMAL'S LAND
         }
     }
     qsort(g_wka.e, (size_t)g_wka.n, sizeof *g_wka.e, wk_animal_order);
