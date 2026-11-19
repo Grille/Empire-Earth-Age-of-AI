@@ -725,6 +725,12 @@ class ai_base
         /// defended territory's - instead of the game's pick, the region with the most production buildings. 0 = off
         [advanced]
         bool fight_production = true;
+        /// Holding the ground (the game's computer player off): its citizens idle where the enemy has buildings or soldiers
+        /// - an island both settled, a Settlement under attack - don't wait to be cleared off: they lay a tower of their own
+        /// (none of its within 8 tiles), then a production building (none within 16), out of every enemy tower's reach
+        /// they know, and finish their own buildings there, enemy soldiers near or not. 0 = off
+        [advanced]
+        bool hold_ground = true;
         /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]

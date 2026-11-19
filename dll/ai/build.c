@@ -76,6 +76,11 @@
 #define BD_CLAIM_LONE 360000  // a claim's Settlement still missing holds the next claim back this long at most
 #define BD_WATCH_EVERY 120000   // A WATCH TOWER: between two
 #define BD_WATCH_NEAR 8         // ... none within this many tiles of a defence of its
+#define BD_HOLD_R 12      // HOLDING THE GROUND: enemy soldiers or buildings this near an idle citizen of its
+#define BD_HOLD_TOWER 8   // ... a tower of its this near the idle ones' middle: none laid
+#define BD_HOLD_PROD 16   // ... a production building of its this near: none laid
+#define BD_HOLD_EVERY 20000
+#define BD_HOLD_N 8       // ... builders sent to it at most
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 // ACROSS THE WATER (work.c): the lands where a foundation of its found no free citizen on its land to build it - the
 // ferry (ferry.c) brings citizens there as to free places at mines, with no drop site of its there yet
@@ -100,6 +105,7 @@ internal struct bd_st {
     const char *claim_why; int claim_n[4];   // ... the last look: what held it back; territories nobody holds, quiet, beside a guarded one of its, safe
     struct { int r; uint32_t t; } claim_open[8]; unsigned nclaim_open;   // ... the last claims: territory, when (CLAIMS GOING UP)
     uint32_t watch_t;                    // A WATCH TOWER: the last one
+    uint32_t hold_t; unsigned holds, hold_sent;   // HOLDING THE GROUND: the last laid, how many, builders sent
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
@@ -191,7 +197,7 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
     return 0;
 }
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
-    static ee_unit *freec[384], *built[192], *openb[96], *openw[256];
+    static ee_unit *freec[384], *built[192], *openb[96], *openw[256], *idlec[384];   // idlec: citizens with no order (HOLDING THE GROUND - freec has gatherers only)
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
     static struct { ivec2 p; int cost, town; } centre[256];
     static ivec2 dsite[BD_DSITES];   // every Settlement, Town Center and Capitol of its, going up too: a mine's drop site (below)
@@ -209,12 +215,13 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     ee_map *map = game_map();
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
-    int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0;
+    int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0, nidle = 0;
     int nairport = 0;
     static ivec2 dock[32];
     int ndock = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
-    static ivec2 house[512];
+    static ivec2 house[512], prodp[256];
+    int nprod = 0;
     static struct { ivec2 p; int max; } town[128];
     int nhouse = 0, ntown = 0, open_house = 0;
     int open_fields = 0, open_gran = 0, open_settle = 0, open_tower = 0, open_prod = 0, open_sink = 0, count = 0, have_rb[3] = { 0, 0, 0 }, lost_ground = 0;
@@ -228,6 +235,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             ee_goal *g = unit_get_goal(u);
             if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@")) { if (nbuilt < 192) built[nbuilt++] = goal_get_building(g); }
             else if (nf < 384 && citizen_free(u, 0) && (!g || !strcmp(rtti_name(g), "EEUGGather@@"))) freec[nf++] = u;
+            else if (!g && nidle < 384 && citizen_free(u, 1)) idlec[nidle++] = u;
             continue;
         }
         if (fam != CLS_BUILDING && fam != CLS_FORTRESS) continue;
@@ -252,7 +260,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (t == UT(B_FARM)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += going; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
         else if (t == UT(B_SETTLEMENT)) open_settle += going;
-        else if (pr_kind(t) >= 0) open_prod += going;
+        else if (pr_kind(t) >= 0) { open_prod += going; if (nprod < 256) prodp[nprod++] = p; }
         open_sink += going && (pr_kind(t) >= 0 || t == rb[0] || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
@@ -297,6 +305,87 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (bk < 0 || path_raided(pl, unit_get_x(freec[bk]), unit_get_y(freec[bk]), p.x, p.y) || !bd_send(pl, freec[bk], openb[i])) continue;
         freec[bk] = freec[--nf];
         sends++; b->sent++;
+    }
+    // HOLDING THE GROUND ([ai_base] hold_ground; the player 2026-11-19, his game: "both player landed and build
+    // settlments, p2 managed to build a tower first, the citezens of p3 just gave up instead of continuing building their
+    // outpost, they should try to build their own towers and production buildings, anething is better than stanting
+    // around waiting to be cleared off" - P2's soldiers brought down P3's tower going up and went for its Settlement, 4 of
+    // its citizens stood idle beside them: BUILDERS sends none where enemy soldiers are within 8 tiles or the territory is
+    // being lost, which at home waits for the soldiers' help, and over the water waits to be cleared off). Its idle
+    // citizens (no order) with enemy soldiers it knows within BD_HOLD_R, or in a territory where it has seen enemy
+    // buildings or soldiers: those of the land with most of them lay, by their middle, a tower if none of its stands or
+    // goes up within BD_HOLD_TOWER, else a production building (produce.c's first kind it can build) if none within
+    // BD_HOLD_PROD - the nearest spot out of every enemy tower's reach it knows (work.c wk_danger), one every
+    // BD_HOLD_EVERY - and build it, BD_HOLD_N of them; nothing to lay: the nearest unfinished building of its there.
+    // MEASURED 2026-11-19 (head-to-head, Small Islands large, 4 AIs from epoch 5, 60 min, seeds 1-12 mirrored, 24 games,
+    // both sides push_across and fight_production): 203 towers and 107 production buildings laid by the B seats; held
+    // at the end islands 1.35 against 1.06, miners off the home island 11.3 against 5.1, drop sites there 5.1 against
+    // 3.0, buildings there 10.8 against 6.4, idle citizens 0 against 0.3; soldiers -6.8 (se 5.3), kills +10.4 (9.8),
+    // losses +12.0 (9.9), razed +0.2 (0.5). More ground held for more fighting: ON. (Its first run took the idle ones
+    // from freec, which holds gatherers only: it never fired, and its numbers - soldiers +4.6, citizens off the home
+    // island 23.9 against 17.6 - are what the noise of these 24 games looks like.)
+    if (HOLD_GROUND(idx) && nidle) {
+        static ee_unit *hc[384];
+        static unsigned hl[384];
+        int nh = 0;
+        for (int k = 0; k < nidle; k++) {   // idle only: those gathering are at work
+            ee_unit *u = idlec[k];
+            ivec2 q = unit_get_tile(u);
+            unsigned r = ter_near(q.x, q.y);
+            int hot = raiders_known(pl, q, BD_HOLD_R) || (r < (unsigned)s->n && !g_ter.t[r].water && (s->t[r].ebld > 0 || s->t[r].foe > 0));
+            if (hot && area_id(q, 2)) { hl[nh] = area_id(q, 2); hc[nh++] = u; }
+        }
+        unsigned land = 0;
+        for (int k = 0, bn = 0; k < nh; k++) {   // the land with most of them
+            int c = 0;
+            for (int j = 0; j < nh; j++) c += hl[j] == hl[k];
+            if (c > bn) { bn = c; land = hl[k]; }
+        }
+        long sx = 0, sy = 0;
+        int nl = 0;
+        for (int k = 0; k < nh; k++) if (hl[k] == land) { hc[nl] = hc[k]; sx += unit_get_x(hc[k]); sy += unit_get_y(hc[k]); nl++; }
+        ee_unit *job = NULL;
+        const char *what = NULL;
+        if (nl) {
+            ivec2 m = iv2((int)(sx / nl), (int)(sy / nl));
+            static const int none[7];
+            int near_def = 0, near_prod = 0, type = 0;
+            for (int j = 0; j < ndef && !near_def; j++) near_def = area_id(def[j], 2) == land && ivec2_dist2(def[j], m) <= BD_HOLD_TOWER * BD_HOLD_TOWER;
+            for (int j = 0; j < nprod && !near_prod; j++) near_prod = area_id(prodp[j], 2) == land && ivec2_dist2(prodp[j], m) <= BD_HOLD_PROD * BD_HOLD_PROD;
+            int ttype = tower_newest(pl);
+            if (!near_def && ttype && can_build(pl, ttype) && bd_pays(pl, ttype, none)) { type = ttype; what = "a tower"; }
+            else if (near_def && !near_prod)
+                for (int k = 0; k < PR_NK && !type; k++) {
+                    int c = g_ut[PR_KINDS[k]];
+                    if (ut_has(c) && can_build(pl, c) && bd_pays(pl, c, none)) { type = c; what = "a production building"; }
+                }
+            if (type && (!b->hold_t || now < b->hold_t || now - b->hold_t >= BD_HOLD_EVERY)) {
+                ivec2 at = iv2(-1, -1);
+                for (int d = 2; d <= 10 && at.x < 0; d++)
+                    for (int dx = -d; dx <= d && at.x < 0; dx++)
+                        for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
+                            ivec2 q = iv2(m.x + dx, m.y + dy);
+                            if (area_id(q, 2) != land || area_id(q, 1) || wk_danger(idx, q) || !can_place_open(pl, type, q)) continue;
+                            at = q;
+                            break;
+                        }
+                job = at.x >= 0 ? place_foundation(pl, type, at.x, at.y) : NULL;
+                b->hold_t = now ? now : 1;
+                if (job) b->holds++;
+                if (g_log) log_locked("# build: P%u at %.1f min: holding the ground on land %u - %s (type %d) %s at %d,%d, %d idle citizens there with the enemy near\n", idx, now / 60000.0, land, what, type,
+                                      job ? "laid" : "has no spot", at.x, at.y, nl);
+            }
+            if (!job) {   // nothing to lay: the nearest unfinished building of its on that land, out of enemy towers' reach
+                int bd = BD_HOLD_PROD * BD_HOLD_PROD + 1;
+                for (int i = 0; i < no; i++) {
+                    ivec2 p = unit_get_tile(openb[i]);
+                    int d = ivec2_dist2(p, m);
+                    if (d < bd && area_id(p, 2) == land && !wk_danger(idx, p)) { bd = d; job = openb[i]; }
+                }
+            }
+            for (int k = 0, sent = 0; job && k < nl && sent < BD_HOLD_N; k++)
+                if (bd_send(pl, hc[k], job)) { sent++; b->hold_sent++; }
+        }
     }
     // WALLS: a piece is given its builders by the order that lays its run (the wall manager's build-wall, as a player
     // drags one); a builder who died or was called back left it a foundation for good - the game's round for unfinished
