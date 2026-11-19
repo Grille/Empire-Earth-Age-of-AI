@@ -260,7 +260,7 @@ class ai_base
         /// as the work is short of or the map has room for - instead of a whole fortress (up to 40) at once (the game's
         /// computer player off). 0 = off
         [advanced]
-        bool stash_let_out_few = false;
+        bool stash_let_out_few = true;
         /// Settlement upgrades: spare citizens (idle once the AI trains no more or its food keeps every producer training, or wood cutters while the wood stock is over 5000) go into a Settlement by
         /// metal mines - 5 make it a Town Center -, then into the Town Center with the most metal mines near it - 10 more make
         /// it a Capitol, which takes up to 50. Each citizen inside adds to the stone, gold and iron dropped there from mines
