@@ -226,6 +226,22 @@ internal float camera_far_pending(float f) {
     for (int i = 0; i < CAM_FAR_OLD && i < g_cam_far_olds; i++) if (g_cam_far_old[i] == f) return now;
     return f;
 }
+// The fog's end for the camera's transformation m this frame (render_frame.c rf_depth_frame), no further than the far
+// depth f: the far depth the eye's distance from its look-at now would give. The far depth is the clipping's and jumps -
+// out to the zoom's end at once, in only at the ride's end (above) - and the fog followed it: with [camera] fog_start a
+// share of it, the haze thinned at a wheel's turn out and thickened at a ride's end in, while the eye went its even way
+// (the player, 2026-11-19: "if i zoom quickly in and out the fog flikcers in how dense it is"). At rest the eye stands
+// camera_distance times the zoom away (measured: 24.75 at zoom 1, the shipped 25 times 0.99), so this is the far depth
+// then; within the game's own zoom (the eye nearer than at its 1) it is the far depth at 1, the game's.
+internal float camera_fog_far(const float *m, float f) {
+    ee_camera *cam = game_camera();
+    if (!g_cam_shape || !cam || !(g_cam_dist > 0)) return f;
+    const float *at = camera_look_at(cam);
+    float ex = m[3] - at[0], ey = m[7] - at[1], ez = m[11] - at[2], v = sqrtf(ex * ex + ey * ey + ez * ez) / g_cam_dist;
+    if (!(v > 1.0f)) v = 1.0f;   // (the far depth may still be a zoom's out: going in it waits for the ride's end)
+    float e =g_cam_view + g_cam_dist * (v - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE);
+    return e < f ? e : f;
+}
 // the furthest far depth the camera gives (at camera_distance_max; the game's own while the shape isn't set)
 internal float camera_far_most(void) {
     float now = *camera_far_at();

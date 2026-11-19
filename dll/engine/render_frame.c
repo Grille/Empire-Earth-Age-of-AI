@@ -855,6 +855,7 @@ internal struct {
     int on;                // this frame's depths aren't the step's
     int off;               // the pipe: picture depths off
     float n0, f0, n, f;    // the step's near and far, this frame's
+    float fog;             // the fog's end this frame: by the eye's distance now, no further than f (camera.c camera_fog_far)
     float moved;           // the eye's way from the step's
     float was[16], was_z;  // the step's camera, the depth of the ground under the screen's bottom edge from it
     long frames, nearer, further;   // frames with depths of their own, with a nearer near depth, a further far depth (the pipe)
@@ -895,7 +896,7 @@ internal void rf_depth_frame(void) {
     // on even where they are the step's: a frame during a step draws the ground with the projection of the last frame
     // that updated it, and the step may have moved the viewport's since (at a step load of 30 ms the kept ground cut at
     // a near depth of 85 while the step's was 62)
-    g_dz.n0 = n0; g_dz.f0 = f0; g_dz.n = n; g_dz.f = f; g_dz.moved = moved;
+    g_dz.n0 = n0; g_dz.f0 = f0; g_dz.n = n; g_dz.f = f; g_dz.moved = moved; g_dz.fog = camera_fog_far(g_cam_now, f);
     g_dz.on = 1;
     if (n == n0 && f == f0) return;
     g_dz.frames++;
@@ -958,7 +959,7 @@ internal void rf_depth_vc(rd3_vcb *vc) {
     float n, f;
     if (g_dz.on && rf_depth_of(vc->vpm, &n, &f)) {
         if (!rf_depth_same(n, f)) rf_depth_vpm(vc->vpm);
-        if (vc->fog[0] == 3 && fabsf(vc->fog[2] - g_dz.f) > 1e-3f * g_dz.f) { vc->fog[1] += g_dz.f - vc->fog[2]; vc->fog[2] = g_dz.f; }
+        if (vc->fog[0] == 3 && fabsf(vc->fog[2] - g_dz.fog) > 1e-3f * g_dz.fog) { vc->fog[1] += g_dz.fog - vc->fog[2]; vc->fog[2] = g_dz.fog; }
     }
     rf_fog_start(vc);
 }
