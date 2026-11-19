@@ -168,6 +168,24 @@ internal inline void mesh_compute_shorelines(void *mesh, unsigned long x, unsign
 internal inline int tile_is_cliff(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_cliff; }
 internal inline int terrain_is_cliff(const ee_terrain *t) { return terrain_get_kind(t) == (int)value_map_kind_cliff; }
 internal inline void tile_make_cliff(ee_tile *t, int *pos, void *map) { tile_change_kind(t, (int)value_map_kind_cliff, pos, map); }
+// THE DOCK'S SHORE, the game's own (ghost_unit.check_shore, the player's preview of a Dock or a Navy Yard): the tiles
+// of the ring one tile round the footprint at x, y (s tiles a side), corners too, that are on the map and no water or
+// cliff - placeable with at least dock_shore_min (3). The AI's placement test (can_place_game) leaves it out
+internal inline int tile_shore_land(const ee_tile *t) {
+    int k = tile_get_kind(t);
+    return k != (int)value_map_kind_water && k != (int)value_map_kind_water_other && k != (int)value_map_kind_cliff && k != (int)value_map_kind_aoc_12;
+}
+internal inline int dock_shore_ok(const ee_map *map, int x, int y, int s) {
+    int n = (int)map_get_size(map), land = 0;
+    ee_tile *const *tiles = map_get_tiles(map);
+    for (int ty = y - 1; ty <= y + s; ty++)
+        for (int tx = x - 1; tx <= x + s; tx++) {
+            if (tx >= x && tx < x + s && ty >= y && ty < y + s) continue;   // the footprint: the per-tile test's
+            const ee_tile *t = tx >= 0 && ty >= 0 && tx < n && ty < n ? tiles[ty * n + tx] : NULL;
+            land += t && tile_shore_land(t);
+        }
+    return land >= (int)value_map_dock_shore_min;
+}
 // a tile's texture (its byte 2 in the view table), -1 off the map
 internal inline int map_tile_texture(const ee_map *map, int x, int y) {
     if (y < 0 || (unsigned)y >= map_get_size(map)) return -1;

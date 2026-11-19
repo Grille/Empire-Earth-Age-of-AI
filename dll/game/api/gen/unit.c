@@ -922,6 +922,15 @@ internal inline void *ghost_unit_init(ee_ghost_unit *ghost_unit, int type, ee_pl
 typedef void (__thiscall *ghost_unit_check_fn)(ee_ghost_unit *);
 internal ghost_unit_check_fn fn_ghost_unit_check;
 internal inline void ghost_unit_check(ee_ghost_unit *ghost_unit) { fn_ghost_unit_check(ghost_unit); }
+// the Dock's and the Navy Yard's check (their type ids 0x24 and 0x41, which check() hands here - the per-tile
+// test alone lets them stand on any water: their type is allowed on the water kinds, which also leaves out the
+// test's area check, and has no slope rule): each tile of the footprint the per-tile test (0x638D4F), and of the
+// ring one tile round it, corners too, those that are on the map and of no kind map.kind_water, kind_water_other,
+// kind_cliff (AoC: and 12, its 0x6035EF) counted - placeable with at least map.dock_shore_min of them. The
+// player's click asks the preview's can_place; the AI's spots (can_place_game) never come here
+typedef void (__thiscall *ghost_unit_check_shore_fn)(ee_ghost_unit *);
+internal ghost_unit_check_shore_fn fn_ghost_unit_check_shore;
+internal inline void ghost_unit_check_shore(ee_ghost_unit *ghost_unit) { fn_ghost_unit_check_shore(ghost_unit); }
 // GetModel: its player's stats of its type's graphics
 typedef ee_dmg_model *(__thiscall *ghost_unit_model_fn)(ee_ghost_unit *);
 internal ghost_unit_model_fn fn_ghost_unit_model;
@@ -1416,6 +1425,7 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_stands_on = 0x29C;
         fn_ghost_unit_init = (ghost_unit_init_fn)0x005F3D4C;
         fn_ghost_unit_check = (ghost_unit_check_fn)0x005F4189;
+        fn_ghost_unit_check_shore = (ghost_unit_check_shore_fn)0x005F3E48;
         fn_ghost_unit_model = (ghost_unit_model_fn)0x00506208;
         fn_ghost_unit_scale = (ghost_unit_scale_fn)0x00506227;
         fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x005F4DB7;
@@ -1717,6 +1727,7 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_stands_on = 0x29C;
         fn_ghost_unit_init = (ghost_unit_init_fn)0x0060360E;
         fn_ghost_unit_check = (ghost_unit_check_fn)0x00603DD6;
+        fn_ghost_unit_check_shore = (ghost_unit_check_shore_fn)0x00603A8C;
         fn_ghost_unit_model = (ghost_unit_model_fn)0x0050CB62;
         fn_ghost_unit_scale = (ghost_unit_scale_fn)0x0050CB81;
         fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x00604A97;
@@ -1891,6 +1902,7 @@ internal int spec_unit_check(void) {
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
     bad += spec_code((uintptr_t)fn_ghost_unit_init, "EEGhostUnit.init");
     bad += spec_code((uintptr_t)fn_ghost_unit_check, "EEGhostUnit.check");
+    bad += spec_code((uintptr_t)fn_ghost_unit_check_shore, "EEGhostUnit.check_shore");
     bad += spec_code((uintptr_t)fn_ghost_unit_model, "EEGhostUnit.model");
     bad += spec_code((uintptr_t)fn_ghost_unit_scale, "EEGhostUnit.scale");
     bad += spec_code((uintptr_t)fn_ghost_unit_start_anim, "EEGhostUnit.start_anim");

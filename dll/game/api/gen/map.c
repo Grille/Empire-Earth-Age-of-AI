@@ -372,6 +372,13 @@ internal inline uint8_t *map_fn_tile_sight_add_at(void) { return (uint8_t *)(uin
 // thiscall(tile, player), ret 4: a unit less sees it
 internal inline uint8_t *map_fn_tile_sight_sub_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_sub; }
 // ee_tile.kind of a cliff (0x512FB0's; the textures Cliff_1 .. of db\dbterrain.dat have it)
+// the two ee_tile.kind of water: the placement preview leaves their tiles' heights out (0x5F4189), the Dock's
+// type is allowed on these two only (its data +0x5D6 by kind, read in a game: 1 at kinds 1 and 10) - which of
+// them is the deep water isn't known
+// a kind AoC's dock check (0x6035EF) leaves out besides those; the 2017 update has none (its types' tables of
+// kinds end at 11), so the rule is one for both
+// the Dock's and the Navy Yard's preview (ghost_unit.check_shore): at least this many tiles of the ring round
+// the footprint that are no water and no cliff ("2 < count" in both builds)
 // the map's areas (regions, continents)
 internal inline ee_continent_mgr *map_map_areas_at(void) { return (ee_continent_mgr *)(uint8_t *)(uintptr_t)data_map_map_areas; }
 // the ground's colours. The colour table is textures\ColorPalette.tga (16 x 16, a slot a pixel, the picture's top
@@ -522,6 +529,10 @@ internal int spec_map_select(int build) {
         data_map_fn_tile_sight_add = 0x00519F4F;
         data_map_fn_tile_sight_sub = 0x00519E26;
         value_map_kind_cliff = 9;
+        value_map_kind_water = 1;
+        value_map_kind_water_other = 10;
+        value_map_kind_aoc_12 = 12;
+        value_map_dock_shore_min = 3;
         data_map_map_areas = 0x00917BC8;
         data_map_iat_color_table = 0x00823914;
         data_map_iat_set_color_set = 0x008238FC;
@@ -632,6 +643,10 @@ internal int spec_map_select(int build) {
         data_map_fn_tile_sight_add = 0x005247ED;
         data_map_fn_tile_sight_sub = 0x005246C4;
         value_map_kind_cliff = 9;
+        value_map_kind_water = 1;
+        value_map_kind_water_other = 10;
+        value_map_kind_aoc_12 = 12;
+        value_map_dock_shore_min = 3;
         data_map_map_areas = 0x00930BF0;
         data_map_iat_color_table = 0x008378F0;
         data_map_iat_set_color_set = 0x008378D8;

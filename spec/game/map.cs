@@ -406,6 +406,25 @@ static unsafe class map
     [value(9)]
     static uint32 kind_cliff;
 
+    /// the two ee_tile.kind of water: the placement preview leaves their tiles' heights out (0x5F4189), the Dock's
+    /// type is allowed on these two only (its data +0x5D6 by kind, read in a game: 1 at kinds 1 and 10) - which of
+    /// them is the deep water isn't known
+    [value(1)]
+    static uint32 kind_water;
+
+    [value(10)]
+    static uint32 kind_water_other;
+
+    /// a kind AoC's dock check (0x6035EF) leaves out besides those; the 2017 update has none (its types' tables of
+    /// kinds end at 11), so the rule is one for both
+    [value(12)]
+    static uint32 kind_aoc_12;
+
+    /// the Dock's and the Navy Yard's preview (ghost_unit.check_shore): at least this many tiles of the ring round
+    /// the footprint that are no water and no cliff ("2 < count" in both builds)
+    [value(3)]
+    static uint32 dock_shore_min;
+
     /// the map's areas (regions, continents)
     [address((ee)0x00917BC8, (aoc)0x00930BF0)]
     static EEAIContinentManager map_areas;
