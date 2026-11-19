@@ -635,27 +635,44 @@ internal int sh_inverse4(double *o, const float *m) {
 internal int sh_view_bounds(const float *r, const float *u, float zlo, float zhi, float *lo, float *hi) {
     double iv[16];
     if (!g_sh.vp_ok || !sh_inverse4(iv, g_sh.vp)) return 0;
-    lo[0] = lo[1] = 1e30f; hi[0] = hi[1] = -1e30f;
-    for (int c = 0; c < 4; c++) {
-        double n[2] = { c & 1 ? SH_VIEW_WIDE : -SH_VIEW_WIDE, c & 2 ? SH_VIEW_WIDE : -SH_VIEW_WIDE }, p[2][3];
-        for (int k = 0; k < 2; k++) {   // the corner on the near and the far plane (clip [x y z 1] times the inverse)
-            double q[4];
-            for (int j = 0; j < 4; j++) q[j] = n[0] * iv[j] + n[1] * iv[4 + j] + k * iv[8 + j] + iv[12 + j];
-            if (fabs(q[3]) < 1e-12) return 0;
-            for (int j = 0; j < 3; j++) p[k][j] = q[j] / q[3];
-        }
-        for (int s = 0; s < 2; s++) {
-            double z = s ? zhi : zlo, dz = p[1][2] - p[0][2], t = fabs(dz) > 1e-9 ? (z - p[0][2]) / dz : 1;
-            t = t < 0 ? 0 : t > 1 ? 1 : t;
-            double x = p[0][0] + (p[1][0] - p[0][0]) * t, y = p[0][1] + (p[1][1] - p[0][1]) * t, zz = p[0][2] + dz * t;
-            float a = (float)(x * r[0] + y * r[1] + zz * r[2]), b = (float)(x * u[0] + y * u[1] + zz * u[2]);
-            if (a < lo[0]) lo[0] = a;
-            if (a > hi[0]) hi[0] = a;
-            if (b < lo[1]) lo[1] = b;
-            if (b > hi[1]) hi[1] = b;
-        }
+    // The view's volume (the screen's corners on the near and the far plane) clipped to the slab between the two
+    // heights: its corners inside the slab and its edges' crossings of the planes. Each screen corner's ray cut at the
+    // planes alone, as it was, lost a view tilted up to the horizon (the player's, 2026-11-19: the top corners' rays never
+    // come down to the ground, their point fell back to the near plane - the map 16 tiles across, the far trees'
+    // shadows cut off at a line)
+    double p[8][3];
+    for (int c = 0; c < 8; c++) {   // clip [x y z 1] times the inverse; c & 4: the far plane
+        double n[3] = { c & 1 ? SH_VIEW_WIDE : -SH_VIEW_WIDE, c & 2 ? SH_VIEW_WIDE : -SH_VIEW_WIDE, c & 4 ? 1 : 0 }, q[4];
+        for (int j = 0; j < 4; j++) q[j] = n[0] * iv[j] + n[1] * iv[4 + j] + n[2] * iv[8 + j] + iv[12 + j];
+        if (fabs(q[3]) < 1e-12) return 0;
+        for (int j = 0; j < 3; j++) p[c][j] = q[j] / q[3];
     }
-    return isfinite(lo[0]) && isfinite(lo[1]) && isfinite(hi[0]) && isfinite(hi[1]) && lo[0] <= hi[0] && lo[1] <= hi[1];
+    lo[0] = lo[1] = 1e30f; hi[0] = hi[1] = -1e30f;
+    double pts[8 + 12 * 2][3];
+    int np = 0;
+    for (int c = 0; c < 8; c++)
+        if (p[c][2] >= zlo && p[c][2] <= zhi) memcpy(pts[np++], p[c], sizeof p[c]);
+    for (int c = 0; c < 8; c++)
+        for (int b = 1; b < 8; b <<= 1) {
+            if (c & b) continue;   // each edge once: c to c | b
+            const double *a0 = p[c], *a1 = p[c | b];
+            double dz = a1[2] - a0[2];
+            if (fabs(dz) < 1e-9) continue;
+            for (int s = 0; s < 2; s++) {
+                double t = ((s ? zhi : zlo) - a0[2]) / dz;
+                if (t < 0 || t > 1) continue;
+                for (int j = 0; j < 3; j++) pts[np][j] = a0[j] + (a1[j] - a0[j]) * t;
+                np++;
+            }
+        }
+    for (int i = 0; i < np; i++) {
+        float a = (float)(pts[i][0] * r[0] + pts[i][1] * r[1] + pts[i][2] * r[2]), b = (float)(pts[i][0] * u[0] + pts[i][1] * u[1] + pts[i][2] * u[2]);
+        if (a < lo[0]) lo[0] = a;
+        if (a > hi[0]) hi[0] = a;
+        if (b < lo[1]) lo[1] = b;
+        if (b > hi[1]) hi[1] = b;
+    }
+    return np && isfinite(lo[0]) && isfinite(lo[1]) && isfinite(hi[0]) && isfinite(hi[1]) && lo[0] <= hi[0] && lo[1] <= hi[1];
 }
 // Before the frame's list is drawn (rf_replay): its casters from the sun into the map, each batch drawn from where it
 // lies in the upload buffers. A list without casters leaves the map as it is (one drawn
