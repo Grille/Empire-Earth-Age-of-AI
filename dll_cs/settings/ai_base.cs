@@ -745,7 +745,7 @@ class ai_base
         /// finished dock out of danger, on its own sea, instead of waiting where it put them off (the game's computer
         /// player off). 0 = off
         [advanced]
-        bool transport_park = false;
+        bool transport_park = true;
         /// Idle citizens to the trees and bushes across the water (the game's computer player off): while citizens stand
         /// idle, a land across the water with trees in a territory its citizens may work and no drop site of its gets a
         /// Settlement by them, and the ferry (ferry_service) takes idle citizens to the free places at the trees and
