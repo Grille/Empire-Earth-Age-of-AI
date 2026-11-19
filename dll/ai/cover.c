@@ -528,6 +528,8 @@ internal int cv_cover(ee_player *pl, struct cv_pl *c, ivec2 p, unsigned a, ivec2
 }
 internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, ivec2 t, uint32_t now, ee_attack_group *g, int home) {
     if (c->nh >= CV_HOLD) return;
+    if (!cl_take(u, kind == 1 ? CLP_REPAIR : CLP_SURVIVE, kind == 1 ? CLW_HEAL : CLW_COVER, CL_SURVIVE_T)) return;   // ORDERS BY PRIORITY (claims.c): nobody sends it back out meanwhile
+    if (kind == 1) cl_stance(u, 1);   // stand ground while it heals
     struct cv_hold *h = &c->hold[c->nh++];
     h->u = u; h->g = g; h->id = unit_get_serial(u); h->kind = kind; h->t = t; h->home = home;
     h->since = now ? now : 1; h->at = 0;
@@ -667,7 +669,8 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
                 if (j < 0 || g_cvg[j].g != h->g || now - h->since > 300000) go = 1;
             } else if ((h->at && now - h->at >= 20000) || now - h->since > 90000) go = 1;
         }
-        if (go) { if (h->kind == 2 || h->kind == 4) c->back++; c->hold[k] = c->hold[--c->nh]; continue; }
+        if (go) { if (h->kind == 2 || h->kind == 4) c->back++; if (cv_alive(u) && unit_get_serial(u) == h->id) cl_end(u, h->kind == 1 ? CLW_HEAL : CLW_COVER); c->hold[k] = c->hold[--c->nh]; continue; }
+        if (!cl_take(u, h->kind == 1 ? CLP_REPAIR : CLP_SURVIVE, h->kind == 1 ? CLW_HEAL : CLW_COVER, CL_SURVIVE_T)) { c->hold[k] = c->hold[--c->nh]; continue; }   // its claim on while it holds
         ivec2 p = unit_get_tile(u);
         if (h->kind == 3 && h->home && h->at) {   // no cover: on toward home from where it got to
             ivec2 t;

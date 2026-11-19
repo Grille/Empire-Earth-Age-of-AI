@@ -1912,7 +1912,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         for (int j = 0; j < np && already + ordered < 5; j++) {
             ee_unit *u = s.sold[pick[j]];
             ee_unit *t = nbl ? bl[(already + ordered) % nbl] : e;   // spread over the builders
-            if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
+            if (cl_take(u, CLP_TASK, CLW_CSIEGE, CL_CIT_T) && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;   // ORDERS BY PRIORITY (claims.c): not called back meanwhile
             s.sold[pick[j]] = NULL;   // one target per unit per tick
         }
         g_csiege_orders[idx] += (unsigned)ordered;

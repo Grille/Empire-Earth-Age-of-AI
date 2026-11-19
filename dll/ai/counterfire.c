@@ -115,7 +115,7 @@ internal void counter_fire(ee_player *pl, unsigned idx, uint32_t now) {
             for (int j = 0; j < ncl && t && !on; j++) on = t == cl[j];
             if (on) { st_side_add(&g_cf_own, u); already++; s.own[k] = NULL; continue; }
             int d2 = ivec2_dist2(unit_get_tile(u), c);
-            if (d2 > CF_FROM * CF_FROM || counter_fire_unit(pl, u)) continue;
+            if (d2 > CF_FROM * CF_FROM || counter_fire_unit(pl, u) || !cl_may(u, CLP_TASK, CLW_COUNTER)) continue;   // ... or another's (claims.c: healing, under cover)
             if (t && abs(unit_get_x(t) - unit_get_x(u)) <= 4 && abs(unit_get_y(t) - unit_get_y(u)) <= 4) continue;   // busy close by
             ee_unit_type *td = unit_get_type_data(u);
             if (attack_bonus(td, etd, pi, ei) <= 0.0f) continue;
@@ -137,7 +137,7 @@ internal void counter_fire(ee_player *pl, unsigned idx, uint32_t now) {
         int sent = 0;
         for (int k = 0; k < take; k++) {
             ee_unit *u = cand[k].u;
-            if (!unit_goal(u, goal_attack(u, cl[k % ncl]), 0, 0x1F40)) continue;
+            if (!cl_take(u, CLP_TASK, CLW_COUNTER, CF_HOLD) || !unit_goal(u, goal_attack(u, cl[k % ncl]), 0, 0x1F40)) continue;   // ORDERS BY PRIORITY: the strike's for its time
             sent++;
             if (l->n + added < CF_N) { l->e[l->n + added] = (struct cf_ent){ u, unit_get_serial(u), now + CF_HOLD }; added++; }
             for (int j = 0; j < s.no; j++) if (s.own[j] == u) { s.own[j] = NULL; break; }

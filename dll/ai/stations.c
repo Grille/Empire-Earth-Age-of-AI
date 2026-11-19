@@ -248,7 +248,7 @@ internal int sn_rams(ee_player *pl, unsigned idx, struct sn_st *z, int nn, int r
     long sx = 0, sy = 0;
     for (int i = 0; i < nn; i++) {
         struct sn_unit *m = &z->m[i];
-        if (m->ter != r || m->scout || m->pool != SNP_SIEGE || !sn_is_ram(m->u) || unit_get_x(m->u) < 0 || unit_get_hp(m->u) <= 0) continue;
+        if (m->ter != r || m->scout || m->pool != SNP_SIEGE || !sn_is_ram(m->u) || unit_get_x(m->u) < 0 || unit_get_hp(m->u) <= 0 || !cl_may(m->u, CLP_ROUTINE, CLW_STATION)) continue;
         ri[nr++] = (short)i; sx += unit_get_x(m->u); sy += unit_get_y(m->u);
     }
     if (nr < SN_RAM_MIN) return 0;
@@ -356,6 +356,7 @@ internal int sn_idle(struct sn_st *z, struct sn_unit *m, uint32_t now) {
     return 1;
 }
 internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fight, uint32_t now) {
+    if (!cl_may(m->u, CLP_ROUTINE, CLW_STATION)) return 0;   // ORDERS BY PRIORITY (claims.c): healing, under cover, in a strike
     ee_goal *g = ar_goal_at(d, k, fight);
     if (!g || !unit_goal(m->u, g, 0, 0x1F40)) return 0;
     m->order_t = now ? now : 1; m->to = d;
@@ -1618,6 +1619,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     for (int i = 0; i < nn; i++) {
         struct sn_unit *m = &z->m[i];
         if (m->scout || m->ter < 0 || m->ter >= n || rammed[i]) continue;
+        if (!cl_may(m->u, CLP_ROUTINE, CLW_STATION)) { m->wait_t = 0; continue; }   // ORDERS BY PRIORITY (claims.c): another's for now
         // THE RESERVE: on its way into a fortress - as long as its load order lasts, not only SN_RES_AGAIN (a walk
         // longer than that was called back to its station on the way)
         if ((m->stash_t && now >= m->stash_t && now - m->stash_t < SN_RES_AGAIN) || (m->stash_t && bk_walking_into(m->u))) continue;
