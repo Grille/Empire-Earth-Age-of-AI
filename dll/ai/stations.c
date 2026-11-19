@@ -227,7 +227,7 @@ internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRS
 // gate it knows (seen or remembered, attack.c seen_by) within SN_GATE_R of it - escorted as THE SIEGE'S ESCORT has it:
 // the push's soldiers within SN_SIEGE_NEAR, SN_SIEGE_ESCORT stationed in the territory. The soldiers leave gates alone.
 #define SN_GATE_R 12
-// RAMS AT THE TOWERS ([autotest] v_ram_towers; the player 2026-11-19, his game: "the ai isnt using the samsons
+// RAMS AT THE TOWERS ([autotest] v_ram_towers 1, 0 none; the player 2026-11-19, his game: "the ai isnt using the samsons
 // effectivly, clearing towers is one of its best use. both player have some samsons on p2 homeisland, but both stand
 // just around"): outside a push the siege had nothing to do but gates and walls, and stood in its formation however near
 // an enemy tower stood. The rams (UTR_RAM: the Sampson too) of a territory not pushing - SN_RAM_MIN of them at least -
@@ -235,51 +235,108 @@ internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRS
 // defence first, else any but a wall, where no enemy soldier it knows stands within SN_RAM_SAFE (a ram can't hit one:
 // the soldiers' business); they stay on it until it is down, then the next. Measured with armies.c's SIEGE WITH A
 // PURPOSE (its note): no cost shown, never 3 rams together in those test games; on.
+// RAMS WITH THE SOLDIERS (v_ram_towers 2; the player 2026-11-19, his game again: "the ai is still to conservative with
+// its rams ... they stay mostly in the back when they should clear towers and building with the other soilders, they
+// also look somewhat undecided"): at 109 min 15 of P2's rams stood idle or walking 5-9 tiles from a P3 tower its
+// soldiers were hitting, and at one building they were sent again 8 times in 40 s (15, 6, 2, 3, 2, 3, 1, 1). Three
+// causes: a building was left alone with any enemy soldier known near it - the citizens' raiders_known, one seen or
+// remembered from the last 3 minutes whose reach takes the building in, the enemy's own rams too (P3 had 80) - which in
+// a fight is always; a pushing territory's rams walked behind its soldiers (THE SIEGE'S ESCORT) and never hit one; a
+// look that found no building let the formation or the enemy soldiers' middle take back the rams already on one. Now
+// a building is the rams' with SN_SIEGE_ESCORT soldiers of the player within SN_RAM_ESC of it - they fight what stands
+// there, the rams are their attachment - pushing or not, a single ram too; without them, as before, only SN_RAM_MIN
+// rams together and with no enemy that can hurt a ram (a ram can't) in sight within SN_RAM_SAFE, and not in a push. A
+// ram at an enemy building stays on it whatever the look finds; a defence first, then the one rams of its are on.
+// Siege Towers and Trojan Horses (rams without an attack) are no rams here. MEASURED 2026-11-19 (head-to-head,
+// Continental, 4 AIs from epoch 2 - the Sampson's -, 120 min, seeds 2-14 mirrored, 24 games; the island test from
+// epoch 5 gives no ram an order; B as before, v_ram_towers=1): even - B - A alive -0.10 then +0.00 (se 0.19, 0.17),
+// soldiers -9.1 then +10.8 (18.0, 12.1), razed -7.8 then +18.3 (30.4, 21.0) over 10 and 14 games; the games where A's
+// rams were sent 5 times or more: A 6 won, 1 lost, 4 neither (a side ahead pushes, and its rams with it - no proof).
+// The old way's rams got an order in 3 of the 24 games. On: the player's call ("to conservative").
 #define SN_RAM_MIN 3
 #define SN_RAM_R 30
 #define SN_RAM_SAFE 8
-internal int g_sn_rams = 1, g_v_sn_rams = -1;
+#define SN_RAM_ESC 10
+internal int g_sn_rams = 2, g_v_sn_rams = -1;
 #define RAM_TOWERS(idx) PV(idx, g_v_sn_rams, g_sn_rams)
-internal int sn_is_ram(ee_unit *u) { ee_unit_type *td = unit_get_type_data(u); return td && ut_role(unit_type_get_id(td), UTR_RAM); }
-// the rams of territory r (not pushing) at the building nearest their middle: how many sent; done[] marks those it orders
-internal int sn_rams(ee_player *pl, unsigned idx, struct sn_st *z, int nn, int r, uint8_t *done, uint32_t now) {
+internal int sn_is_ram(ee_unit *u) { ee_unit_type *td = unit_get_type_data(u); return td && ut_role(unit_type_get_id(td), UTR_RAM) && unit_type_get_attack(td) > 0; }   // not a Siege Tower, a Trojan Horse (no attack)
+// an enemy of pl that can hurt a ram in sight within r of p (soldiers, ships by the shore; no rams, no citizens)
+internal int sn_ram_foes(ee_player *pl, ivec2 p, int r) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, r, 1); grid_it_next(&it); ) {
+        int fam = unit_type_get_class_id(it.td), t = unit_type_get_id(it.td);
+        if ((fam != CLS_LAND && fam != CLS_NAVAL) || is_citizen_type(t) || ut_role(t, UTR_RAM) || unit_type_get_attack(it.td) <= 0 || unit_get_hp(it.u) <= 0) continue;
+        ee_player *o = unit_get_owner(it.u);
+        if (o && player_get_index(o) > 0 && is_enemy(pl, o) && seen_by(it.u, pl)) return 1;
+    }
+    return 0;
+}
+// the enemy building u is a ram's target already
+internal int sn_ram_at(ee_player *pl, ee_unit *u) {
+    ee_goal *cg = unit_get_goal(u);
+    ee_unit *tg = cg && goal_is_attack(cg) ? goal_get_target(cg) : NULL;
+    if (!tg || unit_get_hp(tg) <= 0 || !unit_get_owner(tg) || !is_enemy(pl, unit_get_owner(tg))) return 0;
+    ee_unit_type *td = unit_get_type_data(tg);
+    int f = td ? unit_type_get_class_id(td) : 0;
+    return f == CLS_BUILDING || f == CLS_FORTRESS;
+}
+// the rams of territory r at the building nearest their middle: how many sent; done[] marks those it orders and those
+// at a building already (RAMS WITH THE SOLDIERS: the stations leave them there). pushing: r's push is on.
+internal int sn_rams(ee_player *pl, unsigned idx, struct sn_st *z, int nn, int r, int pushing, uint8_t *done, uint32_t now) {
     static short ri[SN_UNITS];
-    int nr = 0;
+    static ivec2 sp[SN_UNITS];   // RAMS WITH THE SOLDIERS: the soldiers' tiles
+    static ee_unit *on[SN_UNITS];
+    int nr = 0, ns = 0, non = 0, with = RAM_TOWERS(idx) == 2;
     long sx = 0, sy = 0;
     for (int i = 0; i < nn; i++) {
         struct sn_unit *m = &z->m[i];
+        if (with && m->pool == SNP_MAIN && !m->scout && unit_get_x(m->u) >= 0 && unit_get_hp(m->u) > 0) sp[ns++] = unit_get_tile(m->u);
         if (m->ter != r || m->scout || m->pool != SNP_SIEGE || !sn_is_ram(m->u) || unit_get_x(m->u) < 0 || unit_get_hp(m->u) <= 0 || !cl_may(m->u, CLP_ROUTINE, CLW_STATION)) continue;
+        if (with && sn_ram_at(pl, m->u)) {   // at a building: on it till it is down
+            done[i] = 1;
+            ee_goal *cg = unit_get_goal(m->u);
+            if (non < SN_UNITS) on[non++] = goal_get_target(cg);
+        }
         ri[nr++] = (short)i; sx += unit_get_x(m->u); sy += unit_get_y(m->u);
     }
-    if (nr < SN_RAM_MIN) return 0;
+    if (nr < 1 || (!with && (nr < SN_RAM_MIN || pushing))) return 0;
     ivec2 c = iv2((int)(sx / nr), (int)(sy / nr));
-    unsigned land = area_id(c, 2);
     ee_unit *best = NULL;
-    int bd = 0x7FFFFFFF;
+    int bd = 0x7FFFFFFF, besc = 0;
     for (struct grid_it it = grid_it_box(c.x, c.y, SN_RAM_R, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         int fam = unit_type_get_class_id(it.td), t = unit_type_get_id(it.td);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(t) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl)) continue;
         ivec2 q = unit_get_tile(it.u);
-        if (area_id(q, 2) != land) continue;
+        if (ivec2_dist2(q, c) > SN_RAM_R * SN_RAM_R) continue;
+        unsigned land = area_id(q, 2);
+        int nl = 0;   // its rams on the building's land
+        for (int k = 0; k < nr; k++) nl += area_id(unit_get_tile(z->m[ri[k]].u), 2) == land;
+        if (!nl) continue;
         float rg, at;
-        int d = ivec2_dist2(q, c) - (defence_stats(it.u, &rg, &at) ? 1 << 20 : 0);   // a defence first
-        if (d >= bd || ivec2_dist2(q, c) > SN_RAM_R * SN_RAM_R || raiders_known(pl, q, SN_RAM_SAFE)) continue;
-        bd = d; best = it.u;
+        int dfc = defence_stats(it.u, &rg, &at), d = ivec2_dist2(q, c) - (dfc ? 1 << 22 : 0), esc = 0;   // a defence first
+        for (int k = 0; k < non; k++) if (on[k] == it.u) { d -= 1 << 20; break; }   // ... then the one rams are on
+        if (d >= bd) continue;
+        if (with) for (int k = 0; k < ns && esc < SN_SIEGE_ESCORT; k++) esc += ivec2_dist2(sp[k], q) <= SN_RAM_ESC * SN_RAM_ESC;
+        if (esc < SN_SIEGE_ESCORT) {   // alone: as RAMS AT THE TOWERS
+            if (pushing || nl < SN_RAM_MIN) continue;
+            if (with ? sn_ram_foes(pl, q, SN_RAM_SAFE) : raiders_known(pl, q, SN_RAM_SAFE)) continue;
+        }
+        bd = d; best = it.u; besc = esc >= SN_SIEGE_ESCORT;
     }
     if (!best) return 0;
+    unsigned land = area_id(unit_get_tile(best), 2);
     int sent = 0;
     for (int k = 0; k < nr; k++) {
         struct sn_unit *m = &z->m[ri[k]];
+        if (area_id(unit_get_tile(m->u), 2) != land) continue;
         done[ri[k]] = 1;
-        ee_goal *cg = unit_get_goal(m->u);
-        ee_unit *tg = cg && goal_is_attack(cg) ? goal_get_target(cg) : NULL;
-        if (tg && unit_get_hp(tg) > 0 && unit_get_owner(tg) && is_enemy(pl, unit_get_owner(tg))) { ee_unit_type *td = unit_get_type_data(tg); int f = td ? unit_type_get_class_id(td) : 0; if (f == CLS_BUILDING || f == CLS_FORTRESS) continue; }   // at a building already
+        if (sn_ram_at(pl, m->u)) continue;   // at a building already
         ee_goal *g = goal_attack(m->u, best);
         if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = unit_get_tile(best); m->wait_t = 0; z->orders++; sent++; }
     }
-    if (sent && g_log) log_locked("# stations: P%u at %.1f min: %d rams of territory %d at the enemy's %s (type %d) at %d,%d\n", idx, now / 60000.0, sent, r,
-                                  bd < 0 ? "defence" : "building", unit_type_get_id(unit_get_type_data(best)), unit_get_x(best), unit_get_y(best));
+    if (sent && g_log) log_locked("# stations: P%u at %.1f min: %d rams of territory %d at the enemy's %s (type %d) at %d,%d%s%s\n", idx, now / 60000.0, sent, r,
+                                  bd < -(1 << 21) ? "defence" : "building", unit_type_get_id(unit_get_type_data(best)), unit_get_x(best), unit_get_y(best),
+                                  besc ? ", with its soldiers" : "", pushing ? " (pushing)" : "");
     return sent;
 }
 #define SN_RES_ODDS 3           // ... unless its soldiers stationed there are this many times as many
@@ -1607,10 +1664,10 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     memset(nram, 0, (size_t)n * sizeof *nram);
     for (int i = 0; RAM_TOWERS(idx) && i < nn; i++) if (z->m[i].pool == SNP_SIEGE && z->m[i].ter >= 0 && z->m[i].ter < n && sn_is_ram(z->m[i].u)) nram[z->m[i].ter]++;
     for (int r = 0; RAM_TOWERS(idx) && r < n && player_ai_toggle(pl, SM_AIT_ATTACK); r++) {
-        if (nram[r] < SN_RAM_MIN) continue;
+        if (nram[r] < 1 || g_ter.t[r].water) continue;
         int pushing = 0;
         for (int k = 0; k < SN_PUSHES; k++) pushing |= z->push[k].on && z->push[k].from == r;
-        if (!pushing && !g_ter.t[r].water) sn_rams(pl, idx, z, nn, r, rammed, now);
+        sn_rams(pl, idx, z, nn, r, pushing, rammed, now);
     }
     static struct { short r, i; } fm[SN_FORM_MAX];   // A STANDING FORMATION: the idle at rest on their patch
     int nf = 0;
