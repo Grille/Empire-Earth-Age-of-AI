@@ -81,6 +81,27 @@
 #define BD_HOLD_PROD 16   // ... a production building of its this near: none laid
 #define BD_HOLD_EVERY 20000
 #define BD_HOLD_N 8       // ... builders sent to it at most
+#define BD_HOLD_KEEP 180000   // ... its builders kept at it this long since they were sent (attack.c citizens_safety: bd_hold_site)
+#define BD_HOLD_SITES 16
+internal struct { ee_unit *b; int id; uint32_t t; } g_bd_holds[16][BD_HOLD_SITES];
+internal void bd_hold_mark(unsigned idx, ee_unit *b, uint32_t now) {
+    int k = 0;
+    for (int j = 0; j < BD_HOLD_SITES; j++) {
+        if (g_bd_holds[idx & 15][j].b == b && g_bd_holds[idx & 15][j].id == unit_get_serial(b)) { k = j; break; }
+        if (g_bd_holds[idx & 15][j].t < g_bd_holds[idx & 15][k].t) k = j;
+    }
+    g_bd_holds[idx & 15][k].b = b; g_bd_holds[idx & 15][k].id = unit_get_serial(b); g_bd_holds[idx & 15][k].t = now ? now : 1;
+}
+// attack.c citizens_safety: a building HOLDING THE GROUND sent its builders to lately - they stay at it, raiders near or
+// not (sent back from it each look, they went to and fro between it and the drop site, the player 2026-11-19: "the
+// selected citecens (and it grou) get send forth and back betwehen construction sites, never getting done either")
+internal int bd_hold_site(ee_player *pl, ee_unit *b) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    uint32_t now = game_time();
+    for (int j = 0; b && j < BD_HOLD_SITES; j++)
+        if (g_bd_holds[idx][j].b == b && g_bd_holds[idx][j].id == unit_get_serial(b) && g_bd_holds[idx][j].t && now >= g_bd_holds[idx][j].t && now - g_bd_holds[idx][j].t < BD_HOLD_KEEP) return 1;
+    return 0;
+}
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 // ACROSS THE WATER (work.c): the lands where a foundation of its found no free citizen on its land to build it - the
 // ferry (ferry.c) brings citizens there as to free places at mines, with no drop site of its there yet
@@ -383,6 +404,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                     if (d < bd && area_id(p, 2) == land && !wk_danger(idx, p)) { bd = d; job = openb[i]; }
                 }
             }
+            if (job) bd_hold_mark(idx, job, now);   // its builders stay at it (attack.c citizens_safety)
             for (int k = 0, sent = 0; job && k < nl && sent < BD_HOLD_N; k++)
                 if (bd_send(pl, hc[k], job)) { sent++; b->hold_sent++; }
         }
@@ -847,4 +869,4 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                    b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->fdocks, b->across);
     }
 }
-internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }
+internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_holds, 0, sizeof g_bd_holds); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }
