@@ -174,6 +174,17 @@ internal inline void unit_unlink(ee_unit *unit) { fn_unit_unlink(unit); }
 typedef int (__thiscall *unit_count_inside_fn)(ee_unit *);
 internal unit_count_inside_fn fn_unit_count_inside;
 internal inline int unit_count_inside(ee_unit *unit) { return fn_unit_count_inside(unit); }
+// thiscall(holder, cargo): ONE UNIT OUT of a transport or a Fortress at once, beside it - the click on a held
+// unit's icon (EEUICUnitIconBar vf14 0x6443EB) sends EEMImmediateCargoUnload (kind 0x95, vtable 0x828D34: +0x10
+// the holder's serial, +0x14 the unit's), whose Execute 0x4B77FA calls this on both units' physics. 1 if out: it
+// looks for the cargo in inside (by pointer, 0 if not there), asks the type's can-unload (EEUCTransport vf59 at
+// 0xEC: 1 for the transports, EEUCFortress's 0x601E40 only while population + the unit's fits under the cap),
+// removes a dead one (0x5EE9E3), else finds a spot within the type's unload range (0x62E201) and puts it there
+// (0x5EED30: out of inside, its transport size off the room taken). No walk to a shore: a transport has to be at
+// the place already. AoC's 0x5FD0FE the same (its can-unload at 0xF0)
+typedef uint8_t (__thiscall *unit_unload_one_fn)(ee_unit *, ee_unit *);
+internal unit_unload_one_fn fn_unit_unload_one;
+internal inline uint8_t unit_unload_one(ee_unit *unit, ee_unit *cargo) { return fn_unit_unload_one(unit, cargo); }
 // thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
 // pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
 // orders, the front the current, shift appends
@@ -1239,6 +1250,7 @@ internal int spec_unit_select(int build) {
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
         fn_unit_unlink = (unit_unlink_fn)0x00628E29;
         fn_unit_count_inside = (unit_count_inside_fn)0x0042E347;
+        fn_unit_unload_one = (unit_unload_one_fn)0x005EEEB8;
         fn_unit_goal_queue = (unit_goal_queue_fn)0x005F3473;
         of_unit_hidden_flags = 0x44;
         vt_ee_complex_unit = 0x00831494;
@@ -1542,6 +1554,7 @@ internal int spec_unit_select(int build) {
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
         fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
         fn_unit_count_inside = (unit_count_inside_fn)0x0040D5C5;
+        fn_unit_unload_one = (unit_unload_one_fn)0x005FD0FE;
         fn_unit_goal_queue = (unit_goal_queue_fn)0x005FA1CD;
         of_unit_hidden_flags = 0x44;
         vt_ee_complex_unit = 0x00846DDC;
@@ -1827,6 +1840,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_turn_accel, "EEUnit.turn_accel");
     bad += spec_code((uintptr_t)fn_unit_unlink, "EEUnit.unlink");
     bad += spec_code((uintptr_t)fn_unit_count_inside, "EEUnit.count_inside");
+    bad += spec_code((uintptr_t)fn_unit_unload_one, "EEUnit.unload_one");
     bad += spec_code((uintptr_t)fn_unit_goal_queue, "EEUnit.goal_queue");
     bad += spec_vtable(vt_ee_complex_unit, ".?AVEEComplexUnit@@", "EEComplexUnit [vtable]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass");

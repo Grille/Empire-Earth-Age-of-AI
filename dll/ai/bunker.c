@@ -81,14 +81,15 @@ internal int bk_unload(ee_unit *f) {
 }
 
 // bunker P x y [r]: P's fortresses within r (10) of x,y and what they hold; bunker P x y r load: they load P's citizens
-// there (up to their capacity); bunker P x y r unload: they let everyone out beside them (tests)
+// there (up to their capacity); bunker P x y r unload: they let everyone out beside them; bunker P x y r out1: each
+// lets its last one out alone (unit_let_out, the click on a held unit's icon) (tests)
 internal void cmd_bunker(char *out, const char *args) {
     struct bk_scan b = { 0 };
     int p = 0;
     char verb[16] = "";
     b.r = 10;
     if (sscanf(args, "%d %d %d %d %15s", &p, &b.p.x, &b.p.y, &b.r, verb) < 3 || p <= 0 || p >= 16 || !st_player(p)) {
-        REPLY("error: bunker P x y [r [load|unload]]\n");
+        REPLY("error: bunker P x y [r [load|unload|out1]]\n");
         return;
     }
     b.pl = st_player(p);
@@ -107,6 +108,10 @@ internal void cmd_bunker(char *out, const char *args) {
             if (n > 0 && bk_load(f, b.c + used, n)) { REPLY(", loads %d", n); used += n; }
         } else if (!strcmp(verb, "unload") && held > 0) {
             if (bk_unload(f)) REPLY(", unloads");
+        } else if (!strcmp(verb, "out1") && held > 0) {
+            int n = unit_inside_n(f);
+            int ok = n > 0 && unit_let_out(f, unit_inside_get(f, n - 1));
+            REPLY(", %d listed, one out %s, holds %d", n, ok ? "yes" : "no", bk_held(f));
         }
         REPLY("]");
     }

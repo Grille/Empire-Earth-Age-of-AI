@@ -142,3 +142,17 @@ internal inline int unit_plagued(ee_unit *u) {
     ee_unit *ph = u ? unit_get_physics(u) : NULL;
     return ph && (unit_get_contagions(ph) & value_unit_contagion_plague) != 0;
 }
+// THE UNITS INSIDE a transport or building, one by one: its physics' inside vector (the field at its begin, the end
+// after it - unit_unload_one's own walk of it) holds their physics; one of them let out at once beside the holder as
+// the click on its icon does (unit_unload_one: 0 when its type says no - a Fortress at the population cap - or it
+// isn't inside). In the simulation, on every PC alike, as the click's message carries it out
+internal inline int unit_inside_n(ee_unit *h) {
+    ee_unit *ph = h ? unit_get_physics(h) : NULL;
+    uintptr_t const *v = ph ? (uintptr_t const *)unit_inside_at(ph) : NULL;
+    return v && v[0] ? (int)((v[1] - v[0]) / sizeof(ee_unit *)) : 0;
+}
+internal inline ee_unit *unit_inside_get(ee_unit *h, int i) { return ((ee_unit **const *)unit_inside_at(unit_get_physics(h)))[0][i]; }
+internal inline int unit_let_out(ee_unit *h, ee_unit *inside) {
+    ee_unit *ph = h ? unit_get_physics(h) : NULL;
+    return ph && inside ? unit_unload_one(ph, inside) != 0 : 0;
+}
