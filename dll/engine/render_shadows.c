@@ -193,6 +193,7 @@ internal const float *g_mo_box;   // a blended draw's box, lo and hi (render_mor
 // takes the same light with its height times ten (nearly overhead), which isn't the sun's.
 // A light at the horizon (the sun set, the moon not yet up) is no sun: its height 0 fades the shadows out
 // (shadow_dusk), its direction kept
+#define SH_SUN_EASE 10.0f   // degrees over sun_low where the sun's height for the casters eases toward it
 internal void shadow_light_read(void) {
     float s[3], amb[3], diff[3];
     if (!g_sh.on || !game_light(s, amb, diff)) return;
@@ -213,6 +214,14 @@ internal void shadow_light_read(void) {
     // the hills' sun: the light's own height (their map covers the whole map: no reach to keep short), the pipe's
     // height and turn as the casters'
     memcpy(g_sh.hlight, s, sizeof s);
+    // the floor eased in (the player, 2026-11-19: "hitting the limit is very noticable, it should ease in instead"): the
+    // last SH_SUN_EASE degrees over sun_low the height follows L + W e^((a - L) / W - 1) - the light's own at L + W, its
+    // pace there too, then slower and slower toward L, never reaching it: the shadows lengthen ever more slowly and stop
+    // without a kink
+    if (g_sh.sun_set <= 0) {
+        float lo = g_sh.sun_low, w = fminf(SH_SUN_EASE, lo), a = asinf(fminf(1, -s[2])) * 180 / 3.14159265f;
+        low = w > 0 && a < lo + w ? sinf((lo + w * expf((a - lo) / w - 1)) * 3.14159265f / 180) : -1;
+    }
     if ((-s[2] < low || g_sh.sun_set > 0) && h > 0) { float k = sqrtf(1 - low * low) / h; s[0] *= k; s[1] *= k; s[2] = -low; }
     if (g_sh.sun_set > 0) memcpy(g_sh.hlight, s, sizeof s);
     memcpy(g_sh.sun, s, sizeof s);
@@ -1120,7 +1129,7 @@ internal void cmd_shadows(char *out, const char *args) {
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the map %.0f x %.0f tiles across the rays, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f, the light's %.2f %.2f %.2f, the hour %.2f;"
           " the water at %.2f%s, a shadow gone %.2f under it, %.2f of it on the surface; units in a shadow darkened: %s, receiving: %s; by the light's height %.2f of a shadow (by moonlight at most %.2f); the sun at least %.0f degrees"
-          " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f, the ground's rise %.1f), %d rows and %d more; %d casting draws off the screen;"
+          " high (the light's %.0f, the casters' %.1f); casters off the screen: %s, %.1f tiles (the tallest %.1f, the ground's rise %.1f), %d rows and %d more; %d casting draws off the screen;"
           " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s (full %.2f tiles under the ceiling), %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
@@ -1128,7 +1137,7 @@ internal void cmd_shadows(char *out, const char *args) {
           (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.span[0], (double)g_sh.span[1], (double)g_sh.sun[0],
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2], (double)g_sh.diff[0], (double)g_sh.diff[1], (double)g_sh.diff[2], (double)game_hour(),
           (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, (double)g_sh.water, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground", (double)g_sh.dusk, (double)g_sh.moon,
-          (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
+          (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f), (double)(asinf(fminf(1, fmaxf(-1, -g_sh.sun[2]))) * 180 / 3.14159265f),
           !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, (double)g_shr.rise, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
           (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2],
           g_sh.nohills ? "off" : g_sh.hill_ok ? "on" : "not made", (double)g_sh.hsoft, g_sh.hn, g_sh.hn, g_sh.hr, (long)g_sh.hill_made, (double)g_sh.hill_ms);
