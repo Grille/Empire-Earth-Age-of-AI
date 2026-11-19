@@ -127,6 +127,8 @@ internal struct tv_st {
 internal int g_ter_shelter = 0, g_v_ter_shelter = -1;
 internal int g_hold_ground = 0, g_v_hold_ground = -1;   // build.c HOLDING THE GROUND ([ai_base] hold_ground, [autotest] v_hold_ground)
 #define HOLD_GROUND(idx) PV(idx, g_v_hold_ground, g_hold_ground)
+internal int g_forest_across = 0, g_v_forest_across = -1;   // work.c, build.c, ferry.c TO THE TREES ACROSS ([ai_base] forest_across, [autotest] v_forest_across)
+#define FOREST_ACROSS(idx) PV(idx, g_v_forest_across, g_forest_across)
 #define TER_SHELTER(idx) PV(idx, g_v_ter_shelter, g_ter_shelter)
 internal struct st_side g_tv_own, g_tv_foe;
 internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now);   // BORDER TOWERS (below)
@@ -1090,6 +1092,8 @@ internal void territories_install(const char *autotest_ini) {
     g_fight_prod = g_set_ai[1].fight_production;
     g_hold_ground = g_set_ai[1].hold_ground;
     if (autotest_ini) g_v_hold_ground = ini_int("autotest", "v_hold_ground", -1, autotest_ini);
+    g_forest_across = g_set_ai[1].forest_across;
+    if (autotest_ini) g_v_forest_across = ini_int("autotest", "v_forest_across", -1, autotest_ini);
     if (autotest_ini) g_v_fight_prod = ini_int("autotest", "v_fight_production", -1, autotest_ini);
     if (autotest_ini) g_v_wk_across = ini_int("autotest", "v_expand_across", -1, autotest_ini);
     g_border_walls = g_set_ai[1].border_walls;

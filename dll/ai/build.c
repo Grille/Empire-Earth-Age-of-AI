@@ -106,6 +106,8 @@ internal int bd_hold_site(ee_player *pl, ee_unit *b) {
 // ACROSS THE WATER (work.c): the lands where a foundation of its found no free citizen on its land to build it - the
 // ferry (ferry.c) brings citizens there as to free places at mines, with no drop site of its there yet
 #define BD_WAIT_LANDS 8
+#define BD_FOREST_IDLE 8        // TO THE TREES ACROSS: idle citizens for a Settlement by trees across the water
+#define BD_FOREST_EVERY 60000
 internal struct { uint32_t t; int n; unsigned land[BD_WAIT_LANDS]; ivec2 at[BD_WAIT_LANDS]; } g_bd_wait[16];
 internal int bd_waits(unsigned idx, unsigned land, ivec2 *at) {
     uint32_t now = game_time();
@@ -132,6 +134,7 @@ internal struct bd_st {
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
     uint32_t herd_t; unsigned herds;     // A HERD'S SETTLEMENT: the last laid, how many
+    uint32_t forest_t; unsigned forests; int forest_n[3]; unsigned forest_nospot;   // TO THE TREES ACROSS: the last look, how many laid; the last look's territories on a land with no drop site of its, with a tree, out of danger; no spot found
     uint32_t fdock_t; unsigned fdocks;   // A FISHING DOCK: the same
     uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
     int laid_type[5];               // ... and its type
@@ -612,6 +615,40 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 else b->no_spot++;
             }
         }
+        // TO THE TREES ACROSS ([ai_base] forest_across; work.c): while BD_FOREST_IDLE or more of its citizens stand idle,
+        // the trees on a land with no drop site of its and no foundation of its waiting for builders - in a territory its
+        // citizens may work, the cheapest first, then the nearest to the base, out of danger - get a Settlement 2 to 10
+        // tiles off, one every BD_FOREST_EVERY; ACROSS THE WATER below lays it with nobody there, the ferry brings the
+        // builders and then the wood cutters
+        if (!type && !placed && !open_settle && !wait[1] && FOREST_ACROSS(idx) && EXPAND_ACROSS(idx) && g_wk[idx].idle >= BD_FOREST_IDLE &&
+            (!b->forest_t || now < b->forest_t || now - b->forest_t >= BD_FOREST_EVERY) &&
+            ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
+            b->forest_t = now ? now : 1;
+            int fbest = 0x7FFFFFFF;
+            ivec2 fp = iv2(0, 0);
+            b->forest_n[0] = b->forest_n[1] = b->forest_n[2] = 0;
+            for (int r = 0; r < s->n; r++) {
+                int c = g_ter.t[r].water ? 0 : wk_cost(s, (unsigned)r);
+                if (!c) continue;
+                unsigned fl = area_id(g_ter.t[r].c, 2);
+                if (fl && (rs_drop_land(idx, fl) || bd_waits(idx, fl, NULL))) continue;
+                b->forest_n[0]++;
+                ee_unit *tree = wk_tree(pl, s, g_ter.t[r].c, 24, r);
+                if (!tree) continue;
+                b->forest_n[1]++;
+                ivec2 p = unit_get_tile(tree);
+                unsigned tl = area_id(p, 2);
+                int score = c * 1000000 + ivec2_dist2(p, base);
+                if (!tl || rs_drop_land(idx, tl) || bd_waits(idx, tl, NULL) || raiders_near(pl, p, 12) || tv_unsafe(idx, p.x, p.y)) continue;
+                b->forest_n[2]++;
+                if (score >= fbest) continue;
+                fbest = score; fp = p;
+            }
+            if (fbest < 0x7FFFFFFF) {
+                if (bd_spot(pl, idx, UT(B_SETTLEMENT), fp, 2, 10, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by trees across the water"; b->forests++; }
+                else { b->no_spot++; b->forest_nospot++; }
+            }
+        }
         // A FISHING DOCK (the player 2026-11-18: "improve fishing" - his Stone Age game had 75 fish nobody worked: a dock
         // came only as a harbour, and the harbours run only while the fleet does, which wants an enemy across the water):
         // while citizens wanted on food find no site and the seas are fished (sea_fishing), the fish nearest a drop site
@@ -864,9 +901,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         b->log_t = now ? now : 1;
         log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings (%d left on lost ground) | mines in reach %d, with a drop site %d, with a defence %d | "
                    "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
-                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, fishing docks %u, laid across the water %u\n",
+                   "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, by trees across the water %u (the last look: %d territories on a land with no drop site of its, %d with a tree, %d out of danger; %u found no spot), fishing docks %u, laid across the water %u\n",
                    idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->lost_ground, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
-                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->fdocks, b->across);
+                   b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->forests, b->forest_n[0], b->forest_n[1], b->forest_n[2], b->forest_nospot, b->fdocks, b->across);
     }
 }
 internal void build_new_game(void) { memset(g_bd, 0, sizeof g_bd); memset(g_bd_holds, 0, sizeof g_bd_holds); memset(g_bd_com, 0, sizeof g_bd_com); produce_new_game(); }

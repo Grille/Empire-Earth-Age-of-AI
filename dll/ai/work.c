@@ -617,8 +617,18 @@ internal int wk_reach(struct tv_st *s, int home, short *out, int max) {
 // THE FERRY SERVICE (expand.c), by land: the free places at the mines of the resources it wants more citizens on
 // (want over have) and the citizens there on wood or idle - work.c sends a citizen to sites on its own land only, so
 // free mines across the water stay free however many cut wood at home. at: the mine with the most free places.
+// TO THE TREES ACROSS ([ai_base] forest_across; the player 2026-11-19, after IDLE ABROAD below had left about 50
+// citizens an AI idle at minute 100 of a Stone Age game, its island's food and wood gone: yes to "free islands with
+// trees, or with no drop site yet" pulling them over): while citizens stand idle after the look, a land with none of
+// its idle on it offers wood too - WK_TREE_PLACES a territory its citizens may work with a tree in it (wk_tree from its
+// middle, once a minute) less its wood cutters on that land - and its bushes' free places; the ferry takes idle
+// citizens only to those (wood), to a land with a drop site of its or a foundation waiting for builders (build.c lays
+// a Settlement by such trees on a land with no drop site of its). idle: its idle citizens on the land.
 #define WK_LANDS 16
-struct wk_land { unsigned land; int free, spare; ivec2 at; };
+#define WK_TREE_PLACES 8
+#define WK_TREE_EVERY 60000
+struct wk_land { unsigned land; int free, spare, wood, idle; ivec2 at; };
+internal struct { uint32_t t; int n; struct { unsigned land; int ter; } e[64]; } g_wkt[16];   // the territories with a tree, at the last minute's look
 internal struct { uint32_t t; int n; struct wk_land l[WK_LANDS]; } g_wkl[16];
 internal struct wk_land *wk_land_at(unsigned idx, unsigned land) {
     typeof(&g_wkl[0]) L = &g_wkl[idx & 15];
@@ -904,10 +914,44 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             l->free += fr;
             if (fr > most[l - L->l]) { most[l - L->l] = fr; l->at = unit_get_tile(mine[k].u); }
         }
+        int wood_on[WK_LANDS] = { 0 };
         for (int i = 0; i < nc; i++) {
             if (cit[i].res != 0 && cit[i].res != 3) continue;
             struct wk_land *l = wk_land_at(idx, area_id(unit_get_tile(cit[i].u), 2));
-            if (l && l->land) l->spare++;
+            if (!l || !l->land) continue;
+            l->spare++;
+            if (cit[i].res == 0) l->idle++; else wood_on[l - L->l]++;
+        }
+        if (FOREST_ACROSS(idx) && w->idle > 0) {   // TO THE TREES ACROSS
+            typeof(&g_wkt[0]) T = &g_wkt[idx];
+            if (!T->t || now < T->t || now - T->t >= WK_TREE_EVERY) {
+                T->t = now ? now : 1; T->n = 0;
+                for (int r = 0; r < s->n && T->n < 64; r++) {
+                    if (g_ter.t[r].water || !wk_cost(s, (unsigned)r)) continue;
+                    ee_unit *tree = wk_tree(pl, s, g_ter.t[r].c, 24, r);
+                    if (!tree) continue;
+                    T->e[T->n].land = area_id(unit_get_tile(tree), 2); T->e[T->n++].ter = r;
+                }
+            }
+            int trees[WK_LANDS] = { 0 };
+            for (int k = 0; k < T->n; k++) {
+                int j = 0;
+                while (j < L->n && L->l[j].land != T->e[k].land) j++;
+                if (j < L->n && L->l[j].idle) continue;   // its own idle there: no wood for them
+                struct wk_land *l = j < L->n ? &L->l[j] : wk_land_at(idx, T->e[k].land);
+                if (!l || !l->land) continue;
+                trees[l - L->l] += WK_TREE_PLACES;
+                if (!l->at.x && !l->at.y) l->at = g_ter.t[T->e[k].ter].c;
+            }
+            for (int k = 0; k < nb; k++) {
+                int fr = bush[k].cap - bush[k].n;
+                if (fr <= 0) continue;
+                struct wk_land *l = wk_land_at(idx, area_id(unit_get_tile(bush[k].u), 2));
+                if (!l || !l->land || l->idle) continue;
+                l->wood += fr;
+                if (!l->at.x && !l->at.y) l->at = unit_get_tile(bush[k].u);
+            }
+            for (int k = 0; k < L->n; k++) { int tw = trees[k] - wood_on[k]; if (tw > 0) L->l[k].wood += tw; }
         }
     }
     if (g_log && (!w->log_t || now - w->log_t >= 60000)) {

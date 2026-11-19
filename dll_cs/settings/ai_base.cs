@@ -741,6 +741,17 @@ class ai_base
         /// game's computer player off). 0 = off
         [advanced]
         bool transport_escort = false;
+        /// An empty transport nobody uses - one that has put off its passengers - goes to the water by its nearest
+        /// finished dock out of danger, on its own sea, instead of waiting where it put them off (the game's computer
+        /// player off). 0 = off
+        [advanced]
+        bool transport_park = false;
+        /// Idle citizens to the trees and bushes across the water (the game's computer player off): while citizens stand
+        /// idle, a land across the water with trees in a territory its citizens may work and no drop site of its gets a
+        /// Settlement by them, and the ferry (ferry_service) takes idle citizens to the free places at the trees and
+        /// bushes of lands with a drop site of its, as to free places at the mines. 0 = off
+        [advanced]
+        bool forest_across = false;
         struct towns_fields
         {
             /// a resource town once the mines near its drop sites are full (fewer than 4 free places) and its
