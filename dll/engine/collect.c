@@ -1659,10 +1659,13 @@ internal void picker_grow(void) {
     log_locked("# collect: the picker's room %u -> %u%s\n", was, room, g_uc_grown > 0 ? "" : " FAILED (no memory)");
 }
 
-// a frame during a step (render_3d.c): 1 the units' update is to run, from the steps' newest copy (held till the end)
+// a frame during a step (render_3d.c): 1 the units' update is to run, from the steps' newest copy (held till the end).
+// Not with the editor's free camera; godmode and godview do run it (the copy is made for their sight, cp_fits) - left
+// out with the free camera since e5030573, their units stood during each step and jumped at its end (the player
+// 2026-11-19: "unit position interpolation dosnt work in godview")
 internal int collect_during_begin(void) {
     if (!g_uc_during_on || !g_uc_own || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || !g_cp_on || !g_cp_view[4] ||
-        god_see_all())
+        *game_free_camera_at())
         return 0;
     InterlockedExchange(&g_uc_in_during, 1);
     if (g_rwl_nonstep > 0) { g_uc_in_during = 0; return 0; }
