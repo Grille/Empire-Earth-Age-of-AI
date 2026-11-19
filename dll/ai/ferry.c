@@ -39,6 +39,20 @@
 #define FY_MEET 75000     // TOGETHER: at the meeting point this long at most for the push's other transports
 #define FY_MEET_SAIL 150000   // ... a transport at sea this long counts as there (one that stopped short of the point waited till it was sunk)
 #define FY_TOGETHER 90000 // BOARD TOGETHER: a push's loaded transport waits this long at most for the wave's others
+// ORDERS BY PRIORITY (claims.c; the player 2026-11-19, the transports after the ships, citizens and soldiers): a trip's
+// transport and passengers are its at CLP_CARRY from its start to its end, renewed each act. Out of a storm or a danger
+// zone (CLP_SURVIVE) comes first - its orders wait meanwhile: the trip gave the unload again each act and sailed back
+// into the storm the storm's escape took it out of, 47 and 43 times over each other in 4 test games, to and fro -;
+// a passenger another took (healing, under cover, the militia) is let go - the load order every 20 s called it back
+// from the Hospital or a lost fight -; counter-fire, the stations, the citizens' safety leave those walking to the
+// shore and boarding alone. Off with v_claims without 8. MEASURED 2026-11-19 (head-to-head, Small Islands large, 4 AIs
+// from epoch 5, 60 min, seeds 1-12 mirrored, 24 games; B every other claim, v_claims=7): B - A soldiers -1.2 (se 5.7),
+// kills -1.6 (11.7), losses +3.4 (9.6), razed -0.8 (0.7); held per AI at the end: islands 1.25 against 1.21, citizens
+// off the home island 21.0 against 18.4, miners there 8.1 against 6.0, buildings 9.7 against 8.0 (fewer ferried, 47
+// against 54, more of them stayed). On.
+#define FY_CLAIM_T 20000
+internal int fy_take(unsigned idx, ee_unit *u) { return !(PV(idx, g_v_cl, g_cl_on) & 8) || cl_take(u, CLP_CARRY, CLW_FERRY, FY_CLAIM_T); }
+internal int fy_may(unsigned idx, ee_unit *u) { return !(PV(idx, g_v_cl, g_cl_on) & 8) || cl_may(u, CLP_CARRY, CLW_FERRY); }
 internal PRINTF_LIKE(3, 4) void fy_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
     char buf[400];
@@ -55,6 +69,8 @@ internal void fy_end(ee_player *pl, unsigned idx, struct fy_trip *t, uint32_t no
             unit_goal(t->ship.u, ld_unload(t->ship.u, d), 0, 0x1F40);
     }
     if (why) fy_say(idx, now, "trip %u (risk %.2f): %s", t->no, (double)t->risk, why);
+    if (ex_alive(&t->ship, pl)) cl_end(t->ship.u, CLW_FERRY);   // ORDERS BY PRIORITY: the others' again
+    for (int k = 0; k < t->npass; k++) if (ex_alive(&t->pass[k], pl)) cl_end(t->pass[k].u, CLW_FERRY);
     t->phase = 0; t->npass = 0; t->ship.u = NULL;
 }
 // a free transport: its own, a ship, on the map, empty, nobody else's (expand_ship: no trip's either)
@@ -108,6 +124,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
             np += nc;
         }
     }
+    { int m = 0; for (int k = 0; k < np; k++) if (fy_may(idx, pass[k])) pass[m++] = pass[k]; np = m; }   // ORDERS BY PRIORITY: none another holds (healing, under cover, the militia's)
     if (np < 1) return 0;
     long sx = 0, sy = 0;
     for (int k = 0; k < np; k++) { sx += unit_get_x(pass[k]); sy += unit_get_y(pass[k]); }
@@ -118,7 +135,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF, bs = -1;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (!fy_free_ship(pl, it.u, it.td)) continue;
+        if (!fy_free_ship(pl, it.u, it.td) || !fy_may(idx, it.u)) continue;   // ... nor one out of a storm
         frees++;
         int oc = (int)ocean_near(unit_get_tile(it.u), 2, NULL), s = 0;
         if (!oc) continue;
@@ -186,9 +203,12 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     t->ship.u = best; t->ship.id = unit_get_serial(best);
     t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0;
     f->trips++; f->last_kind = kind; t->no = f->trips;
+    fy_take(idx, best);   // ORDERS BY PRIORITY: the trip's till it ends
     unit_goal(best, goal_move((float)t->pick_w.x + 0.5f, (float)t->pick_w.y + 0.5f), 0, 0x1F40);
-    for (int k = 0; k < t->npass; k++)   // to the shore meanwhile
+    for (int k = 0; k < t->npass; k++) {   // to the shore meanwhile
+        fy_take(idx, t->pass[k].u);
         unit_goal(t->pass[k].u, goal_move((float)t->pick.x + 0.5f, (float)t->pick.y + 0.5f), 0, 0x1F40);
+    }
     fy_say(idx, now, "trip %u: %d %s from land %u (by %d,%d) to land %u (wanted at %d,%d) - the transport at %d,%d, boarding at %d,%d, off at %d,%d%s; risk %.2f%s",
            t->no, t->npass, kind == 4 ? "scouts" : kind != 2 ? "soldiers" : "citizens", a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
            t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "");
@@ -451,9 +471,11 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
     if (convoy_lifeboat(pl, sh)) return;   // LIFEBOAT (convoy.c): under fire, to the nearest beach - stands back meanwhile
     if (t->phase >= 2 && convoy_beached(idx, sh, t->since)) { f->beached++; fy_end(pl, idx, t, now, "the transport was under fire - its passengers put off on the nearest beach"); return; }
     int n = 0, aboard = 0;
-    for (int k = 0; k < t->npass; k++) if (ex_alive(&t->pass[k], pl)) t->pass[n++] = t->pass[k];
+    for (int k = 0; k < t->npass; k++)   // ... and still its (ORDERS BY PRIORITY: one another took is let go)
+        if (ex_alive(&t->pass[k], pl) && (unit_get_x(t->pass[k].u) < 0 || fy_take(idx, t->pass[k].u))) t->pass[n++] = t->pass[k];
     t->npass = n;
     for (int k = 0; k < t->npass; k++) aboard += unit_get_x(t->pass[k].u) < 0;
+    if (!fy_take(idx, sh)) return;   // out of a storm or a danger zone first: the trip's orders wait
     if (t->phase == 1 || t->phase == 2) {
         if (!t->npass) { fy_end(pl, idx, t, now, "no passenger left"); return; }
         if (now - t->since >= FY_BOARD && !aboard) { f->failed++; fy_end(pl, idx, t, now, "boarding failed in 4 minutes"); return; }
