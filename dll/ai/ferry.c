@@ -296,16 +296,30 @@ internal void fy_park(ee_player *pl, unsigned idx, struct fy_st *f) {
         if (oc) { dk[nd].w = w; dk[nd].n = 0; dk[nd++].oc = oc; }
     }
     if (!nd) return;
-    static struct { ee_unit *u; ivec2 at; unsigned oc; int dock; } sh[64];   // its free transports with no order: the dock they lie by (-1 none)
+    // its free transports with no order: the dock they lie by (-1 none) - and those on their way to one, counted there and
+    // left be (SPREAD: uncounted, the shares came out too small and ships went to and fro, 728 sent a game against 53)
+    static struct { ee_unit *u; ivec2 at; unsigned oc; int dock, going; } sh[64];
     int nsh = 0, spread = FERRY_THRIFT(idx);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && nsh < 64; ) {
-        if (!fy_free_ship(pl, it.u, it.td) || unit_get_goal(it.u)) continue;
+        if (!fy_free_ship(pl, it.u, it.td)) continue;
+        ee_goal *g = unit_get_goal(it.u);
         ivec2 at = unit_get_tile(it.u);
-        sh[nsh].u = it.u; sh[nsh].at = at; sh[nsh].oc = ocean_near(at, 2, NULL); sh[nsh].dock = -1;
-        for (int k = 0; k < nd; k++) if (dk[k].oc == sh[nsh].oc && ivec2_dist2(at, dk[k].w) <= FY_PARK * FY_PARK) { sh[nsh].dock = k; dk[k].n++; break; }
-        nsh++;
+        sh[nsh].u = it.u; sh[nsh].at = at; sh[nsh].oc = ocean_near(at, 2, NULL); sh[nsh].dock = -1; sh[nsh].going = g != NULL;
+        int bd = 0;   // the nearest dock (two within FY_PARK: counted at the first, one sent to the second went again)
+        for (int k = 0; k < nd; k++) {
+            if (dk[k].oc != sh[nsh].oc) continue;
+            if (g) {
+                if (goal_is_location(g) && fabsf(goal_get_dest_x(g) - ((float)dk[k].w.x + 0.5f)) < 2 && fabsf(goal_get_dest_y(g) - ((float)dk[k].w.y + 0.5f)) < 2) { sh[nsh].dock = k; break; }
+                continue;
+            }
+            int d = ivec2_dist2(at, dk[k].w);
+            if (d <= FY_PARK * FY_PARK && (sh[nsh].dock < 0 || d < bd)) { sh[nsh].dock = k; bd = d; }
+        }
+        if (sh[nsh].dock >= 0) dk[sh[nsh].dock].n++;
+        if (!g || sh[nsh].dock >= 0) nsh++;   // one on another errand isn't the parking's
     }
     for (int i = 0; i < nsh; i++) {
+        if (sh[i].going) continue;
         int b = -1, bd = 0, docks = 0, ships = 0;
         for (int k = 0; k < nd; k++) if (dk[k].oc == sh[i].oc) { docks++; ships += dk[k].n; }
         for (int j = 0; j < nsh; j++) ships += sh[j].dock < 0 && sh[j].oc == sh[i].oc;
