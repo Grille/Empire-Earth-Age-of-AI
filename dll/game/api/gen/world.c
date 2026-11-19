@@ -153,6 +153,11 @@ internal inline uint32_t *physics_steps_at(const ee_physics *o) { return (uint32
 internal inline float physics_get_step_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_step_s); }
 internal inline void physics_set_step_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_step_s) = v; }
 internal inline float *physics_step_s_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_step_s); }
+// the day/night cycle's carry: day_cycle_step adds step_s / 600 to it (hooks.float_1_600) and, at 0 or more (always),
+// moves the time of day on by it and zeroes it - what is left between steps is 0
+internal inline float physics_get_day_carry(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_day_carry); }
+internal inline void physics_set_day_carry(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_day_carry) = v; }
+internal inline float *physics_day_carry_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_day_carry); }
 // game time in ms as a float: + step_ms each step
 internal inline float physics_get_time_ms(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_time_ms); }
 internal inline void physics_set_time_ms(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_time_ms) = v; }
@@ -210,9 +215,21 @@ internal inline uint32_t *physics_autosave_ms_at(const ee_physics *o) { return (
 internal inline uint32_t physics_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_time); }
 internal inline void physics_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_time) = v; }
 internal inline uint32_t *physics_time_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_time); }
+// the day/night cycle on: each step day_cycle_step moves the time of day (EEWorld.set_time_of_day) on by step_s /
+// 600 - a whole day in 600 s of game time. The scenario effect Day/Night Cycle Time sets it (its number only as on / off: docs/triggers.md); off in
+// a new game
+internal inline uint8_t physics_get_day_cycle(const ee_physics *o) { return *(uint8_t *)((uint8_t *)o + of_physics_day_cycle); }
+internal inline void physics_set_day_cycle(ee_physics *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_physics_day_cycle) = v; }
+internal inline uint8_t *physics_day_cycle_at(const ee_physics *o) { return (uint8_t *)((uint8_t *)o + of_physics_day_cycle); }
 typedef void (__thiscall *physics_step_fn)(ee_physics *);
 internal physics_step_fn fn_physics_step;
 internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics); }
+// a step's day/night cycle and the sky's light (step calls it each step): with day_cycle set the time of day moves
+// on (day_carry), then the world's +0xB78 drifts by a random step (step_ms x 0.005) and goes to the engine's light
+// (AoC the same code)
+typedef void (__thiscall *physics_day_cycle_step_fn)(ee_physics *);
+internal physics_day_cycle_step_fn fn_physics_day_cycle_step;
+internal inline void physics_day_cycle_step(ee_physics *physics) { fn_physics_day_cycle_step(physics); }
 // a step's end: step calls it last, on every path through a step that ran (AoC the same): the world's settle
 // (EEWorld.settle) and each player's vf1(0, 1) - what the mod does once a step, the same step on every PC, goes
 // after it (walls.c: the walls' joins; the safe point between steps may come after two of them)
@@ -428,6 +445,7 @@ internal int spec_world_select(int build) {
         of_physics_tick_ms = 0x54;
         of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
+        of_physics_day_carry = 0x90;
         of_physics_time_ms = 0x94;
         of_physics_step_ms = 0x98;
         of_physics_step_start = 0xA8;
@@ -441,7 +459,9 @@ internal int spec_world_select(int build) {
         of_physics_work_count = 0xC8;
         of_physics_autosave_ms = 0xCC;
         of_physics_time = 0xD0;
+        of_physics_day_cycle = 0xE0;
         fn_physics_step = (physics_step_fn)0x00546C63;
+        fn_physics_day_cycle_step = (physics_day_cycle_step_fn)0x00547B6B;
         fn_physics_step_end = (physics_step_end_fn)0x00545C8F;
         call_step_end = 0x00546E12;
         fn_physics_random_range = (physics_random_range_fn)0x005531A8;
@@ -519,6 +539,7 @@ internal int spec_world_select(int build) {
         of_physics_tick_ms = 0x54;
         of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
+        of_physics_day_carry = 0x90;
         of_physics_time_ms = 0x94;
         of_physics_step_ms = 0x98;
         of_physics_step_start = 0xA8;
@@ -532,7 +553,9 @@ internal int spec_world_select(int build) {
         of_physics_work_count = 0xC8;
         of_physics_autosave_ms = 0xCC;
         of_physics_time = 0xD0;
+        of_physics_day_cycle = 0xE0;
         fn_physics_step = (physics_step_fn)0x00553082;
+        fn_physics_day_cycle_step = (physics_day_cycle_step_fn)0x005540FB;
         fn_physics_step_end = (physics_step_end_fn)0x00551E9F;
         call_step_end = 0x005532BE;
         fn_physics_random_range = (physics_random_range_fn)0x005612B9;
@@ -589,6 +612,7 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_dmg_model_damage_points, "EEGraphicObject.damage_points");
     bad += spec_code((uintptr_t)fn_dmg_model_set_player_colour, "EEGraphicObject.set_player_colour");
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
+    bad += spec_code((uintptr_t)fn_physics_day_cycle_step, "EEPhysics.day_cycle_step");
     bad += spec_code((uintptr_t)fn_physics_step_end, "EEPhysics.step_end");
     bad += spec_call(call_step_end, (uintptr_t)fn_physics_step_end, "EEPhysics.step_end [call_site step_end]");
     bad += spec_code((uintptr_t)fn_physics_random_range, "EEPhysics.random_range");

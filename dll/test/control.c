@@ -264,6 +264,27 @@ internal void cmd_camera(char *out, const char *args) {
         camera_zoom_now(), map_get_size(game_map()));
 }
 
+// daynight [on | off] [hour <0..24>]: the game's day/night cycle (EEPhysics.day_cycle, as the scenario effect Day/Night
+// Cycle Time switches it: a day in 600 s of game time) and the hour it is at (as the effect Daylight Hour sets it);
+// without arguments both read. Between steps, as every command: the time of day only lights the world
+internal void cmd_daynight(char *out, const char *args) {
+    ee_physics *ph = game_physics();
+    if (!ph || !game_map()) { REPLY("error: no game\n"); return; }
+    char w[16] = "";
+    int n = 0;
+    while (sscanf(args, "%15s %n", w, &n) == 1) {
+        args += n;
+        if (!strcmp(w, "on") || !strcmp(w, "off")) physics_set_day_cycle(ph, w[1] == 'n');
+        else if (!strcmp(w, "hour")) {
+            float h = -1;
+            if (sscanf(args, "%f %n", &h, &n) < 1 || !(h >= 0 && h < 24)) { REPLY("error: usage: daynight hour <0..24>\n"); return; }
+            args += n;
+            game_set_hour(h);
+        } else { REPLY("error: usage: daynight [on | off] [hour <0..24>]\n"); return; }
+    }
+    REPLY("day/night cycle %s, %.2f o'clock (a day in 600 s of game time)\n", physics_get_day_cycle(ph) ? "on" : "off", (double)game_hour());
+}
+
 // sites <player>: resource sites the AI knows per town (EECP town 0x28 bytes at player+0xB50[i]: +0x18 active,
 // +8/+0xC vector of sites; site: +0x38 resource type, +0x40 amount left, +0x1C/+0x20 position). The
 // gatherer count is the world's per-site map (0x52E5F7 on 0x918300) that the AI compares against the
@@ -407,6 +428,7 @@ internal void execute(const char *cmd, char *out) {
     if (!strcmp(verb, "ping")) REPLY("pong\n");
     else if (!strcmp(verb, "status")) cmd_status(out);
     else if (!strcmp(verb, "camera")) cmd_camera(out, args);
+    else if (!strcmp(verb, "daynight")) cmd_daynight(out, args);
     else if (!strcmp(verb, "overlay")) cmd_overlay(out, args);
     else if (!strcmp(verb, "rprobe")) cmd_rprobe(out, args);
     else if (!strcmp(verb, "shadows")) cmd_shadows(out, args);

@@ -173,6 +173,11 @@ unsafe struct EEPhysics
     [offset(0x8C), found(c)]
     float32 step_s;
 
+    /// the day/night cycle's carry: day_cycle_step adds step_s / 600 to it (hooks.float_1_600) and, at 0 or more (always),
+    /// moves the time of day on by it and zeroes it - what is left between steps is 0
+    [offset(0x90), found(c)]
+    float32 day_carry;
+
     /// game time in ms as a float: + step_ms each step
     [offset(0x94), found(c)]
     float32 time_ms;
@@ -229,8 +234,20 @@ unsafe struct EEPhysics
     [offset(0xD0), found(c)]
     uint32 time;
 
+    /// the day/night cycle on: each step day_cycle_step moves the time of day (EEWorld.set_time_of_day) on by step_s /
+    /// 600 - a whole day in 600 s of game time. The scenario effect Day/Night Cycle Time sets it (its number only as on / off: docs/triggers.md); off in
+    /// a new game
+    [offset(0xE0), found(c)]
+    uint8 day_cycle;
+
     [address((ee)0x00546C63, (aoc)0x00553082)]
     extern void step();
+
+    /// a step's day/night cycle and the sky's light (step calls it each step): with day_cycle set the time of day moves
+    /// on (day_carry), then the world's +0xB78 drifts by a random step (step_ms x 0.005) and goes to the engine's light
+    /// (AoC the same code)
+    [address((ee)0x00547B6B, (aoc)0x005540FB)]
+    extern void day_cycle_step();
 
     /// a step's end: step calls it last, on every path through a step that ran (AoC the same): the world's settle
     /// (EEWorld.settle) and each player's vf1(0, 1) - what the mod does once a step, the same step on every PC, goes
