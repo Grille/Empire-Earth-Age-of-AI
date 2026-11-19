@@ -335,28 +335,58 @@ internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return pat
 // a line from an airport to its target (the graphical goal manager's kind 0): an effect of the third queue, drawn in pixels
 // from world points (0x50DD81, AoC 0x518676)
 
-// class EEE3DRain (eee3_d_rain)
+// class EEE3DRain (ee_rain)
 // falling drops (the weather's rain), an effect of the fifth queue: its Queue (vf9, EE 0x4EDA86, AoC 0x4F76DA) empties its
 // draw's list (20-byte records from +0xB4 to +0xB8) and fills it anew from the drops its update (vf25, EE 0x4EDB3E, AoC
-// 0x4F7792) moves (24-byte records from +0xC4 to +0xC8), its draw (vf6, EE 0x4EDF01, AoC 0x4F7B55) walks the draw's list -
-// the list made anew while a frame drew it, the draw read freed memory (EE 0x4EDFB6, the player's crashes 2026-11-19:
-// collect_copy.c's Queue at a step's end beside the frame's draw)
+// 0x4F7792) moves (24-byte records from +0xC4 to +0xC8), its draw walks the draw's list - the list made anew while a frame
+// drew it, the draw read freed memory (EE 0x4EDFB6, the player's crashes 2026-11-19: collect_copy.c's Queue at a step's
+// end beside the frame's draw; since then the two under one lock, collect_copy.c fx_hook_remake_draw)
+// vf6: draws it from the draw's list (EEROWater's draw calls it on the fifth queue's)
+typedef uint32_t (__thiscall *rain_draw_fn)(ee_rain *);
+internal inline uint32_t rain_draw(ee_rain *rain) { return ((rain_draw_fn)(*(void ***)rain)[slot_rain_draw])(rain); }
+internal rain_draw_fn fn_eee3_d_rain_draw;
+internal inline uint32_t eee3_d_rain_draw(ee_rain *rain) { return fn_eee3_d_rain_draw(rain); }
+internal inline int patch_rain_draw(rain_draw_fn h) { return patch_vtable(vt_eee3_d_rain, (int)slot_rain_draw, (uintptr_t)fn_eee3_d_rain_draw, (void *)h); }
 
-// class EEE3DSnow (eee3_d_snow)
+// class EEE3DSnow (ee_snow)
 // falling snow, an effect of the fifth queue: as EEE3DRain, its Queue (vf9, EE 0x4EFEEE, AoC 0x4F9E42) makes its draw's
-// list from +0xB4 anew from its flakes at +0xC4, its draw (vf6, EE 0x4F04B0, AoC 0x4FA404) walks it
+// list from +0xB4 anew from its flakes at +0xC4, its draw walks it
+// vf6: draws it from the draw's list (EEROWater's draw calls it on the fifth queue's)
+typedef uint32_t (__thiscall *snow_draw_fn)(ee_snow *);
+internal inline uint32_t snow_draw(ee_snow *snow) { return ((snow_draw_fn)(*(void ***)snow)[slot_snow_draw])(snow); }
+internal snow_draw_fn fn_eee3_d_snow_draw;
+internal inline uint32_t eee3_d_snow_draw(ee_snow *snow) { return fn_eee3_d_snow_draw(snow); }
+internal inline int patch_snow_draw(snow_draw_fn h) { return patch_vtable(vt_eee3_d_snow, (int)slot_snow_draw, (uintptr_t)fn_eee3_d_snow_draw, (void *)h); }
 
-// class EEE3DDisease (eee3_d_disease)
+// class EEE3DDisease (ee_disease)
 // a Prophet's plague over a group, an effect: its Queue (vf9, EE 0x4E374E, AoC 0x4EBFD0) empties lists of its own (+0xA4,
 // +0xAC) and fills them again for its draw, one entry for each of its units (+0xB4 of them) - their number changes
+// vf5: draws it from the lists its Queue made (EEROUnits' draw calls the effects' vf5: EE 0x50D90E)
+typedef uint32_t (__thiscall *disease_draw_fn)(ee_disease *);
+internal inline uint32_t disease_draw(ee_disease *disease) { return ((disease_draw_fn)(*(void ***)disease)[slot_disease_draw])(disease); }
+internal disease_draw_fn fn_eee3_d_disease_draw;
+internal inline uint32_t eee3_d_disease_draw(ee_disease *disease) { return fn_eee3_d_disease_draw(disease); }
+internal inline int patch_disease_draw(disease_draw_fn h) { return patch_vtable(vt_eee3_d_disease, (int)slot_disease_draw, (uintptr_t)fn_eee3_d_disease_draw, (void *)h); }
 
-// class EEE3DHurricane (eee3_d_hurricane)
+// class EEE3DHurricane (ee_hurricane)
 // a Prophet's hurricane, an effect: its Queue (vf9, EE 0x4E7E0A, AoC 0x4F17C2) empties lists of its own (+0xA8, +0xB4)
 // and fills them again for its draw, as EEE3DDisease (+0xBC entries)
+// vf6: draws it from the lists its Queue made (EEROWater's draw calls it on the fifth queue's)
+typedef uint32_t (__thiscall *hurricane_draw_fn)(ee_hurricane *);
+internal inline uint32_t hurricane_draw(ee_hurricane *hurricane) { return ((hurricane_draw_fn)(*(void ***)hurricane)[slot_hurricane_draw])(hurricane); }
+internal hurricane_draw_fn fn_eee3_d_hurricane_draw;
+internal inline uint32_t eee3_d_hurricane_draw(ee_hurricane *hurricane) { return fn_eee3_d_hurricane_draw(hurricane); }
+internal inline int patch_hurricane_draw(hurricane_draw_fn h) { return patch_vtable(vt_eee3_d_hurricane, (int)slot_hurricane_draw, (uintptr_t)fn_eee3_d_hurricane_draw, (void *)h); }
 
-// class EEE3DVirus (eee3_d_virus)
+// class EEE3DVirus (ee_virus)
 // a Prophet's malaria, an effect: its Queue (vf9, EE 0x4F3F3A, AoC 0x4FDD68) empties lists of its own (+0xA4, +0xAC,
 // +0xB8) and fills them again for its draw, as EEE3DDisease
+// vf5: draws it from the lists its Queue made (EEROUnits' draw calls the effects' vf5: EE 0x50D90E)
+typedef uint32_t (__thiscall *virus_draw_fn)(ee_virus *);
+internal inline uint32_t virus_draw(ee_virus *virus) { return ((virus_draw_fn)(*(void ***)virus)[slot_virus_draw])(virus); }
+internal virus_draw_fn fn_eee3_d_virus_draw;
+internal inline uint32_t eee3_d_virus_draw(ee_virus *virus) { return fn_eee3_d_virus_draw(virus); }
+internal inline int patch_virus_draw(virus_draw_fn h) { return patch_vtable(vt_eee3_d_virus, (int)slot_virus_draw, (uintptr_t)fn_eee3_d_virus_draw, (void *)h); }
 
 // class EEE3DParticle (ee_particle3d)
 // a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
@@ -1439,10 +1469,20 @@ internal int spec_engine_display_select(int build) {
         fn_ro_effects_update = (ro_effects_update_fn)0x005067CF;
         vt_eee3_d_marching_line = 0x0082B9D4;
         vt_eee3_d_rain = 0x0082BC30;
+        slot_rain_draw = 6;
+        fn_eee3_d_rain_draw = (rain_draw_fn)0x004EDF01;
         vt_eee3_d_snow = 0x0082BD8C;
+        slot_snow_draw = 6;
+        fn_eee3_d_snow_draw = (snow_draw_fn)0x004F04B0;
         vt_eee3_d_disease = 0x0082B730;
+        slot_disease_draw = 5;
+        fn_eee3_d_disease_draw = (disease_draw_fn)0x004E391B;
         vt_eee3_d_hurricane = 0x0082B8B0;
+        slot_hurricane_draw = 6;
+        fn_eee3_d_hurricane_draw = (hurricane_draw_fn)0x004E80A9;
         vt_eee3_d_virus = 0x0082BFE4;
+        slot_virus_draw = 5;
+        fn_eee3_d_virus_draw = (virus_draw_fn)0x004F40E0;
         vt_eee3_d_particle = 0x0082BAF8;
         of_particle3d_graphic_effect = 0xC;
         of_particle3d_graphics = 0x8C;
@@ -1882,10 +1922,20 @@ internal int spec_engine_display_select(int build) {
         fn_ro_effects_update = (ro_effects_update_fn)0x00511D76;
         vt_eee3_d_marching_line = 0x0084099C;
         vt_eee3_d_rain = 0x00840C04;
+        slot_rain_draw = 6;
+        fn_eee3_d_rain_draw = (rain_draw_fn)0x004F7B55;
         vt_eee3_d_snow = 0x00840DC8;
+        slot_snow_draw = 6;
+        fn_eee3_d_snow_draw = (snow_draw_fn)0x004FA404;
         vt_eee3_d_disease = 0x0084061C;
+        slot_disease_draw = 5;
+        fn_eee3_d_disease_draw = (disease_draw_fn)0x004EC19D;
         vt_eee3_d_hurricane = 0x00840870;
+        slot_hurricane_draw = 6;
+        fn_eee3_d_hurricane_draw = (hurricane_draw_fn)0x004F1A61;
         vt_eee3_d_virus = 0x0084102C;
+        slot_virus_draw = 5;
+        fn_eee3_d_virus_draw = (virus_draw_fn)0x004FDF0E;
         vt_eee3_d_particle = 0x00840AC4;
         of_particle3d_graphic_effect = 0xC;
         of_particle3d_graphics = 0x8C;
@@ -2291,10 +2341,20 @@ internal int spec_engine_display_check(void) {
     bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
     bad += spec_vtable(vt_eee3_d_marching_line, ".?AVEEE3DMarchingLine@@", "EEE3DMarchingLine [vtable]");
     bad += spec_vtable(vt_eee3_d_rain, ".?AVEEE3DRain@@", "EEE3DRain [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_rain_draw, "EEE3DRain.draw");
+    bad += spec_slot(vt_eee3_d_rain, slot_rain_draw, (uintptr_t)fn_eee3_d_rain_draw, "EEE3DRain.draw [slot]");
     bad += spec_vtable(vt_eee3_d_snow, ".?AVEEE3DSnow@@", "EEE3DSnow [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_snow_draw, "EEE3DSnow.draw");
+    bad += spec_slot(vt_eee3_d_snow, slot_snow_draw, (uintptr_t)fn_eee3_d_snow_draw, "EEE3DSnow.draw [slot]");
     bad += spec_vtable(vt_eee3_d_disease, ".?AVEEE3DDisease@@", "EEE3DDisease [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_disease_draw, "EEE3DDisease.draw");
+    bad += spec_slot(vt_eee3_d_disease, slot_disease_draw, (uintptr_t)fn_eee3_d_disease_draw, "EEE3DDisease.draw [slot]");
     bad += spec_vtable(vt_eee3_d_hurricane, ".?AVEEE3DHurricane@@", "EEE3DHurricane [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_hurricane_draw, "EEE3DHurricane.draw");
+    bad += spec_slot(vt_eee3_d_hurricane, slot_hurricane_draw, (uintptr_t)fn_eee3_d_hurricane_draw, "EEE3DHurricane.draw [slot]");
     bad += spec_vtable(vt_eee3_d_virus, ".?AVEEE3DVirus@@", "EEE3DVirus [vtable]");
+    bad += spec_code((uintptr_t)fn_eee3_d_virus_draw, "EEE3DVirus.draw");
+    bad += spec_slot(vt_eee3_d_virus, slot_virus_draw, (uintptr_t)fn_eee3_d_virus_draw, "EEE3DVirus.draw [slot]");
     bad += spec_vtable(vt_eee3_d_particle, ".?AVEEE3DParticle@@", "EEE3DParticle [vtable]");
     bad += spec_code((uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw");
     bad += spec_slot(vt_eee3_d_particle, slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw [slot]");

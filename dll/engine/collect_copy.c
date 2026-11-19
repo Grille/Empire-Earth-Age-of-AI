@@ -587,12 +587,32 @@ internal int fx_alive(const void *e) {
         }
     return effect_references(e) > held;
 }
-// the effects the view shows into g_fx_p: the game's QueueEffects' rows and order. Not those whose Queue makes a list of
-// their own anew that their draw walks (effect_queue_remakes: rain, snow, a Prophet's plague, hurricane, malaria): the
-// frame draws outside the world's lock, beside this step's end - the rain's list made anew here while the frame drew it,
-// the draw read freed memory (the player's crashes 2026-11-19, EE 0x4EDFB6, three times, in real frames and frames during a
-// step alike). Only the frame's own update queues them, as in the game; the frames during a step that draw these queues
-// go without them.
+// THE EFFECTS WHOSE QUEUE REMAKES WHAT THEIR DRAW WALKS (effect_queue_remakes: rain, snow, a Prophet's plague, hurricane,
+// malaria): their Queue empties lists of their own and fills them anew, of a number that changes. The frame draws outside
+// the world's lock, beside this step's end - the rain's list made anew by fx_build while the frame drew it, the draw read
+// freed memory (the player's crashes 2026-11-19, EE 0x4EDFB6, three times). Left to the frame's own update, the frames
+// during a step that drew the simulation's queues went without them: a hurricane flickered (the player, 2026-11-19). So
+// their draws are hooked and their Queue here and their draw there go under one lock, never side by side; the frame's own
+// Queue is the drawing thread's, in its update. Without the hooks they are left out as before.
+internal CRITICAL_SECTION g_fx_remake_cs;
+internal int g_fx_remake_hooked;   // all five's draws under g_fx_remake_cs
+#define FX_REMAKE_DRAW(name, type) \
+    internal uint32_t __thiscall fx_hook_##name##_draw(type *e) { \
+        EnterCriticalSection(&g_fx_remake_cs); uint32_t r_ = eee3_d_##name##_draw(e); LeaveCriticalSection(&g_fx_remake_cs); return r_; }
+FX_REMAKE_DRAW(rain, ee_rain)
+FX_REMAKE_DRAW(snow, ee_snow)
+FX_REMAKE_DRAW(disease, ee_disease)
+FX_REMAKE_DRAW(hurricane, ee_hurricane)
+FX_REMAKE_DRAW(virus, ee_virus)
+#undef FX_REMAKE_DRAW
+// at the start (collect_install): 1 when all five are hooked
+internal int fx_remake_install(void) {
+    InitializeCriticalSection(&g_fx_remake_cs);
+    int n = patch_rain_draw(fx_hook_rain_draw) + patch_snow_draw(fx_hook_snow_draw) + patch_disease_draw(fx_hook_disease_draw) +
+            patch_hurricane_draw(fx_hook_hurricane_draw) + patch_virus_draw(fx_hook_virus_draw);
+    return g_fx_remake_hooked = n == 5;
+}
+// the effects the view shows into g_fx_p: the game's QueueEffects' rows and order
 internal void fx_build(ee_map *map) {
     const uint8_t *tab = map_effect_regions(map);
     int size = tab ? effect_regions_size(tab) : 0;
@@ -624,9 +644,16 @@ internal void fx_build(ee_map *map) {
             for (uint32_t i = 0; i < k; i++) {
                 if (!effect_shown(e[i])) continue;
                 if (!fx_alive(e[i])) { g_fx_dead++; continue; }
-                if (effect_queue_remakes(e[i])) { g_fx_remakes++; continue; }
+                int remakes = effect_queue_remakes(e[i]), r;
+                if (remakes) {
+                    g_fx_remakes++;
+                    if (!g_fx_remake_hooked) continue;
+                    EnterCriticalSection(&g_fx_remake_cs);
+                }
                 effect_prepare(e[i]);
-                if (!effect_queue(e[i], g_fx_p)) { effect_reference(e[i]); g_fx_queued++; }
+                r = effect_queue(e[i], g_fx_p);
+                if (remakes) LeaveCriticalSection(&g_fx_remake_cs);
+                if (!r) { effect_reference(e[i]); g_fx_queued++; }
             }
         }
     }

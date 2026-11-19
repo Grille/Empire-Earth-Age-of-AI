@@ -1740,6 +1740,7 @@ internal void collect_install(void) {
     g_mt_apply = transform_mul_export();
     if ((!g_mt_apply || !patch_prepare_transforms(mt_hook_prepare, &g_mt_orig)) && g_log)
         fprintf(g_log, "# collect: the models' frame transformations NOT blended (PrepareTransforms not hooked)\n");
+    if (!fx_remake_install() && g_log) fprintf(g_log, "# collect: the rain's, snow's and Prophets' effects' draws NOT hooked (left out of the frames during a step)\n");
     if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
     if (g_uc_installed) collect_maps_install();
     if (g_uc_installed && !(patch_effects_step(us_hook_effects_step) && patch_air_crash_effect(us_hook_crash_effect) &&
@@ -1891,9 +1892,9 @@ internal void collect_print(void) {
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
     if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far\n", (long)g_uc_during_walks);
     if (g_fx_on)
-        log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects, %ld finished ones passed over, %ld whose Queue remakes their own list left to the frame), %ld taken by frames during a step; checked %ld, %ld differ\n",
+        log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects, %ld finished ones passed over, %ld whose Queue remakes their own list, %s),%ld taken by frames during a step; checked %ld, %ld differ\n",
                    g_fx_on == 2 ? "check" : "on", (long)g_fx_builds, g_fx_builds ? (double)g_fx_qpc / rd_qpc_ms(1) / g_fx_builds : 0.0,
-                   g_fx_builds ? (double)g_fx_queued / g_fx_builds : 0.0, (long)g_fx_dead, (long)g_fx_remakes, (long)g_fx_takes, (long)g_fx_chk_n, (long)g_fx_chk_diff);
+                   g_fx_builds ? (double)g_fx_queued / g_fx_builds : 0.0, (long)g_fx_dead, (long)g_fx_remakes, g_fx_remake_hooked ? "queued under their draw's lock" : "left to the frame", (long)g_fx_takes, (long)g_fx_chk_n, (long)g_fx_chk_diff);
     if (g_cp_smooth == 1 && g_uc_anim_smooth)
         log_locked("# collect: the pieces, flames and smoke between steps: %ld times a piece still drawn lost its moves (the table full)\n", (long)g_pt_evicted);
     if (g_cp_smooth)

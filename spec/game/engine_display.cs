@@ -414,40 +414,60 @@ unsafe struct EEE3DMarchingLine
 
 /// falling drops (the weather's rain), an effect of the fifth queue: its Queue (vf9, EE 0x4EDA86, AoC 0x4F76DA) empties its
 /// draw's list (20-byte records from +0xB4 to +0xB8) and fills it anew from the drops its update (vf25, EE 0x4EDB3E, AoC
-/// 0x4F7792) moves (24-byte records from +0xC4 to +0xC8), its draw (vf6, EE 0x4EDF01, AoC 0x4F7B55) walks the draw's list -
-/// the list made anew while a frame drew it, the draw read freed memory (EE 0x4EDFB6, the player's crashes 2026-11-19:
-/// collect_copy.c's Queue at a step's end beside the frame's draw)
-[vtable((ee)0x0082BC30, (aoc)0x00840C04)]
+/// 0x4F7792) moves (24-byte records from +0xC4 to +0xC8), its draw walks the draw's list - the list made anew while a frame
+/// drew it, the draw read freed memory (EE 0x4EDFB6, the player's crashes 2026-11-19: collect_copy.c's Queue at a step's
+/// end beside the frame's draw; since then the two under one lock, collect_copy.c fx_hook_remake_draw)
+[vtable((ee)0x0082BC30, (aoc)0x00840C04), c_type("ee_rain")]
 unsafe struct EEE3DRain
 {
+    /// vf6: draws it from the draw's list (EEROWater's draw calls it on the fifth queue's)
+    [slot(6), address((ee)0x004EDF01, (aoc)0x004F7B55)]
+    [vtable_site("rain_draw")]
+    extern uint32 draw();
 }
 
 /// falling snow, an effect of the fifth queue: as EEE3DRain, its Queue (vf9, EE 0x4EFEEE, AoC 0x4F9E42) makes its draw's
-/// list from +0xB4 anew from its flakes at +0xC4, its draw (vf6, EE 0x4F04B0, AoC 0x4FA404) walks it
-[vtable((ee)0x0082BD8C, (aoc)0x00840DC8)]
+/// list from +0xB4 anew from its flakes at +0xC4, its draw walks it
+[vtable((ee)0x0082BD8C, (aoc)0x00840DC8), c_type("ee_snow")]
 unsafe struct EEE3DSnow
 {
+    /// vf6: draws it from the draw's list (EEROWater's draw calls it on the fifth queue's)
+    [slot(6), address((ee)0x004F04B0, (aoc)0x004FA404)]
+    [vtable_site("snow_draw")]
+    extern uint32 draw();
 }
 
 /// a Prophet's plague over a group, an effect: its Queue (vf9, EE 0x4E374E, AoC 0x4EBFD0) empties lists of its own (+0xA4,
 /// +0xAC) and fills them again for its draw, one entry for each of its units (+0xB4 of them) - their number changes
-[vtable((ee)0x0082B730, (aoc)0x0084061C)]
+[vtable((ee)0x0082B730, (aoc)0x0084061C), c_type("ee_disease")]
 unsafe struct EEE3DDisease
 {
+    /// vf5: draws it from the lists its Queue made (EEROUnits' draw calls the effects' vf5: EE 0x50D90E)
+    [slot(5), address((ee)0x004E391B, (aoc)0x004EC19D)]
+    [vtable_site("disease_draw")]
+    extern uint32 draw();
 }
 
 /// a Prophet's hurricane, an effect: its Queue (vf9, EE 0x4E7E0A, AoC 0x4F17C2) empties lists of its own (+0xA8, +0xB4)
 /// and fills them again for its draw, as EEE3DDisease (+0xBC entries)
-[vtable((ee)0x0082B8B0, (aoc)0x00840870)]
+[vtable((ee)0x0082B8B0, (aoc)0x00840870), c_type("ee_hurricane")]
 unsafe struct EEE3DHurricane
 {
+    /// vf6: draws it from the lists its Queue made (EEROWater's draw calls it on the fifth queue's)
+    [slot(6), address((ee)0x004E80A9, (aoc)0x004F1A61)]
+    [vtable_site("hurricane_draw")]
+    extern uint32 draw();
 }
 
 /// a Prophet's malaria, an effect: its Queue (vf9, EE 0x4F3F3A, AoC 0x4FDD68) empties lists of its own (+0xA4, +0xAC,
 /// +0xB8) and fills them again for its draw, as EEE3DDisease
-[vtable((ee)0x0082BFE4, (aoc)0x0084102C)]
+[vtable((ee)0x0082BFE4, (aoc)0x0084102C), c_type("ee_virus")]
 unsafe struct EEE3DVirus
 {
+    /// vf5: draws it from the lists its Queue made (EEROUnits' draw calls the effects' vf5: EE 0x50D90E)
+    [slot(5), address((ee)0x004F40E0, (aoc)0x004FDF0E)]
+    [vtable_site("virus_draw")]
+    extern uint32 draw();
 }
 
 /// a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an

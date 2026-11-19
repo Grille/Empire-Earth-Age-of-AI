@@ -363,7 +363,7 @@ internal inline int effect_queues_each(uint8_t *queues, effect_entry_fn f, void 
 internal inline uint32_t effect_draw_water(void *e) { return ((uint32_t (__thiscall *)(void *))(*(void ***)e)[value_engine_display_slot_effect_draw_water])(e); }
 internal inline int effect_is_particle3d(const void *e) { return *(const uint32_t *)e == vt_eee3_d_particle; }
 // an effect whose Queue makes a list of its own anew, of a number that changes, that its draw walks (spec EEE3DRain): rain,
-// snow, a Prophet's plague, hurricane and malaria - queued only by the frame's own update, never beside a frame's draw
+// snow, a Prophet's plague, hurricane and malaria - its Queue never beside its draw (collect_copy.c fx_hook_remake_draw)
 internal inline int effect_queue_remakes(const void *e) {
     uint32_t vt = *(const uint32_t *)e;
     return vt == vt_eee3_d_rain || vt == vt_eee3_d_snow || vt == vt_eee3_d_disease || vt == vt_eee3_d_hurricane || vt == vt_eee3_d_virus;
