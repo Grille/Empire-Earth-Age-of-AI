@@ -1719,6 +1719,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
         ee_goal *g = unit_get_goal(u);
         if (g && goal_is_attack(g)) { s->civ[c] = NULL; continue; }   // already fighting
         if (g && strcmp(rtti_name(g), "EEUGGather@@")) continue;   // building, walking: leave it
+        if (!cl_take(u, CLP_SURVIVE, CLW_MILITIA, CL_CIT_T)) continue;   // ORDERS BY PRIORITY (claims.c): its safety leaves it in the fight
         if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
         s->civ[c] = NULL;   // one target per citizen per tick
     }
@@ -2131,6 +2132,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
             for (int k = 0; k < s->no; k++) {
                 ee_unit *u = s->own[k];
                 ee_unit *t = mus_nearest_enemy(s, u);
+                if (t && is_citizen_type(unit_type_get_id(unit_get_type_data(u))) && !cl_take(u, CLP_SURVIVE, CLW_MILITIA, CL_CIT_T)) continue;   // ORDERS BY PRIORITY: a citizen in the strike, its safety leaves it there
                 if (t && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
             }
             g_mus[idx].on = 0;
@@ -2154,6 +2156,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
             for (int k = 0; k < s->no; k++) {
                 ee_unit *u = s->own[k];
                 ee_unit *t = mus_nearest_enemy(s, u);
+                if (t && is_citizen_type(unit_type_get_id(unit_get_type_data(u))) && !cl_take(u, CLP_SURVIVE, CLW_MILITIA, CL_CIT_T)) continue;   // ORDERS BY PRIORITY: a citizen in the strike, its safety leaves it there
                 if (t && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
             }
             if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: the enemy follows to the rally point - fighting where it is "

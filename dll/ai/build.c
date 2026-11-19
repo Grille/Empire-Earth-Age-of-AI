@@ -255,8 +255,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (is_citizen_type(t)) {
             ee_goal *g = unit_get_goal(u);
             if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@")) { if (nbuilt < 192) built[nbuilt++] = goal_get_building(g); }
-            else if (nf < 384 && citizen_free(u, 0) && (!g || !strcmp(rtti_name(g), "EEUGGather@@"))) freec[nf++] = u;
-            else if (!g && nidle < 384 && citizen_free(u, 1)) idlec[nidle++] = u;
+            else if (nf < 384 && citizen_free(u, 0) && (!g || !strcmp(rtti_name(g), "EEUGGather@@")) && cl_may(u, CLP_ROUTINE, CLW_BUILD)) freec[nf++] = u;
+            else if (!g && nidle < 384 && citizen_free(u, 1) && cl_may(u, CLP_HOLD, CLW_HOLD)) idlec[nidle++] = u;   // ORDERS BY PRIORITY (claims.c): none another holds
             continue;
         }
         if (fam != CLS_BUILDING && fam != CLS_FORTRESS) continue;
@@ -406,7 +406,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
             if (job) bd_hold_mark(idx, job, now);   // its builders stay at it (attack.c citizens_safety)
             for (int k = 0, sent = 0; job && k < nl && sent < BD_HOLD_N; k++)
-                if (bd_send(pl, hc[k], job)) { sent++; b->hold_sent++; }
+                if (cl_take(hc[k], CLP_HOLD, CLW_HOLD, CL_CIT_T) && bd_send(pl, hc[k], job)) { sent++; b->hold_sent++; }
         }
     }
     // WALLS: a piece is given its builders by the order that lays its run (the wall manager's build-wall, as a player

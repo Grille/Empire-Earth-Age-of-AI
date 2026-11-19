@@ -504,7 +504,7 @@ internal void wk_hunters_check(ee_player *pl, ee_resource_mgr *rm) {
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
         ee_unit *prey = wk_hunted(u, unit_get_goal(u));
-        if (!prey) continue;
+        if (!prey || !cl_may(u, CLP_ROUTINE, CLW_WORK)) continue;
         int pk = 0;
         while (pk < np && prey_n[pk].a != prey) pk++;
         int crowd = pk < np && prey_n[pk].n > WK_HUNTERS;
@@ -679,7 +679,7 @@ internal void wk_drops_check(ee_player *pl, ee_resource_mgr *rm, unsigned idx, u
         ee_unit *u = unit_by_id((unsigned)D->e[k].id);
         if (!u || unit_get_serial(u) != D->e[k].id || unit_get_hp(u) <= 0 || unit_get_owner(u) != pl) continue;
         ee_goal *g = unit_get_goal(u);
-        if (!g || !goal_is_gather(g)) continue;   // another order meanwhile: that one stands
+        if (!g || !goal_is_gather(g) || !cl_may(u, CLP_ROUTINE, CLW_WORK)) continue;   // another order meanwhile: that one stands
         if (unit_get_amount(u) > 0) {
             if (now - D->e[k].t < WK_DROP_WAIT) D->e[m++] = D->e[k]; else g_wkd_lapsed[idx]++;
             continue;
@@ -768,7 +768,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
             hk = nhn; nhome[nhn].u = u; nhome[nhn].id = (int)unit_get_serial(u); nhome[nhn++].ter = (short)home;
         }
-        if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) || expand_has(pl, u)) { w->busy++; continue; }   // held for a landing or an outpost, building, a ferry's passenger (expand.c)
+        if (unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) || expand_has(pl, u) || !cl_may(u, CLP_ROUTINE, CLW_WORK)) { w->busy++; continue; }   // ... or another's claim (claims.c: its safety sent it off, the militia's, HOLDING THE GROUND's)   // held for a landing or an outpost, building, a ferry's passenger (expand.c)
         int dk = wk_drop_at(idx, (int)unit_get_serial(u));
         if (dk >= 0) { w->have[g_wkdrop[idx].e[dk].r]++; continue; }   // on its way to unload: counted at its new resource, not moved again
         ee_goal *g = unit_get_goal(u);

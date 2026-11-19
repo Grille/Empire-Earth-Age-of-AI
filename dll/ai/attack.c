@@ -1198,7 +1198,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                 int rally = mus && fabsf(gx - rx) < 2 && fabsf(gy - ry) < 2;
                 if (!rally && building_at(pl, dest, 6) &&
                     (!nearest_drop(pl, iv2(dest[0], dest[1]), 0, &d) || ivec2_dist2(d, iv2(dest[0], dest[1])) > 225) &&
-                    nearest_drop(pl, unit_get_tile(u), 0, &d) &&
+                    nearest_drop(pl, unit_get_tile(u), 0, &d) && cl_take(u, CLP_TASK, CLW_SAFETY, CL_CIT_T) &&
                     unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) {
                     stray++;
                     continue;
@@ -1221,7 +1221,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                     float fx, fy;
                     flee_point(pl, ux, uy, rx, ry, &fx, &fy);
                     if (walk && fabsf(goal_get_dest_x(goal) - fx) < 2 && fabsf(goal_get_dest_y(goal) - fy) < 2) continue;
-                    if (unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) {
+                    if (cl_take(u, CLP_TASK, CLW_SAFETY, CL_CIT_T) && unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) {   // ORDERS BY PRIORITY (claims.c)
                         fled++;
                         if (fx != rx || fy != ry) aside++;
                     }
@@ -1237,7 +1237,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                 if (tv_refuge(pl, idx, at, &rf)) {   // else to a drop site in a territory that is not
                     float fx = (float)rf.x + 0.5f, fy = (float)rf.y + 0.5f;
                     int there = ivec2_dist2(at, rf) <= 16 || (goal && goal_is_location(goal) && fabsf(goal_get_dest_x(goal) - fx) < 2 && fabsf(goal_get_dest_y(goal) - fy) < 2);
-                    if (!there && unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) tv_count(idx, 1);
+                    if (!there && cl_take(u, CLP_TASK, CLW_SAFETY, CL_CIT_T) && unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) tv_count(idx, 1);
                     continue;
                 }
             }
@@ -1269,7 +1269,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
             if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
             if (raided && abs(d.x - unit_get_x(site)) <= 3 && abs(d.y - unit_get_y(site)) <= 3) continue;   // at home already
-            if (!unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) continue;
+            if (!cl_take(u, CLP_TASK, CLW_SAFETY, CL_CIT_T) || !unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) continue;   // ORDERS BY PRIORITY: not the militia's
             sent++;
             {   // who it was sent back for: the raiders there now (else remembered ones or hurts)
                 int seen_kinds = 0;

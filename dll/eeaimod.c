@@ -475,9 +475,9 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/packing.c"
 #include "ai/priority.c"
 #include "ai/econ.c"
+#include "ai/claims.c"   // orders by priority: who may give a unit an order, a claim's stance (ships, citizens)
 #include "ai/attack.c"
 #include "ai/stats.c"
-#include "ai/claims.c"   // orders by priority: who may give a unit an order, a claim's stance (ships so far)
 #include "ai/defence.c"
 #include "ai/counterfire.c"
 #include "ai/forces.c"

@@ -11,17 +11,28 @@
 // aggressive) - the stance it had before comes back when the claim ends (cl_end) or expires.
 // "# claims:" each minute: claims taken, taken over, and the orders refused by who asked and who held the unit.
 // Ships first: the repair (fleet.c, squadrons.c), out of a storm (storms.c) or a danger zone (fleet.c fl_flee), the
-// fleet's and the squadrons' orders. MEASURED 2026-11-19 (head-to-head, Small Islands large, 4 AIs from epoch 5, 60 min,
+// fleet's and the squadrons' orders. Citizens (the player, the same day: "next do citezens"): sent off by its safety -
+// home from a raided site, away when the base is overrun, to a refuge, a stray home (attack.c citizens_safety) - and
+// into a fight as militia or a muster's strike (defence.c) at CLP_SURVIVE, so its safety doesn't pull the militia out
+// of the fight it was sent to; the safety's moves at CLP_TASK, HOLDING THE GROUND's builders at CLP_HOLD above it
+// (build.c: the ground under fire is its business - with the safety's claim above it, the safety sent them home and
+// HOLDING THE GROUND could not send them back for 30 s: islands held 1.10 against 1.48 without claims, 24 games);
+// work.c's hand-outs and build.c's builders, routine, ask first - a citizen sent home from danger was not given the
+// same site again at the next look. MEASURED 2026-11-19 (the same test, B without any claims): B - A soldiers +2.1
+// (se 4.5), kills -3.3 (10.8), losses -1.3 (10.9), razed -0.5 (0.6), citizens -2.0 (1.0); islands held 1.29 both,
+// buildings off the home island 9.1 against 9.3. On.
+// The ships' MEASURED 2026-11-19 (head-to-head, Small Islands large, 4 AIs from epoch 5, 60 min,
 // seeds 1-12 mirrored, 24 games; B without claims, v_claims=0): B - A soldiers -8.8 (se 5.2), kills -2.8 (7.9), losses
 // +10.0 (7.5), razed -0.9 (0.5); warships lost 24.1 against 24.2 per AI, sunk 23.5 against 24.9. On. Next: transports
 // (ferry, convoys, landings), then citizens, then soldiers.
-enum { CLP_SURVIVE = 1, CLP_REPAIR, CLP_CARRY, CLP_TASK, CLP_ROUTINE };
-enum { CLW_NONE, CLW_STORM, CLW_FLEE, CLW_REPAIR, CLW_SQUADRON, CLW_FLEET, CLW_N };
-internal const char *const k_clw[CLW_N] = { "-", "storm", "danger zone", "repair", "squadron", "fleet" };
+enum { CLP_SURVIVE = 1, CLP_REPAIR, CLP_CARRY, CLP_HOLD, CLP_TASK, CLP_ROUTINE };
+enum { CLW_NONE, CLW_STORM, CLW_FLEE, CLW_REPAIR, CLW_SQUADRON, CLW_FLEET, CLW_SAFETY, CLW_MILITIA, CLW_HOLD, CLW_WORK, CLW_BUILD, CLW_N };
+internal const char *const k_clw[CLW_N] = { "-", "storm", "danger zone", "repair", "squadron", "fleet", "citizens' safety", "militia", "holding the ground", "work", "builders" };
 #define CL_N 4096
 #define CL_SWEEP 5000
 #define CL_REPAIR_T 120000   // a repair's claim, renewed each look while it goes
 #define CL_SURVIVE_T 15000
+#define CL_CIT_T 30000       // a citizen sent off by its safety (or into a fight as militia, to build HOLDING THE GROUND): nobody else's this long
 struct cl_entry { ee_unit *u; int id; uint8_t prio, who; int8_t stance0; uint32_t until; };
 internal struct cl_entry g_cl[CL_N];
 internal struct { unsigned taken, over, refused[CLW_N][CLW_N]; uint32_t log_t; } g_cls[16];
