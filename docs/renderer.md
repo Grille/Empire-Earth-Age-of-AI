@@ -1166,8 +1166,8 @@ its 3D mode) with the detail bias by detail_mode; then the same for what its gfx
    bends them onto the ground) - kept by its graphics, animation, model, frames and fraction, size and transformation,
    taken once by the walk at its own fraction, its bent copy's vertices with it. Not kept: blended between two frames
    (an animation moving on: an entry each frame), turned parts, a gate, a tint on its model (written into the shared
-   models the walk reads), a building site, and while a wall's skirt is asked for (walls.c makes it at its model's next
-   draw through the DLL). Measured first on the save (udtime9: the walk's records by kind): a building a frame costs its
+   models the walk reads), a building site (a wall's skirt is part of its model from its load since 2026-11-19: walls.c
+   PART OF THE MESH). Measured first on the save (udtime9: the walk's records by kind): a building a frame costs its
    view test 0.07 us (5 350 tests for 1 740: on each of its tiles), its fill 0.55 us, its draw 0.73 us; a gaia object
    0.15, 0.39 and 1.6 us - the bent copy's lookup at every draw (ub_get, 3 % of the render thread). After: gaia 2.05 ms a
    frame to 1.28, the buildings 1.27 to 1.26 - their draw is the parts' own (in_part, about 0.25 us a part) and the
