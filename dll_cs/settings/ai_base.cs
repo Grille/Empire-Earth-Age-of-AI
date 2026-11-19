@@ -789,6 +789,11 @@ class ai_base
         /// even shares. 0 = off
         [advanced]
         bool ferry_thrift = false;
+        /// A push across the water has at most this many transports trained for one wave while it waits for room for
+        /// its soldiers; then it sets out with what has come, the rest in later waves - the transports trained for a big
+        /// wave stood idle after it (the game's computer player off). 0 = no limit
+        [advanced, range(0, 20)]
+        int push_transport_orders = 0;
         /// Idle citizens to the trees and bushes across the water (the game's computer player off): while citizens stand
         /// idle, a land across the water with trees in a territory its citizens may work and no drop site of its gets a
         /// Settlement by them, and the ferry (ferry_service) takes idle citizens to the free places at the trees and

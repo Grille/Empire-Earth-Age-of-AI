@@ -228,6 +228,18 @@ internal int fy_push_trips(unsigned idx, int k) {
     return n;
 }
 internal int fl_sea_docks(ee_unit_mgr *um, unsigned ocean, unsigned *area, unsigned *seas, int *nseas);   // fleet.c THE DOCKS OF A SEA
+internal int fy_coming(const struct fy_st *f, uint32_t now) {   // transports ordered within FY_ORDER: still to come
+    int n = 0;
+    for (int k = 0; k < 4; k++) n += f->order_t[k] && now >= f->order_t[k] && now - f->order_t[k] < FY_ORDER;
+    return n;
+}
+// A WAVE'S ORDERS ([ai_base] push_transport_orders; the player 2026-11-19, of his P2's 28 transports: "it looks like it
+// just never stops producing them"): a push gathering room for its wave had a transport trained every look it lacked
+// room, up to 4 at a time - P4 (Small Islands, 190 min) ordered 7 in 20 s for a wave of 101 that waited 184 s, the
+// transports idle after it. With a limit: no more than that many trained for one wave; once they are there (none still
+// to come) the wave sets out with the room it has, the rest of the push in later waves. g_fy_pord: trained for push k's
+// wave so far
+internal int g_fy_pord[16][SN_PUSHES];
 internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted, const struct fy_want *wt, int nwt, uint32_t now) {   // MORE TRANSPORTS
     int coming = 0, slot = -1;
     for (int k = 0; k < 4; k++) {
@@ -356,7 +368,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         }
     }
     drops_cached(pl);
-    int blocked[3] = { 0, !sfresh, !wfresh }, unserved = 0, held = 0, nwt = 0;
+    int blocked[3] = { 0, !sfresh, !wfresh }, unserved = 0, held = 0, nwt = 0, pw[SN_PUSHES] = { 0 };   // pw: pushes that asked for transports this look
     struct fy_want wt[8];   // THRIFT: the trips that found no free transport
     #define FY_MISSED() do { unserved++; if (nwt < 8) wt[nwt++] = g_fy_miss; } while (0)
     // ACROSS (stations.c push_across): a push's soldiers first - every free transport at once, important ones (the
@@ -370,9 +382,9 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
     for (int k = 0; k < SN_PUSHES && PUSH_ACROSS(idx); k++) {
         struct sn_push *p = &g_sn[idx].push[k];
         int left0 = p->on && p->across ? p->left - fy_push_transit(idx, k) : 0;
-        if (left0 <= 0 || fy_push_transit(idx, k)) { p->wave_t = 0; continue; }
+        if (left0 <= 0 || fy_push_transit(idx, k)) { p->wave_t = 0; g_fy_pord[idx & 15][k] = 0; continue; }
         int room = 0, tt = ld_transport_type(pl), cap = tt ? ld_cap(tt) : 10;
-        if (p->waves && left0 < (cap + 1) / 2) { p->wave_t = 0; continue; }
+        if (p->waves && left0 < (cap + 1) / 2) { p->wave_t = 0; g_fy_pord[idx & 15][k] = 0; continue; }
         if (!p->wave_t) p->wave_t = now ? now : 1;
         if (!p->waves && !p->cits_want) {   // THE BRIDGEHEAD: 2 citizens a transport of the first wave, SN_CITS at most
             int cw = 2 * ((left0 + cap - 1) / (cap > 0 ? cap : 10));
@@ -392,9 +404,11 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         // THE TRANSPORTS HELD: while a push gathers them nobody else takes a free one - the soldiers' and citizens' trips
         // took each new one as it came (one AI trained 30, its pushes waited 3 minutes and sailed with one: 9 of 57
         // soldiers, called off by THE LAST WORD; 23 of 54 first waves so)
-        if (room * 4 < need * share && now - p->wave_t < FY_GATHER) {
+        int lim = PUSH_ORDERS(idx), capped = lim > 0 && g_fy_pord[idx & 15][k] >= lim;   // A WAVE'S ORDERS
+        if (room * 4 < need * share && now - p->wave_t < FY_GATHER && !(capped && !fy_coming(f, now))) {
             int want = (need * share / 4 - room + cap - 1) / (cap > 0 ? cap : 10);
-            unserved += want > 0 ? want : 1; held = 1;
+            if (!capped) { unserved += want > 0 ? want : 1; pw[k] = 1; }
+            held = 1;
             if (nwt < 8 && p->from >= 0 && p->from < g_ter.n) { wt[nwt].a = p->from_land; wt[nwt].b = p->to_land; wt[nwt].from = g_ter.t[p->from].c; wt[nwt++].to = p->beach; }
             continue;
         }
@@ -410,9 +424,9 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         }
         if (ships) {
             p->waves++;
-            fy_say(idx, now, "a push's wave %d: %d of %d soldiers set out on %d transports (room %d, waited %.0f s for transports)", p->waves, set, left0, ships, room,
-                   (double)(now - p->wave_t) / 1000.0);
-            p->wave_t = 0;
+            fy_say(idx, now, "a push's wave %d: %d of %d soldiers set out on %d transports (room %d, waited %.0f s for transports, %d trained for it)", p->waves, set, left0, ships, room,
+                   (double)(now - p->wave_t) / 1000.0, g_fy_pord[idx & 15][k]);
+            p->wave_t = 0; g_fy_pord[idx & 15][k] = 0;
         }
     }
     for (int tries = 0; tries < FY_TRIPS && !held; tries++) {
@@ -471,7 +485,11 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         if (fy_start(pl, idx, f, t, 4, 0, g_sn_sx[idx][k].from, g_sn_sx[idx][k].to, 1, g_sn_sx[idx][k].at, k, now) == -1) FY_MISSED();
     }
     #undef FY_MISSED
-    if (unserved) { f->want_t = now ? now : 1; fy_order(pl, idx, f, unserved, wt, nwt, now); }
+    if (unserved) {
+        unsigned tr0 = f->trained;
+        f->want_t = now ? now : 1; fy_order(pl, idx, f, unserved, wt, nwt, now);
+        for (int k = 0; k < SN_PUSHES && f->trained > tr0; k++) g_fy_pord[idx & 15][k] += pw[k];   // A WAVE'S ORDERS: counted for the pushes that asked
+    }
     else f->want_t = 0;
 }
 internal void fy_minute(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now) {

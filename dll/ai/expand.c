@@ -386,6 +386,8 @@ internal int g_fy_park = 0, g_v_fy_park = -1;   // ferry.c HOME TO A DOCK: [ai_b
 #define TRANSPORT_PARK(idx) PV(idx, g_v_fy_park, g_fy_park)
 internal int g_fy_thrift = 0, g_v_fy_thrift = -1;   // ferry.c THRIFT: [ai_base] ferry_thrift, [autotest] v_ferry_thrift
 #define FERRY_THRIFT(idx) PV(idx, g_v_fy_thrift, g_fy_thrift)
+internal int g_fy_pcap = 0, g_v_fy_pcap = -1;   // ferry.c ONE WAVE AT A TIME: [ai_base] push_transport_orders, [autotest] v_push_transport_orders
+#define PUSH_ORDERS(idx) PV(idx, g_v_fy_pcap, g_fy_pcap)
 #define CONVOY_ESCORT(idx) PV(idx, g_v_cy_esc, g_cy_esc)
 #define CY_WISHES 4
 #define CY_WISH 5000       // an escort asked for within this
@@ -1961,6 +1963,8 @@ internal void expand_install(const char *autotest_ini) {
     if (autotest_ini) g_v_fy_park = ini_int("autotest", "v_transport_park", -1, autotest_ini);
     g_fy_thrift = g_set_ai[1].ferry_thrift;
     if (autotest_ini) g_v_fy_thrift = ini_int("autotest", "v_ferry_thrift", -1, autotest_ini);
+    g_fy_pcap = g_set_ai[1].push_transport_orders;
+    if (autotest_ini) g_v_fy_pcap = ini_int("autotest", "v_push_transport_orders", -1, autotest_ini);
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
