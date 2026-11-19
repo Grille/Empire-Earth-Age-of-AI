@@ -73,6 +73,8 @@ internal inline uint8_t *game_game_data_at(void) { return (uint8_t *)(uintptr_t)
 // folder (the registry's) - a directory Data\ and an archive Data\data.ssa each, FindFile looking in every
 // directory before any archive
 internal inline uint8_t *game_file_path_at(void) { return (uint8_t *)(uintptr_t)data_game_file_path; }
+// the AIs' difficulty as the hit tables' choice reads it (EEToHitTable.attack_bonus, its only reader): 0 easy, 1
+// medium, 2 hard - a random map's test game on easy 0, on hard 2 (2026-11-19, the pipe's peek)
 internal inline uint8_t *game_game_mode_at(void) { return (uint8_t *)(uintptr_t)data_game_game_mode; }
 internal inline uint8_t *game_game_res_h_at(void) { return (uint8_t *)(uintptr_t)data_game_game_res_h; }
 internal inline uint8_t *game_game_res_w_at(void) { return (uint8_t *)(uintptr_t)data_game_game_res_w; }
@@ -86,7 +88,9 @@ internal inline uint8_t *game_game_type_at(void) { return (uint8_t *)(uintptr_t)
 internal inline uint8_t *game_game_window_at(void) { return (uint8_t *)(uintptr_t)data_game_game_window; }
 // [target family][weapon kind]: 0 = it cannot hit
 internal inline uint8_t *game_hit_table_at(void) { return (uint8_t *)(uintptr_t)data_game_hit_table; }
-// the hit table's variants by game mode
+// the hit table's variants by the difficulty (game_mode), made at the table's load (0x4D5FF9) as hit_table x 0.714
+// (a) and x 1.4 (b): a's the computer's hits on humans on easy, the humans' on computers on hard, b's the other two
+// (hooks.damage_table_choice)
 internal inline uint8_t *game_hit_table_a_at(void) { return (uint8_t *)(uintptr_t)data_game_hit_table_a; }
 internal inline uint8_t *game_hit_table_b_at(void) { return (uint8_t *)(uintptr_t)data_game_hit_table_b; }
 // the user-input messages processed so far

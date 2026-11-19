@@ -134,6 +134,8 @@ static unsafe class game
     [address((ee)0x0091978C, (aoc)0x00931908)]
     static block file_path;
 
+    /// the AIs' difficulty as the hit tables' choice reads it (EEToHitTable.attack_bonus, its only reader): 0 easy, 1
+    /// medium, 2 hard - a random map's test game on easy 0, on hard 2 (2026-11-19, the pipe's peek)
     [address((ee)0x00918808, (aoc)0x00931248)]
     static block game_mode;
 
@@ -163,7 +165,9 @@ static unsafe class game
     [address((ee)0x008D200C, (aoc)0x008E8708)]
     static block hit_table;
 
-    /// the hit table's variants by game mode
+    /// the hit table's variants by the difficulty (game_mode), made at the table's load (0x4D5FF9) as hit_table x 0.714
+    /// (a) and x 1.4 (b): a's the computer's hits on humans on easy, the humans' on computers on hard, b's the other two
+    /// (hooks.damage_table_choice)
     [address((ee)0x008D2008, (aoc)0x008E870C)]
     static block hit_table_a;
 

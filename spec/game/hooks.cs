@@ -363,6 +363,14 @@ static unsafe class hooks
     [address((ee)0x005CD69B, (aoc)0x005DE3AA)]
     static code limit_shown_index;
 
+    /// EEToHitTable.attack_bonus's choice of its table (+0x75 .. +0xBB in both builds, up to its fld of the entry):
+    /// game.hit_table between two humans or two computers and on medium (game.game_mode 1), else by who hits whom -
+    /// hit_table_a (x 0.714) a computer's hit on a human on easy and a human's on a computer on hard, hit_table_b
+    /// (x 1.4) the other two - replaced by a call of the mod's factor and the plain table's entry times it
+    /// (engine/damage.c)
+    [address((ee)0x004D5FA1, (aoc)0x004DBEB9)]
+    static code damage_table_choice;
+
     /// the minimap's operands of hooks.float_1_800
     [address((ee)0x0065E01D, (aoc)0x00675618)]
     [address((ee)0x0065E8A3, (aoc)0x00675E95)]

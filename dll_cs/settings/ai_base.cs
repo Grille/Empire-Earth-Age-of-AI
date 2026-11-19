@@ -21,6 +21,16 @@ class ai_base
         ///   0    = don't touch it: use the game's "Cheat" setting (scenario editor / data files).
         [range(0, 10), game("the price the AI pays, in percent of the real one (with the game's Cheat toggle)", "100%", 0)]
         share cost_percent = 1;
+        /// Damage by difficulty: the game's easy and hard change how hard units hit between humans and computer players -
+        /// on easy a human's units hit the computer's 1.4 times as hard and the computer's hit back 0.714 times (two
+        /// equal units: the human's wins with half its health left), on hard the reverse; on medium, and between humans
+        /// or between computer players, as the units are. Here the factors, per difficulty like every key here:
+        ///   damage_to_humans = the computer players' units hitting a human's, damage_to_ais = a human's hitting theirs
+        ///   100% = fair (default at every difficulty); the game's own: [ai_easy] 71% and 140%, [ai_hard] 140% and 71%
+        [range(0.25, 4), game("how hard the computer's units hit a human's", "easy 71%, medium 100%, hard 140%", -1)]
+        factor damage_to_humans = 1;
+        [range(0.25, 4), game("how hard a human's units hit the computer's", "easy 140%, medium 100%, hard 71%", -1)]
+        factor damage_to_ais = 1;
         enum copper_plan_choice
         {
             /// the original behaviour

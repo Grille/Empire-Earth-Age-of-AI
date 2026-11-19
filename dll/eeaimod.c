@@ -538,6 +538,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/godmode.c"   // godmode: the whole map, any player's units and buildings as this PC's own (playas)
 #include "base/headless_win.c"
 #include "engine/pop_limit.c"   // [general] population_limit_max: the setup's most raised in the game data (display.c's frame hook)
+#include "engine/damage.c"   // [ai_base] damage_to_humans, damage_to_ais: the difficulty's damage tables
 #include "engine/display.c"
 #include "engine/quake_shake.c"    // an earthquake shakes the view, not the camera ([camera] quake_shake)
 #include "engine/crash_box.c"   // [general] crash_dialog: a crash stays open in a box, a memory dump of it
@@ -829,6 +830,7 @@ internal void install(HMODULE self) {
     diplo_install(g_autotest ? g_ini : NULL);
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
+    damage_install();   // the difficulty's damage (damage.c)
     pop_limit_install();   // the setup screen's population steps (pop_limit.c)
     display_install(g_autotest ? g_ini : NULL);
     hold_profile_install();   // after it: the own renderer or not (g_rd_on)

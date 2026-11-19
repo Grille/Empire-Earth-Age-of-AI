@@ -267,6 +267,48 @@ internal inline int patch_limit_steps(limit_step_fn next, limit_step_fn index, l
     FlushInstructionCache(GetCurrentProcess(), NULL, 0);
     return 1;
 }
+// THE DIFFICULTY'S DAMAGE (engine/damage.c): EEToHitTable.attack_bonus's choice among its three tables (spec
+// hooks.damage_table_choice, 70 bytes, both builds alike but for the tables' addresses) made a call of the mod's factor
+// and the plain table's entry times it: movzx ecx, byte [ebp+0xF] (the attacker a human, as the function found it);
+// movzx edx, al (the target a human); call factor (fastcall, the factor in st0; it keeps ebx, esi, edi, ebp); the
+// original's loads of the plain table's entry; fmul by it; jmp the function's end (+0x51 from the place). Every byte
+// and the three tables' addresses checked first: all or nothing.
+typedef float (__attribute__((fastcall)) *damage_factor_fn)(int attacker_human, int target_human);
+internal inline int patch_damage_tables(damage_factor_fn factor) {
+    static const uint8_t was[70] = {
+        0x83, 0x7D, 0x10, 0x01, 0x74, 0x0A, 0x80, 0x7D, 0x0F, 0x00, 0x75, 0x0B, 0x84, 0xC0, 0x75, 0x18,
+        0xA1, 0, 0, 0, 0, 0xEB, 0x21, 0x84, 0xC0, 0x75, 0xF5, 0x83, 0x7D, 0x10, 0x00, 0x74, 0x12,
+        0xA1, 0, 0, 0, 0, 0xEB, 0x10, 0x83, 0x7D, 0x10, 0x00, 0xA1, 0, 0, 0, 0, 0x74, 0x05,
+        0xA1, 0, 0, 0, 0, 0x8B, 0x4D, 0xFC, 0x8B, 0x04, 0x88, 0x8B, 0x4D, 0x08, 0xD9, 0x04, 0x88, 0xEB, 0x0B };
+    static const uint8_t addr_at[4] = { 17, 34, 45, 52 };   // the tables' addresses in was: plain, a, a, b
+    uint8_t *p = (uint8_t *)data_hooks_damage_table_choice;
+    for (int i = 0; i < 70; i++) {
+        int in_addr = 0;
+        for (int k = 0; k < 4; k++) if (i >= addr_at[k] && i < addr_at[k] + 4) in_addr = 1;
+        if (!in_addr && p[i] != was[i]) return 0;
+    }
+    if (*(uint32_t *)(p + 17) != (uint32_t)data_game_hit_table || *(uint32_t *)(p + 34) != (uint32_t)data_game_hit_table_a
+        || *(uint32_t *)(p + 45) != (uint32_t)data_game_hit_table_a || *(uint32_t *)(p + 52) != (uint32_t)data_game_hit_table_b)
+        return 0;
+    uint8_t b[70];
+    memset(b, 0x90, sizeof b);   // nops after the jmp
+    const uint8_t head[7] = { 0x0F, 0xB6, 0x4D, 0x0F, 0x0F, 0xB6, 0xD0 };
+    memcpy(b, head, 7);
+    b[7] = 0xE8;
+    *(int32_t *)(b + 8) = (int32_t)((uintptr_t)factor - ((uintptr_t)p + 12));
+    b[12] = 0xA1;
+    *(uint32_t *)(b + 13) = (uint32_t)data_game_hit_table;
+    const uint8_t entry[12] = { 0x8B, 0x4D, 0xFC, 0x8B, 0x04, 0x88, 0x8B, 0x4D, 0x08, 0xD8, 0x0C, 0x88 };   // fmul [eax+ecx*4]
+    memcpy(b + 17, entry, 12);
+    b[29] = 0xEB;
+    b[30] = 0x51 - 31;   // the function's end: pop edi ...
+    DWORD old;
+    VirtualProtect(p, 70, PAGE_EXECUTE_READWRITE, &old);
+    memcpy(p, b, 70);
+    VirtualProtect(p, 70, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
+    return 1;
+}
 // the network ports (UDP 33334, TCP 33335: TCP Protocol.dll's immediates, the module m) moved: those it listens on
 // and broadcasts to by add, those it connects to by add_connect (a joining test slot: the host slot's) - how many of 8
 internal inline int patch_tcp_ports(HMODULE m, int add, int add_connect) {

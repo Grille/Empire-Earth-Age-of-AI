@@ -276,6 +276,12 @@ internal inline uint8_t *hooks_limit_click_value_at(void) { return (uint8_t *)(u
 internal inline uint8_t *hooks_limit_click_set_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_click_set; }
 // 0x5CD0F3 (the setup screen shown from the setup): the setup's limit (+0x3F0) as the list's position
 internal inline uint8_t *hooks_limit_shown_index_at(void) { return (uint8_t *)(uintptr_t)data_hooks_limit_shown_index; }
+// EEToHitTable.attack_bonus's choice of its table (+0x75 .. +0xBB in both builds, up to its fld of the entry):
+// game.hit_table between two humans or two computers and on medium (game.game_mode 1), else by who hits whom -
+// hit_table_a (x 0.714) a computer's hit on a human on easy and a human's on a computer on hard, hit_table_b
+// (x 1.4) the other two - replaced by a call of the mod's factor and the plain table's entry times it
+// (engine/damage.c)
+internal inline uint8_t *hooks_damage_table_choice_at(void) { return (uint8_t *)(uintptr_t)data_hooks_damage_table_choice; }
 // the minimap's operands of hooks.float_1_800
 // the minimap's operands of hooks.float_1_600
 // GEFontBitmap::Draw (both overloads): movsx of a character
@@ -431,6 +437,7 @@ internal int spec_hooks_select(int build) {
         data_hooks_limit_click_value = 0x005CF877;
         data_hooks_limit_click_set = 0x005CF8C5;
         data_hooks_limit_shown_index = 0x005CD69B;
+        data_hooks_damage_table_choice = 0x004D5FA1;
         data_hooks_minimap_fx_ops[0] = 0x0065E01D;
         data_hooks_minimap_fx_ops[1] = 0x0065E8A3;
         data_hooks_minimap_fx_ops[2] = 0x0065EB3E;
@@ -571,6 +578,7 @@ internal int spec_hooks_select(int build) {
         data_hooks_limit_click_value = 0x005E0561;
         data_hooks_limit_click_set = 0x005E0595;
         data_hooks_limit_shown_index = 0x005DE3AA;
+        data_hooks_damage_table_choice = 0x004DBEB9;
         data_hooks_minimap_fx_ops[0] = 0x00675618;
         data_hooks_minimap_fx_ops[1] = 0x00675E95;
         data_hooks_minimap_fx_ops[2] = 0x00676130;
@@ -663,6 +671,7 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_limit_click_value, "hooks.limit_click_value");
     bad += spec_code(data_hooks_limit_click_set, "hooks.limit_click_set");
     bad += spec_code(data_hooks_limit_shown_index, "hooks.limit_shown_index");
+    bad += spec_code(data_hooks_damage_table_choice, "hooks.damage_table_choice");
     bad += spec_code(data_hooks_minimap_fx_ops[0], "hooks.minimap_fx_ops 0");
     bad += spec_code(data_hooks_minimap_fx_ops[1], "hooks.minimap_fx_ops 1");
     bad += spec_code(data_hooks_minimap_fx_ops[2], "hooks.minimap_fx_ops 2");

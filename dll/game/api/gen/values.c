@@ -1253,6 +1253,7 @@ internal uint32_t data_hooks_limit_click_index;
 internal uint32_t data_hooks_limit_click_value;
 internal uint32_t data_hooks_limit_click_set;
 internal uint32_t data_hooks_limit_shown_index;
+internal uint32_t data_hooks_damage_table_choice;
 internal uint32_t data_hooks_minimap_fx_ops[3];
 internal uint32_t data_hooks_minimap_fy_ops[3];
 internal uint32_t value_hooks_rva_lle_font_movsx_1;

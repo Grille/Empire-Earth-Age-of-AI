@@ -12,4 +12,7 @@ class ai_easy
     string epoch_pacing = "classic";
     /// examples - remove the ';' to use:
     /// cost_percent=100%
+    /// the game's own easy, your units hitting 1.4 times as hard and the computer's 0.714 times:
+    /// damage_to_humans=71%
+    /// damage_to_ais=140%
 }

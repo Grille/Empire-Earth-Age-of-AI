@@ -1,0 +1,15 @@
+// The difficulty's damage (engine/damage.c, [ai_base] damage_to_humans / damage_to_ais): twelve clubmen of the human
+// (P1) against twelve of the AI (P2) side by side in the open, then who is left - the game's own tables made the AI's
+// side win on hard and lose on easy (each hit 1.4 against 0.714 times); with the settings' 100% both sides alike.
+// random_map=Continental, ai_count=1, game_seed=5, difficulty=easy|medium|hard
+wait_until(0.05min)
+diplo(1, 2, 1)
+wait_until(0.1min)
+spawn(1, unit.inf01_clubman, 60, 60, 12)
+spawn(2, unit.inf01_clubman, 61, 60, 12)
+wait_until(0.2min)
+objs(1, unit.inf01_clubman)
+objs(2, unit.inf01_clubman)
+wait_until(2min)
+objs(1, unit.inf01_clubman)
+objs(2, unit.inf01_clubman)

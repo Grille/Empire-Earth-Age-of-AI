@@ -92,6 +92,12 @@ changes the simulation: in a lockstep game different values make the PCs' games 
 
 ## Fights and sight
 
+- `[ai_base] damage_to_humans` / `damage_to_ais` (100% at every difficulty by default): the game's easy and hard
+  change how hard units hit between you and the computer - on hard the AI's units hit 1.4 times as hard and yours
+  0.714 times (two equal units: the AI's wins with half its health left), on easy the reverse. The mod plays every
+  difficulty fair; the difficulty eases off through the AI's play, its population and its epochs instead. The game's
+  own values: `[ai_easy] damage_to_humans=71%, damage_to_ais=140%`, `[ai_hard]` the reverse.
+
 - `[general] lead_targets=1` (default): ranged units and towers aim where a moving target will be when the
   projectile comes down, not where it stood when it was fired. Before, slow projectiles (arrows, catapults,
   cannon balls) missed nearly everything walking across their line of fire.

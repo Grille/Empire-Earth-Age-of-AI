@@ -82,6 +82,7 @@ they behave normally. The mod clears the flag only while an AI updates.
 | Problem | Fix (module, `ageofai.ini` key) |
 |---|---|
 | cheating prices | `cost_percent` per difficulty |
+| cheating damage: easy and hard pick other damage tables between humans and computers (x 1.4 for the favoured side, x 0.714 for the other: on hard the AI's unit beats an equal one of yours with half its health left) | `damage_to_humans`, `damage_to_ais` per difficulty, 100% (fair) at every one (engine/damage.c); the game's own in the `[ai_easy]` / `[ai_hard]` examples |
 | scenario AI asleep | clear the scenario flag during AI updates (`scenario_ai`) |
 | pre-farm overspending | **copper plan** (`copper_plan`): grow to `min_workforce` workers if stock + 60% of the explored wild food covers the epoch costs, then save for Stone and Copper Age; military only from the excess |
 | early raids kill the citizens (vs the base AI: 39-48 a game on Continental, 0 soldiers until minute 22) | **early game** (docs/economy.md, dll/ai/early.c): `early_towers` (2 towers by the Town Center in epochs 0-1, builders for every unfinished tower), `tower_bait` (attacked citizens fall back under a tower), `early_militia` (fight soldiers only with cover and no expected loss); `early_army`, `copper_plan=next_epoch` measured, off |
