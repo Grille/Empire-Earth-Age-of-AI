@@ -2366,7 +2366,11 @@ internal float ff_speed_step(ee_unit *u, float s, float angle) {
     if (want > cap) want = cap;
     if (want < 0) want = 0;
     ee_physics *ph = game_physics();
-    if (!gr->naval && gr->started && !gr->fight) want = ff_stand(e, u, want, top, ph ? physics_get_step_s(ph) : 0.05f);   // any steered land unit: a formation slowed to a crawl (a jam ahead, a draining column) goes on in steps too
+    // any steered land unit: a formation slowed to a crawl (a jam ahead, a draining column) goes on in steps too; and
+    // one holding for a fight - the anchor stands, a unit at its place wants no speed, and without the stand it went on
+    // in its move's walk at speed 0 till the fight was over (the player, 2026-11-19: 18 halberdiers "walking in place"
+    // while 11 hand cannoneers of their formation shot a Town Center too far off for them to close in on)
+    if (!gr->naval && (gr->started || gr->fight)) want = ff_stand(e, u, want, top, ph ? physics_get_step_s(ph) : 0.05f);
     else if (e->halt || e->debt > 0) ff_walk_on(e, u);
     e->want = want;
     // by its own acceleration: capped (0.5 tiles/s/s against a halberdier's 1.3) the units arrived late - one stopped

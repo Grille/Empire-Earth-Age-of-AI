@@ -1,0 +1,15 @@
+// a formation holding for a fight (the player, 2026-11-19: halberdiers "walking in place" while their formation's hand
+// cannoneers shot a Town Center): Continental (seed 101, start_epoch 8), 10 hand cannoneers and 15 halberdiers of P2
+// at 35,44 attack-moved in formation 45 tiles east to 80,44, past a Town Center of P3 8 tiles off their way at 57,52 -
+// the cannoneers (range 8) take it on, the formation holds while they fight, and the halberdiers, the building too far
+// from the formation to close in on, keep their places. `fmove watch 1`: every unit each step (# fmwatch: speed, march
+// state, animation - 13 the walk, 7 and 8 standing); `fmove sum` says which unit is which type.
+wait_until(0.1min)
+spawn(2, unit.inf08_hand_cannoneer, 35, 42, 10)
+spawn(2, unit.inf08_halberdier, 35, 46, 15)
+spawn(3, unit.b_town_center, 57, 52, 1)
+wait_until(0.3min)
+cmd("fmove watch 1")
+cmd("fmove go 2 35 44 6 80 44 0 0 1")
+wait_until(2.3min)
+cmd("fmove sum")
