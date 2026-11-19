@@ -724,7 +724,7 @@ class ai_base
         /// soldiers' orders go to the production where they are wanted - a push's base over the water first, then a
         /// defended territory's - instead of the game's pick, the region with the most production buildings. 0 = off
         [advanced]
-        bool fight_production = false;
+        bool fight_production = true;
         /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]

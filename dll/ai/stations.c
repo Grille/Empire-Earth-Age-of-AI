@@ -588,7 +588,9 @@ internal void sn_bridgehead(ee_player *pl, unsigned idx, struct sn_push *p, uint
 // sides with push_across): soldiers -0.5 (se 3.7), kills +6.8 (11.0), losses -0.7 (8.5), razed +0.8 (0.5), workers +1.2
 // (0.7); held across the water about the same (citizens off the home island 21.4 against 19.7, buildings 8.1 against
 // 7.2). Trained so: 644 soldiers for defended territories' regions, 23 at a push's base (few stand while their push is
-// on: 12 production buildings laid by the B seats' bridgeheads in 82 pushes). No gain shown: OFF.
+// on: 12 production buildings laid by the B seats' bridgeheads in 82 pushes). No clear gain - ON all the same by the
+// player's call (2026-11-19: "the gain sems small but there, and could make a bigger diffrence in a situation like we
+// have here" - his game's island both AIs settled, where P2's soldiers took down P3's tower going up).
 internal unsigned sn_train_region(ee_player *pl, unsigned idx, int type, int pass, int *kind) {
     int pt = ap_producer(pl, type);
     if (!pt || pass > 1) return 0;
