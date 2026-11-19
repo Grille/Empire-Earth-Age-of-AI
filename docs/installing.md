@@ -39,6 +39,15 @@ A release zip is laid out that way: unpacked into the game folder, it is install
    edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `ageofai.ini` take effect when a game starts or a save is loaded.
 
+### Checking a download
+
+Each release lists `SHA256SUMS.txt`: a SHA-256 of the zip, of `ageofai_check.exe` and of every file in the zip, and
+the commit it was built from. In PowerShell, `Get-FileHash ageofai.dll` (SHA-256 is its default) gives the value to
+compare. The same commit builds the same bytes: with the build tools (docs/development.md) and the compiler version the
+release notes name, `git checkout <commit>`, then `python scripts/build/pack_release.py`, makes the same files - and with
+the same zlib (also named) the same zip and `SHA256SUMS.txt`. A release can be checked against its source, not only
+against the page it came from.
+
 ### The settings window
 
 Instead of editing the file you can copy `ageofai_config.exe` next to `Empire Earth.exe` and start it: every
