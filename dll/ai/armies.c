@@ -2384,8 +2384,60 @@ internal int g_ar_need_on = 1, g_v_ar_need = -1;
 // min, seeds 1-12 mirrored, 24 games): the test games train few Sampsons either way (the need picked one in 1 and 4 of
 // its logged looks) - soldiers -0.8 (se 2.9), kills +0.8 (9.4), razed -0.2 (0.5), buildings off the home island 11.1
 // against 9.2: no cost shown. On (his game is where it counts: 102 Sampsons and 3 soldiers).
+// ORDERED COUNT TOO (the player 2026-11-19, his next game: "with normal siege that alredy be a bad idea, with rams its a
+// disaster" - P3 at minute 105 with 4 soldiers and 68 siege, 80 Sampsons): the rams counted were those on the map, and
+// FILL orders up to 5 a pass, AP_PASSES passes a look - while its production buildings' queues filled (142 units in
+// production at minute 83, from 16 two minutes before) every look saw the few that stood and allowed more, and when
+// food and iron ran short (no land soldier FILL could pay) the need's Sampson for wood and gold was all that was
+// trained. Now the rams in its buildings' queues and in production count as its rams (ar_queued), and the others it
+// counts against are its land soldiers only (its other siege was among them). SIEGE WITH SOLDIERS (the same): other
+// siege (catapults ...) likewise at most one for every AR_SIEGE_PER of its land soldiers, the queued counted - with
+// none to cover it a siege weapon is lost for nothing. v_siege_cap 2 (1: as before - rams only, on the map only).
+// MEASURED 2026-11-19 (head-to-head, Continental, 4 AIs from epoch 2, 120 min, seeds 2-6 mirrored, 10 games; B
+// v_siege_cap=1): no cost shown - B - A alive -0.05 (se 0.24), soldiers +15.8 (17.1), kills -63.4 (97.3), razed -9.0
+// (30.6); the test games never come near the flood (11 siege at most, never more than soldiers), his game is where it
+// bites. The need's line ("# armies: ... by need:") counts soldiers, rams and siege with those ordered. On.
 #define AR_RAM_PER 10
-internal int g_ar_siege_cap = 1, g_v_ar_siege_cap = -1;
+#define AR_SIEGE_PER 3
+internal int g_ar_siege_cap = 2, g_v_ar_siege_cap = -1;
+// pl's units of a type with role in the queues of the buildings that make them (their techs' makers, the unit
+// manager's lists of those), the one in production among them - rams: those with an attack only; siege (role
+// UTR_SIEGE): no rams
+internal int ar_queued(ee_player *pl, int role) {
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    int techs[32], nt = 0, mk[16], nm = 0, n = 0, step = production_queue_entry() / (int)sizeof(int);
+    if (!um || !tt || step < 1) return 0;
+    for (int t = 0; t < G_TYPES_N && nt < 32; t++) {
+        ee_unit_type *td = type_data(t);
+        if (!td || unit_type_get_id(td) != t || !ut_role(t, role) || unit_type_get_attack(td) <= 0 || (role == UTR_SIEGE && ut_role(t, UTR_RAM))) continue;
+        int k = unit_type_get_tech(td), j = 0;
+        while (j < nt && techs[j] != k) j++;
+        if (j < nt || k <= 0) continue;
+        techs[nt++] = k;
+        ee_tech *tc = tech_tree_lookup(tt, k);
+        ee_tech_data *d = tc ? tech_get_data(tc) : NULL;
+        int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
+        for (int *p = b; b && e > b && e - b < 16 && p < e && nm < 16; p++) {
+            int h = 0;
+            while (h < nm && mk[h] != *p) h++;
+            if (h == nm && *p > 0) mk[nm++] = *p;
+        }
+    }
+    for (int h = 0; h < nm; h++) {
+        uint8_t *q = unit_mgr_type_list(um, mk[h]);
+        for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 256; j++) {
+            ee_unit *b = deque_at(q, f + j);
+            if (!b || unit_get_hp(b) <= 0) continue;
+            int cur = unit_get_producing(b), *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b);
+            for (int i = 0; i < nt; i++) n += cur == techs[i];
+            for (int *p = qb; qb && qe > qb && qe - qb < 1024 && p < qe; p += step)
+                for (int i = 0; i < nt; i++) n += *p == techs[i];
+        }
+    }
+    return n;
+}
 #define AR_SIEGE_CAP(idx) PV(idx, g_v_ar_siege_cap, g_ar_siege_cap)
 internal struct { unsigned looks, same, other, none; } g_ar_need[16];
 // the pick (0: none - nothing known of the enemy, nothing payable); vis: what may be spent (NULL: anything)
@@ -2441,9 +2493,15 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     if (!g_sgs_foe.n) { if (log) g_ar_need[idx].none++; return 0; }
     ar_need_own(pl, a, off);
     float r0 = st_ratio(&g_ar_own, &g_sgs_foe);
-    int rams = 0, others = 0, blds = 0, cap = AR_SIEGE_CAP(idx);   // SIEGE WITH A PURPOSE
-    for (int g = 0; cap && g < g_ar_own.ng; g++) { if (ut_role(g_ar_own.g[g].type, UTR_RAM)) rams += g_ar_own.g[g].count; else others += g_ar_own.g[g].count; }
+    int rams = 0, others = 0, siege = 0, blds = 0, qr = 0, qs = 0, cap = AR_SIEGE_CAP(idx);   // SIEGE WITH A PURPOSE
+    for (int g = 0; cap && g < g_ar_own.ng; g++) {
+        int ty = g_ar_own.g[g].type;
+        if (ut_role(ty, UTR_RAM)) rams += g_ar_own.g[g].count;
+        else if (cap == 2 && ut_role(ty, UTR_SIEGE)) siege += g_ar_own.g[g].count;   // ORDERED COUNT TOO: soldiers only against
+        else others += g_ar_own.g[g].count;
+    }
     for (int g = 0; cap && g < g_sgs_foe.ng; g++) { int c = unit_type_get_class_id(g_sgs_foe.g[g].td); blds += c == CLS_BUILDING || c == CLS_FORTRESS; }
+    if (cap == 2) { qr = ar_queued(pl, UTR_RAM); qs = ar_queued(pl, UTR_SIEGE); rams += qr; siege += qs; }   // ORDERED COUNT TOO
     int best = 0, nbest = 0; float bg = 0, gfill = 0, rbest = r0;
     for (int ty = 0; ty < G_TYPES_N; ty++) {
         ee_unit_type *td = type_data(ty);
@@ -2451,6 +2509,7 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
         if (ut_role(ty, UTR_CITIZEN) || ty == UT(PRIEST) || ty == UT(PROPHET) || !can_build(pl, ty)) continue;
         if (off && !ap_trains_now(pl, ty)) continue;
         if (cap && ut_role(ty, UTR_RAM) && (!blds || (rams + 1) * AR_RAM_PER > others)) continue;   // SIEGE WITH A PURPOSE: rams few
+        if (cap == 2 && ut_role(ty, UTR_SIEGE) && !ut_role(ty, UTR_RAM) && (siege + 1) * AR_SIEGE_PER > others) continue;   // SIEGE WITH SOLDIERS
         int cost = 0, pays = 1;
         for (int r = 2; r < 7; r++) { int c = unit_cost(pl, ty, r); cost += c; if (vis && vis[r] < c) pays = 0; }
         if (cost <= 0 || (!pays && ty != filled)) continue;
@@ -2466,9 +2525,9 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     }
     if (!best || !log) return best;
     if (best == filled) g_ar_need[idx].same++; else g_ar_need[idx].other++;
-    ar_log(idx, now, "by need: FILL's own pick %s (%d, %+.3f a 1000), the need %s (%d, %+.3f a 1000: %d of them %.2f -> %.2f) against %d known%s at %d,%d; looks %u, the same %u, other %u, no enemy known %u%s",
+    ar_log(idx, now, "by need: FILL's own pick %s (%d, %+.3f a 1000), the need %s (%d, %+.3f a 1000: %d of them %.2f -> %.2f) against %d known%s at %d,%d; looks %u, the same %u, other %u, no enemy known %u%s; soldiers %d, rams %d (%d ordered), siege %d (%d ordered)",
            filled ? unit_ident(filled) : "none", filled, gfill, unit_ident(best), best, bg, nbest, r0, rbest, g_sgs_foe.n, tg ? " (the next target's and its land's armies)" : " (its land's armies)", at.x, at.y,
-           g_ar_need[idx].looks, g_ar_need[idx].same, g_ar_need[idx].other, g_ar_need[idx].none, AR_NEED(idx) ? " - trained" : "");
+           g_ar_need[idx].looks, g_ar_need[idx].same, g_ar_need[idx].other, g_ar_need[idx].none, AR_NEED(idx) ? " - trained" : "", others, rams, qr, siege, qs);
     return best;
 }
 // FILL's type (army.c): the need's when train_by_need is on and it has one, else FILL's own; once a game minute in tests the
