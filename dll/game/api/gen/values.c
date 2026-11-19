@@ -3775,6 +3775,7 @@ internal uint32_t of_physics_work_count;
 internal uint32_t of_physics_autosave_ms;
 internal uint32_t of_physics_time;
 internal uint32_t of_physics_day_cycle;
+internal uint32_t call_day_cycle_step;
 internal uint32_t call_step_end;
 internal uint32_t vt_ee_world;
 internal uint32_t of_world_players;

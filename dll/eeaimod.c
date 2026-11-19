@@ -352,6 +352,7 @@ internal void log_rotate(void) {
 
 internal int unit_types_load(void);   // unitnames.c
 internal void crash_box_again(void);   // engine/crash_box.c
+internal void day_night_new_game(int mode);   // engine/day_night.c
 internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, void *p2) {
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
@@ -450,6 +451,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     sites_new_game();
     if (mode == 2) { persist_load(name); takeover_loaded(); }   // a saved game: the mod's state from its .ageofai file
     char r = game_state_start(state, setup, p2);
+    day_night_new_game(setup_get_mode(setup));   // a random map's light at its first step (a test's random map: mode 0 now)
     // counted again once the new world is there: the render thread can draw the old one between the load's steps and
     // keep what it made then (the bent objects, the kept records) under the count from above - and the new map often
     // takes the old one's address, so that check passes too (the player's game of 2026-11-13: a save loaded from
@@ -540,6 +542,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/pop_limit.c"   // [general] population_limit_max: the setup's most raised in the game data (display.c's frame hook)
 #include "engine/damage.c"   // [ai_base] damage_to_humans, damage_to_ais: the difficulty's damage tables
 #include "engine/mp_block.c"   // [general] multiplayer: the main menu's Multiplayer button
+#include "engine/day_night.c"   // [display] skirmish_day_night, skirmish_start_hour
 #include "engine/display.c"
 #include "engine/quake_shake.c"    // an earthquake shakes the view, not the camera ([camera] quake_shake)
 #include "engine/crash_box.c"   // [general] crash_dialog: a crash stays open in a box, a memory dump of it
@@ -832,6 +835,7 @@ internal void install(HMODULE self) {
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
     mp_block_install();   // the Multiplayer button (mp_block.c)
+    day_night_install();  // a random map's day and night (day_night.c)
     damage_install();   // the difficulty's damage (damage.c)
     pop_limit_install();   // the setup screen's population steps (pop_limit.c)
     display_install(g_autotest ? g_ini : NULL);

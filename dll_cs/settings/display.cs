@@ -63,6 +63,15 @@ class display
     /// Windowed/borderless only: 1 = the window uses real screen pixels at Windows display scaling of 125/150 %
     /// (no blur from Windows stretching it), 0 = Windows enlarges it like other old programs
     bool dpi_aware = true;
+    /// Day and night in random-map games: the light turns with the time of day, a whole day in 10 minutes of game time
+    /// (the game's own cycle, which only a scenario's trigger could switch on). Scenarios and campaigns keep their
+    /// author's choice; a saved game keeps its own. In multiplayer every player needs the same setting.
+    /// 1 = on, 0 = off (original)
+    bool skirmish_day_night = false;
+    /// The hour a random-map game starts at (0..23: 12 is noon, 0 midnight), with or without day and night; -1 = the
+    /// game's own
+    [advanced, range(-1, 23, error: true)]
+    int skirmish_start_hour = -1;
     /// [display] display_start - the parts of the quiet windowed start, all on by default since 2026-11-18 (the player's
     /// own ini had all four; engine/display.c play_cbt, play_front)
     struct display_start_fields

@@ -245,8 +245,10 @@ unsafe struct EEPhysics
 
     /// a step's day/night cycle and the sky's light (step calls it each step): with day_cycle set the time of day moves
     /// on (day_carry), then the world's +0xB78 drifts by a random step (step_ms x 0.005) and goes to the engine's light
-    /// (AoC the same code)
+    /// (AoC the same code). Its only call is step's, where a step runs (not a paused game's): the call site is where a
+    /// new random map's start hour goes (engine/day_night.c - set before, the start's own hour came after it)
     [address((ee)0x00547B6B, (aoc)0x005540FB)]
+    [call_site("day_cycle_step", (ee)0x00546D4C, (aoc)0x00553200)]
     extern void day_cycle_step();
 
     /// a step's end: step calls it last, on every path through a step that ran (AoC the same): the world's settle

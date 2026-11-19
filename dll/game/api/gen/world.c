@@ -226,10 +226,12 @@ internal physics_step_fn fn_physics_step;
 internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics); }
 // a step's day/night cycle and the sky's light (step calls it each step): with day_cycle set the time of day moves
 // on (day_carry), then the world's +0xB78 drifts by a random step (step_ms x 0.005) and goes to the engine's light
-// (AoC the same code)
+// (AoC the same code). Its only call is step's, where a step runs (not a paused game's): the call site is where a
+// new random map's start hour goes (engine/day_night.c - set before, the start's own hour came after it)
 typedef void (__thiscall *physics_day_cycle_step_fn)(ee_physics *);
 internal physics_day_cycle_step_fn fn_physics_day_cycle_step;
 internal inline void physics_day_cycle_step(ee_physics *physics) { fn_physics_day_cycle_step(physics); }
+internal inline int patch_day_cycle_step(physics_day_cycle_step_fn h) { return patch_call(call_day_cycle_step, (uintptr_t)fn_physics_day_cycle_step, (void *)h); }
 // a step's end: step calls it last, on every path through a step that ran (AoC the same): the world's settle
 // (EEWorld.settle) and each player's vf1(0, 1) - what the mod does once a step, the same step on every PC, goes
 // after it (walls.c: the walls' joins; the safe point between steps may come after two of them)
@@ -462,6 +464,7 @@ internal int spec_world_select(int build) {
         of_physics_day_cycle = 0xE0;
         fn_physics_step = (physics_step_fn)0x00546C63;
         fn_physics_day_cycle_step = (physics_day_cycle_step_fn)0x00547B6B;
+        call_day_cycle_step = 0x00546D4C;
         fn_physics_step_end = (physics_step_end_fn)0x00545C8F;
         call_step_end = 0x00546E12;
         fn_physics_random_range = (physics_random_range_fn)0x005531A8;
@@ -556,6 +559,7 @@ internal int spec_world_select(int build) {
         of_physics_day_cycle = 0xE0;
         fn_physics_step = (physics_step_fn)0x00553082;
         fn_physics_day_cycle_step = (physics_day_cycle_step_fn)0x005540FB;
+        call_day_cycle_step = 0x00553200;
         fn_physics_step_end = (physics_step_end_fn)0x00551E9F;
         call_step_end = 0x005532BE;
         fn_physics_random_range = (physics_random_range_fn)0x005612B9;
@@ -613,6 +617,7 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_dmg_model_set_player_colour, "EEGraphicObject.set_player_colour");
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     bad += spec_code((uintptr_t)fn_physics_day_cycle_step, "EEPhysics.day_cycle_step");
+    bad += spec_call(call_day_cycle_step, (uintptr_t)fn_physics_day_cycle_step, "EEPhysics.day_cycle_step [call_site day_cycle_step]");
     bad += spec_code((uintptr_t)fn_physics_step_end, "EEPhysics.step_end");
     bad += spec_call(call_step_end, (uintptr_t)fn_physics_step_end, "EEPhysics.step_end [call_site step_end]");
     bad += spec_code((uintptr_t)fn_physics_random_range, "EEPhysics.random_range");
