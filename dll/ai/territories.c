@@ -1085,6 +1085,8 @@ internal void territories_install(const char *autotest_ini) {
     g_wk_across = g_set_ai[1].expand_across;
     g_sn_across = g_set_ai[1].push_across;
     if (autotest_ini) g_v_sn_across = ini_int("autotest", "v_push_across", -1, autotest_ini);
+    g_fight_prod = g_set_ai[1].fight_production;
+    if (autotest_ini) g_v_fight_prod = ini_int("autotest", "v_fight_production", -1, autotest_ini);
     if (autotest_ini) g_v_wk_across = ini_int("autotest", "v_expand_across", -1, autotest_ini);
     g_border_walls = g_set_ai[1].border_walls;
     if (autotest_ini) g_v_border_walls = ini_int("autotest", "v_border_walls", -1, autotest_ini);

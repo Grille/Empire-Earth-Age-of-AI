@@ -719,6 +719,12 @@ class ai_base
         /// production by the beach. It takes the place of the landings (landing), which don't run then. 0 = off
         [advanced]
         bool push_across = true;
+        /// Production where the fight is (the game's computer player off): a territory under attack that holds (the enemy's
+        /// soldiers there beaten, not being lost) builds production of its own before a quiet territory's claim, and the
+        /// soldiers' orders go to the production where they are wanted - a push's base over the water first, then a
+        /// defended territory's - instead of the game's pick, the region with the most production buildings. 0 = off
+        [advanced]
+        bool fight_production = false;
         /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]

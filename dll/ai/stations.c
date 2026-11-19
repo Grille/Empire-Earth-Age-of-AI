@@ -575,6 +575,50 @@ internal void sn_bridgehead(ee_player *pl, unsigned idx, struct sn_push *p, uint
         bd_send(pl, u, b);
     }
 }
+// PRODUCTION WHERE THE FIGHT IS ([ai_base] fight_production; army.c FILL, produce.c; the player 2026-11-19, of the
+// soldiers a push's base over the water was to train: "its alredy decided by territory needs right? prioretising
+// production buildings in fough in territories (invading or devending) would be a logical extension"). Where production
+// stands followed the territories' needs (produce.c) - in quiet territories only - but not where a soldier was trained:
+// the game hands an order to the producers of one region (ee_unit_mgr::train), the one the request's fourth value
+// names, else the one with the most of them - home, whatever the order was for, and the bridgehead's Barracks trained
+// none. So the order names (pass 0) a push's base over the water with a standing building that trains the type, else
+// (and pass 1) the region of a territory of its under attack, holding (not TV_UNSAFE) and shortest of its share, with
+// one in it; 0: none, the game's pick (and when nothing trains it there now). *kind: 0 the push's base, 1 defended
+// MEASURED 2026-11-19 (head-to-head, Small Islands large, 4 AIs from epoch 5, 60 min, seeds 1-12 mirrored, 24 games, both
+// sides with push_across): soldiers -0.5 (se 3.7), kills +6.8 (11.0), losses -0.7 (8.5), razed +0.8 (0.5), workers +1.2
+// (0.7); held across the water about the same (citizens off the home island 21.4 against 19.7, buildings 8.1 against
+// 7.2). Trained so: 644 soldiers for defended territories' regions, 23 at a push's base (few stand while their push is
+// on: 12 production buildings laid by the B seats' bridgeheads in 82 pushes). No gain shown: OFF.
+internal unsigned sn_train_region(ee_player *pl, unsigned idx, int type, int pass, int *kind) {
+    int pt = ap_producer(pl, type);
+    if (!pt || pass > 1) return 0;
+    struct sn_st *z = &g_sn[idx & 15];
+    for (int k = 0; !pass && k < SN_PUSHES; k++) {
+        struct sn_push *p = &z->push[k];
+        if (!p->on || !p->across || !p->over) continue;
+        for (int j = 0; j < p->nbh; j++) {
+            struct sn_bh *h = &p->bh[j];
+            if (h->state != 2 || h->type != pt || !h->b || unit_get_serial(h->b) != h->bid || unit_get_hp(h->b) <= 0) continue;
+            unsigned a = unit_region(h->b);
+            if (a) { *kind = 0; return a; }
+        }
+    }
+    struct tv_st *s = &g_tv[idx & 15];
+    int n = s->n < PR_T ? s->n : PR_T, best = 0, count = 0;
+    unsigned area = 0;
+    if (!n || s->version != g_ter.version) return 0;
+    for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || unit_type_get_id(td) != pt || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !cz_finished(u)) continue;
+        unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
+        if (r >= (unsigned)n || s->t[r].state == TV_UNSAFE || !g_pr_foe[idx & 15][r]) continue;
+        int miss = (int)g_pr_share[idx & 15][r] - (int)g_pr_has[idx & 15][r];
+        unsigned a = miss > best ? unit_region(u) : 0;
+        if (a) { best = miss; area = a; }
+    }
+    if (area) *kind = 1;
+    return area;
+}
 // THE LAST WORD (ferry.c, as landing.c's before it sails): push k's first wave aboard, soldiers u (n) - judged at once
 // against the beach and the target, its losses planned for; under SN_LAST for SN_LAST_WEAK it is called off (unloaded at
 // home): 1 go, 0 wait, -1 called off

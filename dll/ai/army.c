@@ -135,6 +135,10 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 // (7.2) but the mod's wins 35 -> 61 of 80 without the cheat, the base AI's 66 -> 60 with it; Continental e9 +3.6 (3.0) /
 // +6.2 (4.1), wins 55 -> 65, base AI 55 -> 43; head-to-head Continental Large +46.0 (17.5). Default 39 (7 + LATE).
 internal int g_army_plan = 103, g_v_army_plan = -1;
+internal int g_fight_prod = 0, g_v_fight_prod = -1;   // stations.c PRODUCTION WHERE THE FIGHT IS ([ai_base] fight_production, [autotest] v_fight_production)
+#define FIGHT_PROD(idx) PV(idx, g_v_fight_prod, g_fight_prod)
+internal unsigned g_fp_n[16][2];   // ... soldiers trained so: at a push's base over the water, in a defended territory
+internal unsigned sn_train_region(ee_player *pl, unsigned idx, int type, int pass, int *kind);   // stations.c
 internal int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
 #define AP_PASSES 6
 internal int g_army_epoch = 5;   // LATE: army_plan_epoch
@@ -434,13 +438,18 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
                 room_t[idx] = now ? now : 1;
                 log_locked("# army: P%u at %.1f min: the room %d of %d (in production %d), held for citizens %d (wanted %d, there %d, at work %d), a landing %d, the fleet %d - free for soldiers %d, the type %d\n",
                            idx, now / 60000.0, room, cap, unit_mgr_get_in_production(um), miss > 0 ? miss : 0, goal, unit_mgr_citizens(um), workforce(pl), landing_room_reserve(pl), navy_room_reserve(pl), free, ft);
+                if (FIGHT_PROD(idx))
+                    log_locked("# army: P%u at %.1f min: where the fight is - trained at a push's base over the water %u, in a defended territory %u\n", idx, now / 60000.0, g_fp_n[idx][0], g_fp_n[idx][1]);
             }
         }
         filled = ft;
         if (ft) {
-            int req[4] = { ft, free < 5 ? free : 5, 0, 0 };
+            int req[4] = { ft, free < 5 ? free : 5, 0, 0 }, kind = 0;
             unsigned n = 0;
+            if (off && FIGHT_PROD(idx)) req[3] = (int)sn_train_region(pl, idx, ft, pass, &kind);   // PRODUCTION WHERE THE FIGHT IS (stations.c)
             hook_train_units(um, req, (uintptr_t)&n);
+            if (req[3] && n) g_fp_n[idx][kind] += n;
+            else if (req[3]) { req[3] = 0; hook_train_units(um, req, (uintptr_t)&n); }   // none trains it there now: the game's pick
             a->fill += n;
             if (!n) break;
         } else break;

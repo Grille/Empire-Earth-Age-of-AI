@@ -161,10 +161,13 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
         int any = 0;
         for (int k = 0; k < PR_NK; k++) any += np[r][k];
         if (any && t->state == TV_QUIET && want[r] > hwant) { hwant = want[r]; hub = r; }   // a quiet one: the hub that wants the most is the one under attack, and nothing was built while it was
-        if (t->bld < PR_BLD || t->state != TV_QUIET || any) continue;   // established and secured, no hub yet
+        // PRODUCTION WHERE THE FIGHT IS (stations.c, fight_production): a territory under attack that holds (TV_FOES: the
+        // enemy's soldiers there beaten) and is short of its share claims its own at once, before the quiet ones
+        int fought = FIGHT_PROD(idx) && t->state == TV_FOES && hard[r] > 0 && sh[r] > 0;
+        if (t->bld < PR_BLD || (t->state != TV_QUIET && !fought) || any) continue;   // established and secured (or fought and holding), no hub yet
         int fs = (t->role == TVR_FRONT ? 100000 : 0) + sh[r] * 10 + t->bld;   // with no production anywhere: a front first, the one missing the most
         if (fs > fscore) { fscore = fs; first = r; }
-        int d = dist[r] > PR_FAR ? PR_FAR : dist[r], score = sh[r] * (d - 1);
+        int d = dist[r] > PR_FAR ? PR_FAR : dist[r], score = sh[r] * (d - 1) + (fought ? PR_LOCAL + (1 << 20) : 0);
         if (score < PR_LOCAL) continue;
         z->claims++;
         if (score > bscore) { bscore = score; best = r; }
@@ -201,4 +204,4 @@ internal void produce_look(ee_player *pl, unsigned idx, uint32_t now) {
                    idx, now / 60000.0, z->force, (z->attack + 5) / 10, z->over ? " - the force is too small for it" : "", (z->shortn + 5) / 10, total, done, z->hubs, granaries, z->claims, z->type, z->type ? z->ter : -1, z->type ? z->why : "nothing", buf);
     }
 }
-internal void produce_new_game(void) { memset(g_pr, 0, sizeof g_pr); memset(g_pr_more, 0, sizeof g_pr_more); memset(g_pr_share, 0, sizeof g_pr_share); memset(g_pr_has, 0, sizeof g_pr_has); memset(g_pr_foe, 0, sizeof g_pr_foe); memset(g_pr_foe_t, 0, sizeof g_pr_foe_t); }
+internal void produce_new_game(void) { memset(g_pr, 0, sizeof g_pr); memset(g_fp_n, 0, sizeof g_fp_n); memset(g_pr_more, 0, sizeof g_pr_more); memset(g_pr_share, 0, sizeof g_pr_share); memset(g_pr_has, 0, sizeof g_pr_has); memset(g_pr_foe, 0, sizeof g_pr_foe); memset(g_pr_foe_t, 0, sizeof g_pr_foe_t); }
