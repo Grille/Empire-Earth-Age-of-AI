@@ -181,14 +181,18 @@ internal void cmd_handover(char *out, const char *args) {
     }
     game_set_stance((int)n, (int)hi, 0);
     game_set_stance((int)hi, (int)n, 0);
-    // ITS UNITS: the human's, the ones that walk first
+    // ITS UNITS: the human's, the ones that walk first. A chain of pieces (a gate's five, an airport and its runways:
+    // physics +0x1CC) goes by its last piece alone, as ai/spoils.c gives them: the type's handover remakes and links the
+    // others - each piece given apart was remade unlinked (the player's game 2026-11-19: a gate's open test read
+    // NULL+0x1D0 at the next step, EEUCGate 0x602DCB)
     static uint32_t ids[16384];
     int ni = 0, given = 0;
     for (int pass = 0; pass < 2; pass++) {
         int count = 0;
         for (ee_unit *u = player_get_units(h); u && count < 16384 && ni < 16384; u = unit_get_next(u), count++) {
             ee_unit_type *td = unit_get_type_data(u);
-            if (!td || unit_get_hp(u) <= 0 || fr_building(td) != pass) continue;
+            ee_unit *ph = unit_get_physics(u);
+            if (!td || unit_get_hp(u) <= 0 || fr_building(td) != pass || (ph && unit_get_chain(ph))) continue;
             ids[ni++] = (uint32_t)unit_get_serial(u);
         }
     }
