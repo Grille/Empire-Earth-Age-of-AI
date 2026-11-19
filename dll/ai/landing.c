@@ -1000,7 +1000,7 @@ internal void ld_bridgehead(ee_player *pl, unsigned pi, struct landing *l, uint3
             }
             break;
         }
-        ee_unit *b = ld_base_spot(pl, pi, l, t, iv2(cx, cy), &at) ? place_foundation(pl, t, at.x, at.y) : NULL;
+        ee_unit *b = ld_base_spot(pl, pi, l, t, iv2(cx, cy), &at) ? lay_foundation(pl, t, at.x, at.y) : NULL;
         l->base_t = now;
         if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: forward base - %s %d at %d,%d (%s), %d citizens ashore, %d free\n", pi, now / 60000.0,
                            ld_kind_name(p->kind), t, at.x, at.y, b ? "foundation laid" : "no room", n, free);

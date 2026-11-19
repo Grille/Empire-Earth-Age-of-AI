@@ -513,7 +513,7 @@ internal void tn_wall(ee_player *pl, unsigned idx, struct tn_town *t, uint32_t n
         land = qx >= 3 && qy >= 3 && qx < mn - 3 && qy < mn - 3 && area_id(iv2(qx, qy), 2) && !area_id(iv2(qx, qy), 1);
     }
     if (!land) return;
-    build_wall(wm, a, b, wtype);
+    if (!lay_wall(pl, wm, a, b, wtype)) return;
     g_tn[idx].walls++;
     tn_say(idx, now, "wall %d from %d,%d to %d,%d in front of the forward base at %d,%d", wtype, a[0], a[1], b[0], b[1], t->c.x, t->c.y);
 }
@@ -1108,7 +1108,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             }
             if (prio_refuses(pl, ty)) break;   // spend_tiers: an outpost's turn first
             if (!tn_spot(pl, idx, t, ty, c, hc, &at)) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
-            ee_unit *b = place_foundation(pl, ty, at.x, at.y);
+            ee_unit *b = lay_foundation(pl, ty, at.x, at.y);
             if (!b) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
             p->b = b; p->id = unit_get_serial(b); p->type = ty; p->p = at; p->state = 1; p->tries++;
             s->laid++;

@@ -1374,7 +1374,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
             } else if (p->kind == XK_BARRACKS || p->kind == XK_SHELTER) c = mid;
             else if (p->kind == XK_BEACH) c = x->unload;
             if (!ex_spot(pl, idx, x, t, c, &at)) { if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: no spot for it by %d,%d", k_xk[p->kind], c.x, c.y); if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
-            ee_unit *b = place_foundation(pl, t, at.x, at.y);
+            ee_unit *b = lay_foundation(pl, t, at.x, at.y);
             if (!b) { if (!(p->nowait++ % 15)) ex_say(idx, now, "the %s waits: its foundation at %d,%d refused", k_xk[p->kind], at.x, at.y); if (++p->waits > (p->kind == XK_SHELTER ? 150 : 30) && p->kind != XK_DROP) p->state = 3; if (p->kind == XK_SHELTER) continue; break; }
             p->b = b; p->id = unit_get_serial(b); p->type = t; p->p = at; p->state = 1; p->tries++;
             ex_say(idx, now, "%s %d laid at %d,%d (%d citizens, %d soldiers on the island)", k_xk[p->kind], t, at.x, at.y, e.nc, e.ns);

@@ -374,10 +374,17 @@ internal inline int patch_maint_delete(player_delete_for_room_fn h) { return pat
 typedef int (__thiscall *player_population_fn)(ee_player *, int, int);
 internal player_population_fn fn_player_population;
 internal inline int player_population(ee_player *player, int with_list, int with_aboard) { return fn_player_population(player, with_list, with_aboard); }
-// thiscall(player, type, 0x20, 0): can train or build one now
+// thiscall(player, type, 0x20, 0): can train or build one now - can_have(the type's tech, flags, 1, 1, 3, zero)
 typedef char (__thiscall *player_can_build_fn)(ee_player *, int, int, int);
 internal player_can_build_fn fn_player_can_build;
 internal inline char player_can_build(ee_player *player, int type, int flags, int zero) { return fn_player_can_build(player, type, flags, zero); }
+// vf21 (EEPlayer's 0x55574D): may the player have the tech now - its node in the tech tree and available (the
+// node's vf1: a scenario's disabled ones are not), the population limits (a type with a population count), with
+// pay 1 its cost (vf32), and a unit of its that makes it. The computer player's (0x4302E9) also says no to a tech
+// of category 5. The player's build click (EEMBuildUnit::vf10 0x4B3D85) asks it as can_build does: (tech, 0x20,
+// 1, 1, 3, 0); pay 0 asks all but the cost
+typedef char (__thiscall *player_can_have_fn)(ee_player *, int, int, int, char, int, int);
+internal inline char player_can_have(ee_player *player, int tech, int flags, int p3, char pay, int p5, int p6) { return ((player_can_have_fn)(*(void ***)player)[slot_player_can_have])(player, tech, flags, p3, pay, p5, p6); }
 // EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
 typedef int (__thiscall *player_game_limit_fn)(ee_player *, int);
 internal player_game_limit_fn fn_player_game_limit;
@@ -1431,6 +1438,7 @@ internal int spec_player_select(int build) {
         call_maint_delete = 0x00477B17;
         fn_player_population = (player_population_fn)0x00556E11;
         fn_player_can_build = (player_can_build_fn)0x00555710;
+        slot_player_can_have = 21;
         fn_player_game_limit = (player_game_limit_fn)0x00556EBC;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
         fn_player_set_color = (player_set_color_fn)0x00526B3A;
@@ -1758,6 +1766,7 @@ internal int spec_player_select(int build) {
         call_maint_delete = 0x0047B635;
         fn_player_population = (player_population_fn)0x005651E0;
         fn_player_can_build = (player_can_build_fn)0x005639E8;
+        slot_player_can_have = 21;
         fn_player_game_limit = (player_game_limit_fn)0x0056528B;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
         fn_player_set_color = (player_set_color_fn)0x00531872;

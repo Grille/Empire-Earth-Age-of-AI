@@ -307,9 +307,15 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     if (!is_vanilla(owner) && prio_refuses(owner, type)) return 0;
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
     if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
-    if (is_vanilla(owner)) return build_mgr_place(bm, type, x, y);
+    if (is_vanilla(owner)) return build_mgr_place(bm, type, x, y);   // LAY: vanilla - the game's own computer player, as it was
     int place_as = g_build_fix && type == UT(X_SINGLE_PLAYER_SETTLEMENT) && ut_has(UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : type;
     place_as = upgraded_type(((void *)build_mgr_get_player(bm)), place_as);   // queued before its upgrade: the new type
+    // what this AI may not lay (world.c ai_may_lay: a scenario's disabled building, its AI toggle Build/Repair off ...) -
+    // not laid out, reported as placed: the entry leaves the queue (asked again, it comes again)
+    if (!ai_may_lay(owner, place_as)) {
+        if (g_log) fprintf(g_log, "# place: P%d at %.1f min: %d not allowed (the game's own question, the scenario's Build/Repair) - its entry dropped\n", player_get_index(owner) & 15, game_time() / 60000.0, place_as);
+        return 1;
+    }
     // what is laid out must be paid: the game looked at the entry's type, and the single-player Settlement its lists
     // hold is laid out as the real one - every overdraft left after can_pay's first uses was this (18 in 18 games, the
     // wood to -30..-130; with a stock below zero the game trains and researches nothing). Refused: the entry comes again
@@ -355,7 +361,7 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     if (!x && !y) defence_spot(((void *)build_mgr_get_player(bm)), type, &x, &y);   // towers: where the defence plan wants them
     if (!x && !y && PV(player_get_index(owner), g_v_tight_build, g_tight_build)) tb_spot(bm, owner, place_as, &x, &y);   // packed with its own (packing.c)
     g_place_asked = type;
-    char ok = build_mgr_place(bm, place_as, x, y);
+    char ok = lay_queued(bm, place_as, x, y);
     g_place_asked = 0;
     if (ok) census_placed(owner, type);
     ee_player *pl = build_mgr_get_player(bm);
@@ -1123,7 +1129,7 @@ internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
         int pay = 1;
         for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) pay = 0;
         if (!pay || prio_refuses(pl, type)) { g_retry[idx][k].next = now + 30000; continue; }
-        char ok = build_mgr_place(bm, type, 0, 0);
+        char ok = lay_queued(bm, type, 0, 0);
         int give_up = !ok && ++g_retry[idx][k].tries >= 5;
         if (g_log) fprintf(g_log, "# place: P%u at %.1f min: dropped type %d tried again - %s\n", idx, now / 60000.0, type,
                            ok ? "placed" : give_up ? "failed, given up" : "failed");
@@ -1701,7 +1707,7 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
         if (raiders_near(pl, iv2(x, y), 8) || prio_refuses(pl, UT(B_FARM)) || !can_pay(pl, UT(B_FARM))) continue;   // raided: later (builders: 8 tiles, as citizens_safety); no wood: at the next look
         g_field_at[idx][j].queued = now;
         if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) continue;
-        place_foundation(pl, UT(B_FARM), x, y);
+        lay_foundation(pl, UT(B_FARM), x, y);
         queued++;
     }
     if (queued && g_log) fprintf(g_log, "# fields: P%u at %.1f min: %d lost fields laid out again\n", idx, now / 60000.0, queued);
@@ -1818,7 +1824,7 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     int x, y;
     if (now < req[idx].t) req[idx].t = 0;   // a new game
     if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && can_pay(pl, UT(B_GRANARY)) && !prio_refuses(pl, UT(B_GRANARY)) && granary_spot(pl, um, &x, &y)) {
-        char ok = build_mgr_place(bm, UT(B_GRANARY), x, y);
+        char ok = lay_queued(bm, UT(B_GRANARY), x, y);
         if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
                            idx, now / 60000.0, x, y, ok ? "placed" : "refused");
         req[idx].t = now ? now : 1;
@@ -1847,7 +1853,7 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
         if (f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y) return 1;
     }
     if (!lay_out || !ut_has(UT(B_FARM)) || !can_pay(pl, UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) return 0;
-    place_foundation(pl, UT(B_FARM), x, y);
+    lay_foundation(pl, UT(B_FARM), x, y);
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", player_get_index(pl), x, y);
     return 1;
 }

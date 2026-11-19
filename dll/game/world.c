@@ -3,6 +3,39 @@
 // the table and for an empty slot.
 #define G_TYPES_N 0x300
 internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < G_TYPES_N ? type_table()[t] : NULL; }
+// MAY IT BUILD ONE (the player 2026-11-19, a campaign: "the ai places some buildings even if its not allowed to"): the
+// game's own question as the player's build click asks it (player_can_have of the type's tech, as can_build does) but
+// for the cost - a scenario's disabled building, an epoch not reached, no unit of its that builds it, a type's
+// population limit. Cost aside: a foundation is paid as it is laid, and the mod lays some when the money is there
+internal inline int may_build(ee_player *pl, int type) {
+    ee_unit_type *td = pl && type > 0 ? type_data(type) : NULL;
+    int tech = td ? unit_type_get_tech(td) : 0;
+    return td && tech > 0 && tech != 100000 && player_can_have(pl, tech, 0x20, 1, 0, 3, 0);
+}
+// MAY THE AI LAY ONE: may_build, and the scenario lets this computer player build - its AI toggle Build/Repair (the
+// editor's player dialog, the trigger Set AI Toggle; the player 2026-11-19: an AI meant to build nothing built in a
+// campaign - the toggle was asked by build.c, creep.c and expand.c only, docks, harbour towers, defences, walls,
+// bunkers, landings, granaries and the build queue laid theirs regardless)
+internal inline int ai_may_lay(ee_player *pl, int type) { return pl && player_ai_toggle(pl, SM_AIT_BUILD_REPAIR) && may_build(pl, type); }
+// a foundation of type laid out at x, y for pl when its AI may lay one (ai_may_lay) - every building the mod's AI lays
+// itself goes through here; NULL: none
+internal inline ee_unit *lay_foundation(ee_player *pl, int type, int x, int y) {
+    return ai_may_lay(pl, type) ? place_foundation(pl, type, x, y) : NULL;
+}
+// a building of type laid out at x, y (0, 0: a spot of its own) by pl's build manager when its AI may lay one
+// (ai_may_lay) - every placement of the build manager's the mod asks for or lets through (econ.c hook_place) goes
+// through here; 0: refused
+internal inline char lay_queued(ee_build_mgr *bm, int type, int x, int y) {
+    return ai_may_lay(build_mgr_get_player(bm), type) ? build_mgr_place(bm, type, x, y) : 0;
+}
+// a wall of type from a to b ordered from pl's wall manager when its AI may lay one (ai_may_lay) - every wall the mod's
+// AI orders goes through here; 0: refused. THE ONE WAY IN: lay_foundation, lay_queued, lay_wall are the mod's AI's
+// only ways to the game's laying (scripts/build/style.py refuses place_foundation, build_mgr_place, build_wall in ai/)
+internal inline int lay_wall(ee_player *pl, void *wall_mgr, int *a, int *b, int type) {
+    if (!ai_may_lay(pl, type)) return 0;
+    build_wall(wall_mgr, a, b, type);
+    return 1;
+}
 
 internal uint32_t game_time(void) {
     ee_physics *clock = game_physics();

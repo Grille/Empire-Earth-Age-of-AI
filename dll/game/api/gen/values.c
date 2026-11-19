@@ -1609,6 +1609,7 @@ internal uint32_t of_player_first_attack_done;
 internal uint32_t call_select_unit;
 internal uint32_t slot_player_hold_unit;
 internal uint32_t call_maint_delete;
+internal uint32_t slot_player_can_have;
 internal uint32_t slot_player_adopt;
 internal uint32_t slot_player_tech_researched;
 internal uint32_t slot_player_pay_improvement;

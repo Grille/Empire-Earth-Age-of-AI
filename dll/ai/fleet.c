@@ -854,7 +854,7 @@ internal int hb_lay(ee_player *pl, unsigned idx, ee_build_mgr *bm, int e, int ty
     const int *stock = player_stock_at(pl);
     for (int r = 2; r < 7; r++) if (stock[r] - g_bd_com[idx][r] < unit_cost(pl, type, r)) return 0;
     if (prio_refuses(pl, type)) return 0;
-    ee_unit *b = place_foundation(pl, type, q.x, q.y);
+    ee_unit *b = lay_foundation(pl, type, q.x, q.y);
     if (b) bk_builders(pl, b, HB_BUILDERS);
     return b != NULL;
 }

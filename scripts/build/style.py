@@ -6,6 +6,10 @@
 - `internal` at file level, `static` inside a function (base/lang.h): C's static means two things - a name only
   this DLL sees, and a local that keeps its value between calls - and each gets its own word. File level is told by
   the braces (outside every function body and initializer), not by the indentation.
+- The AI lays through one gate (the player 2026-11-19: "every ai building order should go through a common function"):
+  in ai/ no call of the game's laying - place_foundation, build_mgr_place, build_wall - but through game/world.c's
+  lay_foundation, lay_queued, lay_wall, which ask ai_may_lay (the game's may-build question, the scenario's AI toggle
+  Build/Repair). A line that hands the game's own computer player its laying unchanged says `// LAY: vanilla`.
 
     python scripts/build/style.py [files]     the check (default: every .c/.h under dll/; exit 1 on a violation)
 """
@@ -33,9 +37,20 @@ def top_comma(s):
     return False
 
 
+RAW_LAY = re.compile(r'\b(place_foundation|build_mgr_place|build_wall)\s*\(')
+
+
 def check(path, rel):
     bad = []
-    src = blank(open(path, encoding='latin-1').read())
+    text = open(path, encoding='latin-1').read()
+    src = blank(text)
+    if rel.startswith('ai/'):
+        lines = text.split('\n')
+        for ln, line in enumerate(src.split('\n'), 1):
+            m = RAW_LAY.search(line)
+            if m and '// LAY: vanilla' not in lines[ln - 1]:
+                bad.append((ln, '%s in ai/: lay through world.c lay_foundation / lay_queued / lay_wall (ai_may_lay '
+                                'refuses what the player may not build or the scenario forbids)' % m.group(1)))
     words = rel != 'base/lang.h'
     depth, cont = 0, False
     for ln, line in enumerate(src.split('\n'), 1):

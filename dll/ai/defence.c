@@ -1287,7 +1287,7 @@ internal void encl_lay(ee_player *pl, unsigned idx, struct encl *e, ivec2 base, 
         if (ax < 0) return;
         rf_ordered(ax, ay, bx, by);
         int a[2] = { ax, ay }, bb[2] = { bx, by }, len = abs(bx - ax) > abs(by - ay) ? abs(bx - ax) : abs(by - ay);
-        build_wall(wm, a, bb, wtype);
+        if (!lay_wall(pl, wm, a, bb, wtype)) return;   // world.c: refused (the scenario, a disabled wall)
         int o = 0;
         for (int i = 1; i < 24; i++) if (e->pend[i].t < e->pend[o].t) o = i;
         e->pend[o].ax = (int16_t)ax; e->pend[o].ay = (int16_t)ay; e->pend[o].bx = (int16_t)bx; e->pend[o].by = (int16_t)by;
@@ -1427,7 +1427,7 @@ internal int sf_walls(ee_player *pl, unsigned idx, struct sfort *f, void *wm, co
         if (most < 1) return 1;
         if (best_l > most) best_l = most;
         int a[2] = { ax + dx * best_s, ay + dy * best_s }, b[2] = { ax + dx * (best_s + best_l - 1), ay + dy * (best_s + best_l - 1) };
-        build_wall(wm, a, b, wtype);
+        if (!lay_wall(pl, wm, a, b, wtype)) return 0;
         f->tries++;
         g_sf_runs[idx]++;
         if (g_log) fprintf(g_log, "# fort: P%u wall %d from %d,%d to %d,%d (side %d of the fort at %d,%d)\n", idx, wtype, a[0], a[1], b[0], b[1], sd, f->x, f->y);
@@ -1551,7 +1551,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int have = 0;   // wall and gate pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
-        build_wall(wm, a, b, wtype);
+        if (!lay_wall(pl, wm, a, b, wtype)) continue;
         f->wall_tries++;
         f->wall_t = now ? now : 1;
         f->gx = cx; f->gy = cy; f->gdir = !sy ? 1 : !sx ? 2 : sx == sy ? 4 : 3; f->gtries = 0;
@@ -2852,7 +2852,7 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
         for (int r = 2; r < 7; r++) pay &= unit_cost(pl, prod, r) <= stock[r];
         ivec2 spot[1];
         if (pay && !prio_refuses(pl, prod) && aa_block_at(pl, prod, base, 1, spot, AAS_R_MAKER)) {
-            ee_unit *f = place_foundation(pl, prod, spot[0].x, spot[0].y);
+            ee_unit *f = lay_foundation(pl, prod, spot[0].x, spot[0].y);
             if (f) {
                 z->pf_u = f; z->pf_id = unit_get_serial(f); z->pf_t = now ? now : 1; z->pf_b_t = z->pf_t;
                 bk_builders(pl, f, AAS_BUILDERS + 1);
@@ -2884,7 +2884,7 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
             int pay = 1;
             for (int r = 2; r < 7; r++) pay &= unit_cost(pl, bt, r) <= stock[r];
             if (!pay || prio_refuses(pl, bt)) break;   // the row "air" lets it through under a real threat
-            ee_unit *f = place_foundation(pl, bt, spot[k].x, spot[k].y);
+            ee_unit *f = lay_foundation(pl, bt, spot[k].x, spot[k].y);
             if (!f) continue;
             z->fnd[z->nf].u = f; z->fnd[z->nf].id = unit_get_serial(f); z->fnd[z->nf].t = now ? now : 1; z->fnd[z->nf].b_t = now ? now : 1;
             z->nf++; laid++;
@@ -3278,7 +3278,7 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
             }
         if (best.x < 0) continue;
         int pa[2] = { best.x, best.y };
-        build_wall(wm, pa, pa, wtype);
+        if (!lay_wall(pl, wm, pa, pa, wtype)) break;
         g_sg[idx].walls++;
         if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min: wall %d at %d,%d in front of the battery at %d,%d\n", idx, now / 60000.0, wtype, best.x, best.y, h.x, h.y);
         break;

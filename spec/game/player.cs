@@ -386,9 +386,17 @@ unsafe struct EEPlayer
     [address((ee)0x00556E11, (aoc)0x005651E0)]
     extern int32 population(int32 with_list, int32 with_aboard);
 
-    /// thiscall(player, type, 0x20, 0): can train or build one now
+    /// thiscall(player, type, 0x20, 0): can train or build one now - can_have(the type's tech, flags, 1, 1, 3, zero)
     [address((ee)0x00555710, (aoc)0x005639E8)]
     extern char8 can_build(int32 type, int32 flags, int32 zero);
+
+    /// vf21 (EEPlayer's 0x55574D): may the player have the tech now - its node in the tech tree and available (the
+    /// node's vf1: a scenario's disabled ones are not), the population limits (a type with a population count), with
+    /// pay 1 its cost (vf32), and a unit of its that makes it. The computer player's (0x4302E9) also says no to a tech
+    /// of category 5. The player's build click (EEMBuildUnit::vf10 0x4B3D85) asks it as can_build does: (tech, 0x20,
+    /// 1, 1, 3, 0); pay 0 asks all but the cost
+    [slot(21)]
+    extern char8 can_have(int32 tech, int32 flags, int32 p3, char8 pay, int32 p5, int32 p6);
 
     /// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
     [address((ee)0x00556EBC, (aoc)0x0056528B)]

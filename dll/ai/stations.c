@@ -666,7 +666,7 @@ internal void sn_bridgehead(ee_player *pl, unsigned idx, struct sn_push *p, uint
             continue;
         }
         ivec2 at;
-        ee_unit *b = sn_bh_spot(pl, idx, p, t, c, &at) ? place_foundation(pl, t, at.x, at.y) : NULL;
+        ee_unit *b = sn_bh_spot(pl, idx, p, t, c, &at) ? lay_foundation(pl, t, at.x, at.y) : NULL;
         p->bh_t = now ? now : 1;
         if (g_log) log_locked("# stations: P%u at %.1f min: the push into %d - the bridgehead's %s (type %d) %s, %d citizens ashore\n", idx, now / 60000.0, p->into, nm[h->kind], t,
                               b ? "laid" : "has no room", n);

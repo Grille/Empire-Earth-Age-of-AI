@@ -393,7 +393,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                             at = q;
                             break;
                         }
-                job = at.x >= 0 ? place_foundation(pl, type, at.x, at.y) : NULL;
+                job = at.x >= 0 ? lay_foundation(pl, type, at.x, at.y) : NULL;
                 b->hold_t = now ? now : 1;
                 if (job) b->holds++;
                 if (g_log) log_locked("# build: P%u at %.1f min: holding the ground on land %u - %s (type %d) %s at %d,%d, %d idle citizens there with the enemy near\n", idx, now / 60000.0, land, what, type,
@@ -470,7 +470,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                     int there = !fx && !fy;
                     for (int k = 0; k < nfld && !there; k++) there = fld[k].x == q.x && fld[k].y == q.y;
                     if (there || !can_place(pl, UT(B_FARM), q) || !bd_pays(pl, UT(B_FARM), com) || raiders_near(pl, q, 8) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
-                    if (!place_foundation(pl, UT(B_FARM), q.x, q.y)) continue;
+                    if (!lay_foundation(pl, UT(B_FARM), q.x, q.y)) continue;
                     if (nfld < 512) fld[nfld++] = q;
                     placed++; open_fields++; b->fields++;
                     for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, UT(B_FARM), r);
@@ -882,7 +882,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // builder first): laid every minute from 43 to 59, it stood once the outposts' citizens came - laid as its own,
         // a builder's start pays it, and BUILDERS above has the ferry bring citizens to it
         unsigned aland = area_id(at, 2);
-        if (EXPAND_ACROSS(idx) && aland && !bd_citizen_on(pl, aland)) { ok = place_foundation(pl, type, at.x, at.y) != NULL; if (ok) b->across++; }
+        if (EXPAND_ACROSS(idx) && aland && !bd_citizen_on(pl, aland)) { ok = lay_foundation(pl, type, at.x, at.y) != NULL; if (ok) b->across++; }
         else ok = hook_place(bm, type, at.x, at.y);
         if (!ok) b->refused++;
         else {

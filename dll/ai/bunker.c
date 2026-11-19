@@ -367,7 +367,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
                     int x = d.x + ax, y = d.y + ay;
                     if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
                         !can_place(pl, FORTRESS_TYPE, iv2(x - 1, y - 1)) || raiders_near(pl, iv2(x, y), 8)) continue;
-                    ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
+                    ee_unit *b = lay_foundation(pl, FORTRESS_TYPE, x, y);
                     int sent = b ? bk_builders(pl, b, 3) : 0;
                     if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
                                        now / 60000.0, x, y, b ? "laid" : "refused", sent, why, cit, g_bk[pi].nall);

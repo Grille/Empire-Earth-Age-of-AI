@@ -332,7 +332,7 @@ internal void creep_tick(ee_player *pl, uint32_t now) {
             ee_unit *skip = c->exposed ? c->target : NULL;
             ivec2 bh = c->behind;
             if (c->ntow && !cr_spot(pl, idx, ttype, c->target, skip, area_id(c->spot, 2), own, nown, &at, &bh)) at = iv2(-1, -1);   // the next beside the first
-            ee_unit *b = at.x >= 0 && can_place_open(pl, ttype, at) && !cr_covered(idx, at, skip) ? place_foundation(pl, ttype, at.x, at.y) : NULL;
+            ee_unit *b = at.x >= 0 && can_place_open(pl, ttype, at) && !cr_covered(idx, at, skip) ? lay_foundation(pl, ttype, at.x, at.y) : NULL;
             if (b) {
                 c->behind = bh;
                 c->tow[c->ntow] = b; c->tow_id[c->ntow++] = unit_get_serial(b); going = c->ntow - 1; c->laid++; c->lays++; c->laid_t = now ? now : 1;
