@@ -85,7 +85,9 @@ typedef struct ee_graph_series ee_graph_series; // E_GSERIES: a line of it (UGra
 typedef struct ee_graph_point ee_graph_point;   // E_GPOINT: a point of a line (U2DPoint<long>)
 typedef struct ee_mixer ee_mixer;               // E_MIXER: the mixer plugin's functions (SEMixer)
 
-// the game's UString (passed by value to some of its functions), its UWideString (8-bit characters too)
+// the game's UString (passed by value to some of its functions), its UWideString (8-bit characters too) - a pointer's
+// type only: one to construct lives in __attribute__((aligned(8))) uint8_t w[32], as the game's code gives it (16 bytes
+// were too few: the constructor wrote over the caller's saved registers, 2026-11-19 mp_block.c)
 struct ustring { uint8_t raw[16]; };
 struct wstring { uint8_t raw[16]; };
 

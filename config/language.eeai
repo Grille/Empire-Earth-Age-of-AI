@@ -213,3 +213,9 @@ hint_flat = {
     en = "Its colour: choose it below.",
     de = "Die Farbe: unten wählen.",
 }
+
+// THE MAIN MENU: the Multiplayer button while [general] multiplayer is off (mp_block.c)
+multiplayer_blocked = {
+    en = "Age of AI doesn't support multiplayer yet. To try it anyway, every player needs the same mod version and settings, with multiplayer turned on in ageofai_config.exe - expect problems. Without the mod: turn it off there.",
+    de = "Age of AI unterstützt den Mehrspielermodus noch nicht. Zum Ausprobieren brauchen alle Spieler dieselbe Mod-Version und dieselben Einstellungen, mit multiplayer in ageofai_config.exe an - Probleme sind zu erwarten. Ohne Mod: dort ausschalten.",
+}

@@ -1368,9 +1368,12 @@ internal inline uint32_t eeuiemse_game_settings_execute(eeuiemse_game_settings *
 // class EEUIEMSEMultiPlayer (eeuiemse_multi_player)
 // control event 30 "Main Screen Option Multi Player Button" (dbuicontrolevents.dat), made by the event creator 0x65B496
 // UIEvent's, the base's
+// the multiplayer menu opened (form 0x1E; with a lobby's launch its own way) - hooked: [general] multiplayer
+// (engine/mp_block.c)
 typedef uint32_t (__thiscall *eeuiemse_multi_player_execute_fn)(eeuiemse_multi_player *, ee_ui_form *, uint32_t);
 internal eeuiemse_multi_player_execute_fn fn_eeuiemse_multi_player_execute;
 internal inline uint32_t eeuiemse_multi_player_execute(eeuiemse_multi_player *eeuiemse_multi_player, ee_ui_form *form, uint32_t arg) { return fn_eeuiemse_multi_player_execute(eeuiemse_multi_player, form, arg); }
+internal inline int patch_main_multiplayer(eeuiemse_multi_player_execute_fn h) { return patch_vtable(vt_eeuiemse_multi_player, (int)slot_ui_event_execute, (uintptr_t)fn_eeuiemse_multi_player_execute, (void *)h); }
 
 // class EEUIEMSEOpen (eeuiemse_open)
 // form event 1 "Main Screen Open" (dbuiformevents.dat), made by the event creator 0x65A1A5

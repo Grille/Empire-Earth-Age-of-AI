@@ -268,7 +268,8 @@ internal inline uint8_t *iat_memfile_load_at(void) { return (uint8_t *)(uintptr_
 typedef void (__thiscall *settings_save_game_fn)(void *);
 internal settings_save_game_fn fn_settings_save_game;
 internal inline void settings_save_game(void *p1) { fn_settings_save_game(p1); }
-// the game's error box, an EEUIFError (0x1BC bytes) made and shown - thiscall(the caller's ecx, a UWideString*:
+// the game's error box, an EEUIFError (0x1BC bytes) made and shown - thiscall([game.ui_manager]: its parent, as
+// every call of the game's gives it; a UWideString*:
 // its text, a, b, on_ok: called on its button, c); 87 calls. A headless test logs each: it waits for a click
 typedef void (__thiscall *error_box_fn)(void *, void *, int, int, void *, int);
 internal error_box_fn fn_error_box;

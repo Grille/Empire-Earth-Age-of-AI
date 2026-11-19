@@ -15,6 +15,7 @@ internal const char *const k_words[] = {
     "ok", "cancel", "delete", "colour_new", "colour_edit", "colour_flat",  // terrain_dialog.c
     "colour_ramp", "colour_each", "blend", "blend_srgb", "blend_linear", "blend_oklab", "slots", "recent",
     "slots_taken", "slots_short", "hint_ramp", "hint_each", "hint_flat",
+    "multiplayer_blocked",                                                 // mp_block.c
 };
 #define N_WORDS (int)(sizeof k_words / sizeof *k_words)
 internal char *g_word[N_WORDS];

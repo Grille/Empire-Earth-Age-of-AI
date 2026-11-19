@@ -539,6 +539,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "base/headless_win.c"
 #include "engine/pop_limit.c"   // [general] population_limit_max: the setup's most raised in the game data (display.c's frame hook)
 #include "engine/damage.c"   // [ai_base] damage_to_humans, damage_to_ais: the difficulty's damage tables
+#include "engine/mp_block.c"   // [general] multiplayer: the main menu's Multiplayer button
 #include "engine/display.c"
 #include "engine/quake_shake.c"    // an earthquake shakes the view, not the camera ([camera] quake_shake)
 #include "engine/crash_box.c"   // [general] crash_dialog: a crash stays open in a box, a memory dump of it
@@ -830,6 +831,7 @@ internal void install(HMODULE self) {
     diplo_install(g_autotest ? g_ini : NULL);
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
+    mp_block_install();   // the Multiplayer button (mp_block.c)
     damage_install();   // the difficulty's damage (damage.c)
     pop_limit_install();   // the setup screen's population steps (pop_limit.c)
     display_install(g_autotest ? g_ini : NULL);

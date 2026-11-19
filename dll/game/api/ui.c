@@ -281,6 +281,22 @@ internal inline void *ui_event_own(void **vt, void *exec) {
     ev[3] = 0;
     return ev;
 }
+// an action of the mod's own queued on the UI (the game runs it from its main loop, outside the UI's event handling,
+// as it runs its own actions - the game's error boxes come from those): vt room for
+// UI_ACTION_SLOTS, the pause action's (its destructor, the engine's slot 2) with exec(action), thiscall and no
+// arguments as an action's Execute is, in slot 1; the queue keeps its own reference
+#define UI_ACTION_SLOTS 4
+internal inline void ui_action_queue_own(void **vt, void *exec) {
+    uint32_t *a = game_new(12);
+    if (!a) return;
+    memcpy(vt, (void *)(uintptr_t)data_game_vt_pause_action, UI_ACTION_SLOTS * sizeof *vt);
+    vt[1] = exec;
+    a[0] = (uint32_t)(uintptr_t)vt;
+    a[1] = 1;
+    a[2] = 0;
+    ui_queue_action(game_get_ui(), a);
+    action_release(a);
+}
 // Ctrl + key: the event the first of the four, its pressing (the editor's own Ctrl+S has it the third, the key's release)
 internal inline void ui_form_add_ctrl_hotkey(void *form, unsigned long key, void *ev) {
     typedef void (__thiscall *AddHotKeyFn)(void *, unsigned long, unsigned long, unsigned long, unsigned long, void *, void *, void *, void *, unsigned long, char);

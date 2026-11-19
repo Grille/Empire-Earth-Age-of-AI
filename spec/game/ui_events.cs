@@ -1570,7 +1570,10 @@ unsafe struct EEUIEMSEGameSettings
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x0082C74C, (aoc)0x00841EEC)]
 unsafe struct EEUIEMSEMultiPlayer
 {
+    /// the multiplayer menu opened (form 0x1E; with a lobby's launch its own way) - hooked: [general] multiplayer
+    /// (engine/mp_block.c)
     [address((ee)0x005D1653, (aoc)0x005E1F8A), overrides(typeof(UIEvent))]
+    [vtable_site("main_multiplayer")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

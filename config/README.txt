@@ -43,8 +43,11 @@ there first - the game won't start without the DLL while it is on.
 Multiplayer
 -----------
 
-Not ready yet: don't use the mod in online games, and never in NeoEE's ranked
-games.
+Not ready yet: the main menu's Multiplayer button shows a box and stays in the
+menu. To try it anyway, every player needs the same version of the mod and the
+same settings, with multiplayer=1 in ageofai.ini - expect problems even then.
+Never in NeoEE's ranked games. To play multiplayer without the mod, set
+enabled=0.
 
 
 More

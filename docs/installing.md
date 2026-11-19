@@ -95,6 +95,9 @@ differs from the GOG version:
 
 ## Multiplayer
 
+Off by default: the main menu's Multiplayer button shows a box saying why and stays in the menu. To try it anyway,
+every player sets `multiplayer=1` (`[general]`, or the switch in `ageofai_config.exe`) - and expect problems.
+
 Not tested yet. Every player needs the same `ageofai.dll`, the same `ageofai.ini` and the same personalities. The
 game is lockstep - every PC simulates everything - so different settings make the games drift apart; the mod's
 decisions use only the game's own state, math and random numbers for this. Nothing checks yet that every PC has the

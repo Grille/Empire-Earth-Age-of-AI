@@ -26,6 +26,11 @@ class general
         bool auto_victory = true;
         /// Skip the intro movies at game start. 1 = skip, 0 = play them (original)
         bool skip_intro = false;
+        /// Multiplayer: not supported yet. The mod changes the game itself (the AI, damage, movement ...), so every PC
+        /// needs the same version of the mod and the same settings, else the game falls apart - and even then expect
+        /// problems. 0 = the main menu's Multiplayer button shows a box saying so and stays in the menu (default),
+        /// 1 = it opens the multiplayer menu (every player sets it)
+        bool multiplayer = false;
         /// Population limit: the most the game's setup offers for its population limit (all players together; the
         /// game's own data: 1200 - 150 each with 8 players), its list in steps of 50 to 200, 100 to 1500, then 500 (the
         /// game's: 50 all the way). A higher limit in the game's data (a loose Data\DB\dbworld.dat) is kept; 0 = the

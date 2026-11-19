@@ -87,7 +87,7 @@ default, so there's no need to edit files by hand: the main ones in view, the fi
 To play the original game again, set `enabled=0` at the top of `ageofai\ageofai.ini`, or delete `ageofai.dll`.
 
 Which game versions work, installing by hand, NeoEE, the game's settings in a file, and multiplayer (not ready yet:
-don't use it online): [docs/installing.md](docs/installing.md).
+blocked unless you turn it on): [docs/installing.md](docs/installing.md).
 
 ## Status
 
@@ -98,7 +98,8 @@ The mod is in active development.
   prophets, and scenario targets are in. Ships and aircraft by role are still being written.
 - **The game fixes:** windowed and borderless mode, the editor's resolution and the camera are confirmed in play;
   the rest is tested in automated games.
-- **Multiplayer** is not tested yet. Every PC would need the same settings, and nothing checks that yet.
+- **Multiplayer** is not tested yet and blocked by default. Every PC would need the same settings, and nothing
+  checks that yet.
 
 What is confirmed, what is only tested in automated games, and what is experimental:
 [docs/installing.md](docs/installing.md#status). Found a bug or have an idea? See [CONTRIBUTING.md](CONTRIBUTING.md).

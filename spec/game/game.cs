@@ -491,7 +491,8 @@ static unsafe class game_functions
     [address((ee)0x0052AA81, (aoc)0x00535943), thiscall]
     static extern void settings_save_game(void* p1);
 
-    /// the game's error box, an EEUIFError (0x1BC bytes) made and shown - thiscall(the caller's ecx, a UWideString*:
+    /// the game's error box, an EEUIFError (0x1BC bytes) made and shown - thiscall([game.ui_manager]: its parent, as
+    /// every call of the game's gives it; a UWideString*:
     /// its text, a, b, on_ok: called on its button, c); 87 calls. A headless test logs each: it waits for a click
     [address((ee)0x0065C6A9, (aoc)0x00674DB5), thiscall]
     static extern void error_box(void* parent, void* text, int32 a, int32 b, void* on_ok, int32 c);
