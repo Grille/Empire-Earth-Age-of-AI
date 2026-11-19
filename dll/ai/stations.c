@@ -1769,5 +1769,6 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
 }
 internal void stations_install(const char *autotest_ini) {
     if (autotest_ini) g_v_sn_rams = ini_int("autotest", "v_ram_towers", -1, autotest_ini);   // RAMS AT THE TOWERS
+    if (autotest_ini) g_v_cl = ini_int("autotest", "v_claims", -1, autotest_ini);   // claims.c ORDERS BY PRIORITY
 }
 internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }

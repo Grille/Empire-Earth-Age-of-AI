@@ -199,8 +199,10 @@ internal void sq_move(ee_player *pl, struct sq *q, ivec2 p, int fight, uint32_t 
     static uint32_t ids[FL_MAX];
     if (!q->n) return;
     ivec2 c = sq_center(q);
-    for (int i = 0; i < q->n; i++) ids[i] = (uint32_t)unit_get_serial(q->u[i]);
-    uint32_t *sel[3] = { NULL, ids, ids + q->n };
+    int prio = q->state == SQS_SUPPORT || q->state == SQS_ESCORT || q->state == SQS_SCREEN ? CLP_TASK : CLP_ROUTINE, m = 0;
+    for (int i = 0; i < q->n; i++) if (cl_may(q->u[i], prio, CLW_SQUADRON)) ids[m++] = (uint32_t)unit_get_serial(q->u[i]);   // ORDERS BY PRIORITY: not those another holds
+    if (!m) return;
+    uint32_t *sel[3] = { NULL, ids, ids + m };
     msg_as_select(pl, sel);
     memset(mem, 0, sizeof mem);
     float x = (float)p.x + 0.5f, y = (float)p.y + 0.5f;
@@ -394,6 +396,8 @@ internal void sq_repair(ee_player *pl, unsigned idx, struct fleet *f) {
         ivec2 w;
         if (d < 0 || (int)ocean_near(g_fs.dk[d], 4, &w) != fl_ship_ocean(u)) continue;
         if (j == f->ndocked) { if (j >= FL_MAX) continue; f->docked[j] = u; f->docked_hp[j] = unit_get_hp(u); f->ndocked++; z->repairs++; }
+        if (!cl_take(u, CLP_REPAIR, CLW_REPAIR, CL_REPAIR_T)) continue;   // ORDERS BY PRIORITY (claims.c): the repair's, out of a storm first
+        cl_stance(u, 1);   // stand ground till repaired: its own AI chased what it saw by the dock and was called back again and again
         // BEHIND THE SQUADRON: under fire (an enemy warship seen within SQ_BEHIND_E), first behind the nearest main
         // squadron within SQ_BEHIND_M - SQ_BEHIND tiles past its middle, away from the enemy -, the dock once none is near
         ivec2 up = unit_get_tile(u), e = iv2(0, 0);
@@ -437,7 +441,7 @@ internal void sq_care(unsigned idx, struct fleet *f) {
         for (int j = 0; j < z->nm; j++)
             if (z->m[j].u == u && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX && z->s[(int)z->m[j].sq].on) { back = z->s[(int)z->m[j].sq].go; break; }
         if (!back.x && !back.y) back = f->g;
-        if (fl_in_danger(back)) continue;
+        if (fl_in_danger(back) || !cl_may(u, CLP_ROUTINE, CLW_SQUADRON)) continue;
         unit_goal(u, goal_move((float)back.x + 0.5f, (float)back.y + 0.5f), 0, 0x1F40);
         z->drops++;
     }
@@ -502,7 +506,7 @@ internal void sq_support(ee_player *pl, unsigned idx, struct sq *q, uint32_t now
     if (best >= 0) {   // the nearest to the beach's water, as THE SCREEN
         struct fl_ship *e = &g_fs.es[best];
         if (e->seen && e->u && now - q->order_t >= 3000) {
-            for (int k = 0; k < q->n; k++) { ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
+            for (int k = 0; k < q->n; k++) { if (!cl_may(q->u[k], CLP_ROUTINE, CLW_SQUADRON)) continue; ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
             q->go = q->ordered = e->p; q->order_t = now ? now : 1;
         } else if (!e->seen) sq_go(pl, q, e->p, 1, now);
         return;
@@ -551,7 +555,7 @@ internal void sq_escort(ee_player *pl, unsigned idx, struct sq *q, uint32_t now)
             struct fl_ship *e = &g_fs.es[best];
             sq_state(q, SQS_SCREEN, now);
             if (e->seen && e->u && now - q->order_t >= 3000) {   // the warship itself, seen: each ship attacks it
-                for (int k = 0; k < q->n; k++) { ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
+                for (int k = 0; k < q->n; k++) { if (!cl_may(q->u[k], CLP_ROUTINE, CLW_SQUADRON)) continue; ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
                 q->go = q->ordered = e->p; q->order_t = now ? now : 1;
             } else if (!e->seen) sq_go(pl, q, e->p, 1, now);
             return;
@@ -678,7 +682,7 @@ internal void sq_hunt(ee_player *pl, unsigned idx, int i, uint32_t now) {
         struct fl_ship *e = &g_fs.es[bj];
         sq_state(q, SQS_HUNT, now);
         if (e->u && now - q->order_t >= 3000) {
-            for (int k = 0; k < q->n; k++) { ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
+            for (int k = 0; k < q->n; k++) { if (!cl_may(q->u[k], CLP_ROUTINE, CLW_SQUADRON)) continue; ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
             q->go = q->ordered = e->p; q->order_t = now ? now : 1;
         } else if (!e->u) sq_go(pl, q, sq_safe(c, e->p, q->ocean), 1, now);
         return;
@@ -713,7 +717,7 @@ internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
         struct fl_ship *e = &g_fs.ev[bp];
         sq_state(q, SQS_RAID, now);
         if (e->u && now - q->order_t >= 3000) {   // the prey itself, seen: each ship attacks it
-            for (int k = 0; k < q->n; k++) { ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
+            for (int k = 0; k < q->n; k++) { if (!cl_may(q->u[k], CLP_ROUTINE, CLW_SQUADRON)) continue; ee_goal *g = goal_attack(q->u[k], e->u); if (g) unit_goal(q->u[k], g, 0, 0x1F40); }
             q->go = q->ordered = e->p; q->order_t = now ? now : 1;
         } else if (!e->u) sq_go(pl, q, e->p, 1, now);
         return;
@@ -743,6 +747,7 @@ internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
         if (z->s[j].on && z->s[j].kind == SQK_MAIN && z->s[j].ocean == q->ocean && z->s[j].n) { sq_state(q, SQS_REST, now); sq_go(pl, q, sq_safe(c, sq_center(&z->s[j]), q->ocean), 1, now); return; }
 }
 internal void sq_log(unsigned idx, uint32_t now) {
+    cl_log(idx, now);   // claims.c
     struct sq_st *z = &g_sq[idx];
     if (!g_log || (z->log_t && now >= z->log_t && now - z->log_t < 60000)) return;
     z->log_t = now ? now : 1;

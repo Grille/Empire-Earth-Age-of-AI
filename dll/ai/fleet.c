@@ -468,6 +468,7 @@ internal void fl_move(struct fleet *f, ee_unit *u, ivec2 t, int k) {
 internal int fl_flee(struct fleet *f, ee_unit *u) {
     int ux = unit_get_x(u), uy = unit_get_y(u), z = fl_in_danger(iv2(ux, uy)), oc = fl_ship_ocean(u);
     if (!z) return 0;
+    if (!cl_take(u, CLP_SURVIVE, CLW_FLEE, CL_SURVIVE_T)) return 1;   // ORDERS BY PRIORITY (claims.c): out of a storm already
     z--;
     float dx = (float)(ux - g_fs.dz[z].p.x), dy = (float)(uy - g_fs.dz[z].p.y), len = sqrtf(dx * dx + dy * dy);
     if (len < 0.5f) { dx = (float)(f->g.x - ux); dy = (float)(f->g.y - uy); len = sqrtf(dx * dx + dy * dy); }
@@ -546,13 +547,15 @@ internal void fl_orders(struct fleet *f, const unsigned char *sel, ivec2 p, int 
             for (j = 0; j < m->ndocked && m->docked[j] != u; j++) ;
             if ((hp < 0.5f * fl_hp_max(u) || j < m->ndocked) && (dock = fl_repair_dock(unit_get_tile(u))) >= 0) {
                 if (j == m->ndocked && j < FL_MAX) { m->docked[j] = u; m->docked_hp[j] = hp; m->ndocked++; }
+                if (!cl_take(u, CLP_REPAIR, CLW_REPAIR, CL_REPAIR_T)) continue;   // ORDERS BY PRIORITY: the repair's, stand ground meanwhile (its own AI chased what it saw by the dock)
+                cl_stance(u, 1);
                 ivec2 w;
                 // to the water by the dock (the dock's own tile is land), once within 4 tiles of it no more orders
                 if (ivec2_dist2(g_fs.dk[dock], unit_get_tile(u)) > 16 && ocean_near(g_fs.dk[dock], 4, &w)) fl_move(f, u, w, 0);
                 continue;
             }
         }
-        if (retreat) { fl_move(f, u, p, i); continue; }   // off the fight
+        if (retreat) { if (cl_may(u, CLP_TASK, CLW_FLEET)) fl_move(f, u, p, i); continue; }   // off the fight
         int leashed = 0;
         if (g_fl_lr && cur) leashed = ivec2_dist2(unit_get_tile(cur), g_fl_leash) > g_fl_lr * g_fl_lr;
         if (fl_attacking(u) && !leashed && !fl_in_danger(unit_get_tile(cur))) continue;   // keeps fighting
@@ -563,6 +566,8 @@ internal void fl_orders(struct fleet *f, const unsigned char *sel, ivec2 p, int 
             struct fleet *m = &g_fl[g_fs.idx];   // the repair is counted for the whole fleet (task forces: their ships)
             for (j = 0; j < m->ndocked && m->docked[j] != u; j++) ;
             if (j == m->ndocked && j < FL_MAX) { m->docked[j] = u; m->docked_hp[j] = unit_get_hp(u); m->ndocked++; }
+            if (!cl_take(u, CLP_REPAIR, CLW_REPAIR, CL_REPAIR_T)) continue;
+            cl_stance(u, 1);
             if (bd > 16) fl_move(f, u, g_fs.dk[b], 0);
             continue;
         }
@@ -579,10 +584,10 @@ internal void fl_orders(struct fleet *f, const unsigned char *sel, ivec2 p, int 
             }
         }
         if (t) {
-            if (cur != t) f->orders += unit_goal(u, goal_attack(u, t), 0, 0x1F40);
+            if (cur != t && cl_may(u, CLP_ROUTINE, CLW_FLEET)) f->orders += unit_goal(u, goal_attack(u, t), 0, 0x1F40);
             continue;
         }
-        if (fl_ship_ocean(u) == f->ocean || !fl_ship_ocean(u)) fl_move(f, u, p, i);
+        if ((fl_ship_ocean(u) == f->ocean || !fl_ship_ocean(u)) && cl_may(u, CLP_ROUTINE, CLW_FLEET)) fl_move(f, u, p, i);
     }
 }
 // fishing boats near enemy warships the fleet doesn't win against: to the nearest dock
@@ -1626,10 +1631,10 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = f->docked[j];
         int k;
         for (k = 0; k < f->n && f->u[k] != u; k++) ;
-        if (k == f->n) { f->docked[j] = f->docked[--f->ndocked]; f->docked_hp[j--] = f->docked_hp[f->ndocked]; continue; }
+        if (k == f->n) { cl_end(u, CLW_REPAIR); f->docked[j] = f->docked[--f->ndocked]; f->docked_hp[j--] = f->docked_hp[f->ndocked]; continue; }
         int h = unit_get_hp(u);
         if (h > f->docked_hp[j]) { f->repaired += (unsigned)(h - f->docked_hp[j]); f->docked_hp[j] = h; }
-        if (h >= 0.8f * fl_hp_max(u)) { f->docked[j] = f->docked[--f->ndocked]; f->docked_hp[j--] = f->docked_hp[f->ndocked]; }
+        if (h >= 0.8f * fl_hp_max(u)) { cl_end(u, CLW_REPAIR); f->docked[j] = f->docked[--f->ndocked]; f->docked_hp[j--] = f->docked_hp[f->ndocked]; }   // repaired: its stance back (claims.c)
     }
     ivec2 c = fl_center(f);
     fl_boats(f, c);
@@ -1813,7 +1818,7 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     if (g_log && g_autotest && got) log_locked("# fishing: P%u at %.1f min: the mod orders a boat (type %d) - %u ordered so far (%u asked; not: %u a boat idle, %u in the making, %u no fish, %u a boat pulled back); sea %u with %d food in fish, the game's list %s\n",
                                               idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger, sea, sea_food, fish ? "has fish" : "has none");
 }
-internal void fleet_new_game(void) { squadrons_new_game(); memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
+internal void fleet_new_game(void) { squadrons_new_game(); claims_new_game(); memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
 internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);

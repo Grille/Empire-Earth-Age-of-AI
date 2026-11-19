@@ -96,6 +96,7 @@ internal void storm_tick(ee_player *pl, uint32_t now) {
             ivec2 q;
             if (!dodge || !st_way_out(pl, k, at, fl_ship_ocean(u), &q)) continue;
             if (goal_near(u, (float)q.x + 0.5f, (float)q.y + 0.5f, 2.0f)) continue;   // on its way out already
+            if (!cl_take(u, CLP_SURVIVE, CLW_STORM, CL_SURVIVE_T)) continue;   // ORDERS BY PRIORITY (claims.c): before the repair and the squadron
             if (unit_goal(u, goal_move((float)q.x + 0.5f, (float)q.y + 0.5f), 0, 0x1F40)) z->orders++;
         }
     }
