@@ -756,8 +756,12 @@ internal void install(HMODULE self) {
         fprintf(g_log, "# config: %s (personalities: %s%s%s)\n", g_aimod_ini, g_ai_dir, g_ai_dir_why[0] ? " - " : "", g_ai_dir_why);
         texfix_read();
         char me[MAX_PATH];
-        if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me))
-            fprintf(g_log, "# dll: %s (the test run's own, built %s %s)\n", me, __DATE__, __TIME__);
+        WIN32_FILE_ATTRIBUTE_DATA fa;
+        SYSTEMTIME bt;   // the file's time, not __DATE__ / __TIME__: the same source builds the same bytes (scripts/build/build.sh REPRO)
+        if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me)
+            && GetFileAttributesExA(me, GetFileExInfoStandard, &fa) && FileTimeToSystemTime(&fa.ftLastWriteTime, &bt))
+            fprintf(g_log, "# dll: %s (the test run's own, written %04d-%02d-%02d %02d:%02d:%02d UTC)\n", me,
+                    bt.wYear, bt.wMonth, bt.wDay, bt.wHour, bt.wMinute, bt.wSecond);
         if (g_slot) fprintf(g_log, "# slot: %d (pipe eeaimod%d, ports %d/%d, files in %s)\n", g_slot, g_slot,
                             33334 + 2 * g_slot, 33335 + 2 * g_slot, dir);
         // the game's settings: eesettings.ini when ageofai.dll is loaded with the engine (engine/game_settings.c), else

@@ -472,7 +472,7 @@ def play(j, slot_h):
     if j.dll:
         env['EEAIMOD_DLL'] = os.path.join(work, 'eeaimod_slot%d.dll' % j.slot)
         try:
-            shutil.copy(j.dll, env['EEAIMOD_DLL'])
+            shutil.copy2(j.dll, env['EEAIMOD_DLL'])   # its time kept: the log's "# dll: ... written" is the build's
         except OSError as e:
             return "can't copy -Dll to %s: %s" % (env['EEAIMOD_DLL'], e), 1
     keys = [x.split('=', 1)[0].strip() for x in j.extra]
