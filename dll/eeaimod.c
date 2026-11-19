@@ -809,6 +809,7 @@ internal void install(HMODULE self) {
     takeover_install();
     territories_install(g_autotest ? g_ini : NULL);
     watch_install(g_autotest ? g_ini : NULL);
+    stations_install(g_autotest ? g_ini : NULL);
     creep_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
     skirmish_install(g_autotest ? g_ini : NULL);

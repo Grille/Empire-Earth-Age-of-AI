@@ -2371,6 +2371,22 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
 // "# armies: ... by need:" once a game minute in tests.
 internal int g_ar_need_on = 1, g_v_ar_need = -1;
 #define AR_NEED(idx) PV(idx, g_v_ar_need, g_ar_need_on)
+// SIEGE WITH A PURPOSE ([autotest] v_siege_cap; the player 2026-11-19: "why is the ai traning so many samsons (rams) ?
+// they can only attack buildings, wich make them useless if an attack isnt planed" - his game at minute 70: P2 102
+// Sampsons and 3 other soldiers, P3 44 and 40): the need's own side with the game's computer player off was its land
+// soldiers only (land_soldier: no siege, no rams), so the rams it had never counted, and each one more added its hit
+// points and its blows at the towers where the force meets the enemy - the most gain a 1000 look after look. Now its
+// siege and rams are on its side too, and a ram (UTR_RAM: the Sampson too) is a candidate only while enemy buildings
+// stand there and it has fewer than one for every AR_RAM_PER of its other land units - the player, the same day: "siege
+// is fine, atlest it can help against units and kill ships, rams should be very limited as a special unit"; siege as
+// the estimate finds it.
+// MEASURED 2026-11-19 with RAMS AT THE TOWERS (stations.c; head-to-head, Small Islands large, 4 AIs from epoch 1, 60
+// min, seeds 1-12 mirrored, 24 games): the test games train few Sampsons either way (the need picked one in 1 and 4 of
+// its logged looks) - soldiers -0.8 (se 2.9), kills +0.8 (9.4), razed -0.2 (0.5), buildings off the home island 11.1
+// against 9.2: no cost shown. On (his game is where it counts: 102 Sampsons and 3 soldiers).
+#define AR_RAM_PER 10
+internal int g_ar_siege_cap = 1, g_v_ar_siege_cap = -1;
+#define AR_SIEGE_CAP(idx) PV(idx, g_v_ar_siege_cap, g_ar_siege_cap)
 internal struct { unsigned looks, same, other, none; } g_ar_need[16];
 // the pick (0: none - nothing known of the enemy, nothing payable); vis: what may be spent (NULL: anything)
 internal int sn_need_at(unsigned idx, ivec2 *at);   // stations.c
@@ -2378,10 +2394,12 @@ internal int sn_need_at(unsigned idx, ivec2 *at);   // stations.c
 internal void ar_need_own(ee_player *pl, struct armies_st *a, int off) {
     if (!off) { ar_side(a, 0, NULL); return; }
     st_side_clear(&g_ar_own);
-    int count = 0;
+    int count = 0, cap = AR_SIEGE_CAP((unsigned)player_get_index(pl) & 15);
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
-        if (td && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && land_soldier(unit_type_get_id(td))) st_side_add(&g_ar_own, u);
+        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+        int t = unit_type_get_id(td);
+        if (land_soldier(t) || (cap && unit_type_get_class_id(td) == CLS_LAND && ut_role(t, UTR_SIEGE | UTR_RAM))) st_side_add(&g_ar_own, u);   // SIEGE WITH A PURPOSE: its siege too
     }
 }
 internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int filled, uint32_t now, int log) {
@@ -2423,12 +2441,16 @@ internal int ar_need_pick(ee_player *pl, unsigned idx, const int *vis, int fille
     if (!g_sgs_foe.n) { if (log) g_ar_need[idx].none++; return 0; }
     ar_need_own(pl, a, off);
     float r0 = st_ratio(&g_ar_own, &g_sgs_foe);
+    int rams = 0, others = 0, blds = 0, cap = AR_SIEGE_CAP(idx);   // SIEGE WITH A PURPOSE
+    for (int g = 0; cap && g < g_ar_own.ng; g++) { if (ut_role(g_ar_own.g[g].type, UTR_RAM)) rams += g_ar_own.g[g].count; else others += g_ar_own.g[g].count; }
+    for (int g = 0; cap && g < g_sgs_foe.ng; g++) { int c = unit_type_get_class_id(g_sgs_foe.g[g].td); blds += c == CLS_BUILDING || c == CLS_FORTRESS; }
     int best = 0, nbest = 0; float bg = 0, gfill = 0, rbest = r0;
     for (int ty = 0; ty < G_TYPES_N; ty++) {
         ee_unit_type *td = type_data(ty);
         if (!td || unit_type_get_id(td) != ty || unit_type_get_class_id(td) != CLS_LAND || unit_type_get_attack(td) <= 0) continue;
         if (ut_role(ty, UTR_CITIZEN) || ty == UT(PRIEST) || ty == UT(PROPHET) || !can_build(pl, ty)) continue;
         if (off && !ap_trains_now(pl, ty)) continue;
+        if (cap && ut_role(ty, UTR_RAM) && (!blds || (rams + 1) * AR_RAM_PER > others)) continue;   // SIEGE WITH A PURPOSE: rams few
         int cost = 0, pays = 1;
         for (int r = 2; r < 7; r++) { int c = unit_cost(pl, ty, r); cost += c; if (vis && vis[r] < c) pays = 0; }
         if (cost <= 0 || (!pays && ty != filled)) continue;
@@ -2496,6 +2518,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_held_ground = ini_int("autotest", "v_raid_held_ground", -1, autotest_ini);
         g_v_ar_front_ter = ini_int("autotest", "v_force_at_front", -1, autotest_ini);
         g_v_ar_need = ini_int("autotest", "v_train_by_need", -1, autotest_ini);
+        g_v_ar_siege_cap = ini_int("autotest", "v_siege_cap", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
         g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
