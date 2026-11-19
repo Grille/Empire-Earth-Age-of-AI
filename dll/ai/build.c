@@ -677,7 +677,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                     for (int ax = -r; ax <= r && !laid && !tried; ax++)
                         for (int ay = -r; ay <= r && !laid && !tried; ay++) {
                             ivec2 q = iv2(fp.x + ax, fp.y + ay);
-                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_land(q) != fland || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                            if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_spot(q) != fland || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                             tried = 1;   // the spot: laid now, or the price not there yet (the next look)
                             if (!hb_lay(pl, idx, bm, current_epoch(pl), UT(B_DOCK), q)) break;
                             laid = 1; placed = 1; b->fdock_t = now ? now : 1; b->fdocks++;

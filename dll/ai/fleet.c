@@ -872,6 +872,27 @@ internal unsigned fl_dock_land(ivec2 q) {
         }
     return 0;
 }
+// A NEW DOCK'S SPOT (the player 2026-11-19: docks laid touching the land with less than 2 tiles - a corner of the ring
+// or one tile, the dock as good as floating): the land fl_dock_land finds, when at least 2 tiles beside the footprint's
+// sides (not its corners' diagonals) are land of it; 0 else. The game's own test (can_place, the player's preview's)
+// asks each tile of the footprint only for its kind and whether it is free - a dock's type leaves out even the slope
+// rule (its data +0x5FF): it knows no shore. A dock that stands keeps fl_dock_land's test. Measured, 3 water maps x
+// 45 min from epoch 5: docks with fewer than 2 such tiles 9 of 27 before, 0 of 23 after.
+#define DOCK_SIDE_LAND 2
+internal unsigned fl_dock_spot(ivec2 q) {
+    unsigned land = fl_dock_land(q);
+    if (!land) return 0;
+    ee_unit_type *td = type_data(UT(B_DOCK));
+    int sz = td ? unit_type_get_size(td) : 3, n = 0;
+    for (int ax = -1; ax <= sz; ax++)
+        for (int ay = -1; ay <= sz; ay++) {
+            int ix = ax >= 0 && ax < sz, iy = ay >= 0 && ay < sz;
+            if (ix == iy) continue;   // inside the footprint, or a corner's diagonal
+            ivec2 t = iv2(q.x + ax, q.y + ay);
+            n += !area_id(t, 1) && cont_at(t) == land;
+        }
+    return n >= DOCK_SIDE_LAND ? land : 0;
+}
 internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
     g_hb[idx].t = now ? now : 1;
@@ -964,7 +985,7 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = ivec2_add(shore, iv2(ax, ay));
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || !fl_dock_land(q)) continue;
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || !fl_dock_spot(q)) continue;
                 if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
                 g_hb[idx].docks++; g_hb[idx].laid_t = now ? now : 1;
                 if (g_hb[idx].nserved < HB_SERVED) { g_hb[idx].served[g_hb[idx].nserved].sea = sea; g_hb[idx].served[g_hb[idx].nserved].at = q; g_hb[idx].served[g_hb[idx].nserved++].t = now ? now : 1; }
@@ -1013,7 +1034,7 @@ internal void fl_busy_docks(ee_player *pl, unsigned idx, struct fleet *f, uint32
                 for (int ax = -r; ax <= r; ax++)
                     for (int ay = -r; ay <= r; ay++) {
                         ivec2 q = ivec2_add(dk, iv2(ax, ay));
-                        if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_land(q) != land) continue;
+                        if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_spot(q) != land) continue;
                         if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
                         g_fdk[idx].laid++; g_fdk[idx].laid_t = now ? now : 1;
                         if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks busy %u/%u, %d warships missing - one more dock laid at %d,%d by the dock %d,%d (%d docks, %u laid so far)\n",
