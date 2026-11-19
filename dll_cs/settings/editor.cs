@@ -20,7 +20,7 @@ class editor
     /// The background art is the original 800x600 one, stretched. Full-screen pages (players, texts) keep their
     /// controls at the top left, as in AoC.
     [also("patches")]
-    vec2 editor_resolution = ee;
+    vec2 editor_resolution = game;
 
     /// The size the editor's panels, buttons and texts are laid out at, the picture still drawn at editor_resolution
     /// (not with editor_resolution = ee, and only with renderer = own). A smaller size makes them larger; its height
@@ -31,7 +31,7 @@ class editor
     ///   or any size as an expression: 1280x720, aoc * 1.5 or aoc * 150% (1536x1152: smaller than aoc), game * 50%
     /// The map, the shapes and the texts stay sharp. The map view shows what it shows at that size.
     [also("patches")]
-    vec2 editor_uiscale = off;
+    vec2 editor_uiscale = aoc * 1.5;
 
     /// A search box above the unit list of the editor's units panel: type part of a unit's name - as the list shows
     /// it, or the game's internal (English) name - and the list shows only the units that match, at once as you type;

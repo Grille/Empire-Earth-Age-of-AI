@@ -55,8 +55,8 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   size as an expression of the language (`1280x720`, `aoc * 150%`), the picture still drawn at `editor_resolution`. The game is told the smaller size - its layout, its mouse and its surfaces' coordinates
   stay as they are, that size is offered to it as a display mode (it quits at a switch to a size it wasn't offered) - and the renderer's target is the
   picture's: viewports and blits scale to it, GDI's text is drawn through a scaling transform (sharp, not enlarged), the mouse cursor is drawn at the present
-  on the target's own pixels. The map view shows what it shows at the smaller size.
-- `[editor] editor_resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
+  on the target's own pixels. The map view shows what it shows at the smaller size. Default `aoc * 1.5` (1536x1152), `off` the size `editor_resolution` gives.
+- `[editor] editor_resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` (the default) or any
   `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
   minimap and file buttons at the bottom right).
 - The scenario editor uses the game's camera: `[camera]`'s distance, view distance and field of view, and the angle levelling out as you zoom in, instead of the game's separate editor camera (42 tiles back at a fixed angle).

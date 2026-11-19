@@ -30,7 +30,7 @@ struct text { }
 struct epoch { }
 struct color { }
 struct unit_type { }
-struct vec2 { }
+struct vec2 { public static vec2 operator *(vec2 v, double f) => default; }   // a size's default as an expression: aoc * 1.5
 struct vec3 { }
 struct vec4 { }
 struct trigger { }
