@@ -1787,7 +1787,7 @@ internal int collect_copy_mode(int how) {
 // picture collect effects off | on | check (0, 1, 2): the effects' queues made by the simulation for the frames during its steps
 internal int collect_effects_mode(int how) {
     if (!g_uc_installed) return -1;
-    g_fx_builds = g_fx_takes = g_fx_queued = g_fx_chk_n = g_fx_chk_diff = g_fx_dead = 0;
+    g_fx_builds = g_fx_takes = g_fx_queued = g_fx_chk_n = g_fx_chk_diff = g_fx_dead = g_fx_remakes = 0;
     g_fx_qpc = 0;
     g_fx_on = how;
     return 0;
@@ -1891,9 +1891,9 @@ internal void collect_print(void) {
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
     if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far\n", (long)g_uc_during_walks);
     if (g_fx_on)
-        log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects, %ld finished ones passed over), %ld taken by frames during a step; checked %ld, %ld differ\n",
+        log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects, %ld finished ones passed over, %ld whose Queue remakes their own list left to the frame), %ld taken by frames during a step; checked %ld, %ld differ\n",
                    g_fx_on == 2 ? "check" : "on", (long)g_fx_builds, g_fx_builds ? (double)g_fx_qpc / rd_qpc_ms(1) / g_fx_builds : 0.0,
-                   g_fx_builds ? (double)g_fx_queued / g_fx_builds : 0.0, (long)g_fx_dead, (long)g_fx_takes, (long)g_fx_chk_n, (long)g_fx_chk_diff);
+                   g_fx_builds ? (double)g_fx_queued / g_fx_builds : 0.0, (long)g_fx_dead, (long)g_fx_remakes, (long)g_fx_takes, (long)g_fx_chk_n, (long)g_fx_chk_diff);
     if (g_cp_smooth == 1 && g_uc_anim_smooth)
         log_locked("# collect: the pieces, flames and smoke between steps: %ld times a piece still drawn lost its moves (the table full)\n", (long)g_pt_evicted);
     if (g_cp_smooth)

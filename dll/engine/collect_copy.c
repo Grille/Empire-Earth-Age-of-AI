@@ -524,7 +524,7 @@ internal ee_map *g_fx_map;                     // the map g_fx_p is of
 internal float g_fx_cam[16];                   // the camera it was made for (the check's)
 internal long *g_fx_lo, *g_fx_hi;              // by region row: the first and last region under the view's rows
 internal uint32_t g_fx_rows;
-internal LONG g_fx_builds, g_fx_takes, g_fx_queued, g_fx_chk_n, g_fx_chk_diff, g_fx_dead;
+internal LONG g_fx_builds, g_fx_takes, g_fx_queued, g_fx_chk_n, g_fx_chk_diff, g_fx_dead, g_fx_remakes;
 internal LONGLONG g_fx_qpc;
 internal int fx_release_one(void *ctx, int q, uint32_t key, void *e) { (void)ctx, (void)q, (void)key; object_release(e); return 1; }
 internal void fx_empty(uint8_t *q, int release) {
@@ -587,7 +587,12 @@ internal int fx_alive(const void *e) {
         }
     return effect_references(e) > held;
 }
-// the effects the view shows into g_fx_p: the game's QueueEffects' rows and order
+// the effects the view shows into g_fx_p: the game's QueueEffects' rows and order. Not those whose Queue makes a list of
+// their own anew that their draw walks (effect_queue_remakes: rain, snow, a Prophet's plague, hurricane, malaria): the
+// frame draws outside the world's lock, beside this step's end - the rain's list made anew here while the frame drew it,
+// the draw read freed memory (the player's crashes 2026-11-19, EE 0x4EDFB6, three times, in real frames and frames during a
+// step alike). Only the frame's own update queues them, as in the game; the frames during a step that draw these queues
+// go without them.
 internal void fx_build(ee_map *map) {
     const uint8_t *tab = map_effect_regions(map);
     int size = tab ? effect_regions_size(tab) : 0;
@@ -619,6 +624,7 @@ internal void fx_build(ee_map *map) {
             for (uint32_t i = 0; i < k; i++) {
                 if (!effect_shown(e[i])) continue;
                 if (!fx_alive(e[i])) { g_fx_dead++; continue; }
+                if (effect_queue_remakes(e[i])) { g_fx_remakes++; continue; }
                 effect_prepare(e[i]);
                 if (!effect_queue(e[i], g_fx_p)) { effect_reference(e[i]); g_fx_queued++; }
             }

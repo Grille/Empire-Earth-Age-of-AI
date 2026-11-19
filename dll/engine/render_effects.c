@@ -192,15 +192,9 @@ internal void pd_check(ee_particle3d *o) {
     g_in_capture = 0;
     if (mine && !g_ud.over) pd_compare(o);
 }
-// an effect of the fifth queue: a flying piece by this draw, the rest by their own (the run ended first). In a frame
-// during a step (g_kg_skip - by the kept water's way, g_rw_fx_only, or the game's water draw when none is kept yet: the
-// second crash took that one) not the falling drops or snow: their draw walks a list the step's update reallocates - it
-// read freed memory (the player's crashes 2026-11-19, a Prophet's fire in the rain, EE 0x4EDFB6); they show in the real
-// frames
-internal LONG g_pd_weather_skips;
+// an effect of the fifth queue: a flying piece by this draw, the rest by their own (the run ended first)
 internal void pd_effect(void *e) {
-    if ((g_kg_skip || g_rw_fx_only) && effect_is_weather(e)) { g_pd_weather_skips++; return; }
-    if (pd_mode() && effect_is_particle3d(e)) {
+    if (effect_is_particle3d(e)) {
         int mode = pd_mode();
         if (mode == 2) { pd_check(e); return; }
         if (pd_piece(e)) { InterlockedIncrement(&g_pd.own); return; }
@@ -212,9 +206,7 @@ internal void pd_effect(void *e) {
 // EEROWater's draw (render_3d.c rd_hook_ro_water): the game's, or the same here with the flying pieces by runs
 internal void pd_water(ee_ro_water *o) {
     ee_map *map = game_map();
-    // (the game's draw when the pieces are the game's - but not in a frame during a step: this one, which leaves the
-    // rain out, pd_effect)
-    if ((!pd_mode() && !g_kg_skip && !g_rw_fx_only) || !pd_init() || !map) { ro_water_draw(o); return; }
+    if (!pd_mode() || !pd_init() || !map) { ro_water_draw(o); return; }
     ee_rasterizer *ras = rasterizer();
     uint32_t sc = (uint32_t)screen_index();
     float ref = g_pd.get_ref(ras, sc);
@@ -255,6 +247,6 @@ internal int pd_pipe(char *out, const char *arg) {
     for (int k = 0; k < PD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_pd_reason[k], (long)g_pd.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_pd.pieces, (long)g_pd.differ);
     for (int k = 0; k < PD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_pd_kind[k], (long)g_pd.kind[k]);
-    REPLY("), the places' largest difference %.2g; rain or snow left out of a frame during a step %ld\n", (double)g_pd.worst, (long)g_pd_weather_skips);
+    REPLY("), the places' largest difference %.2g\n", (double)g_pd.worst);
     return 1;
 }

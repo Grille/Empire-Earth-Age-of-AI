@@ -336,14 +336,27 @@ internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return pat
 // from world points (0x50DD81, AoC 0x518676)
 
 // class EEE3DRain (eee3_d_rain)
-// falling drops (a storm's: the fire a Prophet calls down among them), an effect of the fifth queue: its draw (vf6, EE
-// 0x4EDF01, AoC 0x4F7B55) walks its drops, a list of 20-byte records from +0xB4 to +0xB8, which its update (vf25, EE
-// 0x4EDB3E, AoC 0x4F7792) grows and shrinks in the step - drawn beside a step, the draw read the list's freed memory (EE
-// 0x4EDFB6, the player's crash 2026-11-19)
+// falling drops (the weather's rain), an effect of the fifth queue: its Queue (vf9, EE 0x4EDA86, AoC 0x4F76DA) empties its
+// draw's list (20-byte records from +0xB4 to +0xB8) and fills it anew from the drops its update (vf25, EE 0x4EDB3E, AoC
+// 0x4F7792) moves (24-byte records from +0xC4 to +0xC8), its draw (vf6, EE 0x4EDF01, AoC 0x4F7B55) walks the draw's list -
+// the list made anew while a frame drew it, the draw read freed memory (EE 0x4EDFB6, the player's crashes 2026-11-19:
+// collect_copy.c's Queue at a step's end beside the frame's draw)
 
 // class EEE3DSnow (eee3_d_snow)
-// falling snow, an effect of the fifth queue: as EEE3DRain, its flakes a list from +0xB4 to +0xB8 its update (vf25, EE
-// 0x4EFFA1, AoC 0x4F9EF5) changes in the step and its draw (vf6, EE 0x4F04B0, AoC 0x4FA404) walks
+// falling snow, an effect of the fifth queue: as EEE3DRain, its Queue (vf9, EE 0x4EFEEE, AoC 0x4F9E42) makes its draw's
+// list from +0xB4 anew from its flakes at +0xC4, its draw (vf6, EE 0x4F04B0, AoC 0x4FA404) walks it
+
+// class EEE3DDisease (eee3_d_disease)
+// a Prophet's plague over a group, an effect: its Queue (vf9, EE 0x4E374E, AoC 0x4EBFD0) empties lists of its own (+0xA4,
+// +0xAC) and fills them again for its draw, one entry for each of its units (+0xB4 of them) - their number changes
+
+// class EEE3DHurricane (eee3_d_hurricane)
+// a Prophet's hurricane, an effect: its Queue (vf9, EE 0x4E7E0A, AoC 0x4F17C2) empties lists of its own (+0xA8, +0xB4)
+// and fills them again for its draw, as EEE3DDisease (+0xBC entries)
+
+// class EEE3DVirus (eee3_d_virus)
+// a Prophet's malaria, an effect: its Queue (vf9, EE 0x4F3F3A, AoC 0x4FDD68) empties lists of its own (+0xA4, +0xAC,
+// +0xB8) and fills them again for its draw, as EEE3DDisease
 
 // class EEE3DParticle (ee_particle3d)
 // a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
@@ -1427,6 +1440,9 @@ internal int spec_engine_display_select(int build) {
         vt_eee3_d_marching_line = 0x0082B9D4;
         vt_eee3_d_rain = 0x0082BC30;
         vt_eee3_d_snow = 0x0082BD8C;
+        vt_eee3_d_disease = 0x0082B730;
+        vt_eee3_d_hurricane = 0x0082B8B0;
+        vt_eee3_d_virus = 0x0082BFE4;
         vt_eee3_d_particle = 0x0082BAF8;
         of_particle3d_graphic_effect = 0xC;
         of_particle3d_graphics = 0x8C;
@@ -1867,6 +1883,9 @@ internal int spec_engine_display_select(int build) {
         vt_eee3_d_marching_line = 0x0084099C;
         vt_eee3_d_rain = 0x00840C04;
         vt_eee3_d_snow = 0x00840DC8;
+        vt_eee3_d_disease = 0x0084061C;
+        vt_eee3_d_hurricane = 0x00840870;
+        vt_eee3_d_virus = 0x0084102C;
         vt_eee3_d_particle = 0x00840AC4;
         of_particle3d_graphic_effect = 0xC;
         of_particle3d_graphics = 0x8C;
@@ -2273,6 +2292,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_vtable(vt_eee3_d_marching_line, ".?AVEEE3DMarchingLine@@", "EEE3DMarchingLine [vtable]");
     bad += spec_vtable(vt_eee3_d_rain, ".?AVEEE3DRain@@", "EEE3DRain [vtable]");
     bad += spec_vtable(vt_eee3_d_snow, ".?AVEEE3DSnow@@", "EEE3DSnow [vtable]");
+    bad += spec_vtable(vt_eee3_d_disease, ".?AVEEE3DDisease@@", "EEE3DDisease [vtable]");
+    bad += spec_vtable(vt_eee3_d_hurricane, ".?AVEEE3DHurricane@@", "EEE3DHurricane [vtable]");
+    bad += spec_vtable(vt_eee3_d_virus, ".?AVEEE3DVirus@@", "EEE3DVirus [vtable]");
     bad += spec_vtable(vt_eee3_d_particle, ".?AVEEE3DParticle@@", "EEE3DParticle [vtable]");
     bad += spec_code((uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw");
     bad += spec_slot(vt_eee3_d_particle, slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw [slot]");
