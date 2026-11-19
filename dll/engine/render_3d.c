@@ -393,8 +393,11 @@ internal const char k_rd3_shader[] =
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
     " return float4(lerp(wsc.Load(a).rgb, fc, wp * wp * (3 - 2 * wp)), 1); }\n"
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
-    // colour lit as the unit is - the brightest channel of its vertex colour, which is the light on a white part and on a
-    // part in the player's colour alike - where a building's surface is what the pixel shows and the unit lies behind it
+    // colour lit as the unit is - on a white part the brightest channel of its vertex colour, on a part in the player's
+    // colour (the vertex colour the light times it: nearer the player's colour's direction than grey's) the vertex colour
+    // over the player's colour, eased between the two; the brightest channel alone took the colour in twice there, those
+    // parts darker (the player, 2026-11-19: "the parts of the silluete that are alredy colored on the model apear darker") -
+    // where a building's surface is what the pixel shows and the unit lies behind it
     "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x3FFFF : (uint)i.w; if (r == 0x3FFFF) r = i.inst; r *= 8; O o = vs(i, id);"
     " uint q = (uint)wt.Load(r + 7).w; o.k = float3((q >> 16) & 255, (q >> 8) & 255, q & 255) / 255; return o; }\n"
     "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
@@ -403,7 +406,9 @@ internal const char k_rd3_shader[] =
     " if (i.p.z <= bz + 1e-6 || slz.Load(a) + 2e-6 < bz) discard;"
     " float fd = 1; if (slf.w > slf.z) { fd = 1 - saturate((slf.y / (i.p.z - slf.x) - slf.y / (bz - slf.x) - slf.z) / (slf.w - slf.z)); if (fd <= 0) discard; }"
     " float e = 1; if (op.w) { e = t.Sample(s, i.t).a; if (e < 0.5) discard; }"
-    " float3 c = i.k * max(i.c.r, max(i.c.g, i.c.b)); if (misc.y > 0.5) c = lerp(fogc.rgb, c, saturate(i.f));"
+    " float3 v = i.c.rgb, vn = normalize(v + 1e-5), kn = normalize(i.k + 1e-5);"
+    " float l = lerp(max(v.r, max(v.g, v.b)), dot(v, i.k) / max(dot(i.k, i.k), 1e-4), saturate((dot(vn, kn) - dot(vn, 0.57735)) * 8 + 0.5));"
+    " float3 c = i.k * l; if (misc.y > 0.5) c = lerp(fogc.rgb, c, saturate(i.f));"
     " return float4(c, e * fd); }\n"
     // the silhouettes' finished picture over the scene, see-through as one
     "Texture2D slc : register(t12);\n"
