@@ -72,6 +72,12 @@ internal void takeover_tick(ee_player *pl) {
     }
 }
 
+// a unit that goes with a holder of the human's h (garrisoned, loaded): the holder's copy converts and loads its cargo
+// (EEMovePassengers, AoC 0x64F03D)
+internal int ho_carried(ee_unit *u, ee_player *h) {
+    ee_unit *ph = unit_get_physics(u), *box = (ee_unit *)unit_get_holder(ph ? ph : u);
+    return box && unit_get_owner(box) == h;
+}
 // a colour another player has - the human handed over (skip) not counted
 internal int ho_colour_taken(const float *k, unsigned skip) {
     for (unsigned i = 1; k && i < game_player_count(); i++) {
@@ -184,7 +190,15 @@ internal void cmd_handover(char *out, const char *args) {
     // ITS UNITS: the human's, the ones that walk first. A chain of pieces (a gate's five, an airport and its runways:
     // physics +0x1CC) goes by its last piece alone, as ai/spoils.c gives them: the type's handover remakes and links the
     // others - each piece given apart was remade unlinked (the player's game 2026-11-19: a gate's open test read
-    // NULL+0x1D0 at the next step, EEUCGate 0x602DCB)
+    // NULL+0x1D0 at the next step, EEUCGate 0x602DCB). A unit inside one of the human's holders (garrisoned, loaded)
+    // goes with its holder too: the holder's copy converts and loads its cargo itself (EEMovePassengers, AoC
+    // 0x64F03D) - given apart as well, it was converted twice (the player's save "choke wolf": 59 planes in airports).
+    // Then THE STEP'S END at once (step_end: the queued placements, the players' new units, the queued swaps, the
+    // killed units removed), as after the game's own conversions inside a step: the copies are made with their
+    // orders (EEComplexUnit::CopyFrom) but wait for a step's end to get their place in the world's x-sorted unit list,
+    // and the handover runs after one - in the next step a walking copy that crossed into another tile was sorted
+    // again out of no place (0x628D6F reading NULL+8; the player's game 2026-11-19 right after the handover, and 1 of
+    // 2 test games on that save handed over at 172.8 min)
     static uint32_t ids[16384];
     int ni = 0, given = 0;
     for (int pass = 0; pass < 2; pass++) {
@@ -192,14 +206,15 @@ internal void cmd_handover(char *out, const char *args) {
         for (ee_unit *u = player_get_units(h); u && count < 16384 && ni < 16384; u = unit_get_next(u), count++) {
             ee_unit_type *td = unit_get_type_data(u);
             ee_unit *ph = unit_get_physics(u);
-            if (!td || unit_get_hp(u) <= 0 || fr_building(td) != pass || (ph && unit_get_chain(ph))) continue;
+            if (!td || unit_get_hp(u) <= 0 || fr_building(td) != pass || (ph && unit_get_chain(ph)) || ho_carried(u, h)) continue;
             ids[ni++] = (uint32_t)unit_get_serial(u);
         }
     }
     for (int i = 0; i < ni; i++) {
-        ee_unit *u = unit_by_id(ids[i]);
-        if (u && unit_get_owner(u) == h && unit_give(u, (int)n, 0)) given++;
+        ee_unit *u = unit_by_id(ids[i]);   // (again: a holder given since has taken it along)
+        if (u && unit_get_owner(u) == h && unit_get_hp(u) > 0 && !ho_carried(u, h) && unit_give(u, (int)n, 0)) given++;
     }
+    if (game_physics()) physics_step_end(game_physics());
     player_adopt(p, 0, 1);
     for (int r = 0; r < 7; r++) hs[r] = 0;
     player_ai_start(p);
