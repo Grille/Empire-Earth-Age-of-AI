@@ -364,6 +364,7 @@ internal struct fy_st {
     uint32_t risky_t[5];                  // by kind: since when no trip of it went for the risk (THE CROSSING: the longer, the more it takes)
     unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, beached;
     unsigned parked;                      // HOME TO A DOCK (ferry.c): empty transports sent to a dock's water
+    unsigned small, no_dock;              // THRIFT (ferry.c): citizens' trips not started for too few aboard; transports not ordered, no dock of its on the trip's sea
 } g_fy[16];
 // the ferry service's trip that has u as its transport (pass: or as a passenger), NULL: none
 internal struct fy_trip *fy_trip_of(unsigned pi, ee_unit *u, int pass) {
@@ -383,6 +384,8 @@ internal int g_cy_life = 0, g_v_cy_life = -1, g_cy_esc = 0, g_v_cy_esc = -1;   /
 #define LIFEBOAT(idx) PV(idx, g_v_cy_life, g_cy_life)
 internal int g_fy_park = 0, g_v_fy_park = -1;   // ferry.c HOME TO A DOCK: [ai_base] transport_park, [autotest] v_transport_park
 #define TRANSPORT_PARK(idx) PV(idx, g_v_fy_park, g_fy_park)
+internal int g_fy_thrift = 0, g_v_fy_thrift = -1;   // ferry.c THRIFT: [ai_base] ferry_thrift, [autotest] v_ferry_thrift
+#define FERRY_THRIFT(idx) PV(idx, g_v_fy_thrift, g_fy_thrift)
 #define CONVOY_ESCORT(idx) PV(idx, g_v_cy_esc, g_cy_esc)
 #define CY_WISHES 4
 #define CY_WISH 5000       // an escort asked for within this
@@ -1956,6 +1959,8 @@ internal void expand_install(const char *autotest_ini) {
     if (autotest_ini) g_v_cy_esc = ini_int("autotest", "v_transport_escort", -1, autotest_ini);
     g_fy_park = g_set_ai[1].transport_park;
     if (autotest_ini) g_v_fy_park = ini_int("autotest", "v_transport_park", -1, autotest_ini);
+    g_fy_thrift = g_set_ai[1].ferry_thrift;
+    if (autotest_ini) g_v_fy_thrift = ini_int("autotest", "v_ferry_thrift", -1, autotest_ini);
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
