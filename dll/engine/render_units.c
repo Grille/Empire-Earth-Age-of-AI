@@ -315,6 +315,7 @@ typedef struct {
     float frac; int rec;   // a record's: its fraction (a tree's sway isn't kept by), 1
     int decal, bent;       // a record's bent copy: a decal to the shadows (walls.c), its vertices in a part
     LONG gen;              // a wall's: walls.c's count of its end cuts' changes when it was made
+    void *tex;             // the record's texture it was taken with (kt_retex)
     int state;
     uint32_t part, np;   // its parts in g_kt.part
     uint32_t follow;     // the tree drawn after it last (its number + 1; 0 none)
@@ -400,6 +401,15 @@ internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame
     g_kt.last = no;
     return k;
 }
+// A kept entry's parts hold the textures they were taken with - the record's (in_rec tex: its graphics' animation
+// texture, a wreck's death texture) and its frames - without a reference. A graphics' textures go with its last user
+// (graphics_release) while its graphics, model and the place stay: a building rebuilt where one stood, a remembered one
+// drawn there, had its kept parts drawn with destroyed textures (the player's crash 2026-11-19, DX7Rasterizer.SetTexture
+// reading a texture whose destructor had run). So an entry is taken again when the record's texture isn't the one it
+// was taken with.
+internal void kt_retex(kt_tree *k, void *tex) {
+    if (k && k->tex != tex) k->tex = tex, k->state = KT_NEW;
+}
 // a new tree's parts taken from the walk at fractions 0 and 1 (the states of its draw set by the caller)
 internal void kt_make(kt_tree *k, const in_rec *r0, float bias) {
     k->state = KT_NOT;
@@ -449,6 +459,8 @@ internal int kt_draw(float *at, void *rec) {
     uint32_t frame = (uint32_t)draw_small_record_get_frame(rec), next = (uint32_t)draw_small_record_get_next_frame(rec);
     at[3] = pos.x, at[7] = pos.y, at[11] = pos.z;   // (as ut_draw writes it)
     kt_tree *k = kt_find(g, m, anim, frame, next, scale, at, 0.0f, 0);
+    ee_texture *tex = graphics_anim_texture(g, anim);
+    kt_retex(k, tex);
     if (!k || k->state == KT_NOT) { InterlockedIncrement(&g_kt.walked); return ut_draw(at, rec); }
     ee_rasterizer *ras = rasterizer();
     uint32_t screen = (uint32_t)screen_index();
@@ -457,7 +469,7 @@ internal int kt_draw(float *at, void *rec) {
     rasterizer_set_z_buffer(ras, op > *(const float *)engine_display_depth_write_opacity_at() ? 3 : 2, screen);
     rd_device *d = in_device(ras, screen);
     if (!d) return ud_fell(UD_CANT);
-    in_rec r = { at, scale, { frame, next, draw_small_record_get_sway(rec), op, NULL }, graphics_anim_texture(g, anim), model_get_material_count(m), 0, 0 };
+    in_rec r = { at, scale, { frame, next, draw_small_record_get_sway(rec), op, NULL }, tex, model_get_material_count(m), 0, 0 };
     if (k->state == KT_NEW) {
         if (!in_model_ok(m, &r.pose, 1)) k->state = KT_NOT;
         else kt_make(k, &r, bias);
@@ -490,6 +502,7 @@ internal kt_tree *kr_find(void *rec, ee_dmg_model *g, ee_model *m, int anim, con
     uint8_t *lists[3] = { draw_record_part_values_at(rec), draw_record_list_a_c_at(rec), draw_record_list_b_c_at(rec) };
     for (int l = 0; l < 3; l++) if (vector_first(lists[l]) != vector_end(lists[l])) return NULL;
     kt_tree *k = kt_find(g, m, anim, r->pose.frame, r->pose.next, r->scale, r->outer, r->pose.frac, 1);
+    kt_retex(k, r->tex);
     if (k && k->state == KT_NOT) { InterlockedIncrement(&g_kt.rec_not); return NULL; }
     if (k && bl_noted_wall(m) && k->gen != ws_cut_gen()) { k->state = KT_NEW; k->gen = ws_cut_gen(); }   // (its cuts changed: made again)
     return k;
