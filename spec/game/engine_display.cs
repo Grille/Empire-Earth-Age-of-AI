@@ -412,6 +412,22 @@ unsafe struct EEE3DMarchingLine
 {
 }
 
+/// falling drops (a storm's: the fire a Prophet calls down among them), an effect of the fifth queue: its draw (vf6, EE
+/// 0x4EDF01, AoC 0x4F7B55) walks its drops, a list of 20-byte records from +0xB4 to +0xB8, which its update (vf25, EE
+/// 0x4EDB3E, AoC 0x4F7792) grows and shrinks in the step - drawn beside a step, the draw read the list's freed memory (EE
+/// 0x4EDFB6, the player's crash 2026-11-19)
+[vtable((ee)0x0082BC30, (aoc)0x00840C04)]
+unsafe struct EEE3DRain
+{
+}
+
+/// falling snow, an effect of the fifth queue: as EEE3DRain, its flakes a list from +0xB4 to +0xB8 its update (vf25, EE
+/// 0x4EFFA1, AoC 0x4F9EF5) changes in the step and its draw (vf6, EE 0x4F04B0, AoC 0x4FA404) walks
+[vtable((ee)0x0082BD8C, (aoc)0x00840DC8)]
+unsafe struct EEE3DSnow
+{
+}
+
 /// a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
 /// artillery piece's shards; the Minotaur's top is no such piece but its model's child, flown by GEModel
 /// frame_transforms), an effect of the fifth queue, moved once a step

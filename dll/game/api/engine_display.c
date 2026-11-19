@@ -362,6 +362,8 @@ internal inline int effect_queues_each(uint8_t *queues, effect_entry_fn f, void 
 // EEROWater's draw of an effect of the fifth queue (its virtual draw there: a flying piece's EEE3DParticle.draw ...)
 internal inline uint32_t effect_draw_water(void *e) { return ((uint32_t (__thiscall *)(void *))(*(void ***)e)[value_engine_display_slot_effect_draw_water])(e); }
 internal inline int effect_is_particle3d(const void *e) { return *(const uint32_t *)e == vt_eee3_d_particle; }
+// falling rain or snow: its draw walks a list its update changes in the step (spec EEE3DRain) - not to be drawn beside one
+internal inline int effect_is_weather(const void *e) { uint32_t vt = *(const uint32_t *)e; return vt == vt_eee3_d_rain || vt == vt_eee3_d_snow; }
 // GEModel::PrepareTransforms as the exe calls it (its import slot: collect.c's blend when hooked)
 internal inline void model_prepare(ee_model *m) { (*(void (__thiscall **)(ee_model *))data_engine_display_iat_prepare_transforms)(m); }
 

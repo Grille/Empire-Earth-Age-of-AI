@@ -192,8 +192,12 @@ internal void pd_check(ee_particle3d *o) {
     g_in_capture = 0;
     if (mine && !g_ud.over) pd_compare(o);
 }
-// an effect of the fifth queue: a flying piece by this draw, the rest by their own (the run ended first)
+// an effect of the fifth queue: a flying piece by this draw, the rest by their own (the run ended first). In a frame
+// during a step (g_rw_fx_only) not the falling drops or snow: their draw walks a list the step's update reallocates - it
+// read freed memory (the player's crash 2026-11-19, a Prophet's fire, EE 0x4EDFB6); they show in the real frames
+internal LONG g_pd_weather_skips;
 internal void pd_effect(void *e) {
+    if (g_rw_fx_only && effect_is_weather(e)) { g_pd_weather_skips++; return; }
     if (effect_is_particle3d(e)) {
         int mode = pd_mode();
         if (mode == 2) { pd_check(e); return; }
@@ -247,6 +251,6 @@ internal int pd_pipe(char *out, const char *arg) {
     for (int k = 0; k < PD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_pd_reason[k], (long)g_pd.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_pd.pieces, (long)g_pd.differ);
     for (int k = 0; k < PD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_pd_kind[k], (long)g_pd.kind[k]);
-    REPLY("), the places' largest difference %.2g\n", (double)g_pd.worst);
+    REPLY("), the places' largest difference %.2g; rain or snow left out of a frame during a step %ld\n", (double)g_pd.worst, (long)g_pd_weather_skips);
     return 1;
 }

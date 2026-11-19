@@ -335,6 +335,16 @@ internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return pat
 // a line from an airport to its target (the graphical goal manager's kind 0): an effect of the third queue, drawn in pixels
 // from world points (0x50DD81, AoC 0x518676)
 
+// class EEE3DRain (eee3_d_rain)
+// falling drops (a storm's: the fire a Prophet calls down among them), an effect of the fifth queue: its draw (vf6, EE
+// 0x4EDF01, AoC 0x4F7B55) walks its drops, a list of 20-byte records from +0xB4 to +0xB8, which its update (vf25, EE
+// 0x4EDB3E, AoC 0x4F7792) grows and shrinks in the step - drawn beside a step, the draw read the list's freed memory (EE
+// 0x4EDFB6, the player's crash 2026-11-19)
+
+// class EEE3DSnow (eee3_d_snow)
+// falling snow, an effect of the fifth queue: as EEE3DRain, its flakes a list from +0xB4 to +0xB8 its update (vf25, EE
+// 0x4EFFA1, AoC 0x4F9EF5) changes in the step and its draw (vf6, EE 0x4F04B0, AoC 0x4FA404) walks
+
 // class EEE3DParticle (ee_particle3d)
 // a flying model: the pieces a dying mech or machine throws (a Minotaur's three that roll off along the ground, an
 // artillery piece's shards; the Minotaur's top is no such piece but its model's child, flown by GEModel
@@ -1415,6 +1425,8 @@ internal int spec_engine_display_select(int build) {
         size_eero_effects = 0x4;
         fn_ro_effects_update = (ro_effects_update_fn)0x005067CF;
         vt_eee3_d_marching_line = 0x0082B9D4;
+        vt_eee3_d_rain = 0x0082BC30;
+        vt_eee3_d_snow = 0x0082BD8C;
         vt_eee3_d_particle = 0x0082BAF8;
         of_particle3d_graphic_effect = 0xC;
         of_particle3d_graphics = 0x8C;
@@ -1853,6 +1865,8 @@ internal int spec_engine_display_select(int build) {
         size_eero_effects = 0x4;
         fn_ro_effects_update = (ro_effects_update_fn)0x00511D76;
         vt_eee3_d_marching_line = 0x0084099C;
+        vt_eee3_d_rain = 0x00840C04;
+        vt_eee3_d_snow = 0x00840DC8;
         vt_eee3_d_particle = 0x00840AC4;
         of_particle3d_graphic_effect = 0xC;
         of_particle3d_graphics = 0x8C;
@@ -2257,6 +2271,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_effects_update, "EEROEffects.update");
     bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
     bad += spec_vtable(vt_eee3_d_marching_line, ".?AVEEE3DMarchingLine@@", "EEE3DMarchingLine [vtable]");
+    bad += spec_vtable(vt_eee3_d_rain, ".?AVEEE3DRain@@", "EEE3DRain [vtable]");
+    bad += spec_vtable(vt_eee3_d_snow, ".?AVEEE3DSnow@@", "EEE3DSnow [vtable]");
     bad += spec_vtable(vt_eee3_d_particle, ".?AVEEE3DParticle@@", "EEE3DParticle [vtable]");
     bad += spec_code((uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw");
     bad += spec_slot(vt_eee3_d_particle, slot_particle3d_draw, (uintptr_t)fn_eee3_d_particle_draw, "EEE3DParticle.draw [slot]");
