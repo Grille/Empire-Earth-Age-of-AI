@@ -1662,7 +1662,28 @@ internal void picker_grow(void) {
 // a frame during a step (render_3d.c): 1 the units' update is to run, from the steps' newest copy (held till the end).
 // Not with the editor's free camera; godmode and godview do run it (the copy is made for their sight, cp_fits) - left
 // out with the free camera since e5030573, their units stood during each step and jumped at its end (the player
-// 2026-11-19: "unit position interpolation dosnt work in godview")
+// 2026-11-19: "unit position interpolation dosnt work in godview").
+// The copy is held against the rows the walk will read now, not the last walk's view: the game's light changing (the sun
+// handed to the moon at dusk, a step of the morning light) makes the terrain's update relight the map and lay its rows
+// anew at once (the ground pass forced, EE 0x503A7F) - after the frame's walk, wider than its view (made, it seems, under
+// the camera pulled back for the ground: rd_hook_ro_terrain_update). The next frame during a step found the copy too small for them and walked nothing: its units' pass empty,
+// everything but the ground gone for a frame (the player 2026-11-19: "when switching from day to night or night to day
+// evrething flickers out once", worse in a busy game; logged in his game: 243 rows, then 338, the copy refused). Now
+// such a frame leaves the update out and draws the last lists.
+internal void uc_rows_box(const ee_map *map, long *b) {
+    const void *mesh = map_mesh_at(map);
+    unsigned long n = vr_rows(mesh);
+    b[0] = b[1] = LONG_MAX, b[2] = b[3] = LONG_MIN;
+    for (unsigned long r = 0; r < n; r++) {
+        long y, x0, x1;
+        vr_row(mesh, r, &y, &x0, &x1);
+        if (x0 > x1) continue;
+        if (y < b[1]) b[1] = y;
+        if (y > b[3]) b[3] = y;
+        if (x0 < b[0]) b[0] = x0;
+        if (x1 > b[2]) b[2] = x1;
+    }
+}
 internal int collect_during_begin(void) {
     if (!g_uc_during_on || !g_uc_own || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || !g_cp_on || !g_cp_view[4] ||
         *game_free_camera_at())
@@ -1672,8 +1693,10 @@ internal int collect_during_begin(void) {
     ee_map *map = game_map();
     ee_player *pl = map ? game_players()[local_player_index()] : NULL;
     uc_copy *c = NULL;
+    long b[4] = { 0, 0, -1, -1 };
+    if (map) uc_rows_box(map, b);
     EnterCriticalSection(&g_cp_cs);
-    if (map && g_cp_new >= 0 && cp_fits(&g_cp[g_cp_new], map, pl, g_cp_view[0], g_cp_view[1], g_cp_view[2], g_cp_view[3]) &&
+    if (map && b[1] <= b[3] && g_cp_new >= 0 && cp_fits(&g_cp[g_cp_new], map, pl, (int)b[0], (int)b[1], (int)b[2], (int)b[3]) &&
         (g_cp[g_cp_new].at != g_uc_walked_at || (g_cp_smooth == 1 && g_uc_walked_alpha < 1.0f)))
         c = &g_cp[g_cp_read = g_cp_new], g_cp_new_seen = 1;
     LeaveCriticalSection(&g_cp_cs);
