@@ -66,8 +66,8 @@ class display
     /// Day and night in random-map games: the light turns with the time of day, a whole day in 10 minutes of game time
     /// (the game's own cycle, which only a scenario's trigger could switch on). Scenarios and campaigns keep their
     /// author's choice; a saved game keeps its own. In multiplayer every player needs the same setting.
-    /// 1 = on, 0 = off (original)
-    bool skirmish_day_night = false;
+    /// 1 = on (default), 0 = off (original)
+    bool skirmish_day_night = true;
     /// The hour a random-map game starts at (0..23: 12 is noon, 0 midnight), with or without day and night; -1 = the
     /// game's own
     [advanced, range(-1, 23, error: true)]

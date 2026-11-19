@@ -47,7 +47,7 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   memory, and every update of it made the graphics card finish its work first. The renderer without T&L already
   keeps it in system memory, and with T&L it's now the same (measured by DDrawCompat's author on a big map: 18 ->
   170 fps with DDrawCompat, 105 -> 315 without). dreXmod 3.4 does the same; `0` keeps video memory.
-- `[display] skirmish_day_night=1` (off by default): day and night in random-map games. The game has a day/night
+- `[display] skirmish_day_night=1` (on by default since 2026-11-19, the player's call): day and night in random-map games. The game has a day/night
   cycle of its own - the light turns with the time of day, a whole day in 10 minutes of game time, at night bluish -
   but only a scenario's trigger (Day/Night Cycle Time) could switch it on. The setting switches it on as a random map
   starts; `skirmish_start_hour` (advanced, 0..23, -1 the game's own: 14:24) sets the hour it starts at, with or
