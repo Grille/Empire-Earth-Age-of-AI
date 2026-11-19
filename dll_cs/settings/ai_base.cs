@@ -36,6 +36,7 @@ class ai_base
         /// Early-game economy plan (before farms, which arrive in the Copper Age):
         /// the AI builds up its economy, counts the food it can find, saves for the next epochs,
         /// keeps only a token army and advances as soon as it can pay:
+        [advanced]
         copper_plan_choice copper_plan = copper_plan_choice.on;
         [advanced, range(0, 1), commented]
         share epoch_share = 0.4;
@@ -82,8 +83,12 @@ class ai_base
         int epoch_min = 50;
         [advanced, game("the AI's epoch timer, minutes at most", "70", 0)]
         int epoch_max = 70;
+        /// Population limit of the AIs: 0 = the game limit, the same as yours (the AI at its strongest); 1 = follows the
+        /// humans (original): 0.8 x the largest human population + 0.2 x the game limit, x 70% / 90% / 140% (easy / medium /
+        /// hard) - the AI grows with you and doesn't flood you with units. Per difficulty: [ai_easy] below sets 1.
+        bool pop_follow_human = false;
         /// share of the population cap for citizens (the rest is military), e.g. 60%; 0 = the game's own (default)
-        [range(0, 1), game("the AI's share of the population cap for citizens", "45%", 0), commented("0")]
+        [advanced, range(0, 1), game("the AI's share of the population cap for citizens", "45%", 0), commented("0")]
         share citizen_share = 0;
     }
 
@@ -112,13 +117,16 @@ class ai_base
         /// land, at sea and in the air, where it stands - filled from all of that player's units, unseen ones too: its unit
         /// choice trains counters to an army it never saw, its attacks pick their target by it. 1 = the file holds only the
         /// enemy units the AI sees or remembers (the units of allies and the AI's own as before). 0 = the game's file
+        [advanced]
         bool honest_intel = true;
         /// With honest_vision: an enemy unit that is hitting one of the AI's units counts as seen while it does - as a player
         /// sees the shooter for a moment when his units are hit -, so the AI remembers artillery and mortars that shell it
         /// from beyond its sight where they stood. 0 = off
+        [advanced]
         bool reveal_attackers = true;
     }
 
+    [advanced]
     class CitizensUnderAttack
     {
         /// Citizens, enemy towers and raiders: the AI no longer sends citizens to resources inside the range of enemy towers
@@ -139,6 +147,7 @@ class ai_base
         share militia_caught_share = 1;
     }
 
+    [advanced]
     class TheEarlyGame
     {
         /// The early game, a good player's opening against rushes:
@@ -163,6 +172,7 @@ class ai_base
         bool early_soldiers = false;
     }
 
+    [advanced]
     class SafetyAndFortresses
     {
         /// Citizens keep away from what hurts them: artillery and ships at their full reach (up to 27 tiles), and spots where
@@ -319,6 +329,7 @@ class ai_base
         int sea_fleet = 300;
     }
 
+    [advanced]
     class SiegeAndTowerRouting
     {
         /// Siege weapons like a player: they shell known enemy towers (that they outrange) and the walls to breach from a
@@ -330,6 +341,7 @@ class ai_base
         int avoid_towers_margin = 6;
     }
 
+    [advanced]
     class Building
     {
         ///
@@ -359,6 +371,7 @@ class ai_base
         bool fishing_boat = true;
     }
 
+    [advanced]
     class Navy
     {
         /// Navy account: on a water map (found at the start: enemies across the sea) a share of the wood, gold and iron
@@ -405,6 +418,7 @@ class ai_base
         bool transports_economy = false;
     }
 
+    [advanced]
     class WorkersAndResources
     {
         /// Water maps: gold and iron workers follow the navy's missing warships too, and from minute 15 (35+ workers) every
@@ -434,6 +448,7 @@ class ai_base
         bool wood_drop = true;
     }
 
+    [advanced]
     class EconomyPlans
     {
         struct citizen_plan_fields
@@ -562,17 +577,20 @@ class ai_base
         /// them taken into the game's groups, and the game's requests train none: the fleet orders them - up to its size
         /// target where the enemy is across the water, elsewhere only against enemy warships seen in its own sea
         /// 0 = the game's groups lead a land map's warships, its requests train them
+        [advanced]
         bool own_ships = true;
         /// ... the citizens ordered by the mod: how many from citizen_plan (the game's share of the cap as its floor), the
         /// orders its own, every 2 s, the game's citizen request left with nothing to ask for. Against the game's
         /// request: level, from epoch 9 and from the start. The fishing boats too: one while food is short, fish is left
         /// and no boat stands idle, none after a boat had to flee an enemy warship, paid before the wood savings. 1 = on
+        [advanced]
         bool own_citizens = true;
         /// What the army trains to fill the room (army_plan FILL): the land unit that adds most to the force against the enemy it
         /// will meet - the defenders and towers at its next target, the army it expects each enemy there to field (the most it
         /// has seen of it, fading) and the counters that enemy will train against what it saw of the AI's -, by the fight
         /// estimate, for what it costs, siege and rams included; nothing known of the enemy: as before. 0 = the game's wish, else
         /// the strongest (default on since 2026-11-11, measured with scouting: more soldiers, kills and buildings razed)
+        [advanced]
         bool train_by_need = true;
         /// The warship the navy trains: the one that adds most to its fleet against the enemy's fleet as it expects it - the
         /// ships it has seen each enemy field and the counters that enemy will train against what it saw of the AI's ships -
@@ -692,11 +710,13 @@ class ai_base
         int expand_max = 3;
         /// Idle citizens stranded on land without a drop site of their AI (a transport put them off there) are fetched home by
         /// one of its transports - the game gives a citizen work only on its own land. 0 = off
+        [advanced]
         bool rescue_citizens = true;
         /// The ferry service (the game's computer player off): soldiers to a land whose territories are short of their share
         /// while another land of its has more than its share, citizens to a land with free mine places it wants while
         /// another has citizens idle or on wood - by one of its transports on a sea both lands touch (one trained when
         /// none is free). 0 = off
+        [advanced]
         bool ferry_service = true;
         /// The ferry's crossings weighed (the game's computer player off): the damage a transport is expected to take before its
         /// load is off - the enemy ships, submarines, aircraft, coast guns and storms it knows of, those whose sight the
@@ -830,9 +850,11 @@ class ai_base
         /// (with spread) Towns with sense, however far: no spot with enemy soldiers it knows near it, in the
         /// enemy's reach or where it lost a fight, and none whose way from its nearest town passes enemy soldiers,
         /// towers or buildings. 1 = on (default): 1v1 huge Continental, 96 games, losses -18, soldiers +5
+        [advanced]
         bool towns_care = true;
     }
 
+    [advanced]
     class ResearchAndDefence
     {
         /// Defences like a player: towers in a line facing the nearest known enemy (and at outlying settlements)
@@ -944,6 +966,7 @@ class ai_base
         bool hold_town = false;
     }
 
+    [advanced]
     class Training
     {
         /// When the AI asks for a soldier it can't pay for or train (heroes, units of an earlier age, gold units without
@@ -999,6 +1022,7 @@ class ai_base
         int idle_citizen_slack = 9999;
     }
 
+    [advanced]
     class Muster
     {
         /// Muster: when an enemy army in the base is hopeless to fight (at least 8 soldiers, twice the strength of the AI's
@@ -1056,6 +1080,7 @@ class ai_base
         bool resign_spoils = true;
     }
 
+    [advanced]
     class LandingsAndTransports
     {
         ///
@@ -1119,10 +1144,6 @@ class ai_base
         /// 600 kept ~600 iron lying while the army failed for iron hundreds of times every 5 minutes
         [advanced]
         int hoard_cap_mineral = 200;
-        /// Population limit of the AIs: 0 = the game limit, the same as yours (the AI at its strongest); 1 = follows the
-        /// humans (original): 0.8 x the largest human population + 0.2 x the game limit, x 70% / 90% / 140% (easy / medium /
-        /// hard) - the AI grows with you and doesn't flood you with units. Per difficulty: [ai_easy] below sets 1.
-        bool pop_follow_human = false;
         /// from the Copper Age on: minutes before a planned epoch advance in which the AI starts saving
         [advanced]
         int reserve_window_min = 5;

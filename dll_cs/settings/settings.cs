@@ -75,7 +75,9 @@
 // (SETTING_TARGET: the tool greys it out next to the other build's exe).
 // [advanced] fine-tuning (a number that tunes a feature, a technical fix, a diagnostic, an experiment): the tool lists it
 // only with its "Advanced" box ticked, or while the file sets it away from its default (SETTING_ADVANCED) - the
-// file has it as any other key. On a group: every key in it (a [master] group's own key too).
+// file has it as any other key. On a group: every key in it (a [master] group's own key too). The AI's how is
+// advanced too, each of its routines (the player 2026-11-19: players care about general behaviour): in view stay only
+// what a player picks an opponent by - its price, epochs, population, vision, the game's AI or the mod's, diplomacy.
 
 global using static ageofai.settings.build;   // [target(aoc)]: the builds by their names
 using System;
