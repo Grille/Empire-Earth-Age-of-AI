@@ -3,7 +3,7 @@
 
 ## Human Foreword 
 
-This started as an experiment since I heard that Claude is very good at reverse engineering... well, that turned out the be a bit of an understatement, the fucking thing walks through binaries like its open code. 
+This started as an experiment since I heard that Claude is very good at reverse engineering... well, that turned out to be a bit of an understatement, the fucking thing walks through binaries like it's open code. 
 
 Since Empire Earth was one of my favorite (yet flawed) games since childhood, it was a prime target to aim this new technology at.
 
@@ -12,32 +12,30 @@ The result of more than a month of full-time work by now, is a near full overhau
 - Old bugs fixed
 - All new non cheating AI
 - Improved Graphics (subtle changes that don't touch the vibe of the game) 
-- Quality of live improvements
+- Quality of life improvements
 - New bugs to find and enjoy
 
-This project is still very WIP, and while most of my own time spend on this is QA, some issues surely slipped through (or are known but low on the list of things to work on) 
+This project is still very WIP, and while most of my own time spent on this is QA, some issues surely slipped through (or are known but low on the list of things to work on) 
 
 If you encounter a problem or want to suggest something, feel free to open an issue.
 
 ## Introduction
 **Computer players worth playing against.** The original Empire Earth AI only keeps up because it cheats: it pays
 about 1% of the real prices. Take that away and it can't run an economy. Age of AI gives the computer players a
-brain of their own - they pay what you pay, see only what you could see, and still build, expand, defend and attack
-like a player. On top of that the mod fixes and modernizes the game itself: windowed mode, a camera that zooms out
+brain of their own - they pay what you pay, hit as hard as you do, see only what you could see, and still build,
+expand, defend and attack like a player. On top of that the mod fixes and modernizes the game itself: windowed mode, a camera that zooms out
 further, big selections, smoother movement and much more.
 
 It is a single DLL dropped into the game folder; the game's own files stay untouched. It works with
 **Empire Earth 1.04** (GOG, Steam Gold Edition, NeoEE) and **The Art of Conquest**.
 
-The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI -
-the game's code was reverse-engineered and the mod written largely with AI coding tools.
-
 ## Highlights
 
 ### An AI that plays fair
 
-- **No cheating.** The AI pays full price and knows only what it has scouted - enemy buildings it has seen, armies
-  it has spotted.
+- **No cheating.** The AI pays full price, its units hit as hard as yours at every difficulty (the game's hard gave
+  them 1.4 times the damage, its easy took it from them), and it knows only what it has scouted - enemy buildings it
+  has seen, armies it has spotted.
 - **It thinks in territories.** The map is split into regions. The AI works the land it holds, guards its borders,
   builds a Settlement and a tower by every mine, and sends soldiers where they are needed rather than leaving them in
   one heap.
@@ -62,19 +60,19 @@ the game's code was reverse-engineered and the mod written largely with AI codin
 - **Windowed and borderless mode**, drawn by the mod's own renderer (Direct3D 11): sharp at high resolutions, with
   shadows and smoothed edges, and screenshots and recording work.
 - **Camera:** smoother scrolling and a zoom that goes further out than the game allows.
-- **Big armies:** double-click or drag-select more than 63 units; objects no longer blink in and out in big fights;
-  room for 4 GB of memory.
+- **Big armies:** a population limit far beyond the game's 1200 (its list in sensible steps), double-click or
+  drag-select more than 63 units; objects no longer blink in and out in big fights; room for 4 GB of memory.
 - **Movement:** straighter routes, units turning and colliding properly, formations that hold together, transports
   that share out their load.
 - **Walls** that follow the ground, a **scenario editor** that works at high resolutions, **more sound channels**.
 
-![Image: zoomed out](docs/assets/farview.jpg)
+![Zoomed out](docs/assets/farview.jpg)
 ![Ships](docs/assets/ships.jpg)
 
 ### Easy to set up
 
-Every feature has its own switch. `ageofai_config.exe` shows all of them in one window, each with its explanation
-and default, so there's no need to edit files by hand.
+Every feature has its own switch. `ageofai_config.exe` shows them in one window, each with its explanation and
+default, so there's no need to edit files by hand: the main ones in view, the fine-tuning behind its Advanced box.
 
 ![Image: settings window](docs/assets/config.jpg)
 
@@ -93,7 +91,7 @@ don't use it online): [docs/installing.md](docs/installing.md).
 
 ## Status
 
-The mod is in active development, and every part has its own switch.
+The mod is in active development.
 
 - **The computer player is being rebuilt.** Since November 2026 the mod's AIs no longer use the game's own AI at
   all; everything they do is the mod's own code. The economy, building, research, the army on land, priests and
