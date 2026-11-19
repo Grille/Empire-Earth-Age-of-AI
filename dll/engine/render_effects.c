@@ -193,12 +193,14 @@ internal void pd_check(ee_particle3d *o) {
     if (mine && !g_ud.over) pd_compare(o);
 }
 // an effect of the fifth queue: a flying piece by this draw, the rest by their own (the run ended first). In a frame
-// during a step (g_rw_fx_only) not the falling drops or snow: their draw walks a list the step's update reallocates - it
-// read freed memory (the player's crash 2026-11-19, a Prophet's fire, EE 0x4EDFB6); they show in the real frames
+// during a step (g_kg_skip - by the kept water's way, g_rw_fx_only, or the game's water draw when none is kept yet: the
+// second crash took that one) not the falling drops or snow: their draw walks a list the step's update reallocates - it
+// read freed memory (the player's crashes 2026-11-19, a Prophet's fire in the rain, EE 0x4EDFB6); they show in the real
+// frames
 internal LONG g_pd_weather_skips;
 internal void pd_effect(void *e) {
-    if (g_rw_fx_only && effect_is_weather(e)) { g_pd_weather_skips++; return; }
-    if (effect_is_particle3d(e)) {
+    if ((g_kg_skip || g_rw_fx_only) && effect_is_weather(e)) { g_pd_weather_skips++; return; }
+    if (pd_mode() && effect_is_particle3d(e)) {
         int mode = pd_mode();
         if (mode == 2) { pd_check(e); return; }
         if (pd_piece(e)) { InterlockedIncrement(&g_pd.own); return; }
@@ -210,7 +212,9 @@ internal void pd_effect(void *e) {
 // EEROWater's draw (render_3d.c rd_hook_ro_water): the game's, or the same here with the flying pieces by runs
 internal void pd_water(ee_ro_water *o) {
     ee_map *map = game_map();
-    if (!pd_mode() || !pd_init() || !map) { ro_water_draw(o); return; }
+    // (the game's draw when the pieces are the game's - but not in a frame during a step: this one, which leaves the
+    // rain out, pd_effect)
+    if ((!pd_mode() && !g_kg_skip && !g_rw_fx_only) || !pd_init() || !map) { ro_water_draw(o); return; }
     ee_rasterizer *ras = rasterizer();
     uint32_t sc = (uint32_t)screen_index();
     float ref = g_pd.get_ref(ras, sc);
