@@ -1,15 +1,29 @@
-// a formation holding for a fight (the player, 2026-11-19: halberdiers "walking in place" while their formation's hand
-// cannoneers shot a Town Center): Continental (seed 101, start_epoch 8), 10 hand cannoneers and 15 halberdiers of P2
-// at 35,44 attack-moved in formation 45 tiles east to 80,44, past a Town Center of P3 8 tiles off their way at 57,52 -
-// the cannoneers (range 8) take it on, the formation holds while they fight, and the halberdiers, the building too far
-// from the formation to close in on, keep their places. `fmove watch 1`: every unit each step (# fmwatch: speed, march
-// state, animation - 13 the walk, 7 and 8 standing); `fmove sum` says which unit is which type.
+// an attack-move formation past buildings (the player, 2026-11-19: halberdiers "walking in place" while their
+// formation's hand cannoneers shot a Town Center; "attack formations should not stop for buildings ideally, towers
+// being the sole exception, mele units should try help"): Continental (seed 101, start_epoch 8), 10 hand cannoneers
+// and 15 halberdiers of P1 (no AI orders them; at war with P3) at 35,44 attack-moved in formation 45 tiles east to
+// 80,44 - past P3's town by the start (its foundations at 33-39, 38-40) and a Town Center of P3 8 tiles off their way
+// at 50,52 (buildings that can't shoot: the march goes on), then an Imperial tower 7 tiles off at 66,51 (the
+// formation holds, the cannoneers (range 8) shoot it, the halberdiers close in on it). `fmove watch 1`: every unit
+// each step (# fmwatch: speed, march state, animation - 13 the walk, 7 and 8 standing); `fmove sum` says which unit
+// is which type; the pings the two buildings' hit points.
 wait_until(0.1min)
-spawn(2, unit.inf08_hand_cannoneer, 35, 42, 10)
-spawn(2, unit.inf08_halberdier, 35, 46, 15)
-spawn(3, unit.b_town_center, 57, 52, 1)
+diplo(1, 3, 1)
+diplo(3, 1, 1)
+spawn(1, unit.inf08_hand_cannoneer, 35, 42, 10)
+spawn(1, unit.inf08_halberdier, 35, 46, 15)
+let p3 = player(3)
+let tc = p3.spawn(unit.b_town_center, vec(50, 52), 1)
+let tower = p3.spawn(unit.b_guard_tower_imperial, vec(66, 51), 1)
 wait_until(0.3min)
 cmd("fmove watch 1")
-cmd("fmove go 2 35 44 6 80 44 0 0 1")
-wait_until(2.3min)
+cmd("fmove go 1 35 44 6 80 44 0 0 1")
+every(20s, 0.3min, 4.3min, (run) => {
+    let thp = 0
+    let whp = 0
+    if tc[1].alive { thp = tc[1].hp }
+    if tower[1].alive { whp = tower[1].hp }
+    ping("the Town Center {thp} hp, the tower {whp} hp")
+})
+wait_until(4.3min)
 cmd("fmove sum")

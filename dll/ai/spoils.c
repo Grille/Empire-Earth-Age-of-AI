@@ -7,7 +7,7 @@
 //   out, and its land fighters roam: in bands (units within SP_BAND tiles of each other), each band an attack-move to
 //   the nearest unit of anyone - no building - on its land within SP_HUNT tiles, else to a point SP_WANDER tiles off;
 //   again every SP_ROAM_MS while most of the band isn't fighting (the target moves, an old order is dropped). They
-//   fight units only: the auto-target search of a unit whose player is out takes no building (hook_target_ok: the
+//   fight units only: the auto-target search of a unit whose player is out takes no building (sp_target_skip: the
 //   candidate test 0x639993 says no) - they can't take on a town, and houses to hit would only bind them until
 //   someone clears them. Citizens, priests, ships and aircraft stay as they are.
 // - SP_HAND_MS later its buildings change hands (the units have left them by then): the damage it took in the last 10
@@ -50,14 +50,12 @@ internal int sp_roamer(ee_unit *u, ee_unit_type *td) {   // a land fighter of an
            unit_get_hp(u) > 0 && unit_get_x(u) >= 0;
 }
 
-// the candidate test of the auto-target search (unit_functions.target_ok): a unit of an out player takes no building
-internal char __thiscall hook_target_ok(ee_target_search *s, ee_unit *u) {
-    char ok = target_ok(s, u);
-    if (!ok || !g_spoils) return ok;
-    ee_player *pl = target_search_get_player(s);
-    if (!pl || !player_get_out(pl)) return ok;
+// the auto-target search's rule (game/world.c target_skip_add): a unit of an out player takes no building
+internal int sp_target_skip(ee_unit *me, ee_player *pl, ee_unit *u) {
+    (void)me;
+    if (!g_spoils || !pl || !player_get_out(pl)) return 0;
     ee_unit_type *td = unit_get_type_data(u);
-    return td && sp_building(unit_type_get_class_id(td)) ? 0 : ok;
+    return td && sp_building(unit_type_get_class_id(td));
 }
 
 // THE HANDOVER
@@ -297,6 +295,6 @@ internal void spoils_tick(void) {
 internal void spoils_new_game(void) { memset(g_sp, 0, sizeof g_sp); g_sp_roam_t = 0; g_sp_seen = 0; g_sp_last = 0; }
 internal void spoils_install(void) {
     g_spoils = g_set_ai[1].resign_spoils;
-    int of = 0, ok = patch_target_ok(hook_target_ok, &of);
+    int of = 0, ok = target_skip_add(sp_target_skip, &of);
     if (g_log) fprintf(g_log, "# spoils: %d (target hook %d/%d)\n", g_spoils, ok, of);
 }

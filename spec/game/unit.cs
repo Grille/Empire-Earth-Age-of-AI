@@ -1106,6 +1106,10 @@ unsafe struct EEHerd
 [c_type("ee_target_search")]
 unsafe struct EETargetSearch
 {
+    /// the unit searching (0x62EA64's first argument; AoC's 0x643E0A the same)
+    [offset(0x1C), found(c)]
+    EEUnit* unit;
+
     /// the player of the unit searching: target_ok skips its own and those it isn't at war with
     [offset(0x20), found(c)]
     EEPlayer* player;

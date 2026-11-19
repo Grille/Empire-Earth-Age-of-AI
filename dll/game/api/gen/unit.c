@@ -1048,6 +1048,10 @@ internal inline uint8_t *herd_births_at(const ee_herd *o) { return (uint8_t *)((
 // class EETargetSearch (ee_target_search)
 // the auto-target search's state: 0x62E99D's local, filled by 0x62EA64 (AoC's the same), that target_ok and the
 // scorer 0x6399CA run on
+// the unit searching (0x62EA64's first argument; AoC's 0x643E0A the same)
+internal inline ee_unit *target_search_get_unit(const ee_target_search *o) { return *(ee_unit **)((uint8_t *)o + of_target_search_unit); }
+internal inline void target_search_set_unit(ee_target_search *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_target_search_unit) = v; }
+internal inline ee_unit **target_search_unit_at(const ee_target_search *o) { return (ee_unit **)((uint8_t *)o + of_target_search_unit); }
 // the player of the unit searching: target_ok skips its own and those it isn't at war with
 internal inline ee_player *target_search_get_player(const ee_target_search *o) { return *(ee_player **)((uint8_t *)o + of_target_search_player); }
 internal inline void target_search_set_player(ee_target_search *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_target_search_player) = v; }
@@ -1458,6 +1462,7 @@ internal int spec_unit_select(int build) {
         of_herd_members_end = 0x7C;
         of_herd_size = 0xF0;
         of_herd_births = 0xF8;
+        of_target_search_unit = 0x1C;
         of_target_search_player = 0x20;
         fn_target_ok = (target_ok_fn)0x00639993;
         calls_target_ok[0] = 0x00639918;
@@ -1760,6 +1765,7 @@ internal int spec_unit_select(int build) {
         of_herd_members_end = 0x7C;
         of_herd_size = 0xF0;
         of_herd_births = 0xF8;
+        of_target_search_unit = 0x1C;
         of_target_search_player = 0x20;
         fn_target_ok = (target_ok_fn)0x0064FFCA;
         calls_target_ok[0] = 0x0064FF4F;

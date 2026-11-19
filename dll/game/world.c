@@ -41,6 +41,33 @@ internal uint32_t game_time(void) {
     ee_physics *clock = game_physics();
     return clock ? physics_get_time(clock) : 0;
 }
+
+// WHAT A UNIT TAKES ON BY ITSELF: the auto-target search's candidate test (unit_functions.target_ok - a unit's idle scan,
+// an attack-move's look) with rules that strike a candidate out, from parts that can't call each other (ai/spoils.c:
+// a resigned player's units take no building; engine/groupmove.c: an attack-move formation on its march takes no
+// building that can't attack). One hook over the test's call sites, the rules asked in turn
+typedef int (*target_skip_fn)(ee_unit *searcher, ee_player *pl, ee_unit *cand);
+#define TARGET_SKIPS 4
+internal target_skip_fn g_target_skips[TARGET_SKIPS];
+internal int g_target_skip_n, g_target_hooked, g_target_sites;
+internal char __thiscall hook_target_ok(ee_target_search *s, ee_unit *u) {
+    char ok = target_ok(s, u);
+    if (!ok) return ok;
+    ee_unit *me = target_search_get_unit(s);
+    ee_player *pl = target_search_get_player(s);
+    for (int i = 0; i < g_target_skip_n; i++)
+        if (g_target_skips[i](me, pl, u)) return 0;
+    return ok;
+}
+// a rule added (at install: once per process); the hook put in with the first. Its call sites patched, *of of them
+internal int target_skip_add(target_skip_fn f, int *of) {
+    int known = 0;
+    for (int i = 0; i < g_target_skip_n; i++) known |= g_target_skips[i] == f;
+    if (!known && g_target_skip_n < TARGET_SKIPS) g_target_skips[g_target_skip_n++] = f;
+    if (!g_target_sites) g_target_hooked = patch_target_ok(hook_target_ok, &g_target_sites);
+    if (of) *of = g_target_sites;
+    return g_target_hooked;
+}
 // games begun (eeaimod.c's new game counts them): what the render thread keeps of one game's map - the ground's heights
 // (engine/collect_ground.c), the bent objects (render_units.c) - made anew after it
 internal volatile LONG g_game_starts;

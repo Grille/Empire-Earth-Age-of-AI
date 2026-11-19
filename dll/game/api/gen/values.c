@@ -3612,6 +3612,7 @@ internal uint32_t of_herd_members_begin;
 internal uint32_t of_herd_members_end;
 internal uint32_t of_herd_size;
 internal uint32_t of_herd_births;
+internal uint32_t of_target_search_unit;
 internal uint32_t of_target_search_player;
 internal uint32_t calls_target_ok[4];
 internal uint32_t calls_citizen_next_resource[2];
