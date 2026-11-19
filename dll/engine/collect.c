@@ -69,7 +69,7 @@ internal LONGLONG g_uc_walked_at;          // the copy of the last walk, its alp
 internal float g_uc_walked_alpha = 1.0f;
 internal ee_unit *g_uc_last_picked;        // the unit under the mouse of the last full update (only compared)
 internal uint32_t g_uc_walk_gen;
-internal LONG g_uc_during_walks;
+internal LONG g_uc_during_walks, g_uc_during_clipped;   // ... and those whose rows went past the copy (collect_walk)
 internal inline int uc_in_group(const uc_obj *o, ee_player *me, ee_unit *cu) {
     return g_uc_during ? o->in_group : group_contains(player_get_ui_group(me), cu);
 }
@@ -1569,8 +1569,21 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
         pick_list_reset(picker);
     }
     uint32_t dopp = 0;
-    uc_copy *c = during ? (by0 <= by1 && cp_fits(g_uc_during_c, map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) ? g_uc_during_c : NULL)
-                        : by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
+    // During a step the copy is the last step's, made for the last walk's rows, and the rows here are widened toward the
+    // sun by the shadows' reach (render_shadows.c shr_hook_rows): when the light swings round - the sun handed to the moon
+    // at dusk, a step of the morning light - so do they, past the copy. Refused, nothing was walked and the units' lists
+    // stood empty: everything but the ground gone for a frame (the player 2026-11-19: "when switching from day to night or
+    // night to day evrething flickers out once", worse in a busy game; logged in his game: 243 rows, then 338 the next
+    // frame, the copy refused). So such a frame walks what of its rows the copy holds (collect_during_begin made sure it
+    // holds the screen's): only casters off the screen are missing, for a frame.
+    uc_copy *c = NULL;
+    if (during && by0 <= by1) {
+        uc_copy *d = g_uc_during_c;
+        long cx0 = bx0 > d->x0 ? bx0 : d->x0, cy0 = by0 > d->y0 ? by0 : d->y0;
+        long cx1 = bx1 < d->x0 + d->w - 1 ? bx1 : d->x0 + d->w - 1, cy1 = by1 < d->y0 + d->h - 1 ? by1 : d->y0 + d->h - 1;
+        if (cx0 <= cx1 && cy0 <= cy1 && cp_fits(d, map, pl, (int)cx0, (int)cy0, (int)cx1, (int)cy1)) c = d;
+        if (c && (cx0 != bx0 || cy0 != by0 || cx1 != bx1 || cy1 != by1)) g_uc_during_clipped++;
+    } else if (!during && by0 <= by1) c = cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1);
     g_uc_show = -1.0;
     if (c && g_cp_smooth == 1 && g_cp_cs_ok) pt_clock(), g_uc_show = g_pt_show_ms;
     g_uc_clock = c ? c->clock : -1.0;   // the corpses' clock (uc_dead_ms)
@@ -1579,6 +1592,9 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;
         w.row(mesh, r, &y, &x0, &x1);
+        if (y < c->y0 || y >= c->y0 + c->h) continue;   // (a frame during a step: its rows clipped to the copy, above)
+        if (x0 < c->x0) x0 = c->x0;
+        if (x1 > c->x0 + c->w - 1) x1 = c->x0 + c->w - 1;
         for (long x = x0; x <= x1; x++) {
             uc_ctile *ct = &c->tiles[(uint32_t)((y - c->y0) * c->w + (x - c->x0))];
             if (!ct->t || (!ct->explored && !free_cam)) continue;
@@ -1663,13 +1679,9 @@ internal void picker_grow(void) {
 // Not with the editor's free camera; godmode and godview do run it (the copy is made for their sight, cp_fits) - left
 // out with the free camera since e5030573, their units stood during each step and jumped at its end (the player
 // 2026-11-19: "unit position interpolation dosnt work in godview").
-// The copy is held against the rows the walk will read now, not the last walk's view: the game's light changing (the sun
-// handed to the moon at dusk, a step of the morning light) makes the terrain's update relight the map and lay its rows
-// anew at once (the ground pass forced, EE 0x503A7F) - after the frame's walk, wider than its view (made, it seems, under
-// the camera pulled back for the ground: rd_hook_ro_terrain_update). The next frame during a step found the copy too small for them and walked nothing: its units' pass empty,
-// everything but the ground gone for a frame (the player 2026-11-19: "when switching from day to night or night to day
-// evrething flickers out once", worse in a busy game; logged in his game: 243 rows, then 338, the copy refused). Now
-// such a frame leaves the update out and draws the last lists.
+// The copy is held against the screen's rows as they are now (the game's, before the shadows widen them): what doesn't
+// cover those leaves the update out, the last lists drawn. The rows the walk reads are wider - toward the sun, by the
+// shadows' reach (render_shadows.c shr_hook_rows) - and swing round with the light: see collect_walk.
 internal void uc_rows_box(const ee_map *map, long *b) {
     const void *mesh = map_mesh_at(map);
     unsigned long n = vr_rows(mesh);
@@ -1819,7 +1831,7 @@ internal int collect_effects_mode(int how) {
 // picture collect during off | on [ms] (ms: the hand-off's wait while such updates run, render_3d.c)
 internal int collect_during_mode(int on, int ms) {
     if (!g_uc_installed || !g_uc_during_ok) return -1;
-    g_uc_during_walks = 0;
+    g_uc_during_walks = g_uc_during_clipped = 0;
     g_uc_during_on = on;
     g_rwl_during_handoff = on ? ms : 0;
     return 0;
@@ -1913,7 +1925,7 @@ internal void collect_print(void) {
                g_cp_on == 2 ? "check" : g_cp_on ? "on" : "off", (long)steps, steps ? (double)g_cp_step_qpc / rd_qpc_ms(1) / steps : 0.0,
                (long)g_cp_objs, (long)g_cp_skips, (long)frames, frames ? (double)g_cp_frame_qpc / rd_qpc_ms(1) / frames : 0.0, (long)g_cp_stales,
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
-    if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far\n", (long)g_uc_during_walks);
+    if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far, %ld of them with rows past the copy (walked within it)\n", (long)g_uc_during_walks, (long)g_uc_during_clipped);
     if (g_fx_on)
         log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects, %ld finished ones passed over, %ld whose Queue remakes their own list, %s),%ld taken by frames during a step; checked %ld, %ld differ\n",
                    g_fx_on == 2 ? "check" : "on", (long)g_fx_builds, g_fx_builds ? (double)g_fx_qpc / rd_qpc_ms(1) / g_fx_builds : 0.0,
