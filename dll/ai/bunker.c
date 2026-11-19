@@ -80,6 +80,22 @@ internal int bk_unload(ee_unit *f) {
     return g ? unit_goal(f, g, 0, 0x1F40) : 0;
 }
 
+// LET OUT FEW ([ai_base] stash_let_out_few; the player 2026-11-19: "units can be selectively orderd out of a fortress ...
+// that might makes balancing them esier if not 40 watever drop out when someone isnide is needed"): up to n of the
+// units inside f out one at a time, at once beside it (unit_let_out: the click on a held unit's icon), the last in
+// first - no unload order, so no side of the fortress the game can't put them on (bk_unload). The number let out: it
+// stops at the first refused (a Fortress at the population cap)
+internal int g_let_few = 0, g_v_let_few = -1;
+#define LET_FEW(idx) PV(idx, g_v_let_few, g_let_few)
+internal int bk_let_out(ee_unit *f, int n) {
+    int out = 0;
+    for (int i = unit_inside_n(f) - 1; i >= 0 && out < n; i--) {   // from the end: one let out shifts only those after it
+        if (!unit_let_out(f, unit_inside_get(f, i))) break;
+        out++;
+    }
+    return out;
+}
+
 // bunker P x y [r]: P's fortresses within r (10) of x,y and what they hold; bunker P x y r load: they load P's citizens
 // there (up to their capacity); bunker P x y r unload: they let everyone out beside them; bunker P x y r out1: each
 // lets its last one out alone (unit_let_out, the click on a held unit's icon) (tests)
@@ -386,6 +402,31 @@ internal void bunker_reserve(ee_player *pl, int *reserve) {
     if (g_bunkers && pl) reserve[3] += g_bk[(unsigned)player_get_index(pl) & 15].need_wood;
 }
 
+// LET OUT FEW: n units out of the fortresses of one kind (store 1 the shelf's, 2 the reserve's) - the nearest to *at
+// first, else the fullest; none with enemy soldiers within r tiles (0: no look). The number let out; *from the last
+// fortress one came out of
+internal int bk_let_out_of(ee_player *pl, unsigned pi, int store, int n, int r, const ivec2 *at, ee_unit **from) {
+    uint8_t tried[BK_MAX] = { 0 };
+    int out = 0;
+    while (out < n) {
+        int best = -1, bd = 0;
+        for (int k = 0; k < g_bk[pi].nf; k++) {
+            ee_unit *fo = g_bk[pi].f[k];
+            int h = bk_held(fo);
+            if (tried[k] || g_bk[pi].store[k] != store || h <= 0 || (r > 0 && raiders_near(pl, unit_get_tile(fo), r))) continue;
+            int d = at ? ivec2_dist2(unit_get_tile(fo), *at) : -h;
+            if (best < 0 || d < bd) { best = k; bd = d; }
+        }
+        if (best < 0) break;
+        tried[best] = 1;
+        int got = bk_let_out(g_bk[pi].f[best], n - out);
+        if (got > 0 && from) *from = g_bk[pi].f[best];
+        out += got;
+        if (got > 0 && bk_room(pl) <= 0) break;   // the map full: the next would be refused too
+    }
+    return out;
+}
+
 // RESERVE ([ai_base] bunker_reserve, a mask of players, default all; the playtester: "another use is to amass units at
 // lower population limits, so losses can immediately be drawn from them"): units in a fortress don't count toward
 // the population (0x556E11 adds them only when asked: (x, 1); the training's room uses (1, 0)). Every 10 s: with the
@@ -606,6 +647,16 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     int pool = GAME_AI(pi) ? 0 : wk_pool(pi, sp), plenty = pool > 0, rich = shelf_rich(st, g_shelve_stock);
     if (shelf_held(pi) <= 0 && !plenty) g_shelf[pi].plenty = 0;
     if (GAME_AI(pi) ? !shelf_rich(st, g_shelve_stock / 2) || out < keep * 3 / 4 : pool <= -5) {   // out again: the fullest of the shelf's, if quiet
+        if (!GAME_AI(pi) && LET_FEW(pi)) {   // LET OUT FEW: as many as the work is short of (20 a look at most)
+            ee_unit *fo = NULL;
+            int want = -pool > 20 ? 20 : -pool, got = bk_let_out_of(pl, pi, 1, want, 15, NULL, &fo);
+            for (int k = 0; k < g_bk[pi].nf; k++) if (g_bk[pi].store[k] == 1 && bk_held(g_bk[pi].f[k]) <= 0 && !g_bk[pi].walk[k]) g_bk[pi].store[k] = 0;
+            if (!got) return;
+            g_shelf[pi].out += (unsigned)got;
+            if (g_log) fprintf(g_log, "# shelf: P%u at %.1f min: %d citizens out, one at a time (the work %d short; the last from the fortress at %d,%d; %u in, %u out so far)\n",
+                               pi, now / 60000.0, got, -pool, unit_get_x(fo), unit_get_y(fo), g_shelf[pi].in, g_shelf[pi].out);
+            return;
+        }
         int best = -1, held = 0;
         for (int k = 0; k < g_bk[pi].nf; k++) {
             ee_unit *fo = g_bk[pi].f[k];
@@ -633,7 +684,17 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
             if (g_bk[pi].store[k] == 2 && h > 0) sold = 1;
             if (g_bk[pi].store[k] == 1 && h > oh && h + 5 <= room && !raiders_near(pl, unit_get_tile(g_bk[pi].f[k]), 15)) { oh = h; ob = k; }
         }
-        if (!sold && ob >= 0) {
+        if (!sold && LET_FEW(pi) && room > 5) {   // LET OUT FEW: as many as the map has room for (5 places kept, 20 a look at most)
+            ee_unit *fo = NULL;
+            int got = bk_let_out_of(pl, pi, 1, room - 5 > 20 ? 20 : room - 5, 15, NULL, &fo);
+            for (int k = 0; k < g_bk[pi].nf; k++) if (g_bk[pi].store[k] == 1 && bk_held(g_bk[pi].f[k]) <= 0 && !g_bk[pi].walk[k]) g_bk[pi].store[k] = 0;   // empty: an ordinary fortress again
+            if (got) {
+                g_shelf[pi].out += (unsigned)got;
+                if (g_log) fprintf(g_log, "# shelf: P%u at %.1f min: room %d - %d citizens out, one at a time (the last from the fortress at %d,%d; %u in, %u out so far)\n",
+                                   pi, now / 60000.0, room, got, unit_get_x(fo), unit_get_y(fo), g_shelf[pi].in, g_shelf[pi].out);
+                return;
+            }
+        } else if (!sold && ob >= 0) {
             if (bk_unload(g_bk[pi].f[ob])) {
                 g_shelf[pi].out += (unsigned)oh;
                 if (g_log) fprintf(g_log, "# shelf: P%u at %.1f min: room %d - %d citizens out of the fortress at %d,%d: the map has room for them (%u in, %u out so far)\n",

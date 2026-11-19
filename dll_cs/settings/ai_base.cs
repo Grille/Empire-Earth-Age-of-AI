@@ -255,6 +255,12 @@ class ai_base
         bool shelve_citizens = true;
         [advanced, range(500, 1000000)]
         int shelve_stock = 5000;
+        /// ... let out only as many as are wanted, one unit at a time (as a click on a held unit's icon does): the
+        /// reserve as many soldiers as the room on the map or a territory under attack wants, the shelf as many citizens
+        /// as the work is short of or the map has room for - instead of a whole fortress (up to 40) at once (the game's
+        /// computer player off). 0 = off
+        [advanced]
+        bool stash_let_out_few = false;
         /// Settlement upgrades: spare citizens (idle once the AI trains no more or its food keeps every producer training, or wood cutters while the wood stock is over 5000) go into a Settlement by
         /// metal mines - 5 make it a Town Center -, then into the Town Center with the most metal mines near it - 10 more make
         /// it a Capitol, which takes up to 50. Each citizen inside adds to the stone, gold and iron dropped there from mines

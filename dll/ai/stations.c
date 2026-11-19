@@ -1559,7 +1559,22 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 int d = hard_r >= 0 ? ivec2_dist2(unit_get_tile(fo), g_ter.t[hard_r].c) : -bk_held(fo);
                 if (ob < 0 || d < od) { ob = k; od = d; }
             }
-        if (ob >= 0) {
+        if (LET_FEW(idx) && (hard_r >= 0 || (room > SN_RES_ROOM + SN_RES_BATCH && quiet_in))) {
+            // LET OUT FEW (bunker.c): as many as are wanted, one at a time - for a territory under attack what its soldiers
+            // lack to SN_RES_ODDS to one (SN_RES_BATCH at least), the nearest Fortress first; for room what the map
+            // holds beyond SN_RES_ROOM + SN_RES_BATCH, the fullest first
+            int want = hard_r >= 0 ? fn[hard_r] * SN_RES_ODDS - ac[hard_r] : room - SN_RES_ROOM - SN_RES_BATCH;
+            if (hard_r >= 0 && want < SN_RES_BATCH) want = SN_RES_BATCH;
+            if (want > SN_RES_LOOK) want = SN_RES_LOOK;
+            ee_unit *fo = NULL;
+            int got = bk_let_out_of(pl, idx, 2, want, 0, hard_r >= 0 ? &g_ter.t[hard_r].c : NULL, &fo);
+            if (got > 0) {
+                z->res_out += (unsigned)got;
+                z->res_out_t = now ? now : 1;
+                if (g_log) log_locked("# reserve: P%u at %.1f min: room %d%s - %d soldiers out, one at a time (%d wanted; the last from the fortress at %d,%d; %u in, %u out so far)\n", idx, now / 60000.0, room,
+                                      hard_r >= 0 ? ", enemy soldiers in a territory of its" : "", got, want, unit_get_x(fo), unit_get_y(fo), z->res_in, z->res_out);
+            }
+        } else if (ob >= 0) {
             ee_unit *fo = g_bk[idx].f[ob];
             int held = bk_held(fo);
             if (bk_unload(fo)) {
