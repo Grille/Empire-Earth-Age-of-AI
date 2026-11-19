@@ -81,26 +81,53 @@ internal uint8_t __thiscall hook_pick_listed(void *p, ee_unit *u) {
 typedef void (__thiscall *ts_lock_fn)(void *cs);
 internal ts_lock_fn g_ts_enter, g_ts_leave;
 internal dmg_model_acquire_fn g_acquire;   // the game's
+// the one hook of acquire: the user more counted directly (draw_many_units), and a wall's graphics finished as they
+// load (walls.c PART OF THE MESH: its skirts made after the game's load by its first user, every other asking for it
+// meanwhile waits here - as the game's own wait while it loads)
+#define AQ_BUSY 8
+internal ee_dmg_model *g_aq_busy[AQ_BUSY];   // graphics being finished (under the graphics lock)
+internal int g_aq_fast, g_aq_walls;
+internal int ws_gfx_wall(ee_dmg_model *g, int *t, ee_player **pl);   // walls.c
+internal void ws_gfx_loaded(ee_dmg_model *g, int t, ee_player *pl);
 internal int __thiscall hook_acquire(ee_dmg_model *g) {
     void *cs = graphics_lock();
-    if (cs) {
+    if (!cs) return g_acquire(g);
+    for (;;) {
         g_ts_enter(cs);
+        int busy = 0;
+        for (int i = 0; i < AQ_BUSY; i++) busy |= g_aq_busy[i] == g;
+        if (busy) { g_ts_leave(cs); Sleep(1); continue; }
         int users = dmg_model_get_users(g);
-        if (users && !dmg_model_get_loading(g)) {
+        if (g_aq_fast && users && !dmg_model_get_loading(g)) {
             dmg_model_set_users(g, users + 1);
             g_ts_leave(cs);
             return 0;
         }
+        int slot = -1, t = 0;
+        ee_player *pl = NULL;
+        if (!users && g_aq_walls && ws_gfx_wall(g, &t, &pl))
+            for (int i = 0; i < AQ_BUSY && slot < 0; i++) if (!g_aq_busy[i]) { g_aq_busy[i] = g; slot = i; }
         g_ts_leave(cs);
+        int r = g_acquire(g);
+        if (slot >= 0) {
+            ws_gfx_loaded(g, t, pl);
+            g_ts_enter(cs);
+            g_aq_busy[slot] = NULL;
+            g_ts_leave(cs);
+        }
+        return r;
     }
-    return g_acquire(g);
 }
 internal void draw_many_install(void) {
-    if (!g_set.draw_many_units) { if (g_log) fprintf(g_log, "# draw many units: off\n"); return; }
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
     g_ts_enter = lle ? (ts_lock_fn)(void *)GetProcAddress(lle, "?Enter@TSCriticalSection@@QAEXXZ") : NULL;
     g_ts_leave = lle ? (ts_lock_fn)(void *)GetProcAddress(lle, "?Leave@TSCriticalSection@@QAEXXZ") : NULL;
-    int a = patch_pick_listed(hook_pick_listed), b = g_ts_enter && g_ts_leave && patch_acquire(hook_acquire, &g_acquire);
+    g_aq_fast = g_set.draw_many_units;
+    g_aq_walls = g_set.wall_slopes;   // walls.c PART OF THE MESH
+    int b = (g_aq_fast || g_aq_walls) && g_ts_enter && g_ts_leave && patch_acquire(hook_acquire, &g_acquire);
+    if (g_aq_walls && g_log) fprintf(g_log, "# walls: skirts made as a wall's graphics load - acquire %s\n", b ? "hooked" : "NOT hooked: no skirts");
+    if (!g_set.draw_many_units) { if (g_log) fprintf(g_log, "# draw many units: off\n"); return; }
+    int a = patch_pick_listed(hook_pick_listed);
     if (g_log) fprintf(g_log, "# draw many units: the list's search %s, acquire %s\n", a ? "hooked" : "NOT hooked (exe differs)",
                        b ? "hooked" : "NOT hooked (exe differs)");
 }

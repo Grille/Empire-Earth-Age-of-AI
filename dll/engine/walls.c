@@ -35,13 +35,19 @@ internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_
 internal ee_dmg_model *g_ws_gfx[WS_GFX_MAX];   // the graphics the fit took a user of this game (one each, kept)
 internal int g_ws_gfx_n;
 
-// a user of the wall's graphics, once a game: their models loaded and kept while the game runs
+// a user of the wall's graphics, once a game: their models loaded and kept while the game runs. The fit's (simulation
+// thread) and a wall's load's (PART OF THE MESH: whichever thread loads it) - the list under its own lock, never held
+// through the acquire (one waiting there for a wall being finished, the finishing one waiting for the list)
+internal CRITICAL_SECTION g_ws_gfx_cs;
 internal void ws_acquire(ee_dmg_model *gfx) {
-    for (int i = 0; i < g_ws_gfx_n; i++) if (g_ws_gfx[i] == gfx) return;
-    if (g_ws_gfx_n >= WS_GFX_MAX) return;
-    g_ws_gfx[g_ws_gfx_n++] = gfx;
+    EnterCriticalSection(&g_ws_gfx_cs);
+    int have = g_ws_gfx_n >= WS_GFX_MAX;
+    for (int i = 0; i < g_ws_gfx_n && !have; i++) have = g_ws_gfx[i] == gfx;
+    if (!have) g_ws_gfx[g_ws_gfx_n++] = gfx;
+    LeaveCriticalSection(&g_ws_gfx_cs);
+    if (have) return;
     int r = dmg_model_acquire(gfx);
-    if (g_log) fprintf(g_log, "# walls: the graphics %p loaded for the fit (%d)\n", (void *)gfx, r);
+    log_locked("# walls: the graphics %p loaded for the fit (%d)\n", (void *)gfx, r);
 }
 
 // a piece's model by its animation (a sloped one's: the plain one's). Its graphics', not the one it is drawn with:
@@ -77,30 +83,27 @@ internal ee_model *ws_model(ee_dmg_model *gfx, int anim) {
 // era): each material a run of its vertices and of each level of detail's triangles, indices counted from the run's
 // first (spec GEMaterial) - its arrays made anew larger by the display DLL (DX7Rasterizer.create_vertex_array,
 // create_polygon_array), each material's run followed by its skirt. The renderer copies a material's vertices into
-// its vertex buffer every time it draws it (CopyStdVertices), so the new arrays are drawn from the next frame on.
-// The graphics thread draws the models while the simulation runs: the fit (simulation thread) asks for the skirt
-// (ws_skirt_want, with the tower's model), the model's draw (DrawModelHierarchy, hooked in both display DLLs) makes
-// it before drawing it, on the one thread that reads a model's arrays. The old arrays stay (other code may hold them;
-// a few KB a model). Only the picture: the pieces' places and the game state are the fit's.
+// its vertex buffer every time it draws it (CopyStdVertices).
+// PART OF THE MESH (the player 2026-11-19: "shouldnt they just be part of the wall mesh?"): the skirt is made as the
+// wall's graphics load (EEGraphicObject.acquire, its first user: drawlist.c's hook, the others asking for it waiting
+// meanwhile as the game's own wait while it loads - ws_gfx_loaded), so no one has drawn or kept a piece's model
+// before it has its skirt. It was made at the model's first draw, asked for by the fit: a model that changed its
+// shape in a running game, and the units' kept records and copies (render_units.c) made before held the old arrays -
+// a test game crashed reading past one at its fourth skirt (2026-11-19, render_morph.c mo_run_of). The arrays come
+// from the active rasterizer, as the engine's own load takes them. The old arrays stay (a few KB a model). Only the
+// picture: the pieces' places and the game state are the fit's.
 #define WS_SKIRT 1.0f            // how far below its bottom a model reaches
 #define WS_SKIRT_EDGE 0.02f      // a vertex this close above the mesh's lowest point is on its bottom
-#define WS_SKIRT_MODELS 64
 #define WS_TOWER_ANIMS 16        // a tower's graphics: its first model among these animations (its idle ones)
 #define WS_UV_MARGIN 0.008f      // a bottom edge's texture coordinates at least this far inside the sheet (2 texels of 256)
-struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
-internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
-internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
-// a skirt is asked for: made at its model's next draw through the display DLL (render_units.c's kept records skip that
-// draw: none kept meanwhile)
-internal int ws_skirts_asked(void) { return g_ws_sk_asked > 0; }
+typedef ee_rasterizer *(__cdecl *ws_active_ras_fn)(void);
+internal ws_active_ras_fn g_ws_active_ras;   // GERasterizer::GetActiveRasterizer (Low-Level Engine.dll)
 internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
-internal int g_ws_draw_hooks;
 
 // the tower of a wall's era (UT_WALL_LINE's i-th is UT_TOWER_LINE's i+1-th: the towers start in the Stone Age), from
-// the wall's owner's graphics of it - held for the game as the wall's are, also when the models are there already: the
-// skirt reads it at the wall's next draw, and a graphics' last user going frees its models (dmg_model.release) - the
-// last tower of the era gone, or its last fog-of-war copy, and that draw called through a freed vertex array (the
-// player's game, 2026-11-15: a pure virtual call from ws_model_ok at 84.6 min); NULL for barbed wire and any wall of no line
+// the wall's player's graphics of it - loaded for the skirt and held for the game as the wall's are (a graphics' last
+// user going frees its models, dmg_model.release: the skirt read at the wall's draw once called through a freed
+// vertex array, the player's game 2026-11-15); NULL for barbed wire and any wall of no line
 internal ee_model *ws_tower_model(int t, ee_player *pl) {
     static const enum ut_name walls[] = { UT_WALL_LINE }, towers[] = { UT_TOWER_LINE };
     for (int i = 0; i < (int)(sizeof walls / sizeof *walls); i++) {
@@ -118,25 +121,45 @@ internal ee_model *ws_tower_model(int t, ee_player *pl) {
     return NULL;
 }
 
-// the fit's model: its skirt made at its next draw (the simulation thread; the draw reads g_ws_sk[0 .. g_ws_sk_n))
-internal void ws_skirt_want(ee_model *m, ee_model *tower) {
-    if (!m || !tower || !g_ws_draw_hooks) return;
-    LONG n = g_ws_sk_n;
-    for (LONG i = 0; i < n; i++) {
-        struct ws_skirt *s = &g_ws_sk[i];
-        if (s->m != m) continue;
-        // a model loaded anew where one was (the graphics freed and loaded again): not the arrays it was given
-        if (s->state && model_get_frames(m) && model_get_vertices(m) && model_get_vertices(m)[0] != s->va) {
-            s->tower = tower;
-            s->state = 0;
-            InterlockedIncrement(&g_ws_sk_asked);
+// PART OF THE MESH: g a wall's graphics of a line with a tower (barbed wire: none) - *t its type, *pl a player whose
+// it is. Read under the graphics lock (drawlist.c), at a graphics' first load only
+internal int ws_gfx_wall(ee_dmg_model *g, int *t, ee_player **pl) {
+    static const enum ut_name walls[] = { UT_WALL_LINE };
+    ee_player **ps = game_players();
+    for (unsigned p = 1, np = game_player_count(); ps && p < np && p < 16; p++) {
+        ee_player *o = ps[p];
+        if (!o) continue;
+        for (int i = 0; i < (int)(sizeof walls / sizeof *walls); i++) {
+            int w = g_ut[walls[i]];
+            if (w < 0 || (unsigned)w >= type_stats_count(o)) continue;
+            ee_unit_stats **sp = type_stats(o, w), *st = sp ? *sp : NULL;
+            if (st && unit_stats_get_gfx(st) == g) { *t = w; *pl = o; return 1; }
         }
-        return;
     }
-    if (n >= WS_SKIRT_MODELS) return;
-    g_ws_sk[n] = (struct ws_skirt){ m, tower, NULL, 0 };
-    InterlockedIncrement(&g_ws_sk_asked);
-    InterlockedExchange(&g_ws_sk_n, n + 1);
+    return 0;
+}
+// PART OF THE MESH: a wall's graphics just loaded (drawlist.c's acquire hook, the others asking for it waiting): the
+// models its pieces are drawn with (the straight, the diagonal, the post) skirted
+internal unsigned g_ws_skirted, g_ws_unskirted;
+internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, unsigned *edges_out);
+internal void ws_gfx_loaded(ee_dmg_model *g, int t, ee_player *pl) {
+    static const int anims[3] = { WS_STRAIGHT, WS_DIAG, WS_POST };
+    ee_model **am = (ee_model **)dmg_model_anim_model_at(g);
+    ee_rasterizer *ras = g_ws_active_ras ? g_ws_active_ras() : NULL;
+    ee_model *tower = ws_tower_model(t, pl);
+    for (int a = 0; a < 3; a++) {
+        ee_model *m = am[anims[a]];
+        int seen = 0;
+        for (int b = 0; b < a; b++) seen |= am[anims[b]] == m;
+        if (!m || seen) continue;
+        unsigned edges = 0;
+        int r = ras && tower ? ws_skirt_make(ras, m, tower, &edges) : -1;
+        if (r > 0) g_ws_skirted++; else g_ws_unskirted++;
+        log_locked("# walls: model %p of type %d %s (%u bottom edges, %u vertices, %u materials, %u lods; tower %p) as it loaded\n", (void *)m, t,
+                   r == 2 ? "skirted with its tower's foundation" : r == 1 ? "skirted with its own bottom row (no material with its tower's texture)" :
+                   r == 0 ? "has no bottom edge" : !ras ? "NOT skirted: no active rasterizer" : !tower ? "NOT skirted: no tower" : "CAN'T be skirted", edges,
+                   model_get_vertex_count(m), model_get_material_count(m), model_get_lods(m), (void *)tower);
+    }
 }
 
 // a texture coordinate on (or a hair over) the sheet's border drawn inside it: the sheets wrap, so the filtering at
@@ -436,30 +459,11 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uns
     return r;
 }
 
-// a model drawn: its skirt first if the fit asked for it
-internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m) {
-    LONG n = g_ws_sk_n;
-    for (LONG i = 0; i < n; i++) {
-        struct ws_skirt *s = &g_ws_sk[i];
-        if (s->m != m || s->state) continue;
-        unsigned edges = 0;
-        int r = ws_skirt_make(ras, m, s->tower, &edges);
-        s->va = model_get_frames(m) && model_get_vertices(m) ? model_get_vertices(m)[0] : NULL;
-        s->state = r >= 0 ? 1 : 2;
-        InterlockedDecrement(&g_ws_sk_asked);
-        log_locked("# walls: model %p %s (%u bottom edges, %u vertices, %u materials, %u lods; tower %p)\n", (void *)m,
-                   r == 2 ? "skirted with its tower's foundation" : r == 1 ? "skirted with its own bottom row (no material with its tower's texture)" :
-                   r == 0 ? "has no bottom edge" : "CAN'T be skirted", edges,
-                   model_get_vertex_count(m), model_get_material_count(m), model_get_lods(m), (void *)s->tower);
-        return;
-    }
-}
 // BENT OBJECTS (building_lean): an ambient object's or a resource site's model bent onto the ground where it is drawn (bl_bend below)
 internal volatile LONG g_bl_n;
 internal ee_vertices *bl_bend(ee_model *m, int *decal);
 internal void bl_unbend(ee_vertices *a);
 internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
-    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
     int decal = g_in_rec ? g_in_rec->decal : 0;   // (render_units.c's record: its bent copy kept, bent here no more)
     ee_vertices *b = g_bl_n && !g_in_rec ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
@@ -469,7 +473,6 @@ internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t scre
     return r;
 }
 internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
-    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
     int decal = g_in_rec ? g_in_rec->decal : 0;   // (render_units.c's record: its bent copy kept, bent here no more)
     ee_vertices *b = g_bl_n && !g_in_rec ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
@@ -486,8 +489,7 @@ internal void ws_display_loaded(int i, uintptr_t base) {
     if (!f || g_ws_draw[i]) return;
     g_ws_draw[i] = (rasterizer_draw_model_hierarchy_fn)f;
     int n = replace_rdata_ptr((HMODULE)base, f, i ? (void *)ws_hook_draw1 : (void *)ws_hook_draw0);
-    if (n) g_ws_draw_hooks++;
-    log_locked("# walls: skirts - %s's model draw %s\n", i ? "DX7HRTnLDisplay.dll" : "DX7HRDisplay.dll", n == 1 ? "hooked" : n ? "hooked (more than once)" : "NOT hooked");
+    log_locked("# walls: bent objects - %s's model draw %s\n", i ? "DX7HRTnLDisplay.dll" : "DX7HRDisplay.dll", n == 1 ? "hooked" : n ? "hooked (more than once)" : "NOT hooked");
 }
 internal void ws_display_loaded0(uintptr_t base) { ws_display_loaded(0, base); }
 internal void ws_display_loaded1(uintptr_t base) { ws_display_loaded(1, base); }
@@ -643,7 +645,6 @@ internal int ws_fit_piece(const struct ws_piece *p, float *m) {
     // the middle of its tile, not the matrix's: a piece's matrix is moved below, a fit again gives the same
     float px = (float)tx + 0.5f, py = (float)ty + 0.5f;
     ee_model *mdl = ws_model(p->gfx, anim);
-    ws_skirt_want(mdl, ws_tower_model(p->type, p->pl));
     if (anim == WS_POST) {
         float mid = ground_at(map, px, py);
         if (mid != mid) { g_ws_skipped++; return 0; }
@@ -1600,13 +1601,17 @@ internal void walls_safe_point(void) {
 }
 
 internal void walls_new_game(void) {
-    g_ws_fitted_game = 0; g_ws_gfx_n = 0; g_ws_laid_n = 0; g_wj_ev_n = 0;
+    EnterCriticalSection(&g_ws_gfx_cs);
+    g_ws_gfx_n = 0;
+    LeaveCriticalSection(&g_ws_gfx_cs);
+    g_ws_fitted_game = 0; g_ws_laid_n = 0; g_wj_ev_n = 0;
     g_ws_pieces = g_ws_posts = g_ws_unsloped = g_ws_skipped = g_ws_no_model = 0;
     g_wj_to_piece = g_wj_to_post = g_wj_gates = 0;
     memset(g_wc, 0, sizeof g_wc); memset(g_wc_pv, 0, sizeof g_wc_pv); g_wc_n = 0; InterlockedIncrement(&g_wc_gen);   // (a new map's tiles)
 }
 
 internal void walls_install(void) {
+    InitializeCriticalSection(&g_ws_gfx_cs);
     g_ws_on = g_set.wall_slopes;
     g_ws_start = g_set.wall_start_fit;
     g_wj_on = g_ws_on && g_set.wall_joins;
@@ -1622,7 +1627,10 @@ internal void walls_install(void) {
     int ed = patch_editor_frame(hook_editor_frame);   // whatever the walls say: the hills' shadows read it too (render_shadows.c)
     int df = g_bl_on || g_wj_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;
     if ((g_ws_on || g_bl_on) && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
-        fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");
+        fprintf(g_log, "# walls: bent objects - the display DLLs' loads not watchable\n");
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");   // PART OF THE MESH: the skirts' arrays
+    g_ws_active_ras = lle ? (ws_active_ras_fn)(void *)GetProcAddress(lle, "?GetActiveRasterizer@GERasterizer@@SAPAV1@XZ") : NULL;
+    if (g_ws_on && !g_ws_active_ras && g_log) fprintf(g_log, "# walls: skirts - the engine's active rasterizer NOT found: no skirts\n");
     if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d building_lean=%d (%s%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start, g_bl_on,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
                        !any ? "" : more == 1 + g_ws_on ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",

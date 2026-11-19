@@ -300,8 +300,8 @@ internal int ut_draw(float *at, void *rec) {
 // (a single pass: its fraction is in what keeps it) with its bent copy's vertices (render_units.c ub_get: looked up
 // at every draw before) and drawn so later; the states its draw sets are set as ud_draw sets them (the alpha test, the
 // depth's use, its player's colour into the materials). Not kept: a record with turned parts, a gate, a tint on its
-// model (its draw writes them into the shared models the walk reads), a building site, and while a wall's skirt is
-// asked for (walls.c: made at its model's next draw through the display DLL).
+// model (its draw writes them into the shared models the walk reads), a building site (a wall's skirt is part of its
+// model from its load: walls.c PART OF THE MESH).
 #define KT_SLOTS 65536       // the hash's (a tree's number + 1), at most half full
 #define KT_TREES 32768       // trees and records kept; full, it starts over
 #define KT_ALL_PARTS 65536   // their parts
@@ -481,9 +481,8 @@ internal int kt_draw(float *at, void *rec) {
     return 1;
 }
 // a record's entry kept (the THE RECORDS KEPT above): NULL when it isn't one to keep, or no room
-internal int ws_skirts_asked(void);   // walls.c
 internal kt_tree *kr_find(void *rec, ee_dmg_model *g, ee_model *m, int anim, const in_rec *r) {
-    if (!kt_on() || !shr_pass() || !g_in.mode3d || !g_in.cs_enter || !g_in.cs_leave || ws_skirts_asked()) return NULL;
+    if (!kt_on() || !shr_pass() || !g_in.mode3d || !g_in.cs_enter || !g_in.cs_leave) return NULL;
     ee_unit_type *ty = draw_record_get_type(rec);
     if (!(ty && unit_type_is_land_building(ty)) && !bl_noted(g)) return NULL;   // (what stands still)
     // (blended between two frames: an animation moving on, another entry each frame - the table would fill and start over)
