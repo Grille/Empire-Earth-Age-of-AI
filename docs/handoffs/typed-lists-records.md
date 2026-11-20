@@ -25,6 +25,29 @@ types, not bound to a specific type", `seq<T>` the value's name. So: `seq<T>` th
 `list<T>` a handle (expr.c LISTS), `[...]` built as the type wanted. Next: dicts on the same footing (any value type,
 a literal), then records typed.
 
+### Next: dicts of any value (agreed 2026-11-20, not started)
+
+What it takes (read off the code, expr.c DICTS):
+- **The check has no dict type.** `d[k]` is X_ANY when the script is read; xdict_fit checks a value at run time
+  against the four plain value types. First a compound type `dict<K, V>` (XCT_DICT, t[0] K, t[1] V) - x_type_named
+  for lets, parameters, fields; x_stype(XN_DICT) that type; XN_INDEX of one V; XN_SETI checks K and V (op numeric);
+  `for` over a dict stays a mistake. XN_DICT's n is `kt * 4096 + vt` now - a compound V's base passes 4096: keep the
+  type there and split it in the compiler (XI_DICT a: `kt << 16 | vt`). The parser reads V with xps_type_scan (it
+  stops at the closing `>`).
+- **A value that isn't plain** (a struct, a seq, a list, a vector): kept as an owned xval in the entry (`struct xval
+  *xv` beside vn / vs - xo_copy / xo_free, as a list's items), copied out when read (xvm_copy), checked by the check
+  only (it can't be told at run time). A plain V stays as it is, so the personalities' dict fields (persona.c
+  reads and writes vn / vs itself) don't change - a personality's dict of another V is a mistake (texts hold no
+  structs or lists).
+- `d[k].x = 5` stays a mistake (an entry is no place: `let v = d[k]`, change it, `d[k] = v`); `d[k].add(x)` of a
+  dict<K, list<T>> works as it is (a handle).
+- **The sweep:** xhl_mark goes into a dict's non-plain values (a `mark` on struct xdict, the same generation).
+- **Saves:** a dict's entries are written before the code and the lists are read back, so a value that names a
+  struct type or a list can't be read there. A dict of a non-plain V: its kt / vt / count early, its default and
+  entries (xs_put) at the end after the lists' items; xs_note goes into them (xs_dict noting a dict once - it has
+  no "new" flag yet). Format 6.
+- The literal (`{ "a" = 1 }` or entries in `[...]`) after records are typed - `{ }` is the record's.
+
 ## Step 2, lists strictly typed: DONE 2026-11-20 (committed - docs/scripts.md "Lists")
 
 What follows is the plan as it was parked; the decisions taken when it was finished: a list holds no null
