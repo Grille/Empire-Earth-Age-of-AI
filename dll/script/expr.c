@@ -819,10 +819,15 @@ internal int xps_type_scan(const char **ps, char *out, int cap) {
 }
 #define X_LEVELS 24   // the levels of the old parser - a deeper expression is none (not an expression)
 #define X_CALLS 64    // functions called inside each other
+// the parser within itself: ( [ { ref - not, a function's body, a block - at most X_DEEP deep, else a mistake while the
+// file is read: each level is a frame or ten on the stack (about 1.2 KB; 1 MB, the game's and the checker's, ran out at
+// 800 brackets), and a tree that deep is past X_LEVELS anyway but for a body's own count
+#define X_DEEP 128
 // the parser's state
 struct xps {
     const char *s, *why, *src0;
     int err, par;          // par: in ( ), not in [ ] (strings side by side join there)
+    int deep;              // how deep the parser is in itself (X_DEEP)
     int nl;                // a line break in the space last skipped, which ends at nl_pos
     const char *nl_pos;
     int line;              // the line of lc (counting up from src0)
@@ -830,6 +835,13 @@ struct xps {
     char *mem;             // the nodes' memory (one block: copied out when done)
     size_t used, cap;
 };
+internal int xps_deeper(struct xps *p) {   // one level further in (xps_shallower back out); 0 past X_DEEP: p->err
+    if (++p->deep <= X_DEEP) return 1;
+    p->err = 1;
+    p->why = "nested too deep - brackets, functions and blocks within each other";
+    return 0;
+}
+internal void xps_shallower(struct xps *p) { p->deep--; }
 internal int xps_line(struct xps *p, const char *at) {   // the line at a place in the source
     if (at < p->lc) { p->lc = p->src0; p->line = 1; }
     for (; p->lc < at; p->lc++) if (*p->lc == '\n') p->line++;
@@ -1063,8 +1075,9 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
     *out = NULL;
     if (!strncmp(s, "ref", 3) && (s[3] == ' ' || s[3] == '\t')) {   // ref a, ref l[2].pos: a place handed to a ref parameter
         p->s = s + 3;
-        struct xnode *pl;
-        xps_primary(p, &pl);
+        struct xnode *pl = NULL;
+        if (xps_deeper(p)) xps_primary(p, &pl);
+        xps_shallower(p);
         if (p->err) return;
         struct xnode *x = xn_new(p, XN_REF, s);
         if (!x) return;
@@ -1370,8 +1383,9 @@ internal void xps_unary(struct xps *p, struct xnode **out) {
     const char *at = (xps_space(p), p->s);
     int neg = xps_op(p, "-"), inv = !neg && xps_word(p, "not");
     if (neg || inv) {
-        struct xnode *a;
-        xps_unary(p, &a);
+        struct xnode *a = NULL;
+        if (xps_deeper(p)) xps_unary(p, &a);
+        xps_shallower(p);
         if (p->err) return;
         struct xnode *o = xn_new(p, neg ? XN_NEG : XN_NOT, at);
         if (!o) return;
@@ -1457,8 +1471,7 @@ internal void xps_coalesce(struct xps *p, struct xnode **out) {   // a ?? b: a, 
         *out = xps_bin(p, XN_COAL, 0, *out, b);
     }
 }
-internal void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? a (nothing when c doesn't hold)
-    *out = NULL;
+internal void xps_cond(struct xps *p, struct xnode **out) {   // c ? a : b, c ? a (nothing when c doesn't hold)
     xps_coalesce(p, out);
     if (!p->err && xps_op(p, "?")) {
         struct xnode *a, *b = NULL;
@@ -1473,6 +1486,11 @@ internal void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? 
         *out = XOFF(p, o);
     }
     if (!p->err && *out) XPTR(p, *out)->lvl++;   // the expression's level
+}
+internal void xps_expr(struct xps *p, struct xnode **out) {   // an expression, one level further in (X_DEEP)
+    *out = NULL;
+    if (xps_deeper(p)) xps_cond(p, out);
+    xps_shallower(p);
 }
 // a name at p->s (a variable's: letters, digits, _) into name; 0: none (must: a word of the language a mistake set)
 internal int xps_name(struct xps *p, char name[40], int must) {
@@ -1796,7 +1814,9 @@ internal void xps_stmts(struct xps *p, struct xnode **out, int brace, const char
 internal void xps_block(struct xps *p, struct xnode **out) {   // at its {
     const char *at = p->s;
     p->s++;
-    xps_stmts(p, out, 1, at);
+    *out = NULL;
+    if (xps_deeper(p)) xps_stmts(p, out, 1, at);
+    xps_shallower(p);
 }
 
 // A COMPILED SOURCE: its tree (pointers now), its deepest level, whether it is one at all (why not, where)
