@@ -668,6 +668,58 @@ internal float us_below(const uc_corpse *k, float *below) {
     below[4] = (1.0f - US_LOW) * k->keel * fmaxf(uz, 0.0f) + beam * side * (1.0f - 0.8f * k->shift);
     return side;
 }
+// AN AIRPLANE HELD RIGID (the player, 2026-11-20: "the lift cause the planes to jitter, 10 make sit noticable, on 45 its
+// extreme"): its surfaces push their own points, and the links between its points (four rounds a step) give - the wings
+// and the body rang against each other at about 6 Hz, and the pose's place is the floats' mean (logged at a base of 45:
+// the wings 0.013 - 0.026 tiles over the body and back, the body's way up and down 0.32 - 0.55 tiles/s; moving the
+// wings' common push onto every point stilled that but not a roll's, the two wings pushed apart). After the links its
+// points are put back on its shape as one rigid thing: their middle by the weights, its turn fitted to them (the
+// along and across axes of the linear map that best takes its shape onto them by the weights - the points' spread
+// over the shape's own, its fin above its tail counted out - made square), each point at its own place in it - the
+// bending gone, its way and turn as the points had them
+internal void us_rigid(uc_corpse *k) {
+    float c[3] = { 0, 0, 0 }, c0[3] = { 0, 0, 0 }, ws = 0.0f, e[US_PTS_AIR][3], a[3][3] = { { 0 } }, m[3][3] = { { 0 } };
+    for (int i = 0; i < k->n; i++) {
+        float w = us_w(k, i);
+        for (int j = 0; j < 3; j++) c[j] += w * k->sp[i][j], c0[j] += w * k->body[i][j];
+        ws += w;
+    }
+    for (int j = 0; j < 3; j++) c[j] /= ws, c0[j] /= ws;
+    for (int i = 0; i < k->n; i++) {   // its place in the plane's own axes (along, across, up), from the middle
+        float d[3] = { k->body[i][0] - c0[0], k->body[i][1] - c0[1], k->body[i][2] - c0[2] }, w = us_w(k, i);
+        e[i][0] = d[0] * k->along[0] + d[1] * k->along[1] + d[2] * k->along[2];
+        e[i][1] = d[0] * k->across[0] + d[1] * k->across[1] + d[2] * k->across[2];
+        e[i][2] = d[2];
+        for (int r = 0; r < 3; r++)
+            for (int s = 0; s < 3; s++) a[r][s] += w * (k->sp[i][r] - c[r]) * e[i][s], m[r][s] += w * e[i][r] * e[i][s];
+    }
+    // the map: a times m's inverse (m the shape's spread, symmetric); its first two columns the along and across axes
+    float det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    if (fabsf(det) < 1e-12f) return;
+    float inv[3][3], x[3], y[3];
+    for (int r = 0; r < 3; r++)
+        for (int s = 0; s < 3; s++) {   // the cofactor of (s, r) over the determinant
+            int r1 = (s + 1) % 3, r2 = (s + 2) % 3, s1 = (r + 1) % 3, s2 = (r + 2) % 3;
+            inv[r][s] = (m[r1][s1] * m[r2][s2] - m[r1][s2] * m[r2][s1]) / det;
+        }
+    for (int j = 0; j < 3; j++) {
+        x[j] = a[j][0] * inv[0][0] + a[j][1] * inv[1][0] + a[j][2] * inv[2][0];
+        y[j] = a[j][0] * inv[0][1] + a[j][1] * inv[1][1] + a[j][2] * inv[2][1];
+    }
+    float lx = 0.0f, xy = 0.0f, ly = 0.0f, u[3];
+    for (int j = 0; j < 3; j++) lx += x[j] * x[j];
+    lx = sqrtf(lx);
+    if (lx < 1e-9f) return;
+    for (int j = 0; j < 3; j++) x[j] /= lx, xy += y[j] * x[j];
+    for (int j = 0; j < 3; j++) y[j] -= xy * x[j], ly += y[j] * y[j];
+    ly = sqrtf(ly);
+    if (ly < 1e-9f) return;
+    for (int j = 0; j < 3; j++) y[j] /= ly;
+    u[0] = x[1] * y[2] - x[2] * y[1], u[1] = x[2] * y[0] - x[0] * y[2], u[2] = x[0] * y[1] - x[1] * y[0];
+    for (int i = 0; i < k->n; i++)
+        for (int j = 0; j < 3; j++) k->sp[i][j] = c[j] + e[i][0] * x[j] + e[i][1] * y[j] + e[i][2] * u[j];
+}
 internal void us_step(uc_corpse *k, float t, const void *mesh) {
     if (k->stuck) return;
     const float dt = (float)US_DT;
@@ -825,6 +877,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
             }
         }
     }
+    if (k->n == US_PTS_AIR) us_rigid(k);
     if (k->air) {   // its middle on the ground or the seabed: it stays as it hit (a crash on land going down fast)
         float m[3] = { 0, 0, 0 }, mq = 0.0f, a[3], b[3], u[3], lu2 = 0.0f;
         for (int i = 0; i < 4; i++) {
