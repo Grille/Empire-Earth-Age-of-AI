@@ -3,7 +3,8 @@
 // into the window by a flip-model swap chain: scaling and filtering on the GPU, no GDI composition (which held
 // a visible 2560x1440 window at 60 fps on a 120 Hz screen). Bars around the image are cleared black.
 // vsync = 1 (default since 2026-11-18) waits for the screen; 0 presents immediately, tearing allowed where Windows supports it
-// (borderless). Everything runs on the render thread; any failure falls back to GDI for good.
+// (borderless). Everything runs on the render thread; any failure falls back to GDI for good (the own renderer
+// has no GDI path: d3d_fail_window).
 // d3d11.dll and d3dcompiler_47.dll are loaded from the system directory (the game folder may hold wrappers).
 // The device lives on its own (d3d_device) apart from the window's swap chain (d3d_window): the mod's own renderer
 // (render.c, [display] renderer = own) draws with the same device before there is a window and shows its render
@@ -62,6 +63,19 @@ internal int d3d_fail(const char *what, HRESULT hr) {
     return 0;
 }
 
+// a failure of the window's swap chain (making it, resizing it, presenting): with the own renderer (render.c) every
+// surface, texture and state of the game lives on this device and nothing of it checks for one - releasing the device
+// there left a NULL context for its next draw (a removed device's Present, a TDR, was a crash). Then only the window
+// goes; the frames are no longer shown (no GDI path for that renderer), and a removed device's calls fail harmlessly.
+internal int d3d_fail_window(const char *what, HRESULT hr) {
+    if (!g_rd_on) return d3d_fail(what, hr);
+    snprintf(g_d3d.err, sizeof g_d3d.err, "%s failed (hr %08lx)", what, (unsigned long)hr);
+    if (g_log) { log_locked("# display: Direct3D present: %s - the own renderer's frames are no longer shown\n", g_d3d.err); }
+    d3d_release_window();
+    g_d3d.failed = 1;
+    return 0;
+}
+
 internal const char k_shader[] =
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
@@ -82,10 +96,10 @@ internal ID3DBlob *d3d_compile(const char *src, size_t n, const char *entry, con
 internal int d3d_rtv(void) {
     ID3D11Texture2D *bb = NULL;
     HRESULT hr = IDXGISwapChain1_GetBuffer(g_d3d.sc, 0, &IID_ID3D11Texture2D, (void **)&bb);
-    if (FAILED(hr)) return d3d_fail("GetBuffer", hr);
+    if (FAILED(hr)) return d3d_fail_window("GetBuffer", hr);
     hr = ID3D11Device_CreateRenderTargetView(g_d3d.dev, (ID3D11Resource *)bb, NULL, &g_d3d.rtv);
     ID3D11Texture2D_Release(bb);
-    return FAILED(hr) ? d3d_fail("CreateRenderTargetView", hr) : 1;
+    return FAILED(hr) ? d3d_fail_window("CreateRenderTargetView", hr) : 1;
 }
 
 // the device, its context and the present's shaders and samplers
@@ -136,7 +150,7 @@ internal int d3d_window(HWND hwnd, int w, int h) {
     if (SUCCEEDED(hr)) hr = IDXGIDevice_GetAdapter(xd, &ad);
     if (SUCCEEDED(hr)) hr = IDXGIAdapter_GetParent(ad, &IID_IDXGIFactory2, (void **)&f2);
     D3D_RELEASE(ad); D3D_RELEASE(xd);
-    if (FAILED(hr)) return d3d_fail("getting the DXGI factory", hr);
+    if (FAILED(hr)) return d3d_fail_window("getting the DXGI factory", hr);
     IDXGIFactory5 *f5 = NULL;
     BOOL tear = FALSE;
     if (SUCCEEDED(IDXGIFactory2_QueryInterface(f2, &IID_IDXGIFactory5, (void **)&f5))) {
@@ -157,7 +171,7 @@ internal int d3d_window(HWND hwnd, int w, int h) {
     hr = IDXGIFactory2_CreateSwapChainForHwnd(f2, (IUnknown *)g_d3d.dev, hwnd, &sd, NULL, NULL, &g_d3d.sc);
     if (SUCCEEDED(hr)) IDXGIFactory2_MakeWindowAssociation(f2, hwnd, DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER);
     IDXGIFactory2_Release(f2);
-    if (FAILED(hr)) return d3d_fail("CreateSwapChainForHwnd", hr);
+    if (FAILED(hr)) return d3d_fail_window("CreateSwapChainForHwnd", hr);
     if (!d3d_rtv()) return 0;
     g_d3d.hwnd = hwnd;
     g_d3d.bw = w; g_d3d.bh = h;
@@ -174,7 +188,7 @@ internal int d3d_window_ready(HWND hwnd, const RECT *cr) {
         D3D_RELEASE(g_d3d.rtv);
         HRESULT hr = IDXGISwapChain1_ResizeBuffers(g_d3d.sc, 0, (UINT)cr->right, (UINT)cr->bottom, DXGI_FORMAT_UNKNOWN,
                                                    g_d3d.tearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
-        if (FAILED(hr)) return d3d_fail("ResizeBuffers", hr);
+        if (FAILED(hr)) return d3d_fail_window("ResizeBuffers", hr);
         if (!d3d_rtv()) return 0;
         g_d3d.bw = cr->right; g_d3d.bh = cr->bottom;
     }
@@ -212,7 +226,7 @@ internal int d3d_draw_srv(ID3D11ShaderResourceView *srv, int sw, int sh, const R
     HRESULT hr = IDXGISwapChain1_Present(g_d3d.sc, sync ? 1 : 0, !sync && g_d3d.tearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
     QueryPerformanceCounter(&t1);
     g_d3d_present_qpc += t1.QuadPart - t0.QuadPart;   // the own renderer's minute line (render_3d.c): the wait for the GPU shows here
-    if (FAILED(hr)) return d3d_fail("Present", hr);
+    if (FAILED(hr)) return d3d_fail_window("Present", hr);
     return 1;
 }
 
