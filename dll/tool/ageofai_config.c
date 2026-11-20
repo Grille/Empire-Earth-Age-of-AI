@@ -65,7 +65,13 @@ internal void make_pages(void) {
 // THE ENTRIES: a key of a page - a row (a text row per player slot: slot) - with what the file says (has, text) and
 // what it said when read (the changes since)
 struct entry { int page, row, slot, has, had; char text[TEXT_CAP], was[TEXT_CAP]; };
-internal struct entry g_e[1024];
+// as many as the rows can make: a row of [ai_base] is on its page and the two difficulties' (read_file), a STR_P row
+// once per slot - counted from the rows, so that new settings can't run past it (1024 had about 80 left, 2026-11-20)
+#define ENTRY_SLOTS(kind) (SETK_##kind == SETK_STR_P ? PLAYER_SLOTS : 1)
+#define ENTRY_CAP_X(kind, sec, key, def, a, b) + ENTRY_SLOTS(kind)
+#define ENTRY_CAP_D(kind, key, def, a, b) + 3 * ENTRY_SLOTS(kind)
+#define ENTRY_CAP (0 SETTINGS(ENTRY_CAP_X, ENTRY_CAP_D))
+internal struct entry g_e[ENTRY_CAP];
 internal int g_ne;
 internal int g_all_of[SETTING_N];   // a row's entry on the [ai_base] page (what a difficulty's page falls back to)
 internal int g_diff_of[SETTING_N][3];   // a row of [ai_base]: its entries on the difficulties' pages
@@ -260,6 +266,7 @@ internal void read_file(void) {
             const struct setting_row *r = &k_settings[i];
             if (g_page_of[p].diff >= 0 ? !r->ai : lstrcmpA(r->sec, g_page_of[p].sec)) continue;
             for (int s = r->kind == SETK_STR_P ? 1 : -1; s <= (r->kind == SETK_STR_P ? PLAYER_SLOTS : -1); s++) {
+                if (g_ne == ENTRY_CAP) continue;   // only if a page took rows ENTRY_CAP doesn't count: those keys left out
                 struct entry *e = &g_e[g_ne++];
                 e->page = p; e->row = i; e->slot = s;
                 char key[64];
@@ -851,7 +858,7 @@ internal int advanced_listed(const struct entry *e) {   // not left out as advan
 }
 internal void fill_list(LPARAM keep, int stay) {
     char filter[64];
-    static uint8_t found[1024];
+    static uint8_t found[ENTRY_CAP];
     GetWindowTextA(g_filter, filter, sizeof filter);
     CharLowerA(filter);
     for (int i = 0; i < g_ne; i++)
