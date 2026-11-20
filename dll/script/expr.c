@@ -4534,6 +4534,7 @@ internal void x_triggers_tick(double now) {
     if (!g_xt_n && !g_xa_n) return;
     struct xregion *r0 = g_xr;
     g_xr = &g_xt_tmp;
+    g_xt_tmp.busy++;   // a {placeholder} filled in the turn (x_eval) never starts the region afresh under its values
     g_xt_in = 1;
     for (;;) {   // the after's and timers due, earliest first (a timer behind: each step it missed)
         int k = -1, kt = -1;
@@ -4573,6 +4574,7 @@ internal void x_triggers_tick(double now) {
     }
     for (int i = 0; i < g_xa_n; i++) g_xa[i].fresh = 0;
     g_xt_in = 0;
+    g_xt_tmp.busy--;
     x_region_reset(&g_xt_tmp);
     g_xr = r0;
 }

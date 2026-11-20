@@ -10,3 +10,18 @@ pump() {
 after(0s, pump)
 wait(5s)
 cmd("after 0s again: {pumped} runs in 5 s")
+
+// a timer's texts with {placeholders}: each keeps its own (a filled text started the turn's region afresh, the next
+// text landed on the one before)
+let filled = ""
+game.timer(1s, () => {
+    let xs = [10, 20, 30]
+    let a = "first {xs[1]}"
+    let b = "second {a} {xs[2]}"
+    let s = 0
+    for x in xs { s += x }
+    filled = "{a} | {b} | {s}"
+    return stop
+})
+wait(2s)
+cmd("texts in a timer: {filled}")
