@@ -1,0 +1,12 @@
+// the triggers' turn (expr.c x_triggers_tick) where a script's own way of using it once broke it: what each line works
+// out is in triggers_run.expect - the build runs this through ageofai_check --bench and compares
+
+// an after that makes itself again at 0s: one run a turn (500 ms), not for ever in the same turn
+let pumped = 0
+pump() {
+    pumped += 1
+    after(0s, pump)
+}
+after(0s, pump)
+wait(5s)
+cmd("after 0s again: {pumped} runs in 5 s")

@@ -4409,7 +4409,9 @@ internal int x_wait_until(struct xe *e, double t) {   // the script waits until 
 // The functions keep the names around where they were made: a script's own (its top frame stays) as they are when
 // they run, a function's as they were when the trigger or the after was made (copied: that frame is gone by then)
 #define XA_MAX 256
-struct xafter { double at; struct xval fn; char name[48]; };
+// (fresh: made in the triggers' turn that runs - due at once, after(0s, f), it waits for the next turn, else an after
+// that makes itself again would run on in that turn for ever)
+struct xafter { double at; struct xval fn; char name[48]; int fresh; };
 internal struct xafter g_xa[XA_MAX];
 internal int g_xa_n;
 internal struct xregion g_xt_keep, g_xt_tmp;   // what they keep (their functions, frames); a turn's values
@@ -4535,7 +4537,7 @@ internal void x_triggers_tick(double now) {
     g_xt_in = 1;
     for (;;) {   // the after's and timers due, earliest first (a timer behind: each step it missed)
         int k = -1, kt = -1;
-        for (int i = 0; i < g_xa_n; i++) if (g_xa[i].at <= now + 1e-9 && (k < 0 || g_xa[i].at < g_xa[k].at)) k = i;
+        for (int i = 0; i < g_xa_n; i++) if (!g_xa[i].fresh && g_xa[i].at <= now + 1e-9 && (k < 0 || g_xa[i].at < g_xa[k].at)) k = i;
         for (int i = 0; i < g_xt_n; i++)
             if (g_xt[i].period > 0 && g_xt[i].on && g_xt[i].next <= now + 1e-9 && (kt < 0 || g_xt[i].next < g_xt[kt].next)) kt = i;
         if (kt >= 0 && (k < 0 || g_xt[kt].next < g_xa[k].at)) {
@@ -4569,6 +4571,7 @@ internal void x_triggers_tick(double now) {
             if (!xt_call(&t->run, &v, "run", t->name)) t->on = 0;
         }
     }
+    for (int i = 0; i < g_xa_n; i++) g_xa[i].fresh = 0;
     g_xt_in = 0;
     x_region_reset(&g_xt_tmp);
     g_xr = r0;
@@ -4634,6 +4637,7 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
         if (g_xa_n == XA_MAX) { x_fail(e, "more than %d after's waiting", XA_MAX); return; }
         struct xafter *q = &g_xa[g_xa_n++];
         q->at = (g_x_hooks.now ? g_x_hooks.now() : 0) + a[0].n;
+        q->fresh = g_xt_in;
         xt_keep(&q->fn, &a[1]);
         xt_name(q->name, NULL, e->c);
         return;
