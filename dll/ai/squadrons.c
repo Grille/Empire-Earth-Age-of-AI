@@ -119,7 +119,7 @@ enum { SQK_MAIN, SQK_SCOUT, SQK_HUNT };
 internal const char *const k_sqk[3] = { "main", "scouts", "hunters" };
 enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_SUPPORT, SQS_SHELL, SQS_N };
 internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening", "ahead of a push's landing", "shelling the shore" };
-// THE SHORE ([ai_base] sea_shore_fire, off until measured; [autotest] v_sea_shore_fire; the player 2026-11-20: "ships
+// THE SHORE ([ai_base] sea_shore_fire, on since 2026-11-20 by the player's call ("switch it on"); [autotest] v_sea_shore_fire; the player 2026-11-20: "ships
 // attacking targets on land are very skitish, unable to decide wether to do it or not"). Traced (Small Islands large
 // from World War I, 2 games, each warship every 2.7 s): the game's own target pick - at rest, and on the squadrons' moves,
 // which were attack-moves sent again as their middle shifted - took citizens, priests and buildings 10-13 tiles off;

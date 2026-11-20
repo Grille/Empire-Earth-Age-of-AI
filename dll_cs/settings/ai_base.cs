@@ -296,9 +296,9 @@ class ai_base
         /// The shore decided (sea_squadrons): the squadrons' warships move plainly when quiet and keep a target on land
         /// only within their reach, instead of sailing after whatever they see there and turning back at the next
         /// tower; a main squadron shells a building on its sea's coast only when its estimate beats the defences that
-        /// reach the water there, the defences first, and stays at it while it still does. 0 = off
+        /// reach the water there, the defences first, and stays at it while it still does. 1 = on
         [advanced]
-        bool sea_shore_fire = false;
+        bool sea_shore_fire = true;
         /// Storms (the game's computer player off): the AI's ships within reach of an enemy's storm - the prophet's
         /// hurricane sinks a frigate in seconds - sail straight out of it, whatever they were doing, and the squadrons
         /// send nobody into one. 1 = on.
