@@ -5696,9 +5696,10 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                     while ((isalnum((unsigned char)*l.s) || *l.s == '_') && k < 23) pnm[k++] = *l.s++;
                     pnm[k] = 0;
                     if (!k || isdigit((unsigned char)pnm[0])) { why = "a parameter must be a name: name(a, b) = ..."; break; }
-                    char look[26];
-                    wsprintfA(look, "%s,", pnm);
-                    if (strstr(key + strcspn(key, "(") + 1, look) || ++np > 8) { why = np > 8 ? "at most 8 parameters" : "a parameter twice"; break; }
+                    char look[27];   // ",a,": a whole name among the earlier ones, "(a,b," - (count, t) has no t twice
+                    const char *par = key + strcspn(key, "(");
+                    wsprintfA(look, ",%s,", pnm);
+                    if (!strncmp(par + 1, look + 1, (size_t)k + 1) || strstr(par, look) || ++np > 8) { why = np > 8 ? "at most 8 parameters" : "a parameter twice"; break; }
                     if (n + k + 2 < (int)sizeof key) { memcpy(key + n, pnm, (size_t)k); n += k; key[n++] = ','; key[n] = 0; }
                     while (*l.s == ' ') l.s++;
                     if (*l.s == ',') { l.s++; continue; }
