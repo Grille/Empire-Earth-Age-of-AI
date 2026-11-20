@@ -657,6 +657,15 @@ internal HRESULT __stdcall rd_sf_qi(rd_surface *s, const GUID *iid, void **out) 
     return E_NOINTERFACE;
 }
 internal ULONG __stdcall rd_sf_addref(rd_surface *s) { return (ULONG)InterlockedIncrement(&s->refs); }
+// a reference for what keeps a surface the game may drop meanwhile (render_frame.c's kept interface): none once its last
+// is gone (refs 0: rd_sf_release frees it, on this thread or waiting for the lock). rd_surface_free's submit flushes the
+// batch drawing with the dying texture: the kept store took a reference to it there and held it freed (its clear then
+// released freed memory - a double free; a frame during a step uploaded from it)
+internal int rd_sf_addref_live(rd_surface *s) {
+    for (LONG n = s->refs; n > 0; n = s->refs)
+        if (InterlockedCompareExchange(&s->refs, n + 1, n) == n) return 1;
+    return 0;
+}
 internal ULONG __stdcall rd_sf_release(rd_surface *s) {
     rd_surface *t = s->top ? s->top : s;   // a mip level lives as long as its chain
     if (s != t) { InterlockedDecrement(&s->refs); return 1; }

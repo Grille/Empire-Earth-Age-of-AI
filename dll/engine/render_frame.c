@@ -214,7 +214,7 @@ internal void rf_keep_ground(void) {
     b->morph = g_rb.morph;
     b->src = g == &g_ku && g_rd3.srv && g_rd3.srv_of && g_rd3.srv_of->kind != RK_TARGET ? g_rd3.srv_of : NULL;
     b->keyed = g_rd3.srv_keyed;
-    if (b->src) rd_sf_addref(b->src);
+    if (b->src && !rd_sf_addref_live(b->src)) b->src = NULL;   // a texture being freed: drawn again from its view (c.srv)
     b->vc = g_rd3.vc; b->pc = g_rd3.pc;
     b->v0 = g->nv; b->nv = g_rb.nv; b->i0 = g->ni; b->ni = g_rb.ni; b->w0 = g->nw; b->nw = g_rb.nw;
     if (g == &g_ks) fsw_tags_keep(b->v0);
