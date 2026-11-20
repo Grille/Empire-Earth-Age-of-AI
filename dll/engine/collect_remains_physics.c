@@ -195,8 +195,9 @@ internal int g_us_snap;     // the pipe's: 1 every ship long enough breaks, -1 n
 // starboard one, the tailplane's two points at the pitch, the fin at the yaw - degrees, set by the pipe's wreck plane
 // for the planes killed from then on (the player tries them before any is drawn at random). Then drawn (the player:
 // "4 lift is good as a modifier. roll: -30 to 30 pitch: -5 to 30 yae -30 to 30 would be the random values i would
-// try"): the base the same for all, the three by its serial, even over these ranges - unless the pipe fixed them
-internal float g_us_ctl[4] = { 4.0f, 0.0f, 0.0f, 0.0f };   // base, roll (+ port wing up: it banks right), pitch (+ nose up), yaw (+ nose right)
+// try"): the base the same for all, the three by its serial, even over these ranges - unless the pipe fixed them. The
+// base 10 since 2026-11-20 (the player: "set it to 10"; 4 before)
+internal float g_us_ctl[4] = { 10.0f, 0.0f, 0.0f, 0.0f };   // base, roll (+ port wing up: it banks right), pitch (+ nose up), yaw (+ nose right)
 internal int g_us_fixed;   // the pipe's: roll, pitch and yaw g_us_ctl's for every plane, not drawn
 #define US_RND_ROLL 30.0f      // degrees, either way
 #define US_RND_PITCH_LO -5.0f
