@@ -981,11 +981,11 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
     if (*s != ')') for (;;) {
         int isref = !strncmp(s, "ref", 3) && (s[3] == ' ' || s[3] == '\t');   // ref name: type - a place, not a value (its type "&type")
         if (isref) for (s += 3; *s == ' ' || *s == '\t'; s++) {}
-        if (!isalpha((unsigned char)*s) && *s != '_') return NULL;
+        if ((!isalpha((unsigned char)*s) && *s != '_') || *n >= 8) return NULL;   // (a 9th: no head - before names[8])
         int k = 0;
         while ((isalnum((unsigned char)*s) || *s == '_') && k < 23) names[*n][k++] = *s++;
         names[*n][k] = 0;
-        if (isalnum((unsigned char)*s) || *s == '_' || *s == '.' || *n >= 8) return NULL;
+        if (isalnum((unsigned char)*s) || *s == '_' || *s == '.') return NULL;
         types[*n][0] = isref ? '&' : 0;
         types[*n][isref] = 0;
         while (*s == ' ' || *s == '\t') s++;
