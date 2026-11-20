@@ -31,6 +31,7 @@
 // them alone; the citizens' safety (a task, the militia survival) takes one off, and it is no explorer then.
 #define XP_CELL 8
 #define XP_EVERY 2000
+#define XP_STEP 250
 #define XP_SCAN 2048
 #define XP_SPREAD 10
 #define XP_GIVE_UP 40000
@@ -50,10 +51,10 @@
 struct xp_unit { ee_unit *u; int id; uint8_t kind; ivec2 goal, base; uint32_t since; };   // kind 1 the food search, 2 the base scout (a citizen), 3 a Canine Scout (base: its town); since: its goal since then
 internal struct xp_st {
     ee_map *map; int size, n, dark; uint16_t *left; int scan;   // dark: cells with tiles unexplored
-    uint32_t t, log_t, dog_t, dog_ok;   // dog_t: a Canine Scout ordered then, dog_ok: one paid then (in training: XP_DOG_WAIT before the next)
+    uint32_t t, log_t, dog_t, dog_ok, step_t;   // step_t: THE NEXT GOAL AT ONCE's last step   // dog_t: a Canine Scout ordered then, dog_ok: one paid then (in training: XP_DOG_WAIT before the next)
     int nu; struct xp_unit u[XP_UNITS];
     int nbad; ivec2 bad[XP_BAD]; uint32_t bad_t[XP_BAD];
-    unsigned sent, back, gave_up, goals, scouts, dog_asks, dogs;
+    unsigned sent, back, gave_up, goals, scouts, dog_asks, dogs, steps;
 } g_xp[16];
 internal uint8_t g_xp_ter[16][PR_T];   // the territories with cells it hasn't all explored (xp_count)
 
@@ -183,6 +184,14 @@ internal int xp_stale(unsigned idx, ee_player *pl, ivec2 p, int ter, ivec2 *out)
     return found;
 }
 
+// a scout's goal g is done: no longer at the edge of the unexplored and looked at within XP_STALE (stations.c)
+internal int xp_done(unsigned idx, ee_player *pl, ivec2 g) {
+    struct xp_st *e = &g_xp[idx & 15];
+    ee_map *map = game_map();
+    ee_tile **tiles = map ? map_get_tiles(map) : NULL;
+    if (g.x < 0 || !tiles || map != e->map) return 1;
+    return !xp_edge(tiles, e->size, idx & 15, g.x, g.y) && intel_looked_ago(pl, g.x, g.y) < XP_STALE;
+}
 internal int xp_alive(const struct xp_unit *m) { return m->u && unit_get_serial(m->u) == m->id && unit_get_hp(m->u) > 0 && unit_get_x(m->u) >= 0; }
 internal void xp_release(struct xp_st *e, int k, int stop) {
     struct xp_unit *m = &e->u[k];
@@ -240,13 +249,62 @@ internal int xp_take(unsigned idx, ee_player *pl, int kind, ivec2 at, ivec2 base
     return 0;
 }
 
+// THE NEXT GOAL AT ONCE (the player 2026-11-20: "exploring is very slow, with much idle time, scouts should get a new
+// order the moment they reached their goal"): every XP_STEP, not with the look - a goal uncovered (no longer at the
+// edge: the unit's sight took it in on the way) gives the next one before the unit stops; one without a goal asks
+// again every XP_EVERY
+internal void xp_goals(ee_player *pl, unsigned idx, uint32_t now) {
+    struct xp_st *e = &g_xp[idx & 15];
+    e->step_t = now ? now : 1; e->steps++;
+    // each explorer's goal: reached (or no longer at the edge), not reached in XP_GIVE_UP (given up, avoided a while):
+    // the next; none left: a citizen back to work, a scout stays where it is
+    ee_map *map = game_map();
+    ee_tile **tiles = map ? map_get_tiles(map) : NULL;
+    for (int k = e->nu - 1; k >= 0 && tiles; k--) {
+        struct xp_unit *m = &e->u[k];
+        int edge = m->goal.x >= 0 && xp_edge(tiles, e->size, idx, m->goal.x, m->goal.y);
+        if (edge && now - m->since < XP_GIVE_UP && unit_get_goal(m->u)) continue;   // on its way
+        int there = m->goal.x >= 0 && ivec2_dist2(unit_get_tile(m->u), m->goal) <= 4 && !unit_get_goal(m->u);   // stands there and it stays dark: the same goal again would hold it
+        if (edge && (now - m->since >= XP_GIVE_UP || there)) {
+            int b = -1;
+            for (int j = 0; j < e->nbad && b < 0; j++) if (now - e->bad_t[j] >= XP_FORGET) b = j;   // a forgotten one's place
+            if (b < 0) b = e->nbad < XP_BAD ? e->nbad++ : 0;
+            e->bad[b] = m->goal; e->bad_t[b] = now ? now : 1; e->gave_up++;
+        }
+        if (m->goal.x < 0 && m->since && now - m->since < XP_EVERY) continue;   // none found lately: asked again later
+        m->goal = iv2(-1, -1);
+        if (xp_send(idx, pl, m, now)) continue;
+        m->since = now ? now : 1;
+        if (m->kind < 3) { e->back += m->kind == 1; xp_release(e, k, 1); }   // nothing left for it: back to work (a Canine Scout waits)
+    }
+}
+
+// the quick step at a simulation step's end (eeaimod.c ai_step_end: the AI's own update comes every second or two -
+// a step every 1.6 s on average in the first test): the explorers' next goals, every XP_STEP, for a player whose look
+// ran in this game lately
+internal void explore_step(ee_player *pl, uint32_t now) {
+    if (!pl || is_vanilla(pl) || !g_set_ai[1].explore) return;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct xp_st *e = &g_xp[idx];
+    if (!e->left || !e->nu || !e->t || now < e->t || now - e->t > 3 * XP_EVERY) return;
+    if (e->step_t && now >= e->step_t && now - e->step_t < XP_STEP) return;
+    xp_goals(pl, idx, now);
+}
+internal void explore_new_game(void) {
+    for (int i = 0; i < 16; i++) free(g_xp[i].left);
+    memset(g_xp, 0, sizeof g_xp); memset(g_xp_ter, 0, sizeof g_xp_ter);
+}
+
 internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     (void)rm;
     if (!pl || is_vanilla(pl) || !g_set_ai[1].explore) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct xp_st *e = &g_xp[idx];
     if (now < e->t) { free(e->left); memset(e, 0, sizeof *e); memset(g_xp_ter[idx], 0, sizeof g_xp_ter[idx]); }   // a new game
-    if (e->t && now - e->t < XP_EVERY) return;
+    if (e->t && now - e->t < XP_EVERY) {   // between the looks: the explorers' next goals only
+        if (e->left && e->nu && (!e->step_t || now < e->step_t || now - e->step_t >= XP_STEP)) xp_goals(pl, idx, now);
+        return;
+    }
     e->t = now ? now : 1;
     xp_count(e, pl);
     if (!e->left) return;
@@ -316,35 +374,21 @@ internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!scouts && (!ut_has(UT(DOMESTIC_WOLF)) || e->dog_asks >= XP_DOG_TRIES) && xp_take(idx, pl, 2, t, t, now)) { scouts++; e->scouts++; }
         break;
     }
-    // each explorer's goal: reached (or no longer at the edge), not reached in XP_GIVE_UP (given up, avoided a while):
-    // the next; none left: a citizen back to work, a scout stays where it is
-    ee_map *map = game_map();
-    ee_tile **tiles = map ? map_get_tiles(map) : NULL;
-    for (int k = e->nu - 1; k >= 0 && tiles; k--) {
-        struct xp_unit *m = &e->u[k];
-        int edge = m->goal.x >= 0 && xp_edge(tiles, e->size, idx, m->goal.x, m->goal.y);
-        if (edge && now - m->since < XP_GIVE_UP && unit_get_goal(m->u)) continue;   // on its way
-        if (edge && now - m->since >= XP_GIVE_UP) {
-            int b = -1;
-            for (int j = 0; j < e->nbad && b < 0; j++) if (now - e->bad_t[j] >= XP_FORGET) b = j;   // a forgotten one's place
-            if (b < 0) b = e->nbad < XP_BAD ? e->nbad++ : 0;
-            e->bad[b] = m->goal; e->bad_t[b] = now ? now : 1; e->gave_up++;
-        }
-        m->goal = iv2(-1, -1);
-        if (!xp_send(idx, pl, m, now) && m->kind < 3) { e->back += m->kind == 1; xp_release(e, k, 1); }   // nothing left for it: back to work (a Canine Scout waits)
-    }
+    xp_goals(pl, idx, now);
     if (g_log && (!e->log_t || now - e->log_t >= 60000)) {
         e->log_t = now ? now : 1;
         nfood = scouts = 0;
         for (int k = 0; k < e->nu; k++) { nfood += e->u[k].kind == 1; scouts += e->u[k].kind == 2; }
         int land = 0, land_dark = 0;   // the log's only: the land the AI doesn't know is land (the game's areas)
+        ee_map *map = game_map();
+        ee_tile **tiles = map ? map_get_tiles(map) : NULL;
         for (int y = 0; tiles && y < e->size; y++)
             for (int x = 0; x < e->size; x++) {
                 ee_tile *t = tiles[y * e->size + x];
                 if (!t || !area_id(iv2(x, y), 2)) continue;
                 land++; land_dark += !xp_known(t, idx);
             }
-        log_locked("# explore: P%u at %.1f min: land tiles unexplored %d of %d, cells %d of %d | the food search %d citizens out (food short %d), %u sent, %u back | Canine Scouts %d (%u so far, orders refused %u) | a citizen as the base scout %d (%u so far) | %u goals, %u given up\n",
-                   idx, now / 60000.0, land_dark, land, e->dark, e->n * e->n, nfood, w->food_short, e->sent, e->back, dogs, e->dogs, e->dog_asks, scouts, e->scouts, e->goals, e->gave_up);
+        log_locked("# explore: P%u at %.1f min: land tiles unexplored %d of %d, cells %d of %d | the food search %d citizens out (food short %d), %u sent, %u back | Canine Scouts %d (%u so far, orders refused %u) | a citizen as the base scout %d (%u so far) | %u goals, %u given up, %u steps\n",
+                   idx, now / 60000.0, land_dark, land, e->dark, e->n * e->n, nfood, w->food_short, e->sent, e->back, dogs, e->dogs, e->dog_asks, scouts, e->scouts, e->goals, e->gave_up, e->steps);
     }
 }

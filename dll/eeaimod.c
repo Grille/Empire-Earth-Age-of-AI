@@ -110,6 +110,9 @@ internal void garrison_new_game(void);
 internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now);   // territories.c: the territories as an AI sees them
 internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // work.c: the citizens' work by territory
 internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // explore.c: the food search, the scout
+internal void explore_step(ee_player *pl, uint32_t now);   // explore.c: the explorers' next goals between the looks
+internal void explore_new_game(void);
+internal void stations_step(ee_player *pl, uint32_t now);   // stations.c: the scouts' next goals between the looks
 internal void work_new_game(void);
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // build.c: building by territory
 internal void build_new_game(void);
@@ -435,6 +438,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     territories_new_game();
     watch_new_game();
     work_new_game();
+    explore_new_game();
     build_new_game();
     research_new_game();
     stations_new_game();
@@ -652,6 +656,18 @@ internal int cp_update_own(ee_player *pl, uint32_t now) {
     if (!told[idx] && g_log) { told[idx] = 1; log_locked("# game ai: P%u at %.1f min: the game's computer player is off for it (game_ai=0) - only the mod's own code plays it\n", idx, now / 60000.0); }
     rm_tick(rm, now, 0);
     return 1;
+}
+// THE AI'S QUICK STEPS (engine/walls.c's step end calls it, every simulation step - the same step on every PC): what
+// can't wait for a player's next update (every second or two): the explorers' and scouts' next goals the moment one
+// is reached (the player 2026-11-20: "exploring is very slow, with much idle time")
+internal void ai_step_end(void) {
+    uint32_t now = game_time();
+    for (unsigned i = 1; i < game_player_count() && i < 16; i++) {
+        ee_player *pl = game_players()[i];
+        if (!pl || is_out(pl) || GAME_AI(i)) continue;
+        explore_step(pl, now);
+        stations_step(pl, now);
+    }
 }
 internal void config_paths(void) {
     char v[MAX_PATH];
@@ -874,6 +890,7 @@ internal void install(HMODULE self) {
     queue_refund_install();
     lob_install();
     data_order_install();
+    g_step_end_also = ai_step_end;   // before walls_install: it hooks the step's end for it too
     walls_install();
     editor_search_install();
     editor_camera_install();

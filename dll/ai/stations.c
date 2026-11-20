@@ -150,7 +150,7 @@ struct sn_unit;
 internal void sn_rejoin(unsigned idx, struct sn_unit *m);
 internal int fy_push_transit(unsigned idx, int k);   // ferry.c: push k's soldiers the ferry has taken (to the shore, aboard)
 internal struct sn_st {
-    uint32_t t, log_t, scout_off;   // scout_off: no scouts before then
+    uint32_t t, log_t, scout_off, step_t;   // scout_off: no scouts before then; step_t: THE NEXT GOAL AT ONCE
     int n;
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
@@ -1065,6 +1065,33 @@ internal int sn_holding(unsigned idx, int r, ivec2 *at) {   // *at: where its so
     for (int k = 0; k < SN_PUSHES; k++) if (g_sn[idx & 15].push[k].on && g_sn[idx & 15].push[k].hold_t && g_sn[idx & 15].push[k].into == r) { *at = g_sn[idx & 15].push[k].at; return 1; }
     return 0;
 }
+// THE NEXT GOAL AT ONCE (explore.c; the player 2026-11-20: "exploring is very slow, with much idle time, scouts should
+// get a new order the moment they reached their goal"): between the looks, every XP_STEP, a scout walking through its
+// territory whose goal is done (uncovered, looked at) or that stands idle gets the next one there; none left: the
+// next look moves it on
+internal void sn_scouts_step(ee_player *pl, struct sn_st *z, unsigned idx, uint32_t now) {
+    if (!g_set_ai[1].explore || !g_honest_map || (z->step_t && now >= z->step_t && now - z->step_t < XP_STEP)) return;
+    z->step_t = now ? now : 1;
+    for (int i = 0; i < z->n; i++) {
+        struct sn_unit *m = &z->m[i];
+        if (m->scout != 1 || m->look.x < 0 || m->ter < 0 || m->ter >= PR_T || (unsigned)m->ter >= (unsigned)g_ter.n) continue;
+        if (!m->u || (int)unit_get_serial(m->u) != m->id || unit_get_hp(m->u) <= 0 || unit_get_x(m->u) < 0) continue;
+        if (!xp_done(idx, pl, m->look) && !ar_idle(m->u)) continue;   // on its way
+        ivec2 p = unit_get_tile(m->u), lk;
+        if (!xp_goal(idx, pl, p, g_ter.t[m->ter].c, 0, m->ter, NULL, &lk) && !xp_stale(idx, pl, p, m->ter, &lk)) continue;
+        if (lk.x == m->look.x && lk.y == m->look.y) continue;
+        m->look = lk; m->since = now ? now : 1;
+        if (sn_order(z, m, 0, lk, 0, now)) z->looks++;
+    }
+}
+// the quick step at a simulation step's end (eeaimod.c ai_step_end), for a player whose look ran in this game lately
+internal void stations_step(ee_player *pl, uint32_t now) {
+    if (!pl || is_vanilla(pl)) return;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct sn_st *z = &g_sn[idx];
+    if (!z->n || !z->t || now < z->t || now - z->t > 3 * SN_EVERY) return;
+    sn_scouts_step(pl, z, idx, now);
+}
 internal void stations_tick(ee_player *pl, uint32_t now) {
     static struct sn_unit old[SN_UNITS];
     static int tc[PR_T], ac[PR_T], tcs[PR_T], acs[PR_T], fx[PR_T], fy[PR_T], fn[PR_T];
@@ -1075,7 +1102,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     struct sn_st *z = &g_sn[idx];
     struct tv_st *s = &g_tv[idx];
     if (now < z->t) { memset(z, 0, sizeof *z); memset(g_sn_seen[idx], 0, sizeof g_sn_seen[idx]); memset(g_sn_look[idx], 0, sizeof g_sn_look[idx]); memset(g_sn_dark_t[idx], 0, sizeof g_sn_dark_t[idx]); }
-    if (z->t && now - z->t < SN_EVERY) return;
+    if (z->t && now - z->t < SN_EVERY) { sn_scouts_step(pl, z, idx, now); return; }
     z->t = now ? now : 1;
     int n = s->n < PR_T ? s->n : PR_T;
     if (!n || s->version != g_ter.version) return;
@@ -1628,7 +1655,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                      (!m->since || now - m->since <= SN_SCOUT_GIVE_UP) &&
                      (xp_goal(idx, pl, p, g_ter.t[m->ter].c, 0, m->ter, NULL, &lk) || xp_stale(idx, pl, p, m->ter, &lk));
         if (inside) {
-            if (m->look.x < 0 || !m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) {
+            if (m->look.x < 0 || !m->order_t || xp_done(idx, pl, m->look) || sn_idle(z, m, now)) {   // THE NEXT GOAL AT ONCE
                 if (lk.x != m->look.x || lk.y != m->look.y) m->since = now ? now : 1;
                 m->look = lk;
                 if (sn_order(z, m, 0, lk, 0, now)) z->looks++;

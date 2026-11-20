@@ -1477,11 +1477,14 @@ internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, in
     return b;
 }
 
+// what else runs at a step's end: the wiring's (eeaimod.c ai_step_end: the AI's quick steps between its updates)
+internal void (*g_step_end_also)(void);
 // at a step's end (the same step on every PC): the walls a game starts with (a loaded game, a scenario's) at its
 // first; the areas noted at an earlier step (their new pieces on the map now)
 internal void __thiscall hook_step_end(ee_physics *ph) {
     physics_step_end(ph);
     if (!game_map()) return;
+    if (g_step_end_also && game_time()) g_step_end_also();
     if (game_time()) { g_ws_ed_seen = 0; g_ws_ed_base = 0; }   // a game runs (a test play): not the editor - its time stays 0
     if (!g_ws_fitted_game) {
         g_ws_fitted_game = 1;
@@ -1618,7 +1621,7 @@ internal void walls_install(void) {
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
     g_bl_on = g_set.building_lean;
     int any = g_ws_on || g_bl_on;
-    int more = (any ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
+    int more = (any || g_step_end_also ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
     int upg = g_ws_on ? patch_upgrade_convert(hook_upgrade_convert) : 0;
     if (g_ws_on) g_unit_converted = walls_converted;
     if (g_ws_on && !upg && g_log) fprintf(g_log, "# walls: the upgrade's conversion NOT hooked\n");
