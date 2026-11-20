@@ -4421,6 +4421,11 @@ internal int x_wait_until(struct xe *e, double t) {   // the script waits until 
 struct xafter { double at; struct xval fn; char name[48]; int fresh; };
 internal struct xafter g_xa[XA_MAX];
 internal int g_xa_n;
+// a game's own triggers and after's set aside while a dry run has the tables to itself (test/scripts.c script dryrun):
+// the lists and dicts their functions hold are still kept by the sweep (xhl_mark_roots)
+internal const struct xtrig *g_xt_aside;
+internal const struct xafter *g_xa_aside;
+internal int g_xt_aside_n, g_xa_aside_n;
 internal struct xregion g_xt_keep, g_xt_tmp;   // what they keep (their functions, frames); a turn's values
 internal double g_xt_next;   // the next check (game seconds)
 internal void x_triggers_reset(void) {   // a new game: none (nor dicts, nor lists)
@@ -7184,6 +7189,8 @@ internal struct xvm *g_xtm;
 internal void xhl_mark_roots(void) {
     for (int i = 0; i < g_xt_n; i++) { xhl_mark(&g_xt[i].when); xhl_mark(&g_xt[i].run); }
     for (int i = 0; i < g_xa_n; i++) xhl_mark(&g_xa[i].fn);
+    for (int i = 0; i < g_xt_aside_n; i++) { xhl_mark(&g_xt_aside[i].when); xhl_mark(&g_xt_aside[i].run); }
+    for (int i = 0; i < g_xa_aside_n; i++) xhl_mark(&g_xa_aside[i].fn);
     if (g_xtm) for (int j = 0; j < g_xtm->sp; j++) xhl_mark(&g_xtm->st[j]);
 }
 internal void xhl_sweep(void) {

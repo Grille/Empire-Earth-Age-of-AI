@@ -505,6 +505,8 @@ internal void cmd_script(char *out, const char *args) {
     double next = g_xt_next;
     memcpy(keep_t, g_xt, sizeof g_xt);
     memcpy(keep_a, g_xa, sizeof g_xa);
+    g_xt_aside = keep_t; g_xt_aside_n = nt;   // (the sweep keeps what they hold meanwhile)
+    g_xa_aside = keep_a; g_xa_aside_n = na;
     g_xt_n = g_xa_n = 0;
     g_xt_next = 0;
     LARGE_INTEGER qf, q0, q1;   // (the time it takes: what a game's objects cost a script - docs/testing.md "The engine's speed")
@@ -525,6 +527,7 @@ internal void cmd_script(char *out, const char *args) {
     memcpy(g_xt, keep_t, sizeof g_xt);
     memcpy(g_xa, keep_a, sizeof g_xa);
     g_xt_n = nt; g_xa_n = na; g_xt_next = next;
+    g_xt_aside_n = g_xa_aside_n = 0;
     g_x_hooks = h0;
     g_xr = r0;
     x_region_free(&reg);
