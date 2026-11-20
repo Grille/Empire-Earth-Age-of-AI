@@ -304,7 +304,7 @@ class ai_base
         /// out where the AI sees enemy troops or buildings near the water - invaders on its coast, the shore at its own
         /// landings. 0 = none trained (the strike groups still lead any it has)
         [advanced]
-        bool missile_subs = false;
+        bool missile_subs = true;
         /// The shore decided (sea_squadrons): the squadrons' warships move plainly when quiet and keep a target on land
         /// only within their reach, instead of sailing after whatever they see there and turning back at the next
         /// tower; a main squadron shells a building on its sea's coast only when its estimate beats the defences that
@@ -1049,7 +1049,7 @@ class ai_base
         /// only when it stalls for 2 minutes, can't be reached within 10 at the rate it grows, or soldiers are needed at
         /// once (enemies in the base). 0 = the old way: substitute_wait for soldiers, the next payable ship for the navy
         [advanced]
-        bool savings = false;
+        bool savings = true;
         /// The mod's own training orders (AA units, siege, home guard, transports) only up to the room under the population
         /// cap - at the cap they were paid for and stuck in the queue, blocking the AI's own training. A mask of players
         /// (65535 = all, 0 = off)

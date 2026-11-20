@@ -1,5 +1,5 @@
-// THE SAVINGS ([ai_base] savings, off until measured; [autotest] v_savings; the player 2026-11-20, after missile subs
-// - 600 gold + 600 iron - were trained by 1 AI in 8: "a bit more expensive order shouldn't need to be priority to get
+// THE SAVINGS ([ai_base] savings, on since 2026-11-20 by the player's call - "turn savings and the subs on" -, MEASURED
+// below; [autotest] v_savings; the player 2026-11-20, after missile subs - 600 gold + 600 iron - were trained by 1 AI in 8: "a bit more expensive order shouldn't need to be priority to get
 // through, that points at a potential larger problem", then "build it as a general system from the beginning"). The
 // spenders gave up on whatever costs more than they hold at once: the navy's mix bought the next role it could pay now
 // out of the same money (and skipped a type refused for 2 minutes), the army's SAVING FIRST substituted after 90 s
@@ -19,6 +19,12 @@
 //   - out of reach: at the rate it has grown since it began, not there within SV_HORIZON (looked at from SV_OBSERVE on)
 //   - urgent: its spender needs something at once (the army: enemy soldiers in its base)
 // A type given up is not saved for again for SV_AGAIN: its spender's own way meanwhile (the next payable, a substitute).
+// Not held from research, buildings or citizens (upgrades before units): a missile sub's saving stalls at 35-55% where
+// research takes the gold and iron - still about one a game.
+// MEASURED 2026-11-20 (head-to-head mirrored, 10 games a map, 50 min from epoch 9, B v_savings=1): Continental kills -6.5
+// (se 11.4), losses +13.8 (14.3), soldiers +2.1 (7.1); Small Islands large kills +1.5 (4.6), losses +4.0 (6.8), workers
+// -2.6 (2.8), warships bought from savings 0.9 an AI, afloat at the end 10.1 against 9.0 - noise either way: the dear
+// orders it lets through are rare there. On by the player's call.
 #define SV_ASKED 30000
 #define SV_STALL 120000
 #define SV_HORIZON 600000   // 5 minutes gave up on a missile sub growing 11% a minute at 29% (a player saves that long for one)
