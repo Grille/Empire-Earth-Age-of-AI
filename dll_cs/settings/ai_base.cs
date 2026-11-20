@@ -123,6 +123,13 @@ class ai_base
         /// The memories are saved with the game. (The game's own AI code still sees everything either way - but
         /// honest_intel.)
         bool honest_vision = true;
+        /// The map at the start: the game hands a computer player the whole map explored at its first moment - the ground
+        /// everywhere, and with it every resource, every site and every building laid on it later, known at once wherever
+        /// it is. 1 = the AIs the mod plays (the game's own computer player off) start knowing only what a player in their
+        /// place knows: the ground their units have seen, or the whole map when the game's setup reveals it for everyone;
+        /// they find the rest by exploring. The game's own computer player (game_ai, scenarios) still gets the map - its
+        /// code relies on it. 0 = the map handed over (off until the AI's scouting finds the map well enough)
+        bool honest_map = false;
         /// With honest_vision: the game's own AI code keeps a file on each player - what units it has, how strong it is on
         /// land, at sea and in the air, where it stands - filled from all of that player's units, unseen ones too: its unit
         /// choice trains counters to an army it never saw, its attacks pick their target by it. 1 = the file holds only the

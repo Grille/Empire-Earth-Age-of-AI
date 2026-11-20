@@ -35,6 +35,13 @@ internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { ret
 typedef void (__thiscall *map_sight_players_fn)(ee_map *, uint32_t);
 internal map_sight_players_fn fn_map_sight_players;
 internal inline void map_sight_players(ee_map *map, uint32_t n) { fn_map_sight_players(map, n); }
+// thiscall(map, player): every tile the player's sight count has at 0 (never explored) set to 1 (explored,
+// through 0x51979C) - a computer player's first update gives it the whole map so (EEComputerPlayer::update's
+// one-time setup: mov ecx, [game.map]; push the player; call), the cheat codes' reveal map (0x520D0D) too
+typedef void (__thiscall *map_explore_all_fn)(ee_map *, ee_player *);
+internal map_explore_all_fn fn_map_explore_all;
+internal inline void map_explore_all(ee_map *map, ee_player *pl) { fn_map_explore_all(map, pl); }
+internal inline int patch_cp_explore_all(map_explore_all_fn h) { return patch_call(call_cp_explore_all, (uintptr_t)fn_map_explore_all, (void *)h); }
 // its GETerrainMesh (the units' update: lea ecx, [map + 0x1C] for the visible rows, both builds)
 internal inline uint8_t *map_mesh_at(const ee_map *o) { return (uint8_t *)o + of_map_mesh; }
 // the ground's corners: a row per corner y (0 .. size), 0xC each - 0x517C10 reads a tile's four, x, x + 1 of rows
@@ -442,6 +449,8 @@ internal int spec_map_select(int build) {
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
         fn_map_sight_players = (map_sight_players_fn)0x00511694;
+        fn_map_explore_all = (map_explore_all_fn)0x005190AE;
+        call_cp_explore_all = 0x0043F94C;
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
@@ -556,6 +565,8 @@ internal int spec_map_select(int build) {
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
         fn_map_sight_players = (map_sight_players_fn)0x0051BC03;
+        fn_map_explore_all = (map_explore_all_fn)0x0052377F;
+        call_cp_explore_all = 0x0043F1A7;
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
@@ -672,6 +683,8 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_map_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_map_sight_players, "EEMap.sight_players");
+    bad += spec_code((uintptr_t)fn_map_explore_all, "EEMap.explore_all");
+    bad += spec_call(call_cp_explore_all, (uintptr_t)fn_map_explore_all, "EEMap.explore_all [call_site cp_explore_all]");
     bad += spec_code((uintptr_t)fn_map_refresh_corner, "EEMap.refresh_corner");
     bad += spec_code((uintptr_t)fn_map_refresh_tiles, "EEMap.refresh_tiles");
     bad += spec_code((uintptr_t)fn_map_paint_terrain, "EEMap.paint_terrain");

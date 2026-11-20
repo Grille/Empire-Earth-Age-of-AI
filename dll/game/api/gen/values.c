@@ -1291,6 +1291,7 @@ internal uint32_t of_grid_cell_size;
 internal uint32_t of_grid_nx;
 internal uint32_t of_grid_ny;
 internal uint32_t of_grid_cell_units_begin;
+internal uint32_t call_cp_explore_all;
 internal uint32_t of_map_mesh;
 internal uint32_t of_map_corner_rows;
 internal uint32_t of_map_view_rows;

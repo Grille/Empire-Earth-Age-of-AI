@@ -547,7 +547,28 @@ internal void cmd_vistrack(char *out, const char *args) {
     }
 }
 
+// THE MAP HANDED OVER ([ai_base] honest_map; the player 2026-11-20, an AI laid a Settlement by a mine it had never
+// seen): a computer player's first update marks every tile it has never explored explored (EEMap::explore_all at
+// EEComputerPlayer::update's one-time setup) - from its first second explored_by, the game's own tests and every check
+// of the mod's on them know the whole map's ground and all on it. On: not for the mod's players with the game's
+// computer player off - their tiles stay as the start left them (the start's sight, the setup's revealed map), the
+// rest explored as their units see it; the game's computer player (game_ai, a scenario's) gets the map as before, its
+// code was written for it. The tiles' state is the game's and saved with it: nothing of the mod's to persist.
+internal int g_honest_map;
+internal void __thiscall hook_cp_explore_all(ee_map *map, ee_player *pl) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (g_honest_map && !is_vanilla(pl) && !GAME_AI(idx)) {
+        if (g_log) log_locked("# intel: P%u starts with the map unexplored (honest_map)\n", idx);
+        return;
+    }
+    map_explore_all(map, pl);
+}
+
 internal void intel_install(const char *autotest_ini) {
+    g_honest_map = g_set_ai[1].honest_map;
+    int hm = g_honest_map ? patch_cp_explore_all(hook_cp_explore_all) : -1;
+    if (g_log) fprintf(g_log, "# intel: honest_map %d: %s\n", g_honest_map,
+                       hm > 0 ? "the mod's players start with the map unexplored" : hm < 0 ? "the map handed over (off)" : "NOT PATCHED (another exe?)");
     g_honest_vision = g_set_ai[1].honest_vision;
     g_reveal = g_set_ai[1].reveal_attackers;
     if (autotest_ini) g_v_reveal = ini_int("autotest", "v_reveal_attackers", -1, autotest_ini);

@@ -35,6 +35,13 @@ unsafe struct EEMap
     [address((ee)0x00511694, (aoc)0x0051BC03)]
     extern void sight_players(uint32 n);
 
+    /// thiscall(map, player): every tile the player's sight count has at 0 (never explored) set to 1 (explored,
+    /// through 0x51979C) - a computer player's first update gives it the whole map so (EEComputerPlayer::update's
+    /// one-time setup: mov ecx, [game.map]; push the player; call), the cheat codes' reveal map (0x520D0D) too
+    [address((ee)0x005190AE, (aoc)0x0052377F)]
+    [call_site("cp_explore_all", (ee)0x0043F94C, (aoc)0x0043F1A7)]
+    extern void explore_all(EEPlayer* pl);
+
     /// its GETerrainMesh (the units' update: lea ecx, [map + 0x1C] for the visible rows, both builds)
     [offset(0x1C), found(c)]
     block mesh;
