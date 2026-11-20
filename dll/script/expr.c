@@ -68,7 +68,9 @@
 // own, the texts all on one - xvm_eval); the file check (x_syntax) is the same parser with the checks the files get when they are read, in
 // the order they appear. The values' texts and lists live in a region (x_alloc) that the outermost evaluation starts
 // afresh. Included by eeaimod.c before persona.c.
-#define XVARS_MAX 48
+// a file's names (and its records' members) - mod/system.eeai's hold every word of language.eeai (word.vassal: 51 in
+// 2026-11), so well above them; at most 254 (first, next: an index + 1 in a byte)
+#define XVARS_MAX 128
 #define XVAL_CAP 512   // the callers' text buffers (xto_text cuts there); a value's own text has no limit
 // val: an expression's source; dotted: a file record's member among the keys (colors.dark) - else no name is
 // looked up as one (x_vars_group, a member path's head: what every dotted name would pay for)
@@ -267,7 +269,7 @@ internal int xvars_find(const struct xvars *v, const char *key) {
 }
 internal void xvars_set(struct xvars *v, const char *key, const char *val) {
     int i = xvars_find(v, key);
-    if (i < 0 && v->n == XVARS_MAX) return;
+    if (i < 0 && v->n == XVARS_MAX) { x_error("%s: more than %d names in one file - left out", key, XVARS_MAX); return; }
     if (i >= 0) { free(v->val[i]); free(v->key[i]); }
     else {
         unsigned h = xvars_hash(key);
