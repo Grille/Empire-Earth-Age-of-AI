@@ -2636,7 +2636,8 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
 // - THE THREAT, in fighters' worth (aa_weight): the most of the aircraft it saw near its towns and anywhere (kept
 //   AAS_KEEP), the air force it expects of its enemies (army_view.c aa_threat_expected: what each fields, and the
 //   aircraft among its counters to what it saw of the AI's), and before any is seen AAS_FLOOR - an enemy in World War I
-//   or later - or AAS_FLOOR_PORT - an enemy airport it knows: aircraft can come any minute.
+//   or later - or AAS_FLOOR_PORT - an enemy airport it knows: aircraft can come any minute. Until it has seen an
+//   aircraft, AAS_AHEAD of that.
 // - STATIC AA IN BLOCKS: its places - its Town Centers, Capitols and Settlements first, then its other drop sites, the
 //   nearest its base first - each want a block of AA buildings within AAS_R: 2 while the threat is below AAS_BIG, else
 //   4 - a 2x2 of the building's footprint where it fits, else a line -, laid out at once as foundations (paid, as the
@@ -2669,6 +2670,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
 #define AAS_KEEP 600000u
 #define AAS_FLOOR 3.0f
 #define AAS_FLOOR_PORT 6.0f
+#define AAS_AHEAD 0.5f   // the threat while no aircraft is seen (expected, floor): this share of it
 #define AAS_BIG 8.0f
 #define AAS_PER_SITE 6.0f
 #define AAS_R 8
@@ -2757,6 +2759,10 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
     if (ex > threat) threat = ex;
     float least = port ? AAS_FLOOR_PORT : ahead ? AAS_FLOOR : 0.0f;
     if (least > threat) threat = least;
+    // ahead of any aircraft seen, half of it (the player 2026-11-20: "its a bit to agresive, half of the aa would probably
+    // be more than enough for normal games" - Continental from World War I, 45 min, 6 games: 5.2 AA buildings and 9.3 AA
+    // units per AI with no aircraft seen in any, all of it from the air force expected of its enemies)
+    if (z->w_near <= 0 && z->w_all <= 0) threat *= AAS_AHEAD;
     g_aa_urgent[idx] = 0; memset(g_aa_hold[idx], 0, sizeof g_aa_hold[idx]); g_aa_maker[idx] = 0;
     if (threat <= 0) return;
     // priority.c the row "air": aircraft over its towns, an enemy airport, or its first 2 AA buildings once enemy aircraft

@@ -211,11 +211,14 @@ internal int ap_training_pays(ee_player *pl, unsigned idx) {
 }
 // the game's computer player off - FILL's own type: the strongest land soldier vis pays that an idle building of its
 // trains (the strongest of all came from the Barracks every time: it trained without a pause, the Archery Range and
-// the Stable beside it stood idle and 3 of 4 orders trained nothing)
+// the Stable beside it stood idle and 3 of 4 orders trained nothing). No AA units: how many it has is defence.c's
+// anti-air (the player 2026-11-20, half of its AA wanted - with it halved the factory it lays for them stood idle and
+// was filled with them here: 14 standing of 7 wanted)
+internal int ap_no_aa(int t) { ee_unit_type *td = type_data(t); return td && unit_type_get_family(td) != KIND_LAND_AA; }
 internal int ap_idle_type(ee_player *pl, const int *vis) {
     int best = 0;
     for (int t = 0; t < 724; t++) {
-        if (!land_soldier(t) || soldier_score(t) <= 0 || (best && soldier_score(t) <= soldier_score(best)) || !can_build(pl, t)) continue;
+        if (!land_soldier(t) || !ap_no_aa(t) || soldier_score(t) <= 0 || (best && soldier_score(t) <= soldier_score(best)) || !can_build(pl, t)) continue;
         int pays = 1, paid = 0;
         for (int r = 2; r < 7; r++) { int c = unit_cost(pl, t, r); paid |= c > 0; if (vis[r] < c) pays = 0; }
         if (pays && paid && ap_trains_now(pl, t)) best = t;
@@ -224,7 +227,7 @@ internal int ap_idle_type(ee_player *pl, const int *vis) {
     // refused and saved for (econ.c train_budget), which is what gets the army its turn
     int cheap = 0, cc = 0;
     for (int t = 0; !best && t < 724; t++) {
-        if (!land_soldier(t) || soldier_score(t) <= 0 || !can_build(pl, t)) continue;
+        if (!land_soldier(t) || !ap_no_aa(t) || soldier_score(t) <= 0 || !can_build(pl, t)) continue;
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
         if (c > 0 && (!cheap || c < cc) && ap_trains_now(pl, t)) { cheap = t; cc = c; }
