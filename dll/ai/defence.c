@@ -2931,7 +2931,10 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     struct aa_scan a = { 0 };   // each unit once (grid_each): counted by hand per grid cell, an AA building in 2-4 cells
     a.pl = pl;                   // counted 2-4 times - fewer AA units trained, the AA buildings stopped early
     grid_each(aa_scan_unit, &a);
-    if (AA_STRONG(idx)) { aa_strong(pl, idx, now, &a, epoch); return; }
+    // the game's computer player off: the counts below queue their AA buildings in the game's build list, which nobody
+    // works then (the player's game of 2026-11-19: an 88mm gun queued ahead at minute 70 by both AIs, none ever built, and
+    // the entry still there kept every other from being queued) - the strong one lays its own foundations
+    if (AA_STRONG(idx) || !GAME_AI(idx)) { aa_strong(pl, idx, now, &a, epoch); return; }
     int nair = a.nair, have_u = a.have_u, have_b = a.have_b, nall = a.nall, nbx = a.nbx;
     int (*bxy)[2] = a.bxy;
     float axs = a.axs, ays = a.ays;

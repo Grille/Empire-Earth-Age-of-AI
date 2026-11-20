@@ -981,7 +981,8 @@ class ai_base
         /// bomber as 6) from the aircraft seen, the air force it expects of its enemies and, before any are seen, an enemy
         /// in World War I or with an airport; blocks of AA buildings - 2, or 4 in a 2x2 when the threat is real - at its
         /// Town Centers first, then its drop sites, one more place per 6 of the threat; AA units 2 + the threat, up to a
-        /// quarter of its unit limit (default off until measured)
+        /// quarter of its unit limit (default off until measured; with the game's computer player off always - the counts
+        /// above build through the game's build list, which nobody works then)
         [advanced]
         bool aa_strong = false;
         /// Hold the town (experimental): when a stronger enemy army camps near an AI town, its soldiers pull back behind the
