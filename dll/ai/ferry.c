@@ -271,6 +271,7 @@ internal int fy_coming(const struct fy_st *f, uint32_t now) {   // transports or
 // to come) the wave sets out with the room it has, the rest of the push in later waves. g_fy_pord: trained for push k's
 // wave so far
 internal int g_fy_pord[16][SN_PUSHES];
+#define FY_FREE_MAX 4   // NOT WHERE IT CAN'T SERVE: so many free, none trained where the game puts it
 internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted, const struct fy_want *wt, int nwt, uint32_t now) {   // MORE TRANSPORTS
     int coming = 0, slot = -1;
     for (int k = 0; k < 4; k++) {
@@ -284,7 +285,14 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
     if (!um || !tt) return;
     int req[4] = { tt, 1, 0, 0 };
     unsigned sea = 0;
-    if (FERRY_THRIFT(idx)) {   // THRIFT: at a dock on a sea both lands of a wanted trip touch - none there, none ordered
+    // NOT WHERE IT CAN'T SERVE (the player 2026-11-20, "the ai is drowing in transports, something is very wrong" - his
+    // P2 at minute 187 with 107 transports, 105 free, 293 trained; P3 116, 96 free, 174 trained: each where the game put
+    // it while the trips that asked wanted another sea - "looks with none between the lands" 5063 -, so every look
+    // ordered the next): at a dock on a sea both lands of a wanted trip touch (THRIFT's way); with none there, where
+    // the game puts it only while fewer than FY_FREE_MAX of its transports stand free. Only the first (none without
+    // such a dock) cost the island tests (Small Islands large from World War I, 90 min, 6 seeds) trips 76 -> 65 and
+    // citizens put off 141 -> 117 per AI - there one from another dock got there.
+    {
         unsigned seas[8], area = 0;
         int ns = 0;
         fl_sea_docks(um, 0, NULL, seas, &ns);
@@ -293,7 +301,13 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
             for (int k = 0; k < ns && !sea; k++)
                 if (ex_shore(wt[i].a, (int)seas[k], wt[i].from, FY_SHORE, &o, &w) && ex_shore(wt[i].b, (int)seas[k], wt[i].to, FY_SHORE, &o, &w) &&
                     fl_sea_docks(um, seas[k], &area, NULL, NULL) && area) { sea = seas[k]; req[3] = (int)area; }
-        if (!sea) { f->no_dock++; return; }
+        if (!sea && FERRY_THRIFT(idx)) { f->no_dock++; return; }
+        if (!sea) {
+            int nfree = 0;
+            for (struct grid_it it = grid_it_all(1); nfree < FY_FREE_MAX && grid_it_next(&it); )
+                if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && unit_get_x(it.u) >= 0 && is_transport(unit_type_get_id(it.td))) nfree += fy_free_ship(pl, it.u, it.td);
+            if (nfree >= FY_FREE_MAX) { f->no_dock++; return; }
+        }
     }
     unsigned got = 0;
     g_priority_mil = 1; g_landing_order = 1; g_expand_econ = 1;   // paid as the expansion's (expand.c ex_ferry_ship)
@@ -318,7 +332,8 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
 // with 6 while a third sent 9 to it, one or two a transport. With it: a transport is ordered only for a trip that found
 // none free on a sea both its lands touch, and trained at a dock on such a sea (fleet.c fl_sea_docks: the game hands an
 // order to the producers of one region, the biggest group unless it is named) - with no dock of its on one, none (the
-// seas may not join: one free elsewhere is no help, and one from the biggest group of docks sailed there); a land's
+// seas may not join: one free elsewhere is no help, and one from the biggest group of docks sailed there) - that part
+// always first since 2026-11-20 (fy_order NOT WHERE IT CAN'T SERVE); a land's
 // citizens fill its own free places first (its spare less them); a citizens' trip takes FY_CIT_MIN at least, fewer only
 // when the land they go to wants no more. And the parked transports SPREAD over a sea's docks (the player: "idle
 // transports should maybe spread betwen habours ti increase availabilithy"): a sea's free ones in even shares, a dock

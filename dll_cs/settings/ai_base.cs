@@ -806,9 +806,9 @@ class ai_base
         /// player off). 0 = off
         [advanced]
         bool transport_park = true;
-        /// The ferry (ferry_service) sparing with transports: one is ordered only for a trip that finds none free on a
-        /// sea both its lands touch, and trained at a dock on such a sea (none without one); a land's citizens fill the
-        /// free places at its own mines before any is taken across; a citizens' trip takes 4 at least, fewer only when
+        /// The ferry (ferry_service) sparing with transports: a new one only at a dock on a sea both lands of a waiting
+        /// trip touch (without it: that dock first, elsewhere only while fewer than 4 stand free); a land's citizens
+        /// fill the free places at its own mines before any is taken across; a citizens' trip takes 4 at least, fewer only when
         /// the land they go to wants no more; and the transports parked (transport_park) spread over a sea's docks in
         /// even shares. 0 = off
         [advanced]
