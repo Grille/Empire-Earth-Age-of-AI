@@ -115,10 +115,10 @@
 #define SQ_SCREEN_R 16         //   THE SCREEN: enemy warships so near the loaded transport at sea, or its escort, are attacked
 #define SQ_SEAS 64
 #define SQ_T 4096
-enum { SQK_MAIN, SQK_SCOUT, SQK_HUNT };
-internal const char *const k_sqk[3] = { "main", "scouts", "hunters" };
-enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_SUPPORT, SQS_SHELL, SQS_N };
-internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening", "ahead of a push's landing", "shelling the shore" };
+enum { SQK_MAIN, SQK_SCOUT, SQK_HUNT, SQK_STRIKE, SQK_N };
+internal const char *const k_sqk[SQK_N] = { "main", "scouts", "hunters", "strike" };
+enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_SUPPORT, SQS_SHELL, SQS_STRIKE, SQS_N };
+internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening", "ahead of a push's landing", "shelling the shore" , "striking"};
 // THE SHORE ([ai_base] sea_shore_fire, on since 2026-11-20 by the player's call ("switch it on"); [autotest] v_sea_shore_fire; the player 2026-11-20: "ships
 // attacking targets on land are very skitish, unable to decide wether to do it or not"). Traced (Small Islands large
 // from World War I, 2 games, each warship every 2.7 s): the game's own target pick - at rest, and on the squadrons' moves,
@@ -162,7 +162,7 @@ internal struct sq_st {
     struct { ee_unit *u; int id; signed char sq; } m[FL_MAX]; int nm;
     uint32_t t, zone_t, log_t;
     unsigned repairs, moved, flees, drops, behind, shore_drops;   // flees: ships out of a danger zone; drops: a target in one given up; shore_drops: THE SHORE's, a land target out of reach
-    unsigned lost_kind[3], lost_state[SQS_N], lost_repair, lost_landing, lost_none;   // its warships sunk: by squadron kind, by what it did then, sent to repair, a landing's escort, in none
+    unsigned lost_kind[SQK_N], lost_state[SQS_N], lost_repair, lost_landing, lost_none;   // its warships sunk: by squadron kind, by what it did then, sent to repair, a landing's escort, in none
     int free_nosea, free_nofit, docked;   // the last look: ships in no squadron - on no sea, none that takes them; at the dock
 } g_sq[16];
 internal uint32_t g_sq_look[16][SQ_T];   // a water territory last seen by one of its warships (A LOOK AGAIN at sea)
@@ -311,9 +311,20 @@ internal void sq_state(struct sq *q, int st, uint32_t now) {
 }
 // a ship of the role a squadron of kind k takes (main: all but the hunters; scouts: frigates; hunters: submarines and galleys)
 internal int sq_hunter(int role) { return role == NR_SUB || role == NR_ANTI; }
-internal int sq_fits(int k, int role) { return k == SQK_HUNT ? sq_hunter(role) : k == SQK_SCOUT ? role == NR_FRIG : !sq_hunter(role); }
+internal int sq_fits(int k, int role) {
+    return k == SQK_HUNT ? sq_hunter(role) : k == SQK_SCOUT ? role == NR_FRIG : k == SQK_STRIKE ? role == NR_MSUB || role == NR_FRIG || role == NR_AA :
+           !sq_hunter(role) && role != NR_MSUB;
+}
+// THE STRIKE's escort: SQ_STRIKE_FRIG frigates and a cruiser at most (its missile subs all)
+#define SQ_STRIKE_FRIG 2
+internal int sq_room(const struct sq *q, int role) {
+    if (q->kind != SQK_STRIKE || role == NR_MSUB) return 1;
+    int n = 0;
+    for (int k = 0; k < q->n; k++) n += nv_role(unit_get_type_data(q->u[k])) == role;
+    return n < (role == NR_FRIG ? SQ_STRIKE_FRIG : 1);
+}
 // ZONES: the main squadrons' anchors per sea, scout groups - squadrons kept where their anchor stays
-internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const int *nfrig, const int *nsub, int noc, uint32_t now) {
+internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const int *nfrig, const int *nsub, const int *nmsub, int noc, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     struct tv_st *s = &g_tv[idx];
     int n = s->n < SQ_T ? s->n : SQ_T;
@@ -346,11 +357,11 @@ internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const 
         if (!split) na = na > 1 ? 1 : na;
         int hunters = (nsub[o] + SQ_HUNT_N - 1) / SQ_HUNT_N;
         if (hunters > 3) hunters = 3;
-        int mains = (nship[o] - nsub[o] - (scouts * SQ_SCOUT_N < nfrig[o] ? scouts * SQ_SCOUT_N : nfrig[o])) / SQ_MAIN_MIN;
+        int mains = (nship[o] - nsub[o] - nmsub[o] - (scouts * SQ_SCOUT_N < nfrig[o] ? scouts * SQ_SCOUT_N : nfrig[o])) / SQ_MAIN_MIN;
         if (mains < 1) mains = 1;
         int had = 0;   // STEADY: as many as before unless the ships make a clear difference (one squadron's minimum and 2)
         for (int i = 0; i < SQ_MAX; i++) had += z->s[i].on && z->s[i].kind == SQK_MAIN && z->s[i].ocean == oc;
-        if (had && mains != had && abs((nship[o] - nsub[o]) - had * SQ_MAIN_MIN) < SQ_MAIN_MIN + 2) mains = had;
+        if (had && mains != had && abs((nship[o] - nsub[o] - nmsub[o]) - had * SQ_MAIN_MIN) < SQ_MAIN_MIN + 2) mains = had;
         if (mains > na) mains = na > 0 ? na : 1;
         if (!na) { anchor[0] = -1; zval[0] = 1; na = 1; }   // no water of worth on this sea yet: one squadron by its ships
         for (int k = 0; k < mains; k++) {   // a main squadron per anchor - the nearest there is (its ships stay with it, the zone moves), else a new one
@@ -388,6 +399,17 @@ internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const 
             q->on = 1; q->kind = SQK_HUNT; q->ocean = oc; q->anchor = -1; q->want = (nsub[o] + hunters - 1) / hunters;
             keep[found] = 1;
         }
+        int strikes = (nmsub[o] + NV_MSUB_GROUP - 1) / NV_MSUB_GROUP;   // THE STRIKE: a group per NV_MSUB_GROUP missile subs
+        if (strikes > 2) strikes = 2;
+        for (int k = 0; k < strikes; k++) {
+            int found = -1;
+            for (int i = 0; i < SQ_MAX && found < 0; i++) if (z->s[i].on && !keep[i] && z->s[i].kind == SQK_STRIKE && z->s[i].ocean == oc) found = i;
+            for (int i = 0; i < SQ_MAX && found < 0; i++) if (!z->s[i].on && !keep[i]) { memset(&z->s[i], 0, sizeof z->s[i]); found = i; }
+            if (found < 0) break;
+            struct sq *q = &z->s[found];
+            q->on = 1; q->kind = SQK_STRIKE; q->ocean = oc; q->anchor = -1; q->want = (nmsub[o] + strikes - 1) / strikes + SQ_STRIKE_FRIG + 1;
+            keep[found] = 1;
+        }
     }
     for (int i = 0; i < SQ_MAX; i++) if (z->s[i].on && !keep[i]) z->s[i].on = 0;   // its zone gone: its ships go to the others
     z->zone_t = now ? now : 1;
@@ -404,7 +426,7 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
         float sum = 0; int ships = 0, scouts = 0;
         for (int j = 0; j < SQ_MAX; j++) if (z->s[j].on && z->s[j].ocean == q->ocean && z->s[j].kind == SQK_MAIN) sum += z->s[j].zvalue;
         for (int j = 0; j < SQ_MAX; j++) if (z->s[j].on && z->s[j].ocean == q->ocean && z->s[j].kind == SQK_SCOUT) scouts += SQ_SCOUT_N;
-        for (int k = 0; k < f->n; k++) ships += fl_ship_ocean(f->u[k]) == q->ocean && !sq_hunter(nv_role(unit_get_type_data(f->u[k])));
+        for (int k = 0; k < f->n; k++) { int ro = nv_role(unit_get_type_data(f->u[k])); ships += fl_ship_ocean(f->u[k]) == q->ocean && !sq_hunter(ro) && ro != NR_MSUB; }
         ships -= scouts;
         q->want = sum > 0 ? (int)((float)ships * q->zvalue / sum + 0.5f) : ships;
         if (q->want < SQ_MAIN_MIN) q->want = SQ_MAIN_MIN;
@@ -416,6 +438,18 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
         for (int j = 0; j < z->nm; j++) if (z->m[j].u == u && z->m[j].id == unit_get_serial(u)) { was[k] = z->m[j].sq; break; }
     }
     int nm = 0;
+    // THE STRIKE's escort it lacks, per strike group: its frigates and cruiser from the last look's members - one of a
+    // main squadron's is given to it (else it got only ships new to every squadron: in the first test none)
+    int esc_need[SQ_MAX][2] = { { 0 } };
+    for (int i = 0; i < SQ_MAX; i++) {
+        if (!z->s[i].on || z->s[i].kind != SQK_STRIKE) continue;
+        esc_need[i][0] = SQ_STRIKE_FRIG; esc_need[i][1] = 1;
+        for (int k = 0; k < f->n; k++) {
+            if (was[k] != i) continue;
+            int ro = nv_role(unit_get_type_data(f->u[k]));
+            if (ro == NR_FRIG) esc_need[i][0]--; else if (ro == NR_AA) esc_need[i][1]--;
+        }
+    }
     memset(kept, 0, sizeof kept);
     z->free_nosea = z->free_nofit = 0; z->docked = f->ndocked;
     for (int k = 0; k < f->n; k++) {
@@ -432,13 +466,19 @@ internal void sq_assign(unsigned idx, struct fleet *f, uint32_t now) {
             if (docked) continue;
             if (pass == 0) {   // its squadron still, while that one has room for it
                 q = was[k];
-                if (q < 0 || q >= SQ_MAX || !z->s[q].on || z->s[q].ocean != oc || !sq_fits(z->s[q].kind, role) || z->s[q].n >= z->s[q].want + 2) continue;
+                if (q < 0 || q >= SQ_MAX || !z->s[q].on || z->s[q].ocean != oc || !sq_fits(z->s[q].kind, role) || !sq_room(&z->s[q], role) || z->s[q].n >= z->s[q].want + 2) continue;
+                if (z->s[q].kind == SQK_MAIN && (role == NR_FRIG || role == NR_AA)) {   // THE STRIKE's escort first
+                    int gave = 0;
+                    for (int i = 0; i < SQ_MAX && !gave; i++)
+                        if (z->s[i].on && z->s[i].kind == SQK_STRIKE && z->s[i].ocean == oc && esc_need[i][role == NR_AA] > 0) { esc_need[i][role == NR_AA]--; gave = 1; }
+                    if (gave) continue;   // free for pass 1: the strike group is the most short
+                }
             } else {
                 if (kept[k]) continue;
                 float best = -1e9f;
                 for (int i = 0; i < SQ_MAX; i++) {
                     struct sq *s2 = &z->s[i];
-                    if (!s2->on || s2->ocean != oc || !sq_fits(s2->kind, role)) continue;
+                    if (!s2->on || s2->ocean != oc || !sq_fits(s2->kind, role) || !sq_room(s2, role)) continue;
                     float short_ = (float)(s2->want - s2->n) + (s2->kind != SQK_MAIN && s2->n < s2->want ? 100.0f : 0.0f);
                     if (short_ > best) { best = short_; q = i; }
                 }
@@ -826,6 +866,93 @@ internal void sq_hunt(ee_player *pl, unsigned idx, int i, uint32_t now) {
     sq_state(q, SQS_REST, now);
     sq_go(pl, q, sq_safe(c, sq_to_main(z, q, c), q->ocean), !SQ_SHORE(idx), now);   // THE SHORE: a plain move
 }
+// THE STRIKE (navy.c NR_MSUB; the player 2026-11-20: "i usually keep them in small strike groups 1-2 (subs) with
+// frigates and cruisers near since they are expensive and easily destroyed, ... they need sight, they are good support
+// against invading troops or for own invasions when much enemy buildings and forces are in view near water"): a strike
+// group - its missile subs (Trident, Triton: 24 tiles, buildings and land units, no ship) and an escort of
+// SQ_STRIKE_FRIG frigates and a cruiser - waits by the nearest main squadron. Every look, the enemy on land it sees now
+// (seen_by: its other units' sight - a missile sub sees 3 tiles) within SQ_STRIKE_RANGE of water of its sea and
+// SQ_STRIKE_R of the group: soldiers, siege, towers and buildings, each worth its hit points (towers and siege x3,
+// buildings x0.5); the place with the most worth within SQ_STRIKE_AREA, SQ_STRIKE_MIN at least. The group sails to the
+// safe water nearest it (out of every danger zone, fleet.c), the subs attack the most worth in their reach, the escort
+// stays with them. Enemy warships within SQ_STRIKE_FLEE it doesn't beat (a frigate sinks a missile sub fast): back to
+// the main squadron
+#define SQ_STRIKE_R 70
+#define SQ_STRIKE_RANGE 22
+#define SQ_STRIKE_AREA 5
+#define SQ_STRIKE_MIN 600.0f
+#define SQ_STRIKE_FLEE 14
+#define SQ_STRIKE_N 128
+internal float sq_strike_worth(ee_unit *u, ee_unit_type *td) {
+    int t = unit_type_get_id(td), cl = unit_type_get_class_id(td);
+    float w = (float)unit_get_hp(u);
+    if (is_tower_type(t) || is_siege(t)) w *= 3.0f;
+    else if (cl == CLS_BUILDING || cl == CLS_FORTRESS) w *= 0.5f;
+    return w;
+}
+internal void sq_strike(ee_player *pl, unsigned idx, int i, uint32_t now) {
+    struct sq_st *z = &g_sq[idx];
+    struct sq *q = &z->s[i];
+    static unsigned char sel[FL_ES];
+    static struct { ee_unit *u; ivec2 p; float w; } e[SQ_STRIKE_N];
+    ivec2 c = sq_center(q);
+    int subs = 0;
+    for (int k = 0; k < q->n; k++) subs += nv_role(unit_get_type_data(q->u[k])) == NR_MSUB;
+    if (sq_enemies(q->ocean, c, SQ_STRIKE_FLEE, sel) && sq_ratio(q, sel) < 1.0f) { sq_state(q, SQS_FLEE, now); sq_go(pl, q, sq_to_main(z, q, c), 0, now); return; }
+    int ne = 0;
+    if (subs)
+        for (struct grid_it it = grid_it_box(c.x, c.y, SQ_STRIKE_R + SQ_STRIKE_RANGE, 1); grid_it_next(&it) && ne < SQ_STRIKE_N; ) {
+            ee_unit *u = it.u;
+            ee_unit_type *td = it.td;
+            ee_player *o = unit_get_owner(u);
+            int t = td ? unit_type_get_id(td) : -1, cl = td ? unit_type_get_class_id(td) : -1;
+            if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+            if (!(cl == CLS_BUILDING || cl == CLS_FORTRESS || is_soldier(td) || is_siege(t)) || is_wall(t) || !seen_by(u, pl)) continue;
+            ivec2 p = unit_get_tile(u);
+            if (area_id(p, 1) || ivec2_dist2(p, c) > (SQ_STRIKE_R + SQ_STRIKE_RANGE) * (SQ_STRIKE_R + SQ_STRIKE_RANGE)) continue;
+            e[ne].u = u; e[ne].p = p; e[ne++].w = sq_strike_worth(u, td);
+        }
+    int bk = -1;
+    float bw = SQ_STRIKE_MIN;
+    ivec2 bfire = c;
+    for (int k = 0; k < ne; k++) {   // the place with the most worth round it, reachable from safe water of its sea
+        float w = 0;
+        for (int j = 0; j < ne; j++) if (ivec2_dist2(e[j].p, e[k].p) <= SQ_STRIKE_AREA * SQ_STRIKE_AREA) w += e[j].w;
+        if (w <= bw) continue;
+        ivec2 wt;
+        if ((int)ocean_near(e[k].p, SQ_STRIKE_RANGE, &wt) != q->ocean) continue;
+        ivec2 fire = sq_safe(c, wt, q->ocean);
+        if (fl_in_danger(fire) || ivec2_dist2(fire, e[k].p) > SQ_STRIKE_RANGE * SQ_STRIKE_RANGE || ivec2_dist2(fire, c) > SQ_STRIKE_R * SQ_STRIKE_R) continue;
+        bw = w; bk = k; bfire = fire;
+    }
+    if (bk < 0) { sq_state(q, SQS_REST, now); sq_go(pl, q, sq_safe(c, sq_to_main(z, q, c), q->ocean), 0, now); return; }
+    if (q->state != SQS_STRIKE && g_log)
+        log_locked("# squadrons: P%u at %.1f min: strike group %d (%d missile subs, %d ships) at %d,%d - worth %.0f seen there, from %d,%d\n",
+                   idx, now / 60000.0, i, subs, q->n, e[bk].p.x, e[bk].p.y, (double)bw, bfire.x, bfire.y);
+    if (q->state != SQS_STRIKE) q->shelled++;
+    sq_state(q, SQS_STRIKE, now);
+    int there = 0;
+    for (int k = 0; k < q->n; k++) {   // each missile sub in reach: the most worth it reaches
+        ee_unit *u = q->u[k];
+        ee_unit_type *td = unit_get_type_data(u);
+        if (nv_role(td) != NR_MSUB || !cl_may(u, CLP_ROUTINE, CLW_SQUADRON)) continue;
+        ivec2 p = unit_get_tile(u);
+        float reach = fl_range(u, td) - 1.0f, best = 0;
+        int bj = -1;
+        for (int j = 0; j < ne; j++) {
+            float dx = (float)(e[j].p.x - p.x), dy = (float)(e[j].p.y - p.y);
+            if (dx * dx + dy * dy > reach * reach || e[j].w <= best || unit_get_hp(e[j].u) <= 0) continue;
+            best = e[j].w; bj = j;
+        }
+        if (bj < 0) continue;
+        there++;
+        if (fl_target_of(u) == e[bj].u) continue;
+        ee_goal *g = goal_attack(u, e[bj].u);
+        if (g) unit_goal(u, g, 0, 0x1F40);
+    }
+    if (!there) sq_go(pl, q, bfire, 0, now);   // on its way (the escort with it)
+    q->go = bfire;
+}
 internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     struct sq *q = &z->s[i];
@@ -901,8 +1028,8 @@ internal void sq_log(unsigned idx, uint32_t now) {
                      (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted, q->escorted, q->screens, q->shelled);
     }
     char lb[200];
-    snprintf(lb, sizeof lb, "lost: main %u scouts %u hunters %u, sent to repair %u, landings' escorts %u, in none %u; by what they did:", z->lost_kind[SQK_MAIN],
-             z->lost_kind[SQK_SCOUT], z->lost_kind[SQK_HUNT], z->lost_repair, z->lost_landing, z->lost_none);
+    snprintf(lb, sizeof lb, "lost: main %u scouts %u hunters %u strike %u, sent to repair %u, landings' escorts %u, in none %u; by what they did:", z->lost_kind[SQK_MAIN],
+             z->lost_kind[SQK_SCOUT], z->lost_kind[SQK_HUNT], z->lost_kind[SQK_STRIKE], z->lost_repair, z->lost_landing, z->lost_none);
     for (int k = 0; k < SQS_N; k++) if (z->lost_state[k]) { size_t l = strlen(lb); snprintf(lb + l, sizeof lb - l, " %s %u", k_sqs[k], z->lost_state[k]); }
     log_locked("# squadrons: P%u at %.1f min: %d squadrons, %u ships moved between them, %u sent to repair (%d at the dock now), %u out of a danger zone, %u targets in one given up (%u land targets out of reach), %u hurt ones behind a squadron (looks), in no squadron now: on no sea %d, none takes them %d; %s%s\n",
                idx, now / 60000.0, nsq, z->moved, z->repairs, z->docked, z->flees, z->drops, z->shore_drops, z->behind, z->free_nosea, z->free_nofit, lb, b);
@@ -924,14 +1051,14 @@ internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now
     if (z->t && now - z->t < SQ_LOOK) return;
     z->t = now ? now : 1;
     if (!n || s->version != g_ter.version) return;
-    int oceans[4], nship[4] = { 0 }, nfrig[4] = { 0 }, nsub[4] = { 0 }, noc = 0;
+    int oceans[4], nship[4] = { 0 }, nfrig[4] = { 0 }, nsub[4] = { 0 }, nmsub[4] = { 0 }, noc = 0;
     for (int k = 0; k < f->n; k++) {
         int oc = fl_ship_ocean(f->u[k]), o = 0;
         if (!oc) continue;
         while (o < noc && oceans[o] != oc) o++;
         if (o == noc) { if (noc == 4) continue; oceans[noc++] = oc; }
         int role = nv_role(unit_get_type_data(f->u[k]));
-        nship[o]++; nfrig[o] += role == NR_FRIG; nsub[o] += sq_hunter(role);
+        nship[o]++; nfrig[o] += role == NR_FRIG; nsub[o] += sq_hunter(role); nmsub[o] += role == NR_MSUB;
     }
     {   // CONCENTRATION: each sea's whole ratio - split from SQ_SPLIT, together under 1.0 (at once: the zones anew)
         static unsigned char sel[FL_ES];
@@ -950,18 +1077,23 @@ internal void sq_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now
         }
         if (regroup) z->zone_t = 0;
     }
-    if (!z->zone_t || now - z->zone_t >= SQ_ZONES) sq_zones(idx, oceans, nship, nfrig, nsub, noc, now);
+    for (int o = 0; o < noc; o++) {   // THE STRIKE: missile subs on a sea with no strike group - the zones anew
+        int has = 0;
+        for (int i = 0; i < SQ_MAX; i++) has |= z->s[i].on && z->s[i].kind == SQK_STRIKE && z->s[i].ocean == oceans[o];
+        if (nmsub[o] && !has) z->zone_t = 0;
+    }
+    if (!z->zone_t || now - z->zone_t >= SQ_ZONES) sq_zones(idx, oceans, nship, nfrig, nsub, nmsub, noc, now);
     sq_assign(idx, f, now);
     sq_convoys(idx, now);
     sq_supports(idx, now);
     for (int i = 0; i < SQ_MAX; i++) {
         struct sq *q = &z->s[i];
         if (!q->on || !q->n) continue;
-        if (q->kind == SQK_MAIN) sq_main(pl, idx, i, now); else if (q->kind == SQK_HUNT) sq_hunt(pl, idx, i, now); else sq_scout(pl, idx, i, now);
+        if (q->kind == SQK_MAIN) sq_main(pl, idx, i, now); else if (q->kind == SQK_HUNT) sq_hunt(pl, idx, i, now); else if (q->kind == SQK_STRIKE) sq_strike(pl, idx, i, now); else sq_scout(pl, idx, i, now);
     }
     for (int i = 0; i < SQ_MAX; i++) {
         struct sq *q = &z->s[i];
-        av_fleet_sync(idx, i, q->u, q->on ? q->n : 0, q->kind == SQK_MAIN ? "main squadron" : q->kind == SQK_HUNT ? "hunters" : "scouts", k_sqs[q->state], now);
+        av_fleet_sync(idx, i, q->u, q->on ? q->n : 0, q->kind == SQK_MAIN ? "main squadron" : q->kind == SQK_HUNT ? "hunters" : q->kind == SQK_STRIKE ? "strike group" : "scouts", k_sqs[q->state], now);
     }
     sq_log(idx, now);
 }

@@ -299,6 +299,12 @@ class ai_base
         /// core of what is trained, the frigates' speed bought with their range. 1 = on.
         [advanced]
         bool sea_squadrons = true;
+        /// Missile submarines (sea_squadrons; Trident, Triton: 24 tiles, buildings and land units, no ship): from 6 warships of
+        /// the other kinds 2 are trained, from 12 two more, each pair a strike group with 2 frigates and a cruiser that goes
+        /// out where the AI sees enemy troops or buildings near the water - invaders on its coast, the shore at its own
+        /// landings. 0 = none trained (the strike groups still lead any it has)
+        [advanced]
+        bool missile_subs = false;
         /// The shore decided (sea_squadrons): the squadrons' warships move plainly when quiet and keep a target on land
         /// only within their reach, instead of sailing after whatever they see there and turning back at the next
         /// tower; a main squadron shells a building on its sea's coast only when its estimate beats the defences that

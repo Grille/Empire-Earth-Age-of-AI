@@ -36,7 +36,7 @@ internal float g_nv_acc[16][7];
 struct nv_orders { unsigned paid, refused, spent[7], held_room, docks_asked; int want, last, nt; uint32_t want_t, dock_t; struct { int type; unsigned paid, refused; } t[8]; };
 internal struct nv_orders g_nv_ord[16];
 // own ships and docks, counted for every player every 10 s (navy_count)
-struct nv_own { int war, docks, docks_built, fish, role[6]; };   // role: warships by the fleet mix's roles (NR_*)
+struct nv_own { int war, docks, docks_built, fish, role[8]; };   // role: warships by the fleet mix's roles (NR_*)
 internal struct nv_own g_nv_own[16];
 internal uint32_t g_nv_count_t;
 
@@ -567,12 +567,15 @@ internal int navy_room_reserve(ee_player *pl) {
 //   for 5 minutes (not when it is the game's own type).
 // `# navy: P<n> mix at N min:` every 5 minutes: wanted shares, own fleet by role, the types, the enemy seen, what the
 // game asked for and what was trained.
-enum { NR_NONE, NR_FRIG, NR_LINE, NR_ANTI, NR_SUB, NR_AA, NR_N };
-internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA" };
+enum { NR_NONE, NR_FRIG, NR_LINE, NR_ANTI, NR_SUB, NR_AA, NR_MSUB, NR_N };
+internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA", "M" };
 #define NV_C_SUB 7      // target categories (+0x4C4, the hit table's rows): submarines
 #define NV_C_FRIG 9     // frigates, cruisers, transports, fishing boats
 #define NV_C_LINE 21    // battleships
 #define NV_C_GALLEY 47  // galleys, galleons, catapult ships
+#define NV_C_BLDG 3     // buildings (the missile subs' target, with the towers 37)
+#define NV_MSUB_GROUP 2
+#define NV_MSUB_FLEET 6
 internal int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out yet; the table and the type data are fixed)
 internal int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
 internal uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
@@ -607,7 +610,8 @@ internal int nv_role(ee_unit_type *td) {
     // not the hero ships Golden Hind and Agincourt (x07_golden_hind, x09_agincourt_battleship: tech 9035 - no dock trains them)
     int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
     if ((fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && unit_type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
-        if (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0 && nv_f(kind, NV_C_GALLEY) <= 0) r = nv_air_f(kind) > 0 ? NR_AA : NR_NONE;
+        if (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0 && nv_f(kind, NV_C_GALLEY) <= 0)
+            r = nv_air_f(kind) > 0 ? NR_AA : fam == CLS_SUBMERGED_NAVAL && nv_f(kind, NV_C_BLDG) > 0 ? NR_MSUB : NR_NONE;   // M: the missile subs (Trident, Triton: no ship, buildings and land units from 24 tiles)
         else if (fam == CLS_SUBMERGED_NAVAL) r = NR_SUB;
         else if (nv_f(kind, NV_C_LINE) >= 3.0f) r = NR_ANTI;
         else if (cat == NV_C_LINE) r = NR_LINE;
@@ -620,7 +624,7 @@ internal float nv_score(ee_player *pl, int t, int role) {   // in its role: fact
     ee_unit_type *td = type_data(t);
     int kind = unit_type_get_weapon(td), cost = 0;
     for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
-    float f = role == NR_LINE ? nv_f(kind, NV_C_FRIG) : role == NR_AA ? nv_air_f(kind) : role != NR_FRIG ? nv_f(kind, NV_C_LINE) :
+    float f = role == NR_LINE ? nv_f(kind, NV_C_FRIG) : role == NR_AA ? nv_air_f(kind) : role == NR_MSUB ? nv_f(kind, NV_C_BLDG) : role != NR_FRIG ? nv_f(kind, NV_C_LINE) :
               nv_f(kind, NV_C_GALLEY) > nv_f(kind, NV_C_SUB) ? nv_f(kind, NV_C_GALLEY) : nv_f(kind, NV_C_SUB);
     if (cost <= 0 || f <= 0) return 0;
     return f * (float)unit_type_get_attack(td) * 1000.0f / (float)(unit_type_get_reload(td) + 2000) * (float)unit_type_get_hp(td) / ((float)cost * (float)cost);
@@ -688,6 +692,7 @@ internal void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t 
     pk->w[NR_ANTI] = 0.5f + 0.75f * (float)pk->e[NR_LINE];
     pk->w[NR_SUB] = 1.0f + 0.75f * (float)pk->e[NR_LINE];
     pk->w[NR_AA] = air > 0 ? (0.5f + air / 8.0f > 2.0f ? 2.0f : 0.5f + air / 8.0f) : 0.0f;
+    pk->w[NR_MSUB] = 1.0f;   // capped by the fleet's size (nv_roles: MISSILE SUBS)
 }
 // what each role has (own afloat + paid in the last minute) and the best type per role it may train now
 internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t now, int best[NR_N], float w[NR_N], int have[NR_N]) {
@@ -704,7 +709,13 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
         have[r] = g_nv_own[idx].role[r];
     }
     if (best[NR_SUB]) w[NR_ANTI] = 0;   // e10+: submarines take the galleys' place
+    // MISSILE SUBS (the player 2026-11-20: "i usually keep them in small strike groups 1-2 (subs) with frigates and
+    // cruisers near since they are expensive and easily destroyed"): a strike group's NV_MSUB_GROUP from NV_MSUB_FLEET
+    // warships of the other roles, a second one from twice that - squadrons.c THE STRIKE leads them
+    int others = 0;
     for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
+    for (int r = 1; r < NR_N; r++) if (r != NR_MSUB) others += have[r];
+    if (!g_set_ai[1].missile_subs || have[NR_MSUB] >= (others >= 2 * NV_MSUB_FLEET ? 2 : others >= NV_MSUB_FLEET ? 1 : 0) * NV_MSUB_GROUP) w[NR_MSUB] = 0;   // [ai_base] missile_subs
 }
 // the mix's type for the game's warship order asked (0: the game's own)
 internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
@@ -755,6 +766,7 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
     static int cand[24];
     int nc = 0;
     for (int k = 0; k < pk->nc; k++) {   // the mix's candidates but those it waits out (refused, not trained)
+        if (pk->crole[k] == NR_MSUB) continue;   // missile subs only by the mix (the need's estimate rated a Trident against warships it can't hit)
         int t = pk->ctype[k], skip = t == pk->skip_type && now < pk->skip_until;
         for (int b = 0; b < 4; b++) skip |= t == pk->bad_type[b] && now < pk->bad_until[b];
         if (!skip) cand[nc++] = t;
@@ -770,7 +782,7 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
 internal int navy_fleet_type(ee_player *pl, unsigned idx) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     nv_cands(pl, pk, game_time());
-    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA) return navy_pick(pl, idx, pk->ctype[k]);
+    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA && pk->crole[k] != NR_MSUB) return navy_pick(pl, idx, pk->ctype[k]);
     return 0;
 }
 // after the order: counts, the wait for a refused type, a type the game can't train
