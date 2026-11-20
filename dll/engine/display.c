@@ -59,12 +59,17 @@ internal void editor_size(int *w, int *h) {
 internal float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
 internal int redirect_minimap_scale(void) { return patch_minimap_scale(&g_mm_fx, &g_mm_fy); }
 
+// The resolution switches these hooks saw, counted once each is done: the screen's textures went with the old one, the
+// bitmap fonts' too (display_text.c text_bitmap_for starts a new set) - also when the new back buffer is at the old one's
+// address, which its own test (a new back buffer) misses. The other switches' hook is in only with an editor layout.
+internal volatile LONG g_res_switches;
+
 // installed whatever editor_resolution says: entering the editor (also back from a test run) is where the game's
 // players are gone - a test run from the editor starts no game the game start hook sees, so the AI met the last
 // game's players there (AoC, 2026-11-05: crash in hook_train_units after ca.ees, the editor and a test run)
 internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     memset(g_players, 0, sizeof g_players);   // into the editor (also back from a test run): the game's players are gone
-    if (!g_editor_layout) { set_resolution(w, h, force, flag); return; }   // the build's own size
+    if (!g_editor_layout) { set_resolution(w, h, force, flag); InterlockedIncrement(&g_res_switches); return; }   // the build's own size
     int pw = w, ph = h;
     editor_picture_size(&pw, &ph);
     editor_size(&w, &h);
@@ -74,6 +79,7 @@ internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag
     if (g_log) { log_locked("# editor: resolution %dx%d, the picture %dx%d, layout patches %d/%d\n", w, h, pw, ph, lay, (int)N_LAYOUT + 6); }
     rd_scale_set(w, h, pw, ph);   // before the switch makes the surfaces
     set_resolution(w, h, force, flag);
+    InterlockedIncrement(&g_res_switches);
 }
 
 // every other resolution switch (game, menus, test play from the editor): the original minimap factors
@@ -82,6 +88,7 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
     g_mm_fy = 1.0f / 600.0f;
     rd_scale_set(0, 0, 0, 0);
     set_resolution(w, h, force, flag);
+    InterlockedIncrement(&g_res_switches);
 }
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution

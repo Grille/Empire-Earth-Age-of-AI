@@ -73,11 +73,14 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     // Only the game's own image (wider than the menus' 1024x768: the menus gain nothing and are scaled up), and
     // only with bitmap fonts made for this back buffer: leaving a game switches the display mode, the character
     // textures are gone and the old bitmap fonts drew nothing (menus without text). A new back buffer starts a
-    // new set (the old objects are left alone: their textures went with the old screen).
+    // new set (the old objects are left alone: their textures went with the old screen). So does a resolution switch
+    // (display.c g_res_switches): the new back buffer may be at the old one's address.
     static void *back;
     static int back_ok;
-    if (surf != back) {
+    static LONG switches;
+    if (surf != back || g_res_switches != switches) {
         back = surf;
+        switches = g_res_switches;
         g_fbm_n = 0;
         IDirectDrawSurface7 *dds = surface_get_dds(surf);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
