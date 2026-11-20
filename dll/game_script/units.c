@@ -33,7 +33,8 @@ internal unsigned x_moved(unsigned id) {   // the id it has now (given away, per
 // a handle's state as it is (no waiting): there (*id, as it is now), or why it is none
 internal int x_unit_peek(const struct xval *o, unsigned *id) {
     if (o->obj > 0) { *id = x_moved((unsigned)(o->obj - 1)); return XS_THERE; }
-    int k = -o->obj - 1;
+    int k = -o->obj - 1;   // (a slot this game hasn't handed out - no handle, or one from no p.spawn: never there)
+    if (k < 0 || k >= g_xslot_n) { *id = 0; return XS_NEVER; }
     *id = g_xslot[k].state == XS_THERE ? x_moved(g_xslot[k].id) : 0;
     return g_xslot[k].state;
 }
@@ -235,9 +236,10 @@ internal void x_unit_by_id(struct xctx *c, const struct xval *id, struct xval *v
     const char *why;
     xnothing(v);
     if (!id->has_n || n != (double)(unsigned)n) { x_host_fail(c, "game.unit(%.40s): an id - u.id", xtext_of(id)); return; }
+    if (n >= 2147483647) return;   // no unit's: a handle (the id + 1, x_unit) is a positive int - a negative one a spawn slot's
     x_units_settle(c->script);
     struct xval t = { 0 };
-    t.obj = (int)((unsigned)n + 1);
+    t.obj = (int)n + 1;
     ee_unit *u = x_unit_of(&t, &why);
     if (u) x_unit(v, u);
 }
