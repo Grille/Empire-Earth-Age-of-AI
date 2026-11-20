@@ -1131,8 +1131,8 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         o->n_items = n;
         o->items = (struct xnode **)it;   // offsets until copied out
         o = XOFF(p, o);
-    } else if (*s == '{') {   // a record: { name = value, ... } - a comma after each member (the last's may be left out)
-        int par = p->par, n = 0, cap = 0;
+    } else if (*s == '{') {   // { name = value, [key] = value, ... }: a record, or what the place it goes into is (a dict,
+        int par = p->par, n = 0, cap = 0;   // a struct: x_check XN_REC) - a comma after each entry (the last's may be left out)
         uintptr_t *it = NULL;
         p->s++;
         p->par = 0;
@@ -1141,14 +1141,24 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             const char *ks = p->s;
             char key[40];
             int k = 0;
-            if (!isalpha((unsigned char)*ks) && *ks != '_') { p->err = 1; p->why = "a record's member: name = value"; break; }
-            while ((isalnum((unsigned char)*p->s) || *p->s == '_') && k < 39) key[k++] = *p->s++;
+            struct xnode *kx = NULL;   // [key] = value: a key worked out (a dict's) - the entry's s ""
+            if (*ks == '[') {
+                p->s++;
+                p->par++;
+                xps_expr(p, &kx);
+                p->par--;
+                if (!p->err && !xps_op(p, "]")) { p->err = 1; p->why = "{ [key] = value }: a ] missing"; }
+                if (p->err) break;
+            } else {
+                if (!isalpha((unsigned char)*ks) && *ks != '_') { p->err = 1; p->why = "{ name = value } or { [key] = value }"; break; }
+                while ((isalnum((unsigned char)*p->s) || *p->s == '_') && k < 39) key[k++] = *p->s++;
+                if (isalnum((unsigned char)*p->s) || *p->s == '_') { p->err = 1; p->why = "a name over 39 characters"; break; }
+            }
             key[k] = 0;
-            if (isalnum((unsigned char)*p->s) || *p->s == '_') { p->err = 1; p->why = "a name over 39 characters"; break; }
-            for (int i = 0; i < n && !p->err; i++)
-                if (!strcmp(XPTR(p, (struct xnode *)it[i])->s, key)) { p->err = 1; p->why = "a record's member twice"; }
+            for (int i = 0; i < n && !p->err && k; i++)
+                if (!strcmp(XPTR(p, (struct xnode *)it[i])->s, key)) { p->err = 1; p->why = "{ ... }: a name twice"; }
             if (p->err) break;
-            if (!xps_op(p, "=") || *p->s == '=') { p->err = 1; p->why = "a record's member: name = value"; break; }
+            if (!xps_op(p, "=") || *p->s == '=') { p->err = 1; p->why = kx ? "{ [key] = value }" : "{ name = value }"; break; }
             struct xnode *x;
             xps_expr(p, &x);
             if (p->err) break;
@@ -1156,6 +1166,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             if (!m) break;
             m->s = _strdup(key);
             m->a = x;
+            m->b = kx;
             if (!xps_items_add(p, &it, &n, &cap, XOFF(p, m))) break;
             if (xps_op(p, ",")) continue;
             if (!xps_op(p, "}")) { p->err = 1; p->why = "a comma after each of a record's members"; }
@@ -1261,12 +1272,15 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             struct xnode *d;
             xps_expr(p, &d);
             p->par--;
-            if (!p->err && !xps_op(p, ")")) { p->err = 1; p->why = "dict<K, V>(default): a ) missing"; }
+            struct xnode *en = NULL;   // dict<K, V>(default, { key = value, ... }): its entries
+            if (!p->err && xps_op(p, ",")) { p->par++; xps_expr(p, &en); p->par--; }
+            if (!p->err && !xps_op(p, ")")) { p->err = 1; p->why = "dict<K, V>(default) or dict<K, V>(default, { ... }): a ) missing"; }
             if (p->err) return;
             o = xn_new(p, XN_DICT, s - n);
             if (!o) return;
             o->n = ty;
             o->a = d;
+            o->b = en;
             o = XOFF(p, o);
         } else {
             xps_space(p);
@@ -2385,7 +2399,7 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
     case XN_NUM: return n->op == 'b' ? XT_BOOL : n->op == 'f' ? XT_FLOAT : n->op == 'i' ? XT_INT : n->op == 'n' ? X_NULLABLE : X_ANY;
     case XN_STR: return XT_TEXT;
     case XN_LAMBDA: return k->script ? x_fn_type(k, n, sc, 1) : XT_FN;   // func<int, point>: its parameters and result
-    case XN_REC: return x_rec_type(k, n, sc);
+    case XN_REC: return n->op == 'D' || n->op == 'S' ? (int)n->n : x_rec_type(k, n, sc);   // (made a dict or a struct where it goes: x_check)
     case XN_LIST:   // its items' type when they have one
         if (k->script && (int)n->n) return (int)n->n;   // (worked out when it was checked: x_check XN_LIST)
         r = n->n_items ? x_stype(k, n->items[0], sc) : X_ANY;
@@ -2489,10 +2503,11 @@ internal int x_is_setup(const struct xnode *s) {
     return s->k == XN_CALL && !strcmp(s->s, "game.setup") && s->n_items == 1 && s->items[0]->k == XN_LAMBDA && !s->items[0]->n_items;
 }
 internal const struct xnode *g_x_ret_fn;   // the function being checked (x_check XN_LAMBDA): whose a return is
-// the type wanted of the list about to be checked - a let's written one, a parameter's, a field's, the list's own for
-// an item written as a list: x_check XN_LIST takes it (and clears it). Set for a list as written only (X_WANT)
+// the type wanted of the list or the { ... } about to be checked - a let's written one, a parameter's, a field's, the
+// list's own for an item written as a list: x_check XN_LIST / XN_REC takes it (and clears it). Set for a list or a
+// { ... } as written only (X_WANT)
 internal int g_x_want;
-#define X_WANT(node, type) (g_x_want = (node) && (node)->k == XN_LIST ? (type) : 0)
+#define X_WANT(node, type) (g_x_want = (node) && ((node)->k == XN_LIST || (node)->k == XN_REC) ? (type) : 0)
 // statements that hand back on every way through them: the last a return, or an if with an else whose branches all do
 internal int x_returns(const struct xnode *b) {
     if (b && b->k == XN_BLOCK) b = b->n_items ? b->items[b->n_items - 1] : NULL;
@@ -2769,6 +2784,111 @@ internal int x_check_struct(struct xcheck *k, const struct xnode *n, struct xsco
     if (nf > 32) return xc_fail(k, n, "a struct of more than 32 fields");
     return 1;
 }
+// an entry's key of a { ... } written as a constant (a name, ["a"], [3]): 1 a text (*s), 2 a number (*v), 0 worked out
+internal int x_key_const(const struct xnode *e, const char **s, double *v) {
+    const struct xnode *x = e->b;
+    if (!x) { *s = e->s; return 1; }
+    if (x->k == XN_STR && !strchr(x->s, '{')) { *s = x->s; return 1; }
+    if (x->k == XN_NUM && x->op == 'i') { *v = x->n; return 2; }
+    return 0;
+}
+// { name = value, [key] = value, ... } (a script's): WHAT THE PLACE IT GOES INTO IS (the type wanted there: X_WANT) -
+// a dict<K, V>'s entries (a name the text key of its letters, [key] any other; its default V's own - 0, "", false,
+// null, a struct's defaults - or dict<K, V>(default, { ... })'s), a struct's fields by name (the others their
+// defaults), else a record (its members names). Made a dict or a struct it is marked so (op 'D' / 'S', its type in n)
+internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
+    int want = k->script ? g_x_want & ~X_NULLABLE : 0, own = n->sk & 1;   // (own: its dict<K, V>(default, { ... }) gives the default)
+    char a[60], b[60], c[60], l[120];
+    g_x_want = 0;
+    if ((want & X_LIST_OF) || (!xt_is_dict(want) && !xst_is(want))) want = 0;
+    ((struct xnode *)n)->op = (unsigned char)(!want ? 0 : xt_is_dict(want) ? 'D' : 'S');
+    ((struct xnode *)n)->n = want;
+    if (!want) {   // a record
+        for (int i = 0; i < n->n_items; i++) {
+            if (n->items[i]->b) return xc_fail(k, n->items[i], "{ [key] = ... }: a dict's entry - where a dict<K, V> goes (let d: dict<int, text> = { [1] = \"a\" }); a record's members are names");
+            if (!x_check(k, n->items[i]->a, sc)) return 0;
+        }
+        return 1;
+    }
+    xty_name(want, a, sizeof a);
+    if (g_x_in_ph) {
+        snprintf(k->whybuf, sizeof k->whybuf, "a %s made in a {placeholder} - let v: %s = { ... } first, then {v}", a, a);
+        return xc_fail(k, n, k->whybuf);
+    }
+    if (xt_is_dict(want)) {
+        int kt = xt_dict_key(want), vt = xt_dict_val(want);
+        xty_name(vt, b, sizeof b);
+        xty_name(kt, c, sizeof c);
+        if (!own && !(vt & X_NULLABLE) && (xt_is_hl(vt) || xt_is_dict(vt) || !xst_has_default(vt, 0))) {
+            if (xt_is_hl(vt) || xt_is_dict(vt))
+                snprintf(k->whybuf, sizeof k->whybuf, "{ ... } as a %s: its default would be one %s, the same for every key without an entry - values of %s? (null the default)",
+                         a, xt_is_hl(vt) ? "list" : "dict", b);
+            else snprintf(k->whybuf, sizeof k->whybuf, "{ ... } as a %s: a%s %s has no default for a key without an entry - %s(default, { ... }) gives it", a, xan(b), b, a);
+            return xc_fail(k, n, k->whybuf);
+        }
+        for (int i = 0; i < n->n_items; i++) {
+            const struct xnode *e = n->items[i];
+            const char *ks, *ks2;
+            double kv, kv2;
+            int tk = XT_TEXT, tv, kc = x_key_const(e, &ks, &kv);
+            char tn[60];
+            if (!e->b && kt != XT_TEXT) {
+                snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: a name is a text key - the %s's keys are %ss: [key] = ...", e->s, a, c);
+                return xc_fail(k, e, k->whybuf);
+            }
+            if (e->b) {
+                if (!x_check(k, e->b, sc)) return 0;
+                tk = x_stype(k, e->b, sc);
+            }
+            if (!xt_fits(kt, tk)) {
+                snprintf(k->whybuf, sizeof k->whybuf, "{ [...] = ... }: the %s's keys are %ss - not a%s %s%s", a, c, xan(xty_name(tk, tn, sizeof tn)), tn, xt_hint(kt, tk));
+                return xc_fail(k, e, k->whybuf);
+            }
+            for (int j = 0; j < i && kc; j++)
+                if (x_key_const(n->items[j], &ks2, &kv2) == kc && (kc == 1 ? !strcmp(ks, ks2) : kv == kv2)) {
+                    if (kc == 1) snprintf(k->whybuf, sizeof k->whybuf, "{ ... }: the key \"%.40s\" twice", ks);
+                    else snprintf(k->whybuf, sizeof k->whybuf, "{ ... }: the key %g twice", kv);
+                    return xc_fail(k, e, k->whybuf);
+                }
+            X_WANT(e->a, vt);
+            if (!x_check(k, e->a, sc)) return 0;
+            tv = x_stype(k, e->a, sc);
+            if (xt_fits(vt, tv)) continue;
+            snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: the %s's values are %ss - a%s %s can't go in%s", e->b ? "[...]" : e->s, a, b, xan(xty_name(tv, tn, sizeof tn)), tn, xt_hint(vt, tv));
+            return xc_fail(k, e, k->whybuf);
+        }
+        return 1;
+    }
+    xst_list(want, 'F', l, sizeof l);   // a struct: its fields by name
+    for (int i = 0; i < n->n_items; i++) {
+        const struct xnode *e = n->items[i], *f = e->b ? NULL : xst_member(want, e->s, 'F', NULL);
+        int ft = f ? (int)f->n : 0, tv;
+        if (e->b) snprintf(k->whybuf, sizeof k->whybuf, "{ [...] = ... }: a %s's fields are names - its fields: %s", a, l);
+        else if (!f && xst_member(want, e->s, 'M', NULL)) snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: %s is a %s's method - its fields: %s", e->s, e->s, a, l);
+        else if (!f) snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: a %s has no field %s - its fields: %s", e->s, a, e->s, l);
+        else {
+            X_WANT(e->a, ft);
+            if (!x_check(k, e->a, sc)) return 0;
+            tv = x_stype(k, e->a, sc);
+            if (xt_fits(ft, tv)) continue;
+            snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: the field is a%s %s - a%s %s can't go in%s", e->s, xan(xty_name(ft, b, sizeof b)), b,
+                     xan(xty_name(tv, c, sizeof c)), c, xt_hint(ft, tv));
+        }
+        return xc_fail(k, e, k->whybuf);
+    }
+    const struct xnode *d = g_xst[want - XT_STRUCT].decl;
+    for (int i = 0; i < d->n_items; i++) {   // a field left out: its default (one of a type with none is given)
+        const struct xnode *f = d->items[i];
+        int given = 0;
+        if (f->op != 'F' || f->a || xst_has_default((int)f->n, 0)) continue;
+        for (int j = 0; j < n->n_items && !given; j++) given = !strcmp(n->items[j]->s, f->s);
+        if (given) continue;
+        snprintf(k->whybuf, sizeof k->whybuf, "{ ... } as a %s: its %s (a%s %s) has no default - given here (%s = ...), or declared: %s: %s = ...", a, f->s,
+                 xan(xty_name((int)f->n, b, sizeof b)), b, f->s, f->s, b);
+        return xc_fail(k, n, k->whybuf);
+    }
+    return 1;
+}
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     if (!n) return 1;
     switch (n->k) {
@@ -2880,7 +3000,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         else if ((xt_is_hl(vt) || xt_is_dict(vt)) && !(vt & X_NULLABLE))
             snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its default would be one %s, the same for every key without an entry - values of %s? and null the default (d[k] = %s(...) where a key is new)",
                      xty_name((int)n->n, a, sizeof a), xt_is_hl(vt) ? "list" : "dict", xty_name(vt, b, sizeof b), xty_name(vt, c, sizeof c));
-        else return 1;
+        else if (!n->b) return 1;
+        else if (!k->script) return xc_fail(k, n, "dict<K, V>(default, { ... }): a script's - a text's dict starts without entries");
+        else if (n->b->k != XN_REC) return xc_fail(k, n, "dict<K, V>(default, { ... }): its entries written out - { name = value, [key] = value, ... }");
+        else {   // its entries: a { ... } made the dict (its default this one: marked)
+            ((struct xnode *)n->b)->sk |= 1;
+            X_WANT(n->b, (int)n->n);
+            return x_check(k, n->b, sc);
+        }
         return xc_fail(k, n, k->whybuf);
     }
     case XN_REF: return xc_fail(k, n, "ref ...: only as an argument, to a parameter that is a ref (name(ref p: type) { ... }), or as ref name = a place");
@@ -2978,7 +3105,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return k->loops ? 1 : xc_fail(k, n, n->k == XN_BREAK ? "break outside a loop" : "continue outside a loop");
     case XN_SETM: {   // slot.persona = ...: a member its kind lets be set (a kind known)
         if (!x_check(k, n->a, sc)) return 0;
-        if (n->b && n->b->k == XN_LIST) {   // a list written into a struct's field: of the field's type
+        if (n->b && (n->b->k == XN_LIST || n->b->k == XN_REC)) {   // a list or a { ... } written into a struct's field: of the field's type
             const struct xnode *f = xst_member(x_stype(k, n->a, sc) & ~X_NULLABLE, n->s, 'F', NULL);
             g_x_want = f ? (int)f->n : 0;
         }
@@ -3106,7 +3233,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         int hasref = 0;
         for (int i = 0; i < n->n_items; i++) {
             if (n->items[i]->k == XN_REF) { if (!x_check_refarg(k, n->items[i], sc)) return 0; hasref = 1; continue; }
-            if (k->script && n->k == XN_MCALL && n->items[i]->k == XN_LIST) {   // a list written as a method's argument
+            if (k->script && n->k == XN_MCALL && (n->items[i]->k == XN_LIST || n->items[i]->k == XN_REC)) {   // a list or a { ... } written as a method's argument
                 int ta0 = x_stype(k, n->a, sc);
                 const struct xnode *m0 = xst_member(ta0, n->s, 'M', NULL);
                 g_x_want = m0 && i + 1 < m0->n_items ? (int)m0->items[i + 1]->n : 0;
@@ -3158,9 +3285,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         else snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s has no %s - its members: %s", n->s, x_kind_name(a), n->s, t);
         return xc_fail(k, n, k->whybuf);
     }
-    case XN_REC:
-        for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i]->a, sc)) return 0;
-        return 1;
+    case XN_REC: return x_check_rec(k, n, sc);
     case XN_CALL: {
         const char *name = n->s;
         int hasref = 0, smeth = 0, hlm = 0;
@@ -3168,7 +3293,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             int ctx = k->ctx;
             if (n->items[i]->k == XN_REF) { if (!x_check_refarg(k, n->items[i], sc)) return 0; hasref = 1; continue; }   // ref a: a place
             if (k->script && !strcmp(name, "every") && i == n->n_items - 1 && !xsc_find(sc, name, strlen(name), NULL)) k->ctx = XT_INT;
-            if (k->script && n->items[i]->k == XN_LIST) g_x_want = x_arg_want(k, n, i, sc);   // a list written as an argument: of its parameter's type
+            if (k->script && (n->items[i]->k == XN_LIST || n->items[i]->k == XN_REC)) g_x_want = x_arg_want(k, n, i, sc);   // a list or a { ... } written as an argument: of its parameter's type
             int ok = x_check(k, n->items[i], sc);
             k->ctx = ctx;
             if (!ok) return 0;
@@ -3300,7 +3425,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (hw) ((struct xnode *)n)->sk |= 32;
         if (hw && g_x_in_ph) return xc_fail(k, n, "a list made in a {placeholder} - let l: list<T> = [...] first, then {l}");
         for (int i = 0; i < n->n_items; i++) {
-            if (k->script && ((E & X_LIST_OF) || xt_is_hl(E))) X_WANT(n->items[i], E);   // a list written as an item of rows: a row; of lists: a list
+            if (k->script && ((E & X_LIST_OF) || xt_is_hl(E) || n->items[i]->k == XN_REC)) X_WANT(n->items[i], E);   // a list written as an item of rows: a row; of lists: a list; a { ... } an item
             int ok = x_check(k, n->items[i], sc);
             g_x_want = 0;
             if (!ok) return 0;
@@ -5923,6 +6048,53 @@ internal void xc_new(struct xcomp *cc, const struct xnode *n, int sti) {   // po
     }
     xc_emit(cc, XI_NEW, sti, nf, 0);
 }
+// { key = value, ... } made a dict where one goes (x_check_rec: op 'D'), the dict on top: into a hidden slot while
+// its entries are set as d[k] = v is, then on top again - the slot let go of it (it would hold the dict)
+internal void xc_dict_fill(struct xcomp *cc, const struct xnode *r) {
+    int h = xc_slot(cc, cc->fi, "", 2), ke = xc_konst(cc, 0, "");
+    xc_emit(cc, XI_STOREL, h, 0, ke);
+    for (int i = 0; i < r->n_items; i++) {
+        const struct xnode *e = r->items[i];
+        xc_emit(cc, XI_LOADL, h, 0, ke);
+        if (e->b) { xc_expr(cc, e->b); xc_emit(cc, XI_USE, 0, 0, 0); }
+        else xc_emit(cc, XI_STR, xc_konst(cc, 0, e->s), 1, 0);   // a name: the text of its letters
+        xc_expr(cc, e->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_emit(cc, XI_SETI, 0, 0, 0);
+    }
+    xc_emit(cc, XI_LOADL, h, 0, ke);
+    xc_emit(cc, XI_NIL, 0, 0, 0);
+    xc_emit(cc, XI_STOREL, h, 0, ke);
+}
+// { name = value, ... } made a struct where one goes (op 'S'): its fields in order, each the value given or its
+// default (xc_new's) - the values worked out as written: in another order than the fields', into hidden slots first
+internal void xc_rec_new(struct xcomp *cc, const struct xnode *r, int sti) {
+    const struct xnode *d = g_xst[sti].decl;
+    int fi[32], h[32], n = r->n_items < 32 ? r->n_items : 32, ordered = 1, nf = 0, ke = xc_konst(cc, 0, "");
+    for (int i = 0; i < n; i++) {
+        fi[i] = -1;
+        xst_member(XT_STRUCT + sti, r->items[i]->s, 'F', &fi[i]);
+        if (i && fi[i] < fi[i - 1]) ordered = 0;
+    }
+    for (int i = 0; i < n && !ordered; i++) {
+        xc_expr(cc, r->items[i]->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        h[i] = xc_slot(cc, cc->fi, "", 2);
+        xc_emit(cc, XI_STOREL, h[i], 0, ke);
+    }
+    for (int i = 0; d && i < d->n_items; i++) {
+        const struct xnode *f = d->items[i];
+        int g = -1;
+        if (f->op != 'F') continue;
+        for (int j = 0; j < n; j++) if (fi[j] == nf) g = j;
+        if (g < 0) xc_default(cc, (int)f->n, f);
+        else if (ordered) { xc_expr(cc, r->items[g]->a); xc_emit(cc, XI_USE, 0, 0, 0); }
+        else xc_emit(cc, XI_LOADL, h[g], 0, ke);
+        nf++;
+    }
+    xc_emit(cc, XI_NEW, sti, nf, 0);
+    for (int i = 0; i < n && !ordered; i++) { xc_emit(cc, XI_NIL, 0, 0, 0); xc_emit(cc, XI_STOREL, h[i], 0, ke); }   // (the slots let go of the values)
+}
 // a struct's method called (n: a.b.name(...) by its name, or <value>.name(...); sk 1: of a place, 2: of a value, which
 // goes into a hidden slot to be one): the struct's place, the arguments, the call
 internal void xc_method(struct xcomp *cc, const struct xnode *n) {
@@ -6052,8 +6224,16 @@ internal void xc_expr(struct xcomp *cc, const struct xnode *n) {
         xc_expr(cc, n->a);
         xc_emit(cc, XI_USE, 0, 0, 0);
         xc_emit(cc, XI_DICT, xt_dict_key((int)n->n) << 16 | xt_dict_val((int)n->n), 0, 0);   // (its K and V: what the machine keeps of the type)
+        if (n->b && !cc->text) xc_dict_fill(cc, n->b);   // dict<K, V>(default, { ... })
         break;
     case XN_REC:
+        if (n->op == 'D' && !cc->text) {   // made a dict: its V's default, the dict, its entries
+            xc_default(cc, xt_dict_val((int)n->n), NULL);
+            xc_emit(cc, XI_DICT, xt_dict_key((int)n->n) << 16 | xt_dict_val((int)n->n), 0, 0);
+            xc_dict_fill(cc, n);
+            break;
+        }
+        if (n->op == 'S' && !cc->text) { xc_rec_new(cc, n, (int)n->n - XT_STRUCT); break; }   // made a struct
         for (int i = 0; i < n->n_items; i++) { xc_expr(cc, n->items[i]->a); xc_emit(cc, XI_USE, 0, 0, 0); }
         xc_emit(cc, XI_REC, n->n_items, 0, 0);
         for (int i = 0; i < n->n_items; i++) xc_emit(cc, XI_KEY, xc_konst(cc, 0, n->items[i]->s), 0, 0);

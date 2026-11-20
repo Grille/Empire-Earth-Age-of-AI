@@ -1,0 +1,43 @@
+// { ... } made a dict or a struct where one goes (expr.c x_check_rec; the language itself: tests/lang/braces.eeai)
+// in a game: Continental (seed 101) - a timer keeps each player's post (a struct written by its fields' names) in a
+// dict keyed by the player, counts in a dict made anew each tick from the last one ([p] = ...), a struct whose dict
+// field starts as {}; dicts and structs made and dropped every tick. Played twice the lines must be the same - also
+// with `script state` (what a save keeps, read back) called while it waits.
+struct post {
+    owner: player
+    at: vec2
+    guards: int = 2
+}
+struct ledger {
+    name: text
+    best: dict<player, int> = {}
+}
+let p2 = player(2)
+let p3 = player(3)
+let posts = dict<player, post?>(null, { [p2] = { owner = p2, at = vec(1, 1) } })
+let counts: dict<player, int> = {}
+let book: ledger = { name = "all" }
+let ticks = 0
+game.timer(2s, () => {
+    ticks += 1
+    for i in 2..4 {
+        let p = game.players[i]
+        posts[p] = { at = vec(p.food, p.wood), owner = p, guards = ticks }
+        if p.food > book.best[p] { book.best[p] = p.food }
+    }
+    counts = { [p2] = counts[p2] + 1, [p3] = counts[p3] + 2 }
+    let tmp: dict<int, post> = dict<int, post>({ owner = p2, at = vec(0, 0) }, { [ticks] = { owner = p3, at = vec(ticks, 0) } })
+    if tmp[ticks].owner != p3 { ping("tmp went wrong") }
+})
+show(p: player): text {
+    let s = posts[p]
+    if s == null { return "none" }
+    return "{s.owner.name == p.name} {s.at.x}/{s.at.y} {s.guards} {counts[p]} {book.best[p]}"
+}
+wait_until(0.2min)
+ping("at 0.2 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, p1 {show(player(1))}")
+wait_until(0.5min)
+ping("at 0.5 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}")
+wait_until(1min)
+let names: dict<text, int> = { all = ticks, ["{book.name}x"] = 7 }
+ping("at 1 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, names {names["all"]} {names["allx"]}")

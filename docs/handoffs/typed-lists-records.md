@@ -107,7 +107,11 @@ Still to do for step 2:
    x_rec_type: a script's record literal is an `XCT_REC` of its members sorted by name (`record` alone stays any
    record, a text's records too); a member it hasn't, a member set, records compared, `r.f(...)` are mistakes when
    the file is read. Left: a record type can't be written by its members (`record { a: int }`) - a struct is that.
-   Next: the dict literal (`{ }` is the record's - entries in `[...]`, `["a" = 1]`?, is the player's to choose).
+   Then the dict literal: DONE 2026-11-20 - the player: `{ }` should mean no specific type, "its just a key:value
+   collection that get interpreted as a record or dict or something else". So `{ ... }` is what the place it goes
+   into is (expr.c x_check_rec, X_WANT as `[...]` has): a dict (a name the text key, `[key]` any; the default its V's
+   own, or `dict<K, V>(default, { ... })`), a struct by its fields' names, else a record. Left: a `{ }` through
+   `?:` / `??` gets no type wanted (a record there).
 4. `dict<K, V>` with any value type (structs).
 5. The player's own generics (`struct pair<A, B>`) - only if scripts ever define their own containers.
 

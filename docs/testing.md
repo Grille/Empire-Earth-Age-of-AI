@@ -1302,6 +1302,14 @@ function, a function member called from a variable, `has` and `record` as any re
 of records of different members ...). The stricter check found one in the bench scripts: `tests/bench/records.eeai`
 added a vector's float to an int (now a float).
 
+`{ ... }` as the place wants (2026-11-20, docs/scripts.md "Records, dicts and structs written out"; expr.c
+x_check_rec): `tests/lang/braces.eeai` - dicts of text and int keys (names, `[key]`), `dict<K, V>(default, { ... })`,
+structs by their fields' names in any order, `{ ... }` as a parameter, a result, a seq's item, a dict's value, a
+field set, nested; the values worked out in the order written. 20 mistakes told when the file is read (a `[key]` in a record,
+a name in a dict of int keys, a key or a value of another type, a key twice, a V without a default, a field it
+hasn't, a method's name, a field without a default left out, in a {placeholder} ...). `tests/probes/braces.eeai` in
+a game: dicts keyed by players and structs made from `{ ... }` in a timer, played twice and once with `script state`.
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus
