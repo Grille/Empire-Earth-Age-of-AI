@@ -1111,6 +1111,8 @@ internal void territories_install(const char *autotest_ini) {
     g_ter_shelter = g_set_ai[1].territory_shelter ? 1 : 0;
     g_border_towers = g_set_ai[1].border_towers;
     g_wk_across = g_set_ai[1].expand_across;
+    g_wk_inland = g_set_ai[1].expand_across_inland;   // work.c ACROSS, INLAND
+    if (autotest_ini) g_v_wk_inland = ini_int("autotest", "v_expand_across_inland", -1, autotest_ini);
     g_sn_across = g_set_ai[1].push_across;
     if (autotest_ini) g_v_sn_across = ini_int("autotest", "v_push_across", -1, autotest_ini);
     g_fight_prod = g_set_ai[1].fight_production;

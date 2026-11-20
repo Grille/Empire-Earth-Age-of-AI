@@ -285,6 +285,8 @@ internal int g_expand = 1329, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_
 // player 2026-11-18: "unifing the systems")
 internal int g_wk_across = 1, g_v_wk_across = -1, g_sn_across = 0, g_v_sn_across = -1;
 #define EXPAND_ACROSS(idx) PV(idx, g_v_wk_across, g_wk_across)
+internal int g_wk_inland = 0, g_v_wk_inland = -1;   // work.c ACROSS, INLAND ([ai_base] expand_across_inland)
+#define EXPAND_INLAND(idx) PV(idx, g_v_wk_inland, g_wk_inland)
 #define EXPAND(idx) (EXPAND_ACROSS(idx) && !GAME_AI(idx) ? 0 : PV(idx, g_v_expand, g_expand))
 #define EX_GUARD(idx) (EXPAND(idx) & 128 && g_ex_guard < 4 ? 4 : g_ex_guard)   // FOLLOW: a guard of 4 at least
 // FORT (the player 2026-11-08: "the ai must invest in keeping what it claims, building an outpost just to lose it again is
