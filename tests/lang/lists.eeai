@@ -1,0 +1,101 @@
+// a list's items (docs/scripts.md "Lists"): of one type T - an item a T, a list of T spliced in, a T or null left out
+// when null; a list of lists by its type written - what each line works out is in lists.expect (the build compares)
+struct point {
+    x: int
+    y: int
+}
+struct squad {
+    name: text
+    rows: list<list<int>>
+    spots: list<point>
+}
+rowsum(r: list<int>): int {
+    let s = 0
+    for v in r { s += v }
+    return s
+}
+grid(n: int): list<list<int>> {
+    let out: list<list<int>> = []
+    for i in 1..n {
+        out = [out, [i, i * 10]]
+    }
+    return out
+}
+firsts(gr: list<list<int>>): list<int> {
+    let fs: list<int> = []
+    for r in gr { fs = [fs, r[1]] }
+    return fs
+}
+// a list's items as a text (a list in a {placeholder} is one of its items, at random - the texts' rule)
+show(l: list<int>): text {
+    let t = "["
+    for i in 1..len(l) {
+        t = i == 1 ? "{t}{l[i]}" : "{t}, {l[i]}"
+    }
+    return "{t}]"
+}
+rows_text(rs: list<list<int>>): text {
+    let t = ""
+    for i in 1..len(rs) { t = "{t}{show(rs[i])}" }
+    return t
+}
+maybe(n: int): int? {
+    if n > 2 { return n }
+    return null
+}
+
+// flat: a list of T spliced in, a T or null left out
+let a: list<int> = [0, 1]
+let flat: list<int> = [a, 2, maybe(1), maybe(5)]
+let untyped = [a, 3]
+cmd("flat {len(flat)} {flat[3]} {flat[4]} untyped {len(untyped)} {untyped[3]}")
+
+// lists of lists: a list<int> one item (a row), a list<list<int>> spliced in, an empty row kept
+let rows: list<list<int>> = [a, [5, 6]]
+let more: list<list<int>> = [rows, a, []]
+cmd("rows {len(rows)} {rows[2][1]} more {len(more)} {len(more[4])} {show(more[1])} {rows_text(more)}")
+rows[1] = [7, 8, 9]
+rows[2][2] = 60
+rows[2][1] += 1
+cmd("set {rows[1][3]} {show(rows[2])} {len(rows[1])}")
+let total = 0
+for r in rows {
+    for v in r { total += v }
+}
+cmd("total {total} rowsum {rowsum(rows[1])}")
+ref row = rows[2]
+row[1] = 50
+row = [1, 2, 3, 4]
+cmd("ref {show(rows[2])} {len(rows[2])}")
+let one: list<list<int>> = [[4]]
+cmd("one {len(one)} {len(one[1])} {one[1][1]}")
+
+// a function that gives back a list of lists, one that takes one; first, item, pick of rows
+let g = grid(3)
+cmd("grid {len(g)} {g[3][2]} {show(firsts(g))} first {show(first(g) ?? [0])} item {show(item(g, 2) ?? [0])} {rows_text(g)}")
+
+// one or null as an item: left out when null (a list<int?> is none - a list holds no null)
+let opt: list<int> = [1, maybe(1), 3, maybe(4)]
+cmd("opt {len(opt)} {show(opt)}")
+
+// a struct with a list of lists: written as a field, an argument, a method's ... set through the struct
+let sq = squad("north", [[1, 2], [3]], [point(1, 1)])
+sq.rows[2] = [30, 31]
+sq.rows = [sq.rows, [99]]
+sq.spots[1].x = 5
+sq.spots = [sq.spots, point(2, 2)]
+cmd("squad {sq.name} {len(sq.rows)} {sq.rows[2][2]} {show(sq.rows[3])} {sq.spots[1]} {len(sq.spots)}")
+let squads: list<squad> = [sq, squad("south", [], [])]
+squads[2].rows = [[7]]
+squads[1].rows[1][1] = 100
+cmd("squads {show(squads[1].rows[1])} {rows_text(squads[2].rows)} {len(squads[2].spots)}")
+
+// a list of lists of lists
+let cube: list<list<list<int>>> = [[[1, 2], [3]], [[4]]]
+cube[1][2] = [30, 31, 32]
+cmd("cube {len(cube)} {len(cube[1])} {cube[1][2][3]} {cube[2][1][1]}")
+
+// lists of lists held across a wait
+wait(1s)
+rows[1][1] = 70
+cmd("after wait {rows_text(rows)} {show(more[2])}")

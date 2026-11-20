@@ -17,7 +17,14 @@ docs/scripts.md ("Structs", "Refs", "Types", "Functions and their names") and do
 tests") describe them. Tests: `tests/lang/*.eeai` with `.expect` (the build runs each dry and compares),
 `tests/probes/structs.eeai` (in a game).
 
-## In progress: step 2, lists strictly typed (NOT committed - a patch)
+## Step 2, lists strictly typed: DONE 2026-11-20 (committed - docs/scripts.md "Lists")
+
+What follows is the plan as it was parked; the decisions taken when it was finished: a list holds no null
+(`list<T?>` is no type, a row that may be null is a mistake), an item of a list of lists whose type can't be told
+is a mistake, `contains` and `==` of structs compare rows item for item. Left as it is: `a ?? b` of a value never
+null is no mistake.
+
+## (the parked plan)
 
 `local/work/keep/lists_step/lists_step.patch` is the working diff of `dll/script/expr.c` against 56c584f2
 (`git apply` it; `s9a.py` beside it is the same change as an edit script, run from the repo root). It compiles free

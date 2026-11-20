@@ -92,7 +92,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `1920x1080` | a size: `vec(1920, 1080)` |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
-| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A list is a value: `l[1] = 5` changes the variable `l` alone - "Structs") |
+| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A list is a value: `l[1] = 5` changes the variable `l` alone - "Lists") |
 | `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
@@ -150,6 +150,43 @@ of another type called (`let n = 5` then `n(3)`) is a mistake.
 
 Where a type still can't be told (a record's member, what a function held in a variable gives back when it wrote
 none), the value is checked when it is worked out, as before.
+
+## Lists
+
+A list's items are of one type T (an int among floats: floats). Where a list is written, each item is one of three:
+
+| Item | |
+|---|---|
+| a `T` | one item |
+| a `list<T>` | its items, in its place - `let a = [0, 1]` then `[a, 2]` is `[0, 1, 2]` |
+| a `T?` | one item, or left out when it is null (`[first(l), 5]`) |
+
+Anything else is a mistake when the script is read (`[1, "a"]`, a point among ints). Which T it is comes from where
+the list goes - a `let`'s written type, a variable's, a parameter's, a struct's field, a function's result, a list's
+item set - else from the items themselves. So a list of lists is its type written, and the type says what an item is:
+
+```
+let a: list<int> = [0, 1]
+let flat: list<int> = [a, 2]                   // [0, 1, 2]
+let rows: list<list<int>> = [a, [5, 6]]        // two rows
+let more: list<list<int>> = [rows, a, []]      // four: rows' two, a, an empty one
+rows[2][1] = 50                                // an item of a row, set in place
+rows[1] = [7, 8, 9]
+for r in rows { ... }                          // r: a list<int>
+let cube: list<list<list<int>>> = [[[1, 2], [3]], [[4]]]
+```
+
+- Without a type written a list in a list is spliced, as ever (`let x = [a, a]` is four ints). A list of lists
+  writes its type, and an item whose type the check can't tell is a mistake there (it couldn't say whether it is a
+  row or rows to splice) - into a variable with its type first.
+- A list holds no null: `list<int?>` is no type (a null is left out), and in a list of lists a row that may be null
+  is a mistake - `rowmaybe() ?? []`. An empty list as a row is a row (`len(more[4])` is 0).
+- `contains(rows, [3])` compares a row item for item. A list in a text's `{placeholder}` is one of its items at
+  random (the texts' rule) - to show a whole list, join it in a function (tests/lang/lists.eeai `show`).
+- A list is a value: `let b = rows` is a copy, `b[1][1] = 0` leaves `rows` alone; a `for`'s variable is the loop's
+  copy of its row (`r[1] = 2` there is a mistake).
+
+The personalities' lines keep the texts' rules: a line's list may mix what it holds, a list in it is spliced.
 
 ## Structs
 

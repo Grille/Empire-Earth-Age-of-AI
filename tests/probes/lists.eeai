@@ -1,0 +1,37 @@
+// lists of lists in a game (expr.c A LIST AS AN ITEM; the language itself: tests/lang/lists.eeai): Continental (seed
+// 101) - rows of the players' stock taken by a timer, a ref to a row held across waits, rows in a struct's field. Played
+// twice the lines must be the same - also with `script state` (what a save keeps, read back) called while it waits.
+struct log {
+    name: text
+    rows: list<list<int>>
+}
+show(l: list<int>): text {
+    let t = "["
+    for i in 1..len(l) {
+        t = i == 1 ? "{t}{l[i]}" : "{t}, {l[i]}"
+    }
+    return "{t}]"
+}
+let samples: list<list<int>> = []
+let book = log("gold")
+let p2 = player(2)
+game.timer(2s, () => {
+    samples = [samples, [game.minutes * 60, p2.food, p2.wood]]
+    book.rows = [book.rows, [len(samples), p2.gold]]
+    if len(book.rows) > 3 {
+        book.rows[1][2] += 1000
+    }
+})
+wait_until(0.2min)
+ref first = samples[1]
+first[1] = -1
+ping("at 0.2 min: {len(samples)} rows, first {show(samples[1])}, last {show(samples[len(samples)])}, book {len(book.rows)}")
+wait_until(0.5min)
+first = [first, 7]
+ping("at 0.5 min: {len(samples)} rows, first {show(samples[1])} {show(first)}, book {show(book.rows[1])} {show(book.rows[len(book.rows)])}")
+let sums: list<int> = []
+for r in samples {
+    sums = [sums, r[2] + r[3]]
+}
+wait_until(1min)
+ping("at 1 min: {len(samples)} rows, {len(sums)} sums, {show(sums)}, first {show(first)}, book {len(book.rows)} {show(book.rows[2])}")

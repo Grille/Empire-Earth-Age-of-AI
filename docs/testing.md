@@ -1266,6 +1266,14 @@ and declared going where one is wanted; calls through such a variable. 12 mistak
 other parameters or another result, wrong arguments through a variable, an int called ...). The check's types are 15
 bits now (host.h: from 0x400 the types that hold types - their table in expr.c).
 
+Lists typed (2026-11-20, docs/scripts.md "Lists"; expr.c A LIST AS AN ITEM): `tests/lang/lists.eeai` - an item a T,
+a list of T spliced, a T? left out; lists of lists by the type written (rows set, refs to rows, rows in structs'
+fields, a function's result, a list of lists of lists, across a wait); `tests/probes/lists.eeai` in a game: the
+same lines three times, one with `script state` while it waited. 17 mistakes told by the check (mixed items, an
+item of another type, a row that may be null, a row's item set on a for's copy ...). The build ran every older
+script through the stricter rule without one stop; old engine against new: the corpus byte for byte the same, the
+six probes the same. 200000 rounds of row sets: 704 KB at the end.
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus
