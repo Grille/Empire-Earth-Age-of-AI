@@ -156,17 +156,21 @@ internal struct sn_st {
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
-    unsigned moved, orders, pushes, won, lost, scouted, breaches, groups, grouped, demos, stale, formed, gates; int due;   // gates: siege set at an enemy gate (SIEGE AT THE GATES)   // formed: formations laid out at rest (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
+    unsigned moved, orders, pushes, won, lost, scouted, looks, breaches, groups, grouped, demos, stale, formed, gates; int due;   // looks: scouts' goals inside their territory (THROUGH THE TERRITORY)   // gates: siege set at an enemy gate (SIEGE AT THE GATES)   // formed: formations laid out at rest (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
     ivec2 esc_at; uint32_t esc_t; int esc_n, esc_fight; unsigned escorts, quarantined, cured;   // quarantined, cured: QUARANTINE's so far   // AN ESCORT: whom it follows (where), asked last then, how many; soldiers given so far
     int call_r; uint32_t call_t; unsigned calls;   // THE CALL: the territory the others' soldiers gather in for a push, since then; calls so far
 } g_sn[16];
 internal uint8_t g_sn_seen[16][PR_T];
 internal uint32_t g_sn_look[16][PR_T];   // A LOOK AGAIN: when a unit of its last stood in each territory (or a scout gave it up)
-// a territory a scout goes to: never stood in (2: that first), or one it doesn't hold not stood in for SN_RESCOUT (1)
+internal uint32_t g_sn_dark_t[16][PR_T];   // A LOOK INSIDE: when a scout in it last found no ground there to explore
+// a territory a scout goes to: never stood in, or with ground it hasn't explored (A LOOK INSIDE: explore.c - unless a
+// scout in it found none to reach in the last SN_RESCOUT) (2: those first), or one it doesn't hold not stood in for
+// SN_RESCOUT (1)
 internal int sn_due(unsigned idx, int r, const struct tv_st *s, uint32_t now) {
     if (g_ter.t[r].water) return 0;
     if (!g_sn_seen[idx][r]) return 2;
+    if (xp_ter_dark(idx, r) && (!g_sn_dark_t[idx][r] || now < g_sn_dark_t[idx][r] || now - g_sn_dark_t[idx][r] >= SN_RESCOUT)) return 2;
     return s->t[r].role == TVR_NONE && (now < g_sn_look[idx][r] || now - g_sn_look[idx][r] >= SN_RESCOUT);
 }
 internal struct st_side g_sn_own;
@@ -1070,7 +1074,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct sn_st *z = &g_sn[idx];
     struct tv_st *s = &g_tv[idx];
-    if (now < z->t) { memset(z, 0, sizeof *z); memset(g_sn_seen[idx], 0, sizeof g_sn_seen[idx]); memset(g_sn_look[idx], 0, sizeof g_sn_look[idx]); }
+    if (now < z->t) { memset(z, 0, sizeof *z); memset(g_sn_seen[idx], 0, sizeof g_sn_seen[idx]); memset(g_sn_look[idx], 0, sizeof g_sn_look[idx]); memset(g_sn_dark_t[idx], 0, sizeof g_sn_dark_t[idx]); }
     if (z->t && now - z->t < SN_EVERY) return;
     z->t = now ? now : 1;
     int n = s->n < PR_T ? s->n : PR_T;
@@ -1504,7 +1508,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (m->pool == SNP_MAIN && !m->scout && !pushing && f > bf) { bf = f; b = i; }
         }
         if (b < 0) break;
-        z->m[b].scout = 1; z->m[b].ter = -1; z->m[b].order_t = 0;
+        z->m[b].scout = 1; z->m[b].ter = -1; z->m[b].order_t = 0; z->m[b].since = 0; z->m[b].look = iv2(-1, -1);
         scouts++;
     }
     // QUARANTINE (the player 2026-11-16: "i take it the a ai never heard of quarantine yet? xD to plaque spreads
@@ -1614,6 +1618,25 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (!g_sn_seen[idx][m->ter]) g_sn_seen[idx][m->ter] = 2;
             g_sn_look[idx][m->ter] = now ? now : 1;
         }
+        // THROUGH THE TERRITORY (explore.c; the player 2026-11-20: "the scouts just walk toward the center of each
+        // territory, missing evrething around it, they also should be more systematic"): while its territory has
+        // unexplored ground at its edge on the scout's land, or a part looked at long ago, the scout stays and walks
+        // there, goal after goal (a goal not reached in SN_SCOUT_GIVE_UP gives the territory up, as before). With
+        // honest_map only: with the map handed over the scouts go as they did (their looks again unmeasured otherwise)
+        ivec2 lk = iv2(-1, -1);
+        int inside = m->ter >= 0 && m->ter < n && g_set_ai[1].explore && g_honest_map && area_id(g_ter.t[m->ter].c, 2) == area_id(p, 2) &&
+                     (!m->since || now - m->since <= SN_SCOUT_GIVE_UP) &&
+                     (xp_goal(idx, pl, p, g_ter.t[m->ter].c, 0, m->ter, NULL, &lk) || xp_stale(idx, pl, p, m->ter, &lk));
+        if (inside) {
+            if (m->look.x < 0 || !m->order_t || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) {
+                if (lk.x != m->look.x || lk.y != m->look.y) m->since = now ? now : 1;
+                m->look = lk;
+                if (sn_order(z, m, 0, lk, 0, now)) z->looks++;
+            }
+            continue;
+        }
+        m->look = iv2(-1, -1);
+        if (m->ter >= 0 && m->ter < n && ter_near(p.x, p.y) == (unsigned)m->ter) g_sn_dark_t[idx][m->ter] = now ? now : 1;   // in it, nothing there to explore it can reach: not due for that a while
         if (m->ter < 0 || m->ter >= n || !sn_due(idx, m->ter, s, now)) {   // the next one: the nearest due (never stood in first), on its land, no other scout's
             unsigned land = area_id(p, 2);
             int b = -1, bd = 0;
@@ -2021,9 +2044,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
                    "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
-                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u set at enemy walls, %u siege at enemy gates, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
+                   "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u scouts' goals inside their territory, %u set at enemy walls, %u siege at enemy gates, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
                    idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
-                   z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->demos, z->gates, z->stale, buf);
+                   z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->looks, z->demos, z->gates, z->stale, buf);
     }
 }
 internal void stations_install(const char *autotest_ini) {
@@ -2032,4 +2055,4 @@ internal void stations_install(const char *autotest_ini) {
     g_sn_coast = g_set_ai[1].coast_siege;   // COAST BATTERIES
     if (autotest_ini) g_v_sn_coast = ini_int("autotest", "v_coast_siege", -1, autotest_ini);
 }
-internal void stations_new_game(void) { memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }
+internal void stations_new_game(void) { memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); memset(g_sn_dark_t, 0, sizeof g_sn_dark_t); }

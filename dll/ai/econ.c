@@ -2174,6 +2174,7 @@ internal int land_soldier(int type) {
     ee_unit_type *td = type_data(type);
     if (!td || unit_type_get_id(td) != type || unit_type_get_class_id(td) != CLS_LAND) return 0;   // a real record of this type
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN) || type == UT(PRIEST) || type == UT(PROPHET)) return 0;
+    if (type == UT(DOMESTIC_WOLF)) return 0;   // the Canine Scout (attack 0): explore.c's, no soldier
     return 1;
 }
 // Requests that may be replaced: every military unit but ships (navies on water maps), siege and rams (the siege
@@ -2361,7 +2362,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |
-                  (tr_econ ? S_TR_ECON : 0) | (prio_air_type(idx, req[0]) ? S_AIR : 0) | (!military && is_citizen_type(req[0]) ? S_CIT : 0), reserve, sp);   // what's above this order (priority.c)
+                  (tr_econ ? S_TR_ECON : 0) | (prio_air_type(idx, req[0]) ? S_AIR : 0) | (!military && (is_citizen_type(req[0]) || req[0] == UT(DOMESTIC_WOLF)) ? S_CIT : 0), reserve, sp);   // what's above this order (priority.c)
     for (int r = 2; r < 7; r++) reserve[r] += sp[r];
     int t3[7] = { 0 };   // spend_tiers: the top tier's, held from the warships that see the whole stock too
     if (g_spend_tiers && !g_landing_order) expand_hold(pl, t3);
@@ -2384,7 +2385,9 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
         int scarce = stock[2] < 2 * reserve[2] + 500;
         no_work = scarce && total >= 10 && idle > g_citizen_slack && idle * 100 > total * 15;
     }
-    int ep = current_epoch(pl), cmode = copper_mode(pl), cit = is_citizen_type(req[0]);
+    // the Canine Scout paid as a citizen is (explore.c: the start's search for food - behind the epoch's reserve its
+    // orders were refused 24-37 times in a row, 1 of 12 AIs had one by minute 20)
+    int ep = current_epoch(pl), cmode = copper_mode(pl), cit = is_citizen_type(req[0]) || req[0] == UT(DOMESTIC_WOLF);
     // EARLY ARMY (early_army, docs/economy.md; the playtester: "I don't train military in the first epoch and rely on
     // towers and citizens, but I go heavy on bowmen/rock slingers from the second epoch on"): before farms the
     // military account is the army's own money - it spends the account whatever the epoch's reserve (that comes out
@@ -2548,7 +2551,7 @@ internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, u
         // ... nor a transport or a fishing boat, the economy's as a citizen is: a Dock's queue full of the fleet's
         // warships refused them for good (Small Islands, P2 with 340-680 wood: "can't train a transport" 24 times, the
         // ferry given up; the player 2026-11-16: "no transports or fishing ships got orderd")
-        int depth = pl && !is_citizen_type(req[0]) && !is_transport(req[0]) && !is_fishing_boat(req[0]) ? TRAIN_QUEUE(idx) : 0;
+        int depth = pl && !is_citizen_type(req[0]) && !is_transport(req[0]) && !is_fishing_boat(req[0]) && req[0] != UT(DOMESTIC_WOLF) ? TRAIN_QUEUE(idx) : 0;   // the Canine Scout too: a Town Center's queue is its citizens' (explore.c)
         int qroom = depth > 0 ? queue_room(pl, um, req[0], depth) : -1;
         if (qroom >= 0 && qroom < (req[1] > 0 ? req[1] : 1)) {   // the queues are deep enough
             g_queue_cut[idx] += (unsigned)((req[1] > 0 ? req[1] : 1) - qroom);
@@ -2643,8 +2646,9 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     int own_ship = pl && game_site && !g_priority_mil && !g_landing_order && fleet_own_type(pl, asked) && !requirement_unit(pl, asked);   // fleet.c EVERY WARSHIP THE MOD'S: none for the game's request
     if (pl && game_site && !own_ship && !g_priority_mil && !g_landing_order) pick = navy_pick(pl, idx, asked);
     if (pick) req[0] = pick;
-    // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
-    int military = !is_citizen_type(req[0]) && !(pl && navy_economy(idx, req[0], g_landing_order));
+    // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account; the Canine
+    // Scout economy too (explore.c: the start's search, before the army has money)
+    int military = !is_citizen_type(req[0]) && req[0] != UT(DOMESTIC_WOLF) && !(pl && navy_economy(idx, req[0], g_landing_order));
     int ship = military && pl && navy_pays(idx, req[0]);
     int req_unit = military && pl && requirement_unit(pl, req[0]);   // counts for the next epoch
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;

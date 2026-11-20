@@ -12,6 +12,7 @@
     X(AMB_DEBRIS_1X, "amb_debris_1x") X(AMB_DEBRIS_2X, "amb_debris_2x") X(AMB_DEBRIS_3X, "amb_debris_3x") \
     X(AMB_DEBRIS_4X, "amb_debris_4x") \
     X(RES_FORAGE_BUSH, "res_forage_bush") X(RES_FISH, "res_fish") X(RES_TIGER, "res_tiger") X(RES_WOLF, "res_wolf") \
+    X(DOMESTIC_WOLF, "domestic_wolf") \
     X(B_BARRACKS, "b_barracks") X(B_ARCHERY_RANGE, "b_archery_range") X(B_STABLE, "b_stable") \
     X(B_SIEGE_FACTORY, "b_siege_factory") X(B_DOCK, "b_dock") X(B_NAVY_YARD, "b_navy_yard") X(B_AIRPORT, "b_airport") X(B_AIRPORT_RUNWAY, "b_airport_runway") \
     X(B_TANK_FACTORY, "b_tank_factory") X(B_CYBER_FACTORY, "b_cyber_factory") X(B_FORTRESS, "b_fortress") \

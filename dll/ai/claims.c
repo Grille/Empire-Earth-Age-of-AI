@@ -39,9 +39,9 @@
 // (ferry, convoys, landings), then citizens, then soldiers.
 enum { CLP_SURVIVE = 1, CLP_REPAIR, CLP_CARRY, CLP_HOLD, CLP_TASK, CLP_ROUTINE };
 enum { CLW_NONE, CLW_STORM, CLW_FLEE, CLW_REPAIR, CLW_SQUADRON, CLW_FLEET, CLW_SAFETY, CLW_MILITIA, CLW_HOLD, CLW_WORK, CLW_BUILD,
-       CLW_STATION, CLW_HEAL, CLW_COVER, CLW_COUNTER, CLW_CSIEGE, CLW_FERRY, CLW_N };
+       CLW_STATION, CLW_HEAL, CLW_COVER, CLW_COUNTER, CLW_CSIEGE, CLW_FERRY, CLW_EXPLORE, CLW_N };
 internal const char *const k_clw[CLW_N] = { "-", "storm", "danger zone", "repair", "squadron", "fleet", "citizens' safety", "militia", "holding the ground", "work", "builders",
-                                            "stations", "healing", "cover", "counter-fire", "counter-siege", "ferry" };
+                                            "stations", "healing", "cover", "counter-fire", "counter-siege", "ferry", "exploring" };
 #define CL_N 4096
 #define CL_SWEEP 5000
 #define CL_REPAIR_T 120000   // a repair's claim, renewed each look while it goes

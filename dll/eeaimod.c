@@ -109,6 +109,7 @@ internal void garrison_tick(ee_player *pl, uint32_t now);   // garrison.c: settl
 internal void garrison_new_game(void);
 internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now);   // territories.c: the territories as an AI sees them
 internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // work.c: the citizens' work by territory
+internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // explore.c: the food search, the scout
 internal void work_new_game(void);
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // build.c: building by territory
 internal void build_new_game(void);
@@ -283,6 +284,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     // (expand.c); Attack and Explore: stations.c; Active off: no update of its is called at all
     int gather = pl && player_ai_toggle(pl, SM_AIT_GATHER), builds = pl && player_ai_toggle(pl, SM_AIT_BUILD_REPAIR);
     if (pl && !is_vanilla(pl) && !game && gather) work_tick(pl, rm, now);   // work.c: nobody else sends a citizen to work then
+    if (pl && !is_vanilla(pl) && !game) explore_tick(pl, rm, now);   // explore.c: what it hasn't explored (honest_map) - after the work's look it reads
     if (pl && !is_vanilla(pl) && !game && builds) build_tick(pl, rm, now);   // build.c: nor builds anything
     if (pl && !is_vanilla(pl) && !game && builds) creep_tick(pl, now);   // creep.c: towers laid at an enemy's buildings
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch
@@ -524,6 +526,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/build.c"         // building by territory: fields, a Settlement and a tower by every mine - the same
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
 #include "ai/scen_targets.c"   // a scenario's attack and defend targets (the trigger Modify AI Military Target)
+#include "ai/explore.c"       // exploring what it hasn't explored: the food search, the base scout, the scouts' goals
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/crossing.c"      // the crossing: what a transport risks on its way over, and the way it takes
 #include "ai/ferry.c"         // the ferry service: soldiers and citizens to the lands across the water that want them

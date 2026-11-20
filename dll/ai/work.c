@@ -542,7 +542,7 @@ internal void wk_animals(ee_player *pl, ee_resource_mgr *rm) {
             ee_unit *a = it.u;
             ee_unit_type *td = it.td;
             if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_family(td) != KIND_ANIMAL) continue;
-            if (food_fierce(unit_type_get_id(td))) continue;
+            if (food_fierce(unit_type_get_id(td)) || !explored_by(a, pl)) continue;   // not on ground it hasn't explored (honest_map: it knew every herd of the map)
             ivec2 pos = unit_get_tile(a);
             int d2 = ivec2_dist2(pos, d->p);
             if (d2 > reach2) continue;
