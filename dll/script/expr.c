@@ -4699,6 +4699,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
         }
     }
     int f = strchr(name, '.') ? 0 : x_fn_id(name, na);   // (no builtin has a dot: a relation, a method)
+    if (f == 2) na = nall;   // min, max: all of theirs (x_fn_id takes up to 127, the compiler 32) - the rest take 8 at most
     for (int i = 0; f && i < na; i++) if (a[i].miss) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
     if (e->err) return;
     int hlv = 0;   // a list as len's, first's, item's, contains', pick's, map_range's: its items as a seq for the call
