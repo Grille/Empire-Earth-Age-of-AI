@@ -793,7 +793,7 @@ class ai_base
         /// the force there go by the ferry - one transport for it and its escort, when the sea is safe enough. 0 = a
         /// prophet stays on its own land (the game's computer player off)
         [advanced]
-        bool prophets_across = false;
+        bool prophets_across = true;
         /// A push across the water has at most this many transports trained for one wave while it waits for room for
         /// its soldiers; then it sets out with what has come, the rest in later waves - the transports trained for a big
         /// wave stood idle after it (the game's computer player off). 0 = no limit
