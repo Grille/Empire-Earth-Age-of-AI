@@ -29,7 +29,7 @@
 // the short side): a land under attack is short by any, as on land.
 // "# ferry:" lines; each minute what the lands want and offer.
 #define FY_LOOK 5000
-#define FY_SHORE 60       // shores searched within this many tiles
+#define FY_SHORE 60       // shores searched within this many tiles (a trip's pick-up and drop: THE SHORE ANYWHERE)
 #define FY_BOARD 240000   // no one aboard this long: given up
 #define FY_LOAD 90000     // some aboard this long: off with those
 #define FY_SEA 360000     // not unloaded this long: put off where it is
@@ -134,6 +134,41 @@ internal int fy_carries_id(unsigned idx, int id) {   // a trip of the ferry has 
 internal const char *fy_kind_name(int kind) { return kind == 5 ? "prophets" : kind == 4 ? "scouts" : kind != 2 ? "soldiers" : "citizens"; }
 struct fy_want { unsigned a, b; ivec2 from, to; };   // THRIFT: a trip that found no free transport - its lands and points
 internal struct fy_want g_fy_miss;   // fy_start's last
+// THE SHORE ANYWHERE (the player 2026-11-20, of "none free on a sea both its lands touch": "that sounds like a really bad
+// and often impossible check, shouldnt it only be the depature land?"): a trip's pick-up was the departure land's shore
+// within FY_SHORE of its passengers, its drop the destination's within FY_SHORE of where they were wanted - on his large
+// map (400 tiles) passengers inland or an inland goal found none ("looks with none between the lands" 5063 in 187
+// minutes) though a transport could go. Both lands must touch the water the transport is on (a ship sails no other);
+// where they do, the shore is the nearest however far. Which lands touch which water: once per map (g_fy_touch).
+#define FY_TOUCH_L 512
+#define FY_TOUCH_O 64
+internal struct { ee_map *map; int size; uint8_t t[FY_TOUCH_L][FY_TOUCH_O / 8]; } g_fy_touch;
+internal int fy_touches(unsigned land, unsigned oc) {
+    ee_map *map = game_map();
+    if (!map || land >= FY_TOUCH_L || oc >= FY_TOUCH_O) return 1;   // beyond the table: searched as before
+    int size = (int)map_get_size(map);
+    if (g_fy_touch.map != map || g_fy_touch.size != size) {
+        memset(&g_fy_touch, 0, sizeof g_fy_touch);
+        g_fy_touch.map = map; g_fy_touch.size = size;
+        static const int nb[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++) {
+                unsigned l = area_id(iv2(x, y), 2);
+                if (!l || l >= FY_TOUCH_L) continue;
+                for (int k = 0; k < 4; k++) {
+                    unsigned o = area_id(iv2(x + nb[k][0], y + nb[k][1]), 1);
+                    if (o && o < FY_TOUCH_O) g_fy_touch.t[l][o / 8] |= (uint8_t)(1u << (o % 8));
+                }
+            }
+    }
+    return g_fy_touch.t[land][oc / 8] >> (oc % 8) & 1;
+}
+internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
+    if (oc <= 0 || !fy_touches(land, (unsigned)oc)) return 0;
+    ee_map *map = game_map();
+    int far_ = map ? (int)map_get_size(map) : FY_SHORE;
+    return ex_shore(land, oc, p, far_ > FY_SHORE ? far_ : FY_SHORE, o, w);
+}
 internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
@@ -176,7 +211,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         if (s == ns) {
             if (ns == 4) continue;
             seas[s].oc = oc;
-            seas[s].ok = ex_shore(a, oc, mid, FY_SHORE, &seas[s].pick, &seas[s].pick_w) && ex_shore(b, oc, dest, FY_SHORE, &seas[s].drop, &seas[s].drop_w);
+            seas[s].ok = fy_shore(a, oc, mid, &seas[s].pick, &seas[s].pick_w) && fy_shore(b, oc, dest, &seas[s].drop, &seas[s].drop_w);   // THE SHORE ANYWHERE
             ns++;
         }
         if (!seas[s].ok) continue;
@@ -299,7 +334,7 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
         ivec2 o, w;
         for (int i = 0; i < nwt && !sea; i++)
             for (int k = 0; k < ns && !sea; k++)
-                if (ex_shore(wt[i].a, (int)seas[k], wt[i].from, FY_SHORE, &o, &w) && ex_shore(wt[i].b, (int)seas[k], wt[i].to, FY_SHORE, &o, &w) &&
+                if (fy_shore(wt[i].a, (int)seas[k], wt[i].from, &o, &w) && fy_shore(wt[i].b, (int)seas[k], wt[i].to, &o, &w) &&
                     fl_sea_docks(um, seas[k], &area, NULL, NULL) && area) { sea = seas[k]; req[3] = (int)area; }
         if (!sea && FERRY_THRIFT(idx)) { f->no_dock++; return; }
         if (!sea) {
