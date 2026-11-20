@@ -149,6 +149,19 @@ internal int g_own_soldiers = 1, g_v_own_soldiers = -1, g_own_ships = 2, g_v_own
 // THE GAME'S COMPUTER PLAYER ([ai_base] game_ai, [autotest] v_game_ai; eeaimod.c cp_update_own reads the setting): 0 = it
 // does not run for this AI after its first update
 internal int g_game_ai = 0, g_v_game_ai = -1;
+// THE GAME'S COMPUTER PLAYER IN A SCENARIO ([ai_base] game_ai_scenarios; the player 2026-11-20: a campaign's computer
+// players stood still - it hands them an economy at a trigger's time and leads them by its triggers' AI groups and AI
+// variables, written for the game's own AI): decided at each game's start - a scenario by the setup's mode (1 a
+// scenario, 3 the editor's test play, 4 a campaign's), a saved game by what it was when it began (persist.c: the
+// game's own flags don't tell a saved scenario from a saved skirmish; a save without the mod's file: game_ai alone)
+internal uint8_t g_scen_game;
+internal void game_ai_new_game(int mode, int loading) {   // loading: before a saved game's file is read (its block sets it)
+    if (loading) { g_scen_game = 0; return; }
+    if (mode != 2) g_scen_game = mode == 1 || mode == 3 || mode == 4;
+    g_game_ai = g_set_ai[1].game_ai || (g_scen_game && g_set_ai[1].game_ai_scenarios);
+    log_line("# game ai: %s - the game's computer player %s for the mod's players (game_ai %d, game_ai_scenarios %d)\n",
+             g_scen_game ? "a scenario" : "no scenario", g_game_ai ? "runs" : "is OFF", g_set_ai[1].game_ai, g_set_ai[1].game_ai_scenarios);
+}
 internal int g_pr_more[16];   // army.c BUILD -> produce.c: one more production building of this type, with the game's computer player off (its build manager's queue is worked by nobody)
 #define GAME_AI(idx) PV(idx, g_v_game_ai, g_game_ai)
 #define OWN_SOLDIERS(idx) PV(idx, g_v_own_soldiers, g_own_soldiers)

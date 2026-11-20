@@ -589,6 +589,11 @@ class ai_base
         /// and the mod leads, vets and feeds it: the AI of the mod's earlier versions, which the keys of the group
         /// "Only with game_ai = 1" below tune
         bool game_ai = false;
+        /// The game's own computer player in a scenario or a campaign (a saved one too): 1 = it plays the computer
+        /// players there whatever game_ai says - a scenario's AI is written for it (its triggers' AI groups, AI variables,
+        /// the economy it is given), the mod's own AI follows only the AI toggles and military targets (default).
+        /// 0 = game_ai decides there too
+        bool game_ai_scenarios = true;
         /// ... the warships on every map led by the fleet, a land map's too (else only where the water matters), none of
         /// them taken into the game's groups, and the game's requests train none: the fleet orders them - up to its size
         /// target where the enemy is across the water, elsewhere only against enemy warships seen in its own sea
