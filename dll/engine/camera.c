@@ -53,6 +53,15 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
     }
 }
 
+// The player's own move of the view - the arrows, the edge, the middle mouse's drag, the minimap - lets go of the wheel's
+// anchor (camera_zoom_at_mouse): the anchor puts back every frame the ground the mouse was on, so it took each move back
+// until the zoom's ride had ended - the arrows stood after a notch of the wheel (the player 2026-11-20: "scrolling in or
+// out will interupt the arrow keys camera movment"), the longer the busier the game (the ride ends at the camera's step).
+internal void camera_anchor_drop(void);
+internal void input_pan(float dx, float dy) {
+    camera_anchor_drop();
+    camera_pan(dx, dy);
+}
 // the camera moved by ms of scrolling in the directions k (bits as g_cam_keys)
 internal void scroll_move(float ms, int k) {
     int l = k & 1, r = k >> 1 & 1, top = k >> 2 & 1, bottom = k >> 3 & 1;
@@ -70,7 +79,7 @@ internal void scroll_move(float ms, int k) {
         if (l || r) { scroll_axis(&g_vel_x, l, r, minv, maxv, ramp); dx = g_vel_x * scale; }
         if (top || bottom) { scroll_axis(&g_vel_y, bottom, top, minv, maxv, ramp); dy = g_vel_y * scale; }
     }
-    if (dx != 0 || dy != 0) camera_pan(dx, dy);
+    if (dx != 0 || dy != 0) input_pan(dx, dy);
 }
 
 internal void __thiscall hook_scroll_execute(ee_scroll *self) {
@@ -152,7 +161,7 @@ internal void arrow_frame(float ms) {
     if (!held) return;
     float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // 0.05 per 10 ms
     float dx = (held & 8 ? step : 0) - (held & 4 ? step : 0), dy = (held & 1 ? step : 0) - (held & 2 ? step : 0);
-    if (dx != 0 || dy != 0) camera_pan(dx, dy);
+    if (dx != 0 || dy != 0) input_pan(dx, dy);
 }
 
 // the game's own window in front - not another window of the program (the editor's terrain colour dialog: the player
@@ -321,6 +330,7 @@ internal int camera_ground_point(const float *eye, const float *d, float low, fl
 internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
 internal int g_cam_now_ok;
 internal struct { int on; float mx, my, at[3]; } g_cam_anchor;
+internal void camera_anchor_drop(void) { g_cam_anchor.on = 0; }   // the player's own move (input_pan); the ride goes on
 #define CAM_ANCHOR_FROM 0.5f   // the zoom the fade starts at
 internal float camera_anchor_share(float z) {
     float t = fmaxf(0, fminf(1.0f, (z - CAM_ANCHOR_FROM) / (1.0f - CAM_ANCHOR_FROM)));
@@ -505,7 +515,7 @@ internal void grab_frame(const ee_ui_form *f, ee_mouse *m) {
     if (!dx && !dy) return;
     SetCursorPos(g_grab_at.x, g_grab_at.y);
     float k = (grab_setting() + 0.5f) * (scroll_speed() + 0.5f) * 0.07f;
-    camera_pan(k * (float)dx, -k * (float)dy);
+    input_pan(k * (float)dx, -k * (float)dy);
 }
 // The minimap the same way (the player 2026-11-07: "the last open point is moving the camera via clicking and dragging
 // on the minimap"): its control's mouse (EEUIMiniMap's button up and move, the game thread) queues its action
@@ -537,6 +547,7 @@ internal void minimap_run(eeui_mini_map *c, float x, float y) {
     if (p[0] == g_mm_at[0] && p[1] == g_mm_at[1]) return;
     g_mm_at[0] = p[0];
     g_mm_at[1] = p[1];
+    camera_anchor_drop();
     eea_mini_map_execute(minimap_action_init(g_mm_action, p));
     g_mm_runs++;
 }
@@ -601,7 +612,7 @@ internal void input_frame(float ms) {
     int a = ui_form_get_keyboard_captured(f) ? 0 : scroll_arrows();
     float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // arrow_frame's speed
     float dx = (a & 2 ? step : 0) - (a & 1 ? step : 0), dy = (a & 4 ? step : 0) - (a & 8 ? step : 0);   // up +y, as arrow_frame
-    if (dx != 0 || dy != 0) camera_pan(dx, dy);
+    if (dx != 0 || dy != 0) input_pan(dx, dy);
 }
 
 internal void camera_frame(int own) {   // the render thread, every presented frame; own: the own renderer draws
