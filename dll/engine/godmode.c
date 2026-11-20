@@ -32,7 +32,10 @@
 // a third thread, the panel built on another still). godmode on / godview on switch between the two, off ends either.
 // While switched, godview sees through that player's eyes, its fog and what it hasn't explored (god_see_all; the
 // player 2026-11-16: "as long as a unit is selected id like the players view fully ... as soon as i deselect the unit
-// i see evrething again"); a deselect of this PC's - the left click on nothing (EEMUnselectAllUnits), a box or click
+// i see evrething again"). What it hasn't explored is the game's own state: black only where the AI doesn't know the
+// map - a computer player is handed all of it unless [ai_base] honest_map (intel.c). A record of godview's own of the
+// tiles ever seen, black where its units had never looked, was dropped 2026-11-20 (the player: "keeping a fake view
+// for a debug feature is silly"). A deselect of this PC's - the left click on nothing (EEMUnselectAllUnits), a box or click
 // that selects nothing - makes it itself again (god_deselected, at the message's Execute: the AI selects for its
 // group moves without messages, so its selections don't count).
 
@@ -117,12 +120,6 @@ internal int god_on(void) {   // (the render thread too: once an object drawn)
 // another, the view is that player's: its fog, what it hasn't explored)
 internal int god_see_all(void) {
     return *game_free_camera_at() || (g_god && god_on() && (g_god == GOD_CONTROL || !playas_switched()));
-}
-// godview through another player's eyes: the player whose tiles never seen are black (sight.c sight_seen_ever: a
-// computer player has the whole map explored from the start - render_ground.c rg_fow, collect_copy.c), else -1
-internal int sight_seen_ever(int x, int y, int p);
-internal int god_eyes(void) {
-    return g_god == GOD_VIEW && god_on() && playas_switched() && !*game_free_camera_at() ? (int)local_player_index() : -1;
 }
 
 internal void god_minimap(void) {
