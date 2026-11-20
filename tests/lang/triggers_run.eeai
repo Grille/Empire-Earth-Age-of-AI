@@ -25,3 +25,28 @@ game.timer(1s, () => {
 })
 wait(2s)
 cmd("texts in a timer: {filled}")
+
+// a function over a trigger's kept frame handed to the script and called in its own turn: what it sets there is kept
+// (it was the script's region's, freed under the frame when the script's values were cleared - 1 MB of texts here)
+nothing() { }
+let handed: func<void> = nothing
+let seen = ""
+let k = 0
+start() {
+    let msg = "none"
+    let set = () => { msg = "set {k} times" }
+    trigger({ when = () => true, run = () => {
+        handed = set
+        seen = msg
+    }, loop = true })
+}
+start()
+wait(1s)
+let junk = ""
+for i in 1..40 {
+    k += 1
+    handed()
+    for j in 1..300 { junk = "{j} {k} padding padding padding padding padding padding padding padding padding padding" }
+    wait(0.5s)
+}
+cmd("the trigger saw: {seen}")

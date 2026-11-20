@@ -6645,7 +6645,7 @@ internal void xvm_ref_put(struct xvm *m, struct xe *e, struct xvframe *f, const 
     }
     if (!xref_build(e, &w->val[r->slot], r->path, r->np, nv, &built)) return;
     if (w != &f->view && xvm_made_in(&built, &f->view)) { x_fail(e, "a function made inside a function can't be handed out of it"); return; }
-    if (w->keep && g_xt_in && (built.has_s || built.ln || built.kind || built.obj)) {
+    if (w->keep && (g_xt_in || w != &m->fr[0].view) && (built.has_s || built.ln || built.kind || built.obj)) {   // (XI_STOREU)
         if (w == &m->fr[0].view && m->reg && !xvm_has_fn(&built)) {
             struct xregion *r0 = g_xr;
             g_xr = m->reg;
@@ -6690,8 +6690,9 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             // a frame that stays set from a trigger's function (its values are the tick's): kept - the script's top in the
             // script's own region, which is cleared of what it drops (a timer setting a text every tick must not pile
             // them up for the whole game: the triggers' own region is only freed with the game); a function, or a
-            // function's frame a trigger keeps, there
-            if (w->keep && g_xt_in && (v->has_s || v->ln || v->kind || v->obj)) {
+            // function's frame a trigger keeps, there - also from the script's own turn (a function over that frame handed
+            // to the script: its values would be the script's region's, which the next clearing frees under it)
+            if (w->keep && (g_xt_in || w != &m->fr[0].view) && (v->has_s || v->ln || v->kind || v->obj)) {
                 if (w == &m->fr[0].view && m->reg && !xvm_has_fn(v)) {
                     struct xregion *r0 = g_xr;
                     g_xr = m->reg;
