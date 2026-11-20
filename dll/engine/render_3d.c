@@ -1133,10 +1133,24 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
 // A load from an action (the editor's quick load, its undo): the map goes away under the frame, whose draws read it with
 // no lock held (the water's rows: a crash in two of two). While it is rebuilt no frame begins (the picture stands, the
 // last one) and the world's draws of the frame under way are left out; one inside its draw is waited for.
-internal volatile LONG g_rd_rebuild, g_rd_in_draw;
+// The world's draws (g_rd_in_world: the ground, shadows, units, water - what reads the map) are waited for until they
+// are out: a slow one that ran past RWL_CLAIM_MS read the map the load freed. The interface's draw counts only in
+// g_rd_in_draw and keeps the short bound - it may wait for the interface's lock, which the loading thread can hold;
+// RD_REBUILD_WAIT_MS is the way out should a world draw ever wait for the loader too (logged: the map freed under it).
+#define RD_REBUILD_WAIT_MS 2000
+internal volatile LONG g_rd_rebuild, g_rd_in_draw, g_rd_in_world;
 internal void rd_world_rebuild(int on) {
     InterlockedExchange(&g_rd_rebuild, on);
-    if (on) for (DWORD t0 = GetTickCount(); g_rd_in_draw && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
+    if (!on) return;
+    DWORD t0 = GetTickCount();
+    while (g_rd_in_world && GetTickCount() - t0 < RD_REBUILD_WAIT_MS) Sleep(0);
+    if (g_rd_in_world && g_log)
+        log_locked("# render: a draw of the world still runs %d ms into a load - the map rebuilt under it\n", RD_REBUILD_WAIT_MS);
+    for (t0 = GetTickCount(); g_rd_in_draw && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
+}
+internal void rd_draw_out(int world) {   // RO_DRAW's end: out of the counts rd_world_rebuild waits on
+    if (world) InterlockedDecrement(&g_rd_in_world);
+    InterlockedDecrement(&g_rd_in_draw);
 }
 internal void collect_copy_written(uintptr_t ret);   // collect_copy.c: the units' copy of the world at a write's end
 internal void __thiscall rd_hook_write_unlock(void *lock) {
@@ -1285,8 +1299,9 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 // interface's - left out of the kept ground and water, and the water's not moved with the camera during a step (drawn
 // where the camera had been: pieces of water over the map's edge, squares of the seabed on the water - AoC, 2026-11-05)
 #define RO_DRAW(i, call) do { g_ro_obj[i] = (ee_render_object *)o; if (g_rp_skip & 1 << (i)) return; \
-    InterlockedIncrement(&g_rd_in_draw); if (g_rd_rebuild) { InterlockedDecrement(&g_rd_in_draw); return; } int was_ = g_ro_cur; g_ro_cur = (i); \
-    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); in_cards_end(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; InterlockedDecrement(&g_rd_in_draw); } while (0)
+    int world_ = (i) != RO_UI; InterlockedIncrement(&g_rd_in_draw); if (world_) InterlockedIncrement(&g_rd_in_world); \
+    if (g_rd_rebuild) { rd_draw_out(world_); return; } int was_ = g_ro_cur; g_ro_cur = (i); \
+    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); in_cards_end(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; rd_draw_out(world_); } while (0)
 // during a step the last real frame's ground instead of the game's draw, which in Art of Conquest draws its last lists
 // again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
 // rf_ground_again)
