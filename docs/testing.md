@@ -1295,6 +1295,13 @@ dict, a dict's method, a personality's dict of vectors ...) and one when it happ
 says the dicts still held too: 300000 made in one loop, 300 kept in a list and 150 in another dict - 451 left. Old
 engine against new: the corpus byte for byte the same, the eight probes (the five, structs, lists, handles) the same.
 
+Records typed (2026-11-20, docs/scripts.md "Types": a record's type; expr.c x_rec_type): `tests/lang/records.eeai` -
+members read with their types, the same members in another order, records in records, in a seq and through a
+function, a function member called from a variable, `has` and `record` as any record. 15 mistakes told by the check
+(a member it hasn't, set, compared, called as a method, other members or a member of another type assigned, a seq
+of records of different members ...). The stricter check found one in the bench scripts: `tests/bench/records.eeai`
+added a vector's float to an int (now a float).
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

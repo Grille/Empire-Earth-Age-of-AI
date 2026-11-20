@@ -103,10 +103,11 @@ Still to do for step 2:
 
 ## After it
 
-3. **Records typed from how they are written**: `{ at = vec(70, 50), units = 10 }` gets an `XCT_REC` type (the
-   table and `xt_fits` already know it: names and types, `record` alone stays any record), so `r.unitz` is told
-   when the file is read (x_path_kind / XN_MEMBER: a member of an XCT_REC by name); a record of more than 16
-   members stays loose.
+3. **Records typed from how they are written**: DONE 2026-11-20 (the player: "continue" after the dicts) - expr.c
+   x_rec_type: a script's record literal is an `XCT_REC` of its members sorted by name (`record` alone stays any
+   record, a text's records too); a member it hasn't, a member set, records compared, `r.f(...)` are mistakes when
+   the file is read. Left: a record type can't be written by its members (`record { a: int }`) - a struct is that.
+   Next: the dict literal (`{ }` is the record's - entries in `[...]`, `["a" = 1]`?, is the player's to choose).
 4. `dict<K, V>` with any value type (structs).
 5. The player's own generics (`struct pair<A, B>`) - only if scripts ever define their own containers.
 

@@ -148,8 +148,18 @@ wanted, anything where `void` is. `function` alone is any function - nothing kno
 checked when it is called. A function with a `ref` parameter has no such type (it goes by its name only). A value
 of another type called (`let n = 5` then `n(3)`) is a mistake.
 
-Where a type still can't be told (a record's member, what a function held in a variable gives back when it wrote
-none), the value is checked when it is worked out, as before.
+**A record's type** is its members' names and types as written: `let w = { at = vec(70, 50), units = 10 }` is a
+`record { at, units }` whose `at` is a `vec2` - so `w.unitz` is a mistake when the file is read, `w.units + 1` an
+int, `let n: int = w.at.x` a mistake (a float). Written in another order the members are the same type (`a = { tick
+= 1, name = "x" }` into a `{ name = "", tick = 0 }`); other members, or a member of another type, are another type
+(a mistake there). A record's members aren't set (`w.units = 5` - a struct's fields are, or a new record goes in its
+place), it is compared with nothing (its members are), and its function member is called from a variable (`let f
+= r.f`, then `f(...)`). `record` written as a type is any record: what it holds is checked when it is worked out
+(`has(r, "units")` first); a seq of records of different members is a `seq<record>` written. A record of more than
+16 members, and the personalities' records, stay that way too.
+
+Where a type still can't be told (a member of a record written as `record`, what a function held in a variable
+gives back when it wrote none), the value is checked when it is worked out, as before.
 
 ## Sequences and lists
 

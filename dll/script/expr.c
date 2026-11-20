@@ -2177,7 +2177,33 @@ internal int xt_own_member(int t, const char *m) {
     int vn = t == XT_VEC2 ? 2 : t == XT_VEC3 ? 3 : t == XT_VEC4 ? 4 : 0;
     if (vn && m[0] && !m[1] && strchr("xyzw", m[0]) && strchr("xyzw", m[0]) - "xyzw" < vn) return XT_FLOAT;
     if (t == XT_TRIG) return !strcmp(m, "on") ? XT_BOOL : !strcmp(m, "fired") ? XT_INT : -1;
+    const struct xctype *c = t & (X_LIST_OF | X_NULLABLE) ? NULL : xct_of(t);
+    for (int i = 0; c && c->kind == XCT_REC && i < c->n; i++) if (!strcmp(c->name[i], m)) return c->t[i];   // a record's member (0: of a type not known)
     return -1;
+}
+// r.f(...) of a record r: no method of it - its function member is called from a variable (as a list's item is)
+internal int x_rec_call(struct xcheck *k, const struct xnode *n, int r, const char *m) {
+    char tl[80];
+    if (r != XT_REC && xt_own_member(r, m) < 0) snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s has no %s", m, xty_name(r, tl, sizeof tl), m);
+    else snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a record has no methods - its function is called from a variable: let f = r.%s, then f(...)", m, m);
+    return xc_fail(k, n, k->whybuf);
+}
+// A RECORD'S TYPE (a script's): its members' names and types as written - { at = vec(70, 50), units = 10 } is a
+// record { at, units } whose at is a vec2 - in the order of their names (the same members written in another order:
+// the same type), so r.unitz is told when the file is read. More than XCT_MEMBERS members, a text's record: any
+// record (XT_REC), its members worked out when it runs
+internal int x_rec_type(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
+    int ty[XCT_MEMBERS], ord[XCT_MEMBERS];
+    const char *name[XCT_MEMBERS];
+    if (!k->script || n->n_items > XCT_MEMBERS) return XT_REC;
+    for (int i = 0; i < n->n_items; i++) {   // (by name: a few, sorted as they are put in)
+        int j = i;
+        while (j > 0 && strcmp(n->items[ord[j - 1]]->s, n->items[i]->s) > 0) { ord[j] = ord[j - 1]; j--; }
+        ord[j] = i;
+    }
+    for (int i = 0; i < n->n_items; i++) { name[i] = n->items[ord[i]]->s; ty[i] = x_stype(k, n->items[ord[i]]->a, sc); }
+    int r = xct_get(XCT_REC, n->n_items, ty, 0, name);
+    return r < 0 ? XT_REC : r;
 }
 internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s, size_t upto, const struct xscope *sc, int *known) {
     size_t hn = strcspn(s, "."), at;
@@ -2308,6 +2334,16 @@ internal int xt_join(int a, int b) {
 internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscope *sc);
 // what a value of type from needs to go where one of type to belongs (the end of a message)
 internal const char *xt_hint(int to, int from) {
+    const struct xctype *a = xct_of(to), *b = xct_of(from);
+    if (a && b && a->kind == XCT_REC && b->kind == XCT_REC && a->n == b->n && !((to | from) & X_LIST_OF)) {   // records of the same names: the member that differs
+        static char why[120];
+        char ta[40], tb[40];
+        for (int i = 0; i < a->n; i++)
+            if (!strcmp(a->name[i], b->name[i]) && !xt_fits(a->t[i], b->t[i])) {
+                snprintf(why, sizeof why, " - its %s is a%s %s, not a%s %s", a->name[i], xan(xty_name(b->t[i], tb, sizeof tb)), tb, xan(xty_name(a->t[i], ta, sizeof ta)), ta);
+                return why;
+            }
+    }
     return to == XT_INT && from == XT_FLOAT ? " - int(...), round(...)" : (from & X_NULLABLE) && to && !(to & X_NULLABLE) ?
            " - it may be null: check it != null first, or ... ?? a value" : "";
 }
@@ -2349,7 +2385,7 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
     case XN_NUM: return n->op == 'b' ? XT_BOOL : n->op == 'f' ? XT_FLOAT : n->op == 'i' ? XT_INT : n->op == 'n' ? X_NULLABLE : X_ANY;
     case XN_STR: return XT_TEXT;
     case XN_LAMBDA: return k->script ? x_fn_type(k, n, sc, 1) : XT_FN;   // func<int, point>: its parameters and result
-    case XN_REC: return XT_REC;
+    case XN_REC: return x_rec_type(k, n, sc);
     case XN_LIST:   // its items' type when they have one
         if (k->script && (int)n->n) return (int)n->n;   // (worked out when it was checked: x_check XN_LIST)
         r = n->n_items ? x_stype(k, n->items[0], sc) : X_ANY;
@@ -2948,6 +2984,11 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         }
         if (!x_check(k, n->b, sc)) return 0;
         int a = x_stype(k, n->a, sc) & ~X_NULLABLE;
+        const struct xctype *rc = xct_of(a);
+        if (k->script && (a == XT_REC || (rc && rc->kind == XCT_REC && !(a & X_LIST_OF)))) {
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a record's members aren't set - a struct's fields are (struct name { %s: ... }), or a new record goes in its place: r = { ... }", n->s, n->s);
+            return xc_fail(k, n, k->whybuf);
+        }
         if (!a || a == XT_REC) return 1;
         const struct x_kmember *m = a & X_LIST_OF || a >= XT_INT ? NULL : x_kind_member(a, n->s);
         char t[100], tv[40], tm[40];
@@ -3103,6 +3144,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (a >= XT_INT && n->k == XN_MEMBER && xt_own_member(a, n->s) >= 0) return 1;
         if (n->k == XN_MCALL && xst_is(a)) return x_check_smethod(k, n, a, n->s, x_place(k, n->a, sc), x_via_hl(k, n->a, sc) ? "" : x_root_name(n->a), sc);
         if (n->k == XN_MCALL && xt_is_hl(a)) return x_check_hlmethod(k, n, a, n->s, sc);
+        if (n->k == XN_MCALL && xct_of(a) && xct_of(a)->kind == XCT_REC) return x_rec_call(k, n, a, n->s);
         if (a >= XT_INT) {
             snprintf(k->whybuf, sizeof k->whybuf, ".%s: a%s %s has no %s", n->s, xan(xty_name(a, ta, sizeof ta)), ta, n->s);
             return xc_fail(k, n, k->whybuf);
@@ -3233,6 +3275,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                     snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s has no methods - d[k] is a key's entry, d[k] = v sets it", name, xty_name(r, tl, sizeof tl));
                     return xc_fail(k, n, k->whybuf);
                 }
+                if (r == XT_REC || (xct_of(r) && xct_of(r)->kind == XCT_REC)) return x_rec_call(k, n, r, dot + 1);
                 return x_check_method(k, n, r, dot + 1, n->n_items);
             }
         }
@@ -3339,6 +3382,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         }
         int ta = x_stype(k, n->a, sc) & ~X_NULLABLE, tb = x_stype(k, n->b, sc) & ~X_NULLABLE;   // both known: of one type
         int order = n->op != '=' && n->op != '!';
+        if (k->script && (ta == XT_REC || tb == XT_REC || (xct_of(ta) && xct_of(ta)->kind == XCT_REC && !(ta & X_LIST_OF)) || (xct_of(tb) && xct_of(tb)->kind == XCT_REC && !(tb & X_LIST_OF))))
+            return xc_fail(k, n, "a record compared - compare its members (r.name == ...); a struct is == another of the same fields");
         if (!ta || !tb || (xt_numeric(ta) && xt_numeric(tb)) || (ta == tb && !(order && (ta == XT_BOOL || ta >= XT_FN || ta < XT_INT || (ta & X_LIST_OF)))))
             return 1;
         char tn[40], tm[40];
