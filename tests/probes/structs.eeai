@@ -16,7 +16,7 @@ struct guard {
     who: player
     name: text
     ticks: int
-    gold: list<int>
+    gold: seq<int>
     at: point
     best: point?
 
@@ -38,7 +38,7 @@ note(ref w: guard, n: int) {
 }
 let p2 = player(2)
 let one = guard(p2, "two")
-let all: list<guard> = [guard(player(2), "a"), guard(player(3), "b")]
+let all: seq<guard> = [guard(player(2), "a"), guard(player(3), "b")]
 game.timer(1s, () => {
     one.tick()
     all[2].tick()

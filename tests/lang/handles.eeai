@@ -1,0 +1,122 @@
+// lists (docs/scripts.md "Lists"): list<T> a handle - shared by whoever holds it, it grows and shrinks, its items set
+// in it, null kept where its items may be one; [...] where a list goes makes one. What each line works out is in
+// handles.expect (the build compares)
+struct point {
+    x: int
+    y: int
+    add(v: int) {
+        this.x += v
+        this.y += v
+    }
+}
+struct squad {
+    name: text
+    units: list<int>
+    spots: list<point>
+}
+fill(l: list<int>, n: int) {
+    for i in 1..n { l.add(i * 10) }
+}
+sum(l: list<int>): int {
+    let acc = 0
+    for v in l { acc += v }
+    return acc
+}
+maybe(n: int): int? {
+    if n > 2 { return n }
+    return null
+}
+
+// made: empty, of a seq's items, of [...] where a list goes, a [...] with a seq and a list spliced
+let s: seq<int> = [1, 2]
+let e = list<int>()
+let a: list<int> = [10, 20, 30, 10, [10]]
+let b = list<int>([5, s, a])
+let c = list<int>(s)
+cmd("made {len(e)} {a} {len(b)} {b} {c}")
+
+// shared: a let is the same list, a function changes the caller's
+let same = a
+same.add(40)
+fill(e, 3)
+let other = list<int>(a)
+cmd("shared {a} {len(a)} {e} {sum(e)} {same == a} {a == other} {len(other)}")
+
+// grows and shrinks
+a.insert(1, 0)
+a.insert(len(a) + 1, 99)
+a.remove_at(2)
+let i10 = a.index_of(10) ?? 0
+let i77 = a.index_of(77) ?? 0
+cmd("grows {a} {i10} {i77} {first(a) ?? -1} {item(a, 3) ?? -1} {contains(a, 30)} {contains(a, 31)}")
+a.clear()
+cmd("cleared {len(a)} {same}")
+
+// its items set in it
+b[1] = 7
+b[2] += 5
+cmd("set {b}")
+
+// a copy: [l] or list<T>(l) - a new list of its items
+let copy: list<int> = [b]
+copy[1] = 0
+cmd("copy {b[1]} {copy[1]}")
+
+// null kept in a list<int?>, left out of a list<int>
+let opt: list<int?> = [1, null, maybe(1), maybe(5)]
+let drop: list<int> = [1, maybe(1), maybe(5)]
+opt.add(null)
+cmd("null {len(opt)} {opt[2] == null} {opt[4] ?? -1} {len(drop)}")
+
+// lists of structs: an item's field set in the list, its method called there
+let pts: list<point> = [point(1, 1), point(2, 2)]
+pts[1].x = 50
+pts[2].add(5)
+pts.add(point(9, 9))
+ref p3 = pts[3]
+p3.y = 90
+cmd("points {pts[1]} {pts[2]} {pts[3]} {len(pts)}")
+for p in pts {
+    cmd("point {p.x}")
+}
+
+// lists of lists: a list is one item, a list of lists spliced
+let rows: list<list<int>> = [a, [1, 2], list<int>([3])]
+rows[2].add(20)
+let more: list<list<int>> = [rows, [7]]
+more[1].add(77)
+cmd("rows {len(rows)} {rows[2]} {len(more)} {more[1]} {rows[1]}")
+
+// a list of seqs (rows), a seq of lists
+let grid: list<seq<int>> = [[1, 2], [3]]
+grid.add([4, 5, 6])
+grid[1] = [9]
+cmd("grid {len(grid)} {len(grid[3])} {grid[3][2]} {grid[1][1]}")
+let sl: seq<list<int>> = [a, list<int>([8])]
+sl[2].add(9)
+cmd("seq of lists {len(sl)} {sl[2]}")
+
+// a struct's list: shared by its copies (a handle in a value), a new one for each made
+let s1 = squad("north")
+let s2 = s1
+s2.units.add(3)
+let s3 = squad("south")
+s3.units.add(4)
+s1.spots.add(point(1, 2))
+s1.spots[1].x = 11
+cmd("squads {s1.units} {s2.units} {s3.units} {s1.spots[1]}")
+
+// across a wait
+let kept: list<text> = ["a"]
+wait(1s)
+kept.add("b")
+cmd("after wait {kept} {len(kept)}")
+
+// many rounds: made and dropped, freed by the sweep
+let total = 0
+for r in 1..20000 {
+    let t: list<int> = [r, r + 1]
+    t.add(r)
+    total += len(t)
+}
+cmd("rounds {total}")

@@ -18,7 +18,7 @@ struct squad {
     name: text
     pos: point
     strength: float = 1.5
-    units: list<int>
+    units: seq<int>
     target: point?
 
     move(dx: int, dy: int) {
@@ -95,7 +95,7 @@ bump(ref w.pos.y)
 cmd("refs {n} {a} {w.pos}")
 
 // lists of structs: an item is a place
-let l: list<point> = [point(1, 1), point(2, 2), point(3, 3)]
+let l: seq<point> = [point(1, 1), point(2, 2), point(3, 3)]
 l[2].x = 20
 l[3].add(5)
 l[1] = point(7, 7)
@@ -122,7 +122,7 @@ wp = point(1, 2)
 cmd("ref whole {w.pos}")
 
 // a list of squads, changed in place
-let squads: list<squad> = [squad("a"), squad("b", point(5, 5), 3.0)]
+let squads: seq<squad> = [squad("a"), squad("b", point(5, 5), 3.0)]
 squads[1].strength = 50
 squads[2].pos.add(1)
 squads[2].units = [1, 2]

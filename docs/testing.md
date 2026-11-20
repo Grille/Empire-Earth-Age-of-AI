@@ -1274,6 +1274,16 @@ item of another type, a row that may be null, a row's item set on a for's copy .
 script through the stricter rule without one stop; old engine against new: the corpus byte for byte the same, the
 six probes the same. 200000 rounds of row sets: 704 KB at the end.
 
+Sequences and lists (2026-11-20, docs/scripts.md "Sequences and lists"; expr.c LISTS): what was `list<T>` is
+`seq<T>` (the value; every test script renamed - their lines the same), `list<T>` a handle. `tests/lang/handles.eeai`:
+made, shared, grown and shrunk, items set in the list, copies, nulls kept, lists of structs (fields set, methods,
+refs to items), lists of lists spliced and kept, a seq of lists, a struct's list field, across a wait, 20000 made and
+dropped; `tests/probes/handles.eeai` in a game: a timer adding to shared lists, a ref to an item across waits - the
+same lines three times, one with `script state`. 25 mistakes told by the check and 5 when they happen. The checker's
+`--bench` line says how many lists the script still holds at its end (300000 made in one loop, 300 kept: 301).
+Old engine against new: the corpus byte for byte the same, the five older probes the same, the structs and lists
+probes the same lines as before the rename.
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

@@ -131,6 +131,7 @@ internal int chk_bench(const char *path, int runs) {
     const char *why = "can't be read";
     int line = 0;
     double t0 = chk_ms(), best = 0;
+    int lists = 0;     // the lists it still holds at its first run's end (expr.c LISTS)
     size_t left = 0;   // its values' region at a run's end (what it dropped on its way cleared out: expr.c xvm_gc)
     if (!text || !script_compile(path, text, &u, &code, &why, &line)) { printf("%s:%d: %s\n", path, line > 0 ? line : 1, why); return 1; }
     double compiled = chk_ms() - t0;
@@ -144,6 +145,7 @@ internal int chk_bench(const char *path, int runs) {
         g_dry_now = 2.0;
         x_triggers_reset();
         g_x_hooks.now = dry_now; g_x_hooks.wait = NULL; g_x_hooks.command = dry_command; g_x_hooks.did = dry_did; g_x_hooks.note = NULL;
+        g_x_machines = scripts_machines;
         t0 = chk_ms();
         struct xvm *m = xvm_new(code, 0);
         const char *stop = "no memory";
@@ -151,6 +153,8 @@ internal int chk_bench(const char *path, int runs) {
         g_dry_vm = m;
         int r = m ? xvm_turn(m, &stop) : XVM_FAIL;
         while (r == XVM_YIELD) { dry_wait(m->wake); r = xvm_turn(m, &stop); }
+        xhl_sweep();   // (the lists still held at the end: what it keeps, not what it dropped)
+        if (!i) lists = g_xhl_n;
         g_dry_vm = NULL;
         double ms = chk_ms() - t0;
         if (r != XVM_DONE) fprintf(g_dry_out, "stopped at line %d - %s\n", m ? m->line : 0, stop);
@@ -164,8 +168,8 @@ internal int chk_bench(const char *path, int runs) {
         fclose(g_dry_out);
         g_dry_out = NULL;
     }
-    printf("%-28s %9.3f ms (best of %d; read and compiled in %.3f ms; its values take %u KB at the end)\n",
-           strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path, best, runs, compiled, (unsigned)(left >> 10));
+    printf("%-28s %9.3f ms (best of %d; read and compiled in %.3f ms; its values take %u KB at the end, %d lists)\n",
+           strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path, best, runs, compiled, (unsigned)(left >> 10), lists);
     return 0;
 }
 internal int chk_eval(int runs, const char *src) {

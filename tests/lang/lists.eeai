@@ -6,35 +6,35 @@ struct point {
 }
 struct squad {
     name: text
-    rows: list<list<int>>
-    spots: list<point>
+    rows: seq<seq<int>>
+    spots: seq<point>
 }
-rowsum(r: list<int>): int {
+rowsum(r: seq<int>): int {
     let s = 0
     for v in r { s += v }
     return s
 }
-grid(n: int): list<list<int>> {
-    let out: list<list<int>> = []
+grid(n: int): seq<seq<int>> {
+    let out: seq<seq<int>> = []
     for i in 1..n {
         out = [out, [i, i * 10]]
     }
     return out
 }
-firsts(gr: list<list<int>>): list<int> {
-    let fs: list<int> = []
+firsts(gr: seq<seq<int>>): seq<int> {
+    let fs: seq<int> = []
     for r in gr { fs = [fs, r[1]] }
     return fs
 }
 // a list's items as a text (a list in a {placeholder} is one of its items, at random - the texts' rule)
-show(l: list<int>): text {
+show(l: seq<int>): text {
     let t = "["
     for i in 1..len(l) {
         t = i == 1 ? "{t}{l[i]}" : "{t}, {l[i]}"
     }
     return "{t}]"
 }
-rows_text(rs: list<list<int>>): text {
+rows_text(rs: seq<seq<int>>): text {
     let t = ""
     for i in 1..len(rs) { t = "{t}{show(rs[i])}" }
     return t
@@ -45,14 +45,14 @@ maybe(n: int): int? {
 }
 
 // flat: a list of T spliced in, a T or null left out
-let a: list<int> = [0, 1]
-let flat: list<int> = [a, 2, maybe(1), maybe(5)]
+let a: seq<int> = [0, 1]
+let flat: seq<int> = [a, 2, maybe(1), maybe(5)]
 let untyped = [a, 3]
 cmd("flat {len(flat)} {flat[3]} {flat[4]} untyped {len(untyped)} {untyped[3]}")
 
-// lists of lists: a list<int> one item (a row), a list<list<int>> spliced in, an empty row kept
-let rows: list<list<int>> = [a, [5, 6]]
-let more: list<list<int>> = [rows, a, []]
+// lists of lists: a seq<int> one item (a row), a seq<seq<int>> spliced in, an empty row kept
+let rows: seq<seq<int>> = [a, [5, 6]]
+let more: seq<seq<int>> = [rows, a, []]
 cmd("rows {len(rows)} {rows[2][1]} more {len(more)} {len(more[4])} {show(more[1])} {rows_text(more)}")
 rows[1] = [7, 8, 9]
 rows[2][2] = 60
@@ -67,15 +67,15 @@ ref row = rows[2]
 row[1] = 50
 row = [1, 2, 3, 4]
 cmd("ref {show(rows[2])} {len(rows[2])}")
-let one: list<list<int>> = [[4]]
+let one: seq<seq<int>> = [[4]]
 cmd("one {len(one)} {len(one[1])} {one[1][1]}")
 
 // a function that gives back a list of lists, one that takes one; first, item, pick of rows
 let g = grid(3)
 cmd("grid {len(g)} {g[3][2]} {show(firsts(g))} first {show(first(g) ?? [0])} item {show(item(g, 2) ?? [0])} {rows_text(g)}")
 
-// one or null as an item: left out when null (a list<int?> is none - a list holds no null)
-let opt: list<int> = [1, maybe(1), 3, maybe(4)]
+// one or null as an item: left out when null (a seq<int?> is none - a list holds no null)
+let opt: seq<int> = [1, maybe(1), 3, maybe(4)]
 cmd("opt {len(opt)} {show(opt)}")
 
 // a struct with a list of lists: written as a field, an argument, a method's ... set through the struct
@@ -85,13 +85,13 @@ sq.rows = [sq.rows, [99]]
 sq.spots[1].x = 5
 sq.spots = [sq.spots, point(2, 2)]
 cmd("squad {sq.name} {len(sq.rows)} {sq.rows[2][2]} {show(sq.rows[3])} {sq.spots[1]} {len(sq.spots)}")
-let squads: list<squad> = [sq, squad("south", [], [])]
+let squads: seq<squad> = [sq, squad("south", [], [])]
 squads[2].rows = [[7]]
 squads[1].rows[1][1] = 100
 cmd("squads {show(squads[1].rows[1])} {rows_text(squads[2].rows)} {len(squads[2].spots)}")
 
 // a list of lists of lists
-let cube: list<list<list<int>>> = [[[1, 2], [3]], [[4]]]
+let cube: seq<seq<seq<int>>> = [[[1, 2], [3]], [[4]]]
 cube[1][2] = [30, 31, 32]
 cmd("cube {len(cube)} {len(cube[1])} {cube[1][2][3]} {cube[2][1][1]}")
 

@@ -27,7 +27,7 @@ make(n: int): point {
         return point(n, n)
     }
 }
-first_big(l: list<int>, over: int): int? {
+first_big(l: seq<int>, over: int): int? {
     for v in l {
         if v > over { return v }
     }

@@ -3,16 +3,16 @@
 // twice the lines must be the same - also with `script state` (what a save keeps, read back) called while it waits.
 struct log {
     name: text
-    rows: list<list<int>>
+    rows: seq<seq<int>>
 }
-show(l: list<int>): text {
+show(l: seq<int>): text {
     let t = "["
     for i in 1..len(l) {
         t = i == 1 ? "{t}{l[i]}" : "{t}, {l[i]}"
     }
     return "{t}]"
 }
-let samples: list<list<int>> = []
+let samples: seq<seq<int>> = []
 let book = log("gold")
 let p2 = player(2)
 game.timer(2s, () => {
@@ -29,7 +29,7 @@ ping("at 0.2 min: {len(samples)} rows, first {show(samples[1])}, last {show(samp
 wait_until(0.5min)
 first = [first, 7]
 ping("at 0.5 min: {len(samples)} rows, first {show(samples[1])} {show(first)}, book {show(book.rows[1])} {show(book.rows[len(book.rows)])}")
-let sums: list<int> = []
+let sums: seq<int> = []
 for r in samples {
     sums = [sums, r[2] + r[3]]
 }

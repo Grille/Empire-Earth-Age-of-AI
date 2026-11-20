@@ -109,14 +109,16 @@ struct xctx {
 // value that holds it: d[k] = v is seen through all of them)
 // XV_UNSET: a compiled function's slot before its let; XV_REF: a place (ref: STRUCTS AND REFS) - only in a ref's slot
 // and on the machine's stack on its way there, never a value the language hands on
-enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG, XV_DICT, XV_UNSET, XV_REF };
+// XV_HLIST: a list (LISTS: hl its table - a handle, shared by every value that holds it)
+enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG, XV_DICT, XV_UNSET, XV_REF, XV_HLIST };
 struct xfn;
 struct xrec;
 struct xdict;
 struct xref;
+struct xhlist;
 // (56 bytes, its small numbers a byte each: every value worked out is written and copied whole - it was 88)
 struct xval {
-    double n; const char *s; const struct xval *it; union { const struct xfn *fn; const struct xref *ref; }; const double *vc;
+    double n; const char *s; const struct xval *it; union { const struct xfn *fn; const struct xref *ref; struct xhlist *hl; }; const double *vc;
     const struct xrec *rec; struct xdict *dict;
     const char *miss; int w, obj, ln; unsigned char has_n, has_s, kind, vn, okind;
 };
@@ -137,6 +139,27 @@ internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   /
 internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
 internal int xb_is(const struct xval *v) { return v->kind == XV_REC && v->w && v->rec && v->rec->ty == &g_x_boxty; }   // a boxed list (a row)
 // the same of a value that may be a box: a row's items
+// LISTS (list<T>: docs/scripts.md "Lists"): a list is a table of its own, which every value that holds it shares (a
+// handle, as a dict) - it grows (add, insert), shrinks (remove_at, clear), its items are set in it (l[2] = v, l[2].x
+// = v: the item itself is the place), it holds null where its items may be one. A seq is the other: a value, built
+// whole ([...]) and copied. The items are the list's own (xo_copy: malloc'd, apart from every region) and copied out
+// when read (xhl_out) - a set or a removal frees what was there, so a value read before must not point into it. A
+// list nobody holds any more is freed by the marking from every machine (xhl_sweep - the runner names them,
+// g_x_machines) and with the game (x_triggers_reset).
+struct xhlist { struct xhlist *next; struct xval *it; int n, cap, mark, num; };
+internal struct xhlist *g_xhl;
+internal int g_xhl_n, g_xhl_made;   // lists, made since the last sweep
+struct xvm;
+internal void xvm_copy(struct xval *dst, const struct xval *src);   // (THE MACHINE: a value copied into the region now)
+internal int (*g_x_machines)(struct xvm **out, int cap);   // the runner's machines (test/scripts.c), NULL: none - no sweep
+// a list's method: l.add(x), l.insert(i, x), l.remove_at(i), l.clear(), l.index_of(x) (number + 1 in the check's
+// table and the machine's: XHM_)
+enum { XHM_ADD = 1, XHM_INSERT, XHM_REMOVE_AT, XHM_CLEAR, XHM_INDEX_OF };
+internal int xhm_id(const char *name) {
+    static const char *const k[] = { "add", "insert", "remove_at", "clear", "index_of" };
+    for (int i = 0; i < 5; i++) if (!strcmp(name, k[i])) return i + 1;
+    return 0;
+}
 internal int xli_n(const struct xval *v) { return xb_is(v) ? v->rec->n : xl_n(v); }
 internal const struct xval *xli_at(const struct xval *v, int i) { return xb_is(v) ? &v->rec->val[i] : xl_at(v, i); }
 internal struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
@@ -482,6 +505,19 @@ internal void xnum_text(double n, char *out, int cap) {   // a number as a text:
     }
 }
 internal void xto_text(const struct xval *v, char *out, int cap) {
+    if (v->kind == XV_HLIST && v->w && v->hl) {   // a list: its items, whole (a handle is one value: no item picked)
+        int o = 0;
+        out[o++] = '[';
+        for (int i = 0; i < v->hl->n && o < cap - 6; i++) {
+            if (i) { out[o++] = ','; out[o++] = ' '; }
+            xto_text(&v->hl->it[i], out + o, cap - o - 2);
+            o += (int)strlen(out + o);
+        }
+        if (o > cap - 2) o = cap - 2;
+        out[o++] = ']';
+        out[o] = 0;
+        return;
+    }
     if (v->ln) {   // a list: its items, as it would be written - no one of them (that is pick's, a line's, a {placeholder}'s)
         int o = 0;
         out[o++] = '[';
@@ -566,7 +602,7 @@ internal void xb_unbox(struct xval *v) {   // a row read out of its list: the li
     if (r->n) { v->it = r->val; v->ln = v->w = r->n; }
 }
 internal const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
-    if (v->ln || ((v->kind == XV_VEC || v->kind == XV_REC || v->kind == XV_TRIG) && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
+    if (v->ln || ((v->kind == XV_VEC || v->kind == XV_REC || v->kind == XV_TRIG || v->kind == XV_HLIST) && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
     if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
     if (v->has_s || !v->w) return v->w ? v->s : "";
     char t[48];
@@ -643,11 +679,13 @@ internal void x_missing(struct xctx *c, const char *who) {
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
        XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC, XN_LET, XN_IF, XN_WHILE, XN_FOR, XN_BREAK, XN_CONTINUE,
-       XN_INDEX, XN_MCALL, XN_SETM, XN_DICT, XN_SETI, XN_STRUCT, XN_REF };
+       XN_INDEX, XN_MCALL, XN_SETM, XN_DICT, XN_SETI, XN_STRUCT, XN_REF, XN_HLIST };
 struct xnode {
     unsigned char k, op, lvl, depth;
-    unsigned char sk;            // the check's note for the compiler (STRUCTS AND REFS): a set or a call that is a struct's
-                                 // or a list item's - 1: through its place, 2: a method of a value that is no place
+    unsigned char sk;            // the check's notes for the compiler (STRUCTS AND REFS, LISTS): 1 a set or call through a
+                                 // struct's place, 2 a struct's method of a value that is no place; as a seq's item: 4
+                                 // a row (boxed; on a list's method: its value boxed), 8 kept when null, 16 a list
+                                 // spliced; 32 a [...] made a list; 64 an item of a list as a place; 128 a list's method
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
                                  // parameters, a block's statements
     int line;                    // the line in the source (1 the first)
@@ -708,7 +746,7 @@ internal void xst_scan(const char *src) {
 // (list<list<int>>, list<int?>: X_LIST_OF of a wrap). Each is an entry here, the same type the same entry (compared
 // by its number), its number a type's base from XT_CMP0 on; they stay for the session (a few hundred at most: the
 // types the scripts and texts write and the check works out).
-enum { XCT_WRAP = 1, XCT_FN, XCT_REC };
+enum { XCT_WRAP = 1, XCT_FN, XCT_REC, XCT_HLIST };   // HLIST: a list<T> (LISTS), t[0] its items' type
 #define XCT_MEMBERS 16
 #define XCT_MAX 2048
 #define XT_CMP0 0x400
@@ -745,6 +783,9 @@ internal int xt_elem(int l) {
     const struct xctype *c = xct_of(l);
     return c && c->kind == XCT_WRAP ? c->t[0] : X_TBASE(l);
 }
+internal int xt_is_hl(int t) { const struct xctype *c = t & X_LIST_OF ? NULL : xct_of(t); return c && c->kind == XCT_HLIST; }   // a list<T> (or one or null)
+internal int xt_hl_elem(int t) { return xt_is_hl(t) ? xct_of(t)->t[0] : X_ANY; }
+internal int xt_items(int t) { return t & X_LIST_OF ? xt_elem(t) : xt_hl_elem(t); }   // a seq's or a list's items' type (0: neither, or not known)
 // a type as written at *ps (after a ':'): its letters into out - names, ?, and inside < > also commas and spaces
 // (func<int, text>); *ps after it. Its length, 0 none
 internal int xps_type_scan(const char **ps, char *out, int cap) {
@@ -859,9 +900,14 @@ internal int x_type_named(const char *t) {
     char b[96];
     if (!n || n >= sizeof b) return -1;
     lstrcpynA(b, t, (int)n + 1);
-    if (n > 6 && !strncmp(b, "list<", 5) && b[n - 1] == '>') {   // list<T>: of any type - list<list<int>>, list<int?>
+    if (n > 5 && !strncmp(b, "seq<", 4) && b[n - 1] == '>') {   // seq<T>: of any type - seq<seq<int>>, no seq<int?> (a seq leaves a null out)
         b[n - 1] = 0;
-        int e = x_type_named(b + 5), l = e >= 0 && !(e & X_NULLABLE) ? xt_list_of(e) : -1;   // (list<int?>: none - a list leaves a null out)
+        int e = x_type_named(b + 4), l = e >= 0 && !(e & X_NULLABLE) ? xt_list_of(e) : -1;
+        return l < 0 ? -1 : l | flags;
+    }
+    if (n > 6 && !strncmp(b, "list<", 5) && b[n - 1] == '>') {   // list<T>: a list (LISTS), its items of any type, one or null too - no seq<T>? (a row is never none)
+        b[n - 1] = 0;
+        int e = x_type_named(b + 5), l = e >= 0 && !((e & X_LIST_OF) && (e & X_NULLABLE)) ? xct_get(XCT_HLIST, 1, &e, 0, NULL) : -1;
         return l < 0 ? -1 : l | flags;
     }
     if (n > 6 && !strncmp(b, "func<", 5) && b[n - 1] == '>') {   // func<int, text, point>: its parameters' types, then its result's (void: none)
@@ -946,7 +992,7 @@ internal struct xnode *xps_lambda(struct xps *p, const char *s, char pn[8][24], 
         if (ty < 0 || (isref && !ty)) {
             p->err = 1;
             p->why = isref && !ty ? "ref name: type - a ref's type is written" :
-                     "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot, a struct; list<T> a list (of no T?: a list leaves a null out), T? or null, func<A, B, R> a function of A and B that gives an R";
+                     "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot, a struct; seq<T> a sequence (of no T?), list<T> a list (shared, it grows), T? or null, func<A, B, R> a function of A and B that gives an R";
             free(it);
             return NULL;
         }
@@ -1141,6 +1187,25 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             o = xn_new(p, XN_NUM, s - n);
             if (!o) return;
             o->op = 'n';
+            o = XOFF(p, o);
+        } else if (!strcmp(name, "list") && *p->s == '<') {   // list<T>(...): a new list (LISTS) - its type in n, what it is made of in a
+            const char *q = s - n;
+            char t[96];
+            int ty = xps_type_scan(&q, t, sizeof t) ? x_type_named(t) : -1;
+            if (ty < 0 || (ty & X_NULLABLE) || !xt_is_hl(ty)) { p->err = 1; p->why = "list<T>(...) - T a type: list<int>(), list<point>([a, b])"; return; }
+            p->s = q;
+            xps_space(p);
+            if (*p->s != '(') { p->err = 1; p->why = "list<T>(...): a new list - list<int>() an empty one, list<int>([1, 2]) of these, list<int>(s) of a seq's or a list's items"; return; }
+            p->s++;
+            xps_space(p);
+            struct xnode *d = NULL;
+            if (*p->s != ')') { p->par++; xps_expr(p, &d); p->par--; }
+            if (!p->err && !xps_op(p, ")")) { p->err = 1; p->why = "list<T>(...): one value - a seq or a list of its items, or none"; }
+            if (p->err) return;
+            o = xn_new(p, XN_HLIST, s - n);
+            if (!o) return;
+            o->n = ty;
+            o->a = d;
             o = XOFF(p, o);
         } else if (!strcmp(name, "dict") && *p->s == '<') {   // dict<K, V>(default): a new dict (DICTS) - its types in n
             char kt[32], vt[32];
@@ -1489,7 +1554,7 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
             xps_type_scan(&p->s, t, sizeof t);
             if ((ty = x_type_named(t)) < 0) {
                 p->err = 1;
-                p->why = "let name: type = ... - an unknown type (int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot, a struct; list<T> a list (of no T?: a list leaves a null out), T? or null, func<A, B, R> a function of A and B that gives an R)";
+                p->why = "let name: type = ... - an unknown type (int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot, a struct; seq<T> a sequence (of no T?), list<T> a list (shared, it grows), T? or null, func<A, B, R> a function of A and B that gives an R)";
                 return;
             }
             xps_space(p);
@@ -1627,7 +1692,7 @@ internal void xps_struct(struct xps *p, struct xnode **out, const char *at) {
             char t[64];
             for (p->s++; *p->s == ' ' || *p->s == '\t'; p->s++) {}
             int ft = xps_type_scan(&p->s, t, sizeof t) ? x_type_named(t) : -1;
-            if (ft <= 0) { p->err = 1; p->why = "a struct's field: name: type - an unknown type (int, float, bool, text, vec2 ..., player, a struct; list<T> a list (of no T?: a list leaves a null out), T? or null)"; break; }
+            if (ft <= 0) { p->err = 1; p->why = "a struct's field: name: type - an unknown type (int, float, bool, text, vec2 ..., player, a struct; seq<T> a sequence (of no T?), list<T> a list (shared, it grows), T? or null)"; break; }
             struct xnode *d = NULL;
             const char *r = p->s;
             while (*r == ' ' || *r == '\t') r++;
@@ -2032,7 +2097,7 @@ internal int x_sets_this(const struct xnode *n, int st, int depth) {
 // a type's value when none is given (a struct's field left out): a number 0, a bool false, a text "", a list empty, a
 // T? null, a struct its own fields' defaults - 0: it has none (a player, a vector ...: given, or declared)
 internal int xst_has_default(int t, int depth) {
-    if ((t & (X_NULLABLE | X_LIST_OF)) || t == XT_INT || t == XT_FLOAT || t == XT_BOOL || t == XT_TEXT) return 1;
+    if ((t & (X_NULLABLE | X_LIST_OF)) || t == XT_INT || t == XT_FLOAT || t == XT_BOOL || t == XT_TEXT || xt_is_hl(t)) return 1;   // (a list: a new empty one)
     const struct xnode *d = xst_is(t) && depth < 16 ? g_xst[t - XT_STRUCT].decl : NULL;
     for (int i = 0; d && i < d->n_items; i++)
         if (d->items[i]->op == 'F' && !d->items[i]->a && !xst_has_default((int)d->items[i]->n, depth + 1)) return 0;
@@ -2110,7 +2175,7 @@ internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s,
         kind &= ~X_NULLABLE;
         if (kind & X_LIST_OF) {
             char t[40];
-            snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a list of %s - one of them: [1].%s", (int)(at + 1 + sn), s, xty_name(X_TBASE(kind), t, sizeof t), m);
+            snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a %s - one of its items: [1].%s", (int)(at + 1 + sn), s, xty_name(kind, t, sizeof t), m);
             xc_fail(k, n, k->whybuf);
             return -1;
         }
@@ -2165,8 +2230,12 @@ internal const char *xty_name(int t, char *buf, int cap) {
         for (int i = 0; i < c->n && o < (int)sizeof in - 24; i++) o += snprintf(in + o, sizeof in - (size_t)o, "%s%.16s", i ? ", " : " ", c->name[i]);
         snprintf(in + (o < (int)sizeof in - 3 ? o : (int)sizeof in - 3), 3, " }");
         n = in;
+    } else if (c && c->kind == XCT_HLIST) {
+        char one[60];
+        snprintf(in, sizeof in, "list<%s>", xty_name(c->t[0], one, sizeof one));
+        n = in;
     } else if (b == XT_VOID) n = "nothing";
-    snprintf(buf, (size_t)cap, "%s%s%s", t & X_LIST_OF ? "list of " : "", n, t & X_NULLABLE ? "?" : "");
+    snprintf(buf, (size_t)cap, "%s%s%s%s", t & X_LIST_OF ? "seq<" : "", n, t & X_LIST_OF ? ">" : "", t & X_NULLABLE ? "?" : "");
     return buf;
 }
 internal int xt_numeric(int t) { return t == XT_INT || t == XT_FLOAT; }
@@ -2187,6 +2256,7 @@ internal int xt_fits(int to, int from) {
         for (int i = 0; i < a->n; i++) if (a->t[i] && b->t[i] && a->t[i] != b->t[i]) return 0;
         return a->ret == XT_VOID || xt_fits(a->ret, b->ret);
     }
+    if (a->kind == XCT_HLIST) return !a->t[0] || !b->t[0] || a->t[0] == b->t[0];   // a list for a list: of the very items (it is shared)
     if (a->kind == XCT_REC) {   // a record for a record: the same members, each fitting
         for (int i = 0; i < a->n; i++) if (strcmp(a->name[i], b->name[i]) || !xt_fits(a->t[i], b->t[i])) return 0;
         return 1;
@@ -2221,6 +2291,7 @@ internal int xt_builtin(struct xcheck *k, const struct xnode *n, int f, const st
     case 4: case 6: case 7: case 20: case 21: return XT_INT;      // round, floor, len, int, ceil
     case 5: case 14: case 18: return XT_FLOAT;                    // rnd, log2, distance
     case 8: case 9: case 15:   // first, item, pick: one of its items - or none (an empty list, item past its end); a list
+        if (xt_is_hl(a0)) return xt_hl_elem(a0) | X_NULLABLE;
         if (!(a0 & X_LIST_OF)) return f == 15 ? a0 : X_ANY;   // written with an item that always holds has one: pick([10, 20])
         if (!X_TBASE(a0)) return X_ANY;
         if (f != 9 && n->items[0]->k == XN_LIST)
@@ -2229,7 +2300,7 @@ internal int xt_builtin(struct xcheck *k, const struct xnode *n, int f, const st
                 if (!(it->k == XN_COND && !it->b) && !(x_stype(k, it, sc) & X_NULLABLE)) return xt_elem(a0);
             }
         return xt_elem(a0) | X_NULLABLE;
-    case 11: r = n->n_items > 2 ? x_stype(k, n->items[2], sc) : X_ANY; return r & X_LIST_OF ? xt_elem(r) : X_ANY;   // map_range
+    case 11: r = n->n_items > 2 ? x_stype(k, n->items[2], sc) : X_ANY; return xt_items(r);   // map_range
     case 12: return XT_TEXT;                                       // str
     case 13: return XT_FLOAT | X_NULLABLE;                         // number: nothing for a text that is none
     case 16: return n->n_items == 2 ? XT_VEC2 : n->n_items == 3 ? XT_VEC3 : XT_VEC4;   // vec
@@ -2283,6 +2354,7 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
         if (!dot) return x_script_fn(n->s) >= 0 ? g_x_host.fn_kind(n->s) : X_ANY;   // player(2)
         r = x_path_kind(k, n, n->s, (size_t)(dot - n->s), sc, &known);
         if (r > 0 && xst_is(r)) return x_fn_result(k, xst_member(r, dot + 1, 'M', NULL), sc);   // a.scaled(2): a struct's method
+        if (r > 0 && xt_is_hl(r)) return xhm_id(dot + 1) == XHM_INDEX_OF ? XT_INT | X_NULLABLE : X_ANY;   // l.index_of(x)
         m = r > 0 && r < XT_INT ? x_kind_member(r, dot + 1) : NULL;
         r = m && m->amin >= 0 ? m->result : X_ANY;
         return (r & X_NULLABLE) && xn_checked(k, n) ? r & ~X_NULLABLE : r;   // me.attack_minutes(them) != null ? ...
@@ -2291,9 +2363,11 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
         a = x_stype(k, n->a, sc);
         if (n->k == XN_MEMBER && a >= XT_INT && xt_own_member(a, n->s) >= 0) return xt_own_member(a, n->s);   // v.x, t.on
         if (n->k == XN_MCALL && xst_is(a)) return x_fn_result(k, xst_member(a, n->s, 'M', NULL), sc);
+        if (n->k == XN_MCALL && xt_is_hl(a)) return xhm_id(n->s) == XHM_INDEX_OF ? XT_INT | X_NULLABLE : X_ANY;
         m = a > 0 && a < XT_INT ? x_kind_member(a, n->s) : NULL;
         return m && (m->amin >= 0) == (n->k == XN_MCALL) ? m->result : X_ANY;
-    case XN_INDEX: a = x_stype(k, n->a, sc); return a & X_LIST_OF ? xt_elem(a) : X_ANY;
+    case XN_INDEX: a = x_stype(k, n->a, sc); return a & X_NULLABLE ? X_ANY : xt_items(a);
+    case XN_HLIST: return (int)n->n;
     case XN_COND: {   // (no else: nothing) - each side where its condition holds: p.lord != null ? p.lord : me
         int keep = k->n_nn;
         if (!n->b) return X_ANY;
@@ -2425,8 +2499,38 @@ internal int x_place(struct xcheck *k, const struct xnode *n, const struct xscop
     if (!n) return 0;
     if (n->k == XN_NAME) return x_place_path(k, n, n->s, strlen(n->s), sc);
     if (n->k == XN_MEMBER) return x_place(k, n->a, sc) && xst_is(x_stype(k, n->a, sc));
-    if (n->k == XN_INDEX) { int t = x_stype(k, n->a, sc); return x_place(k, n->a, sc) && (t & X_LIST_OF) && !(t & X_NULLABLE); }
+    if (n->k == XN_INDEX) {
+        int t = x_stype(k, n->a, sc);
+        if (xt_is_hl(t) && !(t & X_NULLABLE)) { ((struct xnode *)n)->sk |= 64; return 1; }   // a list's item: a place whatever holds the list
+        return x_place(k, n->a, sc) && (t & X_LIST_OF) && !(t & X_NULLABLE);
+    }
     return 0;
+}
+// a place on the way through a list's item (l[2].x, a.units[1].pos): changed in the list - a for's copy of a struct
+// that holds the list changes the list too
+internal int x_via_hl(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
+    for (; n && (n->k == XN_MEMBER || n->k == XN_INDEX); n = n->a) if (n->k == XN_INDEX && xt_is_hl(x_stype(k, n->a, sc))) return 1;
+    return 0;
+}
+// l.add(x) ... of a list<T> lt (LISTS): a method of it, its arguments of its items' type (marked for the compiler)
+internal int x_check_hlmethod(struct xcheck *k, const struct xnode *n, int lt, const char *mname, const struct xscope *sc) {
+    static const signed char want[] = { 0, 1, 2, 1, 0, 1 };
+    int id = xhm_id(mname), e = xt_hl_elem(lt);
+    char a[60], b[60];
+    if (!id) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a list has no %s - its methods: add, insert, remove_at, clear, index_of (its items: l[i], len(l), for x in l)", mname, mname); return xc_fail(k, n, k->whybuf); }
+    if (g_x_in_ph) return xc_fail(k, n, "a list's method in a {placeholder} - a statement's (let i = l.index_of(x), then {i})");
+    if (n->n_items != want[id]) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", mname, want[id], want[id] == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
+    for (int i = 0; i < n->n_items; i++) {
+        const struct xnode *ai = n->items[i];
+        int ta = x_stype(k, ai, sc), tw = (id == XHM_INSERT && !i) || id == XHM_REMOVE_AT ? XT_INT : e;
+        if (ai->k == XN_REF) return xc_fail(k, ai, "ref ...: a list's method takes values");
+        if (tw == XT_INT ? !ta || ta == XT_INT : xt_fits(tw, ta)) continue;
+        snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its argument %d is a%s %s - a%s %s can't go in%s", mname, i + 1, xan(xty_name(tw, a, sizeof a)), a,
+                 xan(xty_name(ta, b, sizeof b)), b, xt_hint(tw, ta));
+        return xc_fail(k, n, k->whybuf);
+    }
+    ((struct xnode *)n)->sk = (unsigned char)(128 | ((id == XHM_ADD || id == XHM_INSERT) && (e & X_LIST_OF) ? 4 : 0));
+    return 1;
 }
 #define X_PLACE_WHY "a variable, a field of one (a.pos) or a list's item (l[2]) - any other value is dropped with its change"
 // a ref of a function around the one being checked: not seen there (a function made here may run when the place is gone) - 1: told
@@ -2449,7 +2553,7 @@ internal int x_loop_copy(struct xcheck *k, const struct xnode *n, const char *ro
 internal int x_check_refarg(struct xcheck *k, const struct xnode *r, struct xscope *sc) {   // ref <place>, a call's argument
     if (!x_check(k, r->a, sc)) return 0;
     if (!x_place(k, r->a, sc)) return xc_fail(k, r, "ref ...: a place - " X_PLACE_WHY);
-    return !x_loop_copy(k, r, x_root_name(r->a), sc);
+    return !x_loop_copy(k, r, x_via_hl(k, r->a, sc) ? "" : x_root_name(r->a), sc);
 }
 // a call's arguments against the parameters of the function the check knows (fd's, from its number first on): as
 // many, a ref for a ref and none else, each of its parameter's type (a ref: the very type - it is written through)
@@ -2496,6 +2600,8 @@ internal int x_arg_want(struct xcheck *k, const struct xnode *n, int i, const st
         int line = k->line, r = x_path_kind(k, n, name, (size_t)(dot - name), sc, &known);
         k->why = why; k->line = line;   // (a mistake in the path: told where the call is checked)
         const struct xnode *m = r > 0 && xst_is(r) ? xst_member(r, dot + 1, 'M', NULL) : NULL;
+        int id = r > 0 && xt_is_hl(r) ? xhm_id(dot + 1) : 0;
+        if (id == XHM_ADD || id == XHM_INDEX_OF || (id == XHM_INSERT && i == 1)) return xt_hl_elem(r);
         return m && i + 1 < m->n_items ? (int)m->items[i + 1]->n : 0;
     }
     return 0;
@@ -2678,6 +2784,21 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return x_check_body(k, n, sc);
     }
     case XN_STRUCT: return x_check_struct(k, n, sc);
+    case XN_HLIST: {   // list<T>(...): of a seq's or a list's items (a [...] there is made the list itself), or none
+        int ta;
+        char a[60], b[60], c[60];
+        if (!k->script) return xc_fail(k, n, "list<T>(...): a script's - a text holds no list");
+        if (g_x_in_ph) return xc_fail(k, n, "a list made in a {placeholder} - let l = list<T>(...) first, then {l}");
+        if (!n->a) return 1;
+        X_WANT(n->a, (int)n->n);
+        if (!x_check(k, n->a, sc)) return 0;
+        if (n->a->k == XN_LIST) return 1;
+        ta = x_stype(k, n->a, sc);
+        if (!ta || (!(ta & X_NULLABLE) && xt_items(ta) && xt_fits(xt_hl_elem((int)n->n), xt_items(ta)))) return 1;
+        snprintf(k->whybuf, sizeof k->whybuf, "%s(...): of a seq or a list of %ss - not of a%s %s", xty_name((int)n->n, a, sizeof a), xty_name(xt_hl_elem((int)n->n), b, sizeof b),
+                 xan(xty_name(ta, c, sizeof c)), c);
+        return xc_fail(k, n, k->whybuf);
+    }
     case XN_REF: return xc_fail(k, n, "ref ...: only as an argument, to a parameter that is a ref (name(ref p: type) { ... }), or as ref name = a place");
     case XN_LET:
         X_WANT(n->a, n->op == 'r' ? 0 : (int)n->n);
@@ -2686,7 +2807,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             int tw = (int)n->n, tv = x_stype(k, n->a, sc);
             char a[40], b[40];
             if (!x_place(k, n->a, sc)) { snprintf(k->whybuf, sizeof k->whybuf, "ref %s = ...: a place - " X_PLACE_WHY, n->s); return xc_fail(k, n, k->whybuf); }
-            if (x_loop_copy(k, n, x_root_name(n->a), sc)) return 0;
+            if (x_loop_copy(k, n, x_via_hl(k, n->a, sc) ? "" : x_root_name(n->a), sc)) return 0;
             if (tw && tv && tw != tv) {
                 snprintf(k->whybuf, sizeof k->whybuf, "ref %s: %s = ...: the place is a%s %s's", n->s, xty_name(tw, a, sizeof a), xan(xty_name(tv, b, sizeof b)), b);
                 return xc_fail(k, n, k->whybuf);
@@ -2760,7 +2881,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             b.decl[0] |= 4;   // the loop's copy of an item
             int lk = n->b ? X_ANY : x_stype(k, n->a, sc);   // a range's: an int from ints, else a float
             if (n->b) { int ta = x_stype(k, n->a, sc), tb = x_stype(k, n->b, sc); b.kind[0] = (short)(ta == XT_INT && tb == XT_INT ? XT_INT : xt_numeric(ta) && xt_numeric(tb) ? XT_FLOAT : X_ANY); }
-            else b.kind[0] = (short)(lk & X_LIST_OF ? xt_elem(lk) : X_ANY);
+            else b.kind[0] = (short)(lk & X_NULLABLE ? X_ANY : xt_items(lk));
         }
         k->loops++;
         int ok = x_check_body(k, n->k == XN_WHILE ? n->a : n->c, &b);
@@ -2788,7 +2909,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (x_stype(k, n->a, sc) & X_NULLABLE) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s that may be null - check it != null first", n->s, xty_name(a, tv, sizeof tv));
             else if (!f) { xst_list(a, 'F', t, sizeof t); snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s has no field %s - its fields: %s", n->s, xty_name(a, tv, sizeof tv), n->s, t); }
             else if (!x_place(k, n->a, sc)) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: set in " X_PLACE_WHY, n->s);
-            else if (x_loop_copy(k, n, x_root_name(n->a), sc)) return 0;
+            else if (x_loop_copy(k, n, x_via_hl(k, n->a, sc) ? "" : x_root_name(n->a), sc)) return 0;
             else if (n->op && (!xt_numeric(ft) || !xt_numeric(tr)))
                 snprintf(k->whybuf, sizeof k->whybuf, ".%s %c= ...: numbers only - the field is a%s %s, the value a%s %s", n->s, n->op,
                          xan(xty_name(ft, tm, sizeof tm)), tm, xan(xty_name(tr, tv, sizeof tv)), tv);
@@ -2839,14 +2960,28 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_SETI: {   // d[k] = v of a dict; l[i] = v of a list the check knows: its item, in a place (marked for the compiler)
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
-        X_WANT(n->c, x_stype(k, n->a, sc) & X_LIST_OF ? xt_elem(x_stype(k, n->a, sc)) : 0);   // (a row written out)
+        X_WANT(n->c, xt_items(x_stype(k, n->a, sc)));   // (a row written out, a list's item)
         if (!x_check(k, n->c, sc)) return 0;
-        int a = x_stype(k, n->a, sc), ti = x_stype(k, n->b, sc), tv = x_stype(k, n->c, sc), it = xt_elem(a);
-        char tn[40], tm[40];
+        int a = x_stype(k, n->a, sc), ti = x_stype(k, n->b, sc), tv = x_stype(k, n->c, sc), it = xt_items(a);
+        char tn[60], tm[60];
+        if (xt_is_hl(a)) {   // l[i] = v of a list: its item, set in the list (whatever holds it: no place needed)
+            if (a & X_NULLABLE) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a %s that may be null - check it != null first", xty_name(a, tn, sizeof tn));
+            else if (ti && ti != XT_INT) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a list's item is l[an int] - not a %s", xty_name(ti, tn, sizeof tn));
+            else if (n->op && (!xt_numeric(it) || !xt_numeric(tv)))
+                snprintf(k->whybuf, sizeof k->whybuf, "[...] %c= ...: numbers only - the item is a%s %s, the value a%s %s", n->op, xan(xty_name(it, tm, sizeof tm)), tm,
+                         xan(xty_name(tv, tn, sizeof tn)), tn);
+            else {
+                if (n->op) tv = it == XT_INT && tv == XT_INT && n->op != '/' ? XT_INT : XT_FLOAT;
+                if (xt_fits(it, tv)) { ((struct xnode *)n)->sk = (unsigned char)(it & X_LIST_OF ? 4 : 0); return 1; }   // (4: a row - the value boxed)
+                snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: the list's items are %ss - a%s %s can't go in%s", xty_name(it, tm, sizeof tm),
+                         xan(xty_name(tv, tn, sizeof tn)), tn, xt_hint(it, tv));
+            }
+            return xc_fail(k, n, k->whybuf);
+        }
         if (!(a & X_LIST_OF)) return 1;
         if (a & X_NULLABLE) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a %s that may be null - check it != null first", xty_name(a, tn, sizeof tn));
         else if (!x_place(k, n->a, sc)) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: set in " X_PLACE_WHY);
-        else if (x_loop_copy(k, n, x_root_name(n->a), sc)) return 0;
+        else if (x_loop_copy(k, n, x_via_hl(k, n->a, sc) ? "" : x_root_name(n->a), sc)) return 0;
         else if (ti && ti != XT_INT) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a list's item is l[an int] - not a %s", xty_name(ti, tn, sizeof tn));
         else if (n->op && it && (!xt_numeric(it) || !xt_numeric(tv)))
             snprintf(k->whybuf, sizeof k->whybuf, "[...] %c= ...: numbers only - the item is a%s %s, the value a%s %s", n->op, xan(xty_name(it, tm, sizeof tm)), tm,
@@ -2865,8 +3000,10 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         for (int i = 0; i < n->n_items; i++) {
             if (n->items[i]->k == XN_REF) { if (!x_check_refarg(k, n->items[i], sc)) return 0; hasref = 1; continue; }
             if (k->script && n->k == XN_MCALL && n->items[i]->k == XN_LIST) {   // a list written as a method's argument
-                const struct xnode *m0 = xst_member(x_stype(k, n->a, sc), n->s, 'M', NULL);
+                int ta0 = x_stype(k, n->a, sc);
+                const struct xnode *m0 = xst_member(ta0, n->s, 'M', NULL);
                 g_x_want = m0 && i + 1 < m0->n_items ? (int)m0->items[i + 1]->n : 0;
+                if (xt_is_hl(ta0) && (xhm_id(n->s) == XHM_ADD || xhm_id(n->s) == XHM_INDEX_OF || (xhm_id(n->s) == XHM_INSERT && i == 1))) g_x_want = xt_hl_elem(ta0);
             }
             if (!x_check(k, n->items[i], sc)) return 0;
         }
@@ -2881,17 +3018,18 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (!a || a == XT_REC) return 1;   // (not known, a record: worked out, there?)
         if (n->k == XN_INDEX) {
             int ti = x_stype(k, n->b, sc);
-            if (!(a & X_LIST_OF)) snprintf(k->whybuf, sizeof k->whybuf, "[...]: a %s is no list", xty_name(a, ta, sizeof ta));
+            if (!(a & X_LIST_OF) && !xt_is_hl(a)) snprintf(k->whybuf, sizeof k->whybuf, "[...]: a %s is no list", xty_name(a, ta, sizeof ta));
             else if (ti && ti != XT_INT) snprintf(k->whybuf, sizeof k->whybuf, "[...]: a list's item is l[an int] - not a %s%s", xty_name(ti, ta, sizeof ta), ti == XT_FLOAT ? " (int(...), round(...))" : "");
             else return 1;
             return xc_fail(k, n, k->whybuf);
         }
-        if (a & X_LIST_OF) {
-            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s - one of them: [1].%s", n->s, xty_name(a, ta, sizeof ta), n->s);
+        if ((a & X_LIST_OF) || (xt_is_hl(a) && n->k == XN_MEMBER)) {
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s - one of its items: [1].%s", n->s, xty_name(a, ta, sizeof ta), n->s);
             return xc_fail(k, n, k->whybuf);
         }
         if (a >= XT_INT && n->k == XN_MEMBER && xt_own_member(a, n->s) >= 0) return 1;
-        if (n->k == XN_MCALL && xst_is(a)) return x_check_smethod(k, n, a, n->s, x_place(k, n->a, sc), x_root_name(n->a), sc);
+        if (n->k == XN_MCALL && xst_is(a)) return x_check_smethod(k, n, a, n->s, x_place(k, n->a, sc), x_via_hl(k, n->a, sc) ? "" : x_root_name(n->a), sc);
+        if (n->k == XN_MCALL && xt_is_hl(a)) return x_check_hlmethod(k, n, a, n->s, sc);
         if (a >= XT_INT) {
             snprintf(k->whybuf, sizeof k->whybuf, ".%s: a%s %s has no %s", n->s, xan(xty_name(a, ta, sizeof ta)), ta, n->s);
             return xc_fail(k, n, k->whybuf);
@@ -2910,7 +3048,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return 1;
     case XN_CALL: {
         const char *name = n->s;
-        int hasref = 0, smeth = 0;
+        int hasref = 0, smeth = 0, hlm = 0;
         for (int i = 0; i < n->n_items; i++) {   // the arguments first - every's function gets its parameter's type: (run) => ...
             int ctx = k->ctx;
             if (n->items[i]->k == XN_REF) { if (!x_check_refarg(k, n->items[i], sc)) return 0; hasref = 1; continue; }   // ref a: a place
@@ -2930,8 +3068,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                 int r0 = x_path_kind(k, n, name, (size_t)(d2 - name), sc, &known);
                 if (r0 < 0) return 0;
                 smeth = xst_is(r0) ? r0 : 0;
+                hlm = xt_is_hl(r0) ? r0 : 0;
             }
             if (smeth) return x_check_smethod(k, n, smeth, d2 + 1, x_place_path(k, n, name, (size_t)(d2 - name), sc), name, sc);
+            if (d2 && hlm) {   // l.add(x): a list's method
+                if (hlm & X_NULLABLE) { snprintf(k->whybuf, sizeof k->whybuf, "%.*s may be null (no list there) - check it != null first", (int)(d2 - name), name); return xc_fail(k, n, k->whybuf); }
+                if (hasref) return xc_fail(k, n, "ref ...: a list's method takes values");
+                return x_check_hlmethod(k, n, hlm, d2 + 1, sc);
+            }
             if (hasref && !(!d2 && vf == 1 && xsc_fn(sc, name, strlen(name))))
                 return xc_fail(k, n, "ref ...: only to a parameter that is a ref - of a function the script declares (name(ref p: type) { ... }) or a struct's method");
         } else if (hasref) return xc_fail(k, n, "ref ...: a script's");
@@ -3007,7 +3151,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (known && k->script) {
                 if (r == X_ANY) return 1;
                 if (r & X_LIST_OF) {
-                    snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a list of %s - one of them: [1].%s(...)", name, x_kind_name(r), dot + 1);
+                    char tl[60];
+                    snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s - one of its items: [1].%s(...) (a seq has no methods; a list<T> add, insert ...)", name, xty_name(r, tl, sizeof tl), dot + 1);
                     return xc_fail(k, n, k->whybuf);
                 }
                 return x_check_method(k, n, r, dot + 1, n->n_items);
@@ -3025,13 +3170,16 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         // or null (left out when null) - nothing else. The type wanted where the list is written says what T is: for a
         // list<list<int>> a list<int> is one item (a row, marked for the compiler: kept whole) and a list<list<int>> is
         // spliced. No type wanted: the items' own, lists spliced (flat, as ever) - a list of lists writes its type.
-        int want = g_x_want, W, E, T = 0;
+        int want = g_x_want, W, E, T = 0, hw;
         char a[60], b[60];
         g_x_want = 0;
-        W = k->script && (want & X_LIST_OF) && xt_elem(want) ? want & ~X_NULLABLE : 0;
-        E = W ? xt_elem(W) : 0;
+        hw = k->script && xt_is_hl(want) && xt_hl_elem(want);   // [...] where a list goes: made the list
+        W = hw || (k->script && (want & X_LIST_OF) && xt_elem(want)) ? want & ~X_NULLABLE : 0;
+        E = hw ? xt_hl_elem(W) : W ? xt_elem(W) : 0;
+        if (hw) ((struct xnode *)n)->sk |= 32;
+        if (hw && g_x_in_ph) return xc_fail(k, n, "a list made in a {placeholder} - let l: list<T> = [...] first, then {l}");
         for (int i = 0; i < n->n_items; i++) {
-            if (k->script && (E & X_LIST_OF)) X_WANT(n->items[i], E);   // a list written as an item of rows: a row
+            if (k->script && ((E & X_LIST_OF) || xt_is_hl(E))) X_WANT(n->items[i], E);   // a list written as an item of rows: a row; of lists: a list
             int ok = x_check(k, n->items[i], sc);
             g_x_want = 0;
             if (!ok) return 0;
@@ -3040,11 +3188,12 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         for (int i = 0; i < n->n_items; i++) {
             const struct xnode *it = n->items[i];
             int ti = x_stype(k, it, sc), e;
+            if (hw && (E & X_NULLABLE) && xt_fits(E, ti)) { ((struct xnode *)it)->sk |= 8; continue; }   // one or null, kept as either
             if (E & X_LIST_OF && (ti & X_NULLABLE)) {   // a row that may be null: as an item it would be an empty row - none and empty are one at run time
                 snprintf(k->whybuf, sizeof k->whybuf, "[...]: its item %d may be null - a list of lists holds rows, never none (check it != null first, or ... ?? [])", i + 1);
                 return xc_fail(k, it, k->whybuf);
             }
-            if (!ti && (E & X_LIST_OF)) {   // a list of lists: whether it is a row or rows to splice is the item's type - it must be known
+            if (!ti && ((E & X_LIST_OF) || xt_is_hl(E))) {   // a list of lists: whether it is a row or rows to splice is the item's type - it must be known
                 snprintf(k->whybuf, sizeof k->whybuf, "[...]: its item %d's type can't be told - a list of lists needs it (a row, or rows to splice): in a variable with its type first", i + 1);
                 return xc_fail(k, it, k->whybuf);
             }
@@ -3052,6 +3201,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (E) {
                 if (xt_fits(E | X_NULLABLE, ti)) { if (E & X_LIST_OF) ((struct xnode *)it)->sk |= 4; continue; }   // one item
                 if ((ti & X_LIST_OF) && !(ti & X_NULLABLE) && (!xt_elem(ti) || xt_fits(E, xt_elem(ti)))) continue;   // its items
+                if (xt_is_hl(ti) && !(ti & X_NULLABLE) && xt_fits(E, xt_hl_elem(ti))) { ((struct xnode *)it)->sk |= 16; continue; }   // a list's items
                 snprintf(k->whybuf, sizeof k->whybuf, "[...]: its item %d is a%s %s - the list's are %ss: one of them, a list of them, or one or null", i + 1,
                          xan(xty_name(ti, a, sizeof a)), a, xty_name(E, b, sizeof b));
                 return xc_fail(k, it, k->whybuf);
@@ -3061,7 +3211,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (!e) continue;
             if (!T || xt_fits(e, T)) T = e;   // (the first; an int before a float: floats)
             else if (!xt_fits(T, e)) {
-                snprintf(k->whybuf, sizeof k->whybuf, "[...]: its item %d is a%s %s, the ones before %ss - a list's items are of one type (a list of lists: its type written, let l: list<list<int>> = ...)",
+                snprintf(k->whybuf, sizeof k->whybuf, "[...]: its item %d is a%s %s, the ones before %ss - a seq's items are of one type (a seq of seqs: its type written, let l: seq<seq<int>> = ...)",
                          i + 1, xan(xty_name(ti, a, sizeof a)), a, xty_name(T, b, sizeof b));
                 return xc_fail(k, it, k->whybuf);
             }
@@ -3133,15 +3283,17 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
 struct xview { const char *const *name; struct xval *val; int n; struct xview *up; int keep; };
 // A REF AT WORK (STRUCTS AND REFS): the view its variable is in, the variable's slot there and the way on from its
 // value, a step each - a field's number (>= 0), or an item's (-1 - its place from 0). Numbers only: saved as they are
-struct xref { struct xview *w; int slot, np; int path[]; };
+// hl: a list's item is its place - item slot of the list (w NULL), the way on from there
+struct xref { struct xview *w; struct xhlist *hl; int slot, np; int path[]; };
 // the value at a ref's place as it is now, NULL: none (*why) - no place in it, or the place is gone since the ref
 // was made (a list set anew with fewer items)
 internal const struct xval *xref_peek(const struct xval *rv, const char **why) {
     const struct xref *r = rv->kind == XV_REF ? rv->ref : NULL;
     const char *none;
     if (!why) why = &none;
-    if (!r || !r->w || r->slot < 0 || r->slot >= r->w->n) { *why = "a ref without its place (a ref parameter handed a value?)"; return NULL; }
-    const struct xval *v = &r->w->val[r->slot];
+    if (r && r->hl && (r->slot < 0 || r->slot >= r->hl->n)) { *why = "a ref's place is gone: its list has fewer items now"; return NULL; }
+    if (!r || (!r->hl && (!r->w || r->slot < 0 || r->slot >= r->w->n))) { *why = "a ref without its place (a ref parameter handed a value?)"; return NULL; }
+    const struct xval *v = r->hl ? &r->hl->it[r->slot] : &r->w->val[r->slot];
     if (v->kind == XV_UNSET || v->kind == XV_REF) { *why = "a ref to a variable before its let"; return NULL; }
     for (int i = 0; i < r->np; i++) {
         int p = r->path[i];
@@ -3200,6 +3352,7 @@ internal int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as
     if (v->kind == XV_VEC && v->w) { x_fail(e, "a vector %.40s where one number belongs - .x, .y ... for one of its numbers", xtext_of(v)); return 0; }
     if (v->kind == XV_REC && v->w) { x_fail(e, "a record %.40s where one number belongs - r.name for one of its members", xtext_of(v)); return 0; }
     if (v->kind == XV_TRIG && v->w) { x_fail(e, "a trigger where one number belongs - t.on, t.fired"); return 0; }
+    if (v->kind == XV_HLIST && v->w) { x_fail(e, "a list where one number belongs - l[i], len(l)"); return 0; }
     if (!v->w || v->has_n) return 1;
     x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
     return 0;
@@ -3210,7 +3363,8 @@ internal int xref_get(struct xe *e, const struct xval *rv, struct xval *out) {
     const struct xval *v = xref_peek(rv, &why);
     if (!v) { xnothing(out); x_fail(e, "%s", why); return 0; }
     int item = rv->ref->np && rv->ref->path[rv->ref->np - 1] < 0;
-    *out = *v;
+    if (rv->ref->hl) xvm_copy(out, v);   // (in a list: copied out - the list may change it)
+    else *out = *v;
     if (item) { out->w = 1; out->ln = 0; out->it = NULL; }
     xb_unbox(out);   // (a row: the list it is)
     return 1;
@@ -3219,7 +3373,7 @@ internal int xref_step(struct xe *e, struct xval *rv, int step) {   // the ref i
     const struct xref *r = rv->ref;
     struct xref *q = x_alloc(sizeof *q + (size_t)(r->np + 1) * sizeof(int));
     if (!q) { e->err = 1; return 0; }
-    q->w = r->w; q->slot = r->slot; q->np = r->np + 1;
+    q->w = r->w; q->hl = r->hl; q->slot = r->slot; q->np = r->np + 1;
     memcpy(q->path, r->path, (size_t)r->np * sizeof(int));
     q->path[r->np] = step;
     rv->ref = q;
@@ -3266,6 +3420,179 @@ internal int xref_build(struct xe *e, const struct xval *cur, const int *path, i
     } else out->it = it;
     return 1;
 }
+// A LIST'S ITEMS (LISTS above): a value made the list's own - its texts, numbers, items and members malloc'd, a
+// function's definition too (only one of the script's top or a kept one: a function made inside a function goes
+// with its frame); 0: not one it can hold (told)
+internal const char k_xo_empty[1] = "";
+internal int xo_ok(struct xe *e, const struct xval *v) {
+    if (v->kind == XV_REF) { x_fail(e, "a ref can't be a list's item"); return 0; }
+    if (v->kind == XV_FN && v->fn && v->fn->venv && !v->fn->venv->keep) { x_fail(e, "a function made inside a function can't be kept in a list - one of the script's top can"); return 0; }
+    for (int i = 0; i < v->ln; i++) if (!xo_ok(e, &v->it[i])) return 0;
+    for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) if (!xo_ok(e, &v->rec->val[i])) return 0;
+    return 1;
+}
+internal void xo_copy(struct xval *dst, const struct xval *src) {
+    *dst = *src;
+    dst->s = src->s && src->s[0] ? _strdup(src->s) : k_xo_empty;
+    if (src->kind == XV_VEC && src->vc) {
+        double *m = malloc((size_t)src->vn * sizeof *m);
+        if (m) memcpy(m, src->vc, (size_t)src->vn * sizeof *m);
+        dst->vc = m;
+    }
+    if (src->kind == XV_REC && src->rec) {
+        struct xrec *r = malloc(sizeof *r);
+        struct xval *val = malloc((size_t)src->rec->n * sizeof *val + 1);
+        const char **key = src->rec->ty ? NULL : malloc((size_t)src->rec->n * sizeof *key + 1);
+        if (r) { r->n = src->rec->n; r->ty = src->rec->ty; r->key = src->rec->ty ? src->rec->key : key; r->val = val; }
+        for (int i = 0; r && val && i < r->n; i++) {
+            xo_copy(&val[i], &src->rec->val[i]);
+            if (key) key[i] = _strdup(src->rec->key[i]);
+        }
+        dst->rec = r;
+    }
+    if (src->kind == XV_FN && src->fn) {
+        struct xfn *fn = malloc(sizeof *fn);
+        if (fn) *fn = *src->fn;
+        dst->fn = fn;
+    }
+    if (src->ln) {
+        struct xval *it = malloc((size_t)src->ln * sizeof *it);
+        for (int i = 0; it && i < src->ln; i++) xo_copy(&it[i], &src->it[i]);
+        dst->it = it;
+    }
+}
+internal void xo_free(struct xval *v) {
+    if (v->s && v->s != k_xo_empty) free((char *)v->s);
+    if (v->kind == XV_VEC) free((double *)v->vc);
+    if (v->kind == XV_REC && v->rec) {
+        struct xrec *r = (struct xrec *)v->rec;
+        for (int i = 0; r->val && i < r->n; i++) { xo_free(&r->val[i]); if (!r->ty && r->key) free((char *)r->key[i]); }
+        free(r->val);
+        if (!r->ty) free((void *)r->key);
+        free(r);
+    }
+    if (v->kind == XV_FN) free((void *)v->fn);
+    for (int i = 0; v->it && i < v->ln; i++) xo_free((struct xval *)&v->it[i]);
+    if (v->ln) free((void *)v->it);
+}
+// item i of a list, read: copied into the region now (the list may change it meanwhile), a row the list it is
+internal void xhl_out(const struct xhlist *h, int i, struct xval *v) {
+    const struct xval *it = &h->it[i];
+    if (!it->s[0] && !it->ln && (it->kind == XV_PLAIN || it->kind == XV_HLIST || it->kind == XV_DICT || it->kind == XV_TRIG)) *v = *it;
+    else xvm_copy(v, it);
+    xb_unbox(v);
+}
+internal struct xhlist *xhl_new(void) {
+    struct xhlist *h = calloc(1, sizeof *h);
+    if (!h) return NULL;
+    h->next = g_xhl; g_xhl = h;
+    g_xhl_n++; g_xhl_made++;
+    return h;
+}
+internal void xhl_value(struct xval *v, struct xhlist *h) { xnothing(v); if (h) { v->w = 1; v->kind = XV_HLIST; v->hl = h; } }
+internal int xhl_room(struct xe *e, struct xhlist *h, int n) {
+    if (n <= h->cap) return 1;
+    int cap = h->cap ? h->cap * 2 : 8;
+    while (cap < n) cap *= 2;
+    struct xval *m = cap <= (1 << 24) ? realloc(h->it, (size_t)cap * sizeof *m) : NULL;
+    if (!m) { x_fail(e, "a list of more than %d items - no memory", h->cap); return 0; }
+    h->it = m; h->cap = cap;
+    return 1;
+}
+// v into a list: at place i (from 0) - a new item there when ins, else the one there replaced (its own freed)
+internal int xhl_put(struct xe *e, struct xhlist *h, int i, const struct xval *v, int ins) {
+    if (!xo_ok(e, v)) return 0;
+    if (ins) {
+        if (!xhl_room(e, h, h->n + 1)) return 0;
+        memmove(&h->it[i + 1], &h->it[i], (size_t)(h->n - i) * sizeof *h->it);
+        h->n++;
+    } else xo_free(&h->it[i]);
+    xo_copy(&h->it[i], v);
+    return 1;
+}
+internal void xhl_free(struct xhlist *h) {
+    for (int i = 0; i < h->n; i++) xo_free(&h->it[i]);
+    free(h->it);
+    free(h);
+}
+internal void xhl_free_all(void) {   // (a new game)
+    while (g_xhl) { struct xhlist *h = g_xhl; g_xhl = h->next; xhl_free(h); }
+    g_xhl_n = g_xhl_made = 0;
+}
+// a new list of a seq's items, or a list's (a copy), or none (nothing: an empty one)
+internal void xhl_make(struct xe *e, const struct xval *src, struct xval *v) {
+    struct xhlist *h = xhl_new();
+    if (!h) { e->err = 1; return; }
+    const struct xhlist *from = src->kind == XV_HLIST && src->w ? src->hl : NULL;
+    int n = from ? from->n : xl_n(src);
+    if (n && !xhl_room(e, h, n)) return;
+    for (int i = 0; i < n && !e->err; i++) {
+        const struct xval *it = from ? &from->it[i] : xl_at(src, i);
+        if (!from && !xo_ok(e, it)) break;
+        xo_copy(&h->it[h->n++], it);
+    }
+    xhl_value(v, h);
+}
+// THE SWEEP: every list that a value of a machine (its stack: its frames' slots and what it works out), a trigger,
+// an after, a kept view leads to is marked; the rest freed. Only where nothing else holds a value: between turns,
+// at a loop's next round in a script's own turn (xvm_gc)
+internal int g_xhl_gen;
+internal void xhl_mark_view(const struct xview *w);
+internal void xhl_mark(const struct xval *v) {
+    if (v->kind == XV_HLIST && v->hl && v->hl->mark != g_xhl_gen) {
+        v->hl->mark = g_xhl_gen;
+        for (int i = 0; i < v->hl->n; i++) xhl_mark(&v->hl->it[i]);
+    }
+    if (v->kind == XV_FN && v->fn) xhl_mark_view(v->fn->venv);
+    if (v->kind == XV_REF && v->ref) { xhl_mark_view(v->ref->w); if (v->ref->hl) { struct xval t; xhl_value(&t, v->ref->hl); xhl_mark(&t); } }
+    for (int i = 0; v->it && i < v->ln; i++) xhl_mark(&v->it[i]);
+    for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) xhl_mark(&v->rec->val[i]);
+}
+// (a view's values: a frame's are on its machine's stack too - each view once a sweep)
+#define XHL_VIEWS 4096
+internal const struct xview *g_xhl_seen[XHL_VIEWS];
+internal int g_xhl_nseen;
+internal void xhl_mark_view(const struct xview *w) {
+    for (; w; w = w->up) {
+        for (int i = 0; i < g_xhl_nseen; i++) if (g_xhl_seen[i] == w) return;
+        if (g_xhl_nseen < XHL_VIEWS) g_xhl_seen[g_xhl_nseen++] = w;
+        for (int i = 0; i < w->n; i++) xhl_mark(&w->val[i]);
+    }
+}
+internal void xhl_sweep(void);   // (below the machine: it reads them)
+internal int x_same(const struct xval *a, const struct xval *b);
+internal int xcmp_as(const struct xval *a, const struct xval *b, int eq);
+internal void xhl_method(struct xe *e, int id, struct xval *l, struct xval *a, int na, struct xval *v) {
+    static const char *const k[] = { "", "add", "insert", "remove_at", "clear", "index_of" };
+    struct xhlist *h = l->kind == XV_HLIST && l->w ? l->hl : NULL;
+    xnothing(v);
+    if (!h) { x_fail(e, ".%s(...): %s - no list", k[id], l->w ? xtext_of(l) : "null"); return; }
+    for (int i = 0; i < na; i++) x_use(e, &a[i]);
+    if (e->err) return;
+    int i = id == XHM_INSERT || id == XHM_REMOVE_AT ? (int)a[0].n : 0;
+    if ((id == XHM_INSERT || id == XHM_REMOVE_AT) && (!x_numeric_ok(e, &a[0]) || (double)i != a[0].n || i < 1 || i > h->n + (id == XHM_INSERT))) {
+        if (!e->err) x_fail(e, ".%s(%s%s): no such place - the list has %d (the first is 1%s)", k[id], xtext_of(&a[0]), id == XHM_INSERT ? ", ..." : "", h->n, id == XHM_INSERT ? ", one past the last: at its end" : "");
+        return;
+    }
+    switch (id) {
+    case XHM_ADD: xhl_put(e, h, h->n, &a[0], 1); break;
+    case XHM_INSERT: xhl_put(e, h, i - 1, &a[1], 1); break;
+    case XHM_REMOVE_AT:
+        xo_free(&h->it[i - 1]);
+        memmove(&h->it[i - 1], &h->it[i], (size_t)(h->n - i) * sizeof *h->it);
+        h->n--;
+        break;
+    case XHM_CLEAR: for (int j = 0; j < h->n; j++) xo_free(&h->it[j]); h->n = 0; break;
+    case XHM_INDEX_OF:   // the first item the same as x (as ==, a row item for item): its number, none: nothing
+        for (int j = 0; j < h->n; j++) {
+            struct xval it = h->it[j];
+            xb_unbox(&it);
+            if (it.ln || a[0].ln ? x_same(&it, &a[0]) : !xcmp_as(&it, &a[0], 1)) { xnum(v, j + 1); break; }
+        }
+        break;
+    default: x_fail(e, "the script's instructions are broken (a list's method)"); break;
+    }
+}
 // a struct's field by name: its number, -1 none
 internal int xst_field(const struct xstype *ty, const char *name) {
     for (int i = 0; i < ty->nf; i++) if (!strcmp(ty->fname[i], name)) return i;
@@ -3274,6 +3601,7 @@ internal int xst_field(const struct xstype *ty, const char *name) {
 // two values the same through and through: structs of one type field by field, lists item by item, the rest as ==
 internal int xcmp_as(const struct xval *a, const struct xval *b, int eq);
 internal int x_same(const struct xval *a, const struct xval *b) {
+    if (a->kind == XV_HLIST || b->kind == XV_HLIST) return a->kind == b->kind && a->hl == b->hl;   // a list: the same one
     if (xb_is(a) || xb_is(b)) {   // a row: as the list it is
         struct xval ua = *a, ub = *b;
         xb_unbox(&ua); xb_unbox(&ub);
@@ -3305,6 +3633,7 @@ internal int xvec_eq(const struct xval *a, const struct xval *b) {   // two vect
 // <0, 0, >0: players the same one or not, numbers, else texts; eq: only whether they are the same is asked (0 or not)
 internal int xcmp_as(const struct xval *a, const struct xval *b, int eq) {
     double x, y;
+    if (a->kind == XV_HLIST || b->kind == XV_HLIST) return a->kind == b->kind && a->hl == b->hl ? 0 : 2;   // a list: the same one
     if (a->obj && b->obj) {
         if (a->okind != b->okind) return a->okind - b->okind;
         int ka = g_x_host.obj_key(a), kb = g_x_host.obj_key(b);
@@ -3725,7 +4054,7 @@ internal int x_script_fn(const char *name) {
 // a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
 // its number (unit.x: both), a vector its numbers one argument each (a place: x y)
 internal int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
-    if ((v->kind && v->kind != XV_VEC) || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind == XV_REC ? "a record" : v->kind ? "stop" : "nothing"); return 0; }
+    if ((v->kind && v->kind != XV_VEC) || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln || v->kind == XV_HLIST ? "a list" : v->kind == XV_FN ? "a function" : v->kind == XV_REC ? "a record" : v->kind ? "stop" : "nothing"); return 0; }
     if (v->kind == XV_VEC) {
         int o = 0;
         for (int i = 0; i < v->vn; i++) {
@@ -3785,8 +4114,9 @@ internal struct xafter g_xa[XA_MAX];
 internal int g_xa_n;
 internal struct xregion g_xt_keep, g_xt_tmp;   // what they keep (their functions, frames); a turn's values
 internal double g_xt_next;   // the next check (game seconds)
-internal void x_triggers_reset(void) {   // a new game: none (nor dicts)
+internal void x_triggers_reset(void) {   // a new game: none (nor dicts, nor lists)
     x_dicts_free();
+    xhl_free_all();
     g_xt_n = g_xa_n = 0;
     g_xt_next = 0;
     x_region_free(&g_xt_keep);
@@ -4071,6 +4401,15 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
     int f = strchr(name, '.') ? 0 : x_fn_id(name, na);   // (no builtin has a dot: a relation, a method)
     for (int i = 0; f && i < na; i++) if (a[i].miss) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
     if (e->err) return;
+    int hlv = 0;   // a list as len's, first's, item's, contains', pick's, map_range's: its items as a seq for the call
+    if (f == 7 || f == 8 || f == 9 || f == 10 || f == 11 || f == 15)
+        for (int i = 0; i < na; i++)
+            if (a[i].kind == XV_HLIST && a[i].w) {
+                struct xhlist *h = a[i].hl;
+                xnothing(&a[i]);
+                if (h->n) { a[i].it = h->it; a[i].ln = a[i].w = h->n; }
+                hlv = 1;
+            }
     if (e->c->fixed && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no vars functions
         x_fail(e, "%s(): a setting is a fixed number (no chance(), rnd() or names)", name);
         return;
@@ -4211,6 +4550,7 @@ internal void x_call_apply(struct xe *e, const char *name, struct xval *a, int n
     else if (f == 20) xnum(v, (double)(long long)xto_num(&a[0]));   // int(x): toward 0 (int(-2.5) -2), int(epoch) its number
     else if (f == 21) { double x = xto_num(&a[0]), r = (double)(long long)x; xnum(v, r < x ? r + 1 : r); }   // ceil(1.2) 2
     else xnum(v, x_rnd01(e->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
+    if (hlv && (f == 8 || f == 9 || f == 11 || f == 15)) { struct xval t = *v; xvm_copy(v, &t); }   // (an item of a list: copied out)
 }
 internal void x_str_fill(struct xe *e, const char *tmpl, struct xval *v) {   // a string: its placeholders filled
     int f0 = e->c->failed;
@@ -4270,6 +4610,13 @@ internal void xop_index(struct xe *e, const struct xval *l, const struct xval *i
     if (l->kind == XV_DICT) {   // d[k]: its entry, else the default
         x_use(e, &i);
         if (!e->err) xdict_get(e, l->dict, &i, v);
+        return;
+    }
+    if (l->kind == XV_HLIST && l->w) {   // a list's item: copied out
+        int k = (int)i.n;
+        if (!x_numeric_ok(e, &i)) return;
+        if (!i.w || (double)k != i.n || k < 1 || k > l->hl->n) { x_fail(e, "[%s]: no such item - the list has %d (the first is [1])", xtext_of(&i), l->hl->n); return; }
+        xhl_out(l->hl, k - 1, v);
         return;
     }
     if (l->w && !l->ln) { x_fail(e, "[...]: %.40s is no list", l->kind == XV_REC ? "a record" : l->kind == XV_VEC ? "a vector" : xtext_of(l)); return; }
@@ -4359,6 +4706,11 @@ internal void xop_cmp(struct xe *e, int op, int an, int bn, struct xval *v, stru
         xnum(v, xvec_eq(v, b) == (op == '='));
         return;
     }
+    if (v->kind == XV_HLIST || b->kind == XV_HLIST) {   // lists: the same one or not (its items: compare them)
+        if (op != '=' && op != '!') { x_fail(e, "a list has no order - == or != (the same list)"); return; }
+        xnum(v, (v->kind == b->kind && v->hl == b->hl) == (op == '='));
+        return;
+    }
     if (!(v->obj && b->obj) && xmismatch(v, b)) {
         x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : b));
         return;
@@ -4368,7 +4720,23 @@ internal void xop_cmp(struct xe *e, int op, int an, int bn, struct xval *v, stru
 }
 // d[k] = val, d[k] op= val (d, k and val used)
 internal void xop_seti(struct xe *e, int op, const struct xval *d, const struct xval *key, struct xval *v) {
-    if (d->kind != XV_DICT) { x_fail(e, "[...] = ...: %.40s is no dict - a list's item is set where the check knows the list (let l: list<int> = ..., a parameter's type)", xtext_of(d)); return; }
+    if (d->kind == XV_HLIST && d->w) {   // l[i] = v of a list: the item in it (op: what it is, op v)
+        struct xval kk = *key;
+        int i = (int)key->n;
+        if (!x_numeric_ok(e, &kk)) return;
+        if (!key->w || (double)i != key->n || i < 1 || i > d->hl->n) { x_fail(e, "[%s]: no such item - the list has %d (the first is [1])", xtext_of(key), d->hl->n); return; }
+        if (op) {
+            struct xval cur;
+            xhl_out(d->hl, i - 1, &cur);
+            if (!x_numeric_ok(e, &cur) || !x_numeric_ok(e, v)) return;
+            double x = xto_num(&cur), y = xto_num(v);
+            if (op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+            xnum(v, op == '+' ? x + y : op == '-' ? x - y : op == '*' ? x * y : x / y);
+        }
+        xhl_put(e, d->hl, i - 1, v, 0);
+        return;
+    }
+    if (d->kind != XV_DICT) { x_fail(e, "[...] = ...: %.40s is no dict - a seq's item is set where the check knows the seq (let l: seq<int> = ..., a parameter's type)", xtext_of(d)); return; }
     if (op) {   // d[k] += 1: what it holds now (or the default), op the value
         struct xval cur;
         xdict_get(e, d->dict, key, &cur);
@@ -5153,7 +5521,10 @@ enum { XI_STMT, XI_CONST, XI_NIL, XI_LOADL, XI_LOADU, XI_STOREL, XI_STOREU, XI_N
        // XI_STORER the value on top put where the ref in slot a names, XI_NEW a struct (type a) of the b values
        // below, XI_METHOD a struct's method (a: its name) - the struct's place and b arguments below
        // XI_BOX: the list on top made one item (A LIST AS AN ITEM); XI_ITEM with b 1 does so with a list's item
-       XI_REF, XI_REFM, XI_REFI, XI_REFGET, XI_REFSET, XI_DEREF, XI_STORER, XI_NEW, XI_METHOD, XI_BOX, XI_COUNT };
+       // LISTS: XI_MKLIST a new list of the seq (or list, or nothing) on top; XI_HLM a list's method (a: its XHM_, b its
+       // arguments, c: the last boxed - a row) with the list below them; XI_REFH an item's place: the list below its number
+       XI_REF, XI_REFM, XI_REFI, XI_REFGET, XI_REFSET, XI_DEREF, XI_STORER, XI_NEW, XI_METHOD, XI_BOX, XI_MKLIST, XI_HLM, XI_REFH,
+       XI_COUNT };
 struct xins { unsigned char op, b; unsigned short c; int a; };   // what, and its numbers (each instruction's own use)
 // a number; a text or a name (cs, n: a name's constant once looked up; mk, mi: a member's name - the kind of object it
 // was last read of and its number there + 1, 0 none the host reads by number: x_member_fast; ty: a struct's field or
@@ -5366,6 +5737,7 @@ internal void xc_place_path(struct xcomp *cc, const char *s, size_t len) {   // 
 internal void xc_place(struct xcomp *cc, const struct xnode *n) {
     if (n && n->k == XN_NAME) xc_place_path(cc, n->s, strlen(n->s));
     else if (n && n->k == XN_MEMBER) { xc_place(cc, n->a); xc_emit(cc, XI_REFM, xc_konst(cc, 0, n->s), 0, 0); }
+    else if (n && n->k == XN_INDEX && (n->sk & 64)) { xc_expr(cc, n->a); xc_emit(cc, XI_USE, 0, 0, 0); xc_expr(cc, n->b); xc_emit(cc, XI_REFH, 0, 0, 0); }   // a list's item
     else if (n && n->k == XN_INDEX) { xc_place(cc, n->a); xc_expr(cc, n->b); xc_emit(cc, XI_REFI, 0, 0, 0); }
     else xcc_fail(cc, "a place that is none");
 }
@@ -5374,6 +5746,7 @@ internal void xc_new(struct xcomp *cc, const struct xnode *n, int sti);
 internal void xc_default(struct xcomp *cc, int t, const struct xnode *f) {
     if (f && f->a) { xc_expr(cc, f->a); xc_emit(cc, XI_USE, 0, 0, 0); }
     else if (t & (X_NULLABLE | X_LIST_OF)) xc_emit(cc, XI_NIL, 0, 0, 0);
+    else if (xt_is_hl(t)) { xc_emit(cc, XI_NIL, 0, 0, 0); xc_emit(cc, XI_MKLIST, 0, 0, 0); }   // a list: a new empty one each
     else if (t == XT_TEXT) xc_emit(cc, XI_STR, xc_konst(cc, 0, ""), 1, 0);
     else if (xst_is(t)) xc_new(cc, NULL, t - XT_STRUCT);
     else xc_emit(cc, XI_CONST, xc_konst(cc, 0, NULL), 0, 0);
@@ -5409,6 +5782,14 @@ internal void xc_call(struct xcomp *cc, const struct xnode *n) {
     const char *name = n->s;
     int depth, sl = xc_resolve(cc, name, &depth), k = xc_konst(cc, 0, name), nargs = n->n_items;
     if ((n->sk & 3) && !cc->text) { xc_method(cc, n); return; }   // a struct's method (the check's mark)
+    if ((n->sk & 128) && !cc->text) {   // l.add(x): a list's method - the list (its path's value), its arguments
+        const char *dot = strrchr(name, '.');
+        xc_load(cc, xc_seg(name, (size_t)(dot - name)));
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        for (int i = 0; i < nargs; i++) { xc_expr(cc, n->items[i]); xc_emit(cc, XI_USE, 0, 0, 0); }
+        xc_emit(cc, XI_HLM, xhm_id(dot + 1), nargs, (n->sk & 4) != 0);
+        return;
+    }
     if (sl < 0 && !cc->text && !strchr(name, '.') && xst_find(name) >= 0 && g_xst[xst_find(name)].decl) { xc_new(cc, n, xst_find(name)); return; }   // point(...)
     if (sl < 0 && !cc->text && !strcmp(name, "every") && nargs == 4) {   // every(step, from, until, f): a loop of its own, its state in five hidden slots
         for (int i = 0; i < 4; i++) xc_expr(cc, n->items[i]);
@@ -5460,10 +5841,20 @@ internal void xc_expr(struct xcomp *cc, const struct xnode *n) {
             at = xc_emit(cc, XI_TRY, 0, 0, 0);
             xc_expr(cc, n->items[i]);
             xc_emit(cc, XI_USE, 0, 0, 0);
-            xc_emit(cc, XI_ITEM, 0, (n->items[i]->sk & 4) && !cc->text, 0);   // (the check's mark: a list kept as one item)
+            {   // (the check's marks: a row kept as one item, a list spliced, a null kept)
+                int sk = cc->text ? 0 : n->items[i]->sk;
+                xc_emit(cc, XI_ITEM, 0, sk & 4 ? 1 : sk & 16 ? 2 : sk & 8 ? 3 : 0, 0);
+            }
             xc_here(cc, at);
         }
         xc_emit(cc, XI_LIST_END, 0, 0, 0);
+        if ((n->sk & 32) && !cc->text) xc_emit(cc, XI_MKLIST, 0, 0, 0);   // where a list goes: made one
+        break;
+    case XN_HLIST:   // list<T>(...): a [...] made the list itself, else a new one of what is given
+        if (n->a && n->a->k == XN_LIST && (n->a->sk & 32)) { xc_expr(cc, n->a); break; }
+        xc_expr(cc, n->a);
+        xc_emit(cc, XI_USE, 0, 0, 0);
+        xc_emit(cc, XI_MKLIST, 0, 0, 0);
         break;
     case XN_MEMBER:
         xc_expr(cc, n->a);
@@ -5479,6 +5870,13 @@ internal void xc_expr(struct xcomp *cc, const struct xnode *n) {
     case XN_REF: xc_place(cc, n->a); break;   // ref a: the place itself, for a ref parameter
     case XN_MCALL:
         if ((n->sk & 3) && !cc->text) { xc_method(cc, n); break; }   // a struct's method (the check's mark)
+        if ((n->sk & 128) && !cc->text) {   // a list's method: the list, its arguments
+            xc_expr(cc, n->a);
+            xc_emit(cc, XI_USE, 0, 0, 0);
+            for (int i = 0; i < n->n_items; i++) { xc_expr(cc, n->items[i]); xc_emit(cc, XI_USE, 0, 0, 0); }
+            xc_emit(cc, XI_HLM, xhm_id(n->s), n->n_items, (n->sk & 4) != 0);
+            break;
+        }
         xc_expr(cc, n->a);
         xc_emit(cc, XI_USE, 0, 0, 0);
         if (n->n_items > 8) {
@@ -5577,7 +5975,7 @@ internal void xc_stmt(struct xcomp *cc, const struct xnode *s) {
         if (s->k == XN_BREAK) cc->brk[cc->nbrk++] = at; else cc->cont[cc->ncont++] = at;
         break;
     case XN_SETI:
-        if (s->sk) {   // l[i] = v, l[i] += v of a list in a place: the item's place, its value now for an op, the value put there
+        if (s->sk & 1) {   // l[i] = v, l[i] += v of a list in a place: the item's place, its value now for an op, the value put there
             xc_place(cc, s->a);
             xc_expr(cc, s->b);
             xc_emit(cc, XI_REFI, 0, 0, 0);
@@ -5591,6 +5989,7 @@ internal void xc_stmt(struct xcomp *cc, const struct xnode *s) {
         xc_expr(cc, s->a); xc_emit(cc, XI_USE, 0, 0, 0);
         xc_expr(cc, s->b); xc_emit(cc, XI_USE, 0, 0, 0);
         xc_expr(cc, s->c); xc_emit(cc, XI_USE, 0, 0, 0);
+        if (s->sk & 4) xc_emit(cc, XI_BOX, 0, 0, 0);   // (a list's row set: the seq as its item)
         xc_emit(cc, XI_SETI, s->op, 0, 0);
         break;
     case XN_SETM:
@@ -5852,6 +6251,13 @@ internal void xvm_ref_put(struct xvm *m, struct xe *e, struct xvframe *f, const 
     if (!xref_peek(rv, &why)) { x_fail(e, "%s", why); return; }
     const struct xref *r = rv->ref;
     struct xview *w = r->w;
+    if (r->hl) {   // a list's item: made anew there (a row's place set whole: a row again)
+        const struct xval *cur = &r->hl->it[r->slot];
+        if (!xref_build(e, cur, r->path, r->np, nv, &built)) return;
+        if (!r->np && xb_is(cur) && !xb_is(&built)) xb_box(&built);
+        xhl_put(e, r->hl, r->slot, &built, 0);
+        return;
+    }
     if (!xref_build(e, &w->val[r->slot], r->path, r->np, nv, &built)) return;
     if (w != &f->view && xvm_made_in(&built, &f->view)) { x_fail(e, "a function made inside a function can't be handed out of it"); return; }
     if (w->keep && g_xt_in && (built.has_s || built.ln || built.kind || built.obj)) {
@@ -6009,10 +6415,42 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             break;
         case XI_ITEM:
             if (m->ntr > ntr0) m->ntr--;
-            if (in->b) xb_box(top);   // a list that is one item (a row of a list<list<T>>; an empty one too - none and empty are not told apart there)
+            if (in->b == 2) {   // a list's items spliced in: as a seq of them (copied out), none left out
+                struct xhlist *h = top->kind == XV_HLIST && top->w ? top->hl : NULL;
+                struct xval *it = h && h->n ? x_alloc((size_t)h->n * sizeof *it) : NULL;
+                for (int j = 0; it && j < h->n; j++) { xvm_copy(&it[j], &h->it[j]); }
+                xnothing(top);
+                if (it) { top->it = it; top->ln = top->w = h->n; } else m->sp--;
+            } else if (in->b == 3) {}   // kept, null too (a list<T?>'s)
+            else if (in->b) xb_box(top);   // a list that is one item (a row of a list<list<T>>; an empty one too - none and empty are not told apart there)
             else if (!top->w) m->sp--;   // nothing: left out
             break;
         case XI_BOX: xb_box(top); break;   // the list on top made an item (l[2] = row)
+        case XI_MKLIST: if (c->fixed || m->text) { x_fail(e, "a list - a script's"); break; } r = *top; xhl_make(e, &r, top); break;
+        case XI_HLM: {   // a list's method: the list below the b arguments
+            int base = m->sp - in->b - 1;
+            if (base < 0) { x_fail(e, "the script's instructions are broken (a list)"); break; }
+            if (in->c && in->b) xb_box(&m->st[m->sp - 1]);
+            xhl_method(e, in->a, &m->st[base], &m->st[base + 1], in->b, &r);
+            m->sp = base;
+            *xvm_push(m, e) = r;
+            break;
+        }
+        case XI_REFH: {   // a list's item as a place: the list below its number
+            struct xval ix = m->st[--m->sp];
+            v = &m->st[m->sp - 1];
+            struct xhlist *h = v->kind == XV_HLIST && v->w ? v->hl : NULL;
+            int i = (int)ix.n;
+            if (!h) { x_fail(e, "[...]: %s - no list", v->w ? xtext_of(v) : "null"); break; }
+            if (!x_numeric_ok(e, &ix)) break;
+            if (!ix.w || (double)i != ix.n || i < 1 || i > h->n) { x_fail(e, "[%s]: no such item - the list has %d (the first is [1])", xtext_of(&ix), h->n); break; }
+            struct xref *q = x_alloc(sizeof *q);
+            if (!q) { e->err = 1; break; }
+            q->w = NULL; q->hl = h; q->slot = i - 1; q->np = 0;
+            xnothing(v);
+            v->w = 1; v->kind = XV_REF; v->ref = q;
+            break;
+        }
         case XI_LIST_END: {   // the items above the mark: a list in it its items in its place; none left: nothing
             int mk = m->sp - 1, cnt = 0;
             while (mk > 0 && m->st[mk].kind != XV_UNSET) mk--;
@@ -6064,8 +6502,9 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             if (++e->steps > X_LOOP_STEPS) { x_fail(e, "a loop (line %d) ran %d rounds without waiting - wait(...) lets the game go on", code->line[m->pc - 1], X_LOOP_STEPS); break; }
             m->pc = in->a;
             // what the rounds so far made and dropped, out of the script's region - in its own turn only (until_nfr 0,
-            // its region the one in use): there every value it holds is on its stack, between two statements
-            if (g_xr->total > (m->gc_at ? m->gc_at : X_GC_STEP) && !until_nfr && !m->text && !g_xt_in && g_xr->busy == 1) xvm_gc(m);
+            // its region the one in use): there every value it holds is on its stack, between two statements - also
+            // when it made many lists (they are apart from the region: a loop of list<T>() hardly grows it)
+            if ((g_xr->total > (m->gc_at ? m->gc_at : X_GC_STEP) || g_xhl_made > 20000) && !until_nfr && !m->text && !g_xt_in && g_xr->busy == 1) xvm_gc(m);
             break;
         case XI_SETI: m->sp -= 3; xop_seti(e, in->a, &m->st[m->sp], &m->st[m->sp + 1], &m->st[m->sp + 2]); break;
         case XI_SETM: m->sp -= 2; xop_setm(e, k->s, in->b, &m->st[m->sp], &m->st[m->sp + 1]); break;
@@ -6085,7 +6524,7 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
         case XI_FORN_STEP: m->st[f->base + in->c].n += 1; break;
         case XI_FORL: {   // for name in l: the list below, into the hidden slot, its place after it
             struct xval *a = &m->st[--m->sp];
-            if (a->kind) { x_fail(e, "for %s in ...: %s - a list, or a..b", k->s, a->kind == XV_FN ? "a function" : a->kind == XV_REC ? "a record" : a->kind == XV_VEC ? "a vector" : "stop"); break; }
+            if (a->kind && a->kind != XV_HLIST) { x_fail(e, "for %s in ...: %s - a list, or a..b", k->s, a->kind == XV_FN ? "a function" : a->kind == XV_REC ? "a record" : a->kind == XV_VEC ? "a vector" : "stop"); break; }
             m->st[f->base + in->c] = *a;
             xnum(&m->st[f->base + in->c + 1], 0);
             break;
@@ -6093,7 +6532,10 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
         case XI_FORL_NEXT: {
             const struct xval *l = &m->st[f->base + in->c];
             int i = (int)m->st[f->base + in->c + 1].n;
-            if (i >= xl_n(l)) m->pc = in->a;
+            if (l->kind == XV_HLIST) {   // a list: its items as they are each round (copied out)
+                if (i >= l->hl->n) m->pc = in->a;
+                else { v = xvm_push(m, e); xhl_out(l->hl, i, v); }
+            } else if (i >= xl_n(l)) m->pc = in->a;
             else { v = xvm_push(m, e); *v = *xl_at(l, i); xb_unbox(v); }
             break;
         }
@@ -6165,7 +6607,7 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             if (w->val[in->a].kind == XV_UNSET) { x_fail(e, "%s: a place before its let", w->name[in->a]); break; }
             struct xref *q = x_alloc(sizeof *q);
             if (!q) { e->err = 1; break; }
-            q->w = w; q->slot = in->a; q->np = 0;
+            q->w = w; q->hl = NULL; q->slot = in->a; q->np = 0;
             v->w = 1; v->kind = XV_REF; v->ref = q;
             break;
         }
@@ -6268,7 +6710,7 @@ internal int x_ph_method(struct xe *e, const struct xval *o, const char *mname, 
     struct xval copy = *o, args[8], fv;
     struct xview tv = { nm, &copy, 1, NULL, 0 };   // the copy as a variable of its own: the method's this names it
     struct xref rf;
-    rf.w = &tv; rf.slot = 0; rf.np = 0;
+    rf.w = &tv; rf.hl = NULL; rf.slot = 0; rf.np = 0;
     xnothing(&args[0]);
     args[0].w = 1; args[0].kind = XV_REF; args[0].ref = &rf;
     for (int i = 0; i < na; i++) args[i + 1] = a[i];
@@ -6353,11 +6795,39 @@ internal void xvm_gc(struct xvm *m) {
     xvm_collect(m);
     x_region_free(&old);
     m->gc_at = g_xr->total * 2 + X_GC_STEP;
+    if (g_xhl_made) xhl_sweep();   // (the lists nobody holds any more: freed too)
 }
 internal int xfn_nparams(const struct xfn *fn) { return fn->code->fn[fn->fi].nparams; }
 // THE TEXTS' MACHINE: every text's code runs on this one - a value at a time: its top function entered above whatever
 // stands there (a name's body within a line's, a {placeholder} within that ...) and run to its return
 internal struct xvm *g_xtm;
+internal void xhl_mark_roots(void) {
+    for (int i = 0; i < g_xt_n; i++) { xhl_mark(&g_xt[i].when); xhl_mark(&g_xt[i].run); }
+    for (int i = 0; i < g_xa_n; i++) xhl_mark(&g_xa[i].fn);
+    if (g_xtm) for (int j = 0; j < g_xtm->sp; j++) xhl_mark(&g_xtm->st[j]);
+}
+internal void xhl_sweep(void) {
+    struct xvm *vm[16];
+    int nvm;
+    if (!g_xhl || !g_x_machines || (nvm = g_x_machines(vm, 16)) < 0) return;
+    if (++g_xhl_gen == 0) g_xhl_gen = 1;
+    g_xhl_nseen = 0;
+    for (int i = 0; i < nvm; i++) {
+        const struct xvm *m = vm[i];
+        for (int j = 0; m && j < m->sp; j++) xhl_mark(&m->st[j]);
+        for (int j = 0; m && j < m->nfr; j++) xhl_mark_view(m->fr[j].view.up);
+    }
+    xhl_mark_roots();
+    if (g_xhl_nseen == XHL_VIEWS) return;   // (too many views to be sure of every list: none freed this time)
+    for (struct xhlist **pp = &g_xhl; *pp; ) {
+        struct xhlist *h = *pp;
+        if (h->mark == g_xhl_gen) { pp = &h->next; continue; }
+        *pp = h->next;
+        xhl_free(h);
+        g_xhl_n--;
+    }
+    g_xhl_made = 0;
+}
 internal struct xvm *xvm_texts(void) {
     if (!g_xtm && (g_xtm = calloc(1, sizeof *g_xtm)) != NULL) g_xtm->text = 1;
     return g_xtm;
@@ -6426,6 +6896,8 @@ struct xsave {
     int nkv;
     struct xdict *di[XS_DICTS];         // the dicts, numbered so
     int ndi;
+    struct xhlist **hl;                 // the lists, numbered so (LISTS)
+    int nhl, chl;
     int lost;                           // values that couldn't be saved
 };
 // a view as two numbers: (0, 0) none; (1 + script, frame): that machine's frame; (-1, n): kept view n (a new one noted)
@@ -6449,8 +6921,24 @@ internal int xs_dict(struct xsave *s, struct xdict *d) {
     s->di[s->ndi++] = d;
     return s->ndi;
 }
-internal void xs_note(struct xsave *s, const struct xval *v) {   // the views and dicts a value leads to
-    int a, b;
+// a list's number (its place + 1), a new one noted (*fresh); 0: no room
+internal int xs_hl(struct xsave *s, struct xhlist *h, int *fresh) {
+    if (fresh) *fresh = 0;
+    for (int i = 0; i < s->nhl; i++) if (s->hl[i] == h) return i + 1;
+    if (s->nhl == s->chl) {
+        int cap = s->chl ? s->chl * 2 : 64;
+        struct xhlist **m = realloc(s->hl, (size_t)cap * sizeof *m);
+        if (!m) { s->lost++; return 0; }
+        s->hl = m; s->chl = cap;
+    }
+    s->hl[s->nhl++] = h;
+    if (fresh) *fresh = 1;
+    return s->nhl;
+}
+internal void xs_note(struct xsave *s, const struct xval *v) {   // the views, dicts and lists a value leads to
+    int a, b, fresh;
+    struct xhlist *h = v->kind == XV_HLIST ? v->hl : v->kind == XV_REF && v->ref ? v->ref->hl : NULL;
+    if (h && xs_hl(s, h, &fresh) && fresh) for (int i = 0; i < h->n; i++) xs_note(s, &h->it[i]);
     if (v->kind == XV_FN && v->fn) xs_view_ref(s, v->fn->venv, &a, &b);
     if (v->kind == XV_REF && v->ref) xs_view_ref(s, v->ref->w, &a, &b);
     if (v->kind == XV_DICT) xs_dict(s, v->dict);
@@ -6480,14 +6968,16 @@ internal void xs_put(struct xsave *s, const struct xval *v) {
         if (v->rec->ty && !sc) s->lost++;
         pb_int(o, v->rec->n); pb_int(o, sc); pb_int(o, ti);
         for (int i = 0; i < v->rec->n; i++) { pb_str(o, sc < 0 ? "" : v->rec->key[i]); xs_put(s, &v->rec->val[i]); }
-    } else if (v->kind == XV_REF) {   // a ref: the view its variable is in, the slot, the way on
+    } else if (v->kind == XV_REF) {   // a ref: the view its variable is in (-2: a list, its number), the slot, the way on
         xs_view_ref(s, v->ref ? v->ref->w : NULL, &a, &b);
+        if (v->ref && v->ref->hl) { a = -2; b = xs_hl(s, v->ref->hl, NULL); }
         pb_int(o, a); pb_int(o, b); pb_int(o, v->ref ? v->ref->slot : 0); pb_int(o, v->ref ? v->ref->np : 0);
         for (int i = 0; v->ref && i < v->ref->np; i++) pb_int(o, v->ref->path[i]);
     } else if (v->kind == XV_FN) {
         xs_view_ref(s, v->fn->venv, &a, &b);
         pb_int(o, ci); pb_int(o, v->fn->fi); pb_int(o, a); pb_int(o, b);
     } else if (v->kind == XV_DICT) pb_int(o, xs_dict(s, v->dict));
+    else if (v->kind == XV_HLIST) pb_int(o, xs_hl(s, v->hl, NULL));
 }
 internal void xs_put_dent(struct pbuf *o, const struct xdent *x) {
     pb_int(o, x->kobj); pb_num(o, x->kn); pb_num(o, x->vn); pb_int(o, (x->ks != NULL) | (x->vs != NULL) << 1 | (x->vhas_s != 0) << 2);
@@ -6541,6 +7031,8 @@ internal void x_state_save(struct pbuf *o, struct xcode *const *code, struct xvm
         xs_put_dent(o, &d->def);
         for (int j = 0; j < d->n; j++) xs_put_dent(o, &d->e[j]);
     }
+    int nhl = s->nhl;
+    pb_int(o, nhl);   // the lists (their items at the end: a value may name any of them)
     for (int i = 0; i < n; i++) xs_put_code(o, code[i]);
     for (int i = 0; i < n; i++) {   // the machines' frames and the kept views first: a value may name any of them
         const struct xvm *m = vm[i];
@@ -6585,6 +7077,12 @@ internal void x_state_save(struct pbuf *o, struct xcode *const *code, struct xvm
     pb_int(o, g_xa_n);
     for (int i = 0; i < g_xa_n; i++) { pb_num(o, g_xa[i].at); xs_put(s, &g_xa[i].fn); pb_str(o, g_xa[i].name); }
     pb_num(o, g_xt_next);
+    for (int i = 0; i < nhl; i++) {
+        pb_int(o, s->hl[i]->n);
+        for (int j = 0; j < s->hl[i]->n; j++) xs_put(s, &s->hl[i]->it[j]);
+    }
+    if (s->nhl != nhl) s->lost++;   // (a list the noting missed)
+    free(s->hl);
     if (s->nkv != nkv) s->lost++;   // (a view the noting missed)
     *lost = s->lost;
     free(s);
@@ -6598,6 +7096,8 @@ struct xload {
     int nkv;
     struct xdict *di[XS_DICTS];
     int ndi;
+    struct xhlist **hl;
+    int nhl;
 };
 internal struct xview *xs_view_at(struct xload *l, int a, int b) {   // the view two numbers name; none such: bad
     if (!a) return NULL;
@@ -6614,7 +7114,7 @@ internal void xs_get(struct xload *l, struct xval *v) {   // a value read, its t
     int w = pr_int(r), obj = pr_int(r), okind = pr_int(r), ln = pr_int(r);
     double n = pr_num(r);
     char *t = pr_text(r);
-    if (r->bad || h[0] > XV_REF || ln < 0 || (uint32_t)ln > r->n - r->o) { r->bad = 1; free(t); return; }
+    if (r->bad || h[0] > XV_HLIST || ln < 0 || (uint32_t)ln > r->n - r->o) { r->bad = 1; free(t); return; }
     v->kind = h[0]; v->has_n = h[1]; v->has_s = h[2]; v->w = w; v->obj = obj; v->okind = okind; v->n = n;
     if (t && t[0]) v->s = x_strdup(t, strlen(t));
     free(t);
@@ -6651,11 +7151,12 @@ internal void xs_get(struct xload *l, struct xval *v) {   // a value read, its t
         v->rec = rec;
     } else if (v->kind == XV_REF) {
         int a = pr_int(r), b = pr_int(r), slot = pr_int(r), np = pr_int(r);
-        struct xview *vw = xs_view_at(l, a, b);
-        if (!vw || np < 0 || np > 64 || slot < 0 || slot >= vw->n) { r->bad = 1; xnothing(v); return; }
+        struct xhlist *hl = a == -2 && b >= 1 && b <= l->nhl ? l->hl[b - 1] : NULL;   // (a list's item: its items are read last)
+        struct xview *vw = a == -2 ? NULL : xs_view_at(l, a, b);
+        if ((!vw && !hl) || np < 0 || np > 64 || slot < 0 || (vw && slot >= vw->n)) { r->bad = 1; xnothing(v); return; }
         struct xref *q = x_alloc(sizeof *q + (size_t)np * sizeof(int));
         if (!q) { r->bad = 1; xnothing(v); return; }
-        q->w = vw; q->slot = slot; q->np = np;
+        q->w = vw; q->hl = hl; q->slot = slot; q->np = np;
         for (int i = 0; i < np; i++) q->path[i] = pr_int(r);
         v->ref = q;
     } else if (v->kind == XV_FN) {
@@ -6670,6 +7171,10 @@ internal void xs_get(struct xload *l, struct xval *v) {   // a value read, its t
         int d = pr_int(r);
         if (d < 1 || d > l->ndi) { r->bad = 1; xnothing(v); return; }
         v->dict = l->di[d - 1];
+    } else if (v->kind == XV_HLIST) {
+        int d = pr_int(r);
+        if (d < 1 || d > l->nhl) { r->bad = 1; xnothing(v); return; }
+        v->hl = l->hl[d - 1];
     }
 }
 internal void xs_get_dent(struct pread *r, struct xdent *x) {   // its texts malloc'd (the dict's)
@@ -6769,6 +7274,11 @@ internal int x_state_load(struct pread *r, const char *const *src, struct xregio
         d->next = g_xdicts; g_xdicts = d;   // the language's list: freed with the game's
         l->di[i] = d;
     }
+    l->nhl = r->bad ? 0 : pr_int(r);   // the lists, empty until their items are read (at the end)
+    if (l->nhl < 0 || (uint32_t)l->nhl > r->n - r->o) { r->bad = 1; l->nhl = 0; }
+    l->hl = calloc((size_t)l->nhl + 1, sizeof *l->hl);
+    if (!l->hl) { r->bad = 1; l->nhl = 0; }
+    for (int i = 0; i < l->nhl && !r->bad; i++) if (!(l->hl[i] = xhl_new())) { r->bad = 1; l->nhl = i; }
     for (int i = 0; i < n && !r->bad; i++) code[i] = xs_get_code(r, src[i], ops);
     for (int i = 0; i < n && !r->bad; i++) {   // the machines' frames
         int nfr = pr_int(r);
@@ -6852,6 +7362,28 @@ internal int x_state_load(struct pread *r, const char *const *src, struct xregio
         g_xa_n = i + 1;
     }
     g_xt_next = pr_num(r);
+    {   // the lists' items: each read, then made the list's own
+        struct xregion tmp;
+        struct xe e0 = { NULL, 0, NULL, 0, 0 };
+        struct xctx c0;
+        memset(&tmp, 0, sizeof tmp);
+        memset(&c0, 0, sizeof c0);
+        e0.c = &c0;
+        tmp.busy = 1;
+        g_xr = &tmp;
+        for (int i = 0; i < l->nhl && !r->bad; i++) {
+            int cnt = pr_int(r);
+            if (cnt < 0 || (uint32_t)cnt > r->n - r->o) { r->bad = 1; break; }
+            if (cnt && !xhl_room(&e0, l->hl[i], cnt)) { r->bad = 1; break; }
+            for (int j = 0; j < cnt && !r->bad; j++) {
+                struct xval t;
+                xs_get(l, &t);
+                if (!r->bad) xo_copy(&l->hl[i]->it[l->hl[i]->n++], &t);
+            }
+        }
+        x_region_free(&tmp);
+    }
+    free(l->hl);
     g_xr = r0;
     free(l);
     free(fref);

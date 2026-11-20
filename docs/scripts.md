@@ -92,7 +92,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `1920x1080` | a size: `vec(1920, 1080)` |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
-| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A list is a value: `l[1] = 5` changes the variable `l` alone - "Lists") |
+| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A seq is a value, a list is shared as a dict is - "Sequences and lists") |
 | `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
@@ -122,9 +122,9 @@ one of them, records, functions, triggers, and the game's objects (player, game,
 
 Written where it can't be told - a function's parameters: `let f = (pos: vec3, id: int) => ...`. A function handed to
 `every` has its `run` from there (`(run) => ...` is an int; `(run: text)` a mistake), the others take none. A `let`
-may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: list<text> = []`, `let l: player? = p.lord`.
+may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: seq<text> = []`, `let l: player? = p.lord`.
 The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit_type`, `function`,
-`record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `list<T>` a list of them, `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
+`record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `seq<T>` a sequence of them, `list<T>` a list ("Sequences and lists"), `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
 made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
 
 **A function's type** says its parameters and what it gives back: `func<int, text, point>` takes an int and a text
@@ -151,42 +151,61 @@ of another type called (`let n = 5` then `n(3)`) is a mistake.
 Where a type still can't be told (a record's member, what a function held in a variable gives back when it wrote
 none), the value is checked when it is worked out, as before.
 
-## Lists
+## Sequences and lists
 
-A list's items are of one type T (an int among floats: floats). Where a list is written, each item is one of three:
+Two kinds hold items of one type T:
+
+| | `seq<T>`, a sequence | `list<T>`, a list |
+|---|---|---|
+| is | a value, as a number is | a handle: one table, shared by every value that holds it (as a dict) |
+| `let b = a` | a copy - `b[1] = 0` leaves `a` alone | the same list - `b.add(5)` is seen in `a` |
+| made | `[a, b]` where nothing else is wanted | `list<int>()`, `list<int>([1, 2])`, `list<int>(s)`, or `[...]` where a list goes |
+| grows | made anew: `s = [s, x]` | `l.add(x)`, `l.insert(i, x)`, `l.remove_at(i)`, `l.clear()` |
+| an item set | in its place: `s[2] = 5` changes the variable `s` | in the list: `l[2] = 5`, `l[2].x = 5` - whatever holds it |
+| null items | none: a null is left out (`seq<int?>` is no type) | where T may be one: `list<int?>` keeps them |
+| in a `{placeholder}` | one of its items, at random (the texts' rule) | all of them: `[1, 2, 3]` |
+
+Both: `l[i]` (from 1), `len(l)`, `first(l)`, `item(l, i)`, `contains(l, x)`, `pick(l)`, `for x in l { ... }`.
+`l.index_of(x)` is a list's: the number of the first item equal to x, null when none (`l.index_of(x) ?? 0`).
+`a == b` of lists: the same list. A list's items are read as they are at that moment (a `for` over a list goes on
+with what is there each round).
+
+**`[...]` makes a sequence of any kind** - a seq, or a list where a list goes (a `let`'s written type, a variable's,
+a parameter's, a struct's field, a function's result, an item set, `list<T>(...)`); with nothing wanted, a seq. Each
+item written is one of three:
 
 | Item | |
 |---|---|
 | a `T` | one item |
-| a `list<T>` | its items, in its place - `let a = [0, 1]` then `[a, 2]` is `[0, 1, 2]` |
-| a `T?` | one item, or left out when it is null (`[first(l), 5]`) |
+| a `seq<T>` or a `list<T>` | its items, in its place - `let a = [0, 1]` then `[a, 2]` is `[0, 1, 2]` |
+| a `T?` (T no `?` itself) | one item, or left out when it is null (`[first(l), 5]`) |
 
-Anything else is a mistake when the script is read (`[1, "a"]`, a point among ints). Which T it is comes from where
-the list goes - a `let`'s written type, a variable's, a parameter's, a struct's field, a function's result, a list's
-item set - else from the items themselves. So a list of lists is its type written, and the type says what an item is:
+Anything else is a mistake when the script is read (`[1, "a"]`, a point among ints). The type wanted says what an
+item is - so a sequence of sequences is its type written:
 
 ```
-let a: list<int> = [0, 1]
-let flat: list<int> = [a, 2]                   // [0, 1, 2]
-let rows: list<list<int>> = [a, [5, 6]]        // two rows
-let more: list<list<int>> = [rows, a, []]      // four: rows' two, a, an empty one
-rows[2][1] = 50                                // an item of a row, set in place
-rows[1] = [7, 8, 9]
-for r in rows { ... }                          // r: a list<int>
-let cube: list<list<list<int>>> = [[[1, 2], [3]], [[4]]]
+let a: list<int> = [10, 20, 30, 10, [10]]      // a list of 5
+let b = list<int>([5, s, a])                   // a new list: 5, s's items, a's
+let copy: list<int> = [a]                      // a new list of a's items - let same = a is the same list
+let rows: list<list<int>> = [a, [1, 2]]        // two lists: a itself and a new one
+let more: list<list<int>> = [rows, [7]]        // rows' two lists, then a new one
+rows[2].add(20)
+let grid: seq<seq<int>> = [[1, 2], [3]]        // a seq of seqs: rows, each a value
+grid[2][1] = 30                                // an item of a row, set in place
+let opt: list<int?> = [1, null, first(s)]      // nulls kept
 ```
 
-- Without a type written a list in a list is spliced, as ever (`let x = [a, a]` is four ints). A list of lists
-  writes its type, and an item whose type the check can't tell is a mistake there (it couldn't say whether it is a
-  row or rows to splice) - into a variable with its type first.
-- A list holds no null: `list<int?>` is no type (a null is left out), and in a list of lists a row that may be null
-  is a mistake - `rowmaybe() ?? []`. An empty list as a row is a row (`len(more[4])` is 0).
-- `contains(rows, [3])` compares a row item for item. A list in a text's `{placeholder}` is one of its items at
-  random (the texts' rule) - to show a whole list, join it in a function (tests/lang/lists.eeai `show`).
-- A list is a value: `let b = rows` is a copy, `b[1][1] = 0` leaves `rows` alone; a `for`'s variable is the loop's
-  copy of its row (`r[1] = 2` there is a mistake).
+- Without a type written a sequence in a sequence is spliced, as ever (`let x = [a, a]` is four ints). In a seq of
+  seqs, a row that may be null is a mistake (`rowmaybe() ?? []`), and so is an item whose type the check can't tell
+  (a row, or rows to splice?) - into a variable with its type first. An empty seq as a row is a row.
+- A `for`'s variable is the loop's copy of a seq's row (`r[1] = 2` there is a mistake); a list's item is the list's
+  own (`for r in rows { r.add(9) }` adds to each).
+- A struct's `list<T>` field is a new empty list in each struct made, and the copies of that struct share it.
+- A list nobody holds any more is freed; one a function made inside a function can't hold that function (one of the
+  script's top it can). A list goes into a saved game with everything that holds it.
 
-The personalities' lines keep the texts' rules: a line's list may mix what it holds, a list in it is spliced.
+The personalities' lines keep the texts' rules: a line's sequence may mix what it holds, one in it is spliced, and
+they have no lists.
 
 ## Structs
 
@@ -208,7 +227,7 @@ struct squad {
     name: text
     pos: point
     strength: float = 1.5
-    units: list<unit>
+    units: list<unit>                // a list: shared by the struct's copies
     target: point?
 }
 
@@ -226,7 +245,7 @@ let s = squad("north")          // pos point(0, 5), strength 1.5, no units, no t
   holds copies. `a == b` when every field is the same (`!=`; no `<`); in a text `point(3, 5)`.
 - **Set in its place**: `a.x = 5`, `a.x += 1`, `s.pos.x = 7` - the place is a variable, a field of one, or a list's
   item: `l[2].x = 5`, `l[2] = point(1, 1)`, `squads[1].units[3] = u` (a list's items are set the same way:
-  `let n: list<int> = [1, 2]` then `n[1] += 5`). A value that is in no place - a call's result, a list written out -
+  `let n: seq<int> = [1, 2]` then `n[1] += 5`). A value that is in no place - a call's result, a seq written out -
   can't be set: the change would be dropped (`point(1, 2).x = 5` is a mistake). So is a `for`'s variable: it is the
   loop's copy of the item (`for i in 1..len(l) { l[i].x = 0 }` changes the list's).
 - **Methods**: `a.add(2)` changes `a` - its `this` is the place it is called on, so a method that changes its struct
@@ -234,9 +253,9 @@ let s = squad("north")          // pos point(0, 5), strength 1.5, no units, no t
   the whole struct. A method sees the script's top like any declared function, may `wait`, and may be called in a
   `{placeholder}` when it changes nothing (`"{a.sum()}"`; a struct is made in a statement, not in a placeholder).
 - A struct holds no struct of its own type directly (`next: node` would never end): `next: node?` or `kids:
-  list<node>` does.
+  seq<node>` does.
 - The check must know that a variable is a struct to set its fields or call its methods: it does from `let a =
-  point(...)`, a parameter's type, a field's, a list's (`let l: list<point> = [...]`), and from what a function or
+  point(...)`, a parameter's type, a field's, a list's (`let l: seq<point> = [...]`), and from what a function or
   method gives back (`make(n: int): point { ... }` - "Functions and their names").
 - Functions set the variables around them, a timer's function too - no ref needed:
   `let total = point()` then `game.timer(20s, () => { total.add(1) })`.
@@ -376,7 +395,7 @@ value, the value must fit.
 half(n: int): float {
     return n / 2
 }
-first_over(l: list<int>, over: int): int? {
+first_over(l: seq<int>, over: int): int? {
     for v in l {
         if v > over { return v }
     }

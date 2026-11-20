@@ -35,6 +35,7 @@ struct script {
 internal struct script g_scripts[SCRIPTS_MAX];
 internal int g_nscripts = -1;
 internal struct script g_own;   // setup.eeai of this game (SETUP.EEAI below; no text: none)
+internal int scripts_machines(struct xvm **out, int cap);   // (below: the machines that hold the scripts' values)
 internal int g_own_fresh;       // this game's clock seen before 2 s (scripts_turns)
 internal int g_scripts_go;      // this game's scripts and triggers have started (THE SCRIPTS' START)
 internal int g_scripts_restored;   // g_scripts are a saved game's (THE SCRIPTS IN A SAVED GAME), not a test's setup=
@@ -140,6 +141,7 @@ internal void script_turn(struct script *s, uint32_t now) {
     g_xr = &s->reg;
     g_script_now = now;
     g_x_hooks.now = script_now; g_x_hooks.wait = NULL; g_x_hooks.command = script_command; g_x_hooks.did = script_did; g_x_hooks.note = script_note;
+    g_x_machines = scripts_machines;
     g_x_safe = 1;   // (its spawns made at once, as a trigger's: units.c)
     g_cur_script = s;
     int r = xvm_turn(s->vm, &why);
@@ -298,6 +300,7 @@ internal void script_triggers(uint32_t now) {
     if (!scripts_turns(now) || (g_nscripts <= 0 && !g_own.text)) return;
     if (now > g_script_now) g_script_now = now;
     g_x_hooks.now = script_now; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
+    g_x_machines = scripts_machines;
     g_x_safe = 1;   // (a trigger's spawns made at once: units.c)
     struct script *all[1 + SCRIPTS_MAX] = { &g_own };
     for (int i = 0; i < g_nscripts; i++) all[1 + i] = &g_scripts[i];
@@ -326,7 +329,7 @@ internal void script_triggers(uint32_t now) {
 // stands is the middle of that command - told; what it started does.
 // A test that runs its own scripts (setup=) keeps to them: the save's are left out there. Elsewhere the save's test
 // scripts come back beside its setup.eeai.
-#define SCRIPT_STATE_FORMAT 4   // 4: structs and refs (their types with the code, a ref a value); 3: the scripts' code and machines (2: the tree's frames and where a script stood)
+#define SCRIPT_STATE_FORMAT 5   // 5: lists (their items after the rest); 4: structs and refs (their types with the code, a ref a value); 3: the scripts' code and machines (2: the tree's frames and where a script stood)
 internal uint8_t *scripts_state_save(uint32_t *size) {
     struct script *sc[1 + SCRIPTS_MAX];
     struct xcode *code[1 + SCRIPTS_MAX];
@@ -431,6 +434,14 @@ internal double g_dry_now;
 internal FILE *g_dry_out;
 internal double dry_now(void) { return g_dry_now; }
 internal struct xvm *g_dry_vm;   // the machine run dry (its region the one in use)
+// every machine that holds a script's values now (expr.c LISTS: what the lists nobody holds are found by)
+internal int scripts_machines(struct xvm **out, int cap) {
+    int n = 0;
+    if (g_own.vm && n < cap) out[n++] = g_own.vm;
+    for (int i = 0; i < SCRIPTS_MAX; i++) if (g_scripts[i].vm && n < cap) out[n++] = g_scripts[i].vm;
+    if (g_dry_vm && n < cap) out[n++] = g_dry_vm;
+    return n;
+}
 internal void dry_wait(double until) {
     for (double t = g_dry_now + 0.5; t <= until + 1e-9; t += 0.5) {
         g_dry_now = t;
@@ -487,6 +498,7 @@ internal void cmd_script(char *out, const char *args) {
     g_dry_now = 0.0;
     __typeof__(g_x_hooks) h0 = g_x_hooks;   // (a script may run this: its own are back after)
     g_x_hooks.now = dry_now; g_x_hooks.wait = NULL; g_x_hooks.command = dry_command; g_x_hooks.did = dry_did; g_x_hooks.note = NULL;
+    g_x_machines = scripts_machines;
     static struct xtrig keep_t[XT_MAX];   // a game's own triggers set aside meanwhile: the dry run has none but its own
     static struct xafter keep_a[XA_MAX];
     int nt = g_xt_n, na = g_xa_n;

@@ -15,7 +15,7 @@ struct tally {
     name: text
     hits: int
     last: point
-    marks: list<point>
+    marks: seq<point>
 
     hit(at: point) {
         this.hits += 1
@@ -36,7 +36,7 @@ cmd("made {m} {m2}")
 
 // many rounds: what each drops is cleared out while the loop runs (the values kept stay what they are)
 let acc = point(0, 0)
-let list: list<point> = [point(1, 1), point(2, 2), point(3, 3)]
+let list: seq<point> = [point(1, 1), point(2, 2), point(3, 3)]
 let t = tally("first")
 ref third = list[3]
 for i in 1..200000 {

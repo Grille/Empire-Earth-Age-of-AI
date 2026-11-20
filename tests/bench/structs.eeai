@@ -34,7 +34,7 @@ for r in 1..100000 {
     shift(ref a, 1)
 }
 cmd("ref {a}")
-let l: list<point> = [point(0, 0), point(0, 0), point(0, 0), point(0, 0)]
+let l: seq<point> = [point(0, 0), point(0, 0), point(0, 0), point(0, 0)]
 for r in 1..100000 {
     l[3].x += 1
 }

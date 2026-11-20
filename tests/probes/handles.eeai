@@ -1,0 +1,42 @@
+// lists (list<T>: handles) in a game (expr.c LISTS; the language itself: tests/lang/handles.eeai): Continental (seed
+// 101) - a timer adds the players' stock to shared lists, a list of lists, a ref to an item held across waits, a list
+// in a struct, lists made and dropped every tick. Played twice the lines must be the same - also with `script state`
+// (what a save keeps, read back) called while it waits.
+struct log {
+    name: text
+    gold: list<int>
+    spots: list<vec2>
+}
+let food: list<int> = []
+let byp: list<list<int>> = [[], [], []]
+let book = log("p2")
+let p2 = player(2)
+let ticks = 0
+game.timer(2s, () => {
+    ticks += 1
+    food.add(p2.food)
+    for i in 1..3 {
+        byp[i].add(game.players[i + 1].wood)
+    }
+    book.gold.add(p2.gold)
+    if len(book.gold) > 4 {
+        book.gold.remove_at(1)
+    }
+    let tmp: list<int> = [ticks, ticks * 2]
+    tmp.add(len(food))
+})
+wait_until(0.2min)
+ref firstfood = food[1]
+firstfood = -1
+book.spots.add(vec(1, 2))
+ping("at 0.2 min: {ticks} ticks, food {len(food)} {food[1]} {food[len(food)]}, byp {byp[1][1]} {len(byp[3])}, book {book.gold}")
+wait_until(0.5min)
+firstfood += 100
+let copy: list<int> = [food]
+copy.clear()
+ping("at 0.5 min: {ticks} ticks, food {len(food)} {food[1]}, copy {len(copy)}, book {book.gold} {book.spots}")
+wait_until(1min)
+let sums = list<int>()
+for r in byp { sums.add(len(r)) }
+let at99 = food.index_of(99) ?? 0
+ping("at 1 min: {ticks} ticks, food {len(food)} {food[1]} {at99}, sums {sums}, book {book.gold}")

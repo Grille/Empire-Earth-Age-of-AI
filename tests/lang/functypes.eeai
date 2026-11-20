@@ -20,10 +20,10 @@ apply(f: func<int, int>, v: int) => f(v)
 apply2(f: func<int, int>, v: int): int {
     return f(f(v))
 }
-each(l: list<int>, f: func<int, void>) {
+each(l: seq<int>, f: func<int, void>) {
     for v in l { f(v) }
 }
-pick(l: list<int>, keep: func<int, bool>): int? {
+pick(l: seq<int>, keep: func<int, bool>): int? {
     for v in l {
         if keep(v) { return v }
     }
@@ -54,7 +54,7 @@ made.x += 10
 cmd("made {made}")
 
 // functions in a struct's fields, one or null
-let rules: list<rule> = [rule("big", (n: int) => n > 10), rule("even", (n: int) => n - int(n / 2) * 2 == 0, maker)]
+let rules: seq<rule> = [rule("big", (n: int) => n > 10), rule("even", (n: int) => n - int(n / 2) * 2 == 0, maker)]
 let hits = 0
 for i in 1..len(rules) {
     let t = rules[i].test

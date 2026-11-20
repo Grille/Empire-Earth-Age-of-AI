@@ -1,6 +1,6 @@
 // bench: what a long turn makes and drops is cleared out on its way (expr.c xvm_gc) - with functions in progress,
 // values half worked out below a call, a function made in the code, lists and records held across it
-make(n: int): list<int> {
+make(n: int): seq<int> {
     let l = [n, n + 1]
     let s = 0
     for i in 1..3000 {

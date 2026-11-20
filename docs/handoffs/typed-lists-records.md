@@ -17,6 +17,14 @@ docs/scripts.md ("Structs", "Refs", "Types", "Functions and their names") and do
 tests") describe them. Tests: `tests/lang/*.eeai` with `.expect` (the build runs each dry and compares),
 `tests/probes/structs.eeai` (in a game).
 
+## Sequences and lists: DONE 2026-11-20 (docs/scripts.md "Sequences and lists")
+
+The player 2026-11-20: today's list is no list ("list probably should be a handle type to a dynamic array which also
+allows null"), `[]` and its splicing "just the sequence init syntax ... a compiler feature for constructing sequence
+types, not bound to a specific type", `seq<T>` the value's name. So: `seq<T>` the value (what the step below made),
+`list<T>` a handle (expr.c LISTS), `[...]` built as the type wanted. Next: dicts on the same footing (any value type,
+a literal), then records typed.
+
 ## Step 2, lists strictly typed: DONE 2026-11-20 (committed - docs/scripts.md "Lists")
 
 What follows is the plan as it was parked; the decisions taken when it was finished: a list holds no null
