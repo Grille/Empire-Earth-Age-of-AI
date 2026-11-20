@@ -154,7 +154,7 @@ internal int wk_cost(struct tv_st *s, unsigned r) {
         held = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE;
     }
     if (!held && EXPAND_ACROSS((unsigned)(s - g_tv) & 15) && wk_across_held(s, r)) held = across = 1;   // ACROSS THE WATER
-    // ACROSS, INLAND ([ai_base] expand_across_inland, off until measured; the player 2026-11-20, his P3 on Large Islands:
+    // ACROSS, INLAND ([ai_base] expand_across_inland, on since 2026-11-20 by the player's call ("just turn them on now"); the player 2026-11-20, his P3 on Large Islands:
     // "p3 has a single transport and gets nothing done" - at minute 146 with 280 soldiers on its home island and 2 idle
     // transports: the islands across its seas had no mine on their coasts (territories 10, 18, 25), the free iron and gold
     // lay one territory further in (8 behind 18, 29 behind 25), and a claim over land wants a neighbour it holds - nothing
