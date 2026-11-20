@@ -53,7 +53,13 @@
 internal int g_ter_size = 40;     // tiles across: more than size x size open tiles and it is split
 internal int g_ter_ratio = 70;    // percent: a narrow place parts two regions when narrower than this share of the smaller one's widest place
 internal int g_ter_trees = 1;     // trees are walls for the split
-internal int g_ter_water = 2;     // water: this many times as far across before it is split
+// water: this many times as far across before it is split. 1 since 2026-11-20 (the player: "a water territory that
+// reaches 4 islands over the map throws away the segmentation it's supposed to provide"): at 2 (80 x 80) the island
+// maps' seas were 1900-6000 tiles, each along 2-5 islands of 1100-1900 tiles (Small Islands large and huge, Large and
+// Tournament Islands huge, map seed 101); at 1 250-1600 (the middle one about 1000), along 0-3 islands, most 1-2 -
+// each island its own waters round it, the strait between two its own. His call: the harbours stay a sea territory's
+// (2-9 by an island then, 1-5 at 2)
+internal int g_ter_water = 1;
 internal int g_ter_field = 8;     // mines this many steps apart at most are one field (ter_mines)
 struct ter_terr {
     uint8_t water;                // 0 land, 1 water
