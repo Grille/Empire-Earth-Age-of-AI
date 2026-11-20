@@ -423,7 +423,7 @@ typedef struct { uint32_t at; float bx, by; double phase, dir, period; } fsw_tag
 #define FSW_PEND 8192
 internal fsw_tag g_fsw_tags[FSW_TAGS], g_fsw_pend[FSW_PEND];   // g_ks's (by its vertices, in order), the batch's being made (by g_rb's)
 internal int g_fsw_ntags, g_fsw_npend;
-internal struct { int on; ee_vertices *va; uint32_t type, n, rows; double up, down, period; } g_fsw_now;   // the stalks being drawn
+internal struct { int on; ee_vertices *va; uint32_t type, n, rows; double up, down, period; float d_up[2], d_down[2]; } g_fsw_now;   // the stalks being drawn, their tops' moves
 internal void fsw_tags_clear(void) { g_fsw_ntags = 0; }
 internal void fsw_pend_clear(void) { g_fsw_npend = 0; }
 internal void fsw_tags_keep(int v0) {
@@ -434,13 +434,25 @@ internal void fsw_tags_keep(int v0) {
     }
     g_fsw_npend = 0;
 }
+// The stalks are known in the batch by their bottoms, which the sway doesn't move, and their tops are put at the sway
+// here too: the game hands the draw vertices it filled at another moment now and then - one farm of eight in a frame
+// every few, its rows standing up straight for that frame (the player, 2026-11-20, paused at a speed over 2.5: "it
+// looks like the vertex animation resets for a frame"; a diagnostic in his game: the farm's draw inside the sway, its
+// vertices not the swayed ones).
 internal void fsw_rb_tag(uint32_t base, uint32_t nv) {
     if (!g_fsw_now.on || g_ro_cur != RO_SHADOWS || g_kg_skip || nv != g_fsw_now.n) return;
+    uint32_t rows = g_fsw_now.rows, span = 2u * rows;
     for (uint32_t k = 0; k < nv; k++) {
         const float *p = vertices_point_at(g_fsw_now.va, g_fsw_now.type, k);
-        if (!p || memcmp(p, g_rb.v[base + k].fvf, 12)) return;
+        int top = k % span < rows && k + rows < nv;   // a top: its height alone, the rest the whole point
+        if (!p || memcmp(top ? p + 2 : p, (const float *)g_rb.v[base + k].fvf + (top ? 2 : 0), top ? 4 : 12)) return;
     }
-    uint32_t rows = g_fsw_now.rows, span = 2u * rows;
+    for (uint32_t k = 0; k + rows < nv; k++) {
+        if (k % span >= rows) continue;
+        const float *b = vertices_point_at(g_fsw_now.va, g_fsw_now.type, k + rows), *d = k & 1 ? g_fsw_now.d_down : g_fsw_now.d_up;
+        float *p = (float *)g_rb.v[base + k].fvf;
+        p[0] = b[0] + d[0], p[1] = b[1] + d[1];
+    }
     for (uint32_t k = 0; k + rows < nv && g_fsw_npend < FSW_PEND; k++) {
         if (k % span >= rows) continue;
         const float *b = vertices_point_at(g_fsw_now.va, g_fsw_now.type, k + rows);
@@ -504,6 +516,7 @@ internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
     }
     g_fsw_now.va = va, g_fsw_now.type = type, g_fsw_now.n = n, g_fsw_now.rows = (uint32_t)rows;
     g_fsw_now.up = e->up, g_fsw_now.down = e->down, g_fsw_now.period = (double)period, g_fsw_now.on = 1;
+    memcpy(g_fsw_now.d_up, up, sizeof up), memcpy(g_fsw_now.d_down, down, sizeof down);
     uint32_t r = eee3_d_farm_draw(o);
     g_fsw_now.on = 0;
     for (uint32_t i = 0; i + (uint32_t)rows < n; i++) {
