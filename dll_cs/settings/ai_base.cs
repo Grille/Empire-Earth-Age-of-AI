@@ -789,6 +789,11 @@ class ai_base
         /// even shares. 0 = off
         [advanced]
         bool ferry_thrift = false;
+        /// Prophets across the water: a prophet's strike at a building on other land, its way home and its place behind
+        /// the force there go by the ferry - one transport for it and its escort, when the sea is safe enough. 0 = a
+        /// prophet stays on its own land (the game's computer player off)
+        [advanced]
+        bool prophets_across = false;
         /// A push across the water has at most this many transports trained for one wave while it waits for room for
         /// its soldiers; then it sets out with what has come, the rest in later waves - the transports trained for a big
         /// wave stood idle after it (the game's computer player off). 0 = no limit

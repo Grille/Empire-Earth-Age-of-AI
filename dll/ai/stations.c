@@ -196,6 +196,16 @@ internal int sn_escort_near(unsigned idx, ivec2 at, int r, int *given) {
     return nr;
 }
 internal int sn_prophet_escorted(unsigned idx) { int n = 0; sn_escort_near(idx, iv2(0, 0), 0, &n); return n > 0; }
+// PROPHETS ACROSS (ferry.c): the escort on land (area_id's), up to max - aboard the prophet's transport with it; and the
+// escort kept while the prophet is aboard (holy.c asks nothing of it meanwhile)
+internal int sn_escort_units(unsigned idx, unsigned land, ee_unit **out, int max) {
+    struct sn_st *z = &g_sn[idx & 15];
+    int n = 0;
+    for (int i = 0; i < z->n && n < max; i++)
+        if (z->m[i].scout == 2 && z->m[i].u && unit_get_hp(z->m[i].u) > 0 && unit_get_x(z->m[i].u) >= 0 && area_id(unit_get_tile(z->m[i].u), 2) == land) out[n++] = z->m[i].u;
+    return n;
+}
+internal void sn_escort_keep(unsigned idx, uint32_t now) { struct sn_st *z = &g_sn[idx & 15]; if (z->esc_t) z->esc_t = now ? now : 1; }
 internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRST)
 // THE WAY (the player 2026-11-15: "ai attacks dont cope well with walls yet. the attack should actual try to pathfind to
 // the target. maybe 2 paths? on with walls and one ignoring them, if the path with wall is a larger detour the ai bring
@@ -1417,7 +1427,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             ne++;
             if ((ivec2_dist2(q, z->esc_at) > 3 * 3 || z->esc_fight) && (!m->order_t || now - m->order_t >= 3000)) sn_order(z, m, 0, z->esc_at, z->esc_fight, now);
         }
-        while (esc_on && ne < z->esc_n) {
+        unsigned esc_land = area_id(z->esc_at, 2);   // its land's soldiers only (another land's walked to the shore and stood there)
+        while (esc_on && ne < z->esc_n && esc_land) {
             int b = -1, bd = 0;
             for (int i = 0; i < nn; i++) {
                 struct sn_unit *m = &z->m[i];
@@ -1425,6 +1436,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 int pushing = 0;
                 for (int k = 0; k < SN_PUSHES; k++) pushing |= z->push[k].on && z->push[k].from == m->ter;
                 int d = ivec2_dist2(unit_get_tile(m->u), z->esc_at);
+                if (area_id(unit_get_tile(m->u), 2) != esc_land) continue;
                 if (!pushing && (b < 0 || d < bd)) { b = i; bd = d; }
             }
             if (b < 0) break;

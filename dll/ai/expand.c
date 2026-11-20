@@ -350,7 +350,7 @@ internal struct rs_st {
 // manager as the outposts' ferry's (expand_ship, expand_refuses, expand_has, expand_unload_ok)
 #define FY_TRIPS 16   // trips on at once, each its own transport
 struct fy_trip {
-    int phase, kind;                      // phase 0 none, 1 the transport to the pick-up, 2 boarding, 3 crossing; kind 1 soldiers, 2 citizens, 3 a push's soldiers, 4 a scout
+    int phase, kind;                      // phase 0 none, 1 the transport to the pick-up, 2 boarding, 3 crossing; kind 1 soldiers, 2 citizens, 3 a push's soldiers, 4 a scout, 5 a prophet and its escort
     struct ex_unit ship, pass[16]; int npass;
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
     uint32_t since, load_t, reissue;
@@ -361,7 +361,7 @@ internal struct fy_st {
     struct fy_trip t[FY_TRIPS];
     uint32_t look_t, want_t, log_t, order_t[4];   // want_t: a transport wanted then (none free) - its price held (expand_transport_hold); order_t: transports ordered and not come yet
     int last_kind;                        // the kind of the last trip started (TURNS, ferry.c)
-    uint32_t risky_t[5];                  // by kind: since when no trip of it went for the risk (THE CROSSING: the longer, the more it takes)
+    uint32_t risky_t[6];                  // by kind: since when no trip of it went for the risk (THE CROSSING: the longer, the more it takes)
     unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, beached;
     unsigned parked;                      // HOME TO A DOCK (ferry.c): empty transports sent to a dock's water
     unsigned small, no_dock;              // THRIFT (ferry.c): citizens' trips not started for too few aboard; transports not ordered, no dock of its on the trip's sea
@@ -388,6 +388,8 @@ internal int g_fy_thrift = 0, g_v_fy_thrift = -1;   // ferry.c THRIFT: [ai_base]
 #define FERRY_THRIFT(idx) PV(idx, g_v_fy_thrift, g_fy_thrift)
 internal int g_fy_pcap = 0, g_v_fy_pcap = -1;   // ferry.c ONE WAVE AT A TIME: [ai_base] push_transport_orders, [autotest] v_push_transport_orders
 #define PUSH_ORDERS(idx) PV(idx, g_v_fy_pcap, g_fy_pcap)
+internal int g_fy_holy = 0, g_v_fy_holy = -1;   // ferry.c PROPHETS ACROSS: [ai_base] prophets_across, [autotest] v_prophets_across
+#define PROPHETS_ACROSS(idx) PV(idx, g_v_fy_holy, g_fy_holy)
 #define CONVOY_ESCORT(idx) PV(idx, g_v_cy_esc, g_cy_esc)
 #define CY_WISHES 4
 #define CY_WISH 5000       // an escort asked for within this
@@ -1965,6 +1967,8 @@ internal void expand_install(const char *autotest_ini) {
     if (autotest_ini) g_v_fy_thrift = ini_int("autotest", "v_ferry_thrift", -1, autotest_ini);
     g_fy_pcap = g_set_ai[1].push_transport_orders;
     if (autotest_ini) g_v_fy_pcap = ini_int("autotest", "v_push_transport_orders", -1, autotest_ini);
+    g_fy_holy = g_set_ai[1].prophets_across;
+    if (autotest_ini) g_v_fy_holy = ini_int("autotest", "v_prophets_across", -1, autotest_ini);
     towns_install(autotest_ini);
     fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);

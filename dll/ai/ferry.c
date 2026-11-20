@@ -108,13 +108,44 @@ internal int fy_push_cits(unsigned idx, int k) {   // push k's citizens with a t
     for (int i = 0; i < FY_TRIPS; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 3 && t->push == k) n += fy_trip_cits(t); }
     return n;
 }
+// PROPHETS ACROSS ([ai_base] prophets_across; the player 2026-11-19: "prophet strike groups dont cross water yet right?"
+// - a strike at a building across the water walked to the shore and stood there 5 minutes, 2879 strikes for 68 casts in
+// six games on Small Islands): a prophet whose way - a strike, home, behind the force - lies on other land asks the
+// ferry each look (holy.c hl_go; trip kind 5): one transport for it and its escort (stations.c AN ESCORT: the soldiers
+// given it on its land, as many as fit), a crossing that is no important one (it waits for a safe sea), put off at the
+// shore nearest where it goes. holy.c leaves it to the ferry meanwhile (fy_carries) and keeps its strike.
+#define FY_HX 4
+internal struct { ee_unit *u; int id; unsigned from, to; ivec2 at; uint32_t t; } g_fy_hx[16][FY_HX];
+internal void fy_holy_ask(unsigned idx, ee_unit *u, unsigned from, unsigned to, ivec2 at, uint32_t now) {
+    int id = unit_get_serial(u), k = 0, f = -1;
+    while (k < FY_HX && !(g_fy_hx[idx & 15][k].u == u && g_fy_hx[idx & 15][k].id == id)) { if (f < 0 && (!g_fy_hx[idx & 15][k].t || now - g_fy_hx[idx & 15][k].t > 15000)) f = k; k++; }
+    if (k == FY_HX) k = f;
+    if (k < 0) return;
+    g_fy_hx[idx & 15][k].u = u; g_fy_hx[idx & 15][k].id = id; g_fy_hx[idx & 15][k].from = from; g_fy_hx[idx & 15][k].to = to;
+    g_fy_hx[idx & 15][k].at = at; g_fy_hx[idx & 15][k].t = now ? now : 1;
+}
+internal int fy_carries_id(unsigned idx, int id) {   // a trip of the ferry has the unit of this serial (to the pick-up, aboard)
+    for (int i = 0; i < FY_TRIPS; i++) {
+        const struct fy_trip *t = &g_fy[idx & 15].t[i];
+        for (int k = 0; t->phase && k < t->npass; k++) if (t->pass[k].id == id) return 1;
+    }
+    return 0;
+}
+internal const char *fy_kind_name(int kind) { return kind == 5 ? "prophets" : kind == 4 ? "scouts" : kind != 2 ? "soldiers" : "citizens"; }
 struct fy_want { unsigned a, b; ivec2 from, to; };   // THRIFT: a trip that found no free transport - its lands and points
 internal struct fy_want g_fy_miss;   // fy_start's last
 internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
-    int np = kind == 1 ? sn_ferry_pick(pl, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind == 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
+    int np = kind == 1 ? sn_ferry_pick(pl, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind >= 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
     if (kind == 4 && push >= 0 && push < SN_SX && g_sn_sx[idx & 15][push].u && !expand_has(pl, g_sn_sx[idx & 15][push].u) && unit_get_hp(g_sn_sx[idx & 15][push].u) > 0) { pass[0] = g_sn_sx[idx & 15][push].u; np = 1; }   // SCOUTS ACROSS
+    if (kind == 5 && push >= 0 && push < FY_HX && g_fy_hx[idx & 15][push].u && unit_get_serial(g_fy_hx[idx & 15][push].u) == g_fy_hx[idx & 15][push].id && unit_get_hp(g_fy_hx[idx & 15][push].u) > 0) {   // PROPHETS ACROSS: it and its escort
+        pass[0] = g_fy_hx[idx & 15][push].u;
+        np = 1 + sn_escort_units(idx, a, pass + 1, n - 1);
+        int m = 1;
+        for (int k = 1; k < np; k++) if (!fy_carries_id(idx, unit_get_serial(pass[k]))) pass[m++] = pass[k];   // none another prophet's trip has (two took the same escort)
+        np = m;
+    }
     if (kind == 3 && np > 0) {   // THE BRIDGEHEAD: its first wave's citizens first, FY_BH_TRIP a transport
         int wc = sn_push_cits(idx, push) - fy_push_cits(idx, push);
         ee_unit *cits[FY_BH_TRIP];
@@ -177,7 +208,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
             if (!(c->held++ % 10)) {   // every tenth: what holds it
                 char w[160];
                 cx_top_text(idx, w, sizeof w);
-                fy_say(idx, now, "the crossing: %d %s from land %u to land %u held - risk %.2f over %.2f%s; the worst: %s", t->npass, kind == 4 ? "scouts" : kind != 2 ? "soldiers" : "citizens", a, b,
+                fy_say(idx, now, "the crossing: %d %s from land %u to land %u held - risk %.2f over %.2f%s; the worst: %s", t->npass, fy_kind_name(kind), a, b,
                        (double)risk, (double)fy_tolerance(f, kind, imp, now), imp ? " (important)" : "", w);
             }
             t->npass = 0;
@@ -213,7 +244,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         unit_goal(t->pass[k].u, goal_move((float)t->pick.x + 0.5f, (float)t->pick.y + 0.5f), 0, 0x1F40);
     }
     fy_say(idx, now, "trip %u: %d %s from land %u (by %d,%d) to land %u (wanted at %d,%d) - the transport at %d,%d, boarding at %d,%d, off at %d,%d%s; risk %.2f%s",
-           t->no, t->npass, kind == 4 ? "scouts" : kind != 2 ? "soldiers" : "citizens", a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
+           t->no, t->npass, fy_kind_name(kind), a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
            t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "");
     return 1;
 }
@@ -484,6 +515,17 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         if (!t) break;
         if (fy_start(pl, idx, f, t, 4, 0, g_sn_sx[idx][k].from, g_sn_sx[idx][k].to, 1, g_sn_sx[idx][k].at, k, now) == -1) FY_MISSED();
     }
+    for (int k = 0; k < FY_HX && PROPHETS_ACROSS(idx) && !held; k++) {   // PROPHETS ACROSS (holy.c): one transport a prophet and its escort
+        ee_unit *u = g_fy_hx[idx][k].u;
+        if (!g_fy_hx[idx][k].t || now - g_fy_hx[idx][k].t > 10000 || !u || unit_get_serial(u) != g_fy_hx[idx][k].id || unit_get_hp(u) <= 0) continue;
+        if (fy_carries_id(idx, g_fy_hx[idx][k].id) || unit_get_x(u) < 0 || bk_land_of(unit_get_tile(u)) != g_fy_hx[idx][k].from) continue;   // taken, or no longer where it asked from
+        struct fy_trip *t = NULL;
+        for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
+        if (!t) break;
+        int r = fy_start(pl, idx, f, t, 5, 0, g_fy_hx[idx][k].from, g_fy_hx[idx][k].to, 16, g_fy_hx[idx][k].at, k, now);
+        if (r == -1) FY_MISSED();
+        if (r > 0) g_fy_hx[idx][k].t = 0;
+    }
     #undef FY_MISSED
     if (unserved) {
         unsigned tr0 = f->trained;
@@ -630,7 +672,7 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
         int off = 0, offc = 0;
         for (int k = 0; k < t->npass; k++) if (unit_get_x(t->pass[k].u) >= 0) { off++; offc += t->kind == 3 && fy_is_cit(&t->pass[k]); }
         if (t->kind != 2) { f->soldiers += (unsigned)(off - offc); f->citizens += (unsigned)offc; } else f->citizens += (unsigned)off;
-        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d%s", t->no, (double)t->risk, off, t->kind == 4 ? "scouts" : t->kind != 2 ? "soldiers" : "citizens", t->to, t->drop.x, t->drop.y,
+        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d%s", t->no, (double)t->risk, off, fy_kind_name(t->kind), t->to, t->drop.x, t->drop.y,
                offc ? " - citizens for the bridgehead among them" : "");
         if (t->kind != 2)   // on to where they are wanted; the stations take them there - a push's back to its push (stations.c ACROSS)
             for (int k = 0; k < t->npass; k++) {

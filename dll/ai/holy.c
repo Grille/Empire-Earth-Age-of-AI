@@ -157,6 +157,17 @@ internal int hl_walk(ee_unit *u, ivec2 to) {
     if (g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - (float)to.x) < 3.0f && fabsf(goal_get_dest_y(g) - (float)to.y) < 3.0f) return 0;   // on its way
     return as_order(u, goal_move((float)to.x + 0.5f, (float)to.y + 0.5f));
 }
+// A PROPHET'S WAY (ferry.c PROPHETS ACROSS): to another land the ferry's - asked each look, the prophet left where it
+// stands meanwhile (it walked to the shore and stood there before: 2879 strikes for 68 casts in six games on Small
+// Islands); without prophets_across it stays
+internal int hl_go(unsigned idx, ee_unit *u, ivec2 to, uint32_t now) {
+    unsigned a = bk_land_of(unit_get_tile(u)), b = bk_land_of(to);
+    if (a && b && a != b) {
+        if (PROPHETS_ACROSS(idx)) fy_holy_ask(idx, u, a, b, to, now);
+        return 0;
+    }
+    return hl_walk(u, to);
+}
 // HL_BEHIND tiles from front towards from
 internal ivec2 hl_behind(ivec2 front, ivec2 from) {
     float dx = (float)(from.x - front.x), dy = (float)(from.y - front.y), d = sqrtf(dx * dx + dy * dy);
@@ -284,17 +295,26 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         while (k0 < h->np && h->p[k0].id != id) k0++;
         ivec2 strike = k0 < h->np ? h->p[k0].strike : iv2(-1, -1);
         uint32_t strike_t = k0 < h->np ? h->p[k0].strike_t : 0;
+        if (fy_carries_id(idx, id)) {   // A PROPHET'S WAY: the ferry's till it is put off - its strike kept, timed from the landing
+            if (strike.x >= 0 && nk < HL_UNITS) { keep[nk].id = id; keep[nk].strike = strike; keep[nk++].strike_t = now ? now : 1; }
+            sn_escort_keep(idx, now);
+            continue;
+        }
         ee_goal *g = unit_get_goal(u);
         int pw = unit_get_power(u), cost[HLP_N];
         int spent = hl_cast_spent(h, u, pw);
         int casting = !spent && ((g && goal_is_cast(g)) || hl_ordered(h, u, now));
-        ivec2 home = p;
-        for (int k = 0, bd = -1; k < ntown; k++) { int d = ivec2_dist2(town[k], p); if (bd < 0 || d < bd) { bd = d; home = town[k]; } }
+        ivec2 home = p;   // the nearest town on its own land, else the nearest across the water (A PROPHET'S WAY)
+        unsigned land = bk_land_of(p);
+        for (int k = 0, bd = -1, bs = 0; k < ntown; k++) {
+            int d = ivec2_dist2(town[k], p), same = land && bk_land_of(town[k]) == land;
+            if (bd < 0 || same > bs || (same == bs && d < bd)) { bd = d; bs = same; home = town[k]; }
+        }
         ee_unit_type *td = unit_get_type_data(u);
         int hurt = (float)unit_get_hp(u) < HL_HURT * (float)unit_type_get_hp(td);
         for (int k = 0; k < HLP_N; k++) cost[k] = hl_cost(pl, k);
         if (spent) {   // AWAY AT ONCE: home from where it cast, before anything else (another cast wants power it has not got)
-            hl_walk(u, home);
+            hl_go(idx, u, home, now);
             if (!escorted && sn_prophet_escorted(idx)) { sn_escort(idx, p, HL_ESCORT, raiders_near(pl, p, HL_ESC_FOE), now); escorted = 1; }   // its escort home with it
             h->aways++;
             if (g_log) log_locked("# holy: P%u at %.1f min: a prophet at %d,%d has cast (power %d) - away home to %d,%d\n", idx, now / 60000.0, p.x, p.y, pw, home.x, home.y);
@@ -342,6 +362,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_DEFEND, 1); grid_it_next(&it) && ne < HL_SEEN; ) {
                 ee_player *o = unit_get_owner(it.u);
                 int kd = o && hl_foe(pl, o) && unit_get_hp(it.u) > 0 && seen_by(it.u, pl) ? hl_kind(it.td) : -1;
+                if (kd == HLK_SOLDIERS && land && bk_land_of(unit_get_tile(it.u)) != land) continue;   // A PROPHET'S WAY: soldiers on its land
                 if (kd != HLK_SOLDIERS && kd != HLK_SHIPS) continue;
                 ivec2 q = unit_get_tile(it.u);
                 if (ivec2_dist2(q, p) <= HL_DEFEND * HL_DEFEND) { ek[ne] = (uint8_t)kd; es[ne++] = q; }
@@ -381,6 +402,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 ee_player *o = unit_get_owner(it.u);
                 if (!o || !hl_foe(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || !defence_stats(it.u, &rr, &aa)) continue;
                 ivec2 q = unit_get_tile(it.u);
+                if (land && bk_land_of(q) != land) continue;   // A PROPHET'S WAY: one across the water is a strike's (the cast before it was ordered every look, 6 minutes, from the shore out of reach)
                 int d = ivec2_dist2(q, p);
                 if (d > HL_TOWER_LOOK * HL_TOWER_LOOK || (bd >= 0 && d >= bd)) continue;
                 float dx = (float)(p.x - q.x), dy = (float)(p.y - q.y), dl = sqrtf(dx * dx + dy * dy);
@@ -405,6 +427,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             for (struct grid_it it = grid_it_box(p.x, p.y, HL_REACH, 1); grid_it_next(&it) && nseen < HL_SEEN; ) {
                 ee_player *o = unit_get_owner(it.u);
                 if (!o || !hl_foe(pl, o) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl) || ivec2_dist2(unit_get_tile(it.u), p) > HL_REACH * HL_REACH) continue;
+                if (land && hl_kind(it.td) != HLK_SHIPS && bk_land_of(unit_get_tile(it.u)) != land) continue;   // A PROPHET'S WAY: on its land (ships on the water by it)
                 seen[nseen++] = it.u;
             }
             int best_n[HLK_N] = { 0, 0, 0, 0 };   // buildings, soldiers, citizens, ships
@@ -451,7 +474,11 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             // WITH THE FORCE, ON ITS OWN (the first test: 0 strikes in 3 games - the force meets the enemy somewhere
             // nearly all the time, and every prophet went with it): the first prophet goes with the force, the others strike
             int with = fight && i == 0 && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE];   // AWAY AT ONCE: without the power for a cast it stays home, out of the fight, until it has it
-            if (strike.x < 0 && !hurt && with) hl_walk(u, hl_behind(front, home));   // with the force, as the siege
+            if (strike.x < 0 && !hurt && with) {   // with the force, as the siege - behind it on its land (across the water: to its land)
+                ivec2 bt = hl_behind(front, home);
+                if (bk_land_of(bt) != bk_land_of(front)) bt = front;
+                hl_go(idx, u, bt, now);
+            }
             else if (strike.x < 0 && !hurt && cost[HLP_QUAKE] > 0 && pw >= cost[HLP_QUAKE]) {   // A STRIKE: the nearest enemy building unguarded
                 int bd = -1;
                 for (struct grid_it it = grid_it_box(p.x, p.y, HL_STRIKE, 1); grid_it_next(&it); ) {
@@ -459,6 +486,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                     int fa = unit_type_get_class_id(it.td);
                     if (!o || !hl_foe(pl, o) || (fa != CLS_BUILDING && fa != CLS_FORTRESS) || is_wall(unit_type_get_id(it.td)) || unit_get_hp(it.u) <= 0 || !seen_by(it.u, pl)) continue;
                     ivec2 q = unit_get_tile(it.u);
+                    if (!PROPHETS_ACROSS(idx) && land && bk_land_of(q) != land) continue;   // A PROPHET'S WAY: across the water only by the ferry
                     int d = ivec2_dist2(q, p);
                     float rr, aa;
                     int tower = defence_stats(it.u, &rr, &aa);   // THE TOWERS: a tower is struck from outside its reach
@@ -509,15 +537,22 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
                 if (!escorted) { sn_escort(idx, p, HL_ESCORT, foe_by, now); escorted = 1; by = sn_escort_near(idx, p, HL_ESC_NEAR, &given); }
                 uint32_t waited = strike_t && now >= strike_t ? now - strike_t : 0;
                 int wait = escorted && waited < HL_ESC_WAIT && (given ? 2 * by < given : waited < 10000);
-                if (!wait) hl_walk(u, strike);
+                if (!wait) hl_go(idx, u, strike, now);
                 else if (g && goal_is_location(g)) unit_goal(u, goal_move((float)p.x + 0.5f, (float)p.y + 0.5f), 0, 0x1F40);   // stands for them
             }
             else if (!with || hurt) {
-                hl_walk(u, home);
+                hl_go(idx, u, home, now);
                 if (!escorted && ivec2_dist2(p, home) > HL_HOME_R * HL_HOME_R && sn_prophet_escorted(idx)) { sn_escort(idx, p, HL_ESCORT, foe_by, now); escorted = 1; }   // home with it
             }
         }
         if (strike.x >= 0 && nk < HL_UNITS) { keep[nk].id = id; keep[nk].strike = strike; keep[nk++].strike_t = strike_t; }
+    }
+    for (int k = 0; k < h->np && nk < HL_UNITS; k++) {   // A PROPHET'S WAY: one the ferry has (aboard: off the map, not in the list) keeps its strike, its time from the landing; its escort kept
+        int listed = 0;
+        for (int j = 0; j < nk && !listed; j++) listed = keep[j].id == h->p[k].id;
+        if (listed || !fy_carries_id(idx, h->p[k].id)) continue;
+        keep[nk].id = h->p[k].id; keep[nk].strike = h->p[k].strike; keep[nk++].strike_t = now ? now : 1;
+        sn_escort_keep(idx, now);
     }
     memcpy(h->p, keep, (size_t)nk * sizeof *keep); h->np = nk;
     // PRIESTS
