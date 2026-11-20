@@ -39,8 +39,11 @@ internal uint32_t ao_army_id(unsigned idx, int army) { return AO_ARMY | (uint32_
 //   middle of the one to the middle of the other, wider with more of them, dots running along it (AO_RUN a
 //   passage; each dot an anchor of its own, so it glides between the updates), and at its middle the reason and the
 //   count: "defend" (enemy soldiers in the territory they go to), "reinforce" (it is short of its share),
-//   "siege", "scout";
+//   "siege", "scout" - a reinforcement of fewer than AO_REINFORCE_MIN not drawn (the player 2026-11-20: "its very noisy
+//   on larger games ... reinforcements smaller than 10 shouldn't be displayed"; nor a territory's "0 of 0 soldiers,
+//   share 0%");
 // - a PUSH: from the middle of the territory it starts in to the building it goes at, "push" and its soldiers.
+#define AO_REINFORCE_MIN 10
 #define AO_MOVES 96
 #define AO_RUN 4000
 #define AO_T 4096
@@ -100,12 +103,13 @@ internal void ao_territories(ee_player *pl, unsigned idx, uint32_t col, uint32_t
         vec2 at = ao_at(g_ter.t[r].c);
         overlay_mark(at, OVM_SQUARE | OVM_HOLLOW, 16, col);
         overlay_text(at, -1, col, "T%d %s", r, t->role == TVR_FRONT ? "front" : t->role == TVR_BACK ? "backland" : "not held");
-        overlay_text(at, 0, 0xFFFFFFFF, "%d of %d soldiers, share %d%%", here[r], stn[r], (g_pr_share[idx][r] + 5) / 10);
-        if (cits[r]) overlay_text(at, 1, 0xFFE0E0E0, "%d citizens", cits[r]);
-        if (t->foe > 0) overlay_text(at, cits[r] ? 2 : 1, 0xFFFF6060, "under attack: %d enemy soldiers", t->foe);
+        int line = 0, share = (g_pr_share[idx][r] + 5) / 10;
+        if (here[r] || stn[r] || share) overlay_text(at, line++, 0xFFFFFFFF, "%d of %d soldiers, share %d%%", here[r], stn[r], share);   // none there, none wanted: no line
+        if (cits[r]) overlay_text(at, line++, 0xFFE0E0E0, "%d citizens", cits[r]);
+        if (t->foe > 0) overlay_text(at, line, 0xFFFF6060, "under attack: %d enemy soldiers", t->foe);
     }
     for (int k = 0; k < nmv; k++)
-        ao_move(idx, ao_at(g_ter.t[mv[k].from].c), ao_at(g_ter.t[mv[k].to].c), mv[k].from * 131 + mv[k].to * 7 + mv[k].why, mv[k].why, mv[k].n, col, now);
+        if (mv[k].why != AOW_REINFORCE || mv[k].n >= AO_REINFORCE_MIN) ao_move(idx, ao_at(g_ter.t[mv[k].from].c), ao_at(g_ter.t[mv[k].to].c), mv[k].from * 131 + mv[k].to * 7 + mv[k].why, mv[k].why, mv[k].n, col, now);
     for (int k = 0; k < SN_PUSHES; k++) {
         struct sn_push *pu = &z->push[k];
         if (!pu->on || pu->from < 0 || pu->from >= n) continue;
