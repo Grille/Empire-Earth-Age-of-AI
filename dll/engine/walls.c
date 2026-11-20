@@ -1463,8 +1463,8 @@ internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, 
     collect_fill(c, u, rec, p3, p4);   // the game's fill, or collect.c's port of it
     if (u) walls_after_fill(unit_get_type_data(u), unit_get_physics(u) != NULL, unit_get_stats(u), rec);
 }
-internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
-    ee_unit *b = place_foundation(pl, type, x, y);
+// a building laid out: by the game's placings (the hook below) and the mod's own (game/world.c lay_foundation)
+internal void walls_laid(ee_unit *b, int type) {
     ee_map *map = game_map();
     if (b && g_bl_on && map && bl_ground(b, unit_get_type_data(b)) && g_log)
         fprintf(g_log, "# walls: building_lean: type %d at %d,%d put onto the ground (its facing's rise %.2f, its side's %.2f)\n",
@@ -1474,17 +1474,18 @@ internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, in
         int s = unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 1;
         wj_note(unit_get_x(b) - s, unit_get_y(b) - s, unit_get_x(b) + s, unit_get_y(b) + s);
     }
+}
+internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
+    ee_unit *b = place_foundation(pl, type, x, y);
+    walls_laid(b, type);
     return b;
 }
 
-// what else runs at a step's end: the wiring's (eeaimod.c ai_step_end: the AI's quick steps between its updates)
-internal void (*g_step_end_also)(void);
 // at a step's end (the same step on every PC): the walls a game starts with (a loaded game, a scenario's) at its
 // first; the areas noted at an earlier step (their new pieces on the map now)
 internal void __thiscall hook_step_end(ee_physics *ph) {
     physics_step_end(ph);
     if (!game_map()) return;
-    if (g_step_end_also && game_time()) g_step_end_also();
     if (game_time()) { g_ws_ed_seen = 0; g_ws_ed_base = 0; }   // a game runs (a test play): not the editor - its time stays 0
     if (!g_ws_fitted_game) {
         g_ws_fitted_game = 1;
@@ -1621,9 +1622,10 @@ internal void walls_install(void) {
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
     g_bl_on = g_set.building_lean;
     int any = g_ws_on || g_bl_on;
-    int more = (any || g_step_end_also ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
+    int more = (any ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
     int upg = g_ws_on ? patch_upgrade_convert(hook_upgrade_convert) : 0;
     if (g_ws_on) g_unit_converted = walls_converted;
+    if (g_wj_on || g_bl_on) g_foundation_laid = walls_laid;
     if (g_ws_on && !upg && g_log) fprintf(g_log, "# walls: the upgrade's conversion NOT hooked\n");
     if (g_ws_on && !patch_wall_ghosts(hook_wall_ghosts) && g_log) fprintf(g_log, "# walls: the placement preview NOT hooked\n");
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;

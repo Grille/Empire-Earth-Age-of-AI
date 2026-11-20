@@ -17,10 +17,17 @@ internal inline int may_build(ee_player *pl, int type) {
 // campaign - the toggle was asked by build.c, creep.c and expand.c only, docks, harbour towers, defences, walls,
 // bunkers, landings, granaries and the build queue laid theirs regardless)
 internal inline int ai_may_lay(ee_player *pl, int type) { return pl && player_ai_toggle(pl, SM_AIT_BUILD_REPAIR) && may_build(pl, type); }
+// told of a foundation the mod lays itself (walls.c walls_laid: what the game's own placings get from its hook - a
+// leaning type stood onto the ground, a tower's tiles noted for the walls' joins). Without it the mod's AI's AA missile
+// towers stood level on a hill, half in it (the player, 2026-11-20: "la rocket towers arent fittet to terrain like the 88
+// guns are")
+internal void (*g_foundation_laid)(ee_unit *b, int type);
 // a foundation of type laid out at x, y for pl when its AI may lay one (ai_may_lay) - every building the mod's AI lays
 // itself goes through here; NULL: none
 internal inline ee_unit *lay_foundation(ee_player *pl, int type, int x, int y) {
-    return ai_may_lay(pl, type) ? place_foundation(pl, type, x, y) : NULL;
+    ee_unit *b = ai_may_lay(pl, type) ? place_foundation(pl, type, x, y) : NULL;
+    if (b && g_foundation_laid) g_foundation_laid(b, type);
+    return b;
 }
 // a building of type laid out at x, y (0, 0: a spot of its own) by pl's build manager when its AI may lay one
 // (ai_may_lay) - every placement of the build manager's the mod asks for or lets through (econ.c hook_place) goes

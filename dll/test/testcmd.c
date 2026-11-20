@@ -654,7 +654,8 @@ internal void cmd_found(char *out, const char *args) {
     if (x < 0 || y < 0 || x >= n || y >= n) { REPLY("error: %d,%d is off the map (%d tiles)\n", x, y, n); return; }
     if (unit_type_get_class_id(type_data(t)) == CLS_BUILDING && !area_id(iv2(x, y), 2)) { REPLY("error: %d,%d is not land\n", x, y); return; }
     int ok = can_place(pl, t, iv2(x, y));   // the placement test the player's click passes first (defence.c) - placed anyway
-    void *u = place_foundation(pl, t, x, y);
+    ee_unit *u = place_foundation(pl, t, x, y);
+    if (u && g_foundation_laid) g_foundation_laid(u, t);   // as the mod's AI lays one (game/world.c lay_foundation)
     REPLY("ok: type %d for P%d at %d,%d: %p%s\n", t, p, x, y, u, ok ? "" : " (a spot the player couldn't place it on)");
 }
 
