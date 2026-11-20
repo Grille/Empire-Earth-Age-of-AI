@@ -1,0 +1,48 @@
+// dicts of any value (dict<K, V>) in a game (expr.c DICTS; the language itself: tests/lang/dicts.eeai): Continental
+// (seed 101) - a timer keeps each player's stock in dicts keyed by the player: a struct, a seq that grows, a list made
+// for a key when it is new, a dict inside a struct; dicts made and dropped every tick. Played twice the lines must be
+// the same - also with `script state` (what a save keeps, read back) called while it waits.
+struct stock {
+    food: int
+    wood: int
+}
+struct ledger {
+    name: text
+    best: dict<player, int> = dict<player, int>(0)
+}
+let last = dict<player, stock>(stock(0, 0))
+let golds = dict<player, seq<int>>([])
+let woods = dict<player, list<int>?>(null)
+let book = ledger("all")
+let ticks = 0
+game.timer(2s, () => {
+    ticks += 1
+    for i in 2..4 {
+        let p = game.players[i]
+        last[p] = stock(p.food, p.wood)
+        golds[p] = [golds[p], p.gold]
+        let w = woods[p] ?? list<int>()
+        w.add(p.wood)
+        woods[p] = w
+        if p.food > book.best[p] { book.best[p] = p.food }
+    }
+    let tmp = dict<int, stock>(stock(ticks, ticks))
+    tmp[ticks] = stock(1, 2)
+})
+show(p: player): text {
+    let w = woods[p]
+    let wn = w != null ? len(w) : 0
+    let s = last[p]
+    return "{s.food}/{s.wood} {len(golds[p])} {wn} {book.best[p]}"
+}
+let p2 = player(2)
+let p3 = player(3)
+wait_until(0.2min)
+ping("at 0.2 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, none {last[player(1)]}")
+wait_until(0.5min)
+let w2 = woods[p2]
+if w2 != null { w2.add(-1) }
+ping("at 0.5 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}")
+wait_until(1min)
+let g3 = golds[p3]
+ping("at 1 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, g3 {len(g3)} {g3[1]} {g3[len(g3)]}")

@@ -148,6 +148,14 @@ internal int xb_is(const struct xval *v) { return v->kind == XV_REC && v->w && v
 // g_x_machines) and with the game (x_triggers_reset).
 struct xhlist { struct xhlist *next; struct xval *it; int n, cap, mark, num; };
 internal struct xhlist *g_xhl;
+// a dict's entry (DICTS): its key - kobj an object's number, kn an int, ks a text (malloc'd) -, its value - vn, vs
+// (malloc'd) of the four plain types, else xv: a value of the dict's own (as a list's item: xo_copy, malloc'd)
+struct xdent { int kobj; double kn; char *ks; double vn; char *vs; int vhas_s; struct xval *xv; };
+// ix: THE INDEX (xdict_find) - nix places, an entry's number + 1 in each; nidx: the entries in it so far; odd: a text
+// key among them that isn't plain (x_plain); mark: the sweep's (as a list's)
+struct xdict { struct xdict *next; int kt, vt, n, cap; struct xdent def, *e; int *ix, nix, nidx, odd, mark; };
+internal struct xdict *g_xdicts;
+internal int g_xdict_n;   // the dicts in g_xdicts
 internal int g_xhl_n, g_xhl_made;   // lists, made since the last sweep
 struct xvm;
 internal void xvm_copy(struct xval *dst, const struct xval *src);   // (THE MACHINE: a value copied into the region now)
@@ -746,7 +754,7 @@ internal void xst_scan(const char *src) {
 // (list<list<int>>, list<int?>: X_LIST_OF of a wrap). Each is an entry here, the same type the same entry (compared
 // by its number), its number a type's base from XT_CMP0 on; they stay for the session (a few hundred at most: the
 // types the scripts and texts write and the check works out).
-enum { XCT_WRAP = 1, XCT_FN, XCT_REC, XCT_HLIST };   // HLIST: a list<T> (LISTS), t[0] its items' type
+enum { XCT_WRAP = 1, XCT_FN, XCT_REC, XCT_HLIST, XCT_DICT };   // HLIST: a list<T> (LISTS), t[0] its items' type; DICT: dict<K, V> (DICTS), t[0] K, t[1] V
 #define XCT_MEMBERS 16
 #define XCT_MAX 2048
 #define XT_CMP0 0x400
@@ -786,6 +794,14 @@ internal int xt_elem(int l) {
 internal int xt_is_hl(int t) { const struct xctype *c = t & X_LIST_OF ? NULL : xct_of(t); return c && c->kind == XCT_HLIST; }   // a list<T> (or one or null)
 internal int xt_hl_elem(int t) { return xt_is_hl(t) ? xct_of(t)->t[0] : X_ANY; }
 internal int xt_items(int t) { return t & X_LIST_OF ? xt_elem(t) : xt_hl_elem(t); }   // a seq's or a list's items' type (0: neither, or not known)
+internal int xt_is_dict(int t) { const struct xctype *c = t & X_LIST_OF ? NULL : xct_of(t); return c && c->kind == XCT_DICT; }   // a dict<K, V> (or one or null)
+internal int xt_dict_key(int t) { return xt_is_dict(t) ? xct_of(t)->t[0] : X_ANY; }
+internal int xt_dict_val(int t) { return xt_is_dict(t) ? xct_of(t)->t[1] : X_ANY; }
+// a dict's key: an int, a text or an object of a kind (by its number, as == tells them apart); its value: any type -
+// the four plain ones kept as they are (the personalities' dict fields read and write those), any other as a value
+// of the dict's own (DICTS)
+internal int xt_dict_key_ok(int k) { return k == XT_INT || k == XT_TEXT || (k > 0 && k < XT_INT); }
+internal int xt_plain_val(int v) { return v == XT_INT || v == XT_FLOAT || v == XT_BOOL || v == XT_TEXT; }
 // a type as written at *ps (after a ':'): its letters into out - names, ?, and inside < > also commas and spaces
 // (func<int, text>); *ps after it. Its length, 0 none
 internal int xps_type_scan(const char **ps, char *out, int cap) {
@@ -887,7 +903,8 @@ internal int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, stru
     return 1;
 }
 // A TYPE as written (name: type): int, float, bool, text, vec2..vec4, epoch, color, unit_type, function, record,
-// trigger, a kind of the host's objects (player); list<T> a list of them, T? or null - its code (host.h), -1 none such.
+// trigger, a kind of the host's objects (player); seq<T> a sequence of them, list<T> a list, dict<K, V> a dict, T? or
+// null - its code (host.h), -1 none such.
 // Types are written with < > only: [ ] is the language's for lists as values and for indexing (list<text> = [])
 internal int x_type_named(const char *t) {
     static const char *const own[] = { "int", "float", "bool", "text", "vec2", "vec3", "vec4", "epoch", "color", "unit_type",
@@ -909,6 +926,22 @@ internal int x_type_named(const char *t) {
         b[n - 1] = 0;
         int e = x_type_named(b + 5), l = e >= 0 && !((e & X_LIST_OF) && (e & X_NULLABLE)) ? xct_get(XCT_HLIST, 1, &e, 0, NULL) : -1;
         return l < 0 ? -1 : l | flags;
+    }
+    if (n > 6 && !strncmp(b, "dict<", 5) && b[n - 1] == '>') {   // dict<K, V> (DICTS): K an int, a text or an object, V any type
+        int depth = 0, kv[2];
+        char *comma = NULL;
+        b[n - 1] = 0;
+        for (char *q = b + 5; *q && !comma; q++) {
+            if (*q == '<') depth++;
+            else if (*q == '>') depth--;
+            else if (*q == ',' && !depth) comma = q;
+        }
+        if (!comma) return -1;
+        *comma = 0;
+        kv[0] = x_type_named(b + 5); kv[1] = x_type_named(comma + 1);
+        if (!xt_dict_key_ok(kv[0]) || kv[1] < 0) return -1;
+        int d = xct_get(XCT_DICT, 2, kv, 0, NULL);
+        return d < 0 ? -1 : d | flags;
     }
     if (n > 6 && !strncmp(b, "func<", 5) && b[n - 1] == '>') {   // func<int, text, point>: its parameters' types, then its result's (void: none)
         int ty[XCT_MEMBERS], np = 0, depth = 0;
@@ -1207,26 +1240,20 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             o->n = ty;
             o->a = d;
             o = XOFF(p, o);
-        } else if (!strcmp(name, "dict") && *p->s == '<') {   // dict<K, V>(default): a new dict (DICTS) - its types in n
-            char kt[32], vt[32];
-            const char *q = p->s + 1;
-            int a = 0, b = 0;
-            while (*q == ' ') q++;
-            while ((isalnum((unsigned char)*q) || *q == '_') && a < 31) kt[a++] = *q++;
-            kt[a] = 0;
-            while (*q == ' ') q++;
-            if (*q == ',') q++;
-            while (*q == ' ') q++;
-            while ((isalnum((unsigned char)*q) || *q == '_') && b < 31) vt[b++] = *q++;
-            vt[b] = 0;
-            while (*q == ' ') q++;
-            int kt_ = a ? x_type_named(kt) : -1, vt_ = b ? x_type_named(vt) : -1;
-            const char *why = NULL;
-            if (*q != '>' || kt_ < 0 || vt_ < 0) why = "dict<K, V>(default) - K an int, a text or an object (player ...), V an int, a float, a bool or a text";
-            else if (!(kt_ == XT_INT || kt_ == XT_TEXT || (kt_ > 0 && kt_ < XT_INT))) why = "dict<K, V>: a key is an int, a text or an object (player ...)";
-            else if (!(vt_ == XT_INT || vt_ == XT_FLOAT || vt_ == XT_BOOL || vt_ == XT_TEXT)) why = "dict<K, V>: a value is an int, a float, a bool or a text";
-            if (why) { p->err = 1; p->why = why; return; }
-            p->s = q + 1;
+        } else if (!strcmp(name, "dict") && *p->s == '<') {   // dict<K, V>(default): a new dict (DICTS) - its type in n
+            char tb[96] = "dict";
+            const char *q = p->s;
+            xps_type_scan(&q, tb + 4, (int)sizeof tb - 4);
+            int ty = x_type_named(tb);
+            if (ty < 0 || (ty & X_NULLABLE) || !xt_is_dict(ty)) {
+                char *in = tb + 5, *c = strchr(in, ',');
+                if (c) *c = 0;
+                p->err = 1;
+                p->why = c && tb[strlen(tb) - 1] != '?' && !xt_dict_key_ok(x_type_named(in)) ? "dict<K, V>: a key is an int, a text or an object (player ...)" :
+                         "dict<K, V>(default) - K an int, a text or an object (player ...), V a type: dict<player, int>(0), dict<text, point>(point(0, 0))";
+                return;
+            }
+            p->s = q;
             xps_space(p);
             if (*p->s != '(') { p->err = 1; p->why = "dict<K, V>(default) - the default: what a key without an entry holds"; return; }
             p->s++;
@@ -1238,7 +1265,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             if (p->err) return;
             o = xn_new(p, XN_DICT, s - n);
             if (!o) return;
-            o->n = kt_ * 4096 + vt_;
+            o->n = ty;
             o->a = d;
             o = XOFF(p, o);
         } else {
@@ -2234,6 +2261,10 @@ internal const char *xty_name(int t, char *buf, int cap) {
         char one[60];
         snprintf(in, sizeof in, "list<%s>", xty_name(c->t[0], one, sizeof one));
         n = in;
+    } else if (c && c->kind == XCT_DICT) {
+        char one[30], two[40];
+        snprintf(in, sizeof in, "dict<%s, %s>", xty_name(c->t[0], one, sizeof one), xty_name(c->t[1], two, sizeof two));
+        n = in;
     } else if (b == XT_VOID) n = "nothing";
     snprintf(buf, (size_t)cap, "%s%s%s%s", t & X_LIST_OF ? "seq<" : "", n, t & X_LIST_OF ? ">" : "", t & X_NULLABLE ? "?" : "");
     return buf;
@@ -2257,6 +2288,7 @@ internal int xt_fits(int to, int from) {
         return a->ret == XT_VOID || xt_fits(a->ret, b->ret);
     }
     if (a->kind == XCT_HLIST) return !a->t[0] || !b->t[0] || a->t[0] == b->t[0];   // a list for a list: of the very items (it is shared)
+    if (a->kind == XCT_DICT) return a->t[0] == b->t[0] && a->t[1] == b->t[1];   // a dict for a dict: the very keys and values (it is shared)
     if (a->kind == XCT_REC) {   // a record for a record: the same members, each fitting
         for (int i = 0; i < a->n; i++) if (strcmp(a->name[i], b->name[i]) || !xt_fits(a->t[i], b->t[i])) return 0;
         return 1;
@@ -2366,8 +2398,8 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
         if (n->k == XN_MCALL && xt_is_hl(a)) return xhm_id(n->s) == XHM_INDEX_OF ? XT_INT | X_NULLABLE : X_ANY;
         m = a > 0 && a < XT_INT ? x_kind_member(a, n->s) : NULL;
         return m && (m->amin >= 0) == (n->k == XN_MCALL) ? m->result : X_ANY;
-    case XN_INDEX: a = x_stype(k, n->a, sc); return a & X_NULLABLE ? X_ANY : xt_items(a);
-    case XN_HLIST: return (int)n->n;
+    case XN_INDEX: a = x_stype(k, n->a, sc); return a & X_NULLABLE ? X_ANY : xt_is_dict(a) ? xt_dict_val(a) : xt_items(a);
+    case XN_HLIST: case XN_DICT: return (int)n->n;
     case XN_COND: {   // (no else: nothing) - each side where its condition holds: p.lord != null ? p.lord : me
         int keep = k->n_nn;
         if (!n->b) return X_ANY;
@@ -2799,6 +2831,22 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                  xan(xty_name(ta, c, sizeof c)), c);
         return xc_fail(k, n, k->whybuf);
     }
+    case XN_DICT: {   // dict<K, V>(default): the default a V - a list or a dict as one would be every missing key's one table: null
+        int vt = xt_dict_val((int)n->n), ta;
+        char a[60], b[60], c[60];
+        if (!k->script && !xt_plain_val(vt)) return xc_fail(k, n, "dict<K, V>(...): a text's dict holds an int, a float, a bool or a text");
+        X_WANT(n->a, vt);
+        if (!x_check(k, n->a, sc)) return 0;
+        ta = x_stype(k, n->a, sc);
+        if (!xt_fits(vt, ta))
+            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its default is what a key without an entry holds - a%s %s, not a%s %s%s", xty_name((int)n->n, a, sizeof a),
+                     xan(xty_name(vt, b, sizeof b)), b, xan(xty_name(ta, c, sizeof c)), c, xt_hint(vt, ta));
+        else if ((xt_is_hl(vt) || xt_is_dict(vt)) && !(vt & X_NULLABLE))
+            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its default would be one %s, the same for every key without an entry - values of %s? and null the default (d[k] = %s(...) where a key is new)",
+                     xty_name((int)n->n, a, sizeof a), xt_is_hl(vt) ? "list" : "dict", xty_name(vt, b, sizeof b), xty_name(vt, c, sizeof c));
+        else return 1;
+        return xc_fail(k, n, k->whybuf);
+    }
     case XN_REF: return xc_fail(k, n, "ref ...: only as an argument, to a parameter that is a ref (name(ref p: type) { ... }), or as ref name = a place");
     case XN_LET:
         X_WANT(n->a, n->op == 'r' ? 0 : (int)n->n);
@@ -2880,6 +2928,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             xsc_add(&b, n->s);
             b.decl[0] |= 4;   // the loop's copy of an item
             int lk = n->b ? X_ANY : x_stype(k, n->a, sc);   // a range's: an int from ints, else a float
+            if (xt_is_dict(lk)) return xc_fail(k, n, "for ... in a dict: a dict's entries have no order to go through - a list of its keys beside it does (keys.add(k) where one is new)");
             if (n->b) { int ta = x_stype(k, n->a, sc), tb = x_stype(k, n->b, sc); b.kind[0] = (short)(ta == XT_INT && tb == XT_INT ? XT_INT : xt_numeric(ta) && xt_numeric(tb) ? XT_FLOAT : X_ANY); }
             else b.kind[0] = (short)(lk & X_NULLABLE ? X_ANY : xt_items(lk));
         }
@@ -2960,10 +3009,27 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_SETI: {   // d[k] = v of a dict; l[i] = v of a list the check knows: its item, in a place (marked for the compiler)
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
-        X_WANT(n->c, xt_items(x_stype(k, n->a, sc)));   // (a row written out, a list's item)
+        int a = x_stype(k, n->a, sc);
+        X_WANT(n->c, xt_is_dict(a) ? xt_dict_val(a) : xt_items(a));   // (a row written out, a list's item, a dict's value)
         if (!x_check(k, n->c, sc)) return 0;
-        int a = x_stype(k, n->a, sc), ti = x_stype(k, n->b, sc), tv = x_stype(k, n->c, sc), it = xt_items(a);
+        int ti = x_stype(k, n->b, sc), tv = x_stype(k, n->c, sc), it = xt_items(a);
         char tn[60], tm[60];
+        if (xt_is_dict(a)) {   // d[k] = v: k a K, v a V (op: numbers)
+            int kt = xt_dict_key(a), vt = xt_dict_val(a);
+            if (a & X_NULLABLE) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a %s that may be null - check it != null first", xty_name(a, tn, sizeof tn));
+            else if (!xt_fits(kt, ti))
+                snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: the dict's keys are %ss - not a%s %s%s", xty_name(kt, tm, sizeof tm), xan(xty_name(ti, tn, sizeof tn)), tn, xt_hint(kt, ti));
+            else if (n->op && (!xt_numeric(vt) || !xt_numeric(tv)))
+                snprintf(k->whybuf, sizeof k->whybuf, "[...] %c= ...: numbers only - the dict's values are %ss, the value a%s %s", n->op, xty_name(vt, tm, sizeof tm),
+                         xan(xty_name(tv, tn, sizeof tn)), tn);
+            else {
+                if (n->op) tv = vt == XT_INT && tv == XT_INT && n->op != '/' ? XT_INT : XT_FLOAT;
+                if (xt_fits(vt, tv)) return 1;
+                snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: the dict's values are %ss - a%s %s can't go in%s", xty_name(vt, tm, sizeof tm),
+                         xan(xty_name(tv, tn, sizeof tn)), tn, xt_hint(vt, tv));
+            }
+            return xc_fail(k, n, k->whybuf);
+        }
         if (xt_is_hl(a)) {   // l[i] = v of a list: its item, set in the list (whatever holds it: no place needed)
             if (a & X_NULLABLE) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a %s that may be null - check it != null first", xty_name(a, tn, sizeof tn));
             else if (ti && ti != XT_INT) snprintf(k->whybuf, sizeof k->whybuf, "[...] = ...: a list's item is l[an int] - not a %s", xty_name(ti, tn, sizeof tn));
@@ -3016,6 +3082,13 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             return xc_fail(k, n, k->whybuf);
         }
         if (!a || a == XT_REC) return 1;   // (not known, a record: worked out, there?)
+        if (n->k == XN_INDEX && xt_is_dict(a)) {   // d[k]: k a K
+            int ti = x_stype(k, n->b, sc), kt = xt_dict_key(a);
+            if (xt_fits(kt, ti)) return 1;
+            char tk[40];
+            snprintf(k->whybuf, sizeof k->whybuf, "[...]: the dict's keys are %ss - not a%s %s%s", xty_name(kt, tk, sizeof tk), xan(xty_name(ti, ta, sizeof ta)), ta, xt_hint(kt, ti));
+            return xc_fail(k, n, k->whybuf);
+        }
         if (n->k == XN_INDEX) {
             int ti = x_stype(k, n->b, sc);
             if (!(a & X_LIST_OF) && !xt_is_hl(a)) snprintf(k->whybuf, sizeof k->whybuf, "[...]: a %s is no list", xty_name(a, ta, sizeof ta));
@@ -3153,6 +3226,11 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                 if (r & X_LIST_OF) {
                     char tl[60];
                     snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s - one of its items: [1].%s(...) (a seq has no methods; a list<T> add, insert ...)", name, xty_name(r, tl, sizeof tl), dot + 1);
+                    return xc_fail(k, n, k->whybuf);
+                }
+                if (xt_is_dict(r)) {
+                    char tl[60];
+                    snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s has no methods - d[k] is a key's entry, d[k] = v sets it", name, xty_name(r, tl, sizeof tl));
                     return xc_fail(k, n, k->whybuf);
                 }
                 return x_check_method(k, n, r, dot + 1, n->n_items);
@@ -3425,8 +3503,8 @@ internal int xref_build(struct xe *e, const struct xval *cur, const int *path, i
 // with its frame); 0: not one it can hold (told)
 internal const char k_xo_empty[1] = "";
 internal int xo_ok(struct xe *e, const struct xval *v) {
-    if (v->kind == XV_REF) { x_fail(e, "a ref can't be a list's item"); return 0; }
-    if (v->kind == XV_FN && v->fn && v->fn->venv && !v->fn->venv->keep) { x_fail(e, "a function made inside a function can't be kept in a list - one of the script's top can"); return 0; }
+    if (v->kind == XV_REF) { x_fail(e, "a ref can't be kept in a list or a dict"); return 0; }
+    if (v->kind == XV_FN && v->fn && v->fn->venv && !v->fn->venv->keep) { x_fail(e, "a function made inside a function can't be kept in a list or a dict - one of the script's top can"); return 0; }
     for (int i = 0; i < v->ln; i++) if (!xo_ok(e, &v->it[i])) return 0;
     for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) if (!xo_ok(e, &v->rec->val[i])) return 0;
     return 1;
@@ -3475,11 +3553,14 @@ internal void xo_free(struct xval *v) {
     for (int i = 0; v->it && i < v->ln; i++) xo_free((struct xval *)&v->it[i]);
     if (v->ln) free((void *)v->it);
 }
-// item i of a list, read: copied into the region now (the list may change it meanwhile), a row the list it is
-internal void xhl_out(const struct xhlist *h, int i, struct xval *v) {
-    const struct xval *it = &h->it[i];
+// a value of a list's or a dict's own, read: copied into the region now (the table may change it meanwhile)
+internal void xo_out(const struct xval *it, struct xval *v) {
     if (!it->s[0] && !it->ln && (it->kind == XV_PLAIN || it->kind == XV_HLIST || it->kind == XV_DICT || it->kind == XV_TRIG)) *v = *it;
     else xvm_copy(v, it);
+}
+// item i of a list, read: copied out, a row the list it is
+internal void xhl_out(const struct xhlist *h, int i, struct xval *v) {
+    xo_out(&h->it[i], v);
     xb_unbox(v);
 }
 internal struct xhlist *xhl_new(void) {
@@ -3547,6 +3628,12 @@ internal void xhl_mark(const struct xval *v) {
     if (v->kind == XV_REF && v->ref) { xhl_mark_view(v->ref->w); if (v->ref->hl) { struct xval t; xhl_value(&t, v->ref->hl); xhl_mark(&t); } }
     for (int i = 0; v->it && i < v->ln; i++) xhl_mark(&v->it[i]);
     for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) xhl_mark(&v->rec->val[i]);
+    if (v->kind == XV_DICT && v->dict && v->dict->mark != g_xhl_gen) {   // a dict: its values that aren't plain
+        struct xdict *d = v->dict;
+        d->mark = g_xhl_gen;
+        if (d->def.xv) xhl_mark(d->def.xv);
+        for (int i = 0; i < d->n; i++) if (d->e[i].xv) xhl_mark(d->e[i].xv);
+    }
 }
 // (a view's values: a frame's are on its machine's stack too - each view once a sweep)
 #define XHL_VIEWS 4096
@@ -3647,19 +3734,30 @@ internal int xcmp_as(const struct xval *a, const struct xval *b, int eq) {
     return eq ? !x_ieq(xtext_of(a), xtext_of(b)) : lstrcmpiA(xtext_of(a), xtext_of(b));
 }
 // DICTS: dict<K, V>(default) - an entry per key, the default for every key without one (so d[k] is always a value, none
-// guessed). K: int, text or an object's kind (player ...: by its index, as == tells them apart); V: int, float, bool or
-// text. A dict is a table of its own, outside the values' regions: the values holding it share it (d[k] = v is seen
-// through every one), and a new game frees them all (x_triggers_reset). Its types are checked when it is worked out.
-struct xdent { int kobj; double kn; char *ks; double vn; char *vs; int vhas_s; };
-// ix: THE INDEX (xdict_find) - nix places, an entry's number + 1 in each; nidx: the entries in it so far; odd: a text
-// key among them that isn't plain (x_plain)
-struct xdict { struct xdict *next; int kt, vt, n, cap; struct xdent def, *e; int *ix, nix, nidx, odd; };
-internal struct xdict *g_xdicts;
+// guessed). K: int, text or an object's kind (player ...: by its index, as == tells them apart); V: any type - an
+// int, a float, a bool or a text kept as it is (vn, vs: the personalities' dict fields read and write those), any
+// other as a value of the dict's own (xv: copied in, copied out when read, as a list's item - so d[k].x = 5 is no
+// place: the check says so). A dict is a table of its own, outside the values' regions: the values holding it share
+// it (d[k] = v is seen through every one); one nobody holds any more is freed by the lists' sweep (xhl_sweep), all of
+// them with the game (x_triggers_reset). Its types are the check's (dict<K, V>: XCT_DICT); a key's and a plain
+// value's are checked again when it is worked out, another value's can't be told then.
+// (struct xdent, struct xdict: beside the lists' table, LISTS - the sweep goes through both)
 internal int g_xdict_keep;   // the dicts made now are their maker's to free (a personality's fields: x_dict_free), not the list's
+internal int xdict_plain(const struct xdict *d) { return xt_plain_val(d->vt); }
+internal void xdict_vfree(struct xdent *x) {   // an entry's value
+    free(x->vs);
+    x->vs = NULL;
+    if (x->xv) { xo_free(x->xv); free(x->xv); x->xv = NULL; }
+}
+internal struct xval *xdict_own(const struct xval *v) {   // a value made the dict's; NULL: no memory
+    struct xval *m = malloc(sizeof *m);
+    if (m) xo_copy(m, v);
+    return m;
+}
 internal void x_dict_free(struct xdict *d) {
     if (!d) return;
-    for (int i = 0; i < d->n; i++) { free(d->e[i].ks); free(d->e[i].vs); }
-    free(d->def.vs);
+    for (int i = 0; i < d->n; i++) { free(d->e[i].ks); xdict_vfree(&d->e[i]); }
+    xdict_vfree(&d->def);
     free(d->e);
     free(d->ix);
     free(d);
@@ -3667,7 +3765,7 @@ internal void x_dict_free(struct xdict *d) {
 internal void xdict_put(struct xdict *d, struct xdent *x) {   // an entry as it is (a saved game's): x's texts taken over
     if (d->n == d->cap) {
         struct xdent *m = realloc(d->e, (size_t)(d->cap = d->cap ? d->cap * 2 : 8) * sizeof *m);
-        if (!m) { free(x->ks); free(x->vs); return; }
+        if (!m) { free(x->ks); xdict_vfree(x); return; }
         d->e = m;
     }
     d->e[d->n++] = *x;
@@ -3678,6 +3776,7 @@ internal void x_dicts_free(void) {
         g_xdicts = d->next;
         x_dict_free(d);
     }
+    g_xdict_n = 0;
 }
 internal const char *xdict_tname(int t, char *buf, int cap) {   // a key's or value's type for the messages
     return t < XT_INT ? lstrcpynA(buf, x_kind_name(t), cap) : xty_name(t, buf, cap);
@@ -3753,8 +3852,17 @@ internal struct xdent *xdict_find(struct xdict *d, const struct xdent *k) {
     return NULL;
 }
 internal void xdict_value(const struct xdict *d, const struct xdent *x, struct xval *v) {   // an entry's value (or the default's)
-    if (d->vt == XT_TEXT) xstr(v, x->vs ? x->vs : "");
+    if (!xdict_plain(d)) { if (x->xv) xo_out(x->xv, v); else xnothing(v); }
+    else if (d->vt == XT_TEXT) xstr(v, x->vs ? x->vs : "");
     else xnum(v, x->vn);
+}
+// val as a value of d's into *nv: a plain one checked (xdict_fit), another made the dict's own; 0: a mistake told
+internal int xdict_val(struct xe *e, struct xdict *d, const struct xval *val, struct xdent *nv, const char *what) {
+    if (xdict_plain(d)) return xdict_fit(e, d->vt, val, nv, 0, what);
+    memset(nv, 0, sizeof *nv);
+    if (!xo_ok(e, val)) return 0;
+    if (!(nv->xv = xdict_own(val))) { e->err = 1; return 0; }
+    return 1;
 }
 internal void xdict_get(struct xe *e, struct xdict *d, const struct xval *key, struct xval *v) {   // d[key]
     struct xdent k;
@@ -3765,21 +3873,21 @@ internal void xdict_get(struct xe *e, struct xdict *d, const struct xval *key, s
 internal void xdict_set(struct xe *e, struct xdict *d, const struct xval *key, const struct xval *val) {   // d[key] = val
     struct xdent k, nv;
     if (!xdict_fit(e, d->kt, key, &k, 1, "[...] = ...")) return;
-    if (!xdict_fit(e, d->vt, val, &nv, 0, "[...] = ...")) return;
+    if (!xdict_val(e, d, val, &nv, "[...] = ...")) return;
     struct xdent *x = xdict_find(d, &k);
-    if (x) free(x->vs);
+    if (x) xdict_vfree(x);
     else {
-        if (k.ks && !(k.ks = _strdup(k.ks))) { free(nv.vs); e->err = 1; return; }   // (the key was the value's own text)
+        if (k.ks && !(k.ks = _strdup(k.ks))) { xdict_vfree(&nv); e->err = 1; return; }   // (the key was the value's own text)
         if (d->n == d->cap) {
             struct xdent *m = realloc(d->e, (size_t)(d->cap ? d->cap * 2 : 8) * sizeof *m);
-            if (!m) { free(k.ks); free(nv.vs); e->err = 1; return; }
+            if (!m) { free(k.ks); xdict_vfree(&nv); e->err = 1; return; }
             d->e = m;
             d->cap = d->cap ? d->cap * 2 : 8;
         }
         x = &d->e[d->n++];
         *x = k;
     }
-    x->vn = nv.vn; x->vs = nv.vs; x->vhas_s = nv.vhas_s;
+    x->vn = nv.vn; x->vs = nv.vs; x->vhas_s = nv.vhas_s; x->xv = nv.xv;
 }
 
 // the triggers (TRIGGERS below): t.on, t.fired, t.name read here
@@ -4641,10 +4749,10 @@ internal void xop_mcall(struct xe *e, const char *name, const struct xval *o, co
 internal void xop_dict(struct xe *e, int types, const struct xval *d, struct xval *v) {   // dict<K, V>(default): a new one (d used)
     struct xdict *t = calloc(1, sizeof *t);
     if (!t) { e->err = 1; return; }
-    t->kt = types / 4096;
-    t->vt = types % 4096;
-    if (!g_xdict_keep) { t->next = g_xdicts; g_xdicts = t; }
-    if (!xdict_fit(e, t->vt, d, &t->def, 0, "dict<K, V>(default)")) { if (g_xdict_keep) x_dict_free(t); return; }
+    t->kt = types >> 16;
+    t->vt = types & 0xFFFF;
+    if (!g_xdict_keep) { t->next = g_xdicts; g_xdicts = t; g_xdict_n++; g_xhl_made++; }   // (the sweep's to free)
+    if (!xdict_val(e, t, d, &t->def, "dict<K, V>(default)")) { if (g_xdict_keep) x_dict_free(t); return; }
     xnothing(v);
     v->w = 1; v->kind = XV_DICT; v->dict = t; v->s = "a dict";
 }
@@ -4709,6 +4817,11 @@ internal void xop_cmp(struct xe *e, int op, int an, int bn, struct xval *v, stru
     if (v->kind == XV_HLIST || b->kind == XV_HLIST) {   // lists: the same one or not (its items: compare them)
         if (op != '=' && op != '!') { x_fail(e, "a list has no order - == or != (the same list)"); return; }
         xnum(v, (v->kind == b->kind && v->hl == b->hl) == (op == '='));
+        return;
+    }
+    if (v->kind == XV_DICT || b->kind == XV_DICT) {   // dicts: the same table or not
+        if (op != '=' && op != '!') { x_fail(e, "a dict has no order - == or != (the same dict)"); return; }
+        xnum(v, (v->kind == b->kind && v->dict == b->dict) == (op == '='));
         return;
     }
     if (!(v->obj && b->obj) && xmismatch(v, b)) {
@@ -5320,6 +5433,8 @@ internal void tl_let(struct tlex *l, tfile_fn fn, void *arg, const char *file) {
         snprintf(why, sizeof why, "let %s = ...: a field starts as a number, a bool, a text or a dict<K, V>(default) - not %s", name, what);
     } else if (dict && !x_data_node(r->a, what, sizeof what)) {
         snprintf(why, sizeof why, "let %s = dict<K, V>(...): its default changes with the game (%s)", name, what);
+    } else if (dict && !xt_plain_val(xt_dict_val((int)r->n))) {
+        snprintf(why, sizeof why, "let %s = dict<K, V>(...): a field's dict holds an int, a float, a bool or a text", name);
     } else if (type[0]) {
         int t = dict ? 0 : x_type_named(type);
         if (dict ? strncmp(type, "dict<", 5) != 0 : !(t == vt || (t == XT_FLOAT && vt == XT_INT)))
@@ -5891,7 +6006,7 @@ internal void xc_expr(struct xcomp *cc, const struct xnode *n) {
     case XN_DICT:
         xc_expr(cc, n->a);
         xc_emit(cc, XI_USE, 0, 0, 0);
-        xc_emit(cc, XI_DICT, (int)n->n, 0, 0);
+        xc_emit(cc, XI_DICT, xt_dict_key((int)n->n) << 16 | xt_dict_val((int)n->n), 0, 0);   // (its K and V: what the machine keeps of the type)
         break;
     case XN_REC:
         for (int i = 0; i < n->n_items; i++) { xc_expr(cc, n->items[i]->a); xc_emit(cc, XI_USE, 0, 0, 0); }
@@ -6809,7 +6924,7 @@ internal void xhl_mark_roots(void) {
 internal void xhl_sweep(void) {
     struct xvm *vm[16];
     int nvm;
-    if (!g_xhl || !g_x_machines || (nvm = g_x_machines(vm, 16)) < 0) return;
+    if ((!g_xhl && !g_xdicts) || !g_x_machines || (nvm = g_x_machines(vm, 16)) < 0) return;
     if (++g_xhl_gen == 0) g_xhl_gen = 1;
     g_xhl_nseen = 0;
     for (int i = 0; i < nvm; i++) {
@@ -6825,6 +6940,13 @@ internal void xhl_sweep(void) {
         *pp = h->next;
         xhl_free(h);
         g_xhl_n--;
+    }
+    for (struct xdict **pp = &g_xdicts; *pp; ) {   // (a personality's dicts aren't in it: its own)
+        struct xdict *d = *pp;
+        if (d->mark == g_xhl_gen) { pp = &d->next; continue; }
+        *pp = d->next;
+        x_dict_free(d);
+        g_xdict_n--;
     }
     g_xhl_made = 0;
 }
@@ -6884,9 +7006,10 @@ internal int x_setup_run(struct xcode *code, struct xctx *c) {
 // a list, a vector, a record, an object by its number (a unit its id: handles, no pointers of the game's), a trigger
 // its place in the table, a dict its place among the dicts, a function its script, its number there and the view it
 // was made in: a frame of a machine, or a kept view. A text's function (a personality's, on the texts' machine) has no place in it:
-// nothing saved for it, counted (lost).
+// nothing saved for it, counted (lost). A dict of plain values is written whole with the dicts, early; one of other
+// values (a struct, a list ...) its types there and its default and entries at the end, after the lists' items - a
+// value may name any list, dict or struct type, which are all known by then.
 #define XS_VIEWS 512
-#define XS_DICTS 256
 struct xsave {
     struct pbuf *o;
     struct xcode *const *code;          // the scripts' code, and their machines (NULL: one that hasn't begun)
@@ -6894,8 +7017,8 @@ struct xsave {
     int n;
     struct xview *kv[XS_VIEWS];         // the kept views, each numbered by its place + 1
     int nkv;
-    struct xdict *di[XS_DICTS];         // the dicts, numbered so
-    int ndi;
+    struct xdict **di;                  // the dicts, numbered so
+    int ndi, cdi;
     struct xhlist **hl;                 // the lists, numbered so (LISTS)
     int nhl, chl;
     int lost;                           // values that couldn't be saved
@@ -6914,11 +7037,19 @@ internal void xs_view_ref(struct xsave *s, struct xview *w, int *a, int *b) {
     s->kv[s->nkv++] = w;
     *b = s->nkv;
 }
-internal int xs_dict(struct xsave *s, struct xdict *d) {
+// a dict's number (its place + 1), a new one noted (*fresh); 0: none, no room
+internal int xs_dict(struct xsave *s, struct xdict *d, int *fresh) {
+    if (fresh) *fresh = 0;
     if (!d) return 0;
     for (int i = 0; i < s->ndi; i++) if (s->di[i] == d) return i + 1;
-    if (s->ndi == XS_DICTS) { s->lost++; return 0; }
+    if (s->ndi == s->cdi) {
+        int cap = s->cdi ? s->cdi * 2 : 64;
+        struct xdict **m = realloc(s->di, (size_t)cap * sizeof *m);
+        if (!m) { s->lost++; return 0; }
+        s->di = m; s->cdi = cap;
+    }
     s->di[s->ndi++] = d;
+    if (fresh) *fresh = 1;
     return s->ndi;
 }
 // a list's number (its place + 1), a new one noted (*fresh); 0: no room
@@ -6941,7 +7072,10 @@ internal void xs_note(struct xsave *s, const struct xval *v) {   // the views, d
     if (h && xs_hl(s, h, &fresh) && fresh) for (int i = 0; i < h->n; i++) xs_note(s, &h->it[i]);
     if (v->kind == XV_FN && v->fn) xs_view_ref(s, v->fn->venv, &a, &b);
     if (v->kind == XV_REF && v->ref) xs_view_ref(s, v->ref->w, &a, &b);
-    if (v->kind == XV_DICT) xs_dict(s, v->dict);
+    if (v->kind == XV_DICT && xs_dict(s, v->dict, &fresh) && fresh) {   // (its values that aren't plain)
+        if (v->dict->def.xv) xs_note(s, v->dict->def.xv);
+        for (int i = 0; i < v->dict->n; i++) if (v->dict->e[i].xv) xs_note(s, v->dict->e[i].xv);
+    }
     for (int i = 0; i < v->ln; i++) xs_note(s, &v->it[i]);
     for (int i = 0; v->kind == XV_REC && v->rec && i < v->rec->n; i++) xs_note(s, &v->rec->val[i]);
 }
@@ -6976,7 +7110,7 @@ internal void xs_put(struct xsave *s, const struct xval *v) {
     } else if (v->kind == XV_FN) {
         xs_view_ref(s, v->fn->venv, &a, &b);
         pb_int(o, ci); pb_int(o, v->fn->fi); pb_int(o, a); pb_int(o, b);
-    } else if (v->kind == XV_DICT) pb_int(o, xs_dict(s, v->dict));
+    } else if (v->kind == XV_DICT) pb_int(o, xs_dict(s, v->dict, NULL));
     else if (v->kind == XV_HLIST) pb_int(o, xs_hl(s, v->hl, NULL));
 }
 internal void xs_put_dent(struct pbuf *o, const struct xdent *x) {
@@ -7024,10 +7158,12 @@ internal void x_state_save(struct pbuf *o, struct xcode *const *code, struct xvm
         xs_view_ref(s, w->up, &a, &b);
         for (int j = 0; j < w->n; j++) xs_note(s, &w->val[j]);
     }
-    pb_int(o, s->ndi);
-    for (int i = 0; i < s->ndi; i++) {
+    int ndi = s->ndi;
+    pb_int(o, ndi);
+    for (int i = 0; i < ndi; i++) {   // (one of values that aren't plain: those at the end)
         const struct xdict *d = s->di[i];
         pb_int(o, d->kt); pb_int(o, d->vt); pb_int(o, d->n);
+        if (!xdict_plain(d)) continue;
         xs_put_dent(o, &d->def);
         for (int j = 0; j < d->n; j++) xs_put_dent(o, &d->e[j]);
     }
@@ -7081,8 +7217,22 @@ internal void x_state_save(struct pbuf *o, struct xcode *const *code, struct xvm
         pb_int(o, s->hl[i]->n);
         for (int j = 0; j < s->hl[i]->n; j++) xs_put(s, &s->hl[i]->it[j]);
     }
-    if (s->nhl != nhl) s->lost++;   // (a list the noting missed)
+    for (int i = 0; i < ndi; i++) {   // the dicts' values that aren't plain: the default, then each entry's key and value
+        const struct xdict *d = s->di[i];
+        struct xval none;
+        xnothing(&none);
+        if (xdict_plain(d)) continue;
+        xs_put(s, d->def.xv ? d->def.xv : &none);
+        for (int j = 0; j < d->n; j++) {
+            struct xdent k = d->e[j];
+            k.vs = NULL; k.xv = NULL;
+            xs_put_dent(o, &k);
+            xs_put(s, d->e[j].xv ? d->e[j].xv : &none);
+        }
+    }
+    if (s->nhl != nhl || s->ndi != ndi) s->lost++;   // (a list or a dict the noting missed)
     free(s->hl);
+    free(s->di);
     if (s->nkv != nkv) s->lost++;   // (a view the noting missed)
     *lost = s->lost;
     free(s);
@@ -7094,7 +7244,7 @@ struct xload {
     int n;
     struct xview *kv[XS_VIEWS];
     int nkv;
-    struct xdict *di[XS_DICTS];
+    struct xdict **di;
     int ndi;
     struct xhlist **hl;
     int nhl;
@@ -7263,16 +7413,21 @@ internal int x_state_load(struct pread *r, const char *const *src, struct xregio
     if (ops < 1 || ops > XI_COUNT || pr_int(r) != n) r->bad = 1;
     for (int i = 0; i < n; i++) { code[i] = NULL; vm[i] = NULL; }
     l->ndi = r->bad ? 0 : pr_int(r);
-    if (l->ndi < 0 || l->ndi > XS_DICTS) { r->bad = 1; l->ndi = 0; }
+    if (l->ndi < 0 || (uint32_t)l->ndi > r->n - r->o) { r->bad = 1; l->ndi = 0; }
+    l->di = calloc((size_t)l->ndi + 1, sizeof *l->di);
+    int *dcount = calloc((size_t)l->ndi + 1, sizeof *dcount);   // (a dict of values that aren't plain: its entries, read at the end)
+    if (!l->di || !dcount) { r->bad = 1; l->ndi = 0; }
     for (int i = 0; i < l->ndi && !r->bad; i++) {
         struct xdict *d = calloc(1, sizeof *d);
         if (!d) { r->bad = 1; l->ndi = i; break; }
         d->kt = pr_int(r); d->vt = pr_int(r);
         int dn = pr_int(r);
+        d->next = g_xdicts; g_xdicts = d; g_xdict_n++;   // the language's list: freed with the game's, or by the sweep
+        l->di[i] = d;
+        if (dn < 0 || (uint32_t)dn > r->n - r->o) { r->bad = 1; break; }
+        if (!xdict_plain(d)) { dcount[i] = dn; continue; }
         xs_get_dent(r, &d->def);
         for (int j = 0; j < dn && !r->bad; j++) { struct xdent x; xs_get_dent(r, &x); if (r->bad) { free(x.ks); free(x.vs); } else xdict_put(d, &x); }
-        d->next = g_xdicts; g_xdicts = d;   // the language's list: freed with the game's
-        l->di[i] = d;
     }
     l->nhl = r->bad ? 0 : pr_int(r);   // the lists, empty until their items are read (at the end)
     if (l->nhl < 0 || (uint32_t)l->nhl > r->n - r->o) { r->bad = 1; l->nhl = 0; }
@@ -7381,8 +7536,24 @@ internal int x_state_load(struct pread *r, const char *const *src, struct xregio
                 if (!r->bad) xo_copy(&l->hl[i]->it[l->hl[i]->n++], &t);
             }
         }
+        for (int i = 0; i < l->ndi && !r->bad; i++) {   // the dicts' values that aren't plain, made the dict's own
+            struct xdict *d = l->di[i];
+            struct xval t;
+            if (xdict_plain(d)) continue;
+            xs_get(l, &t);
+            if (r->bad || !(d->def.xv = xdict_own(&t))) { r->bad = 1; break; }
+            for (int j = 0; j < dcount[i] && !r->bad; j++) {
+                struct xdent x;
+                xs_get_dent(r, &x);
+                xs_get(l, &t);
+                if (!r->bad && !(x.xv = xdict_own(&t))) r->bad = 1;
+                if (r->bad) { free(x.ks); xdict_vfree(&x); } else xdict_put(d, &x);
+            }
+        }
         x_region_free(&tmp);
     }
+    free(dcount);
+    free(l->di);
     free(l->hl);
     g_xr = r0;
     free(l);

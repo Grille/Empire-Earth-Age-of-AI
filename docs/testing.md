@@ -1284,6 +1284,17 @@ same lines three times, one with `script state`. 25 mistakes told by the check a
 Old engine against new: the corpus byte for byte the same, the five older probes the same, the structs and lists
 probes the same lines as before the rename.
 
+Dicts of any value (2026-11-20, docs/scripts.md "Dicts"; expr.c DICTS): `tests/lang/dicts.eeai` - plain dicts
+written as a type, passed and returned, dicts of structs (a copy read, set whole), of seqs (spliced), of lists (null
+the default, the list itself read), of dicts, of `int?`, vectors and functions, `+=` on floats, a dict in a list and
+in a struct, `==`, across a wait, 20000 made and dropped; `tests/probes/dicts.eeai` in a game: a timer keeping each
+player's stock in dicts keyed by the player (a struct, a growing seq, a list made where a key is new, a dict in a
+struct) - the same lines three times, one with `script state` called while it waits (restored four times). 26
+mistakes told by the check (keys and values of the wrong type, a list as the default, `d[k].x = 5`, `for` over a
+dict, a dict's method, a personality's dict of vectors ...) and one when it happens (a function made inside a function kept). The `--bench` line
+says the dicts still held too: 300000 made in one loop, 300 kept in a list and 150 in another dict - 451 left. Old
+engine against new: the corpus byte for byte the same, the eight probes (the five, structs, lists, handles) the same.
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus

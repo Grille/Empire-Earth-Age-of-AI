@@ -1,0 +1,116 @@
+// dicts (docs/scripts.md "Dicts"): dict<K, V> of any value type - an entry per key, the default for every key without
+// one; a handle, shared by whoever holds it; a value read is a copy (d[k] = v sets it). What each line works out is
+// in dicts.expect (the build compares)
+struct point {
+    x: int
+    y: int
+}
+struct book {
+    name: text
+    seen: dict<text, int> = dict<text, int>(0)
+}
+count(d: dict<text, int>, k: text) {
+    d[k] += 1
+}
+tally(words: seq<text>): dict<text, int> {
+    let d = dict<text, int>(0)
+    for w in words { count(d, w) }
+    return d
+}
+show(l: list<int>?): text {
+    if l == null { return "none" }
+    let out = ""
+    for v in l { out = "{out}{v};" }
+    return out
+}
+
+// plain values, as ever - written as a type now
+let kills: dict<int, int> = dict<int, int>(0)
+kills[2] += 3
+kills[3] = 1
+let tal = tally(["a", "b", "a"])
+cmd("plain {kills[2]} {kills[3]} {kills[4]} {tal["a"]} {tal["b"]} {tal["c"]}")
+
+// structs: a copy read, set whole
+let spots = dict<text, point>(point(0, 0))
+spots["home"] = point(10, 20)
+let h = spots["home"]
+h.x = 99
+let far = spots["far"]
+cmd("structs {spots["home"]} {h} {far} {spots["home"].y}")
+let moved = spots["home"]
+moved.y += 1
+spots["home"] = moved
+cmd("struct set {spots["home"]}")
+
+// seqs: a value, spliced where a seq is built
+let rows = dict<int, seq<int>>([])
+rows[1] = [1, 2]
+rows[2] = [rows[1], 3]
+let both: seq<int> = [rows[1], rows[2], rows[9]]
+cmd("seqs {len(rows[1])} {len(rows[2])} {rows[2][3]} {len(rows[9])} {len(both)}")
+
+// lists: a handle - null the default, the list itself read (a change to it is the dict's)
+let byname = dict<text, list<int>?>(null)
+byname["a"] = list<int>([1])
+let la = byname["a"]
+if la != null { la.add(2) }
+let lb = byname["b"] ?? list<int>()
+lb.add(7)
+cmd("lists {show(byname["a"])} {show(byname["b"])} {show(lb)}")
+byname["b"] = lb
+lb.add(8)
+cmd("list kept {show(byname["b"])}")
+
+// dicts of dicts, a dict in a list, a dict in a struct (a new one for each made, shared by its copies)
+let nested = dict<int, dict<int, text>?>(null)
+nested[1] = dict<int, text>("-")
+let inner = nested[1]
+if inner != null { inner[5] = "five" }
+let in1 = nested[1]
+let got = in1 != null ? in1[5] : "?"
+let books: list<dict<text, int>> = [dict<text, int>(0), dict<text, int>(7)]
+books[1]["x"] = 4
+let b1 = book("one")
+let b2 = b1
+b2.seen["y"] = 2
+let b3 = book("three")
+cmd("nested {got} {books[1]["x"]} {books[2]["x"]} {b1.seen["y"]} {b3.seen["y"]}")
+
+// nulls, vectors, functions, floats
+let maybe = dict<text, int?>(null)
+maybe["a"] = 5
+let ma = maybe["a"] ?? -1
+let mb = maybe["b"] ?? -1
+let at = dict<int, vec2>(vec(1, 1))
+at[3] = vec(4, 5)
+let ops = dict<text, func<int, int>>((x: int) => x)
+ops["double"] = (x: int) => x * 2
+let dbl = ops["double"]
+let same = ops["other"]
+let share = dict<text, float>(0)
+share["a"] += 1.5
+share["a"] *= 2
+cmd("other values {ma} {mb} {at[3]} {at[1]} {dbl(21)} {same(4)} {share["a"]}")
+
+// shared: a let is the same dict; == the same table
+let alias = spots
+alias["new"] = point(1, 1)
+let copy = dict<text, point>(point(0, 0))
+cmd("shared {spots["new"]} {alias == spots} {copy == spots}")
+
+// across a wait
+let kept = dict<text, seq<text>>([])
+kept["k"] = ["a", "b"]
+wait(1s)
+kept["k"] = [kept["k"], "c"]
+cmd("after wait {len(kept["k"])} {kept["k"][3]}")
+
+// many rounds: made and dropped, freed by the sweep (the checker's --bench line: the dicts still held)
+let total = 0
+for r in 1..20000 {
+    let d = dict<int, point>(point(r, r))
+    d[r] = point(1, 2)
+    total += d[r].x + d[0].y
+}
+cmd("rounds {total}")

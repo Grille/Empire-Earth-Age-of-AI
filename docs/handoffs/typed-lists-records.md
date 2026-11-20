@@ -25,9 +25,15 @@ types, not bound to a specific type", `seq<T>` the value's name. So: `seq<T>` th
 `list<T>` a handle (expr.c LISTS), `[...]` built as the type wanted. Next: dicts on the same footing (any value type,
 a literal), then records typed.
 
-### Next: dicts of any value (agreed 2026-11-20, not started)
+### Dicts of any value: DONE 2026-11-20 (docs/scripts.md "Dicts")
 
-What it takes (read off the code, expr.c DICTS):
+The player 2026-11-20: "do the typed dicts next". Done as planned below: `dict<K, V>` a type of the check
+(XCT_DICT), V any type (a non-plain one an owned `xv` in the entry), the sweep frees dicts too, saves format 6. The
+decisions taken on the way: a list or a dict as V can't be the default (one table for every missing key) - `null`
+with `V?` is; `for x in d` and methods of a dict are mistakes (no order, no keys() yet); `a == b` of dicts works now
+(it was a run-time mistake before). Next: records typed, then the dict literal.
+
+What it took (the plan as it was, read off the code, expr.c DICTS):
 - **The check has no dict type.** `d[k]` is X_ANY when the script is read; xdict_fit checks a value at run time
   against the four plain value types. First a compound type `dict<K, V>` (XCT_DICT, t[0] K, t[1] V) - x_type_named
   for lets, parameters, fields; x_stype(XN_DICT) that type; XN_INDEX of one V; XN_SETI checks K and V (op numeric);

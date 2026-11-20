@@ -1,0 +1,11 @@
+2000 plain 3 1 0 2 1 0
+2000 structs point(10, 20) point(99, 20) point(0, 0) 20
+2000 struct set point(10, 21)
+2000 seqs 2 3 3 0 5
+2000 lists 1;2; none 7;
+2000 list kept 7;8;
+2000 nested five 4 7 2 0
+2000 other values 5 -1 (4, 5) (1, 1) 42 4 3
+2000 shared point(1, 1) 1 0
+3000 after wait 3 c
+3000 rounds 200030000

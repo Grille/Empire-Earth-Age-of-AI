@@ -92,7 +92,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `1920x1080` | a size: `vec(1920, 1080)` |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
-| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A seq is a value, a list is shared as a dict is - "Sequences and lists") |
+| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: any type (`dict<text, point>`, `dict<player, seq<int>>` - "Dicts"). A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A seq is a value, a list is shared as a dict is - "Sequences and lists") |
 | `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
@@ -124,7 +124,7 @@ Written where it can't be told - a function's parameters: `let f = (pos: vec3, i
 `every` has its `run` from there (`(run) => ...` is an int; `(run: text)` a mistake), the others take none. A `let`
 may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: seq<text> = []`, `let l: player? = p.lord`.
 The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit_type`, `function`,
-`record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `seq<T>` a sequence of them, `list<T>` a list ("Sequences and lists"), `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
+`record`, `trigger`, `player`, `game`, `slot`, a struct of the script ("Structs"); `seq<T>` a sequence of them, `list<T>` a list ("Sequences and lists"), `dict<K, V>` a dict ("Dicts"), `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
 made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
 
 **A function's type** says its parameters and what it gives back: `func<int, text, point>` takes an int and a text
@@ -206,6 +206,44 @@ let opt: list<int?> = [1, null, first(s)]      // nulls kept
 
 The personalities' lines keep the texts' rules: a line's sequence may mix what it holds, one in it is spliced, and
 they have no lists.
+
+## Dicts
+
+`dict<K, V>(default)` makes a dict: an entry per key, `default` for every key without one - `d[k]` is never missing.
+K is an `int`, a `text` or an object (`player` ...: by its number, as `==` tells them apart); V any type. Its type is
+written as made, `dict<K, V>`, for a `let`, a parameter, a field, a function's result:
+
+```
+let kills = dict<player, int>(0)
+kills[p] += 1                                  // += -= *= /=: of number values
+let home = dict<player, vec2>(vec(0, 0))
+let spots = dict<text, point>(point(0, 0))
+let pt = spots["gate"]                         // a copy - pt.x = 5 changes pt alone
+pt.x = 5
+spots["gate"] = pt                             // set whole
+let paths = dict<int, seq<int>>([])
+paths[1] = [paths[1], 7]                       // a seq: a value, spliced where a seq is built
+let squads = dict<text, list<unit>?>(null)     // lists: null the default (one list would be every key's)
+let sq = squads["north"] ?? list<unit>()
+sq.add(u)                                      // a list read out is the list itself: the dict's
+squads["north"] = sq
+struct book {
+    seen: dict<text, int> = dict<text, int>(0) // a new dict in each book made, shared by its copies
+}
+```
+
+- A key and a value are checked when the file is read: `kills["a"]`, `spots["a"] = 5`, `kills[maybe]` of a `player?`
+  are mistakes. A dict goes only where its very types do (a `dict<int, int>` is no `dict<int, float>`: it is shared).
+- What `d[k]` gives is a copy of the entry - so `d[k].x = 5`, `d[k][1] = 5`, a struct's method that changes it, `ref
+  r = d[k]` are mistakes (no place: read it into a variable, change it, set it back). A list or a dict in it is a
+  handle: `d[k].add(x)` of a `dict<K, list<T>?>` that holds one adds to it (`let l = d[k]`, `l != null` first).
+- A list or a dict as V: its default would be one table for every key without an entry - a mistake. `null` is (V
+  written with `?`), and each key gets its own where it is new.
+- A dict has no order of its entries: `for x in d` is a mistake - a list of the keys beside it goes through them.
+  No methods (`d.add(...)` is a mistake); `a == b` is the same dict.
+- A dict nobody holds any more is freed (as a list); one a function made inside a function can't be held in one. A
+  dict goes into a saved game with everything that holds it.
+- A personality's dict fields hold an `int`, a `float`, a `bool` or a `text` (the texts' rules: no structs, no lists).
 
 ## Structs
 
