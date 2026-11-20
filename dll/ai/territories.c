@@ -80,11 +80,21 @@
 // and the main force: "the backland is nerly undefended in my case, my focus is on not letting anething go so far in,
 // that includes islands too, piece by piece they become backland too as i gain more map control, water for the ai:
 // terretories can also be held and guarded". So each AI's territories get a ROLE: a land territory it holds, or a
-// water territory it holds (TV_SHIPS of its warships there, more than twice the enemy's it sees there), is a
-// FRONT when it borders ground or water that neither it nor an ally holds - the open border (its own kind) and the
-// shore (the other kind) counted in tiles - and BACKLAND when everything round it is held. An island is a front
-// until the water round it is held; a sea is a front until the shores and seas beyond are.
-#define TV_SHIPS 2
+// sea it claims (below), is a FRONT when it borders ground or water that neither it nor an ally holds - the open
+// border (its own kind) and the shore (the other kind) counted in tiles - and BACKLAND when everything round it is
+// held. A sea is a front until the shores and seas beyond are.
+// THE SEAS' CLAIM (2026-11-20; until then a sea was held by TV_SHIPS = 2 of its warships there, more than twice the
+// enemy's it saw - the player: "deciding ownership, backsea, front by ships is messy ... like land it should be simply
+// claimed by who owns the neighboring land territories, as well as a new open sea flag (no neighboring land), which the
+// ai may choose to explore and patrol with a fleet but never claim"): a sea is claimed by the land along it - TV_SHORE
+// tiles of shore at least (a corner's touch claims nothing) of a land territory it holds; an ally's land makes it
+// friendly. A BORDER SEA: its land and, on the same terms, land with an enemy's building it has seen (ebld) - claimed
+// by both sides, a front for both, never friendly (his rule: "both should pay close attention to it"): the land along
+// it a front too, the fleet's station and the squadrons' zones weigh it as a sea where enemy warships were seen. An
+// OPEN SEA: no land along it - claimed by nobody, ever; for the squadrons' scouts an unheld one (squadrons.c: looked at
+// twice as eagerly) and a front for the sea beside it. What warships stand where is the threat, not the claim: the
+// harbour's second tower (tv_sea_threat), the station's weight
+#define TV_SHORE 5
 enum { TVR_NONE, TVR_FRONT, TVR_BACK };
 #define TV_HELD 3
 // a land territory is its own: TV_HELD of its buildings there (any but a wall's pieces: a field, a house, a tower),
@@ -118,7 +128,7 @@ internal int tv_holder(ee_unit *u, ee_unit_type *td) {
 #define TV_CALM 20000
 #define TV_HOT 8                  // territories looked at closer a pass
 enum { TV_QUIET, TV_FOES, TV_UNSAFE };
-struct tv_terr { uint8_t state, role, friendly; short foe, sold, def, hold, cit, bld, want, ships, eships, abld, ebld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; ebld: an enemy's it has seen there (work.c: no ground to settle); coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
+struct tv_terr { uint8_t state, role, friendly, open_sea, border; short foe, sold, def, hold, cit, bld, want, ships, eships, abld, ebld, open, shore, coast; int fish; float ratio; uint32_t unsafe_t, foe_t, eship_t; };   // bld: its buildings there; ebld: an enemy's it has seen there (work.c: no ground to settle); coast, fish: THE SEAS (a water's shore along land it holds, the food in the fish it has seen there); want: the guard a held one would want; foe_t: enemy soldiers seen there last
 internal struct tv_st {
     unsigned version; int n; struct tv_terr *t;
     uint32_t tick, log_t;
@@ -282,15 +292,28 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (t->foe) t->foe_t = now ? now : 1;
         int w = t->cit / 3 > 3 ? t->cit / 3 : 3;
         if (t->foe_t && now >= t->foe_t && now - t->foe_t < TV_FOE_MEMORY && w < 8) w = 8;
-        t->want = (short)(!g_ter.t[r].water && TV_HOLDS(idx, t) ? (w < TV_GUARD ? w : TV_GUARD) : 0);   // land: a sea is held by ships (below)
+        t->want = (short)(!g_ter.t[r].water && TV_HOLDS(idx, t) ? (w < TV_GUARD ? w : TV_GUARD) : 0);   // land: a sea's guard is the fleet's
     }
-    for (int r = 0; r < s->n; r++) {   // FRONT AND BACKLAND: what it or an ally holds ...
+    for (int r = 0; r < s->n; r++) {   // FRONT AND BACKLAND: what it or an ally holds - land by its buildings ...
         struct tv_terr *t = &s->t[r];
-        // a sea: TV_SHIPS of its warships there and more than twice the enemy's it sees there now (no enemy warship seen
-        // there for 5 minutes at first: with 4 AIs on 5 seas one always passes - 11 to 23 warships a player at minute 45
-        // and no sea held, in 77 of 80 looks)
-        t->role = (uint8_t)(g_ter.t[r].water ? t->ships >= TV_SHIPS && t->ships > 2 * t->eships : TV_HOLDS(idx, t));   // its own (the role below)
-        t->friendly = (uint8_t)(t->role || (!g_ter.t[r].water && t->abld >= TV_HELD));
+        if (g_ter.t[r].water) continue;
+        t->role = (uint8_t)TV_HOLDS(idx, t);   // its own (the role below)
+        t->friendly = (uint8_t)(t->role || t->abld >= TV_HELD);
+    }
+    for (int r = 0; r < s->n; r++) {   // ... a sea by the land along it (THE SEAS' CLAIM above)
+        struct tv_terr *t = &s->t[r];
+        if (!g_ter.t[r].water) continue;
+        int land = 0, own = 0, side = 0, foe = 0;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            struct ter_nb *nb = &g_ter.nb[g_ter.t[r].nb0 + k];
+            if (nb->to >= (unsigned)s->n || g_ter.t[nb->to].water || nb->len < TV_SHORE) continue;
+            struct tv_terr *o = &s->t[nb->to];
+            land = 1; own |= o->role != TVR_NONE; side |= o->friendly; foe |= o->ebld > 0;
+        }
+        t->open_sea = (uint8_t)!land;
+        t->border = (uint8_t)(own && foe);
+        t->role = (uint8_t)own;
+        t->friendly = (uint8_t)(side && !foe);
     }
     for (int r = 0; r < s->n; r++) {   // ... and of its own, which border what nobody of its side holds
         struct tv_terr *t = &s->t[r];
@@ -301,7 +324,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (nb->to >= (unsigned)s->n || s->t[nb->to].friendly) continue;
             if (g_ter.t[nb->to].water == g_ter.t[r].water) t->open = (short)(t->open + nb->len); else t->shore = (short)(t->shore + nb->len);
         }
-        t->role = (uint8_t)(t->open || t->shore ? TVR_FRONT : TVR_BACK);
+        t->role = (uint8_t)(t->open || t->shore || t->border ? TVR_FRONT : TVR_BACK);
     }
     tv_seas(idx);
     tv_border_towers(pl, idx, now);
@@ -315,7 +338,7 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
                 vec2 rc = v2((float)g_ter.t[r].c.x + 0.5f, (float)g_ter.t[r].c.y + 0.5f);
                 uint32_t col = overlay_player_argb((int)idx, 255);
                 if (s->t[r].role == TVR_BACK) overlay_text(rc, -1 - (int)(idx & 3), col, "P%u backland", idx);
-                else if (g_ter.t[r].water) overlay_text(rc, -1 - (int)(idx & 3), col, "P%u sea front %d+%d, %d ships", idx, s->t[r].open, s->t[r].shore, s->t[r].ships);
+                else if (g_ter.t[r].water) overlay_text(rc, -1 - (int)(idx & 3), col, "P%u %s %d+%d, %d ships", idx, s->t[r].border ? "border sea" : "sea front", s->t[r].open, s->t[r].shore, s->t[r].ships);
                 else overlay_text(rc, -1 - (int)(idx & 3), col, "P%u front %d+%d, guard %d of %d", idx, s->t[r].open, s->t[r].shore, s->t[r].sold, s->t[r].want);
             }
             if (s->t[r].state != TV_UNSAFE) continue;
@@ -342,17 +365,21 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
                 if (s->t[r].role == TVR_FRONT) fprintf(g_log, ", a front (open border %d, shore %d)", s->t[r].open, s->t[r].shore); else fprintf(g_log, ", backland");
             }
         }
-        int seas = 0, sea_fronts = 0, lfronts = 0;
-        for (int r = 0; r < s->n; r++) { lfronts += !g_ter.t[r].water && s->t[r].role == TVR_FRONT; if (g_ter.t[r].water && s->t[r].role) { seas++; sea_fronts += s->t[r].role == TVR_FRONT; } }
-        fprintf(g_log, " | %d of them fronts; seas held %d (%d fronts)", lfronts, seas, sea_fronts);
-        {   // its warships by sea: where they stand, and what keeps a sea from being held
-            int wsum = 0, wmost = 0, wn = 0, wfoe = 0;
+        int seas = 0, sea_fronts = 0, borders = 0, opens = 0, lfronts = 0;
+        for (int r = 0; r < s->n; r++) {
+            lfronts += !g_ter.t[r].water && s->t[r].role == TVR_FRONT;
+            opens += s->t[r].open_sea;
+            if (g_ter.t[r].water && s->t[r].role) { seas++; sea_fronts += s->t[r].role == TVR_FRONT; borders += s->t[r].border; }
+        }
+        fprintf(g_log, " | %d of them fronts; seas claimed %d (%d fronts, %d border seas), %d open seas on the map", lfronts, seas, sea_fronts, borders, opens);
+        {   // its warships by sea: where they stand - in its own seas, the border seas, the others
+            int wsum = 0, wmost = 0, wn = 0, wown = 0, wbord = 0;
             for (int r = 0; r < s->n; r++) {
                 if (!g_ter.t[r].water || !s->t[r].ships) continue;
                 wsum += s->t[r].ships; wn++; if (s->t[r].ships > wmost) wmost = s->t[r].ships;
-                wfoe += s->t[r].ships >= TV_SHIPS && s->t[r].ships <= 2 * s->t[r].eships;
+                wown += s->t[r].role ? s->t[r].ships : 0; wbord += s->t[r].border ? s->t[r].ships : 0;
             }
-            fprintf(g_log, "; its %d warships stand in %d seas (most in one: %d), %d of those with 2 or more not held for the enemy warships there", wsum, wn, wmost, wfoe);
+            fprintf(g_log, "; its %d warships stand in %d seas (most in one: %d), %d in seas it claims (%d in border seas)", wsum, wn, wmost, wown, wbord);
         }
         fprintf(g_log, " | %d territories held, %d soldiers short of the guards wanted\n", held, short_of);
         fprintf(g_log, "# tview: P%u at %.1f min: waters", idx, now / 60000.0);
@@ -374,11 +401,11 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
 // boats_for_food), the fleet's size and the navy's share of the income by how many enemies live across the water
 // (navy.c navy_detect: 1 on islands, 0 on one continent - there no fleet but by need), and every ship order trained in
 // the area that has the most docks (ee_unit_mgr::train), wherever the fish or the fleet is.
-// Instead, each AI's WATERS: the sea territories along land it holds (a shore of a territory with TV_HELD of its
-// buildings), every TV_EVERY with the view, by sea (the game's connected water, area_id 1):
+// Instead, each AI's WATERS: the sea territories it claims (THE SEAS' CLAIM; until 2026-11-20 any with a shore of a
+// territory with TV_HELD of its buildings), every TV_EVERY with the view, by sea (the game's connected water, area_id 1):
 //   fish  - the food in the fish it has seen in them: a sea with fish and a dock of its is fished (fleet.c boats_tick:
 //           while its food workers are short and the wood is there, at a dock on the sea with the most);
-//   open  - a water of its that borders land nobody of its side holds, or water that is not its waters: it leads
+//   open  - a water of its that is a front (borders land or water nobody of its side holds, a border sea): it leads
 //           somewhere, somebody can come. A lake inside its own land is closed and wants nothing;
 //   need  - a warship per sea_fleet tiles of its open waters there, 2 at least: a pond between it and a neighbour
 //           two, a long coast more - and more with every shore it takes. And while none of the land it holds borders
@@ -418,21 +445,16 @@ internal void tv_seas(unsigned idx) {
         int sh = 0;
         for (int k = 0; k < g_ter.t[w].nbn; k++) {
             struct ter_nb *nb = &g_ter.nb[g_ter.t[w].nb0 + k];
-            if (nb->to < (unsigned)s->n && !g_ter.t[nb->to].water && s->t[nb->to].bld >= TV_HELD) sh += nb->len;
+            if (nb->to < (unsigned)s->n && !g_ter.t[nb->to].water && s->t[nb->to].role != TVR_NONE) sh += nb->len;
         }
         s->t[w].coast = (short)(sh > 0x7FFF ? 0x7FFF : sh);
     }
     for (int w = 0; w < s->n; w++) {
-        if (!s->t[w].coast) continue;
+        if (!g_ter.t[w].water || s->t[w].role == TVR_NONE) continue;
         unsigned oc = area_id(g_ter.t[w].c, 1);
         if (!oc) oc = ocean_near(g_ter.t[w].c, 6, NULL);
         if (!oc) continue;
-        int open = 0, k = 0;
-        for (int j = 0; j < g_ter.t[w].nbn && !open; j++) {
-            struct ter_nb *nb = &g_ter.nb[g_ter.t[w].nb0 + j];
-            if (nb->to >= (unsigned)s->n) continue;
-            open = g_ter.t[nb->to].water ? !s->t[nb->to].coast : !(s->t[nb->to].bld >= TV_HELD || s->t[nb->to].abld >= TV_HELD);
-        }
+        int open = s->t[w].role == TVR_FRONT, k = 0;
         while (k < v->n && v->s[k].ocean != oc) k++;
         if (k == v->n) { if (v->n >= TVS_N) continue; memset(&v->s[k], 0, sizeof v->s[k]); v->s[k].ocean = oc; v->n++; }
         struct tv_sea *e = &v->s[k];
@@ -1007,7 +1029,8 @@ internal int tv_front_guard(unsigned idx, ivec2 p, int *have, int *want) {
     return 1;
 }
 // fleet.c FLEET STATION: the water territory of sea `ocean` the fleet stands in - the one with the longest shore along
-// land AI idx holds, x (1 + the enemy warships it sees there, + 2 when it saw any there in the last 5 minutes); its
+// land AI idx holds, x (1 + the enemy warships it sees there, + 2 when it saw any there in the last 5 minutes or it is
+// a border sea); its
 // middle into *out and its number into *terr; 0: no sea by held land. The one it stands in (*terr on entry, TER_NONE
 // none) stays unless another weighs a third more: 17 changes of station a player in a game without (a sighting here,
 // a sighting there)
@@ -1025,7 +1048,8 @@ internal int tv_sea_station(unsigned idx, unsigned ocean, ivec2 *out, unsigned *
             if (nb->to < (unsigned)s->n && !g_ter.t[nb->to].water && s->t[nb->to].role != TVR_NONE) shore += nb->len;
         }
         if (!shore) continue;
-        float w = (float)shore * (1.0f + (float)s->t[r].eships + (s->t[r].eship_t && now >= s->t[r].eship_t && now - s->t[r].eship_t < TV_FOE_MEMORY ? 2.0f : 0.0f));
+        int recent = s->t[r].border || (s->t[r].eship_t && now >= s->t[r].eship_t && now - s->t[r].eship_t < TV_FOE_MEMORY);   // a border sea as one where enemy warships were seen
+        float w = (float)shore * (1.0f + (float)s->t[r].eships + (recent ? 2.0f : 0.0f));
         if ((unsigned)r == *terr) w *= 1.34f;
         if (w > bw) { bw = w; best = r; }
     }

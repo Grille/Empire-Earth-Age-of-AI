@@ -31,10 +31,10 @@ internal uint32_t ao_army_id(unsigned idx, int army) { return AO_ARMY | (uint32_
 //   its soldiers there of those stationed and its share of the force, its citizens (work.c ITS TERRITORY), and
 //   "under attack" with the enemy soldiers seen there;
 // - A SEA (the player 2026-11-16: "the ai overview dosnt show wether a water territory is "backland" or "front""): one
-//   along land it holds (its waters), one it holds or has warships on - a hollow circle at its middle, "S<number> sea
-//   front / backland / not held" (territories.c: held with TV_SHIPS of its warships there and more than twice the
-//   enemy's seen there; a front when it borders what nobody of its side holds), its warships and the enemy's, the fish
-//   it has seen there and its shore along its land;
+//   along land it holds (its waters), one it claims, an open sea, or one it has warships on - a hollow circle at its
+//   middle, "S<number> border sea / open sea / sea front / back sea / sea not claimed" (territories.c THE SEAS' CLAIM:
+//   claimed by the land along it; a front when it borders what nobody of its side holds), its warships and the
+//   enemy's, the fish it has seen there and its shore along its land;
 // - a MOVE: the soldiers that stand in one territory and are stationed in another, by reason - one arrow from the
 //   middle of the one to the middle of the other, wider with more of them, dots running along it (AO_RUN a
 //   passage; each dot an anchor of its own, so it glides between the updates), and at its middle the reason and the
@@ -88,10 +88,10 @@ internal void ao_territories(ee_player *pl, unsigned idx, uint32_t col, uint32_t
     for (int r = 0; r < n; r++) {
         struct tv_terr *t = &s->t[r];
         if (g_ter.t[r].water) {   // A SEA
-            if (t->role == TVR_NONE && !t->coast && !t->ships) continue;
+            if (t->role == TVR_NONE && !t->coast && !t->ships && !t->open_sea) continue;
             vec2 at = ao_at(g_ter.t[r].c);
             overlay_mark(at, OVM_CIRCLE | OVM_HOLLOW, 16, col);
-            overlay_text(at, -1, col, "S%d sea %s", r, t->role == TVR_FRONT ? "front" : t->role == TVR_BACK ? "backland" : "not held");
+            overlay_text(at, -1, col, "S%d %s", r, t->border ? "border sea" : t->open_sea ? "open sea" : t->role == TVR_FRONT ? "sea front" : t->role == TVR_BACK ? "back sea" : "sea not claimed");
             overlay_text(at, 0, 0xFFFFFFFF, "%d warships, %d enemy", t->ships, t->eships);
             if (t->fish || t->coast) overlay_text(at, 1, 0xFFE0E0E0, "fish %d food, shore %d", t->fish, t->coast);
             continue;

@@ -143,7 +143,7 @@ internal struct fleet g_sqf;   // a squadron as fleet.c's fight estimate reads o
 internal unsigned sq_ocean_of(int r) { return area_id(g_ter.t[r].c, 1); }
 internal float sq_sea_value(const struct tv_st *s, int r, uint32_t now) {   // what a sea territory is worth holding
     const struct tv_terr *t = &s->t[r];
-    int recent = t->eship_t && now >= t->eship_t && now - t->eship_t < 300000;
+    int recent = t->border || (t->eship_t && now >= t->eship_t && now - t->eship_t < 300000);   // a border sea (territories.c THE SEAS' CLAIM) as one where enemy warships were seen
     float v = (float)t->coast + (float)t->fish / 200.0f;
     if (v <= 0 && !recent) return 0;
     return v * (recent ? 2.0f : 1.0f) + (recent ? 20.0f : 0.0f);
