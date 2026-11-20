@@ -620,7 +620,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // citizens may work, the cheapest first, then the nearest to the base, out of danger - get a Settlement 2 to 10
         // tiles off, one every BD_FOREST_EVERY; ACROSS THE WATER below lays it with nobody there, the ferry brings the
         // builders and then the wood cutters
-        if (!type && !placed && !open_settle && !wait[1] && FOREST_ACROSS(idx) && EXPAND_ACROSS(idx) && g_wk[idx].idle >= BD_FOREST_IDLE &&
+        if (!type && !placed && !open_settle && !wait[1] && FOREST_ACROSS(idx) && EXPAND_ACROSS(idx) && (g_wk[idx].idle >= BD_FOREST_IDLE || g_wk[idx].want[3] - g_wk[idx].have[3] >= BD_FOREST_IDLE) &&   // work.c WOOD ACROSS: short of wood cutters as many
             (!b->forest_t || now < b->forest_t || now - b->forest_t >= BD_FOREST_EVERY) &&
             ut_has(UT(B_SETTLEMENT)) && can_build(pl, UT(B_SETTLEMENT)) && bd_pays(pl, UT(B_SETTLEMENT), com)) {
             b->forest_t = now ? now : 1;

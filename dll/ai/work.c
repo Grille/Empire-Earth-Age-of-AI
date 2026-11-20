@@ -635,6 +635,11 @@ internal int wk_reach(struct tv_st *s, int home, short *out, int max) {
 // middle, once a minute) less its wood cutters on that land - and its bushes' free places; the ferry takes idle
 // citizens only to those (wood), to a land with a drop site of its or a foundation waiting for builders (build.c lays
 // a Settlement by such trees on a land with no drop site of its). idle: its idle citizens on the land.
+// WOOD ACROSS (the player 2026-11-20: "p3 is starved for wood and has none left on its home island, but it also dosnt
+// bring its citezens to the island it controls with wood reserves" - his P3 at minute 349: 42 wood cutters wanted, 0
+// at work, 111 on food against 57 wanted, nobody idle: those who found no tree were set to food, so neither the trees
+// across, the land's spare nor the ferry's pick saw them): while it is short of wood cutters the trees across count as
+// with idle citizens, and those beyond their resource's share are spare and taken as the idle are.
 #define WK_LANDS 16
 #define WK_TREE_PLACES 8
 #define WK_TREE_EVERY 60000
@@ -653,7 +658,9 @@ internal int expand_has(ee_player *pl, ee_unit *u);   // expand.c: a passenger o
 internal int wk_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit **out, int max) {
     static ee_unit *c[WK_CITS];
     static int d[WK_CITS];
-    int nc = 0, count = 0, got = 0;
+    int nc = 0, count = 0, got = 0, over[7];
+    struct wk_st *w = &g_wk[player_get_index(pl) & 15];
+    for (int r = 0; r < 7; r++) over[r] = FOREST_ACROSS(player_get_index(pl) & 15) && w->want[3] > w->have[3] ? w->have[r] - w->want[r] : 0;   // WOOD ACROSS
     for (ee_unit *u = player_get_units(pl); u && count < 16384 && nc < WK_CITS; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(td))) continue;
@@ -661,7 +668,9 @@ internal int wk_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit *
         ee_goal *g = unit_get_goal(u);
         ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
         int crowd = site && wk_animal_site(site) && (int)site_gatherers(site) > WK_HUNTERS;   // A CROWD ON ONE ANIMAL: as idle
-        if (g && !crowd && !(site && unit_get_amount(site) > 0 && unit_get_resource(site) == 3)) continue;   // idle, or on wood
+        int rs = site ? unit_get_resource(site) : -1, extra = rs >= 2 && rs < 7 && rs != 3 && over[rs] > 0;   // WOOD ACROSS: beyond its resource's share
+        if (g && !crowd && !extra && !(site && unit_get_amount(site) > 0 && rs == 3)) continue;   // idle, or on wood
+        if (extra) over[rs]--;
         c[nc] = u; d[nc++] = ivec2_dist2(unit_get_tile(u), toward) / 4 + (g ? 0x10000000 : 0);
     }
     while (got < max) {
@@ -925,15 +934,19 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             l->free += fr;
             if (fr > most[l - L->l]) { most[l - L->l] = fr; l->at = unit_get_tile(mine[k].u); }
         }
-        int wood_on[WK_LANDS] = { 0 };
+        int wood_on[WK_LANDS] = { 0 }, over[7];
+        for (int r = 0; r < 7; r++) over[r] = w->have[r] - w->want[r];
         for (int i = 0; i < nc; i++) {
-            if (cit[i].res != 0 && cit[i].res != 3) continue;
+            // WOOD ACROSS: those beyond their resource's share are spare too, while it is short of wood cutters
+            int extra = FOREST_ACROSS(idx) && w->want[3] > w->have[3] && cit[i].res >= 2 && cit[i].res < 7 && cit[i].res != 3 && over[cit[i].res] > 0;
+            if (cit[i].res != 0 && cit[i].res != 3 && !extra) continue;
+            if (extra) over[cit[i].res]--;
             struct wk_land *l = wk_land_at(idx, area_id(unit_get_tile(cit[i].u), 2));
             if (!l || !l->land) continue;
             l->spare++;
-            if (cit[i].res == 0) l->idle++; else wood_on[l - L->l]++;
+            if (cit[i].res == 0 || extra) l->idle++; else wood_on[l - L->l]++;   // WOOD ACROSS: the extra ones as idle (the ferry fills the trees' places from those)
         }
-        if (FOREST_ACROSS(idx) && w->idle > 0) {   // TO THE TREES ACROSS
+        if (FOREST_ACROSS(idx) && (w->idle > 0 || w->want[3] > w->have[3])) {   // TO THE TREES ACROSS (WOOD ACROSS: short of wood cutters too)
             typeof(&g_wkt[0]) T = &g_wkt[idx];
             if (!T->t || now < T->t || now - T->t >= WK_TREE_EVERY) {
                 T->t = now ? now : 1; T->n = 0;
