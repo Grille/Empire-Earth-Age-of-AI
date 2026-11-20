@@ -21,6 +21,17 @@
 #define S_FOOD       1024u  // ... that is its food base: a silo or a field (the row "air" leaves it alone)
 #define S_RESEARCH   2048u  // ... that is a research building the row "research" itself asks for: a University, a Hospital, a Temple
 #define S_CIT        4096u  // a citizen (the row "research" leaves its food alone: the economy first)
+// THE SAVINGS (savings.c): each pool's one saving - the soldiers', the warships'
+enum { SV_ARMY, SV_NAVY, SV_N };
+internal void sv_hold(ee_player *pl, unsigned spender, int r[7]);
+internal int sv_want(unsigned idx, int g, int type, float have, int urgent);
+internal void sv_held(ee_player *pl, unsigned idx, int g, int type, int held[7]);
+internal int sv_gave(unsigned idx, int g, int type);
+internal int sv_type(unsigned idx, int g);
+internal void sv_bought(unsigned idx, int type);
+internal void sv_log(unsigned idx, uint32_t now);
+internal int sv_on(unsigned idx);
+internal int g_sv_order = -1;   // the type being ordered now (econ.c train_budget): its own saving holds nothing from it
 
 // THE ROW "air" (defence.c STRONG ANTI-AIR, aa_strong; the player 2026-11-11: AA far too weak - in the test the AA
 // buildings waited for the farms while the town was bombed, "27 buildings held back ... type 145 for the farms"): while
@@ -139,6 +150,9 @@ internal const struct prio_row {
     { "upgrades",  prio_upgrades, S_BUILD,                                       S_MIL | S_PLAN, 0 },
     { "navy",      prio_navy,     S_SHIP | S_REQ | S_ORDER | S_TR_ECON | S_BUILD, 0,             0 },
     { "special",   prio_special,  S_REQ | S_ORDER | S_BUILD,                     S_MIL,          1 },
+    // a soldier's or warship's order leaves its pool's saving alone (savings.c; apart: the warships that see the stock past
+    // the rows see it too)
+    { "savings",   sv_hold,       S_REQ | S_ORDER | S_BUILD,                     S_MIL | S_SHIP, 1 },
 };
 #define PRIO_N ((int)(sizeof g_prio / sizeof g_prio[0]))
 

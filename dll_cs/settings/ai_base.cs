@@ -1044,6 +1044,12 @@ class ai_base
         /// soldier before it trains a substitute (at once with enemy soldiers in its base). 0 = substitute at once
         [advanced]
         int substitute_wait = 90;
+        /// Savings: the soldier or warship the AI wants and can't pay yet is saved for while the money for it grows -
+        /// its cost held from the other soldiers' (warships') orders, in the stock and in their account -, given up
+        /// only when it stalls for 2 minutes, can't be reached within 10 at the rate it grows, or soldiers are needed at
+        /// once (enemies in the base). 0 = the old way: substitute_wait for soldiers, the next payable ship for the navy
+        [advanced]
+        bool savings = false;
         /// The mod's own training orders (AA units, siege, home guard, transports) only up to the room under the population
         /// cap - at the cap they were paid for and stuck in the queue, blocking the AI's own training. A mask of players
         /// (65535 = all, 0 = off)

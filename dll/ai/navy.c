@@ -715,7 +715,7 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
     int others = 0;
     for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
     for (int r = 1; r < NR_N; r++) if (r != NR_MSUB) others += have[r];
-    if (!g_set_ai[1].missile_subs || have[NR_MSUB] >= (others >= 2 * NV_MSUB_FLEET ? 2 : others >= NV_MSUB_FLEET ? 1 : 0) * NV_MSUB_GROUP) w[NR_MSUB] = 0;   // [ai_base] missile_subs
+    if (!g_set_ai[1].missile_subs || (sv_type(idx, SV_NAVY) != best[NR_MSUB] && have[NR_MSUB] >= (others >= 2 * NV_MSUB_FLEET ? 2 : others >= NV_MSUB_FLEET ? 1 : 0) * NV_MSUB_GROUP)) w[NR_MSUB] = 0;   // [ai_base] missile_subs; one saved for stays wanted (THE SAVINGS: a ship sunk dropped a saving at 97%)
 }
 // the mix's type for the game's warship order asked (0: the game's own)
 internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
@@ -735,7 +735,7 @@ internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
     // the role furthest below its share - or, when its type can't be paid now, the next one below its share that can
     // (h2h, 160 games: waiting for the first choice cost the AI with the mix a ship an hour)
     const int *st = player_stock_at(pl);
-    int pool = need ? 0x7FFFFFFF : navy_account(idx, 3), done[NR_N] = { 0 };
+    int pool = need ? 0x7FFFFFFF : navy_account(idx, 3), done[NR_N] = { 0 }, held[7] = { 0 }, held_all = 0;
     for (int pass = 0; pass < NR_N; pass++) {
         int r0 = 0;
         float d0 = 0;
@@ -743,6 +743,8 @@ internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
             float d = w[r] / wsum * (float)(all + 1) - (float)have[r];
             if (w[r] > 0 && !done[r] && (!r0 || d > d0)) { d0 = d; r0 = r; }
         }
+        int svt = pass ? -1 : sv_type(idx, SV_NAVY);   // THE SAVINGS: the type saved for stays the first choice while its role is wanted
+        for (int r = 1; r < NR_N && svt >= 0; r++) if (w[r] > 0 && best[r] == svt) { r0 = r; break; }
         // any role it can pay, the most missing first (also one at or above its share) - the iron the frigates need
         // comes in slowly while the account's wood and gold lay unused (Small Islands e5: account W600 G574 I41, 488
         // frigate orders refused)
@@ -750,8 +752,16 @@ internal int nv_mix_pick(ee_player *pl, unsigned idx, int asked) {
         done[r0] = 1;
         if (!pass) br = r0;
         int pay = 1, total = 0;
-        for (int q = 2; q < 7; q++) { int c = unit_cost(pl, best[r0], q); total += c; pay &= c <= st[q]; }
-        if (pay && total <= pool) { if (r0 != br) pk->cheaper++; return best[r0]; }
+        for (int q = 2; q < 7; q++) { int c = unit_cost(pl, best[r0], q); total += c; pay &= c <= st[q] - held[q]; }
+        if (pay && total <= pool - held_all) { if (r0 != br) pk->cheaper++; return best[r0]; }
+        if (!pass && sv_on(idx)) {   // THE SAVINGS (savings.c): the first choice saved for - the others only from what lies beyond it
+            float hv = total > 0 && pool < 0x7FFFFFFF ? (float)pool / (float)total : 1.0f;
+            for (int q = 2; q < 7; q++) { int c = unit_cost(pl, best[r0], q); if (c > 0 && (float)st[q] / (float)c < hv) hv = (float)st[q] / (float)c; }
+            if (sv_want(idx, SV_NAVY, best[r0], hv, 0)) {
+                for (int q = 2; q < 7; q++) held[q] = unit_cost(pl, best[r0], q);
+                held_all = pool < 0x7FFFFFFF ? total : 0;
+            }
+        }
     }
     return br ? best[br] : 0;
 }
@@ -774,9 +784,10 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
     int need = fleet_need_pick(pl, idx, cand, nc, mix, now);
     if (!need || need == mix) return mix;
     const int *st = player_stock_at(pl);
-    int pay = 1, total = 0;
-    for (int q = 2; q < 7; q++) { int c = unit_cost(pl, need, q); total += c; pay &= c <= st[q]; }
-    return pay && total <= navy_account(idx, 3) ? need : mix;
+    int pay = 1, total = 0, sh[7] = { 0 };
+    sv_held(pl, idx, SV_NAVY, need, sh);   // THE SAVINGS: not out of the navy's saving
+    for (int q = 2; q < 7; q++) { int c = unit_cost(pl, need, q); total += c; pay &= c <= st[q] - sh[q]; }
+    return pay && total <= navy_account(idx, 3) - (sh[3] + sh[5] + sh[6]) ? need : mix;
 }
 // stage 4 (fleet.c fl_build): the type of the mod's own warship order - the mix's choice, asked as its first ship type
 internal int navy_fleet_type(ee_player *pl, unsigned idx) {
@@ -795,6 +806,8 @@ internal void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, c
         pk->asked[nv_role(type_data(asked))]++; pk->trained[r]++; pk->changed += pick != asked;
         pk->ring_role[pk->ring_i] = r; pk->ring_t[pk->ring_i] = now ? now : 1; pk->ring_i = (pk->ring_i + 1) & 7;
         pk->wait_type = 0;
+    } else if (blocked && sv_on(idx)) {   // THE SAVINGS: skipped only once its saving gave up on it
+        if (sv_gave(idx, SV_NAVY, pick) && !(pick == pk->skip_type && now < pk->skip_until)) { pk->skip_type = pick; pk->skip_until = now + 60000; pk->skipped++; }
     } else if (blocked) {   // the budget refused it: wait 2 minutes for it, then another role for one
         if (pk->wait_type != pick || now < pk->wait_since) { pk->wait_type = pick; pk->wait_since = now; }
         else if (now - pk->wait_since >= 120000) { pk->skip_type = pick; pk->skip_until = now + 60000; pk->wait_type = 0; pk->skipped++; }

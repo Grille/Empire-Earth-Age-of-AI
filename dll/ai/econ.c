@@ -2361,9 +2361,14 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
                   (g_expand_econ && !military && is_transport(req[0]));   // the outpost's (expand.c ex_ferry_ship)
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
+    g_sv_order = req[0];   // THE SAVINGS (savings.c): its own saving holds nothing from it
+    sv_log(idx, now);
     prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |
                   (tr_econ ? S_TR_ECON : 0) | (prio_air_type(idx, req[0]) ? S_AIR : 0) | (!military && (is_citizen_type(req[0]) || req[0] == UT(DOMESTIC_WOLF)) ? S_CIT : 0), reserve, sp);   // what's above this order (priority.c)
+    g_sv_order = -1;
     for (int r = 2; r < 7; r++) reserve[r] += sp[r];
+    int svh[7] = { 0 };   // THE SAVINGS: its pool's saving's cost, held from the pool's account too (not from the saved type itself)
+    if (military && !g_priority_mil && !req_unit) sv_held(pl, idx, ship ? SV_NAVY : SV_ARMY, req[0], svh);
     int t3[7] = { 0 };   // spend_tiers: the top tier's, held from the warships that see the whole stock too
     if (g_spend_tiers && !g_landing_order) expand_hold(pl, t3);
     if (!g_bud[idx].init) {
@@ -2423,6 +2428,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
         if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
                                                            // the stock above the reserve
             int allowed = ship ? navy_account(idx, r) : (int)g_bud[idx].mil[r];   // a warship: the navy account
+            allowed -= ship ? svh[3] + svh[5] + svh[6] : svh[r];   // THE SAVINGS (the navy's account is one pool)
             int excess = stock[r] - reserve[r] - (r >= 4 ? PV(idx, g_v_hoard_mineral, g_hoard_cap_mineral) : g_hoard_cap);   // never hoard beyond the cap
             if (excess > allowed) allowed = excess;
             if (early && !ship) visible = stock[r];   // the account is the army's own
@@ -2472,7 +2478,12 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
         int got = 0, alt = mt_choose(pl, idx, req[0], visibles, stock, reserve, want, 0, trainable, &got);
         if (alt) { *sub_type = alt; *afford = got; g_mil[idx].subs++; g_sub_spare_food = 0; return; }
     }
-    if (sub == 1 && trainable && !g_sub_thrift) {   // the budget refused a unit it can train: save for it first
+    if (sub == 1 && trainable && !g_sub_thrift && sv_on(idx) && !ship) {   // THE SAVINGS (savings.c): saved for while the money for it grows
+        float have = 1.0f;
+        for (int r = 2; r < 7; r++) { int c = unit_cost(pl, req[0], r); if (c > 0 && (float)visibles[r] / (float)c < have) have = (float)visibles[r] / (float)c; }
+        sub = !sv_want(idx, SV_ARMY, req[0], have, base_threatened(idx));
+        if (!sub) g_mil[idx].saving++;
+    } else if (sub == 1 && trainable && !g_sub_thrift) {   // the budget refused a unit it can train: save for it first
         if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
         int sw = PV(idx, g_v_sub_wait, g_sub_wait);
         // metal_plan NOWAIT: not for a unit whose gold or iron won't come within the wait
@@ -2686,6 +2697,7 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     if (pl && military) { int q[2] = { req0, req1 }; am_train_note(pl, idx, q, blocked, sub_type, *(unsigned *)b, stock, visibles); }
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     if (pick) { navy_pick_done(pl, idx, pick, asked, before, stock, blocked); req[0] = asked; }
+    if (pl && *(unsigned *)b > 0) sv_bought(idx, req0);   // THE SAVINGS: its saving done
     return res;
 }
 

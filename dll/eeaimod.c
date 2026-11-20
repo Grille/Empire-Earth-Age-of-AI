@@ -112,6 +112,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // 
 internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // explore.c: the food search, the scout
 internal void explore_step(ee_player *pl, uint32_t now);   // explore.c: the explorers' next goals between the looks
 internal void explore_new_game(void);
+internal void savings_new_game(void);   // savings.c
 internal void stations_step(ee_player *pl, uint32_t now);   // stations.c: the scouts' next goals between the looks
 internal void work_new_game(void);
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now);   // build.c: building by territory
@@ -439,6 +440,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     watch_new_game();
     work_new_game();
     explore_new_game();
+    savings_new_game();
     build_new_game();
     research_new_game();
     stations_new_game();
@@ -487,6 +489,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/packing.c"
 #include "ai/priority.c"
 #include "ai/econ.c"
+#include "ai/savings.c"       // THE SAVINGS: each pool's one saving - the soldiers', the warships'
 #include "ai/claims.c"   // orders by priority: who may give a unit an order, a claim's stance (ships, citizens)
 #include "ai/attack.c"
 #include "ai/stats.c"
@@ -828,6 +831,7 @@ internal void install(HMODULE self) {
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
     }
     econ_install(g_autotest ? g_ini : NULL);
+    savings_install(g_autotest ? g_ini : NULL);
     food_install(g_autotest ? g_ini : NULL);
     mines_install(g_autotest ? g_ini : NULL);
     cz_install(g_autotest ? g_ini : NULL);
