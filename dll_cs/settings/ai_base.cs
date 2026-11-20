@@ -293,6 +293,12 @@ class ai_base
         /// core of what is trained, the frigates' speed bought with their range. 1 = on.
         [advanced]
         bool sea_squadrons = true;
+        /// The shore decided (sea_squadrons): the squadrons' warships move plainly when quiet and keep a target on land
+        /// only within their reach, instead of sailing after whatever they see there and turning back at the next
+        /// tower; a main squadron shells a building on its sea's coast only when its estimate beats the defences that
+        /// reach the water there, the defences first, and stays at it while it still does. 0 = off
+        [advanced]
+        bool sea_shore_fire = false;
         /// Storms (the game's computer player off): the AI's ships within reach of an enemy's storm - the prophet's
         /// hurricane sinks a frigate in seconds - sail straight out of it, whatever they were doing, and the squadrons
         /// send nobody into one. 1 = on.
@@ -321,6 +327,12 @@ class ai_base
         /// sees furthest), patch after patch, 1 to 4 of them by the army's size; with nothing left to look at they
         /// rejoin it. So a base sneaked in behind its lines is found. 1 = on.
         bool fog_patrols = true;
+        /// Coast batteries (the game's computer player off): with no attack planned the AI's siege stands at posts a few
+        /// tiles inland of the coasts along its front seas, 5 together, holding its ground - siege outreaches the
+        /// battleships of its epoch by a tile or two; where enemy warships were seen it trains up to 5 siege per battery
+        /// for it, 2 batteries at most. 0 = off
+        [advanced]
+        bool coast_siege = false;
         /// Watch towers: a patch of 6 or more cells (4 x 4 tiles) of a territory the AI holds that it has had in sight
         /// less than a quarter of the time gets a tower in its middle - from minute 10, one every 2 minutes at most,
         /// none within 8 tiles of a tower of its. 1 = on.

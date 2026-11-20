@@ -1820,12 +1820,14 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
                                               idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger, sea, sea_food, fish ? "has fish" : "has none");
 }
 internal void fleet_new_game(void) { squadrons_new_game(); claims_new_game(); memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
+internal void squadrons_install(const char *autotest_ini);   // squadrons.c
 internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
     g_fl_station = g_set_ai[1].fleet_station;
     g_squadrons = g_set_ai[1].sea_squadrons;
     if (autotest_ini) g_v_squadrons = ini_int("autotest", "v_sea_squadrons", -1, autotest_ini);
+    squadrons_install(autotest_ini);
     g_storm = g_set_ai[1].storm_dodge;
     if (autotest_ini) g_v_storm = ini_int("autotest", "v_storm_dodge", -1, autotest_ini);
     g_harbours = g_set_ai[1].harbours;

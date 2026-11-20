@@ -117,8 +117,35 @@
 #define SQ_T 4096
 enum { SQK_MAIN, SQK_SCOUT, SQK_HUNT };
 internal const char *const k_sqk[3] = { "main", "scouts", "hunters" };
-enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_SUPPORT, SQS_N };
-internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening", "ahead of a push's landing" };
+enum { SQS_REST, SQS_ENGAGE, SQS_HOLD, SQS_HELP, SQS_PUSH, SQS_SCOUT, SQS_RAID, SQS_FLEE, SQS_HUNT, SQS_ESCORT, SQS_SCREEN, SQS_SUPPORT, SQS_SHELL, SQS_N };
+internal const char *const k_sqs[SQS_N] = { "at rest", "fighting in its zone", "holding, help called", "helping", "pushing", "scouting", "raiding", "running", "hunting", "escorting", "screening", "ahead of a push's landing", "shelling the shore" };
+// THE SHORE ([ai_base] sea_shore_fire, off until measured; [autotest] v_sea_shore_fire; the player 2026-11-20: "ships
+// attacking targets on land are very skitish, unable to decide wether to do it or not"). Traced (Small Islands large
+// from World War I, 2 games, each warship every 2.7 s): the game's own target pick - at rest, and on the squadrons' moves,
+// which were attack-moves sent again as their middle shifted - took citizens, priests and buildings 10-13 tiles off;
+// the next look found the target in a danger zone (EACH SHIP) and sent the ship back, where the game picked the next:
+// attack and back every 5-10 s for minutes, Dreadnoughts too, and nothing shelled. Stand-your-ground alone kept it
+// (the attack-moves pick on their way). So the shore is decided, not stumbled into:
+//   - the quiet moves (at rest, scouting, to the main squadron) are plain moves; their own stance stays (standing their
+//     ground too, against the sea opponent - tests/scenarios/seaop.eeai, from World War I, 6 games -, they sank 12.7 of
+//     its warships against 19.3 and its raiders killed 13.2 citizens against 6.7: they let the raiders shell the coast);
+//   - a land target a ship has taken anyway is kept only within its reach from water out of every danger zone;
+//   - SHELLING: a main squadron at rest with SQ_SHELL_HP of its hit points looks at the enemy buildings it sees on the
+//     coast of its sea within SQ_SHELL_R of its zone, the nearest first (SQ_SHELL_LOOKS): against the defences that reach
+//     the water off one - towers and the land units that threaten ships (fleet.c fl_danger_r), seen within their reach +
+//     SQ_SHELL_DEF - its estimate (Lanchester's square law as fl_ratio, the game's damage table both ways) from
+//     SQ_SHELL_GO: it shells it, the defences reaching it first, the nearest the squadron first, then the building - its
+//     ships out of EACH SHIP's danger rules while it lasts (the hurt still go to repair) - until the estimate is under
+//     SQ_SHELL_HOLD or its hit points under SQ_SHELL_OFF, then the next. Enemy warships in its zone come first.
+internal int g_sq_shore = 0, g_v_sq_shore = -1;
+#define SQ_SHORE(idx) PV(idx, g_v_sq_shore, g_sq_shore)
+#define SQ_SHELL_HP 0.7f
+#define SQ_SHELL_OFF 0.4f
+#define SQ_SHELL_R 30
+#define SQ_SHELL_DEF 4
+#define SQ_SHELL_GO 1.5f
+#define SQ_SHELL_HOLD 1.1f
+#define SQ_SHELL_LOOKS 6
 struct sq {
     int on, kind, ocean, anchor;          // anchor: the zone's water territory (main)
     ivec2 zc, go, ordered;                // the anchor's middle, where it goes, where it was sent last
@@ -126,14 +153,15 @@ struct sq {
     ee_unit *u[FL_MAX];
     float ratio, zvalue;
     uint32_t order_t, state_t, target_t;
-    unsigned engages, holds, helps, pushes, raids, scouted, flees, escorted, screens;
+    unsigned engages, holds, helps, pushes, raids, scouted, flees, escorted, screens, shelled;
+    ee_unit *shell; int shell_id;         // THE SHORE: the building it shells
 };
 internal struct sq_st {
     struct sq s[SQ_MAX];
     struct { int oc, split; float ratio; } sea[4]; int nsea;   // CONCENTRATION: per sea, the whole fleets' ratio and whether it is split
     struct { ee_unit *u; int id; signed char sq; } m[FL_MAX]; int nm;
     uint32_t t, zone_t, log_t;
-    unsigned repairs, moved, flees, drops, behind;   // flees: ships out of a danger zone; drops: a target in one given up
+    unsigned repairs, moved, flees, drops, behind, shore_drops;   // flees: ships out of a danger zone; drops: a target in one given up; shore_drops: THE SHORE's, a land target out of reach
     unsigned lost_kind[3], lost_state[SQS_N], lost_repair, lost_landing, lost_none;   // its warships sunk: by squadron kind, by what it did then, sent to repair, a landing's escort, in none
     int free_nosea, free_nofit, docked;   // the last look: ships in no squadron - on no sea, none that takes them; at the dock
 } g_sq[16];
@@ -171,6 +199,53 @@ internal int sq_enemies(int oc, ivec2 p, int r, unsigned char *sel) {
         n += sel[j];
     }
     return n;
+}
+// THE SHORE: a target on land (not afloat, not in the air; a dock is)
+internal int sq_on_land(ee_unit *t) {
+    ee_unit_type *td = t ? unit_get_type_data(t) : NULL;
+    int c = td ? unit_type_get_class_id(td) : -1;
+    return td && c != CLS_NAVAL && c != CLS_SUBMERGED_NAVAL && c != CLS_NAVAL_TRANSPORT && c != CLS_NAVAL_CITIZEN && c != CLS_AIRPLANE &&
+           c != CLS_HELICOPTER && c != CLS_HELICOPTER_TRANSPORT && c != CLS_HELICOPTER_PRIEST && c != CLS_SEA_ANIMAL && c != CLS_AIR_ANIMAL;
+}
+// THE SHORE: the defences that reach the water off p (towers, land units that threaten ships, seen within their reach +
+// SQ_SHELL_DEF of p) into out (max n), how many; the one nearest c in *near
+#define SQ_SHELL_N 48
+internal int sq_shore_defs(ee_player *pl, ivec2 p, ivec2 c, ee_unit **out, int n, ee_unit **closest) {
+    int k = 0, bd = 0x7FFFFFFF;
+    *closest = NULL;
+    for (struct grid_it it = grid_it_box(p.x, p.y, 24, 1); k < n && grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_enemy(pl, unit_get_owner(u)) || !seen_by(u, pl)) continue;
+        float r = fl_danger_r(u, it.td) + SQ_SHELL_DEF;
+        ivec2 q = unit_get_tile(u);
+        if (r <= SQ_SHELL_DEF || (float)ivec2_dist2(q, p) > r * r) continue;
+        out[k++] = u;
+        int d = ivec2_dist2(q, c);
+        if (d < bd) { bd = d; *closest = u; }
+    }
+    return k;
+}
+// THE SHORE: q's ships against the defences def[0..nd) - fl_ratio's square law, the game's damage table both ways; 99 none
+internal float sq_shore_ratio(const struct sq *q, ee_unit *const *def, int nd) {
+    float ho = 0, he = 0, dofs = 0, de = 0;
+    for (int j = 0; j < nd; j++) he += (float)unit_get_hp(def[j]);
+    for (int i = 0; i < q->n; i++) ho += (float)unit_get_hp(q->u[i]);
+    if (he <= 0) return 99.0f;
+    if (ho <= 0) return 0.0f;
+    for (int i = 0; i < q->n; i++) {
+        ee_unit_type *td = unit_get_type_data(q->u[i]);
+        float fh = 0, hpu = (float)unit_get_hp(q->u[i]);
+        for (int j = 0; j < nd; j++) {
+            ee_unit_type *dt = unit_get_type_data(def[j]);
+            fh += (float)unit_get_hp(def[j]) * nv_f(unit_type_get_weapon(td), unit_type_get_family(dt));
+            de += fl_dps(def[j], dt) * hpu * nv_f(unit_type_get_weapon(dt), unit_type_get_family(td));
+        }
+        dofs += fl_dps(q->u[i], td) * fh / he;
+    }
+    de /= ho;
+    if (de <= 0) return dofs > 0 ? 99.0f : 1.0f;
+    if (dofs <= 0) return 0.0f;
+    return sqrtf(ho * dofs / (he * de));
 }
 internal ivec2 sq_safe(ivec2 from, ivec2 to, int oc) {   // the nearest safe water toward `to`
     ivec2 o;
@@ -433,17 +508,27 @@ internal void sq_care(unsigned idx, struct fleet *f) {
         int docked = 0;
         for (int j = 0; j < f->ndocked; j++) docked |= f->docked[j] == u;
         if (docked) continue;
+        int id = unit_get_serial(u);
+        struct sq *mq = NULL;
+        for (int j = 0; j < z->nm; j++)
+            if (z->m[j].u == u && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX && z->s[(int)z->m[j].sq].on) { mq = &z->s[(int)z->m[j].sq]; break; }
+        int shore = SQ_SHORE(idx);
+        if (shore && mq && mq->state == SQS_SHELL && cl_may(u, CLP_ROUTINE, CLW_SQUADRON)) continue;   // THE SHORE: shelling, decided
         if (fl_flee(f, u)) { z->flees++; continue; }
         ee_unit *t = fl_target_of(u);
-        if (!t || !fl_in_danger_m(unit_get_tile(t), 1.0f)) continue;
-        ivec2 back = f->g;
-        int id = unit_get_serial(u);
-        for (int j = 0; j < z->nm; j++)
-            if (z->m[j].u == u && z->m[j].id == id && z->m[j].sq >= 0 && z->m[j].sq < SQ_MAX && z->s[(int)z->m[j].sq].on) { back = z->s[(int)z->m[j].sq].go; break; }
+        if (!t) continue;
+        ivec2 up = unit_get_tile(u), tp = unit_get_tile(t);
+        int out = 0;   // THE SHORE: a land target only within its reach, from where it is
+        if (shore && sq_on_land(t)) {
+            float rg = fl_range(u, unit_get_type_data(u)) + 0.5f;
+            out = (float)ivec2_dist2(up, tp) > rg * rg;
+        }
+        if (!out && !fl_in_danger_m(tp, 1.0f)) continue;
+        ivec2 back = mq ? mq->go : f->g;
         if (!back.x && !back.y) back = f->g;
         if (fl_in_danger(back) || !cl_may(u, CLP_ROUTINE, CLW_SQUADRON)) continue;
         unit_goal(u, goal_move((float)back.x + 0.5f, (float)back.y + 0.5f), 0, 0x1F40);
-        z->drops++;
+        z->drops++; z->shore_drops += (unsigned)out;
     }
 }
 // ESCORT (convoy.c): each transport that asked within CY_WISH - the nearest scout group on its sea not running, else
@@ -573,6 +658,55 @@ internal void sq_escort(ee_player *pl, unsigned idx, struct sq *q, uint32_t now)
     sq_state(q, SQS_ESCORT, now);
     sq_go(pl, q, sq_safe(c, to, q->ocean), 1, now);
 }
+// THE SHORE: SHELLING - 1 while q shells (its orders given), 0 not
+internal int sq_shell(ee_player *pl, unsigned idx, struct sq *q, ivec2 home, uint32_t now) {
+    static ee_unit *def[SQ_SHELL_N];
+    ee_unit *closest = NULL, *t = q->shell && unit_get_serial(q->shell) == q->shell_id && unit_get_hp(q->shell) > 0 && unit_get_owner(q->shell) &&
+                               is_enemy(pl, unit_get_owner(q->shell)) ? q->shell : NULL;
+    ivec2 c = sq_center(q);
+    int nd = 0;
+    if (t) {
+        nd = sq_shore_defs(pl, unit_get_tile(t), c, def, SQ_SHELL_N, &closest);
+        float r = sq_shore_ratio(q, def, nd);
+        if (r < SQ_SHELL_HOLD || sq_hp_share(q) < SQ_SHELL_OFF) t = NULL; else q->ratio = r;
+    }
+    if (!t && q->n >= 3 && sq_hp_share(q) >= SQ_SHELL_HP) {   // the nearest buildings on its sea's coast near its zone, while it beats what reaches them
+        static unsigned char done[96];
+        memset(done, 0, sizeof done);
+        for (int look = 0; look < SQ_SHELL_LOOKS && !t; look++) {
+            int bj = -1, bd = SQ_SHELL_R * SQ_SHELL_R + 1;
+            for (int j = 0; j < g_fs.nec && j < 96; j++) {
+                struct fl_ship *e = &g_fs.ec[j];
+                int cl = e->u ? unit_type_get_class_id(e->td) : -1;
+                if (done[j] || (cl != CLS_BUILDING && cl != CLS_FORTRESS) || unit_get_hp(e->u) <= 0) continue;
+                int d = ivec2_dist2(e->p, home);
+                if (d < bd && (int)ocean_near(e->p, 8, NULL) == q->ocean) { bd = d; bj = j; }
+            }
+            if (bj < 0) break;
+            done[bj] = 1;
+            nd = sq_shore_defs(pl, g_fs.ec[bj].p, c, def, SQ_SHELL_N, &closest);
+            float r = sq_shore_ratio(q, def, nd);
+            if (r >= SQ_SHELL_GO) {
+                t = g_fs.ec[bj].u; q->ratio = r; q->shelled++;
+                if (g_log) log_locked("# squadrons: P%u at %.1f min: squadron %d (%d ships, %.0f%% of their hit points) shells type %d at %d,%d - %d defences reach it, estimate %.2f\n",
+                                      idx, now / 60000.0, (int)(q - g_sq[idx].s), q->n, 100.0 * sq_hp_share(q), unit_type_get_id(g_fs.ec[bj].td), g_fs.ec[bj].p.x, g_fs.ec[bj].p.y, nd, (double)r);
+            }
+        }
+    }
+    if (!t) { q->shell = NULL; return 0; }
+    q->shell = t; q->shell_id = unit_get_serial(t);
+    ee_unit *aim = closest ? closest : t;   // the defences reaching it first, the nearest
+    sq_state(q, SQS_SHELL, now);
+    if (!q->order_t || now - q->order_t >= 3000) {
+        for (int k = 0; k < q->n; k++) {
+            if (!cl_may(q->u[k], CLP_ROUTINE, CLW_SQUADRON) || fl_target_of(q->u[k]) == aim) continue;
+            ee_goal *g = goal_attack(q->u[k], aim);
+            if (g) unit_goal(q->u[k], g, 0, 0x1F40);
+        }
+        q->go = q->ordered = unit_get_tile(aim); q->order_t = now ? now : 1;
+    }
+    return 1;
+}
 internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     struct sq *q = &z->s[i];
@@ -640,8 +774,10 @@ internal void sq_main(ee_player *pl, unsigned idx, int i, uint32_t now) {
             return;
         }
     }
+    if (SQ_SHORE(idx) && sq_shell(pl, idx, q, home, now)) return;   // THE SHORE: SHELLING
+    q->shell = NULL;
     sq_state(q, SQS_REST, now);
-    if (q->anchor >= 0) sq_go(pl, q, sq_safe(c, q->zc, q->ocean), 1, now);
+    if (q->anchor >= 0) sq_go(pl, q, sq_safe(c, q->zc, q->ocean), !SQ_SHORE(idx), now);   // THE SHORE: a plain move
 }
 // the nearest main squadron's middle on q's sea (none: the haven)
 internal ivec2 sq_to_main(struct sq_st *z, const struct sq *q, ivec2 c) {
@@ -688,7 +824,7 @@ internal void sq_hunt(ee_player *pl, unsigned idx, int i, uint32_t now) {
         return;
     }
     sq_state(q, SQS_REST, now);
-    sq_go(pl, q, sq_safe(c, sq_to_main(z, q, c), q->ocean), 1, now);
+    sq_go(pl, q, sq_safe(c, sq_to_main(z, q, c), q->ocean), !SQ_SHORE(idx), now);   // THE SHORE: a plain move
 }
 internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
@@ -741,10 +877,10 @@ internal void sq_scout(ee_player *pl, unsigned idx, int i, uint32_t now) {
         }
         q->target_t = now ? now : 1;
     }
-    if (q->target_r >= 0) { sq_state(q, SQS_SCOUT, now); sq_go(pl, q, sq_safe(c, g_ter.t[q->target_r].c, q->ocean), 1, now); return; }
+    if (q->target_r >= 0) { sq_state(q, SQS_SCOUT, now); sq_go(pl, q, sq_safe(c, g_ter.t[q->target_r].c, q->ocean), !SQ_SHORE(idx), now); return; }   // THE SHORE: a plain move
     // nothing to look at: with the nearest main squadron
     for (int j = 0; j < SQ_MAX; j++)
-        if (z->s[j].on && z->s[j].kind == SQK_MAIN && z->s[j].ocean == q->ocean && z->s[j].n) { sq_state(q, SQS_REST, now); sq_go(pl, q, sq_safe(c, sq_center(&z->s[j]), q->ocean), 1, now); return; }
+        if (z->s[j].on && z->s[j].kind == SQK_MAIN && z->s[j].ocean == q->ocean && z->s[j].n) { sq_state(q, SQS_REST, now); sq_go(pl, q, sq_safe(c, sq_center(&z->s[j]), q->ocean), !SQ_SHORE(idx), now); return; }
 }
 internal void sq_log(unsigned idx, uint32_t now) {
     cl_log(idx, now);   // claims.c
@@ -760,16 +896,16 @@ internal void sq_log(unsigned idx, uint32_t now) {
         ivec2 c = sq_center(q);
         size_t l = strlen(b);
         if (l < sizeof b - 160)
-            snprintf(b + l, sizeof b - l, " | %s %d (sea %d%s%d): %d ships of %d at %d,%d, %s, ratio %.2f, so far fought %u held %u helped %u pushed %u raided/hunted %u ran %u looked %u escorted %u screened %u",
+            snprintf(b + l, sizeof b - l, " | %s %d (sea %d%s%d): %d ships of %d at %d,%d, %s, ratio %.2f, so far fought %u held %u helped %u pushed %u raided/hunted %u ran %u looked %u escorted %u screened %u shelled %u",
                      k_sqk[q->kind], i, q->ocean, q->anchor >= 0 ? ", zone " : ", no zone ", q->anchor, q->n, q->want, c.x, c.y, k_sqs[q->state],
-                     (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted, q->escorted, q->screens);
+                     (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted, q->escorted, q->screens, q->shelled);
     }
     char lb[200];
     snprintf(lb, sizeof lb, "lost: main %u scouts %u hunters %u, sent to repair %u, landings' escorts %u, in none %u; by what they did:", z->lost_kind[SQK_MAIN],
              z->lost_kind[SQK_SCOUT], z->lost_kind[SQK_HUNT], z->lost_repair, z->lost_landing, z->lost_none);
     for (int k = 0; k < SQS_N; k++) if (z->lost_state[k]) { size_t l = strlen(lb); snprintf(lb + l, sizeof lb - l, " %s %u", k_sqs[k], z->lost_state[k]); }
-    log_locked("# squadrons: P%u at %.1f min: %d squadrons, %u ships moved between them, %u sent to repair (%d at the dock now), %u out of a danger zone, %u targets in one given up, %u hurt ones behind a squadron (looks), in no squadron now: on no sea %d, none takes them %d; %s%s\n",
-               idx, now / 60000.0, nsq, z->moved, z->repairs, z->docked, z->flees, z->drops, z->behind, z->free_nosea, z->free_nofit, lb, b);
+    log_locked("# squadrons: P%u at %.1f min: %d squadrons, %u ships moved between them, %u sent to repair (%d at the dock now), %u out of a danger zone, %u targets in one given up (%u land targets out of reach), %u hurt ones behind a squadron (looks), in no squadron now: on no sea %d, none takes them %d; %s%s\n",
+               idx, now / 60000.0, nsq, z->moved, z->repairs, z->docked, z->flees, z->drops, z->shore_drops, z->behind, z->free_nosea, z->free_nofit, lb, b);
 }
 internal void av_fleet_sync(unsigned idx, int sub, ee_unit *const *u, int n, const char *what, const char *task, uint32_t now);   // army_view.c
 // fleet.c fleet_tick, after its scan, the fleet's ships in f (all its warships afloat)
@@ -850,5 +986,9 @@ internal void sq_lost(unsigned idx, ee_unit *dead) {   // diplo.c's kill hook, e
             return;
         }
     z->lost_none++;
+}
+internal void squadrons_install(const char *autotest_ini) {   // fleet.c fleet_install
+    g_sq_shore = g_set_ai[1].sea_shore_fire;
+    if (autotest_ini) g_v_sq_shore = ini_int("autotest", "v_sea_shore_fire", -1, autotest_ini);
 }
 internal void squadrons_new_game(void) { memset(g_sq, 0, sizeof g_sq); memset(g_sq_sup, 0, sizeof g_sq_sup); memset(g_sq_look, 0, sizeof g_sq_look); }

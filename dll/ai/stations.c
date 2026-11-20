@@ -48,7 +48,8 @@
 //               main force and siege stationed there at the piece nearest its place, one after the other (the player
 //               2026-11-15: "after taking a territory the ai should "deconstruct" enemy walls in it as a low priorethy
 //               task"). A fight there or a push from there takes them first.
-// Not here yet: anti-air, aircraft and ships by role (the player: "do it by role"), siege on a shoreline.
+//   COAST BATTERIES - its siege at rest at posts along the coasts of its front seas (below, [ai_base] coast_siege).
+// Not here yet: anti-air, aircraft and ships by role (the player: "do it by role").
 // "# stations:" a minute.
 #define SN_EVERY 5000
 #define SN_UNITS 1024
@@ -88,7 +89,7 @@
 #define SN_FORM_MAX 512          // ... soldiers at rest a look
 #define SN_FC 256                // ... territories a player remembers a patch for
 enum { SNP_MAIN, SNP_SIEGE, SNP_AA, SNP_N };
-struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
+struct sn_unit { ee_unit *u; int id; short ter; uint8_t pool, scout, post; int8_t stance0; uint32_t order_t, since, wait_t, moved_t, stash_t, still_t; ivec2 to, still, look; };   // look: a patrol's patch (PATROLS; scout 3), since: taken then   // still: where it stood since still_t (A STUCK ORDER)   // stash_t: sent into a fortress then (THE RESERVE)   // wait_t: it waits for a group to march with since then (AS A GROUP)   // since: a scout's territory is its goal since then
 #define SN_CITS 6                // THE BRIDGEHEAD: the citizens a push across takes along at most
 #define SN_BH 8                  // ... the buildings it lays by the beach (A BASE OVER THERE)
 #define SN_BH_JOIN 12            // ... a soldier new this near a production building of it joins the push
@@ -429,6 +430,152 @@ internal int sn_order(struct sn_st *z, struct sn_unit *m, int k, ivec2 d, int fi
     m->order_t = now ? now : 1; m->to = d;
     z->orders++;
     return 1;
+}
+// COAST BATTERIES ([ai_base] coast_siege, off until measured; [autotest] v_coast_siege; the player 2026-11-20: "front
+// sea giving territoeries bordering it an coast modifer? (slightly incresed demand for siege, and siege gets placed on
+// the coats if idle, idealy behind a wall if it can shot over one)", and "Frigates are still vulnurble, a group can take
+// out a single siege, but 5 haubitze for example will cost any fleet greatly to clear"). A siege weapon of the AI's
+// epoch outreaches the battleship of it by a tile or two (Catapult 7 / Bronze 6, Trebuchet 8 / Middle Ages 7, Howitzer
+// 9 / Dreadnought 8, Paladin 10 / Leviathan 8) - from a few tiles inland it hits what shells the shore first.
+//   THE COASTS - the land territories it holds with SN_SIEGE_ESCORT of the main force's share at least along a sea that
+//     is a front of its (territories.c THE SEAS) or an open one: a coast's worth 1, 2 more with enemy warships seen in
+//     that sea in the last SN_COAST_SEEN, 1 more for a border sea; the SN_COAST_MAX most worth (their buildings decide
+//     between equals) are its batteries.
+//   THE POST - on the line from the sea's middle to the territory's, the first tile of its land and SN_COAST_IN tiles
+//     further inland (behind a wall along the water's edge: siege shoots over one), else nearer the shore. A battery's
+//     coast counts SN_COAST_KEEP more while it still is one (STEADY: they changed every minute or two).
+//   THE SIEGE - with no attack planned (the pushes' siege comes first), its siege goes to the batteries, SN_COAST_N
+//     each, the most worth first, the rest to that one; at its post a siege weapon stands its ground (stance 1: it
+//     shoots what comes within its reach and doesn't walk to the water after it), its old stance back when it leaves.
+//     Enemies on the land of its territory take it as before (with soldiers of its there).
+//   THE DEMAND - the batteries with enemy warships seen or on a border sea want SN_COAST_N siege each: short of them
+//     (the queued counted) every SN_COAST_EVERY up to 5 of the siege type it trains now that threatens ships (fleet.c
+//     fl_danger_r) and reaches furthest - an order of its own beside the army's (armies.c SIEGE WITH SOLDIERS caps the
+//     need's siege at one for every 3 soldiers; this one at the batteries' want).
+//     Nothing that makes it (the sea opponent's games: no Siege Factory, no siege all game): the building laid out by
+//     itself by its base, 3 builders kept on it, 5 minutes at most - as the strong anti-air's maker (defence.c).
+// "# stations: ... coast" in the minute's line; "# stations: P<n> ... battery" lines.
+internal int g_sn_coast = 0, g_v_sn_coast = -1;
+#define SN_COAST(idx) PV(idx, g_v_sn_coast, g_sn_coast)
+#define SN_COAST_N 5
+#define SN_COAST_MAX 2
+#define SN_COAST_IN 3
+#define SN_COAST_SEEN 300000u
+#define SN_COAST_EVERY 20000u
+#define SN_COAST_KEEP 1.5f   // STEADY: a battery's coast this much more worth while it still is one
+struct sn_battery { short ter, sea; uint8_t hot; ivec2 post; };
+internal struct { int n, n0; struct sn_battery b[SN_COAST_MAX], b0[SN_COAST_MAX]; uint32_t train_t, log_t, fnd_t, fnd_b_t; unsigned trained, posted, makers; ee_unit *fnd; int fnd_id; } g_snc[16];   // b0: the last look's; fnd: the Siege Factory it laid
+internal int sn_coast_at(unsigned idx, int r, ivec2 *post) {   // territory r is a battery: its post
+    for (int k = 0; k < g_snc[idx & 15].n; k++) if (g_snc[idx & 15].b[k].ter == r) { *post = g_snc[idx & 15].b[k].post; return 1; }
+    return 0;
+}
+internal unsigned sn_land_of(int r, ivec2 rally);   // below
+internal ivec2 sn_coast_post(int r, int w, unsigned land) {
+    ivec2 a = g_ter.t[w].c, b = g_ter.t[r].c;
+    float dx = (float)(b.x - a.x), dy = (float)(b.y - a.y), len = sqrtf(dx * dx + dy * dy);
+    if (len < 1.0f || !land) return iv2(-1, -1);
+    dx /= len; dy /= len;
+    for (float k = 0; k <= len; k += 0.5f) {
+        ivec2 shore = iv2(a.x + (int)(dx * k), a.y + (int)(dy * k));
+        if (area_id(shore, 2) != land) continue;
+        for (int in = SN_COAST_IN; in >= 0; in--) {
+            ivec2 p = iv2(shore.x + (int)(dx * (float)in + (dx < 0 ? -0.5f : 0.5f)), shore.y + (int)(dy * (float)in + (dy < 0 ? -0.5f : 0.5f)));
+            if (area_id(p, 2) == land && (int)ter_near(p.x, p.y) == r) return p;
+        }
+        return shore;
+    }
+    return iv2(-1, -1);
+}
+internal void sn_coast_plan(unsigned idx, const struct tv_st *s, int n, const int *tc, const ivec2 *rally, uint32_t now) {
+    typeof(&g_snc[0]) C = &g_snc[idx];
+    float sc[SN_COAST_MAX];
+    int sea[SN_COAST_MAX];
+    C->n0 = C->n; memcpy(C->b0, C->b, sizeof C->b);
+    C->n = 0;
+    for (int r = 0; r < n; r++) {
+        if (g_ter.t[r].water || s->t[r].role == TVR_NONE || tc[r] < SN_SIEGE_ESCORT) continue;
+        int bw = -1, hot = 0;
+        float bs = 0;
+        for (int k = 0; k < g_ter.t[r].nbn; k++) {
+            unsigned w = g_ter.nb[g_ter.t[r].nb0 + k].to;
+            if (w >= (unsigned)n || !g_ter.t[w].water || (s->t[w].role != TVR_FRONT && !s->t[w].open_sea)) continue;
+            int seen = s->t[w].eship_t && now >= s->t[w].eship_t && now - s->t[w].eship_t < SN_COAST_SEEN;
+            float v = 1.0f + (seen ? 2.0f : 0.0f) + (s->t[w].border ? 1.0f : 0.0f);
+            for (int j = 0; j < C->n0; j++) v += C->b0[j].ter == r && C->b0[j].sea == (short)w ? SN_COAST_KEEP : 0.0f;   // STEADY: a battery keeps its coast
+            if (v > bs) { bs = v; bw = (int)w; hot = seen || s->t[w].border; }
+        }
+        if (bw < 0) continue;
+        bs += (float)s->t[r].bld * 0.001f;
+        int k = C->n;   // into the SN_COAST_MAX most worth, in order
+        if (k == SN_COAST_MAX) { if (sc[k - 1] >= bs) continue; k--; } else C->n++;
+        while (k > 0 && sc[k - 1] < bs) { sc[k] = sc[k - 1]; sea[k] = sea[k - 1]; C->b[k] = C->b[k - 1]; k--; }
+        sc[k] = bs; sea[k] = bw; C->b[k].ter = (short)r; C->b[k].sea = (short)bw; C->b[k].hot = (uint8_t)hot;
+    }
+    int m = 0;
+    for (int k = 0; k < C->n; k++) {
+        ivec2 p = sn_coast_post(C->b[k].ter, sea[k], sn_land_of(C->b[k].ter, rally[C->b[k].ter]));
+        if (p.x < 0) continue;
+        C->b[m] = C->b[k]; C->b[m++].post = p;
+    }
+    C->n = m;
+    if (g_log && (!C->log_t || now < C->log_t || now - C->log_t >= 60000)) {
+        C->log_t = now ? now : 1;
+        char b[200] = "";
+        for (int k = 0; k < C->n; k++) { size_t l = strlen(b); snprintf(b + l, sizeof b - l, " | territory %d, post %d,%d (sea %d%s)", C->b[k].ter, C->b[k].post.x, C->b[k].post.y, C->b[k].sea, C->b[k].hot ? ", threatened" : ""); }
+        log_locked("# stations: P%u at %.1f min: coast batteries %d%s; so far siege ordered for them %u, posted %u, makers laid %u\n", idx, now / 60000.0, C->n, b, C->trained, C->posted, C->makers);
+    }
+}
+internal void sn_coast_train(ee_player *pl, unsigned idx, int have, uint32_t now) {
+    typeof(&g_snc[0]) C = &g_snc[idx];
+    int want = 0;
+    for (int k = 0; k < C->n; k++) want += C->b[k].hot ? SN_COAST_N : 0;
+    if (!want || (C->train_t && now >= C->train_t && now - C->train_t < SN_COAST_EVERY)) return;
+    have += ar_queued(pl, UTR_SIEGE);
+    if (have >= want) return;
+    C->train_t = now ? now : 1;
+    int best = 0, any = 0;   // any: the one it could train with a building that makes it
+    float bs = 0, ba = 0;
+    for (int t = 0; t < G_TYPES_N; t++) {
+        ee_unit_type *td = type_data(t);
+        if (!td || unit_type_get_id(td) != t || unit_type_get_class_id(td) != CLS_LAND || !ut_role(t, UTR_SIEGE) || ut_role(t, UTR_RAM)) continue;
+        float r = fl_danger_r(NULL, td);
+        if (r <= 0 || !can_build(pl, t)) continue;
+        float v = r * 1000.0f + (float)unit_type_get_attack(td);
+        if (v > ba) { ba = v; any = t; }
+        if (ap_trains_now(pl, t) && v > bs) { bs = v; best = t; }
+    }
+    void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    // nothing makes it (the sea opponent's games: no Siege Factory in any, no siege all game): the building laid by
+    // itself, builders kept on it, as the strong anti-air's maker (defence.c)
+    ee_unit *f = C->fnd && unit_get_serial(C->fnd) == C->fnd_id && unit_get_owner(C->fnd) == pl ? C->fnd : NULL;
+    if (f && (unit_get_finished(unit_get_physics(f)) || now - C->fnd_t > 300000)) f = NULL;
+    if (f && now - C->fnd_b_t >= 15000) { C->fnd_b_t = now ? now : 1; bk_builders(pl, f, 3); }
+    C->fnd = f;
+    if (!best && any && !f && bm && um) {
+        int prod = aa_producer(pl, any), have_b = 0, busy = 0;
+        if (prod) am_bld(um, prod, &have_b, &busy);
+        const int *stock = player_stock_at(pl);
+        int pay = prod && !have_b && prio_buildable(pl, prod) && !prio_refuses(pl, prod);
+        for (int r = 2; pay && r < 7; r++) pay &= unit_cost(pl, prod, r) <= stock[r];
+        ivec2 spot[1];
+        if (pay && aa_block_at(pl, prod, build_mgr_get_base(bm), 1, spot, 16)) {
+            ee_unit *nf = lay_foundation(pl, prod, spot[0].x, spot[0].y);
+            if (nf) {
+                C->fnd = nf; C->fnd_id = unit_get_serial(nf); C->fnd_t = C->fnd_b_t = now ? now : 1; C->makers++;
+                bk_builders(pl, nf, 3);
+                if (g_log) log_locked("# stations: P%u at %.1f min: battery siege - a type %d laid out at %d,%d to make type %d\n", idx, now / 60000.0, prod, spot[0].x, spot[0].y, any);
+            }
+        }
+    }
+    if (!best || !um) return;
+    int req[4] = { best, want - have < 5 ? want - have : 5, 0, 0 };
+    unsigned got = 0;
+    g_priority_mil = 1;
+    hook_train_units(um, req, (uintptr_t)&got);
+    g_priority_mil = 0;
+    C->trained += got;
+    if (g_log && got) log_locked("# stations: P%u at %.1f min: battery siege - %u of type %d ordered (%d of %d at the batteries' coasts and queued)\n", idx, now / 60000.0, got, best, have, want);
 }
 // AS A GROUP (the player 2026-11-15: "also armies should properly form/muster in territories and move in a group in
 // formation attack move"): the soldiers that are to go from one territory to the same place get one order - the game's
@@ -1068,9 +1215,21 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (df > worst[k]) { worst[k] = df; L->l[k].at = rally[r]; }
         }
     }
+    if (SN_COAST(idx)) sn_coast_plan(idx, s, n, tc, rally, now); else g_snc[idx].n = 0;   // COAST BATTERIES
     if (wsum > 0) {
         for (int r = 0; r < n; r++) tcs[r] = (tcs[r] * np[SNP_SIEGE] + wsum / 2) / wsum;
         sn_give(z, SNP_SIEGE, n, tcs, acs, s, &budget);
+    } else if (g_snc[idx].n) {   // COAST BATTERIES: no attack planned - the siege to the batteries, SN_COAST_N each, the rest to the first
+        int left = np[SNP_SIEGE];
+        for (int r = 0; r < n; r++) tcs[r] = 0;
+        for (int k = 0; k < g_snc[idx].n; k++) { int take = left < SN_COAST_N ? left : SN_COAST_N; tcs[g_snc[idx].b[k].ter] += take; left -= take; }
+        tcs[g_snc[idx].b[0].ter] += left;
+        sn_give(z, SNP_SIEGE, n, tcs, acs, s, &budget);
+    }
+    if (g_snc[idx].n) {   // COAST BATTERIES: THE DEMAND (its siege that is no ram)
+        int have = 0;
+        for (int i = 0; i < z->n; i++) have += z->m[i].pool == SNP_SIEGE && !sn_is_ram(z->m[i].u);
+        sn_coast_train(pl, idx, have, now);
     }
     // ANTI-AIR (the player 2026-11-14: "3. anti air, pure devensive role, might also get a small share in the
     // backlands"): its anti-air units among the territories it holds by what stands there to protect - its buildings
@@ -1725,6 +1884,20 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = unit_get_tile(demo[r]); m->wait_t = 0; dn[r]++; z->orders++; z->demos++; continue; }
             }
         }
+        {   // COAST BATTERIES: THE POST - its siege at rest stands its ground there; leaving it, its stance back
+            ivec2 cp;
+            if (m->pool == SNP_SIEGE && !m->scout && !pu && !(fn[r] > 0 && s->t[r].role != TVR_NONE) && sn_coast_at(idx, r, &cp)) {
+                if (ivec2_dist2(p, cp) <= 3 * 3) {
+                    m->wait_t = 0;
+                    if (!m->post) { m->post = 1; m->stance0 = (int8_t)unit_stance(m->u); unit_set_stance(m->u, 1); g_snc[idx].posted++; }
+                    continue;
+                }
+                if (!m->order_t || ivec2_dist2(m->to, cp) > 3 * 3 || (now - m->order_t > SN_REORDER && sn_idle(z, m, now))) sn_order(z, m, i, cp, 0, now);
+                m->wait_t = 0;
+                continue;
+            }
+            if (m->post) { m->post = 0; if (m->stance0 >= 0) unit_set_stance(m->u, m->stance0); m->stance0 = -1; }
+        }
         if (!pu && !(fn[r] > 0 && s->t[r].role != TVR_NONE) && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE)) {   // A STANDING FORMATION: at rest
             struct sn_fc *fc = sn_fc_at(idx, r);
             sn_fc_spot(fc, d, !anc[r], ac[r] + acs[r], now);
@@ -1856,5 +2029,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
 internal void stations_install(const char *autotest_ini) {
     if (autotest_ini) g_v_sn_rams = ini_int("autotest", "v_ram_towers", -1, autotest_ini);   // RAMS AT THE TOWERS
     if (autotest_ini) g_v_cl = ini_int("autotest", "v_claims", -1, autotest_ini);   // claims.c ORDERS BY PRIORITY
+    g_sn_coast = g_set_ai[1].coast_siege;   // COAST BATTERIES
+    if (autotest_ini) g_v_sn_coast = ini_int("autotest", "v_coast_siege", -1, autotest_ini);
 }
-internal void stations_new_game(void) { memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }
+internal void stations_new_game(void) { memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); }
