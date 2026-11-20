@@ -3779,7 +3779,14 @@ internal int xhl_put(struct xe *e, struct xhlist *h, int i, const struct xval *v
         if (!xhl_room(e, h, h->n + 1)) return 0;
         memmove(&h->it[i + 1], &h->it[i], (size_t)(h->n - i) * sizeof *h->it);
         h->n++;
-    } else xo_free(&h->it[i]);
+    } else {   // copied before the old item is freed: v may share its texts, vectors and records (l[i].x = 1: the item
+        // with one field set, a shallow copy of the old one - xref_build)
+        struct xval t;
+        xo_copy(&t, v);
+        xo_free(&h->it[i]);
+        h->it[i] = t;
+        return 1;
+    }
     xo_copy(&h->it[i], v);
     return 1;
 }

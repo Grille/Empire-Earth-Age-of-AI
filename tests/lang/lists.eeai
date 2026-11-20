@@ -99,3 +99,20 @@ cmd("cube {len(cube)} {len(cube[1])} {cube[1][2][3]} {cube[2][1][1]}")
 wait(1s)
 rows[1][1] = 70
 cmd("after wait {rows_text(rows)} {show(more[2])}")
+
+// a field of a list<T>'s item set in place, the item holding a text, a struct and a list: the item made again from
+// itself (xhl_put: copied before the old one is freed - it was read after it was freed)
+struct troop {
+    name: text
+    size: int
+    at: point
+    path: list<int>
+}
+let troops = list<troop>()
+troops.add(troop("north of the river", 5, point(3, 4), [1, 2, 3]))
+troops.add(troop("south", 7, point(8, 9), [4]))
+for i in 1..200 {
+    troops[1].size += 1
+    troops[2].at.x += 1
+}
+cmd("troops {troops[1].name} {troops[1].size} {troops[1].at} {len(troops[1].path)} | {troops[2].name} {troops[2].size} {troops[2].at}")
