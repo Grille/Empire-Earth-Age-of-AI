@@ -865,6 +865,17 @@ internal void sn_bridgehead(ee_player *pl, unsigned idx, struct sn_push *p, uint
 // on: 12 production buildings laid by the B seats' bridgeheads in 82 pushes). No clear gain - ON all the same by the
 // player's call (2026-11-19: "the gain sems small but there, and could make a bigger diffrence in a situation like we
 // have here" - his game's island both AIs settled, where P2's soldiers took down P3's tower going up).
+// A SHORT QUEUE (the player 2026-11-20: "why does p2 barely fill its pop limit even tough it has the resources for
+// units?" - his P2 at minute 225, population 1043 of 1520 with 472 queued: one Tank Factory at the front 153 deep, a
+// Siege Factory 29, five Barracks 37 each, 11 Barracks and every other building idle - queued units count against the
+// cap, and every order went to the fight's few buildings): only a building whose queue holds fewer than SN_FP_QUEUE
+// (the one in the making counted) is named; all of them busy, the game's pick.
+#define SN_FP_QUEUE 3
+internal int sn_fp_short(ee_unit *b) {
+    int *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b), cur = unit_get_producing(b);
+    int nq = qb && qe > qb ? (int)(qe - qb) : 0;
+    return nq + (cur > 0 && cur != 100000) < SN_FP_QUEUE;
+}
 internal unsigned sn_train_region(ee_player *pl, unsigned idx, int type, int pass, int *kind) {
     int pt = ap_producer(pl, type);
     if (!pt || pass > 1) return 0;
@@ -874,7 +885,7 @@ internal unsigned sn_train_region(ee_player *pl, unsigned idx, int type, int pas
         if (!p->on || !p->across || !p->over) continue;
         for (int j = 0; j < p->nbh; j++) {
             struct sn_bh *h = &p->bh[j];
-            if (h->state != 2 || h->type != pt || !h->b || unit_get_serial(h->b) != h->bid || unit_get_hp(h->b) <= 0) continue;
+            if (h->state != 2 || h->type != pt || !h->b || unit_get_serial(h->b) != h->bid || unit_get_hp(h->b) <= 0 || !sn_fp_short(h->b)) continue;   // A SHORT QUEUE
             unsigned a = unit_region(h->b);
             if (a) { *kind = 0; return a; }
         }
@@ -885,7 +896,7 @@ internal unsigned sn_train_region(ee_player *pl, unsigned idx, int type, int pas
     if (!n || s->version != g_ter.version) return 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
-        if (!td || unit_type_get_id(td) != pt || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !cz_finished(u)) continue;
+        if (!td || unit_type_get_id(td) != pt || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !cz_finished(u) || !sn_fp_short(u)) continue;   // A SHORT QUEUE
         unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
         if (r >= (unsigned)n || s->t[r].state == TV_UNSAFE || !g_pr_foe[idx & 15][r]) continue;
         int miss = (int)g_pr_share[idx & 15][r] - (int)g_pr_has[idx & 15][r];
