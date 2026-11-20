@@ -17,7 +17,8 @@
 //     citizens - the idle first, then the woodcutters - explore from their nearest drop site, XP_HOME_R tiles out at
 //     most: in the Prehistoric age with no food worked at all as many as there are (the player's own start), else
 //     XP_CIT_MAX. A look with every food citizen placed gives half of them back to work.
-//   THE BASE SCOUT - while unexplored land lies within XP_SCOUT_R of a town of its, one Canine Scout (the player's
+//   THE BASE SCOUT - from XP_DOG_CITS citizens on (before that the food search explores: the scout's 50 food is a
+//     citizen's), while unexplored land lies within XP_SCOUT_R of a town of its, one Canine Scout (the player's
 //     "scouting dog": 50 food at a Town Center or Capitol, 0.8 fast against a citizen's 0.5, sight 4 against 3) is
 //     ordered every XP_DOG_EVERY till one comes - the economy's money, not the army's, and past the queues' depth
 //     (econ.c: a Town Center's queue is its citizens') - and circles that town outward, ring after ring, as far as its
@@ -38,6 +39,7 @@
 #define XP_SCOUT_R 48
 #define XP_DOG_EVERY 30000
 #define XP_DOG_WAIT 120000
+#define XP_DOG_CITS 10
 #define XP_DOG_TRIES 3
 #define XP_CIT_MAX 4
 #define XP_CLAIM_T 15000
@@ -290,7 +292,12 @@ internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (e->u[k].kind == 2) xp_release(e, k, 1);
     if (dogs) e->dog_asks = 0;
     for (int k = 0; k < e->nu; k++) scouts += e->u[k].kind == 2;
-    for (int i = 0; i < g_drops[idx].n && !dogs && e->dark; i++) {
+    // not before XP_DOG_CITS citizens (the player 2026-11-20: "keep the scout dog back until at least 10 citizens,
+    // before it's too huge an opportunity cost") - the food search explores meanwhile
+    ee_civ_mgr *xcm = player_get_civ_mgr(pl);
+    ee_unit_mgr *xum = xcm ? civ_mgr_get_unit_mgr(xcm) : NULL;
+    int cits = xum ? unit_mgr_citizens(xum) : 0;
+    for (int i = 0; i < g_drops[idx].n && !dogs && e->dark && cits >= XP_DOG_CITS; i++) {
         ivec2 g, t = g_drops[idx].d[i].p;
         ee_unit *bu = g_drops[idx].d[i].u;
         ee_unit_type *bt = bu ? unit_get_type_data(bu) : NULL;
