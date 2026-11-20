@@ -203,6 +203,13 @@ internal int g_us_fixed;   // the pipe's: roll, pitch and yaw g_us_ctl's for eve
 #define US_RND_PITCH_LO -5.0f
 #define US_RND_PITCH_HI 30.0f
 #define US_RND_YAW 30.0f
+// ITS ENGINE RUNS ON (the player, 2026-11-20: "right now planes lose trust imediatly, how about a random value 0 -10
+// seconds where they still acelerate in the direction they are pointing if bellowe their max speed?"): for 0 ..
+// US_THRUST_S after its death (by its serial) each of its points dry in the air is pushed along its nose by US_THRUST
+// while its way along it is under its top speed (its type's, the faster of its stats') - a dying plane flies on its own
+// course for a while, its controls (the base, roll, pitch, yaw) steering it, before it glides down
+#define US_THRUST_S 10.0f
+#define US_THRUST 1.0f      // tiles/s^2: as the pull down
 // A HELICOPTER'S FALL (the player, 2026-11-12: "now lets improve the helicopters, bougancy, some other ideas?", then
 // "yes do 1- 4": it floats a little and rolls over, its rotor holds it, its spin builds up, its rotors turn until it
 // hits). Six points: the floats, its ballast high - its engine and rotor over its cabin: top-heavy, a helicopter in
@@ -536,7 +543,10 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
         // broken wing level again (logged: banked to 40 degrees in a second, back to 25 by its crash)
         k->body[4][2] = fz;
         us_wings(k, o->serial);
-    }
+        uint32_t ts = us_seed(o->serial, 0x7FEB352Du);
+        k->thrust_t = US_THRUST_S * us_rnd(&ts);
+        k->top = fmaxf(o->st ? unit_stats_get_speed(o->st) : 0.0f, o->cst ? unit_stats_get_speed(o->cst) : 0.0f);
+    } else k->thrust_t = 0.0f, k->top = 0.0f;
     k->lift = space ? 0.0f : sub ? US_SUB_FLOAT : k->heli ? US_HELI_FLOAT : US_FLOAT;
     k->wet_at = air ? -1.0f : 0.0f;
     k->serial = o->serial, k->air = (uint8_t)air, k->fx_done = k->fx_due = k->stuck = 0, k->in_game = 1;
@@ -680,7 +690,10 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
     for (int j = 0; j < 3; j++) lf += fl[j] * fl[j];
     lf = sqrtf(lf);
     for (int j = 0; j < 3; j++) fl[j] = lf > 1e-7f ? fl[j] / lf : 0.0f;
-    way = fminf(fmaxf(way / (ws * dt), -US_RISE_TOP), US_RISE_TOP);
+    way /= ws * dt;
+    // an airplane's engine still running: pushes along its nose, under its top speed (US_THRUST)
+    float thrust = k->n == US_PTS_AIR && t < k->thrust_t && way < k->top ? US_THRUST * dt * dt : 0.0f;
+    way = fminf(fmaxf(way, -US_RISE_TOP), US_RISE_TOP);
     // an airplane's surfaces' ups: its wings' and tailplane's (length x span), its fin's (its span)
     float sn[3], un[3], ls = 0.0f, lu = 0.0f;
     for (int j = 0; j < 3; j++) sn[j] = k->sp[2][j] - k->sp[3][j], ls += sn[j] * sn[j];
@@ -745,6 +758,7 @@ internal void us_step(uc_corpse *k, float t, const void *mesh) {
         }
         float g = k->space ? US_SPACE_G : k->air ? US_G_AIR : US_G;
         v[2] += (-g + b * g * under) * dt * dt;
+        if (thrust > 0.0f) for (int j = 0; j < 3; j++) v[j] += thrust * (1.0f - wd) * ln[j];
         if (k->heli) {   // the main rotor's torque about its up through its middle, as far as it is dry
             float r[3], tw = US_HELI_TWIST * (1.0f - wd) * dt * dt;
             for (int j = 0; j < 3; j++) r[j] = p[j] - cm[j];

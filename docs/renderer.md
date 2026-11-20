@@ -821,6 +821,7 @@ Each plane then draws its own (the player, the same day: "4 lift is good as a mo
 ranges by its serial (hashed: a stream of their own; collect_remains_physics.c US_RND_*). `wreck plane <base> <roll> <pitch> <yaw>`
 fixes them for every plane killed from then on, `wreck plane random [<base>]` draws them again. Logged with 8 P-51s:
 each drew its own, within the ranges.
+Its engine runs on (2026-11-20, the player: "right now planes lose trust imediatly, how about a random value 0 -10 seconds where they still acelerate in the direction they are pointing if bellowe their max speed?"): for 0 - 10 s after its death (by its serial; collect_remains_physics.c US_THRUST_S) each point dry in the air is pushed along its nose at 1 tile/s^2 (US_THRUST, the pull down's) while its way along the nose is under its type's top speed. Logged with three P-51s killed in level flight over land (engine times 3.9, 8.3, 1.8 s): each died at its top speed, 1.05 tiles/s, and the engine pushed only while it was a hair under it in the first second; nosing down they went faster by the pull and hit 2.5 - 3 s after their death from about 2 tiles up, as before - the engine shows where a plane is slowed (pitched up, a stall).
 
 The water's drag is the hull's own (the player, the same day: "what do you think of adding a lift plane? basicly that
 vertical movment from the orientation of the model get converted to horizontal movment. real ships glide when they

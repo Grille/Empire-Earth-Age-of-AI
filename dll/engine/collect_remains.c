@@ -86,6 +86,7 @@ typedef struct {
     float turn_rate[3][UC_KC_PARTS];   // ... its turns' rates (radians/s: its parts', its lists' a and b first values),
     double turn_ms;          //     measured while the game turns them, at its last sight (game ms; 0 none yet)
     float turn_at;           //     and its spin_t then: on from there by their rates (us_turn)
+    float thrust_t, top;     // an airplane's engine: how long it runs on after its death (s), its top speed (tiles/s)
     float tilt[4];           // an airplane's surfaces' angles (their sines): its port and starboard wings' (front up), its
                              // tailplane's (nose up), its fin's (nose right) - us_wings, from the controls at its death
     float along[3], across[3];  // the hull's own axes bow-ward and port-ward
