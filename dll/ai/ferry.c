@@ -78,7 +78,7 @@ internal int fy_free_ship(ee_player *pl, ee_unit *u, ee_unit_type *td) {
     return unit_get_owner(u) == pl && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_transport(unit_type_get_id(td)) &&
            ex_cargo(u) <= 0 && !landing_has_unit(pl, u) && !expand_ship(u);
 }
-internal int sn_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit **out, int max);    // stations.c
+internal int sn_ferry_pick(ee_player *pl, int pool, unsigned land, ivec2 toward, ee_unit **out, int max);    // stations.c
 internal int wk_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit **out, int max);    // work.c
 // a trip of kind (1 soldiers, 2 citizens) of n from land a to land b, wanted at dest, as trip t: 1 when it set out, 0
 // nobody to take, -1 no free transport on a sea between the two, -2 not now for the risk (THE CROSSING)
@@ -132,6 +132,7 @@ internal int fy_carries_id(unsigned idx, int id) {   // a trip of the ferry has 
     return 0;
 }
 internal const char *fy_kind_name(int kind) { return kind == 5 ? "prophets" : kind == 4 ? "scouts" : kind != 2 ? "soldiers" : "citizens"; }
+internal const char *fy_pool_name(int kind, int push) { return kind == 1 && push == SNP_SIEGE ? "siege" : kind == 1 && push == SNP_AA ? "anti-air" : fy_kind_name(kind); }   // EVERY POOL BY THE FERRY
 struct fy_want { unsigned a, b; ivec2 from, to; };   // THRIFT: a trip that found no free transport - its lands and points
 internal struct fy_want g_fy_miss;   // fy_start's last
 // THE SHORE ANYWHERE (the player 2026-11-20, of "none free on a sea both its lands touch": "that sounds like a really bad
@@ -172,7 +173,7 @@ internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
 internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
-    int np = kind == 1 ? sn_ferry_pick(pl, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind >= 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
+    int np = kind == 1 ? sn_ferry_pick(pl, push >= 0 && push < SNP_N ? push : SNP_MAIN, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind >= 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
     if (kind == 4 && push >= 0 && push < SN_SX && g_sn_sx[idx & 15][push].u && !expand_has(pl, g_sn_sx[idx & 15][push].u) && unit_get_hp(g_sn_sx[idx & 15][push].u) > 0) { pass[0] = g_sn_sx[idx & 15][push].u; np = 1; }   // SCOUTS ACROSS
     if (kind == 5 && push >= 0 && push < FY_HX && g_fy_hx[idx & 15][push].u && unit_get_serial(g_fy_hx[idx & 15][push].u) == g_fy_hx[idx & 15][push].id && unit_get_hp(g_fy_hx[idx & 15][push].u) > 0) {   // PROPHETS ACROSS: it and its escort
         pass[0] = g_fy_hx[idx & 15][push].u;
@@ -279,7 +280,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         unit_goal(t->pass[k].u, goal_move((float)t->pick.x + 0.5f, (float)t->pick.y + 0.5f), 0, 0x1F40);
     }
     fy_say(idx, now, "trip %u: %d %s from land %u (by %d,%d) to land %u (wanted at %d,%d) - the transport at %d,%d, boarding at %d,%d, off at %d,%d%s; risk %.2f%s",
-           t->no, t->npass, fy_kind_name(kind), a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
+           t->no, t->npass, fy_pool_name(kind, push), a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
            t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "");
     return 1;
 }
@@ -431,18 +432,18 @@ internal void fy_park(ee_player *pl, unsigned idx, struct fy_st *f) {
     }
 }
 internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now) {
-    typeof(&g_snl[0]) S = &g_snl[idx];
+    struct sn_lands *SP = g_snl[idx];   // EVERY POOL BY THE FERRY (stations.c): each pool's lands
     typeof(&g_wkl[0]) W = &g_wkl[idx];
-    int sfresh = S->t && now >= S->t && now - S->t <= FY_FRESH, wfresh = W->t && now >= W->t && now - W->t <= FY_FRESH;
+    int sfresh = SP[SNP_MAIN].t && now >= SP[SNP_MAIN].t && now - SP[SNP_MAIN].t <= FY_FRESH, wfresh = W->t && now >= W->t && now - W->t <= FY_FRESH;
     // the lands' gaps, those on their way counted for the land they go to
     // cwood, cidle: work.c TO THE TREES ACROSS - the places at the trees and bushes (idle citizens only), the idle
-    int sgap[SN_LANDS], cfree[WK_LANDS], cspare[WK_LANDS], cwood[WK_LANDS], cidle[WK_LANDS];
-    for (int k = 0; k < S->n; k++) sgap[k] = S->l[k].gap;
+    int sgap[SNP_N][SN_LANDS], cfree[WK_LANDS], cspare[WK_LANDS], cwood[WK_LANDS], cidle[WK_LANDS];
+    for (int pool = 0; pool < SNP_N; pool++) for (int k = 0; k < SP[pool].n; k++) sgap[pool][k] = SP[pool].l[k].gap;
     for (int k = 0; k < W->n; k++) { cfree[k] = W->l[k].free; cspare[k] = W->l[k].spare; cwood[k] = W->l[k].wood; cidle[k] = W->l[k].idle; }
     for (int i = 0; i < FY_TRIPS; i++) {
         struct fy_trip *t = &f->t[i];
         if (!t->phase) continue;
-        if (t->kind == 1) { for (int k = 0; k < S->n; k++) if (S->l[k].land == t->to) sgap[k] -= t->npass; }
+        if (t->kind == 1) { int pool = t->push >= 0 && t->push < SNP_N ? t->push : SNP_MAIN; for (int k = 0; k < SP[pool].n; k++) if (SP[pool].l[k].land == t->to) sgap[pool][k] -= t->npass; }
         else for (int k = 0; k < W->n; k++) if (W->l[k].land == t->to) {
             int m = t->npass < cfree[k] ? t->npass : cfree[k] > 0 ? cfree[k] : 0;
             cfree[k] -= t->npass; cwood[k] -= t->npass - m;
@@ -514,16 +515,18 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         struct fy_trip *t = NULL;
         for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
         if (!t) break;
-        // soldiers: the pair that moves most - the short land, the one with spare
-        int bs = -1, as = -1, bn = 0;
-        for (int b = 0; !blocked[1] && b < S->n; b++) {
-            if (sgap[b] < 1) continue;
-            for (int a = 0; a < S->n; a++) {
-                if (a == b || sgap[a] > -1) continue;
-                int n = sgap[b] < -sgap[a] ? sgap[b] : -sgap[a];
-                if (n > bn) { bn = n; bs = b; as = a; }
+        // soldiers - of any pool (EVERY POOL BY THE FERRY): the pair that moves most - the short land, the one with spare
+        int bs = -1, as = -1, bn = 0, bp = SNP_MAIN;
+        for (int pool = 0; !blocked[1] && pool < SNP_N; pool++)
+            for (int b = 0; b < SP[pool].n; b++) {
+                if (sgap[pool][b] < 1) continue;
+                for (int a = 0; a < SP[pool].n; a++) {
+                    if (a == b || sgap[pool][a] > -1) continue;
+                    int n = sgap[pool][b] < -sgap[pool][a] ? sgap[pool][b] : -sgap[pool][a];
+                    if (n > bn) { bn = n; bs = b; as = a; bp = pool; }
+                }
             }
-        }
+        struct sn_lands *S = &SP[bp];
         // citizens: the land with most free places (a drop site of its there), from the one with most to spare
         // (TO THE TREES ACROSS: the trees' and bushes' places count from a land with idle ones only)
         int bc = -1, ac = -1, cn = 0;
@@ -544,10 +547,10 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         for (int j = 0; j < 2; j++) {
             int kind = j ? 3 - first : first;
             if (!can[kind]) continue;
-            int r = kind == 1 ? fy_start(pl, idx, f, t, 1, S->l[bs].hot, S->l[as].land, S->l[bs].land, bn, S->l[bs].at, -1, now)
+            int r = kind == 1 ? fy_start(pl, idx, f, t, 1, S->l[bs].hot, S->l[as].land, S->l[bs].land, bn, S->l[bs].at, bp, now)
                               : fy_start(pl, idx, f, t, 2, 0, W->l[ac].land, W->l[bc].land, cn, W->l[bc].at, -1, now);
             if (r > 0) {
-                if (kind == 1) { sgap[bs] -= t->npass; sgap[as] += t->npass; }
+                if (kind == 1) { sgap[bp][bs] -= t->npass; sgap[bp][as] += t->npass; }
                 else {
                     int m = cfree[bc] > 0 ? (t->npass < cfree[bc] ? t->npass : cfree[bc]) : 0;
                     cfree[bc] -= m; cwood[bc] -= t->npass - m; cspare[ac] -= t->npass; cidle[ac] -= t->npass < cidle[ac] ? t->npass : cidle[ac];
@@ -588,7 +591,7 @@ internal void fy_minute(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t n
     if (!g_log || (f->log_t && now >= f->log_t && now - f->log_t < 60000)) return;
     f->log_t = now ? now : 1;
     char b[300] = "";
-    typeof(&g_snl[0]) S = &g_snl[idx];
+    struct sn_lands *S = &g_snl[idx][SNP_MAIN];
     typeof(&g_wkl[0]) W = &g_wkl[idx];
     for (int k = 0; k < S->n; k++) { size_t l = strlen(b); if (l < sizeof b - 40) snprintf(b + l, sizeof b - l, " %u:%d/%d", S->l[k].land, S->l[k].have, S->l[k].want); }
     size_t l = strlen(b);
@@ -722,7 +725,7 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
         int off = 0, offc = 0;
         for (int k = 0; k < t->npass; k++) if (unit_get_x(t->pass[k].u) >= 0) { off++; offc += t->kind == 3 && fy_is_cit(&t->pass[k]); }
         if (t->kind != 2) { f->soldiers += (unsigned)(off - offc); f->citizens += (unsigned)offc; } else f->citizens += (unsigned)off;
-        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d%s", t->no, (double)t->risk, off, fy_kind_name(t->kind), t->to, t->drop.x, t->drop.y,
+        fy_say(idx, now, "trip %u (risk %.2f): %d %s put off on land %u at %d,%d%s", t->no, (double)t->risk, off, fy_pool_name(t->kind, t->push), t->to, t->drop.x, t->drop.y,
                offc ? " - citizens for the bridgehead among them" : "");
         if (t->kind != 2)   // on to where they are wanted; the stations take them there - a push's back to its push (stations.c ACROSS)
             for (int k = 0; k < t->npass; k++) {

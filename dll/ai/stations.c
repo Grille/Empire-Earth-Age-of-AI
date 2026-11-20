@@ -961,15 +961,48 @@ internal int sn_push_pick(ee_player *pl, int k, ivec2 toward, ee_unit **out, int
 // beyond their shares (> 0 short, < 0 spare). Each look; sn_ferry_pick takes the spare ones of a land for the transport.
 #define SN_LANDS 16
 struct sn_land { unsigned land; int want, have, gap, hot; ivec2 at; };   // hot: a territory of its under attack (the crossing: an important delivery)
-internal struct { uint32_t t; int n; struct sn_land l[SN_LANDS]; } g_snl[16];
+internal short g_sn_ptc[16][SNP_N][PR_T];   // each pool's shares by territory, the last look (sn_ferry_pick)
+internal struct sn_lands { uint32_t t; int n; struct sn_land l[SN_LANDS]; } g_snl[16][SNP_N];   // by pool (main force, siege, anti-air)
+// EVERY POOL BY THE FERRY (the player 2026-11-20, of the anti-air - "anti air never gets redistributed via ferrys right?,
+// there a 100 or so mobile aa in one place" - then "why do we need to add this as a special case for evrething? there is
+// no reason why anething should be disalowed from using ferries when it would distribute over land", and "siege also
+// seems stuck on one island"): the lands table and the ferry's pick were the main force's alone; now every pool's
+// shares are counted by land the same way (sn_lands) and the ferry serves each (ferry.c, trip kind 1 with its pool).
+internal void sn_lands(unsigned idx, int pool, int n, const int *tc, const struct tv_st *s, const ivec2 *rally, uint32_t now) {
+    struct sn_lands *L = &g_snl[idx & 15][pool];
+    struct sn_st *z = &g_sn[idx & 15];
+    static int ac[PR_T];
+    int worst[SN_LANDS];
+    memset(ac, 0, (size_t)n * sizeof *ac);
+    for (int i = 0; i < z->n; i++) if (z->m[i].pool == pool && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) ac[z->m[i].ter]++;
+    L->n = 0; L->t = now ? now : 1;
+    for (int r = 0; r < n; r++) {
+        g_sn_ptc[idx & 15][pool][r] = (short)tc[r];
+        if (g_ter.t[r].water || (!tc[r] && !ac[r])) continue;
+        unsigned a = sn_land_of(r, rally[r]);
+        if (!a) continue;
+        int k = 0;
+        while (k < L->n && L->l[k].land != a) k++;
+        if (k == L->n) { if (k == SN_LANDS) continue; L->l[k].land = a; L->l[k].want = L->l[k].have = 0; L->l[k].gap = L->l[k].hot = 0; L->l[k].at = rally[r]; worst[k] = -0x7FFFFFFF; L->n++; }
+        L->l[k].want += tc[r]; L->l[k].have += ac[r];
+        // short as GIVING has it over land (sn_give: by SN_BAND of its share, SN_BAND_MIN at least, or by any under
+        // attack) - a land short by a soldier or two at every change of the shares sent 2.5 trips an AI back the
+        // way one had come within 10 minutes (Small Islands large, 10 seeds); spare: any beyond the share
+        int df = tc[r] - ac[r], hard = s->t[r].foe > 0 && s->t[r].role != TVR_NONE;
+        L->l[k].hot |= hard;
+        if (df < 0) L->l[k].gap += df;
+        else if (hard || df >= (tc[r] * SN_BAND > SN_BAND_MIN ? tc[r] * SN_BAND : SN_BAND_MIN)) L->l[k].gap += df;
+        if (df > worst[k]) { worst[k] = df; L->l[k].at = rally[r]; }
+    }
+}
 internal unsigned sn_land_of(int r, ivec2 rally) {
     unsigned a = area_id(rally, 2);
     return a ? a : area_id(g_ter.t[r].c, 2);
 }
-// the soldiers of land `land` beyond their territories' shares (not a push's, not where the enemy is), nearest to
-// `near` first, into out (at most max): how many
+// the units of pool `pool` on land `land` beyond their territories' shares (not a push's, not where the enemy is),
+// nearest to `toward` first, into out (at most max): how many
 internal int expand_has(ee_player *pl, ee_unit *u);   // expand.c: a passenger of one of its ferries
-internal int sn_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit **out, int max) {
+internal int sn_ferry_pick(ee_player *pl, int pool, unsigned land, ivec2 toward, ee_unit **out, int max) {   // EVERY POOL BY THE FERRY: pool's
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct sn_st *z = &g_sn[idx];
     struct tv_st *s = &g_tv[idx];
@@ -977,11 +1010,11 @@ internal int sn_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit *
     static int dist[SN_UNITS];
     int n = s->n < PR_T ? s->n : PR_T, got = 0;
     memset(cnt, 0, (size_t)n * sizeof *cnt);
-    for (int i = 0; i < z->n; i++) if (z->m[i].pool == SNP_MAIN && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) cnt[z->m[i].ter]++;
+    for (int i = 0; i < z->n; i++) if (z->m[i].pool == pool && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) cnt[z->m[i].ter]++;
     for (int i = 0; i < z->n; i++) {
         struct sn_unit *m = &z->m[i];
         dist[i] = -1;
-        if (m->pool != SNP_MAIN || m->scout || m->ter < 0 || m->ter >= n || cnt[m->ter] <= z->tc[m->ter] || s->t[m->ter].foe > 0) continue;
+        if (m->pool != pool || m->scout || m->ter < 0 || m->ter >= n || cnt[m->ter] <= g_sn_ptc[idx][pool][m->ter] || s->t[m->ter].foe > 0) continue;
         if (unit_get_hp(m->u) <= 0 || unit_get_x(m->u) < 0 || area_id(unit_get_tile(m->u), 2) != land || expand_has(pl, m->u)) continue;
         int pushing = 0;
         for (int k = 0; k < SN_PUSHES; k++) pushing |= z->push[k].on && z->push[k].from == m->ter;
@@ -989,7 +1022,7 @@ internal int sn_ferry_pick(ee_player *pl, unsigned land, ivec2 toward, ee_unit *
     }
     while (got < max) {
         int b = -1;
-        for (int i = 0; i < z->n; i++) if (dist[i] >= 0 && cnt[z->m[i].ter] > z->tc[z->m[i].ter] && (b < 0 || dist[i] < dist[b])) b = i;
+        for (int i = 0; i < z->n; i++) if (dist[i] >= 0 && cnt[z->m[i].ter] > g_sn_ptc[idx][pool][z->m[i].ter] && (b < 0 || dist[i] < dist[b])) b = i;
         if (b < 0) break;
         out[got++] = z->m[b].u; cnt[z->m[b].ter]--; dist[b] = -1;
     }
@@ -1231,32 +1264,20 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
             if (o < (unsigned)n && !g_ter.t[o].water && s->t[o].ebld && PR_ATTACK + s->t[o].ebld > a) a = PR_ATTACK + s->t[o].ebld;
         }
+        // ... and across the water where pushes go across (ACROSS; the player 2026-11-20: "siege also seems stuck on one
+        // island" - its share went beside enemy buildings over land only, so a push across had none stationed to take)
+        if (PUSH_ACROSS(idx)) {
+            wk_across_build();
+            for (int q = 0; r < g_wkx.n && q < g_wkx.no[r]; q++) {
+                unsigned o = g_wkx.o[r][q];
+                if (o < (unsigned)n && s->t[o].ebld && PR_ATTACK + s->t[o].ebld > a) a = PR_ATTACK + s->t[o].ebld;
+            }
+        }
         tcs[r] = a; wsum += a;
     }
     int budget = SN_MOVES;
     sn_give(z, SNP_MAIN, n, tc, ac, s, &budget);
-    {   // THE FERRY SERVICE: by land
-        typeof(&g_snl[0]) L = &g_snl[idx];
-        int worst[SN_LANDS];
-        L->n = 0; L->t = now ? now : 1;
-        for (int r = 0; r < n; r++) {
-            if (g_ter.t[r].water || (!tc[r] && !ac[r])) continue;
-            unsigned a = sn_land_of(r, rally[r]);
-            if (!a) continue;
-            int k = 0;
-            while (k < L->n && L->l[k].land != a) k++;
-            if (k == L->n) { if (k == SN_LANDS) continue; L->l[k].land = a; L->l[k].want = L->l[k].have = 0; L->l[k].gap = L->l[k].hot = 0; L->l[k].at = rally[r]; worst[k] = -0x7FFFFFFF; L->n++; }
-            L->l[k].want += tc[r]; L->l[k].have += ac[r];
-            // short as GIVING has it over land (sn_give: by SN_BAND of its share, SN_BAND_MIN at least, or by any under
-            // attack) - a land short by a soldier or two at every change of the shares sent 2.5 trips an AI back the
-            // way one had come within 10 minutes (Small Islands large, 10 seeds); spare: any beyond the share
-            int df = tc[r] - ac[r], hard = s->t[r].foe > 0 && s->t[r].role != TVR_NONE;
-            L->l[k].hot |= hard;
-            if (df < 0) L->l[k].gap += df;
-            else if (hard || df >= (tc[r] * SN_BAND > SN_BAND_MIN ? tc[r] * SN_BAND : SN_BAND_MIN)) L->l[k].gap += df;
-            if (df > worst[k]) { worst[k] = df; L->l[k].at = rally[r]; }
-        }
-    }
+    sn_lands(idx, SNP_MAIN, n, tc, s, rally, now);   // THE FERRY SERVICE: by land
     if (SN_COAST(idx)) sn_coast_plan(idx, s, n, tc, rally, now); else g_snc[idx].n = 0;   // COAST BATTERIES
     if (wsum > 0) {
         for (int r = 0; r < n; r++) tcs[r] = (tcs[r] * np[SNP_SIEGE] + wsum / 2) / wsum;
@@ -1268,6 +1289,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         tcs[g_snc[idx].b[0].ter] += left;
         sn_give(z, SNP_SIEGE, n, tcs, acs, s, &budget);
     }
+    if (wsum <= 0 && !g_snc[idx].n) memset(tcs, 0, (size_t)n * sizeof *tcs);   // no attack planned, no battery: no siege wanted anywhere
+    sn_lands(idx, SNP_SIEGE, n, tcs, s, rally, now);   // THE FERRY SERVICE: its siege by land too
     if (g_snc[idx].n) {   // COAST BATTERIES: THE DEMAND (its siege that is no ram)
         int have = 0;
         for (int i = 0; i < z->n; i++) have += z->m[i].pool == SNP_SIEGE && !sn_is_ram(z->m[i].u);
@@ -1293,7 +1316,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (asum > 0 && np[SNP_AA]) {
             for (int r = 0; r < n; r++) tca[r] = (tca[r] * np[SNP_AA] + asum / 2) / asum;
             sn_give(z, SNP_AA, n, tca, aca, s, &budget);
-        }
+        } else memset(tca, 0, (size_t)n * sizeof *tca);
+        sn_lands(idx, SNP_AA, n, tca, s, rally, now);   // THE FERRY SERVICE: its anti-air by land too
     }
     // A PUSH: those on, then a new one
     for (int k = 0; k < SN_PUSHES; k++) {
