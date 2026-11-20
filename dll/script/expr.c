@@ -4517,6 +4517,9 @@ internal struct xtrig *xt_of(struct xe *e, const char *fn, const struct xval *t)
 }
 // a trigger's or an after's function worked out (the triggers' turn): 0 a mistake - told, what it belongs to stops
 internal int xt_call(const struct xval *fn, struct xval *out, const char *what, const char *who) {
+    // (no function: one a save couldn't keep - of no script's code, a text's {placeholder}: xs_put writes it as nothing
+    // - or a broken save's; told and stopped, not called through a function that isn't there)
+    if (fn->kind != XV_FN || !fn->fn || !fn->fn->vm) { xnothing(out); x_error("trigger %s: %s stopped - no function (one a save couldn't keep, or a broken save)", who, what); return 0; }
     struct xctx c = { 0 };
     c.found = 1;
     c.script = 1;
