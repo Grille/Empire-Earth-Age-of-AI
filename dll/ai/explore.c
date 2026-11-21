@@ -193,6 +193,7 @@ internal int xp_done(unsigned idx, ee_player *pl, ivec2 g) {
     return !xp_edge(tiles, e->size, idx & 15, g.x, g.y) && intel_looked_ago(pl, g.x, g.y) < XP_STALE;
 }
 internal int xp_alive(const struct xp_unit *m) { return m->u && unit_get_serial(m->u) == m->id && unit_get_hp(m->u) > 0 && unit_get_x(m->u) >= 0; }
+internal int xp_own(const struct xp_unit *m, ee_player *pl) { return xp_alive(m) && unit_get_owner(m->u) == pl; }   // alive and still its own (a priest may have converted it)
 internal void xp_release(struct xp_st *e, int k, int stop) {
     struct xp_unit *m = &e->u[k];
     if (xp_alive(m)) {
@@ -262,6 +263,9 @@ internal void xp_goals(ee_player *pl, unsigned idx, uint32_t now) {
     ee_tile **tiles = map ? map_get_tiles(map) : NULL;
     for (int k = e->nu - 1; k >= 0 && tiles; k--) {
         struct xp_unit *m = &e->u[k];
+        // dead, converted or taken by its safety since the look: let go, no order (the next goal sent a citizen its
+        // safety had sent home back towards the dark until the look)
+        if (!xp_own(m, pl) || !cl_may(m->u, CLP_ROUTINE, CLW_EXPLORE)) { xp_release(e, k, 0); continue; }
         int edge = m->goal.x >= 0 && xp_edge(tiles, e->size, idx, m->goal.x, m->goal.y);
         if (edge && now - m->since < XP_GIVE_UP && unit_get_goal(m->u)) continue;   // on its way
         int there = m->goal.x >= 0 && ivec2_dist2(unit_get_tile(m->u), m->goal) <= 4 && !unit_get_goal(m->u);   // stands there and it stays dark: the same goal again would hold it
@@ -312,7 +316,7 @@ internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     drops_cached(pl);
     for (int k = e->nu - 1; k >= 0; k--) {   // the explorers: alive, still its own (its safety may have taken a citizen)
         struct xp_unit *m = &e->u[k];
-        if (!xp_alive(m) || !on || !cl_take(m->u, CLP_ROUTINE, CLW_EXPLORE, XP_CLAIM_T)) { xp_release(e, k, 0); continue; }
+        if (!xp_own(m, pl) || !on || !cl_take(m->u, CLP_ROUTINE, CLW_EXPLORE, XP_CLAIM_T)) { xp_release(e, k, 0); continue; }
     }
     if (!on) return;
     // THE FOOD SEARCH
