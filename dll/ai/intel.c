@@ -213,9 +213,12 @@ struct intel_scan {
     // for intel_live (identity only - a remembered pointer is read only when it is in there). The records are made in
     // the grid's order: in the address order (until 2026-10-22) the memory's order, so the float sums over it and which
     // record a full memory drops, followed the heap - which differs between two runs of the same game, more so under load
-    int nlive; ee_unit *live[6000], *by_addr[6000];
+    // Both lists grow with the units (6000 and 3000 until 2026-11-21: past them a remembered building was taken for
+    // gone - not live - and an ally's eye looked at nothing); cut: a list that could not grow, nothing is gone for not
+    // being in it then
+    int nlive, cap_live, ne, cap_eye, cut; ee_unit **live, **by_addr;
     uint16_t floor[16]; int fseen[16];
-    int ne; ivec2 eye[3000];             // eyes: its and its allies' units
+    ivec2 *eye;                          // eyes: its and its allies' units
     int nat; ee_unit *at[INTEL_REVEAL / 2]; short at_d[INTEL_REVEAL / 2];   // reveal_attackers: enemy units hitting its own, from how far
 };
 internal void intel_unit(ee_unit *u, void *ctx) {
@@ -224,7 +227,14 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     if (!o || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     int oi = player_get_index(o);
     if (oi <= 0 || oi >= 16) return;
-    if (s->nlive < 6000) s->live[s->nlive++] = u;
+    if (s->nlive == s->cap_live) {
+        int cap = s->cap_live ? 2 * s->cap_live : 8192;
+        ee_unit **nl = realloc(s->live, (size_t)cap * sizeof *nl);
+        if (nl) s->live = nl;
+        ee_unit **na = nl ? realloc(s->by_addr, (size_t)cap * sizeof *na) : NULL;
+        if (na) { s->by_addr = na; s->cap_live = cap; }
+    }
+    if (s->nlive < s->cap_live) s->live[s->nlive++] = u; else s->cut = 1;
     if (o == s->pl && s->nat < INTEL_REVEAL / 2 && REVEAL(s->pi)) {
         ee_unit *a = unit_get_attacker(u);
         ee_player *ao = a ? unit_get_owner(a) : NULL;
@@ -233,7 +243,15 @@ internal void intel_unit(ee_unit *u, void *ctx) {
             s->at[s->nat++] = a;
         }
     }
-    if (!is_enemy(s->pl, o)) { if (s->ne < 3000) s->eye[s->ne++] = unit_get_tile(u); return; }
+    if (!is_enemy(s->pl, o)) {
+        if (s->ne == s->cap_eye) {
+            int cap = s->cap_eye ? 2 * s->cap_eye : 4096;
+            ivec2 *ne = realloc(s->eye, (size_t)cap * sizeof *ne);
+            if (ne) { s->eye = ne; s->cap_eye = cap; }
+        }
+        if (s->ne < s->cap_eye) s->eye[s->ne++] = unit_get_tile(u);
+        return;
+    }
     ee_unit_vis *v = unit_get_vis(u);
     uint16_t *vis = v ? unit_vis_get_seen(v) : NULL;
     unsigned c = vis ? sight_count(vis[s->pi]) : 0;
@@ -252,12 +270,14 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
     if (now < in->now) memset(in, 0, sizeof *in);   // a new game
     if (!g_honest_vision || (in->now && now - in->now < 3000)) return;
     static struct intel_scan s;
-    s.pl = pl; s.pi = pi; s.nlive = 0; s.ne = 0; s.nat = 0;
+    s.pl = pl; s.pi = pi; s.nlive = 0; s.ne = 0; s.nat = 0; s.cut = 0;
     memset(s.floor, 0, sizeof s.floor); memset(s.fseen, 0, sizeof s.fseen);
     grid_each(intel_unit, &s);
     for (int o = 0; o < 16; o++) g_vis_floor[pi][o] = s.fseen[o] ? s.floor[o] : 0;
-    memcpy(s.by_addr, s.live, (size_t)s.nlive * sizeof *s.live);
-    qsort(s.by_addr, (size_t)s.nlive, sizeof *s.by_addr, intel_ptr_cmp);
+    if (s.nlive) {   // the lists are made at the first unit
+        memcpy(s.by_addr, s.live, (size_t)s.nlive * sizeof *s.live);
+        qsort(s.by_addr, (size_t)s.nlive, sizeof *s.by_addr, intel_ptr_cmp);
+    }
     in->last = in->now = now;
     ee_unit **rev = g_rev[pi].u;
     memset(g_rev[pi].u, 0, sizeof g_rev[pi].u);   // what hits its units now (half full at most: the probe ends)
@@ -343,7 +363,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         struct intel_rec *e = &in->r[k];
         int keep = 1;
         if (e->t != now) {
-            int looked = 0, live = intel_live(&s, e->u);   // an eye within 6 tiles of where it was
+            int looked = 0, live = s.cut || intel_live(&s, e->u);   // an eye within 6 tiles of where it was
             for (int q = 0; q < s.ne && e->x >= 0 && !looked; q++)
                 looked = ivec2_dist2(s.eye[q], iv2(e->x, e->y)) <= 36;
             if (e->kind == 0) {
