@@ -447,7 +447,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         struct fy_trip *t = &f->t[i];
         if (!t->phase) continue;
         if (t->kind == 1) { int pool = t->push >= 0 && t->push < SNP_N ? t->push : SNP_MAIN; for (int k = 0; k < SP[pool].n; k++) if (SP[pool].l[k].land == t->to) sgap[pool][k] -= t->npass; }
-        else for (int k = 0; k < W->n; k++) if (W->l[k].land == t->to) {
+        else if (t->kind == 2) for (int k = 0; k < W->n; k++) if (W->l[k].land == t->to) {   // citizens only: a push's (its bridgehead's citizens build there), a scout's or a prophet's passengers take no place at the mines or trees
             int m = t->npass < cfree[k] ? t->npass : cfree[k] > 0 ? cfree[k] : 0;
             cfree[k] -= t->npass; cwood[k] -= t->npass - m;
         }
