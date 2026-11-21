@@ -122,8 +122,9 @@ internal const char *lle_patch(const char *dir) {
         return GetLastError() == ERROR_SHARING_VIOLATION ? "The game is running - close Empire Earth first."
                                                          : "Low-Level Engine.dll can't be written (a folder that needs administrator rights?).";
     CloseHandle(f);
-    if (GetFileAttributesA(backup) == INVALID_FILE_ATTRIBUTES && !CopyFileA(path, backup, TRUE))
-        return "The backup of Low-Level Engine.dll couldn't be made - nothing changed.";
+    // the backup made afresh: the file is the one without the import (st 0), and a backup kept from an earlier patch
+    // may be of an engine file replaced since - lle_unpatch would put that older one back
+    if (!CopyFileA(path, backup, FALSE)) return "The backup of Low-Level Engine.dll couldn't be made - nothing changed.";
     uint32_t size = 0, nsize = 0;
     uint8_t *b = exe_file_read(path, &size);
     const char *why = "Low-Level Engine.dll couldn't be read - nothing changed.";

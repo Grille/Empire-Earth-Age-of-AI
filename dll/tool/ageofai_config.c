@@ -572,7 +572,10 @@ internal void game_apply(void) {
                      : "The exe can't be written (a folder that needs administrator rights?).", MB_ICONWARNING);
         return;
     }
-    if (GetFileAttributesA(g_exe_backup) == INVALID_FILE_ATTRIBUTES && !CopyFileA(g_exe, g_exe_backup, TRUE)) {
+    // the backup made afresh from an exe without the flag (the button's condition, checked again: a flagged exe isn't
+    // the original) - one kept from before may be of an exe replaced since, and game_restore would put that back
+    if (exe_laa(g_exe) != 0) { game_show(); return; }
+    if (!CopyFileA(g_exe, g_exe_backup, FALSE)) {
         game_message("The backup of the exe couldn't be made - nothing changed.", MB_ICONERROR);
         return;
     }
