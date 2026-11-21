@@ -83,10 +83,18 @@ internal int hl_ordered(struct hl_st *h, ee_unit *u, uint32_t now) {
     for (int k = 0; k < h->nord; k++) if (h->ord[k].id == id) return now >= h->ord[k].t && now - h->ord[k].t < HL_ORDER_WAIT && unit_get_goal(u);
     return 0;
 }
+// another's order is kept until its cast is spent (AWAY AT ONCE reads its power then), not HL_ORDER_WAIT only: a cast
+// that came after a long walk lost its note to the next unit's order and the prophet stood "casting" where it cast;
+// with the list full the oldest goes
 internal void hl_order_note(struct hl_st *h, ee_unit *u, uint32_t now) {
     int id = unit_get_serial(u), n = 0;
-    for (int k = 0; k < h->nord; k++) if (h->ord[k].id != id && now >= h->ord[k].t && now - h->ord[k].t < HL_ORDER_WAIT) h->ord[n++] = h->ord[k];
-    if (n < 2 * HL_UNITS) { h->ord[n].id = id; h->ord[n].pw = unit_get_power(u); h->ord[n++].t = now ? now : 1; }
+    for (int k = 0; k < h->nord; k++) if (h->ord[k].id != id && h->ord[k].t && now >= h->ord[k].t) h->ord[n++] = h->ord[k];
+    if (n == 2 * HL_UNITS) {
+        int o = 0;
+        for (int k = 1; k < n; k++) if (h->ord[k].t < h->ord[o].t) o = k;
+        h->ord[o] = h->ord[--n];
+    }
+    h->ord[n].id = id; h->ord[n].pw = unit_get_power(u); h->ord[n++].t = now ? now : 1;
     h->nord = n;
 }
 // AWAY AT ONCE (the player 2026-11-16: "strike prophets stick around to long after their "crimes" the should imediatly
