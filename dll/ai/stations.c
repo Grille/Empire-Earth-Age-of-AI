@@ -155,6 +155,7 @@ internal struct sn_st {
     struct sn_unit m[SN_UNITS];
     struct sn_push push[SN_PUSHES];
     short tc[PR_T];   // STEADY: the territories' shares in soldiers as of the last look
+    uint32_t calm_t[PR_T];   // no push from that territory before then (its last push's end + wait) - its own: kept in the push's slot, the wait was lost when a later push took the slot over
     uint32_t res_t, res_out_t, res_in_t; unsigned res_in, res_out; ee_unit *res_last; int res_last_n, res_room, res_claim;   // THE RESERVE: its last look, the last fortress let out, the last load; soldiers in, out; the room spare and the training's claim at the last look
     unsigned moved, orders, pushes, won, lost, scouted, looks, breaches, groups, grouped, demos, stale, formed, gates; int due;   // looks: scouts' goals inside their territory (THROUGH THE TERRITORY)   // gates: siege set at an enemy gate (SIEGE AT THE GATES)   // formed: formations laid out at rest (A STANDING FORMATION)   // due: territories a scout goes to (A LOOK AGAIN)   // stale: orders taken for dead (A STUCK ORDER)   // demos: soldiers set at an enemy wall (DEMOLITION)   // groups: orders to several at once, grouped: the soldiers in them
     int need_on; ivec2 need_at;   // where the force meets the enemy next (sn_need_at)
@@ -935,6 +936,7 @@ internal void sn_push_off(unsigned idx, int k, const char *why, uint32_t now) { 
     struct sn_push *p = &z->push[k];
     p->on = 0; p->end_t = now ? now : 1; p->wait = SN_CALLED_OFF; p->ncit = 0;
     for (int i = 0; i < z->n; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
+    if (p->from >= 0 && p->from < PR_T) z->calm_t[p->from] = p->end_t + p->wait;
     if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (judged %.2f)\n", idx, now / 60000.0, p->from, p->into, why, (double)p->judge_r);
 }
 // ACROSS: the soldiers of push k still on the land it left (siege too), nearest `toward` first, into out (max): how many
@@ -1455,6 +1457,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (!end && !player_ai_toggle(pl, SM_AIT_ATTACK)) end = "the scenario's AI toggle Attack is off";
         if (!end) continue;
         p->on = 0; p->end_t = now ? now : 1; p->ncit = 0;   // THE BRIDGEHEAD's citizens work.c's again
+        if (p->from >= 0 && p->from < PR_T) z->calm_t[p->from] = p->end_t + (p->wait ? p->wait : SN_PUSH_WAIT);
         for (int i = 0; i < nn; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
         if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (%d soldiers, judged %.2f)\n", idx, now / 60000.0, p->from, p->into, end, cn, (double)ratio);
     }
@@ -1465,9 +1468,9 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < SN_PUSHES; k++) {
             struct sn_push *p = &z->push[k];
             if (p->on && p->from == r) busy = 1;
-            if (!p->on && p->from == r && p->end_t && now >= p->end_t && now - p->end_t < (p->wait ? p->wait : SN_PUSH_WAIT)) busy = 1;
             if (!p->on && (slot < 0 || p->end_t < z->push[slot].end_t)) slot = k;   // the one that ended longest ago
         }
+        if (now < z->calm_t[r]) busy = 1;   // its last push's wait
         if (busy || slot < 0) continue;
         for (int k = 0; k < g_ter.t[r].nbn; k++) {
             unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
