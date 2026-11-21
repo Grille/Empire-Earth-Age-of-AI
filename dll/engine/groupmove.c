@@ -241,18 +241,39 @@ internal void __thiscall hook_path_execute(ee_path_msg *msg) {
 // whenever members come or go (one arrives and leaves), so that is hooked: the speed then the slowest member's instead
 // of their average. Set when the units get their goals, not with the move's own together flag: that one also skips
 // the dispatch's pairing of units and slots for small fast units, and with it the group's route preparation (detours).
-// Only the groups marched here (the last FO_MARCHED): the game's own together moves keep the game's speed
+// Only the groups marched here (the last FO_MARCHED): the game's own together moves keep the game's speed. A group is
+// known by its address and some of its units (FO_MARCH_IDS of the move's, spread over it): the game frees a group when
+// its move ends and a later one - its own together move too - can be made at the same address; it is the marched one
+// while one of those units is still in it (an id is never given again), else the entry is let go
 #define FO_MARCHED 64
-internal ee_active_group *g_fo_marched[FO_MARCHED];
+#define FO_MARCH_IDS 8
+internal struct { ee_active_group *grp; uint32_t id[FO_MARCH_IDS]; } g_fo_marched[FO_MARCHED];
 internal unsigned g_fo_marched_n;
+internal int fo_marched(int i, ee_active_group *grp) {
+    for (int k = 0; k < FO_MARCH_IDS; k++) {
+        ee_unit *u = g_fo_marched[i].id[k] ? unit_by_id(g_fo_marched[i].id[k]) : NULL;
+        if (u && (void *)unit_get_group(u) == (void *)grp) return 1;
+    }
+    g_fo_marched[i].grp = NULL;
+    return 0;
+}
 internal void __thiscall hook_group_speeds(ee_active_group *grp) {
     active_group_speeds(grp);
     if (!active_group_get_together(grp)) return;
     for (int i = 0; i < FO_MARCHED; i++)
-        if (g_fo_marched[i] == grp) { active_group_set_speed(grp, active_group_get_speed_min(grp)); return; }
+        if (g_fo_marched[i].grp == grp) {
+            if (fo_marched(i, grp)) active_group_set_speed(grp, active_group_get_speed_min(grp));
+            return;
+        }
 }
 internal void fo_march(ee_active_group *grp) {
-    g_fo_marched[g_fo_marched_n++ % FO_MARCHED] = grp;
+    unsigned at = g_fo_marched_n++ % FO_MARCHED;
+    for (int i = 0; i < FO_MARCHED; i++) if (g_fo_marched[i].grp == grp) g_fo_marched[i].grp = NULL;   // marched again: one entry
+    g_fo_marched[at].grp = grp;
+    for (int k = 0; k < FO_MARCH_IDS; k++) {
+        ee_unit *u = g_fo_n > 0 ? g_fo[(int)((long long)k * g_fo_n / FO_MARCH_IDS)].u : NULL;
+        g_fo_marched[at].id[k] = u ? (uint32_t)unit_get_serial(u) : 0;
+    }
     active_group_set_together(grp, 1);
     hook_group_speeds(grp);
     g_fo_marches++;
