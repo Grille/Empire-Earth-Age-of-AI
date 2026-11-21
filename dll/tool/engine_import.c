@@ -136,9 +136,10 @@ internal const char *lle_patch(const char *dir) {
     int ok = f != INVALID_HANDLE_VALUE && WriteFile(f, n, nsize, &put, NULL) && put == nsize;
     if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
     free(n);
-    if (!ok || lle_state(path) != 1) {
-        CopyFileA(backup, path, FALSE);
-        return "Writing Low-Level Engine.dll failed - the backup was put back.";
+    if (!ok || lle_state(path) != 1) {   // the file truncated by CREATE_ALWAYS: put back, or told that it wasn't
+        if (CopyFileA(backup, path, FALSE)) return "Writing Low-Level Engine.dll failed - the backup was put back.";
+        return "Writing Low-Level Engine.dll failed, and so did putting the backup back: copy Low-Level Engine.dll.original "
+               "over Low-Level Engine.dll by hand, or use the game's \"verify files\" (Steam, GOG) - the game won't start before.";
     }
     return NULL;
 }

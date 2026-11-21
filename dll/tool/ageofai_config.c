@@ -598,8 +598,11 @@ internal void game_apply(void) {
     CloseHandle(f);
     free(b);
     if (!ok || exe_laa(g_exe) != 1 || exe_build_hash(g_exe) != hash) {
-        CopyFileA(g_exe_backup, g_exe, FALSE);
-        game_message("Writing the exe failed - the backup was put back.", MB_ICONERROR);
+        char msg[MAX_PATH * 2 + 160];
+        if (CopyFileA(g_exe_backup, g_exe, FALSE)) snprintf(msg, sizeof msg, "Writing the exe failed - the backup was put back.");
+        else snprintf(msg, sizeof msg, "Writing the exe failed, and so did putting the backup back: copy\r\n%s\r\nover\r\n%s\r\n"
+                      "by hand, or use the game's \"verify files\" (Steam, GOG).", g_exe_backup, g_exe);
+        game_message(msg, MB_ICONERROR);
     } else game_message("Done: the game gets 4 GB of memory from its next start.", MB_ICONINFORMATION);
     game_show();
 }
