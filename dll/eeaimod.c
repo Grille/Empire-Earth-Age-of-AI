@@ -383,12 +383,20 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
         LeaveCriticalSection(&g_lock);
     }
     // a test's random map: from the -loadgame start's setup, or (multiplayer, test/netgame.c) the lobby's
-    if (g_autotest && g_rm.map[0] && (mode == 2 || g_net.mode)) randmap_rewrite(setup);
+    // - a fresh game now (mode 0) under a new name: the name's old characters are freed by its ustring_set, so both are
+    // read again, else the save's paths below ran for it (intel's and the armies' after-load passes: the AIs remembered
+    // every enemy building at minute 1; persist_load on the freed name)
+    if (g_autotest && g_rm.map[0] && (mode == 2 || g_net.mode)) {
+        randmap_rewrite(setup);
+        name = FIELD(setup_map_name_at(setup), 4, char *);
+        mode = setup_get_mode(setup);
+    }
     if (g_autotest) mp_game_start();
     if (g_autotest && g_auto.scenario_mode && mode == 2 && name) {
         size_t n = strlen(name);
         if (n > 4 && !lstrcmpiA(name + n - 4, ".ees")) memcpy(name + n - 4, ".scn", 4);   // same length, in place
         setup_set_mode(setup, 1);
+        mode = 1;   // a scenario's start from here on, as one from the menu: no save's paths
         log_line("# game start: switched to scenario mode, loading Scenarios\\%s\n", name);
     }
     unit_types_load();   // the game's types by name (UT(B_FARM) ...) before any AI code runs - the data is loaded by now
@@ -458,10 +466,9 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     defence_new_game();
     counter_fire_new_game();
     sites_new_game();
-    int smode = setup_get_mode(setup);   // a test's scenario_mode made a save's start a scenario's (above)
-    game_ai_new_game(smode, 1);   // econ.c: the game's computer player in a scenario (game_ai_scenarios) - a save's from its file:
+    game_ai_new_game(mode, 1);   // econ.c: the game's computer player in a scenario (game_ai_scenarios) - a save's from its file:
     if (mode == 2) { persist_load(name); takeover_loaded(); }   // a saved game: the mod's state from its .ageofai file
-    game_ai_new_game(smode, 0);
+    game_ai_new_game(mode, 0);
     char r = game_state_start(state, setup, p2);
     day_night_new_game(setup_get_mode(setup));   // a random map's light at its first step (a test's random map: mode 0 now)
     // counted again once the new world is there: the render thread can draw the old one between the load's steps and
