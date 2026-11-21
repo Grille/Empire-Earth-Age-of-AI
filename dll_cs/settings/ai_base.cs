@@ -655,6 +655,12 @@ class ai_base
         /// 1 = on, being measured
         [advanced]
         bool front_army = false;
+        /// Lone bomber runs: while the bombers' wing gathers for a defended target (or has none), the bombers that are
+        /// ready fly in pairs at enemy buildings and working citizens with no anti-air the AI knows of near them or on the
+        /// way there, and come back to join the wing when it is complete. 0 = they wait at their Airports (default: against
+        /// the AIs' anti-air next to nothing is undefended - the bombers stayed as idle, the games went no better)
+        [advanced]
+        bool bomber_harass = false;
         struct fall_back_fields
         {
             /// a land unit worth fall_back_value (resources) or more below fall_back_hp of its hit points walks to

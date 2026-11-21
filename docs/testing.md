@@ -150,6 +150,7 @@ sh scripts/test/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_
 | `siege_raid` (Continental 101, 2 AIs, Bronze) | the defender builds for 12 min and gets 8 spearmen, then the attacker gets 4 catapults with 4 spearmen outside the tower range; `count` at minute 24 shows what is left |
 | `raid` (Continental 101, 2 AIs, Prehistoric start, base ini `epoch_min=15,epoch_max=20`, 55 min) | a grown base raided at minute 46 by 15 spearmen and 10 bowmen; `count 3` at 54 |
 | `late` (empty setup) | a plain late start (base `start_epoch=8`) for economy changes |
+| `air_rich` (Continental 101, map_size 1, 4 AIs, `start_epoch=9`, 60 min) | World War I where the AIs can pay for bombers: 3000 of each for every AI at minutes 10, 25 and 40 (a plain late start trains 1-2 bombers an AI in an hour, this one 15-20); the "# air force:" summary a minute (bombers held and idle, lost, wings, lone runs) |
 | `waves` (Continental 101, 1 AI, 120 min) | stress: P2 builds up for 60 min, then every 5 min the idle P1 gets 50, 75, 100, 150 ... 1000% of P2's army (`wave`, at P1's Town Center) and charges P2's town (`charge`, every 10 s); the minute P2 falls (game over) is the score. First run: army broken at the 150% wave (75 min), fallen at 98 |
 | `seaop` (Small/Large Islands 101, 1 AI, e5/e9, 60 min) | the AI's navy against a human-like navy: the idle P1 builds up a fleet and uses it as the playtester does (raids on fishing boats and the coast, hunts warships, patrols for transports, lands soldiers) - see "Sea opponent" below |
 

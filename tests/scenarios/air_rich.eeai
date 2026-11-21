@@ -1,0 +1,11 @@
+// air_rich.eeai: a late start where the AIs can pay for bombers (200 gold and 200 iron each - in a plain late start the
+// test AIs train 1-2 in an hour, airstrike.c). Every AI gets 3000 of each at minutes 10, 25 and 40. Base ini
+// random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=9 (World War I). Score: "# air force:" a minute
+// (bombers held, idle, lost, wings, lone runs) and the head-to-head counts (scripts/results/h2h.py).
+
+wait_until(10min)
+for p in 2..5 { give(p, 3000, resource.all) }
+wait_until(25min)
+for p in 2..5 { give(p, 3000, resource.all) }
+wait_until(40min)
+for p in 2..5 { give(p, 3000, resource.all) }

@@ -44,8 +44,37 @@
 //   force's judgement counts: with the bombs only on the buildings it judged the position too strong all the same,
 //   air_strike.eeai). BOMB, THEN GO: a wing's targets all down, the force judges its push again at once (armies.c
 //   g_ar_push_now), not at its next attack time.
+// - THE LONE RUNS ([ai_base] bomber_harass, off; [autotest] v_bomber_harass): the wing waits with no time limit for the
+//   bombers it needs, and they sit at their Airports meanwhile (a 90-minute island game logged "the wing ... waits" for
+//   most of it; in air_rich below 83% of the bomber-minutes held were idle). The player, 2026-11-21: "the bombers
+//   shouldnt sit idle, the wings are an way to overwelm devenses, lone bombers could still harees undefended targets".
+//   While the wing gathers (or flies, or no position needs it), the bombers ready go in flights of up to AH_FLIGHT from
+//   one Airport at what the AI knows of an enemy - buildings (seen or remembered; not walls) and citizens at work (two or
+//   more within 4 tiles) - that is undefended as far as it knows:
+//   - an enemy with an Airport or fighters known: none of its targets, and no way within AH_FIGHTER_R of a building of
+//     its (the fighters rise at what comes near its buildings - airguard.c INTERCEPT);
+//   - the ground within AH_LOOK_R of the target looked at within AH_LOOKED, and of an enemy known to have anti-air the
+//     way there too (a point every AH_WAY_STEP): the anti-air it doesn't see is not there;
+//   - no anti-air within its reach and AH_MARGIN (AH_AA_MIN at least) of the target or the straight way: AA buildings
+//     and units, cruisers, carriers seen now or, with honest_vision, within AH_MEM where seen; by the Town Centers,
+//     Capitols and Settlements of an enemy known to have anti-air unless looked at within AH_LOOKED (aa_strong puts its
+//     blocks there); within AH_MEM where a bomber on a lone run was lost, and its target.
+//   The most worth (its price, at most 800; 120 a citizen) for the way, one flight a target at a time. A bomber on a run
+//   is claimed (claims.c CLW_BOMBERS, CLP_TASK - counter-fire took them as soldiers and sent them at the mortars);
+//   called back to its Airport (the game's EEMReturnToBase, as airguard.c THE AIR BASES) when it goes after something
+//   else, its target is down, or it is AH_STRAY off the way; back on the ground (or AH_RUN_MS on) it is free again.
+//   None go while the bombers ready and those on a run make the wing: those out come back and it launches.
+//   MEASURED 2026-11-21 (tests/scenarios/air_rich.eeai: Continental 101 map_size 1, 4 AIs, WWI, 60 min, 3000 of each
+//   for every AI at 10, 25 and 40 min; head-to-head, seeds 1-10 mirrored, 20 games, B with the lone runs): B - A alive
+//   -0.03 (se 0.11), soldiers -5.9 (6.0), kills -27 (28), losses -16 (13), razed -7.8 (7.7), workers -17 (12) - within
+//   the noise, all on the wrong side; the idle share of the bomber-minutes held 0.83 both: 2.5 bombers an AI flew lone
+//   runs in an hour, 0.8 of them lost - the AIs' anti-air (aa_strong's blocks by every town and drop site, the AA
+//   half-tracks with the soldiers, fighters wherever an Airport stands) leaves next to nothing undefended. Looser
+//   rules before (anti-air only where seen; no fighters' cover; no looked-at ground) flew 2-12 bombers an AI and lost
+//   45-65% of them (by the 88mm guns and the half-tracks, most of them seen). Off: it is for an enemy without
+//   anti-air, not for these.
 // The planes come back to their airports by themselves (the air traffic control). "# air force:" lines; a summary a
-// minute (autotest).
+// minute (autotest) - with the bomber-minutes held and idle (no goal at the look), the bombers lost, the lone runs.
 // First measured (2026-11-04, off then): tests/scenarios/air_strike.eeai (a WWI position of the idle human with two 88mm AA guns; P2 with
 // three airports and twelve Gothas): the force found the position too strong, the wing of 12-13 went at 3.3-3.8 min,
 // two flights of 4 took out both AA guns, the rest the towers; single runs of the scene go different ways at every
@@ -90,10 +119,34 @@
 #define AF_SHOOTS 16
 #define AF_RUN_MS 180000
 
+#define AH_FLIGHT 2
+#define AH_MARGIN 6
+#define AH_AA_MIN 10
+#define AH_FIGHTER_R 20
+#define AH_MEM 300000
+#define AH_RUN_MS 150000
+#define AH_AA 256
+#define AH_CIT 256
+#define AH_TARGETS 512
+#define AH_FLAK 16
+#define AH_FLAK_R 12
+#define AH_LOOKED 60000
+#define AH_LOOK_R 12
+#define AH_WAY_STEP 8
+#define AH_STRAY 6
+#define AH_BLD 2048
+#define AH_CELL 8
+#define AH_CELLS (600 / AH_CELL + 1)
+
 internal int g_v_air_strike = -1;
+internal int g_as_harass = 0, g_v_as_harass = -1;   // [ai_base] bomber_harass, [autotest] v_bomber_harass (THE LONE RUNS, below)
+#define AS_HARASS(idx) PV(idx, g_v_as_harass, g_as_harass)
 internal struct as_st {
     uint32_t t, log_t, train_t, airport_t, wait_log;
-    struct { int id, tgt; uint32_t t, t0; } held[AS_BOMBERS]; int nh;   // the bombers held, their targets (serials; 0 none), when ordered, when launched at it
+    struct { int id, tgt; uint32_t t, t0; uint8_t har, back; ivec2 at, tat, from; int home; } held[AS_BOMBERS]; int nh;   // the bombers held, their targets (serials; 0 none), when ordered, when launched at it, on a lone run, where last seen flying, the lone run's target, start, Airport (serial) and whether it was called back
+    struct { ivec2 at; uint32_t t; } flak[AH_FLAK]; int flak_i;     // where bombers on lone runs were lost (and their targets), when
+    unsigned held_looks, idle_looks, lost, lost_har;                // bombers held at each look and those of them with no goal; bombers lost, on a lone run
+    unsigned har_runs, har_sent, har_down, har_none, har_back;                // lone runs flown, bombers sent on them, their targets down when they came back, looks with bombers free and nothing undefended, bombers called back
     int needed; uint32_t need_t;                                    // the last position's wing, when
     int asked, ap_seen, ap_tries; uint32_t asked_t;                                   // bombers asked for and not out yet; airports (and building) at the last queue, queued since without more
     unsigned waves, sent, trained, airports, waits, gave_up;        // waves launched, bombers sent, trained, airports queued, launches waited for more, targets given up
@@ -222,6 +275,235 @@ internal int as_shooters(unsigned idx, struct as_st *s, uint32_t now) {
         if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && (shoot < 0 || s->sh[j].hits > s->sh[shoot].hits)) shoot = j;
     return shoot;
 }
+// THE LONE RUNS: what shoots at aircraft - AA buildings and units, cruisers (navy.c NR_AA), carriers, fighters
+internal int ah_aa(ee_unit_type *td) {
+    int f = unit_type_get_family(td), c = unit_type_get_class_id(td);
+    return f == KIND_AA_BUILDING || f == KIND_LAND_AA || f == KIND_AIRCRAFT_CARRIER || (c == CLS_AIRPLANE && f == KIND_AIRCRAFT && unit_type_get_attack(td) > 0) ||
+           ((c == CLS_NAVAL || c == CLS_SUBMERGED_NAVAL) && nv_role(td) == NR_AA);
+}
+internal float ah_aa_reach(ee_unit_type *td) {   // its reach over the way: its range and AH_MARGIN; a fighter's AH_FIGHTER_R
+    if (unit_type_get_class_id(td) == CLS_AIRPLANE) return (float)AH_FIGHTER_R;
+    float r = unit_type_get_range(td) + (float)AH_MARGIN;
+    return r < (float)AH_AA_MIN ? (float)AH_AA_MIN : r;
+}
+internal long ah_seg_d2(ivec2 a, ivec2 b, ivec2 p) {   // the squared distance of p to the way a - b
+    float dx = (float)(b.x - a.x), dy = (float)(b.y - a.y), l = dx * dx + dy * dy, t = 0;
+    if (l > 0) { t = ((float)(p.x - a.x) * dx + (float)(p.y - a.y) * dy) / l; t = t < 0 ? 0 : t > 1 ? 1 : t; }
+    float ex = (float)a.x + t * dx - (float)p.x, ey = (float)a.y + t * dy - (float)p.y;
+    return (long)(ex * ex + ey * ey);
+}
+// the ground within AH_LOOK_R of at looked at within AH_LOOKED (its middle and 8 points round it): what stands there is
+// known; always with honest_vision off (the game's view)
+internal int ah_looked(ee_player *pl, ivec2 at) {
+    static const signed char k_ring[9][2] = { { 0, 0 }, { 10, 0 }, { 7, 7 }, { 0, 10 }, { -7, 7 }, { -10, 0 }, { -7, -7 }, { 0, -10 }, { 7, -7 } };
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0;
+    for (int k = 0; k < 9; k++) {
+        int x = at.x + k_ring[k][0] * AH_LOOK_R / 10, y = at.y + k_ring[k][1] * AH_LOOK_R / 10;
+        if (x < 0 || y < 0 || x >= size || y >= size) continue;   // off the map: nothing stands there
+        if (intel_looked_ago(pl, x, y) > AH_LOOKED) return 0;
+    }
+    return 1;
+}
+// ... and the way there, a point every AH_WAY_STEP tiles
+internal int ah_way_looked(ee_player *pl, ivec2 a, ivec2 b) {
+    float d = sqrtf((float)ivec2_dist2(a, b));
+    for (float t = (float)AH_WAY_STEP; t < d; t += (float)AH_WAY_STEP)
+        if (intel_looked_ago(pl, a.x + (int)((float)(b.x - a.x) * t / d), a.y + (int)((float)(b.y - a.y) * t / d)) > AH_LOOKED) return 0;
+    return 1;
+}
+// a held bomber free for a run: not on a lone run any more (one back on the ground ends it), no wing target standing, no
+// goal, AF_READY_PCT of its hit points
+internal int ah_free(struct as_st *s, int e, ee_unit *u, uint32_t now, int *har_out) {
+    ee_goal *g = unit_get_goal(u);
+    if (s->held[e].har) {
+        if (g && now - s->held[e].t0 < AH_RUN_MS) { (*har_out)++; return 0; }
+        ee_unit *t = s->held[e].tgt ? unit_by_id((unsigned)s->held[e].tgt) : NULL;
+        if (!t || unit_get_serial(t) != s->held[e].tgt || unit_get_hp(t) <= 0) s->har_down++;
+        s->held[e].har = 0; s->held[e].tgt = 0;
+        cl_end(u, CLW_BOMBERS);
+    }
+    if (s->held[e].tgt) {
+        ee_unit *t = unit_by_id((unsigned)s->held[e].tgt);
+        if (t && unit_get_serial(t) == s->held[e].tgt && unit_get_hp(t) > 0) return 0;   // the wing's, its target stands
+        s->held[e].tgt = 0;
+    }
+    return !g && unit_get_hp(u) * 100 >= unit_type_get_hp(unit_get_type_data(u)) * AF_READY_PCT;
+}
+// the Airport a bomber is based at or stands in (as airguard.c THE AIR BASES reads it): its index in ports, -1 none
+internal int ah_port(ee_unit *u, void *ports[][2], int nport) {
+    void *h = unit_get_air_traffic(u), *h2 = unit_get_x(u) < 0 ? unit_get_holder(u) : NULL;
+    for (int k = 0; k < nport; k++)
+        if ((h && (h == ports[k][0] || h == ports[k][1])) || (h2 && (h2 == ports[k][0] || h2 == ports[k][1]))) return k;
+    return -1;
+}
+// the lone runs: the bombers free while the wing gathers (or flies, or has nothing to do) go in flights of AH_FLIGHT, by
+// their Airport, at what the AI knows of its enemies (buildings, citizens at work) with no anti-air it knows of near it
+// or near the way there - the most worth for the way; one flight a target at a time. Back home they are free again
+// (the wing takes them when it is ready to go: the caller sends none while the free and those out make the wing)
+internal void ah_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **ready, int nr, uint32_t now) {
+    static struct { ivec2 at; long r2; } aa[AH_AA];
+    static struct { ee_unit *u; ivec2 at; float v; } tg[AH_TARGETS];
+    static ee_unit *cit[AH_CIT];
+    static ivec2 port[16]; static void *port_u[16][2];
+    if (nr <= 0 || !AS_HARASS(idx)) return;
+    int naa = 0, ntg = 0, ncit = 0, nport = 0, fighters[16] = { 0 }, has_aa[16] = { 0 };
+    static ee_unit *towns[64]; int ntown = 0, nbld = 0;
+    static struct { ivec2 at; int8_t o; } bld[AH_BLD];
+    static uint8_t cover[AH_CELLS][AH_CELLS];   // THE FIGHTERS' COVER: cells within AH_FIGHTER_R of a building of an enemy with an Airport or fighters
+    // what it knows: enemy units seen (buildings remembered), and with honest_vision the aircraft, ships and soldiers it
+    // saw within AH_MEM where it saw them
+    for (int o = 1; o < nplayers(); o++) {
+        ee_player *op = player_at(o);
+        if (!op || !is_enemy(pl, op)) continue;
+        int count = 0;
+        for (ee_unit *u = player_get_units(op); u && count < 16384; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !seen_by(u, pl)) continue;
+            int c = unit_type_get_class_id(td), t = unit_type_get_id(td);
+            if (ah_aa(td)) {
+                has_aa[o & 15] = 1;
+                if (c == CLS_AIRPLANE) fighters[o] = 1;
+                if (naa < AH_AA) { float r = ah_aa_reach(td); aa[naa].at = unit_get_tile(u); aa[naa++].r2 = (long)(r * r); }
+                continue;
+            }
+            if (t == UT(B_AIRPORT)) fighters[o & 15] = 1;   // it has or can have fighters: they rise at what comes near its buildings (airguard.c INTERCEPT)
+            if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && ntown < 64) towns[ntown++] = u;
+            if (c == CLS_BUILDING || c == CLS_FORTRESS) {
+                if (nbld < AH_BLD) { bld[nbld].at = unit_get_tile(u); bld[nbld++].o = (int8_t)o; }
+                if (is_wall(t) || ntg >= AH_TARGETS) continue;
+                int cost = 0;
+                for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
+                tg[ntg].u = u; tg[ntg].at = unit_get_tile(u); tg[ntg++].v = (float)(cost < 800 ? cost : 800) + 100.0f;
+            } else if (is_citizen_type(t) && ncit < AH_CIT) cit[ncit++] = u;
+        }
+    }
+    struct intel *in = &g_intel[idx];
+    for (int k = 0; g_honest_vision && k < in->n && naa < AH_AA; k++) {
+        struct intel_rec *e = &in->r[k];
+        ee_unit_type *td = e->kind ? type_data(e->type) : NULL;
+        if (!td || in->now - e->t > AH_MEM || !ah_aa(td)) continue;
+        if (e->owner > 0 && e->owner < 16) { has_aa[e->owner] = 1; if (unit_type_get_class_id(td) == CLS_AIRPLANE) fighters[e->owner] = 1; }
+        if (e->x < 0) continue;
+        float r = ah_aa_reach(td);
+        aa[naa].at = iv2(e->x, e->y); aa[naa++].r2 = (long)(r * r);
+    }
+    for (int k = 0; k < ntown && naa < AH_AA; k++) {   // an enemy that has anti-air has it by its towns: assumed there unless looked at lately
+        ee_player *o = unit_get_owner(towns[k]);
+        ivec2 p = unit_get_tile(towns[k]);
+        if (o && has_aa[player_get_index(o) & 15] && intel_looked_ago(pl, p.x, p.y) > AH_LOOKED) { aa[naa].at = p; aa[naa++].r2 = (long)AH_FLAK_R * AH_FLAK_R; }
+    }
+    for (int k = 0; k < AH_FLAK && naa < AH_AA; k++)   // where bombers on lone runs were lost
+        if (s->flak[k].t && now - s->flak[k].t < AH_MEM) { aa[naa].at = s->flak[k].at; aa[naa++].r2 = (long)AH_FLAK_R * AH_FLAK_R; }
+    memset(cover, 0, sizeof cover);
+    for (int k = 0; k < nbld; k++) {
+        if (!fighters[bld[k].o & 15]) continue;
+        int r = (AH_FIGHTER_R + AH_CELL) / AH_CELL, cx = bld[k].at.x / AH_CELL, cy = bld[k].at.y / AH_CELL;
+        for (int x = cx - r; x <= cx + r; x++)
+            for (int y = cy - r; y <= cy + r; y++)
+                if (x >= 0 && y >= 0 && x < AH_CELLS && y < AH_CELLS && ivec2_dist2(iv2(x * AH_CELL + AH_CELL / 2, y * AH_CELL + AH_CELL / 2), bld[k].at) <= (AH_FIGHTER_R + AH_CELL) * (AH_FIGHTER_R + AH_CELL)) cover[x][y] = 1;
+    }
+    // citizens at work: two or more of an owner within 4 tiles, the one with the most beside it
+    for (int i = 0; i < ncit && ntg < AH_TARGETS; i++) {
+        ivec2 p = unit_get_tile(cit[i]);
+        int n = 0;
+        for (int j = 0; j < ncit; j++) if (unit_get_owner(cit[j]) == unit_get_owner(cit[i]) && ivec2_dist2(unit_get_tile(cit[j]), p) <= 16) n++;
+        if (n >= 2) { tg[ntg].u = cit[i]; tg[ntg].at = p; tg[ntg++].v = 120.0f * (float)n; }
+    }
+    // its Airports: where a flight starts
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    uint8_t *q = um ? type_list(um, UT(B_AIRPORT)) : NULL;
+    for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && nport < 16; j++) {
+        ee_unit *b = deque_at(q, f + j);
+        if (!b || unit_get_hp(b) <= 0 || unit_get_x(b) < 0) continue;
+        port[nport] = unit_get_tile(b); port_u[nport][0] = b; port_u[nport][1] = unit_get_physics(b); nport++;
+    }
+    static uint8_t taken[AH_TARGETS];
+    memset(taken, 0, (size_t)ntg);
+    for (int k = 0; k < ntg; k++)   // one flight a target: not one a run is on already
+        for (int j = 0; j < s->nh && !taken[k]; j++) taken[k] = s->held[j].har && s->held[j].tgt == unit_get_serial(tg[k].u);
+    int runs = 0, none = 0;
+    for (int i = 0; i < nr; ) {
+        ee_unit *u = ready[i];
+        ivec2 from = unit_get_tile(u);   // its Airport: the one it is based at or stands in, else where it is
+        int pk = ah_port(u, port_u, nport);
+        if (pk >= 0) from = port[pk];
+        else if (unit_get_x(u) < 0) { if (!nport) { i++; continue; } from = port[0]; }
+        int best = -1; float bv = 0;
+        for (int k = 0; k < ntg; k++) {
+            if (taken[k]) continue;
+            float d = sqrtf((float)ivec2_dist2(from, tg[k].at)), v = tg[k].v / (30.0f + d);
+            if (best >= 0 && v <= bv) continue;
+            ee_player *to = unit_get_owner(tg[k].u);
+            int oi = to ? player_get_index(to) & 15 : 0;
+            int open = to && !fighters[oi] && ah_looked(pl, tg[k].at) && (!has_aa[oi] || ah_way_looked(pl, from, tg[k].at));
+            for (float t = 0, dd = d > 1 ? d : 1; open && t <= dd; t += (float)AH_CELL / 2) {   // the way clear of the fighters' cover
+                int x = (from.x + (int)((float)(tg[k].at.x - from.x) * t / dd)) / AH_CELL, y = (from.y + (int)((float)(tg[k].at.y - from.y) * t / dd)) / AH_CELL;
+                if (x >= 0 && y >= 0 && x < AH_CELLS && y < AH_CELLS && cover[x][y]) open = 0;
+            }
+            for (int a = 0; a < naa && open; a++) if (ah_seg_d2(from, tg[k].at, aa[a].at) <= aa[a].r2) open = 0;
+            if (open) { best = k; bv = v; }
+        }
+        if (best < 0) { none = 1; break; }
+        taken[best] = 1;
+        int sent = 0;
+        for (int n = 0; n < AH_FLIGHT && i < nr; n++, i++) {
+            if (n && ah_port(ready[i], port_u, nport) != pk) break;   // a flight from one Airport
+            int e = as_held_at(s, unit_get_serial(ready[i]));
+            if (e < 0 || !cl_take(ready[i], CLP_TASK, CLW_BOMBERS, AH_RUN_MS)) continue;   // ORDERS BY PRIORITY (claims.c): nobody else's on the run
+            if (!as_order(ready[i], goal_attack(ready[i], tg[best].u))) { cl_end(ready[i], CLW_BOMBERS); continue; }
+            s->held[e].tgt = unit_get_serial(tg[best].u); s->held[e].t = s->held[e].t0 = now ? now : 1; s->held[e].har = 1; s->held[e].tat = tg[best].at;
+            s->held[e].from = from; s->held[e].home = pk >= 0 ? unit_get_serial((ee_unit *)port_u[pk][0]) : 0; s->held[e].back = 0;
+            sent++;
+        }
+        if (!sent) continue;
+        runs++; s->har_runs++; s->har_sent += (unsigned)sent;
+        ee_unit_type *ttd = unit_get_type_data(tg[best].u);
+        ar_log(idx, now, "air force: a lone run of %d at type %d at %d,%d (from %d,%d%s, %d tiles; anti-air known %d, undefended targets %d)", sent, ttd ? unit_type_get_id(ttd) : -1,
+               tg[best].at.x, tg[best].at.y, from.x, from.y, pk >= 0 ? "" : unit_get_x(u) < 0 ? " - not in its Airport's list" : " - in the air", (int)sqrtf((float)ivec2_dist2(from, tg[best].at)), naa, ntg);
+    }
+    if (none && !runs) s->har_none++;
+}
+// a bomber on a lone run that went after something else (the plane picks its next target by itself - they went on
+// past theirs into the anti-air: of 30 lost, most 10-30 tiles beyond their target or off the way, by anti-air it had
+// seen), whose target is down, or AH_STRAY off the way: called back to its Airport, as a player does (the game's
+// EEMReturnToBase, airguard.c THE AIR BASES), once
+internal void ah_watch(ee_player *pl, struct as_st *s) {
+    static __attribute__((aligned(8))) uint8_t mem[0x40];
+    for (int k = 0; k < s->nh; k++) {
+        if (!s->held[k].har || s->held[k].back || !s->held[k].home) continue;
+        ee_unit *u = unit_by_id((unsigned)s->held[k].id);
+        if (!u || unit_get_serial(u) != s->held[k].id || unit_get_x(u) < 0 || unit_get_flight_ms(u) <= 0) continue;
+        ee_unit *t = unit_by_id((unsigned)s->held[k].tgt), *at = fl_target_of(u);
+        int down = !t || unit_get_serial(t) != s->held[k].tgt || unit_get_hp(t) <= 0;
+        int other = at && at != t, stray = ah_seg_d2(s->held[k].from, s->held[k].tat, unit_get_tile(u)) > (long)AH_STRAY * AH_STRAY;
+        if (!down && !other && !stray) continue;
+        uint32_t id1 = (uint32_t)s->held[k].id, *sel[3] = { NULL, &id1, &id1 + 1 };
+        msg_as_select(pl, sel);
+        memset(mem, 0, sizeof mem);
+        rebase_msg_make((ee_rebase_msg *)mem, msg_as_begin(pl), (unsigned)s->held[k].home);
+        rebase_msg_set_keep((ee_rebase_msg *)mem, 0);   // turns for it at once
+        msg_execute((ee_msg *)mem);
+        msg_as_end(pl);
+        s->held[k].back = 1; s->har_back++;
+        ee_unit_type *atd = at ? unit_get_type_data(at) : NULL;
+        ar_log((unsigned)player_get_index(pl) & 15, game_time(), "air force: a bomber on a lone run called back at %d,%d (%s; its target at %d,%d, its own attack type %d at %d,%d)", unit_get_tile(u).x, unit_get_tile(u).y,
+               down ? "its target down" : other ? "it went after something else" : "off the way", s->held[k].tat.x, s->held[k].tat.y, atd ? unit_type_get_id(atd) : -1,
+               at ? unit_get_tile(at).x : -1, at ? unit_get_tile(at).y : -1);
+    }
+}
+// no position for the wing: every free bomber to the lone runs
+internal void ah_idle(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **bomb, int nb, uint32_t now) {
+    static ee_unit *ready[AS_BOMBERS];
+    int nr = 0, har_out = 0;
+    if (!AS_HARASS(idx)) return;
+    for (int i = 0; i < nb; i++) {
+        int e = as_held_at(s, unit_get_serial(bomb[i]));
+        if (e >= 0 && ah_free(s, e, bomb[i], now, &har_out)) ready[nr++] = bomb[i];
+    }
+    ah_runs(pl, idx, s, ready, nr, now);
+}
 internal void airstrike_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct as_st *s = &g_as[idx];
@@ -233,8 +515,10 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     if (!PV(idx, g_v_air_strike, AS_ON) || current_epoch(pl) + 1 < 10) return;   // no bombers before World War I
     if (g_log && g_autotest && (!s->log_t || now - s->log_t >= 60000)) {
         s->log_t = now ? now : 1;
-        fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more, %u targets given up\n",
-                idx, now / 60000.0, s->nh, s->trained, s->airports, s->waves, s->sent, s->waits, s->gave_up);
+        fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more, %u targets given up | "
+                "idle %.1f of %.1f bomber-minutes held, %u lost (%u on lone runs), lone runs %u (%u bombers, %u targets down), %u looks with none undefended, %u called back\n",
+                idx, now / 60000.0, s->nh, s->trained, s->airports, s->waves, s->sent, s->waits, s->gave_up,
+                s->idle_looks * (AS_EVERY / 60000.0), s->held_looks * (AS_EVERY / 60000.0), s->lost, s->lost_har, s->har_runs, s->har_sent, s->har_down, s->har_none, s->har_back);
     }
     as_types();
     // HELD: every bomber the mod's; the dead out of the list
@@ -251,17 +535,39 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     }
     for (int k = 0; k < s->nh; k++) {
         ee_unit *u = unit_by_id((unsigned)s->held[k].id);
-        if (u && unit_get_serial(u) == s->held[k].id && unit_get_hp(u) > 0 && unit_get_owner(u) == pl) s->held[m++] = s->held[k];
+        if (u && unit_get_serial(u) == s->held[k].id && unit_get_hp(u) > 0 && unit_get_owner(u) == pl) {
+            if (unit_get_x(u) >= 0) s->held[k].at = unit_get_tile(u);
+            s->held[m++] = s->held[k];
+            s->held_looks++; s->idle_looks += !unit_get_goal(u);   // idle: no goal at the look (landed - rearmed, repaired or waiting)
+        } else {
+            s->lost++; s->lost_har += s->held[k].har;
+            if (s->held[k].har) {   // and the nearest anti-air there (what it knew of it: seen)
+                int ad = -1, at = -1, as = 0;
+                for (struct grid_it it = grid_it_box(s->held[k].at.x, s->held[k].at.y, 16, 1); grid_it_next(&it); ) {
+                    ee_player *o = unit_get_owner(it.u);
+                    if (!o || !is_enemy(pl, o) || unit_get_hp(it.u) <= 0 || !ah_aa(it.td)) continue;
+                    int d = (int)ivec2_dist2(unit_get_tile(it.u), s->held[k].at);
+                    if (ad < 0 || d < ad) { ad = d; at = unit_type_get_id(it.td); as = seen_by(it.u, pl); }
+                }
+                ar_log(idx, now, "air force: a bomber on a lone run lost - last seen at %d,%d, its target at %d,%d, %.1f min after it went; the nearest anti-air there type %d at %d tiles (seen %d)",
+                       s->held[k].at.x, s->held[k].at.y, s->held[k].tat.x, s->held[k].tat.y, (now - s->held[k].t0) / 60000.0, at, ad < 0 ? -1 : (int)sqrtf((float)ad), as);
+            }
+            for (int j = 0; s->held[k].har && j < 2; j++) {   // THE LONE RUNS: shot down by something it didn't know of - kept clear of for AH_MEM
+                s->flak[s->flak_i].at = j ? s->held[k].tat : s->held[k].at; s->flak[s->flak_i].t = now ? now : 1;
+                s->flak_i = (s->flak_i + 1) % AH_FLAK;
+            }
+        }
     }
     s->nh = m;
     for (int i = 0; i < nb; i++) {
         int id = unit_get_serial(bomb[i]);
         if (as_held_at(s, id) >= 0 || s->nh >= AS_BOMBERS) continue;
         if (!unit_get_ai_held(bomb[i])) player_hold_unit(pl, bomb[i]);
-        s->held[s->nh].id = id; s->held[s->nh].tgt = 0; s->held[s->nh].t = 0; s->nh++;
+        s->held[s->nh].id = id; s->held[s->nh].tgt = 0; s->held[s->nh].t = 0; s->held[s->nh].har = 0; s->held[s->nh].at = unit_get_tile(bomb[i]); s->held[s->nh].tat = iv2(0, 0); s->nh++;
         if (s->asked > 0) s->asked--;   // one of those asked for is out
     }
     af_train(pl, idx, s, nb, now);
+    if (AS_HARASS(idx)) ah_watch(pl, s);
     // the position
     struct armies_st *a = &g_armies[idx];
     ivec2 pos;
@@ -270,7 +576,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     else if (a->out == 1 && a->target) pos = a->dest;
     else if (a->strong_t && now - a->strong_t < AF_STRONG_MS) pos = a->strong;
     else if (!GAME_AI(idx) && sn_need_at(idx, &pos)) { }   // stations.c: a push's building, the enemy in a territory of its, the nearest enemy building
-    else return;
+    else { ah_idle(pl, idx, s, bomb, nb, now); return; }
     // the anti-air near it and what holds it - the nearest first
     static struct { ee_unit *u; long d; } aa[AS_TARGETS], tg[AS_TARGETS];
     int na = 0, nt = 0;
@@ -304,15 +610,20 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         while (k > 0 && tg[k - 1].d > d) { tg[k] = tg[k - 1]; k--; }
         tg[k].u = u; tg[k].d = d;
     }
-    if (!na && !nt) { if (shoot >= 0) s->sh[shoot].t = 0; return; }   // nothing left at the shooters' spot: the next
+    if (!na && !nt) { if (shoot >= 0) s->sh[shoot].t = 0; ah_idle(pl, idx, s, bomb, nb, now); return; }   // nothing left at the shooters' spot: the next
     s->needed = AF_FLIGHT * (na + (nt ? 1 : 0)); s->need_t = now ? now : 1;
     // the wing out: a bomber whose target stands keeps at it; idle again, its next run
     static ee_unit *ready[AS_BOMBERS];
-    int nr = 0, out = 0;
+    int nr = 0, out = 0, har_out = 0;
     for (int i = 0; i < nb; i++) {
         ee_unit *u = bomb[i];
         int e = as_held_at(s, unit_get_serial(u));
         if (e < 0) continue;
+        if (s->held[e].har) {   // a lone run's: free once back (not the wing's out)
+            if (!ah_free(s, e, u, now, &har_out)) continue;
+            ready[nr++] = u;
+            continue;
+        }
         ee_unit *t = s->held[e].tgt ? unit_by_id((unsigned)s->held[e].tgt) : NULL;
         int stands = t && unit_get_serial(t) == s->held[e].tgt && unit_get_hp(t) > 0;
         ee_goal *g = unit_get_goal(u);
@@ -331,7 +642,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         s->held[e].tgt = 0;
         if (!g && unit_get_hp(u) * 100 >= unit_type_get_hp(unit_get_type_data(u)) * AF_READY_PCT) ready[nr++] = u;
     }
-    if (out) return;   // one wing at a time
+    if (out) { ah_runs(pl, idx, s, ready, nr, now); return; }   // one wing at a time (the lone runs meanwhile)
     if (s->wing_out) {   // its targets down: the force judges its push again now, not at its next attack time
         s->wing_out = 0;
         g_ar_push_now |= 1u << idx;
@@ -342,8 +653,9 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         s->waits++;
         if (!s->wait_log || now - s->wait_log >= 60000) {
             s->wait_log = now ? now : 1;
-            ar_log(idx, now, "air force: the wing at %d,%d waits - %d bombers ready of the %d it needs (anti-air %d, defences %d; %d bombers in all)", pos.x, pos.y, nr, s->needed, na, nt, nb);
+            ar_log(idx, now, "air force: the wing at %d,%d waits - %d bombers ready of the %d it needs (anti-air %d, defences %d; %d bombers in all, %d on lone runs)", pos.x, pos.y, nr, s->needed, na, nt, nb, har_out);
         }
+        if (nr + har_out < s->needed && nr + har_out < AF_WING_MAX) ah_runs(pl, idx, s, ready, nr, now);   // else those out come back to make it
         return;
     }
     // the launch: a flight at each anti-air, the rest in flights at the defences
@@ -363,6 +675,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
 }
 internal void airstrike_new_game(void) { memset(g_as, 0, sizeof g_as); g_as_nt = -1; }
 internal void airstrike_install(const char *autotest_ini) {
-    if (autotest_ini) g_v_air_strike = ini_int("autotest", "v_air_strike", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# air force: %d (variant %d)\n", AS_ON, g_v_air_strike);
+    g_as_harass = g_set_ai[1].bomber_harass;
+    if (autotest_ini) { g_v_air_strike = ini_int("autotest", "v_air_strike", -1, autotest_ini); g_v_as_harass = ini_int("autotest", "v_bomber_harass", -1, autotest_ini); }
+    if (g_log) fprintf(g_log, "# air force: %d (variant %d), lone runs %d (variant %d)\n", AS_ON, g_v_air_strike, g_as_harass, g_v_as_harass);
 }
