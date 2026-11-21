@@ -173,11 +173,17 @@ internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
     int far_ = map ? (int)map_get_size(map) : FY_SHORE;
     return ex_shore(land, oc, p, far_ > FY_SHORE ? far_ : FY_SHORE, o, w);
 }
+// SCOUTS ACROSS: the scout that asked still alive and its own (a dead one's object can be another unit by now, its
+// serial another), and not aboard already
+internal int fy_scout_ok(ee_player *pl, unsigned idx, int k) {
+    ee_unit *u = g_sn_sx[idx & 15][k].u;
+    return u && unit_get_serial(u) == g_sn_sx[idx & 15][k].id && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && !expand_has(pl, u);
+}
 internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
     int np = kind == 1 ? sn_ferry_pick(pl, push >= 0 && push < SNP_N ? push : SNP_MAIN, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind >= 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
-    if (kind == 4 && push >= 0 && push < SN_SX && g_sn_sx[idx & 15][push].u && !expand_has(pl, g_sn_sx[idx & 15][push].u) && unit_get_hp(g_sn_sx[idx & 15][push].u) > 0) { pass[0] = g_sn_sx[idx & 15][push].u; np = 1; }   // SCOUTS ACROSS
+    if (kind == 4 && push >= 0 && push < SN_SX && fy_scout_ok(pl, idx, push)) { pass[0] = g_sn_sx[idx & 15][push].u; np = 1; }   // SCOUTS ACROSS
     if (kind == 5 && push >= 0 && push < FY_HX && g_fy_hx[idx & 15][push].u && unit_get_serial(g_fy_hx[idx & 15][push].u) == g_fy_hx[idx & 15][push].id && unit_get_hp(g_fy_hx[idx & 15][push].u) > 0) {   // PROPHETS ACROSS: it and its escort
         pass[0] = g_fy_hx[idx & 15][push].u;
         np = 1 + sn_escort_units(idx, a, pass + 1, n - 1);
@@ -565,7 +571,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
         }
     }
     for (int k = 0; k < SN_SX && EXPAND_ACROSS(idx) && !held; k++) {   // SCOUTS ACROSS (stations.c): one transport a scout
-        if (!g_sn_sx[idx][k].t || now - g_sn_sx[idx][k].t > 10000 || !g_sn_sx[idx][k].u || expand_has(pl, g_sn_sx[idx][k].u)) continue;
+        if (!g_sn_sx[idx][k].t || now - g_sn_sx[idx][k].t > 10000 || !fy_scout_ok(pl, idx, k)) continue;
         struct fy_trip *t = NULL;
         for (int i = 0; i < FY_TRIPS && !t; i++) if (!f->t[i].phase) t = &f->t[i];
         if (!t) break;

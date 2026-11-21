@@ -2138,4 +2138,4 @@ internal void stations_install(const char *autotest_ini) {
     g_sn_coast = g_set_ai[1].coast_siege;   // COAST BATTERIES
     if (autotest_ini) g_v_sn_coast = ini_int("autotest", "v_coast_siege", -1, autotest_ini);
 }
-internal void stations_new_game(void) { memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); memset(g_sn_dark_t, 0, sizeof g_sn_dark_t); }
+internal void stations_new_game(void) { memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); memset(g_sn_dark_t, 0, sizeof g_sn_dark_t); memset(g_sn_sx, 0, sizeof g_sn_sx); }
