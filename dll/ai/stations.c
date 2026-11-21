@@ -928,7 +928,7 @@ internal void sn_push_off(unsigned idx, int k, const char *why, uint32_t now) { 
     struct sn_push *p = &z->push[k];
     p->on = 0; p->end_t = now ? now : 1; p->wait = SN_CALLED_OFF; p->ncit = 0;
     for (int i = 0; i < z->n; i++) if (z->m[i].ter == p->from) z->m[i].order_t = 0;   // back to their station
-    if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (judged %.2f)\\n", idx, now / 60000.0, p->from, p->into, why, (double)p->judge_r);
+    if (g_log) log_locked("# stations: P%u at %.1f min: the push from territory %d into %d is over - %s (judged %.2f)\n", idx, now / 60000.0, p->from, p->into, why, (double)p->judge_r);
 }
 // ACROSS: the soldiers of push k still on the land it left (siege too), nearest `toward` first, into out (max): how many
 internal int expand_has(ee_player *pl, ee_unit *u);
