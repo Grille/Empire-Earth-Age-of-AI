@@ -40,7 +40,9 @@
 #define WK_XFER 2     // citizens given another territory a look
 #define WK_XFER_T 12  // territories looked at for one
 #define WK_T 4096     // territories at most
-#define WK_CITS 768
+// a look's citizens: as many as its walk over the player's units takes (768 until 2026-11-21: the citizens past the
+// 768th counted busy and got no work, none of them idle for the training or the ferry, the same ones every look)
+#define WK_CITS 16384
 #define WK_MINES 512
 #define WK_BUSHES 512
 internal const float WK_SHARE[7] = { 0, 0, 0.36f, 0.30f, 0.06f, 0.14f, 0.14f };   // food, wood, stone, gold, iron
