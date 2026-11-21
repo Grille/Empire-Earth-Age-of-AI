@@ -195,11 +195,18 @@ internal void bk_refresh(ee_player *pl, unsigned pi) {   // the player's fortres
     }
     g_bk[pi].nall = o.nall;
     memcpy(g_bk[pi].all, o.all, sizeof o.all);
-    for (int k = 0; k < o.nf; k++) {   // keep each fortress's quiet time across passes
+    // keep each fortress's quiet time, shelter stamp and shelf mark across passes - read from a copy: a fortress finished
+    // in an earlier grid cell comes before the old ones, and remapping in place read a slot already written for it
+    uint32_t old_q[BK_MAX], old_sh[BK_MAX];
+    uint8_t old_st[BK_MAX];
+    memcpy(old_q, g_bk[pi].quiet_t, sizeof old_q);
+    memcpy(old_sh, g_bk[pi].shelter, sizeof old_sh);
+    memcpy(old_st, g_bk[pi].store, sizeof old_st);
+    for (int k = 0; k < o.nf; k++) {
         uint32_t q = 0;
         uint32_t sh = 0;
         uint8_t st = 0;
-        for (int j = 0; j < g_bk[pi].nf; j++) if (g_bk[pi].f[j] == o.f[k]) { q = g_bk[pi].quiet_t[j]; sh = g_bk[pi].shelter[j]; st = g_bk[pi].store[j]; }
+        for (int j = 0; j < g_bk[pi].nf; j++) if (g_bk[pi].f[j] == o.f[k]) { q = old_q[j]; sh = old_sh[j]; st = old_st[j]; }
         g_bk[pi].quiet_t[k] = q;
         g_bk[pi].shelter[k] = sh;
         g_bk[pi].store[k] = st;
