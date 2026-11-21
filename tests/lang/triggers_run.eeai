@@ -35,10 +35,10 @@ let k = 0
 start() {
     let msg = "none"
     let set = () => { msg = "set {k} times" }
-    trigger({ when: () => true, run: () => {
+    trigger({ when = () => true, run = () => {
         handed = set
         seen = msg
-    }, loop: true })
+    }, loop = true })
 }
 start()
 wait(1s)

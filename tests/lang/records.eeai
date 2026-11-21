@@ -1,32 +1,32 @@
 // records typed (docs/scripts.md "Types"): a record written in a script has its members' names and types - read
 // with their types, a member it hasn't a mistake when the file is read; written in another order the same type.
 // What each line works out is in records.expect (the build compares)
-let w = { at: vec(70, 50), units: 10, name: "wave" }
+let w = { at = vec(70, 50), units = 10, name = "wave" }
 let total: float = w.units + w.at.x
 let more = w.units * 2
 cmd("members {w.units} {w.at.x} {total} {more} {w.name}")
 
 // the same members in another order: the same type
-let a = { tick: 0, name: "" }
-a = { name: "late", tick: 5 }
+let a = { tick = 0, name = "" }
+a = { name = "late", tick = 5 }
 let ticks = a.tick + 1
 cmd("order {a.name} {ticks}")
 
 // records in records, in a seq, through a function
-let r = { pos: { x: 1, y: 2 }, tags: ["a", "b"] }
-let rows = [{ n: 1, half: 0.5 }, { n: 2, half: 1.0 }]
+let r = { pos = { x = 1, y = 2 }, tags = ["a", "b"] }
+let rows = [{ n = 1, half = 0.5 }, { n = 2, half = 1.0 }]
 let sum = rows[1].n + rows[2].n
 twice(q: record): int => q.n * 2
-make(v: int) => ({ n: v, half: v / 2 })
+make(v: int) => ({ n = v, half = v / 2 })
 let m = make(7)
 cmd("nested {r.pos.y} {len(r.tags)} {len(rows)} {sum} {twice(rows[2])} {m.n} {m.half}")
 
 // a function in a record: called from a variable
-let ops = { double: (x: int) => x * 2, name: "ops" }
+let ops = { double = (x: int) => x * 2, name = "ops" }
 let dbl = ops.double
 cmd("function {dbl(21)} {ops.name}")
 
 // has, and a record as any record
 let loose: record = w
-let picked = true ? { k: 1 } : { k: 2 }
+let picked = true ? { k = 1 } : { k = 2 }
 cmd("has {has(w, "units")} {has(w, "zz")} {has(loose, "name")} {picked.k}")

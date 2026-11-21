@@ -23,11 +23,11 @@ def sit(key):
 
 FORMAT_HELP = [   # the rest is in README.md
     '#',
-    '# key: value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of',
+    '# key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of',
     '# strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records',
     '# (lines = { ... }, a comma after each entry); a name outside them is the file\'s own: name => ... worked out where',
     '# it is used (me, them, opinion ...), name = ... data, the same everywhere - a record of your own too (colors = {',
-    '# dark: ..., light: ... }: colors.dark). The format, the expressions and every',
+    '# dark = ..., light = ... }: colors.dark). The format, the expressions and every',
     '# value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.',
 ]
 
@@ -43,7 +43,7 @@ w('# the // from register_personality(), fill it in, and the AIs of the next gam
 w('# matching colour first).')
 w('#')
 w('# Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:')
-w('#   greeting: [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."')
+w('#   greeting = [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."')
 w('# A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then')
 w('# a more general situation speaks (noted below) or a layer - mod/computer.eeai. The lines are English.')
 for ln in FORMAT_HELP:
@@ -59,33 +59,33 @@ w('')
 w('personality = {')
 w('    # the name in the game (the player name in the scores and the chat) - a list: the first no other player has')
 w('    # (all taken: the first with a number, "Khan Temur II"): ["Khan Temur", "Khan Batu"], pick([...]) a random one')
-w('    name: "",')
+w('    name = "",')
 w('    # its civilization\'s name as the game shows it, instead of the one it plays (empty: keep that)')
-w('    #civilization: "",')
+w('    #civilization = "",')
 w('    # favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green,')
 w('    # cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or a number')
 w('    # 1..17: color.red or 2), or one of its own: rgb(128, 64, 0) - 0 to 255 each')
-w('    #color: ["blue", "cyan"],')
+w('    #color = ["blue", "cyan"],')
 w('    # traits 0% to 100% (50% when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal')
 w('    # under 50% rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and')
 w('    # refuses peace after a declaration of war (pride x 5 minutes), how long it fights on before it capitulates, how')
 w('    # weak a lord it serves; greed: what a tribute is worth to it; forgiveness: how fast a grudge fades;')
 w('    # caution: capitulates earlier, pays more; talk: how often it says the lines that are not always said')
 for t in ['aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk']:
-    w('    %s: 50%%,' % t)
+    w('    %s = 50%%,' % t)
 w('    # for the AI voice: who this is, in a few words (the model plays it)')
-w('    character: "",')
+w('    character = "",')
 w('}')
 w('')
 w('style = {')
 w('    # EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way). The same')
 w('    # keys as in ageofai.ini; they replace the difficulty\'s values for this AI. Uncomment what it should change. Each')
-w('    # an expression worked out at the game start (like color:): shares and chances with % (home_guard_share: 35%,')
-w('    # attack_on_contact: 20%, attack_group_percent: 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.')
+w('    # an expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,')
+w('    # attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.')
 for k in ['military_start_share', 'military_income_share', 'military_income_share_farms', 'epoch_min', 'epoch_max',
           'first_attack_min', 'first_attack_max', 'attack_interval_min', 'attack_interval_max', 'attack_group_percent',
           'attack_on_contact', 'attack_for_resources', 'attack_revenge', 'citizen_share', 'home_guard_share']:
-    w('    #%s: ,' % k)
+    w('    #%s = ,' % k)
 w('}')
 w('')
 w('priorities = {')
@@ -93,9 +93,9 @@ w('    # EXPERIMENTAL - only with ai_style=1 in ageofai.ini. What this AI saves 
 w('    # game\'s values (me.soldiers, epoch ...). A building and how many it wants: entries in this order, one at a time, its')
 w('    # cost held back from soldiers and other buildings. A row of the list with a condition: that saving only while it')
 w('    # holds. Uncomment or add. Without this record the AI plays the list as it stands. For example:')
-w('    #b_stable: 2,')
-w('    #b_archery_range: epoch >= epoch.copper ? 2 : 0,')
-w('    #navy: me.soldiers > 50,')
+w('    #b_stable = 2,')
+w('    #b_archery_range = epoch >= epoch.copper ? 2 : 0,')
+w('    #navy = me.soldiers > 50,')
 w('}')
 w('')
 w('# names of your own (vars) for its lines, before those of mod/system.eeai - anywhere outside the records. For example:')
@@ -111,13 +111,13 @@ for key, chance, cooldown, a in lines:
     if key in fallback: extra.append('without a line: %s' % fallback[key])
     if extra: note += ' (' + ', '.join(extra) + ')'
     w(note)
-    w('    %s: [],' % key)
+    w('    %s = [],' % key)
 w('}')
 w('')
 w('# what the language model is told for this AI (ageofai.ini [llm]), instead of mod/prompt.eeai\'s text - every key and')
 w('# its placeholders are there. For example:')
 w('#prompt = {')
-w('#    nature: "You speak in short, proud sentences.",')
+w('#    nature = "You speak in short, proud sentences.",')
 w('#}')
 out = [convert_line(o.encode('utf-8'))[0].decode('utf-8') for o in out]   # the comments: # written above, // in the file
 path = os.path.join(root, 'config', 'personalities', '_template.eeai')

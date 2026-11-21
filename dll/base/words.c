@@ -1,5 +1,5 @@
 // THE MOD'S WORDS: what it writes on the game's screens (the editor's boxes and dialogs, the diplomacy screen) in the
-// game's language: language.eeai beside ageofai.ini, a record per word - vassal = { en: "Vassal", de: "Vasall" }. Read
+// game's language: language.eeai beside ageofai.ini, a record per word - vassal = { en = "Vassal", de = "Vasall" }. Read
 // by voice/texts.c (the language's parser is above base/), kept here for the parts that may not use it (engine/). en is
 // a must, any other language may be left out: English then. k_words: every word the mod asks for - a word of the file
 // that isn't here, or one here that the file lacks, is a mistake, told when it is read.

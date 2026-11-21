@@ -112,9 +112,10 @@ Still to do for step 2:
    into is (expr.c x_check_rec, X_WANT as `[...]` has): a dict (a name the text key, `[key]` any; the default its V's
    own, or `dict<K, V>(default, { ... })`), a struct by its fields' names, else a record. Left: a `{ }` through
    `?:` / `??` gets no type wanted (a record there).
-   Entries with a colon since 2026-11-21 - the player: "most languages use : for dict instead of =": `{ a: 1,
-   [k]: 2 }`, a personality's records `name: "x",` (the file's top keeps `name = value`, a block's statements
-   theirs); `{ a = 1 }` is a mistake. Every .eeai converted by scripts/build/eeai_colons.py.
+   `{ a: 1 }` was tried and taken back the same day (2026-11-21, 86edee0a reverted): `:` is the language's type
+   mark (`let x: int`, a struct's `x: int = 5`, parameters), so `{ a: 1 }` read as a value and `{ a: int }` as a
+   type would be ambiguous - the player: "switching to : so quickly was a mistake". Entries stay `name = value`;
+   open, the player's idea: a field's type written in a record, `{ name: type = value }`, as a let has it.
 4. `dict<K, V>` with any value type (structs).
 5. The player's own generics (`struct pair<A, B>`) - only if scripts ever define their own containers.
 

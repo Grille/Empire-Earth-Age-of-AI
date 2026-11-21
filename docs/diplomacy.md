@@ -61,7 +61,7 @@ peace or alliances. With the mod:
   belong to it like the DLL - without them it says nothing (no personalities, no AI voice, no diplomacy of its own;
   a message at the start tells so).
 - **The format** of all these files is the scripts' language ([scripts.md](scripts.md)), without the
-  commands: the keys the mod reads in records - `personality = { ... }`, `lines = { greeting: ... }` - and names
+  commands: the keys the mod reads in records - `personality = { ... }`, `lines = { greeting = ... }` - and names
   of the file's own outside them (`weakling = them.strength * 2 < me.strength`), each `name = value`, where a
   value is an expression - a `"string"` with `{placeholders}` and `{expressions}` in it, a
   `["list", "of", "strings"]` (one at random), conditions

@@ -60,9 +60,9 @@ internal const struct ai_cfg *cfg_of(ee_player *pl) {
 // (copper_plan, budget, epoch_pacing) nor the ones that would cheat or bind to the human
 // (cost_percent).
 // In a personality the values are expressions (persona.c, worked out at the game start), numbers in the language's
-// standard: a share or a chance is 0% to 100% (home_guard_share: 35%, attack_on_contact: 20%), a group's size a share
-// of the normal one (attack_group_percent: 150%) - ageofai.ini's whole percents (20, 150) are those times 100; minutes
-// and epochs are plain numbers. A value outside its range is a mistake (attack_on_contact: 20 would be 2000%).
+// standard: a share or a chance is 0% to 100% (home_guard_share = 35%, attack_on_contact = 20%), a group's size a share
+// of the normal one (attack_group_percent = 150%) - ageofai.ini's whole percents (20, 150) are those times 100; minutes
+// and epochs are plain numbers. A value outside its range is a mistake (attack_on_contact = 20 would be 2000%).
 enum { SK_NUM, SK_SHARE, SK_CHANCE, SK_SIZE };
 internal const struct { const char *key; size_t off; char kind; } k_style_keys[] = {
     { "military_start_share", offsetof(struct ai_cfg, mil_start_share), SK_SHARE },
@@ -90,19 +90,19 @@ internal int cfg_style_set(struct ai_cfg *c, int k, double v, const char **why) 
     void *at = (uint8_t *)c + k_style_keys[k].off;
     switch (k_style_keys[k].kind) {
     case SK_SHARE:
-        if (!(v >= 0 && v <= 1)) { *why = "a share 0% to 100% (home_guard_share: 35%)"; return 0; }
+        if (!(v >= 0 && v <= 1)) { *why = "a share 0% to 100% (home_guard_share = 35%)"; return 0; }
         *(float *)at = (float)v;
         return 1;
     case SK_CHANCE:
-        if (!(v >= 0 && v <= 1)) { *why = "a chance 0% to 100% (attack_on_contact: 20%)"; return 0; }
+        if (!(v >= 0 && v <= 1)) { *why = "a chance 0% to 100% (attack_on_contact = 20%)"; return 0; }
         *(int *)at = (int)(v * 100 + 0.5);
         return 1;
     case SK_SIZE:
-        if (!(v >= 0.1 && v <= 10)) { *why = "a size 10% to 1000% of the normal group (attack_group_percent: 150%)"; return 0; }
+        if (!(v >= 0.1 && v <= 10)) { *why = "a size 10% to 1000% of the normal group (attack_group_percent = 150%)"; return 0; }
         *(int *)at = (int)(v * 100 + 0.5);
         return 1;
     default:
-        if (!(v >= 0 && v <= 1000) || v != (int)v) { *why = "a whole number 0 to 1000 (first_attack_min: 20)"; return 0; }
+        if (!(v >= 0 && v <= 1000) || v != (int)v) { *why = "a whole number 0 to 1000 (first_attack_min = 20)"; return 0; }
         *(int *)at = (int)v;
         return 1;
     }

@@ -148,7 +148,7 @@ internal const char *x_code_has(const char *file, const char *sec, const char *k
 internal uint8_t g_word_own[N_WORDS], g_word_en[N_WORDS];
 internal void words_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     (void)arg;
-    if (!*sec || strchr(sec, '.')) { tl_error(l, "this file has records: a_word = { en: \"...\", de: \"...\" }"); return; }
+    if (!*sec || strchr(sec, '.')) { tl_error(l, "this file has records: a_word = { en = \"...\", de = \"...\" }"); return; }
     int i = word_index(sec);
     if (i < 0) { tl_error(l, "a word the mod doesn't use"); return; }
     if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }

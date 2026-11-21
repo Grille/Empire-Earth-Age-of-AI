@@ -93,7 +93,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `1920x1080` | a size: `vec(1920, 1080)` |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
 | `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: any type (`dict<text, point>`, `dict<player, seq<int>>` - "Dicts"). A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A seq is a value, a list is shared as a dict is - "Sequences and lists") |
-| `{ x: 70, y: 50, units: 10 }` | a record (the README's "Records"): `let wave = { at: vec(70, 50), units: 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member. Where a dict or a struct goes it is that: `let ages: dict<text, int> = { stone: 1, [key]: 5 }`, `let p: point = { y: 1 }` ("Records, dicts and structs written out") |
+| `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member. Where a dict or a struct goes it is that: `let ages: dict<text, int> = { stone = 1, [key] = 5 }`, `let p: point = { y = 1 }` ("Records, dicts and structs written out") |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
 | `"text \{x\}"` | `\{` `\}`: braces that are text, not a placeholder (also `\"` `\\` `\n`) |
@@ -148,10 +148,10 @@ wanted, anything where `void` is. `function` alone is any function - nothing kno
 checked when it is called. A function with a `ref` parameter has no such type (it goes by its name only). A value
 of another type called (`let n = 5` then `n(3)`) is a mistake.
 
-**A record's type** is its members' names and types as written: `let w = { at: vec(70, 50), units: 10 }` is a
+**A record's type** is its members' names and types as written: `let w = { at = vec(70, 50), units = 10 }` is a
 `record { at, units }` whose `at` is a `vec2` - so `w.unitz` is a mistake when the file is read, `w.units + 1` an
-int, `let n: int = w.at.x` a mistake (a float). Written in another order the members are the same type (`a = { tick:
-1, name: "x" }` into a `{ name: "", tick: 0 }`); other members, or a member of another type, are another type
+int, `let n: int = w.at.x` a mistake (a float). Written in another order the members are the same type (`a = { tick
+= 1, name = "x" }` into a `{ name = "", tick = 0 }`); other members, or a member of another type, are another type
 (a mistake there). A record's members aren't set (`w.units = 5` - a struct's fields are, or a new record goes in its
 place), it is compared with nothing (its members are), and its function member is called from a variable (`let f
 = r.f`, then `f(...)`). `record` written as a type is any record: what it holds is checked when it is worked out
@@ -255,8 +255,8 @@ struct book {
 - A dict nobody holds any more is freed (as a list); one a function made inside a function can't be held in one. A
   dict goes into a saved game with everything that holds it.
 - A personality's dict fields hold an `int`, a `float`, a `bool` or a `text` (the texts' rules: no structs, no lists).
-- Written out with its entries: `let ages: dict<text, int> = { stone: 1, ["dark age"]: 5 }`,
-  `dict<text, vec2>(vec(0, 0), { north: vec(10, 20) })` ("Records, dicts and structs written out").
+- Written out with its entries: `let ages: dict<text, int> = { stone = 1, ["dark age"] = 5 }`,
+  `dict<text, vec2>(vec(0, 0), { north = vec(10, 20) })` ("Records, dicts and structs written out").
 
 ## Structs
 
@@ -291,7 +291,7 @@ let s = squad("north")          // pos point(0, 5), strength 1.5, no units, no t
 - **Made** by its name: its fields in order, the last ones may be left out. A field left out has its default - the
   declared one (`y: int = 5`: a value that needs none of the script's names), else `0`, `false`, `""`, an empty list,
   `null` for a `T?`, a struct's own defaults. A field of a type with none (`player`, `unit`, `vec2` ...) is given, or
-  declared with one, or a `T?`. Or **written out** by its fields' names where a struct goes: `let p: point = { y: 1 }`
+  declared with one, or a `T?`. Or **written out** by its fields' names where a struct goes: `let p: point = { y = 1 }`
   ("Records, dicts and structs written out").
 - **A value**, as a number is: `let b = a` is a copy (`b.x = 9` leaves `a` alone), a function gets a copy, a list
   holds copies. `a == b` when every field is the same (`!=`; no `<`); in a text `point(3, 5)`.
@@ -316,24 +316,22 @@ Not there: inheritance, operators of its own (a vector has them), private fields
 
 ## Records, dicts and structs written out
 
-`{ name: value, [key]: value, ... }` is what the place it goes into is - the type wanted there: a `let`'s written
+`{ name = value, [key] = value, ... }` is what the place it goes into is - the type wanted there: a `let`'s written
 one, a parameter's, a field's, what a function gives back, a dict's value, a seq's or a list's item, a variable's
-when it is set anew. Where none is wanted (`let w = { ... }`) it is a record ("Types": a record's type). An entry
-is `name: value` as in most languages, and as a struct's fields and a let's type are written (`x: int = 5`); `=`
-sets a variable, `:` names what a value is - `{ a = 1 }` is a mistake.
+when it is set anew. Where none is wanted (`let w = { ... }`) it is a record ("Types": a record's type).
 
 ```
-let ages: dict<text, int> = { stone: 1, copper: 3, ["dark age"]: 5 }
-let byp: dict<player, int> = { [p2]: 10, [p3]: 20 }
-let homes = dict<text, vec2>(vec(0, 0), { north: vec(10, 20) })   // the default given
-let p: point = { x: 3 }                                          // y its default: 5
-let s: squad = { pos: { x: 7 }, name: "north" }                  // in any order; pos a point too
-spots["gate"] = { x: 4, y: 1 }
-let d = far({ x: 1, y: 1 })                                      // far(a: point)
-make(n: int): point => ({ x: n, y: n * 2 })                      // (=> { is a block: ({ ... }))
+let ages: dict<text, int> = { stone = 1, copper = 3, ["dark age"] = 5 }
+let byp: dict<player, int> = { [p2] = 10, [p3] = 20 }
+let homes = dict<text, vec2>(vec(0, 0), { north = vec(10, 20) })   // the default given
+let p: point = { x = 3 }                                           // y its default: 5
+let s: squad = { pos = { x = 7 }, name = "north" }                 // in any order; pos a point too
+spots["gate"] = { x = 4, y = 1 }
+let d = far({ x = 1, y = 1 })                                      // far(a: point)
+make(n: int): point => ({ x = n, y = n * 2 })                      // (=> { is a block: ({ ... }))
 ```
 
-- **A dict's entries**: a name is the text key of its letters (`stone: 1` is `["stone"]: 1`), `[key]` any key as a
+- **A dict's entries**: a name is the text key of its letters (`stone = 1` is `["stone"] = 1`), `[key]` any key as a
   value. So a name means the same in a record and a dict, never a variable's value - `[p2]` is that. A name in a
   dict of int or object keys, a key or a value of another type, the same key written twice: mistakes.
 - **A dict's default** is its V's own, as a struct's field left out has (`0`, `false`, `""`, `null` for a `T?`, an
@@ -500,16 +498,16 @@ also while the script waits and after it has ended:
 ```
 let p2 = player(2)
 let t = trigger({
-    name: "wood for the poor",          // for the messages (else the statement's start)
-    when: () => p2.wood < 100 && time > 10min,
-    for: 5s,                            // true that long without a break first (default 0)
-    loop: false,                        // fires once, then it is off (true: again whenever it holds)
-    run: () => {
+    name = "wood for the poor",          // for the messages (else the statement's start)
+    when = () => p2.wood < 100 && time > 10min,
+    for = 5s,                            // true that long without a break first (default 0)
+    loop = false,                        // fires once, then it is off (true: again whenever it holds)
+    run = () => {
         give(2, 500, resource.wood)
         after(10s, () => chat(2, "Don't waste it."))
     },
 })
-let other = trigger({ when: () => t.fired, run: () => disable(t) })
+let other = trigger({ when = () => t.fired, run = () => disable(t) })
 ```
 
 | | |

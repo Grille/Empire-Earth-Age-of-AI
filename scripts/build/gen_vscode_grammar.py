@@ -105,11 +105,11 @@ assignment = {
 }
 
 def record(names, keys, key_scope):
-    """names = { up to its }: its known keys (key: value), anything else an error"""
+    """names = { up to its }: its known keys, anything else an error"""
     lines = [{'include': '#comment'}]
     if keys:
         lines.append(key_line(r'(?:' + '|'.join(sorted(keys, key=len, reverse=True)) + r')', key_scope))
-    lines.append(key_line(r'[\w.-]+', 'invalid.illegal.unknown-key.eeaimod'))
+    lines.append(key_line(r'[\w:.-]+', 'invalid.illegal.unknown-key.eeaimod'))
     return {
         'begin': r'^\s*(' + names + r')\s*(=)\s*(\{)\s*(?=$|#)',
         'beginCaptures': {'1': {'name': 'entity.name.section.eeaimod' if keys else 'invalid.illegal.unknown-record.eeaimod'},
@@ -138,9 +138,9 @@ computed_def = {
     'patterns': [{'include': '#value'}],
 }
 
-def key_line(key, scope):   # a record's entry: key: value
+def key_line(key, scope):
     return {
-        'begin': r'^\s*(' + key + r')\s*(:)',
+        'begin': r'^\s*(' + key + r')\s*(=)',
         'beginCaptures': {'1': {'name': scope}, '2': {'name': 'keyword.operator.assignment.eeaimod'}},
         'end': r'$',
         'patterns': [{'include': '#value'}],

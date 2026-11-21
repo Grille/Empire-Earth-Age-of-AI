@@ -3,12 +3,12 @@
 let n = 0
 let last = ""
 let items = [0]
-let seen = { tick: 0, name: "" }
+let seen = { tick = 0, name = "" }
 game.timer(0.5s, () => {
     n += 1
     last = "tick {n} of the timer, a text of some length to see what it takes"
     items = [n, n + 1, n + 2, n + 3, n + 4, n + 5, n + 6, n + 7]
-    seen = { tick: n, name: last }
+    seen = { tick = n, name = last }
 })
 wait(60min)
 cmd("timers {n} {last} {items[8]} {seen.tick} {seen.name}")
