@@ -368,6 +368,12 @@ internal inline int effect_queue_remakes(const void *e) {
     uint32_t vt = *(const uint32_t *)e;
     return vt == vt_eee3_d_rain || vt == vt_eee3_d_snow || vt == vt_eee3_d_disease || vt == vt_eee3_d_hurricane || vt == vt_eee3_d_virus;
 }
+// an effect whose draw the mod gives values of its own and puts back after (collect.c: a flying piece, a flame or smoke,
+// a water splash, a farm's stalks) - values its Queue moves or copies: its Queue never beside its draw either
+internal inline int effect_draw_puts_back(const void *e) {
+    uint32_t vt = *(const uint32_t *)e;
+    return vt == vt_eee3_d_particle || vt == vt_eee2_d_particle || vt == vt_eee3_d_water_splash || vt == vt_eee3_d_farm;
+}
 // GEModel::PrepareTransforms as the exe calls it (its import slot: collect.c's blend when hooked)
 internal inline void model_prepare(ee_model *m) { (*(void (__thiscall **)(ee_model *))data_engine_display_iat_prepare_transforms)(m); }
 

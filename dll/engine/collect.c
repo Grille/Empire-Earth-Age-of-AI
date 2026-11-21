@@ -328,22 +328,28 @@ internal int pt_blend(void *o, float ms, float *vals, int n, const float *cur) {
     for (int k = 3; k < n - 1; k++) if (fabsf(q[k] - p[k]) > 1.6f) vals[k] = q[k];   // an angle come round
     return 1;
 }
+// (read, drawn and put back under g_fx_remake_cs: a step's end queues - moves - them on the simulation's thread beside
+// the frame's draws, collect_copy.c fx_build)
 internal uint32_t __thiscall pt_hook_draw(ee_particle3d *o) {
     float *place = particle3d_place_at(o), *fade = particle3d_fade_at(o), *angles = particle3d_angles_at(o), cur[7], b[7];
+    EnterCriticalSection(&g_fx_remake_cs);
     memcpy(cur, place, 12); memcpy(cur + 3, angles, 12); cur[6] = *fade;
-    if (!pt_blend(o, particle3d_get_moved_ms(o), b, 7, cur)) return eee3_d_particle_draw(o);
-    memcpy(place, b, 12); memcpy(angles, b + 3, 12); *fade = b[6];
+    int blend = pt_blend(o, particle3d_get_moved_ms(o), b, 7, cur);
+    if (blend) memcpy(place, b, 12), memcpy(angles, b + 3, 12), *fade = b[6];
     uint32_t r = eee3_d_particle_draw(o);
-    memcpy(place, cur, 12); memcpy(angles, cur + 3, 12); *fade = cur[6];
+    if (blend) memcpy(place, cur, 12), memcpy(angles, cur + 3, 12), *fade = cur[6];
+    LeaveCriticalSection(&g_fx_remake_cs);
     return r;
 }
 internal uint32_t __thiscall pt_hook_draw2d(ee_particle2d *o) {
     float *place = particle2d_place_at(o), *fade = particle2d_fade_at(o), *angle = particle2d_angle_at(o), cur[5], b[5];
+    EnterCriticalSection(&g_fx_remake_cs);
     memcpy(cur, place, 12); cur[3] = *angle, cur[4] = *fade;
-    if (!pt_blend(o, particle2d_get_moved_ms(o), b, 5, cur)) return eee2_d_particle_draw(o);
-    memcpy(place, b, 12); *angle = b[3], *fade = b[4];
+    int blend = pt_blend(o, particle2d_get_moved_ms(o), b, 5, cur);
+    if (blend) memcpy(place, b, 12), *angle = b[3], *fade = b[4];
     uint32_t r = eee2_d_particle_draw(o);
-    memcpy(place, cur, 12); *angle = cur[3], *fade = cur[4];
+    if (blend) memcpy(place, cur, 12), *angle = cur[3], *fade = cur[4];
+    LeaveCriticalSection(&g_fx_remake_cs);
     return r;
 }
 // A WATER SPLASH BETWEEN STEPS (the player, 2026-11-15: "the water splash effect (projectile hit) dosnt animate smothly,
@@ -356,6 +362,7 @@ internal uint32_t __thiscall pt_hook_draw2d(ee_particle2d *o) {
 // share of its life; seen again with a smaller progress, a new splash in the same memory) and its progress drawn is the
 // pieces' time since over its life - never past the game's own.
 internal uint32_t __thiscall ws_hook_draw(ee_water_splash *o) {
+    EnterCriticalSection(&g_fx_remake_cs);   // its Queue copies progress into drawn on the simulation's thread (pt_hook_draw)
     float was = water_splash_get_drawn(o);
     ee_graphic_effect *ge = water_splash_get_graphic_effect(o);
     int life = ge ? graphic_effect_get_life_ms(ge) : 0;
@@ -376,6 +383,7 @@ internal uint32_t __thiscall ws_hook_draw(ee_water_splash *o) {
     }
     uint32_t r = eee3_d_water_splash_draw(o);
     water_splash_set_drawn(o, was);
+    LeaveCriticalSection(&g_fx_remake_cs);
     return r;
 }
 // THE FARMS' STALKS SWAYING BETWEEN STEPS (with the animation's: picture collect anim; the player, 2026-11-13: "do the
@@ -480,7 +488,7 @@ internal void fsw_tags_apply(int v0, int nv) {
         p[0] = t->bx + xy[0], p[1] = t->by + xy[1];
     }
 }
-internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
+internal uint32_t fsw_draw(ee_farm_fx *o) {
     if (!g_uc_anim_smooth || g_cp_smooth != 1 || !g_cp_cs_ok || !farm_fx_get_stalks_drawn(o)) return eee3_d_farm_draw(o);
     ee_model *m = farm_fx_get_stalks(o);
     ee_graphic_effect *kind = farm_fx_get_graphic_effect(o);
@@ -524,6 +532,13 @@ internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
         float *top = vertices_point_at(va, type, i);
         if (top) top[0] = g_fsw_keep[i][0], top[1] = g_fsw_keep[i][1];
     }
+    return r;
+}
+// (under g_fx_remake_cs: its Queue copies the tops into the model drawn on the simulation's thread, pt_hook_draw)
+internal uint32_t __thiscall fsw_hook_draw(ee_farm_fx *o) {
+    EnterCriticalSection(&g_fx_remake_cs);
+    uint32_t r = fsw_draw(o);
+    LeaveCriticalSection(&g_fx_remake_cs);
     return r;
 }
 // The update's sway step left out where nothing shows it: it sets every stalk top's point one by one on the simulation's

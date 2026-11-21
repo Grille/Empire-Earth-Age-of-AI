@@ -591,7 +591,11 @@ internal int fx_alive(const void *e) {
 // freed memory (the player's crashes 2026-11-19, EE 0x4EDFB6, three times). Left to the frame's own update, the frames
 // during a step that drew the simulation's queues went without them: a hurricane flickered (the player, 2026-11-19). So
 // their draws are hooked and their Queue here and their draw there go under one lock, never side by side; the frame's own
-// Queue is the drawing thread's, in its update. Without the hooks they are left out as before.
+// Queue is the drawing thread's, in its update. Without the hooks they are left out as before. The same lock holds the
+// effects whose draw the mod gives blended values and puts back after (effect_draw_puts_back: collect.c pt_hook_draw ...):
+// their Queue moves a particle by the time since its last move and stamps it, copies a splash's progress and a farm's
+// stalk tops into what is drawn - beside the draw it moved from the blended values or was put back over, the step's
+// move lost (a flame stood a step or jumped back, its fade rolled back).
 internal CRITICAL_SECTION g_fx_remake_cs;
 internal int g_fx_remake_hooked;   // all five's draws under g_fx_remake_cs
 #define FX_REMAKE_DRAW(name, type) \
@@ -642,15 +646,15 @@ internal void fx_build(ee_map *map) {
             for (uint32_t i = 0; i < k; i++) {
                 if (!effect_shown(e[i])) continue;
                 if (!fx_alive(e[i])) { g_fx_dead++; continue; }
-                int remakes = effect_queue_remakes(e[i]), r;
+                int remakes = effect_queue_remakes(e[i]), held = remakes || effect_draw_puts_back(e[i]), r;
                 if (remakes) {
                     g_fx_remakes++;
                     if (!g_fx_remake_hooked) continue;
-                    EnterCriticalSection(&g_fx_remake_cs);
                 }
+                if (held) EnterCriticalSection(&g_fx_remake_cs);
                 effect_prepare(e[i]);
                 r = effect_queue(e[i], g_fx_p);
-                if (remakes) LeaveCriticalSection(&g_fx_remake_cs);
+                if (held) LeaveCriticalSection(&g_fx_remake_cs);
                 if (!r) { effect_reference(e[i]); g_fx_queued++; }
             }
         }
