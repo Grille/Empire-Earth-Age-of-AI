@@ -1006,7 +1006,13 @@ internal int work_idle(unsigned idx) {
     uint32_t now = game_time();
     return w->t && now >= w->t && now - w->t <= 4 * WK_EVERY ? w->idle : -1;
 }
-internal void work_new_game(void) { memset(g_wk, 0, sizeof g_wk); memset(g_wn, 0, sizeof g_wn); memset(g_wkd, 0, sizeof g_wkd); }
+// the drop-offs by serial, the trees' and the lands' tables too: work_tick's time-went-back reset never fires once g_wk
+// is cleared, so a load found the last game's serials (another object behind one) and territory numbers of another map
+internal void work_new_game(void) {
+    memset(g_wk, 0, sizeof g_wk); memset(g_wn, 0, sizeof g_wn); memset(g_wkd, 0, sizeof g_wkd);
+    memset(g_wkdrop, 0, sizeof g_wkdrop); memset(g_wkd_sent, 0, sizeof g_wkd_sent); memset(g_wkd_moved, 0, sizeof g_wkd_moved);
+    memset(g_wkd_lapsed, 0, sizeof g_wkd_lapsed); memset(g_wkt, 0, sizeof g_wkt); memset(g_wkl, 0, sizeof g_wkl);
+}
 // THE POOL for bunker.c's shelf: the citizens beyond what its resources need - sp[2], sp[3] those of them on food and
 // on wood (the ones a fortress may take), the return their sum; under 0: that many citizens short of the need (the
 // stashed are wanted back). 0 while the shares do not go by need yet or work.c has not looked for 30 s.
