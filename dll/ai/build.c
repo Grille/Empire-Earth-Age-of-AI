@@ -136,8 +136,8 @@ internal struct bd_st {
     uint32_t herd_t; unsigned herds;     // A HERD'S SETTLEMENT: the last laid, how many
     uint32_t forest_t; unsigned forests; int forest_n[3]; unsigned forest_nospot;   // TO THE TREES ACROSS: the last look, how many laid; the last look's territories on a land with no drop site of its, with a tree, out of danger; no spot found
     uint32_t fdock_t; unsigned fdocks;   // A FISHING DOCK: the same
-    uint32_t t, log_t, laid_t[5];   // laid_t: the last granary, Settlement, tower, research building, production building laid (BD_WAIT)
-    int laid_type[5];               // ... and its type
+    uint32_t t, log_t, laid_t[6];   // laid_t: the last granary, Settlement, tower, research building, production building, Airport laid (BD_WAIT)
+    int laid_type[6];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls, across;   // walls: builders sent to unfinished wall pieces
     int open, lost_ground, mines, mines_drop, mines_guard;   // the last look: unfinished buildings, those of them LEFT ON LOST GROUND; mines in reach, those with a drop site, with a defence
 } g_bd[16];
@@ -240,7 +240,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0, nidle = 0;
-    int nairport = 0;
+    int nairport = 0, open_airport = 0;
     static ivec2 dock[32];
     int ndock = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
@@ -290,6 +290,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
+        open_airport += t == UT(B_AIRPORT) && !done;   // LAID, NOT PAID: its foundation shows
         if (is_tower_type(t)) open_tower += going;
         if ((is_tower_type(t) || defence_stats(u, &rng, &att)) && ndef < 512) def[ndef++] = p;
         if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && (done || going) && nds < BD_DSITES) dsite[nds++] = p;
@@ -444,10 +445,12 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // other building of its takes it, and the row "laid" of the priority list holds it from everybody else (the first
     // look at the research buildings: the University laid at 0.3 min, its 175 wood gone into fields and a tech before
     // the builder arrived - it came 5 to 8 minutes later, with every AI)
-    int wait[5], shown[5] = { open_gran, open_settle, open_tower, 0, open_prod }, com[7] = { 0 };
-    for (int k = 0; k < 5; k++) wait[k] = b->laid_t[k] && now >= b->laid_t[k] && now - b->laid_t[k] < BD_WAIT;
+    // the Airport has its own slot (5): booked as a tower (2) it held every tower back BD_WAIT, and its price stayed held
+    // after its foundation showed, the towers' going-up count not seeing it; wait[5] holds nothing back but its price
+    int wait[6], shown[6] = { open_gran, open_settle, open_tower, 0, open_prod, open_airport }, com[7] = { 0 };
+    for (int k = 0; k < 6; k++) wait[k] = b->laid_t[k] && now >= b->laid_t[k] && now - b->laid_t[k] < BD_WAIT;
     for (int k = 0; k < 3; k++) if (b->laid_type[3] == rb[k]) shown[3] = have_rb[k];
-    for (int k = 0; k < 5; k++)
+    for (int k = 0; k < 6; k++)
         if (wait[k] && !shown[k] && b->laid_type[k] > 0) for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, b->laid_type[k], r);
     for (int r = 2; r < 7 && ut_has(UT(B_FARM)); r++) com[r] += open_fields * unit_cost(pl, UT(B_FARM), r);
     memcpy(g_bd_com[idx], com, sizeof com);
@@ -887,9 +890,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else ok = hook_place(bm, type, at.x, at.y);
         if (!ok) b->refused++;
         else {
-            int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : pr_kind(type) >= 0 ? 4 : 2;
+            int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : pr_kind(type) >= 0 ? 4 : type == UT(B_AIRPORT) ? 5 : 2;
             if (type == UT(B_HOUSE)) b->houses++;
-            else if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else if (k == 4) { b->production++; g_pr[idx].type = 0; if (type == g_pr_more[idx]) g_pr_more[idx] = 0; } else b->towers++;
+            else if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else if (k == 4) { b->production++; g_pr[idx].type = 0; if (type == g_pr_more[idx]) g_pr_more[idx] = 0; } else if (k == 2) b->towers++;
             if (type != UT(B_HOUSE)) { b->laid_t[k] = now ? now : 1; b->laid_type[k] = type; }
             for (int r = 2; r < 7; r++) g_bd_com[idx][r] += unit_cost(pl, type, r);
             if (type == UT(B_AIRPORT)) ap_laid(idx, at, now);   // defence.c: its strip is taken until it shows
