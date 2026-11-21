@@ -764,7 +764,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 ivec2 c = g_ter.t[r].c;
                 if (raiders_near(pl, c, 12) || wk_danger(idx, c)) continue;
                 b->claim_n[3]++;
-                int d = ivec2_dist2(c, base) / (mine_r[r] ? BD_CLAIM_MINE * BD_CLAIM_MINE : 1);
+                // mine_r holds the first PR_T territories (as produce.c's tables): one past them counts no mine
+                int d = ivec2_dist2(c, base) / (r < PR_T && mine_r[r] ? BD_CLAIM_MINE * BD_CLAIM_MINE : 1);
                 if (cb < 0 || d < cd) { cb = r; cd = d; }
             }
             ivec2 cat;
