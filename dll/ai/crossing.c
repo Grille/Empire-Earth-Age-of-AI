@@ -59,6 +59,9 @@ internal struct cx_st {
     struct { ivec2 p; uint32_t t; } sunk[8];
     unsigned rated, detours, held, held_load, gone_high;   // ways rated, taken through a point off the line; trips held for the risk, for a load too small for it; important ones that went over CX_GO_LOW
 } g_cx_st[16];
+// a new game or a load: the last game's sunk places came back as threats once the clock reached their times again
+// (a load's clock often past them already), at the old map's coordinates, and its threat list stood in for a look
+internal void crossing_new_game(void) { memset(g_cx_st, 0, sizeof g_cx_st); }
 internal void cx_sunk(unsigned idx, ivec2 p, uint32_t now) {   // a transport of its sunk there
     struct cx_st *c = &g_cx_st[idx & 15];
     int k = 0;
