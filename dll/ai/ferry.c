@@ -143,7 +143,8 @@ internal struct fy_want g_fy_miss;   // fy_start's last
 // where they do, the shore is the nearest however far. Which lands touch which water: once per map (g_fy_touch).
 #define FY_TOUCH_L 512
 #define FY_TOUCH_O 64
-internal struct { ee_map *map; int size; uint8_t t[FY_TOUCH_L][FY_TOUCH_O / 8]; } g_fy_touch;
+// box: each land's extent (x0, y0, x1, y1) - fy_shore searches no farther than its farthest corner
+internal struct { ee_map *map; int size; uint8_t t[FY_TOUCH_L][FY_TOUCH_O / 8]; int16_t box[FY_TOUCH_L][4]; } g_fy_touch;
 internal int fy_touches(unsigned land, unsigned oc) {
     ee_map *map = game_map();
     if (!map || land >= FY_TOUCH_L || oc >= FY_TOUCH_O) return 1;   // beyond the table: searched as before
@@ -156,6 +157,9 @@ internal int fy_touches(unsigned land, unsigned oc) {
             for (int x = 0; x < size; x++) {
                 unsigned l = area_id(iv2(x, y), 2);
                 if (!l || l >= FY_TOUCH_L) continue;
+                int16_t *b = g_fy_touch.box[l];
+                if (!b[2]) { b[0] = (int16_t)x; b[1] = (int16_t)y; b[2] = (int16_t)(x + 1); b[3] = (int16_t)(y + 1); }   // x1, y1 one past: 0 is none yet
+                else { if (x < b[0]) b[0] = (int16_t)x; if (x + 1 > b[2]) b[2] = (int16_t)(x + 1); b[3] = (int16_t)(y + 1); }
                 for (int k = 0; k < 4; k++) {
                     unsigned o = area_id(iv2(x + nb[k][0], y + nb[k][1]), 1);
                     if (o && o < FY_TOUCH_O) g_fy_touch.t[l][o / 8] |= (uint8_t)(1u << (o % 8));
@@ -167,11 +171,25 @@ internal int fy_touches(unsigned land, unsigned oc) {
 // a new game or a load: the table is built again - the new map often takes the old one's address and size, and its
 // lands' and seas' ids are its own (the last game's bits under them: no trip between lands that touch the same sea)
 internal void ferry_new_game(void) { memset(&g_fy_touch, 0, sizeof g_fy_touch); }
+// the shore's search no farther than the land's farthest corner from p (the same tile found: none of it lies beyond -
+// the whole map's radius walked 640k tiles on a 400 map wherever the land's coast on that sea had no free tile); and
+// a land and sea with none is not searched again in the same look (fy_look clears g_fy_nosh: units don't move within
+// it, and the search covers the whole land wherever p is)
+internal struct { unsigned land; int oc; } g_fy_nosh[32];
+internal int g_fy_nnosh;
 internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
     if (oc <= 0 || !fy_touches(land, (unsigned)oc)) return 0;
     ee_map *map = game_map();
     int far_ = map ? (int)map_get_size(map) : FY_SHORE;
-    return ex_shore(land, oc, p, far_ > FY_SHORE ? far_ : FY_SHORE, o, w);
+    if (far_ < FY_SHORE) far_ = FY_SHORE;
+    if (!map || land >= FY_TOUCH_L || oc >= FY_TOUCH_O) return ex_shore(land, oc, p, far_, o, w);   // beyond the table: searched as before
+    const int16_t *b = g_fy_touch.box[land];
+    int r = 0, d[4] = { abs(p.x - b[0]), abs(p.x - (b[2] - 1)), abs(p.y - b[1]), abs(p.y - (b[3] - 1)) };
+    for (int k = 0; k < 4; k++) if (d[k] > r) r = d[k];
+    for (int k = 0; k < g_fy_nnosh; k++) if (g_fy_nosh[k].land == land && g_fy_nosh[k].oc == oc) return 0;
+    if (ex_shore(land, oc, p, r < far_ ? r : far_, o, w)) return 1;
+    if (r <= far_ && g_fy_nnosh < 32) { g_fy_nosh[g_fy_nnosh].land = land; g_fy_nosh[g_fy_nnosh++].oc = oc; }
+    return 0;
 }
 // SCOUTS ACROSS: the scout that asked still alive and its own (a dead one's object can be another unit by now, its
 // serial another), and not aboard already
@@ -443,6 +461,7 @@ internal void fy_park(ee_player *pl, unsigned idx, struct fy_st *f) {
 internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now) {
     struct sn_lands *SP = g_snl[idx];   // EVERY POOL BY THE FERRY (stations.c): each pool's lands
     typeof(&g_wkl[0]) W = &g_wkl[idx];
+    g_fy_nnosh = 0;   // the shores none was found for: this look's
     int sfresh = SP[SNP_MAIN].t && now >= SP[SNP_MAIN].t && now - SP[SNP_MAIN].t <= FY_FRESH, wfresh = W->t && now >= W->t && now - W->t <= FY_FRESH;
     // the lands' gaps, those on their way counted for the land they go to
     // cwood, cidle: work.c TO THE TREES ACROSS - the places at the trees and bushes (idle citizens only), the idle
