@@ -133,6 +133,8 @@ internal struct tv_st {
     unsigned version; int n; struct tv_terr *t;
     uint32_t tick, log_t;
     unsigned turned, sheltered, refuge, refused, kept_in;   // the log's: territories turned unsafe, citizens into a fortress, sent to a refuge, sites refused, fortresses kept shut
+    int hot0;                     // where the next pass starts looking for territories to judge, while more than TV_HOT qualify
+    unsigned crowded, crowd_max;  // the log's: passes with more than TV_HOT to judge, the most at once
 } g_tv[16];
 internal int g_ter_shelter = 0, g_v_ter_shelter = -1;
 internal int g_hold_ground = 0, g_v_hold_ground = -1;   // build.c HOLDING THE GROUND ([ai_base] hold_ground, [autotest] v_hold_ground)
@@ -244,8 +246,19 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int nn = tv_reach(q->x, q->y, reach);
         for (int j = 0; j < nn; j++) if (reach[j] < (unsigned)s->n) s->t[reach[j]].foe++;
     }
-    int hot[TV_HOT], nh = 0;
-    for (int r = 0; r < s->n; r++) if (s->t[r].foe >= TV_FORCE && (s->t[r].cit || s->t[r].def || s->t[r].sold) && nh < TV_HOT) hot[nh++] = r;
+    // The territories judged closer this pass: those with foes and something of its own there, at most TV_HOT. While
+    // more qualify, each pass starts where the last stopped, so every one is judged within a few passes (the player
+    // 2026-11-21, of the first 8 by index only: "do b") - past 8 a territory used to stay unjudged and never turn
+    // unsafe however badly it was overrun. With 8 or fewer the pass starts at 0 as it always did: the same game.
+    int hot[TV_HOT], nh = 0, nq = 0;
+    for (int r = 0; r < s->n; r++) nq += s->t[r].foe >= TV_FORCE && (s->t[r].cit || s->t[r].def || s->t[r].sold);
+    int r0 = nq > TV_HOT && s->hot0 > 0 && s->hot0 < s->n ? s->hot0 : 0;
+    for (int k = 0; k < s->n && nh < TV_HOT; k++) {
+        int r = (r0 + k) % s->n;
+        if (s->t[r].foe >= TV_FORCE && (s->t[r].cit || s->t[r].def || s->t[r].sold)) hot[nh++] = r;
+    }
+    s->hot0 = nq > TV_HOT ? (hot[nh - 1] + 1) % s->n : 0;
+    if (nq > TV_HOT) { s->crowded++; if ((unsigned)nq > s->crowd_max) s->crowd_max = (unsigned)nq; }
     for (int h = 0; h < nh; h++) {   // guard against foes, each such territory
         struct tv_terr *t = &s->t[hot[h]];
         st_side_clear(&g_tv_own); st_side_clear(&g_tv_foe);
@@ -353,8 +366,8 @@ internal void tv_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int unsafe = 0, foes = 0;
         for (int r = 0; r < s->n; r++) { unsafe += s->t[r].state == TV_UNSAFE; foes += s->t[r].state == TV_FOES; }
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# tview: P%u at %.1f min: %d territories, %d with enemy soldiers, %d being lost; so far %u turned unsafe, %u citizens into a fortress, %u sent to a refuge, %u sites refused, %u looks a fortress was kept shut\n",
-                idx, now / 60000.0, s->n, foes, unsafe, s->turned, s->sheltered, s->refuge, s->refused, s->kept_in);
+        fprintf(g_log, "# tview: P%u at %.1f min: %d territories, %d with enemy soldiers, %d being lost; so far %u turned unsafe, %u citizens into a fortress, %u sent to a refuge, %u sites refused, %u looks a fortress was kept shut, %u passes with more than %d to judge (%u at most)\n",
+                idx, now / 60000.0, s->n, foes, unsafe, s->turned, s->sheltered, s->refuge, s->refused, s->kept_in, s->crowded, TV_HOT, s->crowd_max);
         fprintf(g_log, "# tview: P%u at %.1f min: holds", idx, now / 60000.0);
         int held = 0, short_of = 0;
         for (int r = 0; r < s->n; r++) {
