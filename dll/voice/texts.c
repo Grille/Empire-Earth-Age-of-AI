@@ -461,7 +461,11 @@ internal void texts_corpus(char *out, const char *path) {
         while (ini && fgets(ln, sizeof ln, ini)) {
             char *s = ln;
             while (*s == ' ' || *s == '\t') s++;
-            if (*s == '[') { lstrcpynA(sec, s + 1, (int)strcspn(s + 1, "]") + 1); continue; }
+            if (*s == '[') {   // the name up to its ']', cut to sec: a line of the file is up to 511 characters
+                int n = (int)strcspn(s + 1, "]") + 1;
+                lstrcpynA(sec, s + 1, n < (int)sizeof sec ? n : (int)sizeof sec);
+                continue;
+            }
             char *eq = strchr(s, '=');
             if (*s == ';' || *s == '#' || !eq) continue;
             *eq = 0;
