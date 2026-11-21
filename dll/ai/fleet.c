@@ -1604,7 +1604,7 @@ internal void fl_need_build(ee_player *pl, unsigned idx, struct fleet *f, uint32
 internal void fleet_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct fleet *f = &g_fl[idx];
-    if (now < f->last) { memset(f, 0, sizeof *f); memset(g_tf[idx], 0, sizeof g_tf[idx]); g_ntfm[idx] = 0; }   // a new game (also fleet_new_game)
+    if (now < f->last) { memset(f, 0, sizeof *f); memset(g_tf[idx], 0, sizeof g_tf[idx]); g_ntfm[idx] = 0; memset(&g_hb[idx], 0, sizeof g_hb[idx]); }   // a new game (also fleet_new_game)
     if (!fleet_on(idx)) { if (f->n) fl_armies(idx, f, 0, now); f->n = 0; f->need = 0; return; }
     if (f->last && now - f->last < 2000) return;
     f->last = now ? now : 1;
@@ -1819,7 +1819,7 @@ internal void boats_tick(ee_player *pl, uint32_t now) {
     if (g_log && g_autotest && got) log_locked("# fishing: P%u at %.1f min: the mod orders a boat (type %d) - %u ordered so far (%u asked; not: %u a boat idle, %u in the making, %u no fish, %u a boat pulled back); sea %u with %d food in fish, the game's list %s\n",
                                               idx, now / 60000.0, type, g_fb[idx].ordered, g_fb[idx].orders, g_fb[idx].idle, g_fb[idx].making, g_fb[idx].no_fish, g_fb[idx].danger, sea, sea_food, fish ? "has fish" : "has none");
 }
-internal void fleet_new_game(void) { squadrons_new_game(); claims_new_game(); memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); }
+internal void fleet_new_game(void) { squadrons_new_game(); claims_new_game(); memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); memset(g_fb, 0, sizeof g_fb); memset(g_hb, 0, sizeof g_hb); }   // g_hb: a game that ended with its Navy Yard tries spent laid none in the next
 internal void squadrons_install(const char *autotest_ini);   // squadrons.c
 internal void fleet_install(const char *autotest_ini) {
     g_navy_fleet = g_set_ai[1].navy_fleet;
