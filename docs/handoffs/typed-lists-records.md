@@ -109,7 +109,8 @@ Still to do for step 2:
    the file is read. Left: a record type can't be written by its members (`record { a: int }`) - a struct is that.
    Then the dict literal: DONE 2026-11-20 - the player: `{ }` should mean no specific type, "its just a key:value
    collection that get interpreted as a record or dict or something else". So `{ ... }` is what the place it goes
-   into is (expr.c x_check_rec, X_WANT as `[...]` has): a dict (a name the text key, `[key]` any; the default its V's
+   into is (expr.c x_check_rec, X_WANT as `[...]` has): a dict (`[key]` = value - a name there was its text key until
+   2026-11-21, the player: "a word should never be a stand-in for a string": now a mistake; the default its V's
    own, or `dict<K, V>(default, { ... })`), a struct by its fields' names, else a record. Left: a `{ }` through
    `?:` / `??` gets no type wanted (a record there).
    `{ a: 1 }` was tried and taken back the same day (2026-11-21, 86edee0a reverted): `:` is the language's type

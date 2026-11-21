@@ -39,5 +39,5 @@ ping("at 0.2 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, p1 {show(player(1
 wait_until(0.5min)
 ping("at 0.5 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}")
 wait_until(1min)
-let names: dict<text, int> = { all = ticks, ["{book.name}x"] = 7 }
+let names: dict<text, int> = { ["all"] = ticks, ["{book.name}x"] = 7 }
 ping("at 1 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, names {names["all"]} {names["allx"]}")

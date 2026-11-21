@@ -93,7 +93,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `1920x1080` | a size: `vec(1920, 1080)` |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
 | `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: any type (`dict<text, point>`, `dict<player, seq<int>>` - "Dicts"). A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. (A seq is a value, a list is shared as a dict is - "Sequences and lists") |
-| `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member. Where a dict or a struct goes it is that: `let ages: dict<text, int> = { stone = 1, [key] = 5 }`, `let p: point = { y = 1 }` ("Records, dicts and structs written out") |
+| `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member. Where a dict or a struct goes it is that: `let ages: dict<text, int> = { ["stone"] = 1, [key] = 5 }`, `let p: point = { y = 1 }` ("Records, dicts and structs written out") |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
 | `"text \{x\}"` | `\{` `\}`: braces that are text, not a placeholder (also `\"` `\\` `\n`) |
@@ -255,8 +255,8 @@ struct book {
 - A dict nobody holds any more is freed (as a list); one a function made inside a function can't be held in one. A
   dict goes into a saved game with everything that holds it.
 - A personality's dict fields hold an `int`, a `float`, a `bool` or a `text` (the texts' rules: no structs, no lists).
-- Written out with its entries: `let ages: dict<text, int> = { stone = 1, ["dark age"] = 5 }`,
-  `dict<text, vec2>(vec(0, 0), { north = vec(10, 20) })` ("Records, dicts and structs written out").
+- Written out with its entries: `let ages: dict<text, int> = { ["stone"] = 1, ["dark age"] = 5 }`,
+  `dict<text, vec2>(vec(0, 0), { ["north"] = vec(10, 20) })` ("Records, dicts and structs written out").
 
 ## Structs
 
@@ -321,9 +321,9 @@ one, a parameter's, a field's, what a function gives back, a dict's value, a seq
 when it is set anew. Where none is wanted (`let w = { ... }`) it is a record ("Types": a record's type).
 
 ```
-let ages: dict<text, int> = { stone = 1, copper = 3, ["dark age"] = 5 }
+let ages: dict<text, int> = { ["stone"] = 1, ["copper"] = 3, ["dark age"] = 5 }
 let byp: dict<player, int> = { [p2] = 10, [p3] = 20 }
-let homes = dict<text, vec2>(vec(0, 0), { north = vec(10, 20) })   // the default given
+let homes = dict<text, vec2>(vec(0, 0), { ["north"] = vec(10, 20) })   // the default given
 let p: point = { x = 3 }                                           // y its default: 5
 let s: squad = { pos = { x = 7 }, name = "north" }                 // in any order; pos a point too
 spots["gate"] = { x = 4, y = 1 }
@@ -331,9 +331,10 @@ let d = far({ x = 1, y = 1 })                                      // far(a: poi
 make(n: int): point => ({ x = n, y = n * 2 })                      // (=> { is a block: ({ ... }))
 ```
 
-- **A dict's entries**: a name is the text key of its letters (`stone = 1` is `["stone"] = 1`), `[key]` any key as a
-  value. So a name means the same in a record and a dict, never a variable's value - `[p2]` is that. A name in a
-  dict of int or object keys, a key or a value of another type, the same key written twice: mistakes.
+- **A dict's entries** are `[key] = value`, the key a value: `["stone"]`, `[p2]`, `[i + 1]`. A word is never a
+  stand-in for a text: `name = value` is a record's or a struct's field, so `{ stone = 1 }` where a dict goes is a
+  mistake (`["stone"] = 1` the text, `[stone] = 1` the variable's value). A key or a value of another type, the same
+  key written twice: mistakes too.
 - **A dict's default** is its V's own, as a struct's field left out has (`0`, `false`, `""`, `null` for a `T?`, an
   empty seq, a struct's defaults). A V with none (`vec2`, `player` ...) gives it: `dict<K, V>(default, { ... })`. A
   list or a dict as V only as a `T?`, as ever (one table for every key without an entry).

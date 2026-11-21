@@ -12,15 +12,15 @@ struct squad {
     tags: seq<text>
 }
 
-// a dict: a name is the text key of its letters, [key] any other; its default its V's own
-let ages: dict<text, int> = { stone = 1, copper = 3, ["dark age"] = 5 }
+// a dict: [key] = value, its key a value (a name is a field, never a text); its default its V's own
+let ages: dict<text, int> = { ["stone"] = 1, ["copper"] = 3, ["dark age"] = 5 }
 let byn: dict<int, text> = { [1] = "one", [2] = "two" }
 let empty: dict<text, float> = {}
 cmd("dict {ages["stone"]} {ages["copper"]} {ages["dark age"]} {ages["none"]} {byn[2]} [{byn[9]}] {empty["x"]}")
 
 // the default given: dict<K, V>(default, { ... }) - a V that has none, or another
-let homes = dict<text, vec2>(vec(0, 0), { north = vec(10, 20), south = vec(30, 40) })
-let lives = dict<text, int>(3, { cat = 9 })
+let homes = dict<text, vec2>(vec(0, 0), { ["north"] = vec(10, 20), ["south"] = vec(30, 40) })
+let lives = dict<text, int>(3, { ["cat"] = 9 })
 cmd("given {homes["south"].y} {homes["west"].x} {lives["cat"]} {lives["dog"]}")
 
 // a struct: its fields by name, in any order, the others their defaults
@@ -33,7 +33,7 @@ cmd("struct {p.x} {p.y} {q.x} {q.y} {s.name} {s.at.x} {s.at.y} {s.strength} {len
 far(a: point): int => a.x + a.y
 make(n: int): point => ({ x = n, y = n * 2 })   // (=> { is a block of statements)
 let pts: seq<point> = [{ x = 1 }, { x = 2, y = 0 }]
-let spots = dict<text, point>({ x = 0, y = 0 }, { gate = { x = 4 } })
+let spots = dict<text, point>({ x = 0, y = 0 }, { ["gate"] = { x = 4 } })
 spots["well"] = { x = 8, y = 9 }
 s.at = { y = 0, x = 1 }
 let m = make(4)
@@ -47,12 +47,12 @@ note(v: int): int {
     return v
 }
 let o: point = { y = note(1), x = note(2) }
-let od: dict<text, int> = { b = note(3), a = note(4) }
+let od: dict<text, int> = { ["b"] = note(3), ["a"] = note(4) }
 cmd("order {order[1]}{order[2]}{order[3]}{order[4]} {o.x} {o.y} {od["a"]} {od["b"]}")
 
 // a dict of struct values, of lists, nested; no type wanted: a record
 let teams: dict<int, squad?> = { [2] = { name = "east" } }
-let rows: dict<text, dict<text, int>?> = { top = { a = 1 } }
+let rows: dict<text, dict<text, int>?> = { ["top"] = { ["a"] = 1 } }
 let top = rows["top"] ?? dict<text, int>(0)
 let east = teams[2] ?? squad("none")
 let rec = { x = 1, name = "loose" }
