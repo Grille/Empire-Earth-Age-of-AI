@@ -4,7 +4,7 @@
 let n = 0
 let last = "none"
 let items = [0]
-let seen = { tick = 0, name = "" }
+let seen = { tick: 0, name: "" }
 let note = "not yet"
 let late = [0]
 let p = player(2)
@@ -13,10 +13,10 @@ game.timer(0.5s, () => {
     n += 1
     last = "tick {n} at {game.minutes} min, {p.soldiers} soldiers"
     items = [n, n * 2, n * 3]
-    seen = { tick = n, name = last }
+    seen = { tick: n, name: last }
     who = game.players[2 + n - 2 * int(n / 2)]
 })
-trigger({ when = () => n >= 20, run = () => { note = "twenty ticks: {items[2]}, {seen.name}" } })
+trigger({ when: () => n >= 20, run: () => { note = "twenty ticks: {items[2]}, {seen.name}" } })
 after(15s, () => { late = [n, items[3]] })
 wait_until(0.2min)
 ping("at 0.2 min: {n} ticks, {last}, {items[3]}, {seen.tick}, {note}, {who}")

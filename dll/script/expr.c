@@ -1,6 +1,6 @@
 // THE TEXT FILES (<game>\ageofai\personalities\*.eeai: the personalities; mod\*.eeai: computer, prompt, system) and the EXPRESSIONS in them.
 // A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
-// "lines = { key = value, ... }" (a comma after each entry; the keys the code reads - another record is the file's
+// "lines = { key: value, ... }" (a comma after each entry; the keys the code reads - another record is the file's
 // own name, its entries name.key), include("pack_base.eeai"),
 // register_personality() - and comments from // to the line's end (outside a string). A value is an expression - over
 // several lines while a ( [ or { is open:
@@ -30,10 +30,10 @@
 // variable or vars entry; after a call or ( ) too: step(home).x, (a + b).y), + - two vectors of as many numbers, * a vector and a number, / a vector by a number, == !=
 // (no order), distance(a, b); rgb(r, g, b) a colour, 0 to 255 each, as the vector of those / 255 (vec(r, g, b) takes
 // the 0 to 1 itself); in a text (12, 40), a command's argument its numbers one each - anything else with one a mistake.
-// A record, { a = 1, b = "x", c = { ... } }, is one value of named members (a comma after each, the last's may be left
+// A record, { a: 1, b: "x", c: { ... } }, is one value of named members (a comma after each, the last's may be left
 // out; each worked out when the record is): r.a, r.c.d, f().a its members - one it doesn't have a mistake, has(r,
-// "a") checks; in a text {a = 1, b = x}; no comparison (its members are compared), no arithmetic. A file's own record
-// (colors = { dark = ... }) is its names colors.dark ... (each worked out where it is used, like any name of the
+// "a") checks; in a text {a: 1, b: x}; no comparison (its members are compared), no arithmetic. A file's own record
+// (colors = { dark: ... }) is its names colors.dark ... (each worked out where it is used, like any name of the
 // file's), colors the whole record.
 // A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
 // '?' (x_fmt_at): {x:%} a share (0.5 -> 50%), {x:.1%}, {x:.2} - 50% in an expression is only 0.5, never a format.
@@ -567,14 +567,14 @@ internal void xto_text(const struct xval *v, char *out, int cap) {
         out[o] = 0;
         return;
     }
-    if (v->kind == XV_REC && v->w) {   // a record: {a = 1, b = text} - its members as written; a struct: point(1, 2)
+    if (v->kind == XV_REC && v->w) {   // a record: {a: 1, b: text} - its members as written; a struct: point(1, 2)
         int o = 0, st = v->rec->ty != NULL;
         if (st) o = snprintf(out, (size_t)(cap > 8 ? cap - 8 : 0), "%s", v->rec->ty->name);
         if (o > cap - 8) o = cap > 8 ? cap - 8 : 0;
         out[o++] = st ? '(' : '{';
         for (int i = 0; i < v->rec->n && o < cap - 8; i++) {
             if (st) o += snprintf(out + o, (size_t)(cap - o), "%s", i ? ", " : "");
-            else o += snprintf(out + o, (size_t)(cap - o), "%s%s = ", i ? ", " : "", v->rec->key[i]);
+            else o += snprintf(out + o, (size_t)(cap - o), "%s%s: ", i ? ", " : "", v->rec->key[i]);
             if (o >= cap - 4) { o = cap - 4; break; }
             xto_text(&v->rec->val[i], out + o, cap - o - 2);
             o += (int)strlen(out + o);
@@ -752,7 +752,7 @@ internal void xst_scan(const char *src) {
 }
 // THE TYPES THAT HOLD TYPES (the check's: host.h's types are numbers): a function's with its parameters' types and
 // its result's (func<int, text, point>: the last is the result, void none), a record's with its members' names and
-// types ({ at = vec(1, 2), units = 10 }), and a wrap - a whole type (a list, one or null) as a list's item
+// types ({ at: vec(1, 2), units: 10 }), and a wrap - a whole type (a list, one or null) as a list's item
 // (list<list<int>>, list<int?>: X_LIST_OF of a wrap). Each is an entry here, the same type the same entry (compared
 // by its number), its number a type's base from XT_CMP0 on; they stay for the session (a few hundred at most: the
 // types the scripts and texts write and the check works out).
@@ -1146,7 +1146,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         o->n_items = n;
         o->items = (struct xnode **)it;   // offsets until copied out
         o = XOFF(p, o);
-    } else if (*s == '{') {   // { name = value, [key] = value, ... }: a record, or what the place it goes into is (a dict,
+    } else if (*s == '{') {   // { name: value, [key]: value, ... }: a record, or what the place it goes into is (a dict,
         int par = p->par, n = 0, cap = 0;   // a struct: x_check XN_REC) - a comma after each entry (the last's may be left out)
         uintptr_t *it = NULL;
         p->s++;
@@ -1156,16 +1156,16 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             const char *ks = p->s;
             char key[40];
             int k = 0;
-            struct xnode *kx = NULL;   // [key] = value: a key worked out (a dict's) - the entry's s ""
+            struct xnode *kx = NULL;   // [key]: value - a key worked out (a dict's), the entry's s ""
             if (*ks == '[') {
                 p->s++;
                 p->par++;
                 xps_expr(p, &kx);
                 p->par--;
-                if (!p->err && !xps_op(p, "]")) { p->err = 1; p->why = "{ [key] = value }: a ] missing"; }
+                if (!p->err && !xps_op(p, "]")) { p->err = 1; p->why = "{ [key]: value }: a ] missing"; }
                 if (p->err) break;
             } else {
-                if (!isalpha((unsigned char)*ks) && *ks != '_') { p->err = 1; p->why = "{ name = value } or { [key] = value }"; break; }
+                if (!isalpha((unsigned char)*ks) && *ks != '_') { p->err = 1; p->why = "{ name: value } or { [key]: value }"; break; }
                 while ((isalnum((unsigned char)*p->s) || *p->s == '_') && k < 39) key[k++] = *p->s++;
                 if (isalnum((unsigned char)*p->s) || *p->s == '_') { p->err = 1; p->why = "a name over 39 characters"; break; }
             }
@@ -1173,7 +1173,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             for (int i = 0; i < n && !p->err && k; i++)
                 if (!strcmp(XPTR(p, (struct xnode *)it[i])->s, key)) { p->err = 1; p->why = "{ ... }: a name twice"; }
             if (p->err) break;
-            if (!xps_op(p, "=") || *p->s == '=') { p->err = 1; p->why = kx ? "{ [key] = value }" : "{ name = value }"; break; }
+            if (!xps_op(p, ":")) { p->err = 1; p->why = kx ? "{ [key]: value }" : "{ name: value }"; break; }
             struct xnode *x;
             xps_expr(p, &x);
             if (p->err) break;
@@ -1287,7 +1287,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             struct xnode *d;
             xps_expr(p, &d);
             p->par--;
-            struct xnode *en = NULL;   // dict<K, V>(default, { key = value, ... }): its entries
+            struct xnode *en = NULL;   // dict<K, V>(default, { key: value, ... }): its entries
             if (!p->err && xps_op(p, ",")) { p->par++; xps_expr(p, &en); p->par--; }
             if (!p->err && !xps_op(p, ")")) { p->err = 1; p->why = "dict<K, V>(default) or dict<K, V>(default, { ... }): a ) missing"; }
             if (p->err) return;
@@ -2224,7 +2224,7 @@ internal int x_rec_call(struct xcheck *k, const struct xnode *n, int r, const ch
     else snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a record has no methods - its function is called from a variable: let f = r.%s, then f(...)", m, m);
     return xc_fail(k, n, k->whybuf);
 }
-// A RECORD'S TYPE (a script's): its members' names and types as written - { at = vec(70, 50), units = 10 } is a
+// A RECORD'S TYPE (a script's): its members' names and types as written - { at: vec(70, 50), units: 10 } is a
 // record { at, units } whose at is a vec2 - in the order of their names (the same members written in another order:
 // the same type), so r.unitz is told when the file is read. More than XCT_MEMBERS members, a text's record: any
 // record (XT_REC), its members worked out when it runs
@@ -2814,7 +2814,7 @@ internal int x_key_const(const struct xnode *e, const char **s, double *v) {
     if (x->k == XN_NUM && x->op == 'i') { *v = x->n; return 2; }
     return 0;
 }
-// { name = value, [key] = value, ... } (a script's): WHAT THE PLACE IT GOES INTO IS (the type wanted there: X_WANT) -
+// { name: value, [key]: value, ... } (a script's): WHAT THE PLACE IT GOES INTO IS (the type wanted there: X_WANT) -
 // a dict<K, V>'s entries (a name the text key of its letters, [key] any other; its default V's own - 0, "", false,
 // null, a struct's defaults - or dict<K, V>(default, { ... })'s), a struct's fields by name (the others their
 // defaults), else a record (its members names). Made a dict or a struct it is marked so (op 'D' / 'S', its type in n)
@@ -2827,7 +2827,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
     ((struct xnode *)n)->n = want;
     if (!want) {   // a record
         for (int i = 0; i < n->n_items; i++) {
-            if (n->items[i]->b) return xc_fail(k, n->items[i], "{ [key] = ... }: a dict's entry - where a dict<K, V> goes (let d: dict<int, text> = { [1] = \"a\" }); a record's members are names");
+            if (n->items[i]->b) return xc_fail(k, n->items[i], "{ [key]: ... }: a dict's entry - where a dict<K, V> goes (let d: dict<int, text> = { [1]: \"a\" }); a record's members are names");
             if (!x_check(k, n->items[i]->a, sc)) return 0;
         }
         return 1;
@@ -2855,7 +2855,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
             int tk = XT_TEXT, tv, kc = x_key_const(e, &ks, &kv);
             char tn[60];
             if (!e->b && kt != XT_TEXT) {
-                snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: a name is a text key - the %s's keys are %ss: [key] = ...", e->s, a, c);
+                snprintf(k->whybuf, sizeof k->whybuf, "{ %s: ... }: a name is a text key - the %s's keys are %ss: [key]: ...", e->s, a, c);
                 return xc_fail(k, e, k->whybuf);
             }
             if (e->b) {
@@ -2863,7 +2863,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
                 tk = x_stype(k, e->b, sc);
             }
             if (!xt_fits(kt, tk)) {
-                snprintf(k->whybuf, sizeof k->whybuf, "{ [...] = ... }: the %s's keys are %ss - not a%s %s%s", a, c, xan(xty_name(tk, tn, sizeof tn)), tn, xt_hint(kt, tk));
+                snprintf(k->whybuf, sizeof k->whybuf, "{ [...]: ... }: the %s's keys are %ss - not a%s %s%s", a, c, xan(xty_name(tk, tn, sizeof tn)), tn, xt_hint(kt, tk));
                 return xc_fail(k, e, k->whybuf);
             }
             for (int j = 0; j < i && kc; j++)
@@ -2876,7 +2876,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
             if (!x_check(k, e->a, sc)) return 0;
             tv = x_stype(k, e->a, sc);
             if (xt_fits(vt, tv)) continue;
-            snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: the %s's values are %ss - a%s %s can't go in%s", e->b ? "[...]" : e->s, a, b, xan(xty_name(tv, tn, sizeof tn)), tn, xt_hint(vt, tv));
+            snprintf(k->whybuf, sizeof k->whybuf, "{ %s: ... }: the %s's values are %ss - a%s %s can't go in%s", e->b ? "[...]" : e->s, a, b, xan(xty_name(tv, tn, sizeof tn)), tn, xt_hint(vt, tv));
             return xc_fail(k, e, k->whybuf);
         }
         return 1;
@@ -2885,15 +2885,15 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
     for (int i = 0; i < n->n_items; i++) {
         const struct xnode *e = n->items[i], *f = e->b ? NULL : xst_member(want, e->s, 'F', NULL);
         int ft = f ? (int)f->n : 0, tv;
-        if (e->b) snprintf(k->whybuf, sizeof k->whybuf, "{ [...] = ... }: a %s's fields are names - its fields: %s", a, l);
-        else if (!f && xst_member(want, e->s, 'M', NULL)) snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: %s is a %s's method - its fields: %s", e->s, e->s, a, l);
-        else if (!f) snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: a %s has no field %s - its fields: %s", e->s, a, e->s, l);
+        if (e->b) snprintf(k->whybuf, sizeof k->whybuf, "{ [...]: ... }: a %s's fields are names - its fields: %s", a, l);
+        else if (!f && xst_member(want, e->s, 'M', NULL)) snprintf(k->whybuf, sizeof k->whybuf, "{ %s: ... }: %s is a %s's method - its fields: %s", e->s, e->s, a, l);
+        else if (!f) snprintf(k->whybuf, sizeof k->whybuf, "{ %s: ... }: a %s has no field %s - its fields: %s", e->s, a, e->s, l);
         else {
             X_WANT(e->a, ft);
             if (!x_check(k, e->a, sc)) return 0;
             tv = x_stype(k, e->a, sc);
             if (xt_fits(ft, tv)) continue;
-            snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: the field is a%s %s - a%s %s can't go in%s", e->s, xan(xty_name(ft, b, sizeof b)), b,
+            snprintf(k->whybuf, sizeof k->whybuf, "{ %s: ... }: the field is a%s %s - a%s %s can't go in%s", e->s, xan(xty_name(ft, b, sizeof b)), b,
                      xan(xty_name(tv, c, sizeof c)), c, xt_hint(ft, tv));
         }
         return xc_fail(k, e, k->whybuf);
@@ -2905,7 +2905,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
         if (f->op != 'F' || f->a || xst_has_default((int)f->n, 0)) continue;
         for (int j = 0; j < n->n_items && !given; j++) given = !strcmp(n->items[j]->s, f->s);
         if (given) continue;
-        snprintf(k->whybuf, sizeof k->whybuf, "{ ... } as a %s: its %s (a%s %s) has no default - given here (%s = ...), or declared: %s: %s = ...", a, f->s,
+        snprintf(k->whybuf, sizeof k->whybuf, "{ ... } as a %s: its %s (a%s %s) has no default - given here (%s: ...), or declared: %s: %s = ...", a, f->s,
                  xan(xty_name((int)f->n, b, sizeof b)), b, f->s, f->s, b);
         return xc_fail(k, n, k->whybuf);
     }
@@ -3024,7 +3024,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                      xty_name((int)n->n, a, sizeof a), xt_is_hl(vt) ? "list" : "dict", xty_name(vt, b, sizeof b), xty_name(vt, c, sizeof c));
         else if (!n->b) return 1;
         else if (!k->script) return xc_fail(k, n, "dict<K, V>(default, { ... }): a script's - a text's dict starts without entries");
-        else if (n->b->k != XN_REC) return xc_fail(k, n, "dict<K, V>(default, { ... }): its entries written out - { name = value, [key] = value, ... }");
+        else if (n->b->k != XN_REC) return xc_fail(k, n, "dict<K, V>(default, { ... }): its entries written out - { name: value, [key]: value, ... }");
         else {   // its entries: a { ... } made the dict (its default this one: marked)
             ((struct xnode *)n->b)->sk |= 1;
             X_WANT(n->b, (int)n->n);
@@ -4152,7 +4152,7 @@ internal void x_member_of(struct xe *e, const char *name, struct xval *v, const 
     x_fail(e, "%s: %.40s is no record, vector or object - a member is one of theirs", whole, xtext_of(v));
 }
 internal void xe_ident(struct xe *e, const char *name, struct xval *v);
-// a file's record as a whole - colors of "colors = { dark = ..., light = ... }", whose members are the vars entries
+// a file's record as a whole - colors of "colors = { dark: ..., light: ... }", whose members are the vars entries
 // colors.dark, colors.light: each member worked out now (a record in it a record again); 0: vs has none of that name
 internal int x_vars_members(const struct xvars *vs, const char *name, char child[XVARS_MAX][40]) {   // its members' names
     if (!vs || !vs->dotted) return 0;
@@ -4408,7 +4408,7 @@ internal int x_wait_until(struct xe *e, double t) {   // the script waits until 
     e->steps = 0;
     return 1;
 }
-// ===== TRIGGERS (scripts): t = trigger({ when = () => a condition, run = () => { ... }, loop = true, for = 5s, name =
+// ===== TRIGGERS (scripts): t = trigger({ when: () => a condition, run: () => { ... }, loop: true, for: 5s, name:
 // "..." }) - checked every 500 ms of game time, in the order made, by the script runner (x_triggers_tick), also while
 // the script waits or after it ended: when its when holds (for: that long without a break) its run is worked out, and
 // it is off then unless it loops. enable(t), disable(t); t.on, t.fired, t.name. after(5s, f): f worked out that much
@@ -4477,17 +4477,17 @@ internal void xt_name(char *out, const char *given, const struct xctx *c) {   //
 internal int xt_fn0(const struct xval *f) { return f && f->kind == XV_FN && f->w && xfn_nparams(f->fn) == 0; }   // () => ...
 internal void xt_make(struct xe *e, const struct xval *r, struct xval *v) {   // trigger({ ... })
     static const char *const keys[] = { "when", "run", "loop", "for", "name" };
-    if (r->kind != XV_REC || !r->w) { x_fail(e, "trigger(%.40s): a record - trigger({ when = () => ..., run = () => ... })", xtext_of(r)); return; }
+    if (r->kind != XV_REC || !r->w) { x_fail(e, "trigger(%.40s): a record - trigger({ when: () => ..., run: () => ... })", xtext_of(r)); return; }
     for (int i = 0; i < r->rec->n; i++) {
         int k = 0;
         while (k < 5 && strcmp(keys[k], r->rec->key[i])) k++;
-        if (k == 5) { x_fail(e, "trigger({ %s = ... }): no such option - when, run, loop, for, name", r->rec->key[i]); return; }
+        if (k == 5) { x_fail(e, "trigger({ %s: ... }): no such option - when, run, loop, for, name", r->rec->key[i]); return; }
     }
     const struct xval *when = xrec_get(r, "when"), *run = xrec_get(r, "run"), *loop = xrec_get(r, "loop"), *hold = xrec_get(r, "for"), *name = xrec_get(r, "name");
-    if (!xt_fn0(when)) { x_fail(e, "trigger: when = () => a condition"); return; }
-    if (!xt_fn0(run)) { x_fail(e, "trigger: run = () => what it does"); return; }
-    if (hold && (!x_numeric_ok(e, hold) || !(hold->n >= 0))) { if (!e->err) x_fail(e, "trigger: for = a time, 0 or more (5s)"); return; }
-    if (name && (!name->has_s || name->has_n)) { x_fail(e, "trigger: name = a text"); return; }
+    if (!xt_fn0(when)) { x_fail(e, "trigger: when: () => a condition"); return; }
+    if (!xt_fn0(run)) { x_fail(e, "trigger: run: () => what it does"); return; }
+    if (hold && (!x_numeric_ok(e, hold) || !(hold->n >= 0))) { if (!e->err) x_fail(e, "trigger: for: a time, 0 or more (5s)"); return; }
+    if (name && (!name->has_s || name->has_n)) { x_fail(e, "trigger: name: a text"); return; }
     if (g_xt_n == XT_MAX) { x_fail(e, "more than %d triggers", XT_MAX); return; }
     struct xtrig *t = &g_xt[g_xt_n];
     xt_keep(&t->when, when);
@@ -5394,11 +5394,12 @@ internal void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: lin
     }
 }
 internal void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
-internal int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", "name(a) {", "let", not "a == b")
+// a line that starts a key ("name =", "key:" - a record's entry -, "name(a, b) =", "name(a) {", "let", not "a == b")
+internal int tl_key_line(const char *t) {
     while (*t == ' ' || *t == '\t') t++;
     if (!strncmp(t, "let", 3) && (t[3] == ' ' || t[3] == '\t')) return 1;
     const char *k = t;
-    while (*t && (isalnum((unsigned char)*t) || strchr("_:.-", *t))) t++;
+    while (*t && (isalnum((unsigned char)*t) || strchr("_.-", *t))) t++;
     if (t == k) return 0;
     if (*t == '(') {   // a function's parameters: names and commas
         for (t++; *t && *t != ')'; t++) if (!isalnum((unsigned char)*t) && !strchr("_, ", *t)) return 0;
@@ -5407,7 +5408,7 @@ internal int tl_key_line(const char *t) {   // a line that starts a key ("name =
         if (*t == '{') return 1;
     }
     while (*t == ' ' || *t == '\t') t++;
-    return *t == '=' && t[1] != '=';
+    return (*t == '=' && t[1] != '=') || *t == ':';
 }
 // "a" or ("a" <line break> "b"): a value of strings only, side by side in ( ) - their text joined into t
 // (cap: the source's length + 1 is enough); 0: something else
@@ -5511,13 +5512,13 @@ internal void tl_rec_sep(struct tlex *l) {
     if (*l->s == '}') return;
     int cur = l->line;
     l->line = line;
-    tl_error(l, "a comma after each of a record's entries: key = value,");
+    tl_error(l, "a comma after each of a record's entries: key: value,");
     l->line = cur;
 }
 // read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, a record
 // in a record after a dot (prompt.tools), and the declarations include("a.eeai", ...) as the key "include" with the
 // list ["a.eeai", ...], register_personality() as the key "register_personality" ([]); mistakes logged with the file
-// and line, their keys skipped. A record: name = { key = value, ... } - a comma after each entry (the last's may be
+// and line, their keys skipped. A record: name = { key: value, ... } - a comma after each entry (the last's may be
 // left out), on one line or many, records in it
 internal int tl_declaration(const char *key) { return !strcmp(key, "include") || !strcmp(key, "register_personality"); }
 // DATA: name = value outside the records holds a value that is the same wherever it is used - numbers, strings
@@ -5691,7 +5692,7 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 else tl_line_end(&l, "something after the record's }");
             }
         } else if (*l.s == '[') {
-            tl_error(&l, "a [section]: the files have records now - lines = { greeting = ... }");
+            tl_error(&l, "a [section]: the files have records now - lines = { greeting: ... }");
         } else if (*l.s == ';') {
             tl_error(&l, "; - a comment starts with //");
         } else {
@@ -5755,17 +5756,21 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
             }
             if (n >= 0) tl_blank(&l, 0);
             int arrow = n > 0 && l.s[0] == '=' && l.s[1] == '>', isfn = n > 0 && strchr(key, '(') != NULL;
+            int colon = n > 0 && *l.s == ':';   // key: value - a record's entry (name = value at the file's top)
             if (n < 0) ;   // (its mistake told)
             else if (isfn && *l.s == '{') {   // name(a, b) { ... }: a function of statements
                 if (depth) tl_error(&l, "a function in a record - at the file's top: name(a) { ... }");
                 else tl_body(&l, key, fn, arg, file);
-            } else if (!n || *l.s != '=') tl_error(&l, "no name = value (or name => ...)");
-            else if (arrow && depth) tl_error(&l, "=> outside the records only - a record's entries are values: key = ...");
+            } else if (!n || (*l.s != '=' && !colon)) tl_error(&l, depth ? "no key: value" : "no name = value (or name => ...)");
+            else if (isfn && depth) tl_error(&l, "a function in a record - at the file's top: name(a) => ...");
+            else if (arrow && depth) tl_error(&l, "=> outside the records only - a record's entries are values: key: ...");
+            else if (depth && !colon) tl_error(&l, "a record's entry is key: value (name = value outside the records)");
+            else if (!depth && colon) tl_error(&l, "name = value at the file's top (key: value in a record's { })");
             else if (isfn && !arrow) {
                 char why[120];
                 snprintf(why, sizeof why, "a function is written with =>: %.*s => ...", (int)(strchr(key, ')') - key) + 1, key);
                 tl_error(&l, why);
-            } else if (!arrow && l.s[1 + strspn(l.s + 1, " \t")] == '{') {   // name = { - a record: its entries up to its }
+            } else if (!arrow && l.s[1 + strspn(l.s + 1, " \t")] == '{') {   // name = { / key: { - a record: its entries up to its }
                 if (strchr(key, '(')) tl_error(&l, "a record has no parameters");
                 else if (depth == TL_DEPTH) tl_error(&l, "records in records more than 8 deep");
                 else if (strlen(record) + strlen(key) + 2 > sizeof record) tl_error(&l, "a record's path too long");
@@ -6093,7 +6098,7 @@ internal void xc_new(struct xcomp *cc, const struct xnode *n, int sti) {   // po
     }
     xc_emit(cc, XI_NEW, sti, nf, 0);
 }
-// { key = value, ... } made a dict where one goes (x_check_rec: op 'D'), the dict on top: into a hidden slot while
+// { key: value, ... } made a dict where one goes (x_check_rec: op 'D'), the dict on top: into a hidden slot while
 // its entries are set as d[k] = v is, then on top again - the slot let go of it (it would hold the dict)
 internal void xc_dict_fill(struct xcomp *cc, const struct xnode *r) {
     int h = xc_slot(cc, cc->fi, "", 2), ke = xc_konst(cc, 0, "");
@@ -6111,7 +6116,7 @@ internal void xc_dict_fill(struct xcomp *cc, const struct xnode *r) {
     xc_emit(cc, XI_NIL, 0, 0, 0);
     xc_emit(cc, XI_STOREL, h, 0, ke);
 }
-// { name = value, ... } made a struct where one goes (op 'S'): its fields in order, each the value given or its
+// { name: value, ... } made a struct where one goes (op 'S'): its fields in order, each the value given or its
 // default (xc_new's) - the values worked out as written: in another order than the fields', into hidden slots first
 internal void xc_rec_new(struct xcomp *cc, const struct xnode *r, int sti) {
     const struct xnode *d = g_xst[sti].decl;

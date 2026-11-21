@@ -14,19 +14,19 @@ struct ledger {
 }
 let p2 = player(2)
 let p3 = player(3)
-let posts = dict<player, post?>(null, { [p2] = { owner = p2, at = vec(1, 1) } })
+let posts = dict<player, post?>(null, { [p2]: { owner: p2, at: vec(1, 1) } })
 let counts: dict<player, int> = {}
-let book: ledger = { name = "all" }
+let book: ledger = { name: "all" }
 let ticks = 0
 game.timer(2s, () => {
     ticks += 1
     for i in 2..4 {
         let p = game.players[i]
-        posts[p] = { at = vec(p.food, p.wood), owner = p, guards = ticks }
+        posts[p] = { at: vec(p.food, p.wood), owner: p, guards: ticks }
         if p.food > book.best[p] { book.best[p] = p.food }
     }
-    counts = { [p2] = counts[p2] + 1, [p3] = counts[p3] + 2 }
-    let tmp: dict<int, post> = dict<int, post>({ owner = p2, at = vec(0, 0) }, { [ticks] = { owner = p3, at = vec(ticks, 0) } })
+    counts = { [p2]: counts[p2] + 1, [p3]: counts[p3] + 2 }
+    let tmp: dict<int, post> = dict<int, post>({ owner: p2, at: vec(0, 0) }, { [ticks]: { owner: p3, at: vec(ticks, 0) } })
     if tmp[ticks].owner != p3 { ping("tmp went wrong") }
 })
 show(p: player): text {
@@ -39,5 +39,5 @@ ping("at 0.2 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, p1 {show(player(1
 wait_until(0.5min)
 ping("at 0.5 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}")
 wait_until(1min)
-let names: dict<text, int> = { all = ticks, ["{book.name}x"] = 7 }
+let names: dict<text, int> = { all: ticks, ["{book.name}x"]: 7 }
 ping("at 1 min: {ticks} ticks, p2 {show(p2)}, p3 {show(p3)}, names {names["all"]} {names["allx"]}")

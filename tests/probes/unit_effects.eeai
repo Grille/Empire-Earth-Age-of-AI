@@ -24,9 +24,9 @@ men[1].kill()
 men[2].remove()
 ping("killed and removed: alive {men[1].alive} {men[2].alive}, P2 doughboys {n} -> {len(p.units(unit.inf10_doughboy))}")
 let t = trigger({
-    name = "kill",
-    when = () => time > 6,
-    run = () => {
+    name: "kill",
+    when: () => time > 6,
+    run: () => {
         men[4].kill()
         ping("a trigger's kill: alive {men[4].alive} at once")
     },

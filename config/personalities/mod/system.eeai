@@ -14,81 +14,81 @@
 system = {
     // an AI's stance towards you changed
     // in braces: {me}
-    now_enemy = "{me} is now your enemy.",
+    now_enemy: "{me} is now your enemy.",
     // in braces: {me}
-    now_ally = "{me} is now your ally.",
+    now_ally: "{me} is now your ally.",
     // your peace offer to a vassal
     // in braces: {me} {lord}
-    vassal_ask_lord = "{me} is a vassal of {lord}: negotiate with {lord}.",
+    vassal_ask_lord: "{me} is a vassal of {lord}: negotiate with {lord}.",
     // the diplomacy screen: a vassal's row, in its civilization's column (after the civilization's name, if any)
     // in braces: {me} {lord} {them} (you)
-    diplo_vassal = "{lord == them ? word.vassal : word.vassal_of}",
+    diplo_vassal: "{lord == them ? word.vassal : word.vassal_of}",
     // two members of your alliance block made peace
     // in braces: {me} {ally}
-    block_peace = "{me} and {ally} make peace: they are in the same alliance.",
+    block_peace: "{me} and {ally} make peace: they are in the same alliance.",
     // in braces: {me}
-    block_unity = ("{me} is allied with your allies and offers peace: set {me} to allied to accept - it fights on "
+    block_unity: ("{me} is allied with your allies and offers peace: set {me} to allied to accept - it fights on "
         "until then."),
     // a peace offer refused for an ally's sake
     // in braces: {me} {ally} {them}
-    veto_own = "{me} refuses: its ally {ally} won't make peace with {them}.",
+    veto_own: "{me} refuses: its ally {ally} won't make peace with {them}.",
     // in braces: {me} {them} {ally}
-    veto_block = "{me} refuses: no peace with {them} while allied with {ally}.",
+    veto_block: "{me} refuses: no peace with {them} while allied with {ally}.",
     // in braces: {me} {enemy}
-    alliance_offer = ("{me} offers an alliance against {enemy}: set {me} to allied to accept - it fights on until "
+    alliance_offer: ("{me} offers an alliance against {enemy}: set {me} to allied to accept - it fights on until "
         "then."),
     // in braces: {me} {tribute}
-    capitulation = ("{me} would surrender and pay {tribute}: set {me} to allied to accept - it fights on until then, "
+    capitulation: ("{me} would surrender and pay {tribute}: set {me} to allied to accept - it fights on until then, "
         "and pays what its stock still holds."),
     // the language model's peace offer ([llm] llm_decide)
     // in braces: {me}
-    peace_offer = "{me} offers peace: set {me} to allied to accept - it fights on until then.",
+    peace_offer: "{me} offers peace: set {me} to allied to accept - it fights on until then.",
     // in braces: {me} {tribute}
-    tribute_sent = "{me} sends you a tribute: {tribute}.",
+    tribute_sent: "{me} sends you a tribute: {tribute}.",
     // victory over vassals (the chat words 'victory' and 'sieg' stay)
-    victory_vassals = ("All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as "
+    victory_vassals: ("All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as "
         "the winner - or play on."),
-    victory_none = ("No opponent stands against you any more. Type 'victory' in the chat to end the game as the "
+    victory_none: ("No opponent stands against you any more. Type 'victory' in the chat to end the game as the "
         "winner - or play on."),
     // in braces: {names}
-    victory_not_yet = "No victory yet - not submitted: {names}.",
+    victory_not_yet: "No victory yet - not submitted: {names}.",
     // your chat line gets no answer
-    chat_unread = "The computer players don't read the chat (AI voice off: [llm] llm_enabled=1 in ageofai.ini).",
-    chat_unanswered = "The computer players don't answer the chat ([llm] llm_chat=1 in ageofai.ini).",
+    chat_unread: "The computer players don't read the chat (AI voice off: [llm] llm_enabled=1 in ageofai.ini).",
+    chat_unanswered: "The computer players don't answer the chat ([llm] llm_chat=1 in ageofai.ini).",
     // in braces: {me}
-    chat_filtered = "No answer: {me} doesn't get your message (chat filter).",
-    chat_nobody = "No answer: your chat filter reaches no computer player.",
+    chat_filtered: "No answer: {me} doesn't get your message (chat filter).",
+    chat_nobody: "No answer: your chat filter reaches no computer player.",
     // in braces: {names}
-    chat_who = "No answer: who do you mean? Name one ({names}) or choose them in the chat filter.",
+    chat_who: "No answer: who do you mean? Name one ({names}) or choose them in the chat filter.",
     // in braces: {url}
-    chat_down = "No answer: the language model ({url}) can't be reached.",
-    chat_busy = "No answer: the language model is too busy - try again in a moment.",
+    chat_down: "No answer: the language model ({url}) can't be reached.",
+    chat_busy: "No answer: the language model is too busy - try again in a moment.",
     // in braces: {url} {error}
-    llm_down = "AI voice: no answer from {url} ({error}) - the computer players say their fixed lines.",
+    llm_down: "AI voice: no answer from {url} ({error}) - the computer players say their fixed lines.",
     // one answer failed, the server is there (llm_down: it can't be reached) - once a game
     // in braces: {error}
-    llm_failed = ("AI voice: no usable answer this time ({error}) - just this once the computer player says its "
+    llm_failed: ("AI voice: no usable answer this time ({error}) - just this once the computer player says its "
         "fixed line or goes by the rules."),
     // [llm] llm_fallback=pause: the game waits for the model
-    llm_wait = ("AI voice: the language model is taking long - the game is paused until it answers (resume it to "
+    llm_wait: ("AI voice: the language model is taking long - the game is paused until it answers (resume it to "
         "play on)."),
     // in braces: {url}
-    llm_wait_down = ("AI voice: {url} can't be reached - the game is paused, trying again every 5 seconds (resume it "
+    llm_wait_down: ("AI voice: {url} can't be reached - the game is paused, trying again every 5 seconds (resume it "
         "to play on)."),
     // an AI's message to another AI ([llm] llm_ai_talk_show)
     // in braces: {them} {text}
-    talk_to = "to {them}: {text}",
+    talk_to: "to {them}: {text}",
     // resources in a tribute ({tribute})
-    food = "food",
-    wood = "wood",
-    stone = "stone",
-    gold = "gold",
-    iron = "iron",
-    nothing = "nothing",
+    food: "food",
+    wood: "wood",
+    stone: "stone",
+    gold: "gold",
+    iron: "iron",
+    nothing: "nothing",
     // an opinion in words: its text - {opinion}, {them.opinion(me)} - while conditions count its number: 1 -100..-51, 2 -50..-16, 3 -15..15, 4 16..50, 5 51..100
-    opinion1 = "hostile",
-    opinion2 = "unfriendly",
-    opinion3 = "indifferent",
-    opinion4 = "friendly",
-    opinion5 = "trusting",
+    opinion1: "hostile",
+    opinion2: "unfriendly",
+    opinion3: "indifferent",
+    opinion4: "friendly",
+    opinion5: "trusting",
 }

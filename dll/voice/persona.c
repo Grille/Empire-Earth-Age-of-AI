@@ -6,25 +6,25 @@
 //   include("pack_base.eeai")          a layer: its lines, names, keys after its own; mod/computer.eeai and
 //                                      mod/prompt.eeai are layers of every personality unnamed (FILES below)
 //   register_personality()             this file is a personality (else a library, for others to include)
-//   personality = {
-//       name = "Merchant Benedict"     the player's name in the game (replaces "Computer"; empty = keep)
-//       color = ["yellow", "lightyellow"]  favoured colours on random maps
-//       aggression = 80%               the traits 0%-100%: aggression loyalty pride greed forgiveness caution talk
-//       character = "..."              for the language model (llm.c)
+//   personality = {                    a record: its entries key: value, a comma after each
+//       name: "Merchant Benedict",     the player's name in the game (replaces "Computer"; empty = keep)
+//       color: ["yellow", "lightyellow"],  favoured colours on random maps
+//       aggression: 80%,               the traits 0%-100%: aggression loyalty pride greed forgiveness caution talk
+//       character: "...",              for the language model (llm.c)
 //   }
 //   rich = me.stock > 5000             a name outside the records (vars): an expression for its lines, before
 //                                      mod/system.eeai's
 //   lines = {                          English (other languages: a file of their own, at the release)
-//       war_declared = ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
+//       war_declared: ["Variant one", opinion < -50 ? "Variant two {them}"],   any expression: one string, a list ...
 //   }
 //   decide = {                         its decisions as expressions (persona_decide; mod/computer.eeai's the base)
-//       peace_score = opinion + ...    a number; a key it has none of: its includes', else the built-in rule
+//       peace_score: opinion + ...,    a number; a key it has none of: its includes', else the built-in rule
 //   }
 //   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): ageofai.ini keys
-//       first_attack_min = 15          (settings.c k_style_keys) on top of the difficulty's settings for this AI
+//       first_attack_min: 15,          (settings.c k_style_keys) on top of the difficulty's settings for this AI
 //   }
 //   prompt = {                         what its language model is told (texts.c; mod/prompt.eeai has every key)
-//       intro = "..."
+//       intro: "...",
 //   }
 // In braces: {them} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
@@ -350,7 +350,7 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         }
         for (int t = 0; t < T_N; t++)
             if (!lstrcmpiA(key, k_trait_keys[t])) {
-                // a share, 0% to 100%: aggression = 60% (a bare 60 is a mistake - not guessed to be 60%)
+                // a share, 0% to 100%: aggression: 60% (a bare 60 is a mistake - not guessed to be 60%)
                 char *e;
                 double n = strtod(v->src, &e);
                 while (*e == ' ' || *e == '\t') e++;
@@ -724,7 +724,7 @@ internal int persona_has(ee_player *pl, enum line_kind k) {   // a line for it s
 internal int g_persona_used[MAX_PERSONAS];
 internal const char *player_name(ee_player *pl);
 internal const char *player_civ(ee_player *pl);   // its civilization as the game shows it
-// a player colour: the table's (idx 0..16), one of a personality's own (idx -1: rgb, 0..1 - color = [rgb(128, 64, 0)])
+// a player colour: the table's (idx 0..16), one of a personality's own (idx -1: rgb, 0..1 - color: [rgb(128, 64, 0)])
 // or none (idx -2)
 struct pcolor { int idx; float rgb[3]; };
 internal const float *pc_rgb(const struct pcolor *c) { return c->idx >= 0 ? color_rgb(c->idx) : c->idx == -1 ? c->rgb : NULL; }
@@ -923,7 +923,7 @@ internal int persona_name(struct persona *p, const ee_player *pl, char *out, int
     const char *first = NULL;
     for (int i = 0; i < xl_n(&v); i++) {
         const struct xval *it = xl_at(&v, i);
-        if (it->has_s && !it->has_n && !it->s[0]) continue;   // "": the game's own name (the template's name = "")
+        if (it->has_s && !it->has_n && !it->s[0]) continue;   // "": the game's own name (the template's name: "")
         if (!it->has_s || it->has_n) {
             char t[XVAL_CAP];
             xto_text(it, t, sizeof t);
@@ -940,7 +940,7 @@ internal int persona_name(struct persona *p, const ee_player *pl, char *out, int
     }
     return 1;   // (16 players at most: never all taken)
 }
-// a loaded game finds an AI's personality by the player's name: one of the texts its name = holds anywhere (a list's,
+// a loaded game finds an AI's personality by the player's name: one of the texts its name: holds anywhere (a list's,
 // a pick()'s, a choice's), or one of them with its number
 struct name_find { const char *name; int hit; };
 internal void name_find_one(const char *t, struct name_find *f) {
