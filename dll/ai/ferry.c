@@ -164,6 +164,9 @@ internal int fy_touches(unsigned land, unsigned oc) {
     }
     return g_fy_touch.t[land][oc / 8] >> (oc % 8) & 1;
 }
+// a new game or a load: the table is built again - the new map often takes the old one's address and size, and its
+// lands' and seas' ids are its own (the last game's bits under them: no trip between lands that touch the same sea)
+internal void ferry_new_game(void) { memset(&g_fy_touch, 0, sizeof g_fy_touch); }
 internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
     if (oc <= 0 || !fy_touches(land, (unsigned)oc)) return 0;
     ee_map *map = game_map();

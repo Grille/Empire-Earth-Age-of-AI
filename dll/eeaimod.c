@@ -146,6 +146,7 @@ internal void spoils_install(void);
 internal void work_install(void);   // work.c: the hunters' next animal (citizen_next_resource)
 internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 internal void expand_new_game(void);
+internal void ferry_new_game(void);   // ferry.c: which lands touch which seas
 internal void expand_install(const char *autotest_ini);
 internal void storm_tick(ee_player *pl, uint32_t now);   // storms.c: ships out of an enemy's storm - after every manager that orders ships
 internal void tw_tick(ee_player *pl, uint32_t now);   // transports.c: the transports' script states (a test's log)
@@ -460,6 +461,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     skirmish_new_game();
     spoils_new_game();
     expand_new_game();
+    ferry_new_game();
     tw_new_game();
     ap_new_game();
     mt_new_game();
