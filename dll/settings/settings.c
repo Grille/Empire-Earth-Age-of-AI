@@ -524,7 +524,7 @@ internal void settings_log(FILE *f) {
             const struct setting_row *r = &k_settings[i];
             if (!r->ai) continue;
             const uint8_t *at = (const uint8_t *)&g_set_ai[d] + r->off, *med = (const uint8_t *)&g_set_ai[1] + r->off;
-            if (!memcmp(at, med, 4)) continue;
+            if (!memcmp(at, med, r->kind == SETK_FLAGS ? (size_t)r->a * sizeof(int) : 4)) continue;   // FLAGS: every field's int
             setting_text(r, at, v, sizeof v);
             fprintf(f, " %s=%s", r->key, v);
         }
