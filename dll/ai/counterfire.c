@@ -30,6 +30,8 @@
 #define CF_SHOOTERS 128
 #define CF_OWN 2048
 internal int sk_is_spotter(ee_unit *u);   // skirmish.c: the spotter (an attack order would give it away)
+internal int dct_claims_bombers(unsigned idx);   // airstrike.c THE DOCTRINE (bomber_claim): its bombers are the air force's, not soldiers to send at the shooters
+internal void af_request(ee_player *pl, ee_unit *u, uint32_t now);   // ... it is asked to strike them (a run if it finds one worth it)
 
 internal int g_cfire = 1;
 internal unsigned g_cf_sent[16], g_cf_sorties[16], g_cf_short[16];
@@ -61,6 +63,8 @@ internal void cf_unit(ee_unit *u, void *ctx) {
     ee_player *owner = unit_get_owner(u);
     if (!td || !owner || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     if (owner == s->pl) {
+        // (is_soldier counts aircraft: the bombers went from their targets at the mortars, into the anti-air by them)
+        if (unit_type_get_family(td) == KIND_BOMBER && unit_type_get_class_id(td) == CLS_AIRPLANE && dct_claims_bombers((unsigned)player_get_index(s->pl) & 15)) return;
         if (is_soldier(td) && !unit_get_holder(u) && !sk_is_spotter(u) && s->no < CF_OWN) s->own[s->no++] = u;
         return;
     }
@@ -97,6 +101,7 @@ internal void counter_fire(ee_player *pl, unsigned idx, uint32_t now) {
         int ncl = 0;
         for (int j = i; j < s.ns; j++)
             if (!done[j] && ivec2_dist2(unit_get_tile(s.sh[j]), c) <= CF_CLUSTER * CF_CLUSTER) { done[j] = 1; if (ncl < 16) cl[ncl++] = s.sh[j]; }
+        for (int j = 0; j < ncl && j < 4 && dct_claims_bombers(idx); j++) af_request(pl, cl[j], now);   // the air force asked too: a strike of its own (airstrike.c)
         st_side_clear(&g_cf_foe); st_side_clear(&g_cf_own);
         for (int k = 0; k < s.nf; k++)
             if (ivec2_dist2(unit_get_tile(s.foe[k]), c) <= CF_ESCORT * CF_ESCORT) st_side_add(&g_cf_foe, s.foe[k]);

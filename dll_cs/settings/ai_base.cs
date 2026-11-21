@@ -661,6 +661,30 @@ class ai_base
         /// the AIs' anti-air next to nothing is undefended - the bombers stayed as idle, the games went no better)
         [advanced]
         bool bomber_harass = false;
+        /// The bombers' doctrine: the anti-air the AI knows of (guns seen and remembered, fighters, guns assumed where it hasn't
+        /// looked) weighed by the game's own numbers against its bombers' hit points - small runs at what they come back
+        /// from alive, damaged bombers home in time to be repaired, the wing launched where its numbers make the strike a
+        /// gain, its bombers kept from other orders. Its parts below. 0 = off (being measured)
+        [advanced]
+        bool bomber_doctrine = false;
+        /// With bomber_doctrine: small runs (1-4 bombers) at enemy buildings and working citizens whose anti-air, there
+        /// and on the way there and back, can't bring one of them down. 0 = the lone runs as bomber_harass says
+        [advanced]
+        bool bomber_survive = true;
+        /// With bomber_doctrine: a bomber whose hit points no longer take it through the rest of its sortie breaks off
+        /// while they still take it home, and is repaired at its Airport. 0 = it flies on
+        [advanced]
+        bool bomber_come_home = true;
+        /// With bomber_doctrine: the wing launches as soon as the bombers ready make a strike a gain - the worth it
+        /// destroys over the bombers it is expected to lose -, at the position where the gain is highest (the army's or
+        /// enemy buildings). 0 = it waits for a fixed count at the army's position
+        [advanced]
+        bool bomber_value_wing = true;
+        /// With bomber_doctrine: bombers on any task of the air force are its own - counter-fire no longer takes them from
+        /// it as soldiers, it asks the air force to strike the mortars and artillery that shell the soldiers instead (a
+        /// small run, weighed as any other). 0 = as before
+        [advanced]
+        bool bomber_claim = true;
         struct fall_back_fields
         {
             /// a land unit worth fall_back_value (resources) or more below fall_back_hp of its hit points walks to
