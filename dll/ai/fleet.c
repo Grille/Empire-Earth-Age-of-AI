@@ -45,7 +45,10 @@
 // strength against the enemy ships known (and near), the danger zones, losses and kills, boats pulled back, orders.
 internal int g_navy_fleet = 2, g_v_navy_fleet = -1;
 internal int g_fl_boats = 1, g_fl_coast = 1, g_fl_raid = 130;   // navy_fleet_raid: the ratio (%) for raids on boats and the coast   // test: navy_fleet_boats (fishing boats pulled back), navy_fleet_coast (the hunt shells the coast)
-#define FL_MAX 64
+// the warships it leads (and holds): as many as navy_fleet_pop's 15% of population_limit_max (4000) - 64 before, and
+// a fleet trained to 15% of a cap over 427 had those past them idle at the docks, held from the game's groups and in
+// no squadron, the 64 in grid order changing from scan to scan (squadrons reassigned, repairs cut short)
+#define FL_MAX 640
 #define FL_DZ 384
 #define FL_ES 160
 // the scan's own towers and buildings: all of them (32 towers before - an AI with 49 had those by its dock left out of
