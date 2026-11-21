@@ -34,7 +34,7 @@ style = {
 pushover => them.strength * 2 < me.strength
 big_one => me.strength * 2 < them.strength
 // a proper brawl: blood on both sides
-good_fight => me.kills(them, units) > many_dead / 2 and them.kills(me, units) > many_dead / 2
+good_fight => me.kills(them, units) > many_dead / 2 && them.kills(me, units) > many_dead / 2
 // his tally - he counts every head he knocks
 my_tally => me.kills(them, units) > many_dead
 // only where we are at war (nothing otherwise)
@@ -42,18 +42,18 @@ long_war => me.war_minutes(them) > 30
 
 lines = {
     greeting: [
-        players > 5 and chance(50%) ? "So many of you! A beating for everyone - nobody goes home empty-handed!",
-        players == 2 and chance(50%) ? "Just you and me, {them}? Perfect - nobody to break it up!",
-        allied and chance(50%) ? "We're on the same side, {them}? Pity! Then we beat up the others together!",
+        players > 5 && chance(50%) ? "So many of you! A beating for everyone - nobody goes home empty-handed!",
+        players == 2 && chance(50%) ? "Just you and me, {them}? Perfect - nobody to break it up!",
+        allied && chance(50%) ? "We're on the same side, {them}? Pity! Then we beat up the others together!",
     ] ?? [
         "HA! Who wants a beating first?",
         "I am Brann! And I am in a bad mood!",
         "Fighting! Fighting again at last!",
     ],
     war_declared: [
-        pushover and chance(60%) ? "YOU, {them}? Hahaha! I'll fight you with one hand behind my back!",
-        big_one and chance(60%) ? "Ooh, a big one! Good, {them} - the big ones fall the loudest!",
-        my_tally and chance(60%) ? "Back for more, {them}? Last time I flattened {me.kills(them, units)} of yours!",
+        pushover && chance(60%) ? "YOU, {them}? Hahaha! I'll fight you with one hand behind my back!",
+        big_one && chance(60%) ? "Ooh, a big one! Good, {them} - the big ones fall the loudest!",
+        my_tally && chance(60%) ? "Back for more, {them}? Last time I flattened {me.kills(them, units)} of yours!",
         them.tribute(me, 20) > 0 ? [
             "First presents, now punches, {them}? HA! I'll take both!",
             "{them.tribute(me, 20)} worth of presents, {them}, and I still want a fight! You can't buy off a brawler! HA!",
@@ -74,7 +74,7 @@ lines = {
         "{them}! I thought we were friends! NOW YOU'RE IN FOR IT!",
     ],
     peace_accept: [
-        good_fight and chance(60%) ? "Haha, what a brawl, {them}! All right, peace - let me catch my breath.",
+        good_fight && chance(60%) ? "Haha, what a brawl, {them}! All right, peace - let me catch my breath.",
         them.betrayals(me) > 0 ? [
             "You knifed me once, {them}? Pfft, forgotten already. Well. Almost.",
             "Peace, {them}. But from now on I sleep with my club in my arms - you know why!",
@@ -88,9 +88,9 @@ lines = {
             "Peace with a backstabber? HA! Not because of the stab - I forgot that. Because this is FUN!",
             "The last time we were friends you stuck a knife in me, {them}! Fighting you is safer - at least I see you coming!",
         ],
-        them.refusals(me, 15) > 0 and chance(60%) ? "You said no to MY peace, {them}! Now I say no! HA! ...What were we fighting about again?",
-        me.war_minutes(them) != null and long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {them}? It's only just getting good!",
-        me.kills(them, 20, units) > many_dead / 2 and chance(60%) ? "Stop? I'm on a roll, {them}! {me.kills(them, 20, units)} of yours just lately!",
+        them.refusals(me, 15) > 0 && chance(60%) ? "You said no to MY peace, {them}! Now I say no! HA! ...What were we fighting about again?",
+        me.war_minutes(them) != null && long_war && chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {them}? It's only just getting good!",
+        me.kills(them, 20, units) > many_dead / 2 && chance(60%) ? "Stop? I'm on a roll, {them}! {me.kills(them, 20, units)} of yours just lately!",
     ] ?? [
         "Peace? I've only just warmed up, {them}!",
         "NO! Keep fighting!",
@@ -114,7 +114,7 @@ lines = {
             "{them}, you knifed me once - water under the bridge! Let's knife {enemy} instead!",
             "{them}! You've got a good knife arm, nobody knows that better than me! Use it on {enemy} this time!",
         ],
-        enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is huge, {them}! Too big for one, just right for two!",
+        enemy.strength > me.strength + them.strength && chance(60%) ? "{enemy} is huge, {them}! Too big for one, just right for two!",
     ] ?? [
         "Hey, {them}! The two of us knock {enemy} flat, what do you say?",
         "{them}! Come on, let's beat up {enemy} together!",
@@ -136,8 +136,8 @@ lines = {
         "Not a word, {them}? Fine! Then somebody else gets the fun!",
     ],
     betray: [
-        pushover and chance(60%) ? "You've gone soft, {them}! And soft things need a good thump!",
-        them.tribute(me, 30) > 0 and chance(50%) ? "Thanks for the presents, {them}! Here's one back: a punch!",
+        pushover && chance(60%) ? "You've gone soft, {them}! And soft things need a good thump!",
+        them.tribute(me, 30) > 0 && chance(50%) ? "Thanks for the presents, {them}! Here's one back: a punch!",
     ] ?? [
         "Sorry, {them}, I was bored!",
         "I'm itching for trouble, {them}. And you're the closest!",
@@ -147,7 +147,7 @@ lines = {
             "Presents in the middle of a fight? Funny one, {them}! I'll take them and keep hitting!",
             "You throw me gold while I throw rocks at you, {them}? You're doing this fight wrong! HA!",
         ],
-        them.tribute(me) > big_tribute and chance(60%) ? "MORE?! {them}, you're my favourite! I'll name a club after you!",
+        them.tribute(me) > big_tribute && chance(60%) ? "MORE?! {them}, you're my favourite! I'll name a club after you!",
     ] ?? [
         "Ha! Thanks, {them}! I'll buy new clubs with that!",
         "Presents! I love presents!",
@@ -160,17 +160,17 @@ lines = {
         "That's not a present, {them}, that's a crumb! I'm no sparrow!",
     ],
     attack: [
-        them.kills(me, 20, buildings) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {them}!",
-        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "{them} has knocked down more of ours than we of theirs! Let's fix that, lads!",
-        me.kills(them, 20, units) > many_dead / 2 and chance(50%) ? "That was fun just now! Again! At {them}!",
+        them.kills(me, 20, buildings) > 0 && chance(60%) ? "They smashed my houses! Now we smash theirs! At {them}!",
+        them.kills(me, 20, units) > many_dead / 2 && them.kills(me, 20, units) > me.kills(them, 20, units) && chance(60%) ? "{them} has knocked down more of ours than we of theirs! Let's fix that, lads!",
+        me.kills(them, 20, units) > many_dead / 2 && chance(50%) ? "That was fun just now! Again! At {them}!",
     ] ?? [
         "ATTACK! At {them}!",
         "Come on, lads! {them} is waiting!",
         "Last one to reach {them} is a coward!",
     ],
     attack_threat: [
-        my_tally and chance(50%) ? "{me.kills(them, units)} of yours flattened so far, {them}! Let's make it a round number!",
-        big_one and chance(50%) ? "You're big, {them}, and I'm coming anyway! HAHA!",
+        my_tally && chance(50%) ? "{me.kills(them, units)} of yours flattened so far, {them}! Let's make it a round number!",
+        big_one && chance(50%) ? "You're big, {them}, and I'm coming anyway! HAHA!",
     ] ?? [
         "HERE WE COME, {them}!",
         "{them}! Get ready for a beating!",
@@ -190,23 +190,23 @@ lines = {
         "So what? We'll build a new one!",
     ],
     epoch_up: [
-        epoch >= epoch.industrial and chance(50%) ? "{epoch}! Things that go BOOM! Finally!",
-        epoch == epoch.stone and chance(50%) ? "{epoch}! Sharper sticks! HA!",
+        epoch >= epoch.industrial && chance(50%) ? "{epoch}! Things that go BOOM! Finally!",
+        epoch == epoch.stone && chance(50%) ? "{epoch}! Sharper sticks! HA!",
     ] ?? [
         "{epoch}! Bigger weapons! HA!",
         "Now it gets fun: {epoch}!",
     ],
     enemy_ahead: "{them} has new toys? I'll take them!",
     winning: [
-        my_tally and chance(50%) ? "{me.kills(them, units)} flattened, {them}! I'm counting, you know! HAHA!",
-        good_fight and chance(50%) ? "Now THAT is a fight, {them}! Pity it's nearly over!",
+        my_tally && chance(50%) ? "{me.kills(them, units)} flattened, {them}! I'm counting, you know! HAHA!",
+        good_fight && chance(50%) ? "Now THAT is a fight, {them}! Pity it's nearly over!",
     ] ?? [
         "Hahaha! Run, {them}, run!",
         "Is that all, {them}?",
     ],
     losing: [
-        them.kills(me, units) > many_dead and chance(50%) ? "{them} has knocked {them.kills(me, units)} of my lads flat! I like this one!",
-        big_one and chance(50%) ? "{them} is a big one! Finally a proper fight!",
+        them.kills(me, units) > many_dead && chance(50%) ? "{them} has knocked {them.kills(me, units)} of my lads flat! I like this one!",
+        big_one && chance(50%) ? "{them} is a big one! Finally a proper fight!",
     ] ?? [
         "That was just the warm-up!",
         "I haven't even started properly!",
@@ -220,8 +220,8 @@ lines = {
             "Bye, {them}! You stabbed me once, didn't you? Or was that someone else? Ah, never mind - GONE!",
             "That's for the knife, {them}! ...See? I DID remember! HAHA!",
         ],
-        my_tally and chance(60%) ? "{them} is flattened! {me.kills(them, units)} of those were mine! Who's next?",
-        good_fight and chance(60%) ? "{them} put up a proper fight! I'll miss that! ...Who's next?",
+        my_tally && chance(60%) ? "{them} is flattened! {me.kills(them, units)} of those were mine! Who's next?",
+        good_fight && chance(60%) ? "{them} put up a proper fight! I'll miss that! ...Who's next?",
     ] ?? [
         "{them} is flattened! Who's next?",
         "Bye, {them}! Hahaha!",

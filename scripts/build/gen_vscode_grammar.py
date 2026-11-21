@@ -76,7 +76,7 @@ expression = [
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'constant.language.null.eeaimod', 'match': r'\bnull\b'},
-    {'name': 'keyword.control.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
+    {'name': 'invalid.illegal.operator.eeaimod', 'match': r'\b(?:and|or|not)\b'},   # the words: && || ! (since 2026-11-21)
     # me.kills(them): the player, the relation - also a function's parameter that is a player: by.kills(of)
     {'match': r'(?:(' + player + r'|\b[A-Za-z_]\w*)(\.))?(' + words(relations) + r')(?=\s*\()',
      'captures': {'1': {'name': 'variable.language.game-value.eeaimod'}, '2': {'name': 'punctuation.accessor.eeaimod'},
@@ -87,7 +87,8 @@ expression = [
     {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': player + r'\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
     {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)(?:%|s\b|min\b)?'},   # 70% = 0.7, 20s, 19.5min
-    {'name': 'invalid.illegal.operator.eeaimod', 'match': r'&&?|\|\|?|!(?!=)|%'},   # and, or, not - only the words; % only right after a number
+    {'name': 'keyword.operator.logical.eeaimod', 'match': r'&&|\|\||!(?!=)'},   # a && b, a || b, !a
+    {'name': 'invalid.illegal.operator.eeaimod', 'match': r'[&|%]'},   # a single & or | is no operator; % only right after a number
     {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|\.\.|<=|>=|==|!=|[-+*/<>?:]'},   # ..: a for's range
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},

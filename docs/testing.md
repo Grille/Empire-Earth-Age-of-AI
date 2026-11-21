@@ -1191,11 +1191,11 @@ unit.x and kind.x were), a string without a placeholder made once, a member path
 | `max(3, 4) > 2 ? 10 : 20` | 458 | 150 |
 | `round(7 / 2) + abs(-3)` | 950 | 190 |
 | `vec(1, 2).x + distance(vec(0, 0), vec(3, 4))` | 6407 | 429 |
-| `"Fuchs" == "fuchs" and contains(["a", "b", "c"], "c")` | 1982 | 291 |
+| `"Fuchs" == "fuchs" && contains(["a", "b", "c"], "c")` | 1982 | 291 |
 | `epoch.middle` | 666 | 50 |
 | in a game: `me.count(kind.towers)` | 2580 | 420 |
-| in a game: `epoch >= epoch.middle and me.towers < 3` | 2870 | 1700 |
-| in a game: `them.opinion(me) > 0 and them.soldiers > me.soldiers * 2 ? 1 : 0` | 6650 | 4550 |
+| in a game: `epoch >= epoch.middle && me.towers < 3` | 2870 | 1700 |
+| in a game: `them.opinion(me) > 0 && them.soldiers > me.soldiers * 2 ? 1 : 0` | 6650 | 4550 |
 
 Checked: the bench scripts' outputs the same; the corpus (Continental 777 at minute 5, 7275 rows) the same; the probes
 player_effects, unit_effects, units and spawn the same script lines. What is left in the game's rows is the host's

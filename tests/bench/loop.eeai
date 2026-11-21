@@ -4,7 +4,7 @@ let odd = 0
 for r in 1..5 {
     for i in 1..180000 {
         s += i * 2 - 1
-        if i > 1000 and not (s < 0) or i == 7 { odd += 1 }
+        if i > 1000 && !(s < 0) || i == 7 { odd += 1 }
     }
     wait(1s)
 }

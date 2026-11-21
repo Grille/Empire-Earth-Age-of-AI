@@ -265,7 +265,7 @@ lines = {
 | Numbers, texts | `85`, `0.5`, `70%` (the same as `0.7` - `%` only right after a number), `"text"`, `'text'` |
 | Arithmetic | `+ - * /` on numbers only. A text is built in its string: `"Gold: {me.gold}"`, `"{a}{b}"` - `"a" + b` is a mistake (b added to the text, or the text to each of b's items?). Dividing by 0 is a mistake too; `me.strength * 150%` |
 | Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored). A text against a number (`"12" == 12`) is a mistake: logged, and only `!=` holds. A list compared is a mistake - `contains(l, x)`. Values of different types are told when the file is read, as in scripts (docs/scripts.md "Types"): `them == "x"`, `epoch + 1` (`int(epoch) + 1`, `epoch >= epoch.middle`) |
-| Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
+| Logic | `a && b` (both), `a \|\| b` (either), `!a` (not) - as in C#, TypeScript and C; `!=` is a comparison. The words `and`, `or`, `not` are a mistake, a single `&` or `\|` too |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
 | Lists | `[a, b, c]` - leaving out what is nothing, a list in a list giving its items. A list holds its items only: a line and a `{placeholder}` say one of them at random, `pick(l)` takes one; where one value belongs otherwise (`+`, `<`, a number's place) it is a mistake. A list with items is true, an empty one nothing |
 | Functions | `chance(p)` - true with the probability p, 0 to 1: `chance(25%)` or `chance(0.25)` (`chance(25)` is a mistake); `rnd()` - a random number, 0 up to but not 1 (`rnd() < 25%` is `chance(25%)`); `rnd(n)` - 0 up to n; `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)`, `floor(a)` (down to a whole number: `floor(me.gold / 4)`), `ceil(a)` (up), `int(a)` (toward 0: `int(-2.5)` is -2; `int(epoch)` its number) - the four give an int, `log2(a)` (of a number above 0: `log2(2)` is 1, `log2(0.5)` is -1 - for ratios: `log2(them.strength / me.strength)`) |
@@ -284,7 +284,7 @@ lines = {
   string (`"Age: {epoch}"`). Arithmetic gives a plain number: `{round(opinion * 100)}` writes -62.
 - **A string is always a text**, even when it looks like a number: `"12" + 1` is a mistake, and `"12"` is no colour
   number. Write numbers without quotes.
-- Only what is chosen is worked out: the other side of `? :`, `??`, `and`, `or` is not (no random draws, no
+- Only what is chosen is worked out: the other side of `? :`, `??`, `&&`, `||` is not (no random draws, no
   errors from text that isn't said).
 - Mistakes are never guessed around: an unknown name, a text where a number belongs, a division by 0 leave out the
   list item they are in, else the whole line (see "A name nobody knows" above). Nothing runs from the top of a file
@@ -369,7 +369,7 @@ lines = {
   `d[key] += 1` set it. A field's type stays: a text into a number field, 2.5 into an int field are mistakes, and a
   dict field keeps its table (its entries are set, the field isn't).
 - A **player field**, `let name: player? = null`, starts as nobody and takes a player or `null`: `traitor = them`.
-  Read it after `!= null` - `traitor != null and traitor.alive`, `traitor == them`; a defeated player stays in it
+  Read it after `!= null` - `traitor != null && traitor.alive`, `traitor == them`; a defeated player stays in it
   (`traitor.alive` false). Only players: a list or another of the game's objects can't be a field yet.
 - **Handlers** `on_<situation>() { ... }` - any situation of the table above: `on_betrayed`, `on_greeting` ... - with
   `me`, `them`, `enemy` as its lines have them. One runs every time its situation happens, whether a line is said or
@@ -437,15 +437,15 @@ A player who isn't there - no third player in a greeting, no lord - is nothing. 
 ```
 lines = {
     under_attack: lord ? "My lord {lord} will hear of this!" : "To arms!",
-    greeting: [lord and lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}.",
+    greeting: [lord && lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}.",
     tribute_thanks: "{lord ?? me} thanks you, {them}.",
 }
 ```
 
-A condition (`lord != null ? ...`, `lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
+A condition (`lord != null ? ...`, `lord ? ...`, `lord && ...`, `!lord`), `??` and a comparison (`lord == them`) check it. Used without
 a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it is a
 mistake, told when the file is read (the line is skipped): a line that names a lord nobody has makes no sense. A check
-holds where it guards - right of `and`, in the `?` branch, in `if`'s block - and works for a relation's value too
+holds where it guards - right of `&&`, in the `?` branch, in `if`'s block - and works for a relation's value too
 (`me.war_minutes(them) != null ? "{me.war_minutes(them)} minutes of war"`); a name set elsewhere (`long_war =
 me.war_minutes(them) > 30`) is no check where it is used. Where the code guarantees a lord - `vassal_ask_lord` and
 `diplo_vassal` in `mod/system.eeai` and `terms_vassal` in `mod/prompt.eeai` are only said by a vassal - `{lord}` needs
@@ -691,7 +691,7 @@ The rows:
 ## decide: what the AI wants
 
 The AI's diplomacy decides by numbers worked out from expressions - the same ones as in its lines, with `me` the AI,
-`them` the other player and `enemy` its strongest enemy (there may be none: check it, `enemy and ...`). eeaimod's
+`them` the other player and `enemy` its strongest enemy (there may be none: check it, `enemy && ...`). eeaimod's
 are in `mod/computer.eeai`; a personality that writes one of them in its own `decide = { }` decides that its own way:
 
 | Key | When | The AI ... |
@@ -703,7 +703,7 @@ are in `mod/computer.eeai`; a personality that writes one of them in its own `de
 ```
 decide = {
     // a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
-    seek_ally: enemy and enemy.strength > me.strength,
+    seek_ally: enemy && enemy.strength > me.strength,
     ally_score: them.rank == 1 ? 100% : opinion,
 }
 ```

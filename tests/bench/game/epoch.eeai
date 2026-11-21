@@ -3,6 +3,6 @@ let p = player(2)
 let e = 0
 for i in 1..50000 {
     if p.epoch >= epoch.copper { e += 1 }
-    if game.minutes < 100 and p.alive { e += 1 }
+    if game.minutes < 100 && p.alive { e += 1 }
 }
 cmd("epoch {e}")

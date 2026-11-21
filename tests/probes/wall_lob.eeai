@@ -30,7 +30,7 @@ objs(2, unit.b_house)
 lob()
 lob("reset")
 for u in player(2).units(unit.b_wall_middle) {
-    if u.pos.x < 27 and u.pos.y > 46 and u.pos.y < 54 { u.remove() }
+    if u.pos.x < 27 && u.pos.y > 46 && u.pos.y < 54 { u.remove() }
 }
 objs(2, unit.b_wall_middle)
 

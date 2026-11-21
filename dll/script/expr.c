@@ -19,7 +19,7 @@
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
 // The expressions: numbers (70% is 0.7 - % only right after a number), "texts" (or 'texts', the same rules), lists,
 // names (a placeholder of the text, a vars entry, a value of the host's - script/host.h), ( ), + - * /,
-// < <= > >= == !=, and or not (only the words: && || ! are a mistake), a ? b : c, a ? b, a ?? b, the functions
+// < <= > >= == !=, && || ! (the words and, or, not are a mistake), a ? b : c, a ? b, a ?? b, the functions
 // chance(p) (true with the probability p, 0..1: chance(70%)), rnd(n) (0 <= x < n, n 1 when left out), min, max, abs,
 // round, floor (down to a whole number), log2 (of a number above 0), the lists' len(l), first(l), item(l, i) (from 1), contains(l, x) and
 // map_range(x, [limits], [values]) (the value of the first limit x is below, the last past them all - a value no
@@ -883,7 +883,7 @@ internal void xps_space(struct xps *p) {
     if (p->s != b) { p->nl = nl; p->nl_pos = p->s; }
 }
 internal int xps_newline_before(struct xps *p) { return p->nl && p->nl_pos == p->s; }   // after xps_space
-internal int xps_word(struct xps *p, const char *w) {   // a keyword (and, or, not, return), not the start of a longer name
+internal int xps_word(struct xps *p, const char *w) {   // a keyword (return, in ...), not the start of a longer name
     xps_space(p);
     size_t n = strlen(w);
     if (_strnicmp(p->s, w, n) || isalnum((unsigned char)p->s[n]) || p->s[n] == '_') return 0;
@@ -1383,7 +1383,8 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
 internal void xps_unary(struct xps *p, struct xnode **out) {
     *out = NULL;
     const char *at = (xps_space(p), p->s);
-    int neg = xps_op(p, "-"), inv = !neg && xps_word(p, "not");
+    if (xps_word(p, "not")) { p->err = 1; p->why = "not x is written !x"; return; }
+    int neg = xps_op(p, "-"), inv = !neg && *p->s == '!' && p->s[1] != '=' && (p->s++, 1);   // !x (x != y: the comparison's)
     if (neg || inv) {
         struct xnode *a = NULL;
         if (xps_deeper(p)) xps_unary(p, &a);
@@ -1396,7 +1397,6 @@ internal void xps_unary(struct xps *p, struct xnode **out) {
         *out = XOFF(p, o);
         return;
     }
-    if (*p->s == '!' && p->s[1] != '=') { p->err = 1; p->why = "! - write not"; return; }
     xps_primary(p, out);
 }
 internal struct xnode *xps_bin(struct xps *p, int k, int op, struct xnode *a, struct xnode *b) {
@@ -1442,26 +1442,33 @@ internal void xps_cmp(struct xps *p, struct xnode **out) {
     if (p->err) return;
     *out = xps_bin(p, XN_CMP, op, *out, b);
 }
+// a && b, a || b - as in C#, TypeScript, C (2026-11-21, the player: "the difference between & and && starts to
+// matter"): the words and, or, not are mistakes that name the operator; a single & or | is no operator (yet: kept
+// for bits)
+internal int xps_logic(struct xps *p, char c) {   // && (c '&') or || next: taken
+    xps_space(p);
+    if (xps_word(p, c == '&' ? "and" : "or")) { p->err = 1; p->why = c == '&' ? "a and b is written a && b" : "a or b is written a || b"; return 0; }
+    if (*p->s != c) return 0;
+    if (p->s[1] != c) { p->err = 1; p->why = c == '&' ? "& alone is no operator - a && b: both" : "| alone is no operator - a || b: either"; return 0; }
+    p->s += 2;
+    return 1;
+}
 internal void xps_and(struct xps *p, struct xnode **out) {
     xps_cmp(p, out);
-    if (!p->err && (xps_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
-    while (!p->err && xps_word(p, "and")) {
+    while (!p->err && xps_logic(p, '&')) {
         struct xnode *b;
         xps_cmp(p, &b);
         if (p->err) return;
         *out = xps_bin(p, XN_AND, 0, *out, b);
-        if (!p->err && (xps_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
     }
 }
 internal void xps_or(struct xps *p, struct xnode **out) {
     xps_and(p, out);
-    if (!p->err && (xps_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
-    while (!p->err && xps_word(p, "or")) {
+    while (!p->err && xps_logic(p, '|')) {
         struct xnode *b;
         xps_and(p, &b);
         if (p->err) return;
         *out = xps_bin(p, XN_OR, 0, *out, b);
-        if (!p->err && (xps_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
     }
 }
 internal void xps_coalesce(struct xps *p, struct xnode **out) {   // a ?? b: a, unless it is nothing
@@ -2042,8 +2049,8 @@ internal int xn_checked(const struct xcheck *k, const struct xnode *x) {   // x'
     const char *key = xn_key(x, &len);
     return key && xn_narrowed(k, key, (size_t)len);
 }
-// what holds when cond is want (1 true, 0 false): the paths it shows aren't null - x != null, x == null (false), a and b
-// (true), a or b (false), not; a path alone (until bools are required: lord ? ...) - pushed onto k's stack
+// what holds when cond is want (1 true, 0 false): the paths it shows aren't null - x != null, x == null (false), a && b
+// (true), a || b (false), !; a path alone (until bools are required: lord ? ...) - pushed onto k's stack
 internal void xn_facts(struct xcheck *k, const struct xnode *c, int want) {
     if (!c) return;
     switch (c->k) {

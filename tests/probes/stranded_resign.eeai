@@ -8,7 +8,7 @@ let p = player(3)
 let at = player(2).units()[1].pos
 let men = p.spawn(unit.citizen, vec(at.x + 6, at.y + 6), 3)
 for u in p.units() {
-    if u.id != men[1].id and u.id != men[2].id and u.id != men[3].id {
+    if u.id != men[1].id && u.id != men[2].id && u.id != men[3].id {
         u.remove()
     }
 }

@@ -40,8 +40,8 @@ their_dead => me.kills(them, units) > many_dead
 
 lines = {
     greeting: [
-        players > 5 and chance(50%) ? "So many neighbours. I will need longer walls.",
-        allied and chance(50%) ? "Good to have you on the right side of my walls, {them}.",
+        players > 5 && chance(50%) ? "So many neighbours. I will need longer walls.",
+        allied && chance(50%) ? "Good to have you on the right side of my walls, {them}.",
     ] ?? [
         "Good walls make good neighbours.",
         "I build. Leave me in peace and you have nothing to fear.",
@@ -55,8 +55,8 @@ lines = {
             "You broke faith with me once already, {them}. That is why I never took my walls down.",
             "From you, {them}, I expected it. The day you first broke faith I drew up the plans for this one.",
         ],
-        many_towers and chance(60%) ? "{me.towers} towers, {them}. I counted them this morning. Come and count them yourself.",
-        outmatched and chance(60%) ? "You are stronger, {them}. That is exactly what walls are for.",
+        many_towers && chance(60%) ? "{me.towers} towers, {them}. I counted them this morning. Come and count them yourself.",
+        outmatched && chance(60%) ? "You are stronger, {them}. That is exactly what walls are for.",
     ] ?? [
         "You want war, {them}? Then run into my walls.",
         "I did not build towers for nothing, {them}.",
@@ -77,8 +77,8 @@ lines = {
             "Peace. But the walls facing you stay manned, {them}.",
             "Peace, {them}. I signed with you once before and rebuilt afterwards. This time I keep the mortar ready.",
         ],
-        them.kills(me, this_war, buildings) > 5 and chance(60%) ? "Peace. Now I have {them.kills(me, this_war, buildings)} buildings to rebuild, {them}. Kindly stay out of the way.",
-        them.kills(me, this_war, units) > many_dead and chance(50%) ? "Peace, {them}. I have buried enough of my people for this war.",
+        them.kills(me, this_war, buildings) > 5 && chance(60%) ? "Peace. Now I have {them.kills(me, this_war, buildings)} buildings to rebuild, {them}. Kindly stay out of the way.",
+        them.kills(me, this_war, units) > many_dead && chance(50%) ? "Peace, {them}. I have buried enough of my people for this war.",
     ] ?? [
         "Quiet at last, {them}. I have building to do.",
         "Peace. Good. The stones are waiting.",
@@ -92,7 +92,7 @@ lines = {
             "Your soldiers are still standing at my walls, {them}. Call them back - then we talk.",
             "Peace, with your army in the shadow of my towers, {them}? Move it out of range first.",
         ],
-        them.refusals(me, 30) > 0 and chance(60%) ? "You refused my peace once, {them}. Now I need time to be sure of you.",
+        them.refusals(me, 30) > 0 && chance(60%) ? "You refused my peace once, {them}. Now I need time to be sure of you.",
     ] ?? [
         "Not until I am sure you mean it, {them}.",
         "No, {them}. I do not trust you yet.",
@@ -115,7 +115,7 @@ lines = {
             "You broke faith with me once, {them}. But {enemy} is the greater danger. Shall we try again?",
             "{them}, you left me standing alone once. I have not forgotten - but {enemy} leaves me no choice. One more alliance?",
         ],
-        enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than the two of us together, {them}. One wall alone will not hold.",
+        enemy.strength > me.strength + them.strength && chance(60%) ? "{enemy} is stronger than the two of us together, {them}. One wall alone will not hold.",
     ] ?? [
         "{them}, {enemy} is becoming a danger to us all. Shall we build a bulwark together?",
         "Together against {enemy}, {them}? Two walls hold better than one.",
@@ -126,7 +126,7 @@ lines = {
             "Allies again, {them}. I will inspect this foundation more often.",
             "Agreed, {them}. Last time I trusted your stones blindly. This time I check every one you lay.",
         ],
-        enemy and chance(50%) ? "Good. Now {enemy} has two walls to break instead of one.",
+        enemy && chance(50%) ? "Good. Now {enemy} has two walls to break instead of one.",
     ] ?? [
         "Good, {them}. Together we stand firm.",
         "A solid alliance, {them}.",
@@ -143,14 +143,14 @@ lines = {
             "You broke our first alliance, {them}. I am only finishing what you started.",
             "You taught me how an alliance ends, {them}. Now I return the lesson.",
         ],
-        brittle and chance(60%) ? "Your walls are thin, {them}, and your army thinner. I cannot carry you any longer.",
+        brittle && chance(60%) ? "Your walls are thin, {them}, and your army thinner. I cannot carry you any longer.",
     ] ?? "I am sorry, {them}. You have become a burden.",
     tribute_thanks: [
         at_war ? [
             "Tribute in the middle of a war, {them}? Thank you. It goes into the walls you are attacking.",
             "Gold from the one besieging me, {them}? I will build the next tower with it and name it after you.",
         ],
-        them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me) + tribute_total} in all, {them}. By now a whole tower should carry your name.",
+        them.tribute(me) > big_tribute && chance(60%) ? "{them.tribute(me) + tribute_total} in all, {them}. By now a whole tower should carry your name.",
     ] ?? [
         "Thank you, {them}. That pays for a new tower.",
         "Very welcome, {them}. Building material is always short.",
@@ -163,15 +163,15 @@ lines = {
         "Half a stone, {them}. Still - every wall starts somewhere.",
     ],
     attack: [
-        them.kills(me, 20, buildings) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
-        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "We have buried enough. Out, against {them} - walls alone will not end this.",
+        them.kills(me, 20, buildings) > 0 && chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
+        them.kills(me, 20, units) > many_dead / 2 && them.kills(me, 20, units) > me.kills(them, 20, units) && chance(60%) ? "We have buried enough. Out, against {them} - walls alone will not end this.",
     ] ?? [
         "We must go out. Against {them}.",
         "Our troops are marching against {them}.",
     ],
     attack_threat: [
-        them.kills(me, buildings) > 0 and chance(60%) ? "{them.kills(me, buildings)} of my buildings, {them}. I keep careful accounts - and today I collect.",
-        their_dead and chance(50%) ? "{me.kills(them, units)} of yours have fallen already, {them}. Your walls are next.",
+        them.kills(me, buildings) > 0 && chance(60%) ? "{them.kills(me, buildings)} of my buildings, {them}. I keep careful accounts - and today I collect.",
+        their_dead && chance(50%) ? "{me.kills(them, units)} of yours have fallen already, {them}. Your walls are next.",
     ] ?? [
         "{them}, your walls will not hold.",
         "We are coming, {them}. Check your walls.",
@@ -182,46 +182,46 @@ lines = {
             "Not a single tower yet ... then the soldiers are the wall! Hold!",
             "No towers, no walls - and they come now! Everyone with a weapon to the front!",
         ],
-        me.soldiers < 10 and me.towers > 0 ? [
+        me.soldiers < 10 && me.towers > 0 ? [
             "Too few soldiers at home - into the towers, the walls must do the work!",
             "Hardly a soldier in town - the towers must hold alone. Do not stop firing!",
         ],
-        many_towers and chance(50%) ? "{me.towers} towers manned. Let them come.",
+        many_towers && chance(50%) ? "{me.towers} towers manned. Let them come.",
     ] ?? [
         "Everyone behind the walls!",
         "Man the towers! We are under attack!",
     ],
     building_lost: [
-        me.buildings > 50 and chance(50%) ? "One of {me.buildings}. A scratch on the wall - but I will mend it.",
-        me.stone > 1000 and chance(50%) ? "Good thing the quarry has been generous. That stands again in no time.",
+        me.buildings > 50 && chance(50%) ? "One of {me.buildings}. A scratch on the wall - but I will mend it.",
+        me.stone > 1000 && chance(50%) ? "Good thing the quarry has been generous. That stands again in no time.",
     ] ?? [
         "It will be rebuilt. Better than before.",
         "One more reason for thicker walls.",
     ],
     epoch_up: [
-        epoch >= epoch.industrial and chance(50%) ? "{epoch}. Steel and concrete - finally walls that deserve the name.",
-        epoch == epoch.middle and chance(60%) ? "{epoch}. Now we build castles.",
+        epoch >= epoch.industrial && chance(50%) ? "{epoch}. Steel and concrete - finally walls that deserve the name.",
+        epoch == epoch.middle && chance(60%) ? "{epoch}. Now we build castles.",
     ] ?? [
         "{epoch}. New materials, new possibilities.",
         "A new age: {epoch}. Something can be built with that.",
     ],
     enemy_ahead: "{them} is further along. We build more thoroughly instead.",
     winning: [
-        them.kills(me, buildings) < 1 and chance(60%) ? "Not one of my buildings has fallen to you, {them}. Not one.",
-        their_dead and chance(50%) ? "{me.kills(them, units)} of your people have broken on my walls, {them}.",
+        them.kills(me, buildings) < 1 && chance(60%) ? "Not one of my buildings has fallen to you, {them}. Not one.",
+        their_dead && chance(50%) ? "{me.kills(them, units)} of your people have broken on my walls, {them}.",
     ] ?? "Our walls hold. {them}'s armies do not.",
     losing: [
         them.near(me) > 0 ? [
             "{them}'s soldiers are at our walls. Every hand to the masonry!",
             "{them}'s troops at our walls, and too few hands to mend them. Hold until they tire!",
         ],
-        them.kills(me, buildings) > 10 and chance(60%) ? "{them.kills(me, buildings)} buildings torn down by {them}. I remember every single one.",
+        them.kills(me, buildings) > 10 && chance(60%) ? "{them.kills(me, buildings)} buildings torn down by {them}. I remember every single one.",
     ] ?? [
         "We must strengthen the defences.",
         "The walls are crumbling ...",
     ],
     desperate: [
-        me.towers >= 3 and chance(60%) ? "{me.towers} towers still stand. Hold them!",
+        me.towers >= 3 && chance(60%) ? "{me.towers} towers still stand. Hold them!",
     ] ?? [
         "Hold the last wall!",
         "To the last stone!",
@@ -231,7 +231,7 @@ lines = {
             "{them} has fallen. Whatever is built on broken promises does not last.",
             "{them} is gone. A traitor's house - I saw the cracks in it the day they broke faith with me.",
         ],
-        them.kills(me, buildings) > 0 and chance(60%) ? "{them} has fallen. Now I can rebuild in peace what they tore down.",
+        them.kills(me, buildings) > 0 && chance(60%) ? "{them} has fallen. Now I can rebuild in peace what they tore down.",
     ] ?? "{them} has fallen. I hope the land will be built on well.",
     ally_defeated: "We have lost {them}. A hard blow.",
     defeated: [

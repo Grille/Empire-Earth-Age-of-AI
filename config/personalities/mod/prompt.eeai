@@ -18,8 +18,8 @@ include("mod/units.eeai")
 
 // game_state_other: the stances between you
 stance => (
-    not me.hostile(them) and not them.hostile(me) ? "You are allied with each other." :
-    me.hostile(them) and them.hostile(me) ? "You are at war with each other." :
+    !me.hostile(them) && !them.hostile(me) ? "You are allied with each other." :
+    me.hostile(them) && them.hostile(me) ? "You are at war with each other." :
     me.hostile(them) ? "You treat them as an enemy, but they have set allied towards you (they offer peace)." :
     "You are allied with them, but they treat you as an enemy."
 )
@@ -54,7 +54,7 @@ fighting => fought(0) ? (
     " They destroyed of yours: {destroyed(them, me, 0)}."
 ) : ""
 fighting_recent => (
-    not fought(0) ? "" :
+    !fought(0) ? "" :
     fought(recent_minutes) == fought(0) ? " All of it in the last {recent_minutes} minutes." :
     fought(recent_minutes) ? (
         " In the last {recent_minutes} minutes"
@@ -110,7 +110,7 @@ prompt = {
     // whose "my" is whose
     // in braces: {them} {me}
     whose: ("\nThe user messages that start with \"{them} writes:\" are messages of {them}, "
-        "{them.human and not llm_equal ? "the human player" : "another leader in this game"}, from their side: "
+        "{them.human && !llm_equal ? "the human player" : "another leader in this game"}, from their side: "
         "\"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); \"you\" is you, "
         "{me}. Messages in brackets are events of the game, not chat."),
     // in braces: {minutes} {epoch} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}

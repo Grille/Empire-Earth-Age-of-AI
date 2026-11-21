@@ -79,7 +79,7 @@ while player(3).towers > 0 {       // every minute until P3's towers are gone, a
 ## Values
 
 Everything the personalities' expressions have (numbers, `70%`, texts with `{placeholders}`, lists, `a ? b : c`,
-`a ?? b`, `and or not`, `min`, `chance` ...), and:
+`a ?? b`, `&& || !`, `min`, `chance` ...), and:
 
 | Value | |
 |---|---|
@@ -114,7 +114,7 @@ one of them, records, functions, triggers, and the game's objects (player, game,
 - What may be none has a type with `?`: `p.lord` (a `player?`), `p.civilization`, `p.war_minutes`, `first(l)`,
   `item(l, i)`, `number(t)`. It is checked before it is used - `p.lord != null` (or `== null`), then a member, a sum,
   a place of a plain type (`let q: player = ...`); `??` gives a value instead (`p.war_minutes ?? 0`). The check holds
-  where it guards: in `if p.lord != null { ... }` (and `else` of `== null`), right of `and` / `or`, in `?:`, and below
+  where it guards: in `if p.lord != null { ... }` (and `else` of `== null`), right of `&&` / `||`, in `?:`, and below
   an `if p.lord == null { return }` (also `break`, `continue`). Not in a function made there - it runs later - and not
   after the name is set anew. A first(l).name of what may be null goes into a variable first (`let f = first(l)`).
   `null` is "none there": `let q: player? = null`; it is compared only with `==` and `!=`, and only with what may be
@@ -394,7 +394,7 @@ the README read them).
 ```
 let p2 = game.player(2)
 for p in game.players {
-    if p.alive and p != p2 and p2.at_war(p) {
+    if p.alive && p != p2 && p2.at_war(p) {
         ping("{p2} fights {p}: {p.soldiers} soldiers, {p2.kills(p, 10)} killed in 10 minutes")
     }
 }
@@ -501,7 +501,7 @@ also while the script waits and after it has ended:
 let p2 = player(2)
 let t = trigger({
     name: "wood for the poor",          // for the messages (else the statement's start)
-    when: () => p2.wood < 100 and time > 10min,
+    when: () => p2.wood < 100 && time > 10min,
     for: 5s,                            // true that long without a break first (default 0)
     loop: false,                        // fires once, then it is off (true: again whenever it holds)
     run: () => {
@@ -565,7 +565,7 @@ game.setup(() => {
     game.slot(2).persona = persona.fuchs
     game.slot(3).color = rgb(40, 200, 120)
     for s in game.slots {
-        if not s.human and s.number > 3 {
+        if !s.human && s.number > 3 {
             s.persona = persona.haendler
         }
     }

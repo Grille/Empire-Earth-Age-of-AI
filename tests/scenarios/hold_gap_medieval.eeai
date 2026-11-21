@@ -29,7 +29,7 @@ spawn(1, unit.arch06_long_bow, 51, 46, 12)
 spawn(1, unit.inf06_pikeman, 52, 46, 12)
 // the spawns are made a few a step, the 105 wall pieces first: the soldiers there before their stance is set
 let tries = 0
-while player(1).count(unit.inf06_pikeman) < 12 and tries < 30 {
+while player(1).count(unit.inf06_pikeman) < 12 && tries < 30 {
     wait(1s)
     tries += 1
 }

@@ -22,7 +22,7 @@ big_tribute => max(1500, me.stock / 2)
 
 decide = {
     // What the AI wants in its diplomacy - me is the AI, them the other player, enemy my strongest enemy (there may be
-    // none: check it, enemy and ...). Each a number. A personality's own come first; when one fails (a mistake, told in
+    // none: check it, enemy && ...). Each a number. A personality's own come first; when one fails (a mistake, told in
     // the log) the next layer's decides - these last, and when one of these fails the answer is no.
     // The rules around them stay the mod's: who can be asked, how long an offer stands, no peace within pride x 5 minutes
     // of their declaration of war (pride 60%: 3 minutes).
@@ -33,10 +33,10 @@ decide = {
     peace_score: (opinion
         + max(-40%, min(40%, 25% * log2(max(1, them.strength) / max(1, me.strength))))
         + 40% * (50% - aggression) - 30% * (pride - 50%)
-        + (enemy and enemy != them and them.hostile(enemy) ? 15% : 0)),
+        + (enemy && enemy != them && them.hostile(enemy) ? 15% : 0)),
 
     // Look for an ally against my strongest enemy (every minute from minute 10): when it is half again as strong as me.
-    seek_ally: enemy and enemy.strength > 1.5 * max(1, me.strength),
+    seek_ally: enemy && enemy.strength > 1.5 * max(1, me.strength),
 
     // Which of my strongest enemy's other enemies to ask: the highest score, if above -20%.
     ally_score: opinion,
@@ -68,14 +68,14 @@ lines = {
             "We accept peace, {them}. Your betrayal is on record.",
             "Peace accepted, {them}. We will watch you: you have broken an alliance with us before.",
         ],
-        them.kills(me, this_war, units) > many_dead and them.kills(me, this_war, units) > me.kills(them, this_war, units) and chance(60%) ? "We accept peace, {them}. This war cost us {them.kills(me, this_war, units)} units.",
+        them.kills(me, this_war, units) > many_dead && them.kills(me, this_war, units) > me.kills(them, this_war, units) && chance(60%) ? "We accept peace, {them}. This war cost us {them.kills(me, this_war, units)} units.",
     ] ?? "We accept peace, {them}.",
     peace_refuse: [
         them.betrayals(me) > 0 ? [
             "We refuse, {them}. You have broken an alliance with us before.",
             "We refuse, {them}. Your word was broken once. We do not take it again.",
         ],
-        them.refusals(me, 30) > 0 and chance(70%) ? "We refuse your offer of peace, {them}. You refused ours.",
+        them.refusals(me, 30) > 0 && chance(70%) ? "We refuse your offer of peace, {them}. You refused ours.",
     ] ?? "We refuse your offer of peace, {them}.",
     // ignored(me): our earlier offers they let run out, in a row
     alliance_offer: [
@@ -108,7 +108,7 @@ lines = {
             "Tribute received, {them}: {tribute}. We are still at war.",
             "Your tribute is noted, {them}. It does not end the war.",
         ],
-        them.tribute(me) > big_tribute and chance(50%) ? "Tribute received: {tribute}. {them.tribute(me) + tribute_total} resources from you so far, {them}. Thank you.",
+        them.tribute(me) > big_tribute && chance(50%) ? "Tribute received: {tribute}. {them.tribute(me) + tribute_total} resources from you so far, {them}. Thank you.",
     ] ?? "Tribute received: {tribute}. Thank you, {them}.",
     capitulate: "{them}, we surrender. We offer {tribute} for peace.",
     capitulate_accepted: "{tribute} paid. We will stand by you, {them}.",
