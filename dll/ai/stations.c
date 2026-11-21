@@ -413,6 +413,13 @@ internal ee_unit *sn_wall_near(ee_player *pl, ivec2 p, int reach) {
 }
 internal ee_unit *sn_wall_at(ee_player *pl, ivec2 p) { return sn_wall_near(pl, p, 4); }
 internal int sn_cmp(const void *a, const void *b) { const struct sn_unit *x = a, *y = b; return x->u < y->u ? -1 : x->u > y->u; }
+// a soldier the look no longer has (aboard a ferry - PROPHETS ACROSS takes the escort along -, inside a fortress): the
+// stance AN ESCORT or a coast post gave it goes back to what it was - it comes back as a new entry, its stance0 lost
+// with the old one, and stood its ground for good
+internal void sn_stance_back(const struct sn_unit *old, int on, ee_unit *u) {
+    struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
+    if (o && o->id == unit_get_serial(u) && (o->scout == 2 || o->post) && o->stance0 >= 0) unit_set_stance(u, o->stance0);
+}
 // A STUCK ORDER (the player 2026-11-16, of yellow in "aistuck": "the yellow ai seemed genuinly dead, no reinforcments
 // or moves, as if something got stuck completly" - from minute 84 to 101 not one order, 34 of its 53 soldiers on an
 // attack and 19 on a move the game never ended; a soldier is ordered again only when it stands idle, and a load, which
@@ -1167,7 +1174,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     memset(anc, 0, (size_t)n);
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
-        if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+        if (!td || unit_get_hp(u) <= 0) continue;
+        if (unit_get_x(u) < 0) { sn_stance_back(old, on, u); continue; }
         int t = unit_type_get_id(td), fam = unit_type_get_class_id(td);
         ivec2 p = unit_get_tile(u);
         unsigned r = ter_near(p.x, p.y);
@@ -1181,7 +1189,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             continue;
         }
         // the class Land only: a wall piece is of the army's families too (the first look: 252 "soldiers" with 131 there, the walls stationed with them)
-        if (expand_has(pl, u)) continue;   // a ferry's passenger (expand.c): the ferry's until it is put off
+        if (expand_has(pl, u)) { sn_stance_back(old, on, u); continue; }   // a ferry's passenger (expand.c): the ferry's until it is put off
         int pool = fam != CLS_LAND ? -1 : is_aa(u) ? SNP_AA : is_siege(t) || is_ram(t) ? SNP_SIEGE : land_soldier(t) ? SNP_MAIN : -1;
         if (pool < 0 || nn >= SN_UNITS) continue;
         struct sn_unit key = { .u = u }, *o = on ? bsearch(&key, old, (size_t)on, sizeof *old, sn_cmp) : NULL;
