@@ -1304,12 +1304,17 @@ of records of different members ...). The stricter check found one in the bench 
 added a vector's float to an int (now a float).
 
 `{ ... }` as the place wants (2026-11-20, docs/scripts.md "Records, dicts and structs written out"; expr.c
-x_check_rec): `tests/lang/braces.eeai` - dicts of text and int keys (names, `[key]`), `dict<K, V>(default, { ... })`,
+x_check_rec): `tests/lang/braces.eeai` - dicts of text and int keys (`[key]`), `dict<K, V>(default, { ... })`,
 structs by their fields' names in any order, `{ ... }` as a parameter, a result, a seq's item, a dict's value, a
 field set, nested; the values worked out in the order written. 20 mistakes told when the file is read (a `[key]` in a record,
-a name in a dict of int keys, a key or a value of another type, a key twice, a V without a default, a field it
+a name in a dict, a key or a value of another type, a key twice, a V without a default, a field it
 hasn't, a method's name, a field without a default left out, in a {placeholder} ...). `tests/probes/braces.eeai` in
 a game: dicts keyed by players and structs made from `{ ... }` in a timer, played twice and once with `script state`.
+
+A parameter's default (2026-11-21, docs/scripts.md "Functions and their names"; expr.c xps_lambda, xc_function's
+XI_JSET): `tests/lang/defaults.eeai` - calls with none, some and all of the defaults, texts, a method's (one that
+changes its struct too), a struct as a default, worked out at each call. `tests/probes/defaults.eeai` in a game: a
+function with defaults that waits inside, a method's default from a timer, played twice and once with `script state`.
 
 ### Headless UI tests (menus, editor)
 

@@ -1,0 +1,22 @@
+// a parameter's default in a game (expr.c xc_function: worked out at the function's start, XI_JSET past it when given;
+// the language itself: tests/lang/defaults.eeai) - a function with defaults that waits inside, called with none, some
+// and all of its arguments one after another, a method's default from a timer. Played twice the lines must be the
+// same - also with `script state` (what a save keeps, read back) called while it waits.
+struct tally {
+    n: int = 0
+    add(by: int = 1) { this.n += by }
+}
+let t = tally()
+counted(name: text = "a", step: float = 3s, times: int = 4): int {
+    let k = 0
+    while k < times {
+        wait(step)
+        k += 1
+        t.add()
+    }
+    ping("{name} counted {k} at {round(game.time)} s, tally {t.n}")
+    return k
+}
+game.timer(5s, () => { t.add(10) })
+let total = counted() + counted("b", 2s) + counted("c", 1s, 2)
+ping("total {total} at {round(game.time)} s, tally {t.n}")

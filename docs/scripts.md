@@ -43,7 +43,7 @@ One a line; `//` starts a comment, as in the game's own scripts (.rmv, .tai) - a
 | `for i in 1..5 { ... }` | the block for every whole number from 1 to 5 (both in; none when the second is smaller); `for p in [2, 3, 5]`: for each item of a list |
 | `break`, `continue` | in a loop: out of it, or on to its next round |
 | `return value`, `return` | in a function's `{ }` body: what it hands back (nothing without one) |
-| `name(a: int) => value`, `name(a: int): float { ... }` | a function declared, at the script's top only: known in the whole file (used above where it is written too), never set anew; what it gives back written after its parameters ("Functions and their names") |
+| `name(a: int) => value`, `name(a: int): float { ... }` | a function declared, at the script's top only: known in the whole file (used above where it is written too), never set anew; what it gives back written after its parameters; its last parameters may have a default, `b: int = 2` ("Functions and their names") |
 
 A line may go on while a `(`, `[` or `{` is open; a block's `{` is on its statement's line. A condition is true as in
 an expression (a number not 0, a text not empty, a list, a player). A `let` in a block (an `if`'s, a loop's) is that
@@ -490,6 +490,28 @@ make(n: int): point {
 let m = make(3)                            // a point: m.x = 10, m.add(1) - no type written at the let
 let h: int = half(5)                       // a mistake: a float can't go in
 ```
+
+**A parameter's default:** a declared function's or a struct's method's last parameters may have one, written as a
+struct's field has it - `name: type = value`. A call may leave them out, from the last on; the function works the
+default out at its start, at each call that left it out. It is a value of the parameter's type that needs none of the
+script's names (a number, a text, a struct, the game's values: `t: float = game.time` is the time of that call).
+
+```
+wave(at: vec2, size: int = 10, kind: unit_type = unit.inf02_spearman) { ... }
+wave(vec(40, 46))                          // 10 spearmen
+wave(vec(40, 46), 25)                      // 25 of them
+wave(vec(40, 46), 25, unit.inf10_doughboy)
+struct tally {
+    n: int = 0
+    add(by: int = 1) { this.n += by }      // t.add(), t.add(5)
+}
+```
+
+- Those with a default come last (`f(a: int = 1, b: int)` is a mistake), each with its type written; a `ref` has
+  none (it names the caller's place).
+- A function as a value has no defaults: `(a: int = 1) => ...` is a mistake, and a declared function passed on
+  (`let g = wave`) is called with all its arguments - its type, a `func<vec2, int, unit_type, R>`, holds no defaults.
+- A call with too few or too many: `wave takes 1 to 3 arguments (the last 2 with a default)`.
 
 ## Triggers
 

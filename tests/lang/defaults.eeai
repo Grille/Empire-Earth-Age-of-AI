@@ -1,0 +1,40 @@
+// a parameter's default (docs/scripts.md "Functions"): b: int = 10 - the last parameters of a declared function or a
+// method, left out by a call, worked out at the function's start, each call anew. What each line works out is in
+// defaults.expect (the build compares)
+struct point {
+    x: int
+    y: int = 5
+    moved(dx: int, dy: int = 0): point => point(this.x + dx, this.y + dy)
+    grow(by: int = 1) { this.x += by }
+}
+addup(a: int, b: int = 10, c: int = 100): int => a + b + c
+named(num: int, prefix: text = "no. ", tail: text = ""): text => "{prefix}{num}{tail}"
+spot(pt: point = { x = 1 }): int => pt.x * 10 + pt.y
+scaled(f: float = 1.5): float => f * 2
+
+// as many as given, the rest their defaults
+cmd("calls {addup(1)} {addup(1, 2)} {addup(1, 2, 3)}")
+cmd("texts {named(7)} {named(7, "#")} {named(7, "#", "!")}")
+
+// a method's, one that changes its struct too
+let p = point(1)
+p.grow()
+p.grow(3)
+let q = p.moved(1)
+let r = p.moved(1, 2)
+cmd("methods {p.x} {q.x} {q.y} {r.y}")
+
+// a struct as a default ({ ... } made one: the parameter's type), an int where a float goes
+let two = point(2, 3)
+cmd("struct {spot()} {spot(two)} {scaled()} {scaled(1)}")
+
+// worked out each time: a default of a value the game has changes with it; the function's statements as ever
+let n = 0
+bump(by: int = 1): int {
+    n += by
+    return n
+}
+bump()
+bump()
+bump(5)
+cmd("each {n} {bump()}")

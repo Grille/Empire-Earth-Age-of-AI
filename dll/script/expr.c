@@ -985,10 +985,13 @@ internal int x_type_named(const char *t) {
 // "(a, b) =>" at s: a function's head - its parameters' names (at most 8), each one's type as written after a ':'
 // ("" none), and where its body starts; NULL: none. brace: a declaration's - name(a, b) { ... } too (at its {).
 // (a: int): point => ..., name(a: int): point { ... }: what it gives back, written after the ) - into g_xps_ret ("" none),
-// which the head's xps_lambda reads before the body
+// which the head's xps_lambda reads before the body. A parameter's default, b: int = 2, up to the , or ) it ends at:
+// its source in g_xps_def (NULL none) - xps_lambda parses it
 internal char g_xps_ret[64];
+internal const char *g_xps_def[8], *g_xps_def_end[8];
 internal const char *xps_lambda_head(const char *s, char names[8][24], char types[8][64], int *n, int brace) {
     g_xps_ret[0] = 0;
+    memset(g_xps_def, 0, sizeof g_xps_def);
     *n = 0;
     s++;
     while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
@@ -1008,6 +1011,26 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
             k = isref + xps_type_scan(&s, types[*n] + isref, 64 - isref);
             if (k == isref) return NULL;
         }
+        while (*s == ' ' || *s == '\t') s++;
+        if (*s == '=' && s[1] != '=' && s[1] != '>') {   // its default
+            const char *d = ++s;
+            int depth = 0;
+            for (;;) {
+                if (!*s) return NULL;
+                if (x_string_at(s)) {
+                    const char *e, *why;
+                    if (x_string(s, NULL, 0, &e, &why) < 0) return NULL;
+                    s = e;
+                    continue;
+                }
+                if (*s == '(' || *s == '[' || *s == '{') depth++;
+                else if (*s == ')' || *s == ']' || *s == '}') { if (!depth) break; depth--; }
+                else if (*s == ',' && !depth) break;
+                s++;
+            }
+            g_xps_def[*n] = d;
+            g_xps_def_end[*n] = s;
+        }
         ++*n;
         while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
         if (*s == ',') { s++; while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++; continue; }
@@ -1025,15 +1048,20 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
     return s[0] == '=' && s[1] == '>' ? s + 2 : NULL;
 }
 // a function from its head (xps_lambda_head's names and types) and its body at body - one value, or { ... }: its
-// XN_LAMBDA (an offset), NULL with p->err. method: a struct's (its first parameter is its this)
+// XN_LAMBDA (an offset), NULL with p->err. method: 1 a struct's (its first parameter is its this), 2 a declared
+// function (name(a: int) ...), 0 a function value. A parameter's default (2026-11-21, docs/scripts.md "Functions"):
+// a declared function's or a method's, the last ones only, its type written - on the parameter's node (a): the call
+// leaves it out, the function works it out at its start (xc_function)
 internal struct xnode *xps_lambda(struct xps *p, const char *s, char pn[8][24], char pt[8][64], int npn, const char *body, int method) {
     uintptr_t *it = NULL;
-    int n = 0, cap = 0;
+    int n = 0, cap = 0, doff = method == 1, had = 0;
+    const char *def[9] = { 0 }, *dend[9] = { 0 };   // (the head's, before the body - a function in a default has its own)
+    for (int i = doff; i < npn && i - doff < 8; i++) { def[i] = g_xps_def[i - doff]; dend[i] = g_xps_def_end[i - doff]; }
     int ret = g_xps_ret[0] ? x_type_named(g_xps_ret) : X_ANY;   // (the head's, read before the body: a function in it has its own)
     if (ret < 0) { p->err = 1; p->why = "a function's result: an unknown type - name(a: int): float { ... }, (a: int): text => ..."; return NULL; }
     for (int i = 0; i < npn; i++) {
         for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return NULL; }
-        if (x_word_reserved(pn[i]) && !(method && !i)) { p->err = 1; p->why = "a word of the language is no name"; free(it); return NULL; }
+        if (x_word_reserved(pn[i]) && !(method == 1 && !i)) { p->err = 1; p->why = "a word of the language is no name"; free(it); return NULL; }
         int isref = pt[i][0] == '&';   // ref name: type (xps_lambda_head)
         int ty = pt[i][isref] ? x_type_named(pt[i] + isref) : X_ANY;
         if (ty < 0 || (isref && !ty)) {
@@ -1048,7 +1076,30 @@ internal struct xnode *xps_lambda(struct xps *p, const char *s, char pn[8][24], 
         x->s = _strdup(pn[i]);
         x->n = ty;   // its type (the check's), X_ANY none written
         x->op = (unsigned char)(isref ? 'r' : 0);   // a ref: a place
-        if (!xps_items_add(p, &it, &n, &cap, XOFF(p, x))) { free(it); return NULL; }
+        x = XOFF(p, x);   // (as an offset: the parser's block may move while a default is made)
+        if (def[i] || had) {
+            p->err = 1;
+            p->why = !def[i] ? "the parameters with a default come last - f(a: int, b: int = 2)" :
+                     !method ? "a default is a declared function's or a method's - a function value is called with all its arguments" :
+                     isref ? "a ref has no default - it names the caller's place" :
+                     !pt[i][0] ? "a parameter with a default has its type written - b: int = 2" : NULL;
+            if (p->why) { free(it); return NULL; }
+            p->err = 0;
+            had = 1;
+            const char *keep = p->s;   // its source parsed where it stands (its line, its mistakes')
+            int par = p->par;
+            p->s = def[i];
+            p->par = 1;
+            struct xnode *d;
+            xps_expr(p, &d);
+            xps_space(p);
+            p->par = par;
+            if (!p->err && p->s != dend[i]) { p->err = 1; p->why = "a parameter's default: one value - b: int = 2"; }
+            if (p->err) { free(it); return NULL; }
+            p->s = keep;
+            XPTR(p, x)->a = d;
+        }
+        if (!xps_items_add(p, &it, &n, &cap, x)) { free(it); return NULL; }
     }
     p->s = body;
     xps_space(p);
@@ -1555,7 +1606,7 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
         int npn;
         const char *body = k && !isdigit((unsigned char)name[0]) && *q == '(' && !x_word_reserved(name) ? xps_lambda_head(q, pn, pt, &npn, 1) : NULL;
         if (body) {
-            struct xnode *f = xps_lambda(p, q, pn, pt, npn, body, 0);
+            struct xnode *f = xps_lambda(p, q, pn, pt, npn, body, 2);
             if (!f) return;
             XPTR(p, f)->op = 'D';
             struct xnode *o = xn_new(p, XN_LET, at);
@@ -2670,9 +2721,11 @@ internal int x_check_refarg(struct xcheck *k, const struct xnode *r, struct xsco
 // a call's arguments against the parameters of the function the check knows (fd's, from its number first on): as
 // many, a ref for a ref and none else, each of its parameter's type (a ref: the very type - it is written through)
 internal int x_check_args(struct xcheck *k, const struct xnode *n, const struct xnode *fd, int first, const char *name, const struct xscope *sc) {
-    int want = fd->n_items - first;
-    if (want != n->n_items) {
-        snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, want, want == 1 ? "" : "s");
+    int want = fd->n_items - first, need = want;   // need: those without a default (theirs the last)
+    while (need > 0 && fd->items[first + need - 1]->a) need--;
+    if (n->n_items < need || n->n_items > want) {
+        if (need == want) snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, want, want == 1 ? "" : "s");
+        else snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d to %d arguments (the last %d with a default)", name, need, want, want - need);
         return xc_fail(k, n, k->whybuf);
     }
     for (int i = 0; i < n->n_items; i++) {
@@ -2966,6 +3019,17 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                 snprintf(k->whybuf, sizeof k->whybuf, "%s: %s - it gets a%s %s here", pi->s, xty_name((int)pi->n, a, sizeof a),
                          xan(xty_name(k->ctx, b, sizeof b)), b);
                 return xc_fail(k, pi, k->whybuf);
+            }
+            if (pi->a && k->script) {   // its default: a value of its type that needs none of the script's names (it is worked
+                struct xscope none = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };   // out where a call leaves it out)
+                X_WANT(pi->a, ty);
+                if (!x_check(k, pi->a, &none)) return 0;
+                int tv = x_stype(k, pi->a, &none);
+                if (!xt_fits(ty, tv)) {
+                    char a[40], b[40];
+                    snprintf(k->whybuf, sizeof k->whybuf, "%s: %s = ...: a%s %s can't go in%s", pi->s, xty_name(ty, a, sizeof a), xan(xty_name(tv, b, sizeof b)), b, xt_hint(ty, tv));
+                    return xc_fail(k, pi, k->whybuf);
+                }
             }
             xsc_add(&s, pi->s);
             if (s.n) s.kind[s.n - 1] = (short)ty;
@@ -5864,6 +5928,8 @@ enum { XI_STMT, XI_CONST, XI_NIL, XI_LOADL, XI_LOADU, XI_STOREL, XI_STOREU, XI_N
        // LISTS: XI_MKLIST a new list of the seq (or list, or nothing) on top; XI_HLM a list's method (a: its XHM_, b its
        // arguments, c: the last boxed - a row) with the list below them; XI_REFH an item's place: the list below its number
        XI_REF, XI_REFM, XI_REFI, XI_REFGET, XI_REFSET, XI_DEREF, XI_STORER, XI_NEW, XI_METHOD, XI_BOX, XI_MKLIST, XI_HLM, XI_REFH,
+       // XI_JSET: on to a when slot c (a parameter) is set - past its default (a call that gave it)
+       XI_JSET,
        XI_COUNT };
 struct xins { unsigned char op, b; unsigned short c; int a; };   // what, and its numbers (each instruction's own use)
 // a number; a text or a name (cs, n: a name's constant once looked up; mk, mi: a member's name - the kind of object it
@@ -5872,7 +5938,8 @@ struct xins { unsigned char op, b; unsigned short c; int a; };   // what, and it
 struct xkonst { double n; const char *s; const char *cs; short mk, mi; const struct xstype *ty; };
 // slot: its names ("" a hidden one); ref: which of them are refs (the compiler's alone: a ref's slot is read and set
 // through its place - NULL in code read from a save, whose instructions say it)
-struct xfunc { int entry, nparams, nslots, parent, line; const char **slot; unsigned char *ref; };
+struct xfunc { int entry, nparams, nslots, parent, line; const char **slot; unsigned char *ref; int nopt; };   // nopt: the last
+                                                                                                         // parameters with a default
 struct xcode {
     struct xins *ins;
     int *line;                // each instruction's line in the source
@@ -6043,6 +6110,14 @@ internal int xc_function(struct xcomp *cc, const struct xnode *n) {   // a funct
     }
     cc->c->fn[fi].nparams = n->n_items;
     cc->c->fn[fi].entry = cc->c->n;
+    for (int i = 0; i < n->n_items; i++) {   // a parameter's default: its slot still unset (the call left it out) - set
+        if (!n->items[i]->a) continue;
+        cc->c->fn[fi].nopt++;
+        int at = xc_emit(cc, XI_JSET, 0, 0, i);
+        xc_expr(cc, n->items[i]->a);
+        xc_emit(cc, XI_STOREL, i, 0, xc_konst(cc, 0, n->items[i]->s));
+        xc_here(cc, at);
+    }
     if (n->a->k == XN_BLOCK) {
         xc_declare(cc, n->a);
         xc_block(cc, n->a);
@@ -6573,7 +6648,11 @@ internal void xvm_unset(struct xval *v) { xnothing(v); v->kind = XV_UNSET; }
 // a function entered: its frame on the arguments (argc values from base on); 0 a mistake told
 internal int xvm_enter(struct xvm *m, struct xe *e, const struct xfn *fn, int base, int argc) {
     const struct xfunc *f = &fn->code->fn[fn->fi];
-    if (argc != f->nparams) { x_fail(e, "a function of %d argument%s called with %d", f->nparams, f->nparams == 1 ? "" : "s", argc); return 0; }
+    if (argc > f->nparams || argc < f->nparams - f->nopt) {
+        if (f->nopt) x_fail(e, "a function of %d to %d arguments called with %d", f->nparams - f->nopt, f->nparams, argc);
+        else x_fail(e, "a function of %d argument%s called with %d", f->nparams, f->nparams == 1 ? "" : "s", argc);
+        return 0;
+    }
     if (e->c->calls >= X_CALLS || m->nfr >= XVM_FRAMES) { x_fail(e, "functions called inside each other %d deep - one that calls itself without end?", X_CALLS); return 0; }
     if (base + f->nslots + 64 > XVM_STACK) { x_fail(e, "a script's values piled too high (functions called inside each other, long lists)"); return 0; }
     struct xvframe *fr = &m->fr[m->nfr++];
@@ -6762,6 +6841,7 @@ internal int xvm_run(struct xvm *m, struct xe *e, int until_nfr) {
             break;
         }
         case XI_JMP: m->pc = in->a; break;
+        case XI_JSET: if (m->st[f->base + in->c].kind != XV_UNSET) m->pc = in->a; break;
         case XI_JMPF: if (!xtrue(&m->st[--m->sp])) m->pc = in->a; break;
         case XI_AND: case XI_OR: {
             int t = xtrue(top);
@@ -7410,7 +7490,7 @@ internal void xs_put_code(struct pbuf *o, const struct xcode *k) {   // the inst
     pb_int(o, k->nfn);
     for (int i = 0; i < k->nfn; i++) {
         const struct xfunc *f = &k->fn[i];
-        pb_int(o, f->entry); pb_int(o, f->nparams); pb_int(o, f->nslots); pb_int(o, f->parent); pb_int(o, f->line);
+        pb_int(o, f->entry); pb_int(o, f->nparams | f->nopt << 8); pb_int(o, f->nslots); pb_int(o, f->parent); pb_int(o, f->line);
         for (int j = 0; j < f->nslots; j++) pb_str(o, f->slot[j]);
     }
     pb_int(o, k->nst);   // its structs: each one's fields' names and its methods' names and functions
@@ -7645,7 +7725,8 @@ internal struct xcode *xs_get_code(struct pread *r, const char *src, int ops) { 
     for (int i = 0; i < k->nfn && !r->bad; i++) {
         struct xfunc *f = &k->fn[i];
         f->entry = pr_int(r); f->nparams = pr_int(r); f->nslots = pr_int(r); f->parent = pr_int(r); f->line = pr_int(r);
-        if (f->entry < 0 || f->entry >= k->n || f->nslots < 0 || f->nslots > 256 || f->nparams < 0 || f->nparams > f->nslots) { r->bad = 1; f->nslots = 0; break; }
+        f->nopt = f->nparams >> 8; f->nparams &= 255;   // (the defaults' count above: a save before them has none)
+        if (f->entry < 0 || f->entry >= k->n || f->nslots < 0 || f->nslots > 256 || f->nparams < 0 || f->nparams > f->nslots || f->nopt > f->nparams) { r->bad = 1; f->nslots = 0; break; }
         f->slot = calloc((size_t)f->nslots + 1, sizeof *f->slot);
         if (!f->slot) { r->bad = 1; f->nslots = 0; break; }
         for (int j = 0; j < f->nslots; j++) f->slot[j] = pr_str(r);
