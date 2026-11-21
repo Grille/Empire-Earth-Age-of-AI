@@ -1069,6 +1069,10 @@ internal ee_unit *sn_gate_near(ee_player *pl, ivec2 p, int r) {
     }
     return best;
 }
+internal void sn_count(const struct sn_st *z, int pool, int n, int *ac) {   // the stationed of a pool counted by territory into ac
+    memset(ac, 0, (size_t)n * sizeof *ac);
+    for (int i = 0; i < z->n; i++) if (z->m[i].pool == pool && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) ac[z->m[i].ter]++;
+}
 // the stationed of a pool counted by territory into ac; then the territories short of tc are given those of the
 // nearest with more: 1 where anything moved
 internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, const struct tv_st *s, int *budget) {
@@ -1076,8 +1080,7 @@ internal int sn_give(struct sn_st *z, int pool, int n, const int *tc, int *ac, c
     static short q[PR_T];
     int any = 0;
     uint32_t tnow = game_time();
-    memset(ac, 0, (size_t)n * sizeof *ac);
-    for (int i = 0; i < z->n; i++) if (z->m[i].pool == pool && !z->m[i].scout && z->m[i].ter >= 0 && z->m[i].ter < n) ac[z->m[i].ter]++;
+    sn_count(z, pool, n, ac);
     memset(done, 0, (size_t)n);
     while (*budget > 0) {
         int r = -1, best = 0;
@@ -1307,7 +1310,10 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         tcs[g_snc[idx].b[0].ter] += left;
         sn_give(z, SNP_SIEGE, n, tcs, acs, s, &budget);
     }
-    if (wsum <= 0 && !g_snc[idx].n) memset(tcs, 0, (size_t)n * sizeof *tcs);   // no attack planned, no battery: no siege wanted anywhere
+    if (wsum <= 0 && !g_snc[idx].n) {   // no attack planned, no battery: no siege wanted anywhere
+        memset(tcs, 0, (size_t)n * sizeof *tcs);
+        sn_count(z, SNP_SIEGE, n, acs);   // its siege still counted: acs is shared by all AIs and held another's (the formations' box, a breach)
+    }
     sn_lands(idx, SNP_SIEGE, n, tcs, s, rally, now);   // THE FERRY SERVICE: its siege by land too
     if (g_snc[idx].n) {   // COAST BATTERIES: THE DEMAND (its siege that is no ram)
         int have = 0;
