@@ -212,6 +212,14 @@ internal int sn_escort_units(unsigned idx, unsigned land, ee_unit **out, int max
     return n;
 }
 internal void sn_escort_keep(unsigned idx, uint32_t now) { struct sn_st *z = &g_sn[idx & 15]; if (z->esc_t) z->esc_t = now ? now : 1; }
+internal int sn_cmp(const void *a, const void *b);
+// what the stations have u for as of their last look (defence.c MUSTER): 0 a station or none, 1 a scout, 2 an escort,
+// 3 a patrol, 4 quarantined - z->m is sorted by unit at each look
+internal int sn_scout_of(unsigned idx, ee_unit *u) {
+    struct sn_st *z = &g_sn[idx & 15];
+    struct sn_unit key = { .u = u }, *o = z->n > 0 ? bsearch(&key, z->m, (size_t)z->n, sizeof *z->m, sn_cmp) : NULL;
+    return o && o->id == unit_get_serial(u) ? o->scout : 0;
+}
 internal int holy_prophets(unsigned idx);   // holy.c: its prophets (TEMPLE FIRST)
 // THE WAY (the player 2026-11-15: "ai attacks dont cope well with walls yet. the attack should actual try to pathfind to
 // the target. maybe 2 paths? on with walls and one ignoring them, if the path with wall is a larger detour the ai bring

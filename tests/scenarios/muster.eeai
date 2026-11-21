@@ -1,0 +1,21 @@
+// base "random_map=Continental,map_size=0,ai_count=1,seed=101", 70 min (defence.c MUSTER beside the stations).
+// A hopeless fight at home for an AI with soldiers there: P2 builds for 40 minutes in peace, then the idle P1 gets
+// five times P2's army by type (wave) 12 tiles from P2's Town Center - inside the muster's 22 tiles at once, not
+// trickling in from afar as in waves - and it charges P2's town (every 10 s); again at 50 and 60 minutes. The
+// muster gathers P2's soldiers and strikes or fights where it is, while the stations, cover's healing and the
+// strikes order the same soldiers: the muster's claims (claims.c CLW_MUSTER, v_claims part 16) decide who has them.
+// Score: P2's soldiers, losses and buildings at the end; the "# muster:" lines; "# claims:" refused by / of the muster.
+
+wait_until(40min)
+let tc = first(player(2).units(unit.b_town_center))
+if tc != null {
+    wave(1, 2, 500, tc.pos + vec(12, 0))
+    wait_until(40.05min)
+    charge(1, 2)
+    wait_until(50min)
+    wave(1, 2, 500, tc.pos + vec(0, 12))
+    wait_until(60min)
+    wave(1, 2, 500, tc.pos + vec(-12, 0))
+}
+wait_until(69.5min)
+count(2)

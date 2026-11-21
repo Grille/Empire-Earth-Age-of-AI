@@ -37,11 +37,14 @@
 // seeds 1-12 mirrored, 24 games; B without claims, v_claims=0): B - A soldiers -8.8 (se 5.2), kills -2.8 (7.9), losses
 // +10.0 (7.5), razed -0.9 (0.5); warships lost 24.1 against 24.2 per AI, sunk 23.5 against 24.9. On. Next: transports
 // (ferry, convoys, landings), then citizens, then soldiers.
+// The muster's soldiers (defence.c MUSTER, ITS SOLDIERS CLAIMED; 2026-11-21): it ordered them without asking, so the
+// stations and it sent the same soldiers to and fro while it lasted - now its gathering and its strikes claim them at
+// CLP_TASK (v_claims part 16).
 enum { CLP_SURVIVE = 1, CLP_REPAIR, CLP_CARRY, CLP_HOLD, CLP_TASK, CLP_ROUTINE };
 enum { CLW_NONE, CLW_STORM, CLW_FLEE, CLW_REPAIR, CLW_SQUADRON, CLW_FLEET, CLW_SAFETY, CLW_MILITIA, CLW_HOLD, CLW_WORK, CLW_BUILD,
-       CLW_STATION, CLW_HEAL, CLW_COVER, CLW_COUNTER, CLW_CSIEGE, CLW_FERRY, CLW_EXPLORE, CLW_N };
+       CLW_STATION, CLW_HEAL, CLW_COVER, CLW_COUNTER, CLW_CSIEGE, CLW_FERRY, CLW_EXPLORE, CLW_MUSTER, CLW_N };
 internal const char *const k_clw[CLW_N] = { "-", "storm", "danger zone", "repair", "squadron", "fleet", "citizens' safety", "militia", "holding the ground", "work", "builders",
-                                            "stations", "healing", "cover", "counter-fire", "counter-siege", "ferry", "exploring" };
+                                            "stations", "healing", "cover", "counter-fire", "counter-siege", "ferry", "exploring", "muster" };
 #define CL_N 4096
 #define CL_SWEEP 5000
 #define CL_REPAIR_T 120000   // a repair's claim, renewed each look while it goes
@@ -52,8 +55,9 @@ internal struct cl_entry g_cl[CL_N];
 internal struct { unsigned taken, over, refused[CLW_N][CLW_N]; uint32_t log_t; } g_cls[16];
 internal uint32_t g_cl_sweep;
 // [autotest] v_claims: the units the variant's players claim - 1 ships, 2 citizens, 4 the rest (soldiers, siege) - and 8
-// the ferry's claims (ferry.c: its trips' transports and passengers, of whichever kind); 0 none (every order as before)
-internal int g_cl_on = 15, g_v_cl = -1;
+// the ferry's claims (ferry.c: its trips' transports and passengers, of whichever kind), 16 the muster's (defence.c); 0
+// none (every order as before)
+internal int g_cl_on = 31, g_v_cl = -1;
 internal int is_ship_or_air(ee_unit_type *td);   // attack.c
 internal int cl_bit(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);

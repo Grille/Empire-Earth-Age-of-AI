@@ -2010,6 +2010,28 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
 // First version (any superiority, 5 enemies, no way out): assault scenario, 4 seeds - the defender gave up a base it
 // would have held (9 attackers against 4 soldiers, towers and militia: off 88% alive, on 62%), the attackers followed
 // to the rally point, its fleeing citizens stopped the economy and it surrendered.
+// ITS SOLDIERS CLAIMED (claims.c CLW_MUSTER; v_claims part 16; the player 2026-11-21, of the review's finding that the
+// muster ordered soldiers without asking whose they were: "integrate it into the claim system, then remeasure it"):
+// with the game's computer player off the stations sent the mustered soldiers at the enemy's middle, the muster sent
+// them back to the rally point 3 s later, for as long as it lasted - and it pulled the hurt out of the Hospital (cover's
+// healing), the beaten from under their towers, the strikes of counter-fire and counter-siege, a prophet's escorts and
+// the plague's quarantined (stations.c) into the rally group. Now each soldier it orders is claimed at CLP_TASK, the
+// gathering's claim for MUS_CLAIM_T renewed each pass, a strike's for MUS_STRIKE_T: healing, cover and the ferry hold
+// theirs above it, the strikes theirs beside it, and the stations (routine) leave its soldiers alone meanwhile. An
+// escort or a quarantined soldier (or any with the plague) it doesn't take, nor warships and aircraft near the base
+// (they count in its strength - is_soldier is any army family - but the rally point is on land: claimed, the squadrons
+// could no longer move the ships the muster sent at it, 22 of their orders refused in 10 test games); a muster that
+// ends without a strike gives its soldiers back at once. MEASURED 2026-11-21 (game_ai=0; A the claims, B v_claims=15 -
+// the muster as before): tests/scenarios/muster.eeai (Continental 101, 1 AI, 5 x its army 12 tiles from its Town
+// Center at 40, 50 and 60 min, 70 min), 10 games a side: the AI's kills 338 against 348, losses 212 (se 26) against
+// 226 (12), buildings lost 31.1 against 36.5, citizens 112 against 111; mustered in 6 games of each, the stations' orders
+// to its soldiers refused 737 times, counter-fire's 410, the muster refused by cover (healing) 175. Head-to-head,
+// Small Islands large, 4 AIs from epoch 5, 120 min, seeds 6-10 mirrored (10 games; musters in 4): B - A alive -0.20
+// (se 0.13), soldiers -19.9 (24.0), losses +22.8 (32.1), razed -28.8 (21.6), citizens -23.1 (17.0) - within noise,
+// no worse. On.
+#define MUS_CLAIM_T 6000
+#define MUS_STRIKE_T 15000
+internal int sn_scout_of(unsigned idx, ee_unit *u);   // stations.c
 internal int g_muster = 1;
 internal struct { int on, moves; float rx, ry; uint32_t since, cool, cool_len; unsigned episodes, orders, strikes; } g_mus[16];
 struct mus_scan {
@@ -2078,6 +2100,16 @@ internal ee_unit *mus_nearest_enemy(struct mus_scan *s, ee_unit *u) {
     }
     return best;
 }
+// 1: the muster may order u now (claimed for it for dur) - without part 16 of the claims every soldier, as before
+internal int mus_take(unsigned idx, ee_unit *u, uint32_t dur) {
+    if (!(PV(idx, g_v_cl, g_cl_on) & 16)) return 1;
+    int sc = sn_scout_of(idx, u);
+    if (sc == 2 || sc == 4 || unit_plagued(u)) return 0;   // AN ESCORT, QUARANTINE (stations.c): theirs
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!td || is_ship_or_air(td)) return 0;   // the squadrons' and the air's: the rally point is on land
+    return cl_take(u, CLP_TASK, CLW_MUSTER, dur);
+}
+internal void mus_release(struct mus_scan *s) { for (int k = 0; k < s->no; k++) cl_end(s->own[k], CLW_MUSTER); }
 internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_muster || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 3000)) return;
@@ -2117,6 +2149,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
             if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: %s - muster ends after %.1f min\n", idx, now / 60000.0,
                                s->en < 3 ? "the enemy is gone from the base" : "soldiers and towers can hold the base again",
                                (now - g_mus[idx].since) / 60000.0);
+            mus_release(s);   // ITS SOLDIERS CLAIMED: the stations' again
             return;
         }
         float rpow = 0;
@@ -2136,6 +2169,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
                 ee_unit *u = s->own[k];
                 ee_unit *t = mus_nearest_enemy(s, u);
                 if (t && is_citizen_type(unit_type_get_id(unit_get_type_data(u))) && !cl_take(u, CLP_SURVIVE, CLW_MILITIA, CL_CIT_T)) continue;   // ORDERS BY PRIORITY: a citizen in the strike, its safety leaves it there
+                if (t && !is_citizen_type(unit_type_get_id(unit_get_type_data(u))) && !mus_take(idx, u, MUS_STRIKE_T)) continue;   // ITS SOLDIERS CLAIMED: the strike's for its start
                 if (t && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
             }
             g_mus[idx].on = 0;
@@ -2160,6 +2194,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
                 ee_unit *u = s->own[k];
                 ee_unit *t = mus_nearest_enemy(s, u);
                 if (t && is_citizen_type(unit_type_get_id(unit_get_type_data(u))) && !cl_take(u, CLP_SURVIVE, CLW_MILITIA, CL_CIT_T)) continue;   // ORDERS BY PRIORITY: a citizen in the strike, its safety leaves it there
+                if (t && !is_citizen_type(unit_type_get_id(unit_get_type_data(u))) && !mus_take(idx, u, MUS_STRIKE_T)) continue;   // ITS SOLDIERS CLAIMED: the strike's for its start
                 if (t && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
             }
             if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: the enemy follows to the rally point - fighting where it is "
@@ -2175,6 +2210,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     int ordered = 0;   // everyone who isn't there or on the way
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
+        if (!mus_take(idx, u, MUS_CLAIM_T)) continue;   // ITS SOLDIERS CLAIMED: another's (healing, cover, a strike, an escort ...); those there or on the way kept too
         ee_goal *goal = unit_get_goal(u);
         if (vec2_dist2(v2((float)unit_get_x(u), (float)unit_get_y(u)), v2(g_mus[idx].rx, g_mus[idx].ry)) <= 36) continue;
         if (goal && goal_is_location(goal) && fabsf(goal_get_dest_x(goal) - g_mus[idx].rx) < 2 &&
