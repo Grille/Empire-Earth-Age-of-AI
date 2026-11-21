@@ -102,6 +102,7 @@ internal int bd_hold_site(ee_player *pl, ee_unit *b) {
         if (g_bd_holds[idx][j].b == b && g_bd_holds[idx][j].id == unit_get_serial(b) && g_bd_holds[idx][j].t && now >= g_bd_holds[idx][j].t && now - g_bd_holds[idx][j].t < BD_HOLD_KEEP) return 1;
     return 0;
 }
+enum { BD_PICK_AIRPORT = 1, BD_PICK_HERD, BD_PICK_FOREST };   // build_tick's pick
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 // ACROSS THE WATER (work.c): the lands where a foundation of its found no free citizen on its land to build it - the
 // ferry (ferry.c) brings citizens there as to free places at mines, with no drop site of its there yet
@@ -489,6 +490,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             }
     const char *what = NULL;
     int type = 0, ok = 0;
+    // the step that chose type, where that step books its choice (BD_PICK_*): booked once the choice reaches the lay
+    // below - A CLAIM takes over a look's choice, and its Airport ask cleared, its herd's clock started, counted the
+    // Settlement it never laid
+    int pick = 0;
     ivec2 at = iv2(0, 0);
     if (!placed && !ap_save && current_epoch(pl) >= FARM_EPOCH && ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) && bd_pays(pl, UT(B_GRANARY), com) && !open_gran && !open_fields && !fields_due &&
         ngran < BD_GRANARIES && (!ngran || g_wk[idx].food_short > 0) && !wait[0] && bd_gran_first(b, idx, ngran >= BD_GRAN_PLAIN ? gran_room : 0, now)) {   // A GRANARY: by its centre in the best territory
@@ -544,7 +549,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (!type && !placed && ap_ask && !wait[4] && !open_prod && bd_pays(pl, UT(B_AIRPORT), com)) {
         for (int pass = 1; pass <= 2 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++)
-                if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, UT(B_AIRPORT), centre[c].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport for the bombers' wing"; g_bd_airport[idx] = 0; }
+                if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, UT(B_AIRPORT), centre[c].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport for the bombers' wing"; pick = BD_PICK_AIRPORT; }
         if (!type) b->no_spot++;
     }
     if (ap_save && !type) placed = 1;   // AN AIRPORT SAVED FOR: nothing after it
@@ -614,7 +619,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 hbest = score; hp = p;
             }
             if (hbest < 0x7FFFFFFF) {
-                if (bd_spot(pl, idx, UT(B_SETTLEMENT), hp, 2, 6, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by a herd"; b->herd_t = now ? now : 1; b->herds++; }
+                if (bd_spot(pl, idx, UT(B_SETTLEMENT), hp, 2, 6, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by a herd"; pick = BD_PICK_HERD; }
                 else b->no_spot++;
             }
         }
@@ -648,7 +653,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 fbest = score; fp = p;
             }
             if (fbest < 0x7FFFFFFF) {
-                if (bd_spot(pl, idx, UT(B_SETTLEMENT), fp, 2, 10, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by trees across the water"; b->forests++; }
+                if (bd_spot(pl, idx, UT(B_SETTLEMENT), fp, 2, 10, &at)) { type = UT(B_SETTLEMENT); what = "a Settlement by trees across the water"; pick = BD_PICK_FOREST; }
                 else { b->no_spot++; b->forest_nospot++; }
             }
         }
@@ -774,7 +779,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             ivec2 cat;
             if (cb < 0) b->claim_why = "no territory to claim";
             else if (bd_spot(pl, idx, ctype, cb == held_r ? held_at : g_ter.t[cb].c, 0, ctype == ttype ? 8 : 12, &cat)) {
-                at = cat; type = ctype; b->claim_t = now ? now : 1; b->claims++; b->claim_why = "claimed";
+                at = cat; type = ctype; pick = 0; b->claim_t = now ? now : 1; b->claims++; b->claim_why = "claimed";
                 b->claim_open[b->nclaim_open++ & 7].r = cb; b->claim_open[(b->nclaim_open - 1) & 7].t = now ? now : 1;
                 what = ctype == ttype ? "a claim: a tower in a territory nobody holds" : "a claim: a Barracks in a territory nobody holds (no tower to build or pay)";
             }
@@ -882,6 +887,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     }
     if (type) {
         census_build_ask(bm, type);   // the test log's count: the mod's, not the game's entry
+        if (pick == BD_PICK_AIRPORT) g_bd_airport[idx] = 0;
+        else if (pick == BD_PICK_HERD) { b->herd_t = now ? now : 1; b->herds++; }
+        else if (pick == BD_PICK_FOREST) b->forests++;
         // ACROSS THE WATER: on a land with no citizen of its the game's placement makes no foundation (it looks for a
         // builder first): laid every minute from 43 to 59, it stood once the outposts' citizens came - laid as its own,
         // a builder's start pays it, and BUILDERS above has the ferry bring citizens to it
