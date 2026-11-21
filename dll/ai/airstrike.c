@@ -73,7 +73,7 @@
 //   rules before (anti-air only where seen; no fighters' cover; no looked-at ground) flew 2-12 bombers an AI and lost
 //   45-65% of them (by the 88mm guns and the half-tracks, most of them seen). Off: it is for an enemy without
 //   anti-air, not for these.
-// THE DOCTRINE ([ai_base] bomber_doctrine, off - below; its parts bomber_survive, bomber_come_home, bomber_value_wing,
+// THE DOCTRINE ([ai_base] bomber_doctrine, on since 2026-11-21 - below; its parts bomber_survive, bomber_come_home, bomber_value_wing,
 // bomber_claim, on under it; [autotest] v_bomber_doctrine, v_bomber_survive ...). The player, 2026-11-21, after the lone
 // runs above: "undefended doesn't mean fully undefended here, just not enough to bring the bomber down on its own", "a
 // damaged bomber isn't a loss at all as long as it can return", "the wings are meant to overwhelm in numbers so that
@@ -107,6 +107,19 @@
 // taken and expected, repaired, the targets of its bombers destroyed (anti-air, buildings, units, worth), the guns'
 // fire expected on bombers in the air each second against the hit points they lost (by what it knew), counter-fire's
 // requests and the runs at them.
+// MEASURED 2026-11-21, head-to-head, 4 AIs from World War I (start_epoch 9), 60 min, the air_rich money (3000 of each at
+// 10, 25, 40 min), seeds 1-10 mirrored, 20 games a map, B with the doctrine (B - A, se):
+//   Continental 101 map_size 1: alive +0.17 (0.10), soldiers +20.0 (7.7), kills +46.8 (30.1), losses -8.2 (13.8), razed
+//   +11.8 (9.2), workers +22.1 (14.1); per AI B / A: bombers trained 16.9 / 16.6, lost 13.0 / 11.4 (+1.6, 1.7), back with
+//   damage 3.3 / 1.2, anti-air destroyed by its bombers 0.90 / 0.05, buildings 1.68 / 0.10, worth 886 / 212 (+674, 159),
+//   idle share of the bomber-minutes held 0.69 / 0.83 (-0.13, 0.05).
+//   Large Islands 101 map_size 1: alive +0.00, soldiers +12.7 (4.8), kills +7.9 (8.0), losses +0.3 (8.5), razed +2.8
+//   (3.0), workers -1.2 (2.1); bombers lost 10.0 / 11.7 (-1.7, 1.8), anti-air destroyed 0.68 / 0.00, buildings 1.70 /
+//   0.75, worth 730 / 202 (+528, 94), idle share 0.62 / 0.79 (-0.18, 0.04); counter-fire's shooters destroyed 1.45 an AI.
+//   One part out (Continental, seeds 1-5 mirrored, 10 games, A the whole): without the small runs the idle share +0.20
+//   (0.06), the games within the noise; without the value wing anti-air destroyed -0.80 (0.36), buildings -0.9 (0.6);
+//   without the claim and without the way home within the noise (the way home: above). ON: the player's doctrine, the
+//   bombers busier and destroying more, the games no worse.
 // The planes come back to their airports by themselves (the air traffic control). "# air force:" lines; a summary a
 // minute (autotest) - with the bomber-minutes held and idle (no goal at the look), the bombers lost, the lone runs.
 // First measured (2026-11-04, off then): tests/scenarios/air_strike.eeai (a WWI position of the idle human with two 88mm AA guns; P2 with
@@ -949,11 +962,16 @@ internal void as_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **re
 }
 // THE WAY HOME (every AD_HOME_EVERY): a bomber in the air whose hit points no longer take it through what is left of
 // its sortie - a small run's: to its target, over it and home; the wing's: to its target and half the time over it, the
-// fire shared by the wing's bombers (the wing reckoned with losses: its bombs first) - with AD_MARGIN_HOME (below the
-// launch's AD_MARGIN: called back only when it fares worse than reckoned - with the same margin a bomber launched was
-// called back a second later at the next sighting, 47 of 49 sorties in a pilot) and AD_RESERVE is called back to its
-// Airport while they still take it home (the way home's damage as expected, no margin); one that can't make it home
-// either way goes on with its bombs. In its Airport it is repaired (the game's) and flies again.
+// fire shared by the wing's bombers (the wing reckoned with losses: its bombs first) - with AD_MARGIN_HOME and
+// AD_RESERVE is called back to its Airport while they still take it home (the way home's damage as expected, no
+// margin); one that can't make it home either way goes on with its bombs. In its Airport it is repaired (the game's)
+// and flies again. AD_MARGIN_HOME is below the launch's AD_MARGIN: with the same margin a bomber launched was called
+// back a second later at the next sighting (47 of 49 sorties in a pilot). Most of those called back are still sound
+// (454 of 560 at 90% of their hit points or more, 20 games): new guns seen on the rest of the way. Calling back only
+// the hit ones, and the sound ones when their hit points just take them home, measured worse (air_rich 20 games,
+// the whole doctrine against none: losses +31, se 10, against -8, se 14; bombers lost after the call 8.0 an AI
+// against 2.9 - called too late); without the way home at all within the noise (20 games: seeds 1-5 soldiers +32,
+// se 13, seeds 6-10 -11, se 8).
 internal void dct_home(ee_player *pl, unsigned idx, struct as_st *s, uint32_t now) {
     struct dct_st *d = &g_dct[idx];
     if (d->ref < 0 || !d->nport) return;

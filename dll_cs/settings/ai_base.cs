@@ -664,9 +664,10 @@ class ai_base
         /// The bombers' doctrine: the anti-air the AI knows of (guns seen and remembered, fighters, guns assumed where it hasn't
         /// looked) weighed by the game's own numbers against its bombers' hit points - small runs at what they come back
         /// from alive, damaged bombers home in time to be repaired, the wing launched where its numbers make the strike a
-        /// gain, its bombers kept from other orders. Its parts below. 0 = off (being measured)
+        /// gain, its bombers kept from other orders. Its parts below. 1 = on (measured 2026-11-21: more of the enemy's anti-air
+        /// and buildings destroyed by bombers, fewer of them idle, no worse games)
         [advanced]
-        bool bomber_doctrine = false;
+        bool bomber_doctrine = true;
         /// With bomber_doctrine: small runs (1-4 bombers) at enemy buildings and working citizens whose anti-air, there
         /// and on the way there and back, can't bring one of them down. 0 = the lone runs as bomber_harass says
         [advanced]
