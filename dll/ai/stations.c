@@ -1039,6 +1039,14 @@ internal void sn_attack_msg(ee_player *pl, uint32_t id, ee_unit *target) {
     msg_execute((ee_msg *)mem);
     msg_as_end(pl);
 }
+// DEMOLITION, A BREACH: u attacks an enemy wall piece or gate - a gate by the player's attack message as SIEGE AT THE
+// GATES does (an attack goal made on a gate crashed the game), a piece by the goal: 1 ordered
+internal int sn_attack_piece(ee_player *pl, ee_unit *u, ee_unit *target) {
+    ee_unit_type *td = unit_get_type_data(target);
+    if (td && unit_type_get_class_id(td) == CLS_GATE) { sn_attack_msg(pl, (uint32_t)unit_get_serial(u), target); return 1; }
+    ee_goal *g = goal_attack(u, target);
+    return g && unit_goal(u, g, 0, 0x1F40);
+}
 // SIEGE AT THE GATES: the nearest enemy gate pl knows within r of p
 internal ee_unit *sn_gate_near(ee_player *pl, ivec2 p, int r) {
     ee_unit *best = NULL;
@@ -1965,8 +1973,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             ee_unit_type *td = tg ? unit_get_type_data(tg) : NULL;
             if (td && unit_get_hp(tg) > 0 && (is_wall(unit_type_get_id(td)) || unit_type_get_class_id(td) == CLS_GATE)) { m->wait_t = 0; continue; }   // at it
             if (dn[r] < SN_DEMO && ar_idle(m->u)) {
-                ee_goal *g = goal_attack(m->u, demo[r]);
-                if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = unit_get_tile(demo[r]); m->wait_t = 0; dn[r]++; z->orders++; z->demos++; continue; }
+                if (sn_attack_piece(pl, m->u, demo[r])) { m->order_t = now ? now : 1; m->to = unit_get_tile(demo[r]); m->wait_t = 0; dn[r]++; z->orders++; z->demos++; continue; }
             }
         }
         {   // COAST BATTERIES: THE POST - its siege at rest stands its ground there; leaving it, its stance back
@@ -2018,10 +2025,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             ee_unit *piece = sn_wall_at(pl, pu->wall);
             int escorted = ivec2_dist2(pu->mmid, pu->wall) <= SN_SIEGE_NEAR * SN_SIEGE_NEAR;   // THE SIEGE'S ESCORT: its soldiers by the wall
             if (piece && ((m->pool == SNP_SIEGE && escorted) || !acs[r])) {
-                if (!m->order_t || (now - m->order_t >= 3000 && sn_idle(z, m, now))) {
-                    ee_goal *g = goal_attack(m->u, piece);
-                    if (g && unit_goal(m->u, g, 0, 0x1F40)) { m->order_t = now ? now : 1; m->to = pu->wall; z->orders++; }
-                }
+                if ((!m->order_t || (now - m->order_t >= 3000 && sn_idle(z, m, now))) && sn_attack_piece(pl, m->u, piece)) { m->order_t = now ? now : 1; m->to = pu->wall; z->orders++; }
                 continue;
             }
             d = pu->wall; reach = 6;
