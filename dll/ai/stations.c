@@ -672,9 +672,10 @@ internal int sn_box_free(ivec2 q, int rr, unsigned land) {   // a box of rr each
 // passengers could not get out of the crowd: 42% of them aboard). With it the patch is looked for within
 // SN_FORM_FAR_OPEN in its own territory, not being lost, the full box first, then half of it, then SN_FORM_BOX_MIN
 // (the formation closer packed, but in the open) - the point itself only when none of them is there. g_sn_rest: the
-// looks by what they found (the full box, a smaller one, none). Off: on his save (minute 204 -> 230, 5 game_seeds) the
-// point itself 66 times against 126 (P2), 41 against 279 (P3), kills, losses, buildings lost level - but P2's soldiers
-// across by the ferry 232 (se 15) against 349 (50), its soldier trips 298 against 373.
+// looks by what they found (the full box, a smaller one, none). On since 2026-11-22 by the player's call; on his save
+// (minute 204 -> 230, 5 game_seeds) the point itself 66 times against 126 (P2), 41 against 279 (P3), kills, losses,
+// buildings lost level - but P2's soldiers across by the ferry 232 (se 15) against 349 (50), its soldier trips 298
+// against 373.
 #define SN_FORM_FAR_OPEN 40
 #define SN_FORM_BOX_MIN 3
 internal unsigned g_sn_rest[16][3];
