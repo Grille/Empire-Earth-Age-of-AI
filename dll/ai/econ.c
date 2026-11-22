@@ -1645,7 +1645,7 @@ internal ee_unit *field_site(ee_unit *f) {   // what a BuildRepair goal holds (+
 }
 internal int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gathering
     if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) ||
-        unit_get_x(u) == -10000)
+        unit_get_x(u) == -10000 || pc_held(u))   // the player's (THE PLAYER'S ORDERS FIRST, messages.c)
         return 0;
     ee_goal *goal = unit_get_goal(u);
     return idle ? !goal : goal && !strcmp(rtti_name(goal), "EEUGGather@@");

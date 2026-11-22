@@ -152,6 +152,7 @@ internal int bd_herd_grown(ee_herd *h) {
 // a citizen sent to build (as econ.c's field pass does it: a BuildRepair goal, the builder's state, its script told)
 internal int sn_holding(unsigned idx, int r, ivec2 *at);   // stations.c: a push of its holds the territory it cleared
 internal int bd_send(ee_player *pl, ee_unit *cit, ee_unit *building) {
+    if (pc_held(cit)) return 0;   // the player's (THE PLAYER'S ORDERS FIRST, messages.c)
     void *mem = goal_build_alloc();
     if (!mem) return 0;
     ee_goal *goal = build_goal_init(mem, pl, building, 1);

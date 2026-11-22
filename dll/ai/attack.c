@@ -661,7 +661,7 @@ internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
     ee_player *uo = unit_get_owner(u);
     // a shore gun takes orders from the shore guns only (the player: "in a line beside a hospital in hold position mode,
     // they should not try to chase or get attack commands")
-    if (unit_get_hp(u) <= 0 || unit_get_x(u) == -10000 || ((char)unit_get_frozen(u)) ||
+    if (unit_get_hp(u) <= 0 || unit_get_x(u) == -10000 || ((char)unit_get_frozen(u)) || pc_held(u) ||   // pc_held: the player's order stands (messages.c)
         (!g_sg_order && uo && (shore_gun((unsigned)player_get_index(uo) & 15, u) || tn_garrison((unsigned)player_get_index(uo) & 15, u)))) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return 0;

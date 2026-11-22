@@ -32,8 +32,8 @@
 // a third thread, the panel built on another still). godmode on / godview on switch between the two, off ends either.
 // While switched, godview sees through that player's eyes, its fog and what it hasn't explored (god_see_all; the
 // player 2026-11-16: "as long as a unit is selected id like the players view fully ... as soon as i deselect the unit
-// i see evrething again"). What it hasn't explored is the game's own state: black only where the AI doesn't know the
-// map - a computer player is handed all of it unless [ai_base] honest_map (intel.c). A record of godview's own of the
+// i see evrething again"; godmode's deselect the same since 2026-11-22). What it hasn't explored is the game's own
+// state: black only where the AI doesn't know the map - a computer player is handed all of it unless [ai_base] honest_map (intel.c). A record of godview's own of the
 // tiles ever seen, black where its units had never looked, was dropped 2026-11-20 (the player: "keeping a fake view
 // for a debug feature is silly"). A deselect of this PC's - the left click on nothing (EEMUnselectAllUnits), a box or click
 // that selects nothing - makes it itself again (god_deselected, at the message's Execute: the AI selects for its
@@ -127,11 +127,12 @@ internal void god_minimap(void) {
     if (mm) { minimap_rebuild(mm); minimap_paint_done(mm); }
 }
 
-// godview's deselect: a selection message of this PC's (carried out for the player it plays as; the AIs' selections
-// for their moves are no messages) that leaves the player switched to with nothing selected makes this PC itself
-// again, the whole map in sight
+// the deselect (godview's, godmode's since 2026-11-22 - the player: "left clicking doesn't deselect units like godview
+// allows"): a selection message of this PC's (carried out for the player it plays as; the AIs' selections for their
+// moves are no messages) that leaves the player switched to with nothing selected makes this PC itself again, the
+// whole map in sight
 internal void god_deselected(ee_player *pl) {
-    if (g_god != GOD_VIEW || !god_on() || !pl || pl != game_players()[local_player_index()] || !playas_switched()) return;
+    if (!g_god || !god_on() || !pl || pl != game_players()[local_player_index()] || !playas_switched()) return;
     int *grp = player_get_selected_group(pl);
     if (grp && group_count(grp)) return;
     playas_to(g_god_home_i);
@@ -210,15 +211,21 @@ internal char __thiscall hook_cp_is_human(ee_player *pl) {
 
 // godview: a message handed from outside the simulation's thread while this PC plays as another is dropped, but for
 // the selections (the click's switch back and forth goes through them), the chat (the console's `>godview off`) and
-// the speed. The simulation's thread: the one godview was switched on from (the pipe's commands and the chat console
-// run there) and the click's (hook_select_unit). Not freed: who holds it after the send isn't known (its ref_count) -
-// a few bytes for each order tried
+// the speed. godmode: such an order goes on, and the units of the selection it is carried out on are the player's
+// for a while - none of the AI's orders reaches them (game/api/messages.c THE PLAYER'S ORDERS FIRST; the player
+// 2026-11-22: "giving commands rarely works" - the AI played as gave them its own within seconds). The simulation's
+// thread: the one godview was switched on from (the pipe's commands and the chat console run there) and the click's
+// (hook_select_unit). Not freed: who holds it after the send isn't known (its ref_count) - a few bytes for each order
+// tried
 internal server_send_fn g_god_send_next;
 internal unsigned g_god_dropped;
 internal void __thiscall god_srv_send(ee_server *srv, ee_msg *msg, int to) {
-    if (g_god == GOD_VIEW && msg && GetCurrentThreadId() != g_god_sim_tid && playas_switched() && !msg_changes_nothing(msg)) {
-        if (g_log && g_god_dropped++ < 50) log_locked("# godview: an order dropped (message kind 0x%02X)\n", msg_get_kind(msg));
-        return;
+    if (g_god && msg && GetCurrentThreadId() != g_god_sim_tid && playas_switched() && !msg_changes_nothing(msg)) {
+        if (g_god == GOD_VIEW) {
+            if (g_log && g_god_dropped++ < 50) log_locked("# godview: an order dropped (message kind 0x%02X)\n", msg_get_kind(msg));
+            return;
+        }
+        pc_ordered(game_players()[local_player_index()]);   // godmode: the units it is carried out on are the player's (messages.c)
     }
     g_god_send_next(srv, msg, to);
 }
@@ -254,7 +261,7 @@ internal void god_cmd(char *out, const char *args, int mode) {
     if (g_mp) { REPLY("error: %s: not in a multiplayer game\n", name); return; }
     if (!game_map() || !game_player_count()) { REPLY("error: %s: no game running\n", name); return; }
     g_god_sim_tid = GetCurrentThreadId();
-    if (want == GOD_VIEW && !g_god_send_next && game_server()) g_god_send_next = patch_server_send(game_server(), god_srv_send);
+    if (want && !g_god_send_next && game_server()) g_god_send_next = patch_server_send(game_server(), god_srv_send);
     if (want == GOD_VIEW && !g_god_send_next) { REPLY("error: godview: the server's send not hooked\n"); return; }
     if (want && !was) {
         g_god_home_i = playas_switched() ? g_playas_was : (int)local_player_index();
@@ -281,9 +288,10 @@ internal void god_cmd(char *out, const char *args, int mode) {
         REPLY("%s off: this PC plays as P%u\n", name, local_player_index());
         return;
     }
-    REPLY("%s (this PC plays as P%u; the panel asked %u times, told yes %u; orders dropped %u; its selection given back %u times)\n",
+    REPLY("%s (this PC plays as P%u; the panel asked %u times, told yes %u; orders dropped %u; its selection given back %u times; "
+          "the player's orders %u on %u units, the AI's orders kept off them %u)\n",
           was == GOD_VIEW ? "godview on" : was ? "godmode on" : "godmode and godview off", local_player_index(),
-          g_god_asked, g_god_told, g_god_dropped, g_god_kept);
+          g_god_asked, g_god_told, g_god_dropped, g_god_kept, g_pc_orders, g_pc_units, g_pc_kept);
 }
 internal void cmd_godmode(char *out, const char *args) { god_cmd(out, args, GOD_CONTROL); }
 internal void cmd_godview(char *out, const char *args) { god_cmd(out, args, GOD_VIEW); }

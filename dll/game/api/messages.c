@@ -92,7 +92,79 @@ internal inline int msg_as_begin(ee_player *pl) {
 internal uint32_t g_msg_sel_kept[MSG_SEL_KEEP];
 internal int g_msg_sel_n = -1;   // -1: none kept
 internal ee_player *g_msg_sel_pl;
+// THE PLAYER'S ORDERS FIRST (the player 2026-11-22: "giving commands rarely works, there is already a task priority
+// system, there should be a player priority above all else where my commands go"): a unit this PC ordered while it
+// plays as another player (godmode's switch: engine/godmode.c, god_srv_send) is the player's for PC_HOLD from its last
+// order - none of the AI's orders reaches it: unit_goal (ai/attack.c), the claims (ai/claims.c: refused, held by "the
+// player"), a free citizen (ai/econ.c citizen_free), the builders (ai/build.c), the group orders (msg_as_select below
+// leaves it out of the selection). The order comes from the UI's thread, before the simulation carries it out on the
+// sender's selection: the send only counts it (pc_ordered), the simulation's thread takes the units then - the PC
+// player's selection at the first look after (pc_held), never while msg_as_select holds the AI's own selection there.
+#define PC_N 2048
+#define PC_HOLD 120000
+struct pc_entry { ee_unit *u; int id; uint32_t until; };
+internal struct pc_entry g_pc[PC_N];
+internal volatile LONG g_pc_pend;   // orders sent from the UI's thread, their units not taken yet
+internal unsigned g_pc_orders, g_pc_units, g_pc_kept;   // orders taken, units held by them, AI orders kept off
+internal ee_player *g_pc_pl;   // whose selection the orders were carried out on
+internal uint32_t pc_now(void) { ee_physics *c = game_physics(); return c ? physics_get_time(c) : 0; }
+internal struct pc_entry *pc_find(ee_unit *u, int add) {
+    int id = unit_get_serial(u);
+    unsigned h = ((unsigned)id * 2654435761u) & (PC_N - 1);
+    struct pc_entry *slot = NULL;
+    for (int k = 0; k < 64; k++) {
+        struct pc_entry *e = &g_pc[(h + (unsigned)k) & (PC_N - 1)];
+        if (e->u == u && e->id == id) return e;
+        if (!e->u && !slot) slot = e;
+    }
+    if (add && slot) { slot->u = u; slot->id = id; }
+    return add ? slot : NULL;
+}
+internal int pc_live(const struct pc_entry *e, uint32_t now) {   // (until - now: a game before had a later clock)
+    return e->u && unit_get_serial(e->u) == e->id && unit_get_hp(e->u) > 0 && now < e->until && e->until - now <= PC_HOLD;
+}
+// the UI's thread: an order of this PC's player sent (pl: the player it plays as)
+internal void pc_ordered(ee_player *pl) { g_pc_pl = pl; InterlockedIncrement(&g_pc_pend); }
+internal void pc_take(void) {
+    if (!g_pc_pend || g_msg_sel_n >= 0) return;   // (msg_as_select's own selection in place: the next look)
+    InterlockedExchange(&g_pc_pend, 0);
+    ee_player *pl = g_pc_pl;
+    void *grp = pl ? player_get_selected_group(pl) : NULL;
+    if (!grp) return;
+    uint32_t now = pc_now();
+    g_pc_orders++;
+    for (unsigned i = 0, n = group_count(grp); i < n; i++) {
+        ee_unit *u = group_get(grp, i);
+        struct pc_entry *e = u ? pc_find(u, 1) : NULL;
+        if (!e) continue;
+        e->until = now + PC_HOLD;
+        g_pc_units++;
+    }
+}
+// 1: u is the player's (its order stands) - the AI orders it not
+internal int pc_held(ee_unit *u) {
+    pc_take();
+    if (!u || !g_pc_units) return 0;
+    struct pc_entry *e = pc_find(u, 0);
+    if (!e) return 0;
+    if (pc_live(e, pc_now())) { g_pc_kept++; return 1; }
+    memset(e, 0, sizeof *e);
+    return 0;
+}
+internal void pc_reset(void) { memset(g_pc, 0, sizeof g_pc); g_pc_units = 0; InterlockedExchange(&g_pc_pend, 0); }
+// sel ({ -, first id, end }: the ids msg_as_select puts in place) without the player's units
+internal void pc_unselect(void *sel) {
+    uint32_t **s = (uint32_t **)sel;
+    if (!g_pc_units || !s[1]) return;
+    uint32_t *w = s[1];
+    for (uint32_t *r = s[1]; r < s[2]; r++) {
+        ee_unit *u = object_by_id(*r);
+        if (!u || !pc_held(u)) *w++ = *r;
+    }
+    s[2] = w;
+}
 internal inline void msg_as_select(ee_player *pl, void *sel) {
+    pc_unselect(sel);
     g_msg_sel_n = -1;
     void *grp = pl && pl == game_players()[local_player_index()] ? player_get_selected_group(pl) : NULL;
     if (grp) {
