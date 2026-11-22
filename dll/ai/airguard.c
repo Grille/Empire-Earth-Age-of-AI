@@ -42,7 +42,8 @@
 // (12.5), kills +10.1 (36.8), losses +19.5 (11.0), razed +1.9 (11.3), no crash - level; a B AI trained 9.1 fighters (all
 // fighter/bombers - the enemy's aircraft were few) and 15.8 bombers, had 3.8 and 2.5 at the end; sweeps 0.24 an AI (the
 // test maps' anti-air - 20-36 AA buildings an AI on map_size 1 - leaves next to nothing a fighter comes back from). OFF
-// until it shows a gain (or the player's call): its case is his large games, where the test armies never get.
+// until it shows a gain (or the player's call): its case is his large games, where the test armies never get. ON at 25%
+// by his call the same day ("turn it on").
 // THE SWEEPS ([ai_base] fighter_sweeps, with the share; [autotest] v_fighter_sweeps): the fighters ready beyond the
 // guard (the enemy aircraft near its towns and AG_SPARE stay at their Airports for INTERCEPT) go every AG_EVERY in
 // flights of up to SW_FLIGHT from one Airport:
