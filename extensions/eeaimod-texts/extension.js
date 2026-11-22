@@ -1,5 +1,6 @@
 // The language server's client: ageofai_check --lsp (dll/check/lsp.c) started for the .eeai files, the open files and
-// their changes sent to it, its mistakes shown as they are typed (the Problems panel, the lines underlined). The
+// their changes sent to it, its mistakes shown as they are typed (the Problems panel, the lines underlined), its
+// completion and hover asked at the cursor (keys, members, values, the file's names, with their docs). The
 // Language Server Protocol by hand - a few messages, no packages: the extension stays files only (pack_vscode.py).
 // The checker: the setting eeai.checker, else ageofai_check.exe in a folder above the file (the game folder: a
 // personality in <game>\ageofai\personalities\, the mod's sources in <game>\_aimod\), else the workspace's
@@ -36,6 +37,7 @@ class Server {
         this.ready = false;
         this.queue = [];
         this.sent = new Set();   // the files told of (didOpen)
+        this.waiting = new Map();   // the requests not answered yet, by id
         this.proc = cp.spawn(exe, ['--lsp'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         this.proc.stdout.on('data', (b) => this.read(b));
         this.proc.stderr.on('data', (b) => out.append(b.toString()));
@@ -49,6 +51,14 @@ class Server {
         try { this.proc.stdin.write('Content-Length: ' + body.length + '\r\n\r\n'); this.proc.stdin.write(body); } catch (e) { }
     }
     send(m) { if (this.ready) this.write(m); else this.queue.push(m); }
+    request(method, params) {   // its answer's result (null after 3 s without one)
+        const id = this.next++;
+        return new Promise((resolve) => {
+            this.waiting.set(id, resolve);
+            setTimeout(() => { if (this.waiting.delete(id)) resolve(null); }, 3000);
+            this.send({ jsonrpc: '2.0', id, method, params });
+        });
+    }
     read(b) {
         this.buf = Buffer.concat([this.buf, b]);
         for (;;) {
@@ -71,6 +81,12 @@ class Server {
             this.write({ jsonrpc: '2.0', method: 'initialized', params: {} });
             for (const m of this.queue) this.write(m);
             this.queue = [];
+            return;
+        }
+        if (msg.id !== undefined && !msg.method && this.waiting.has(msg.id)) {   // an answer
+            const resolve = this.waiting.get(msg.id);
+            this.waiting.delete(msg.id);
+            resolve(msg.result === undefined ? null : msg.result);
             return;
         }
         if (msg.method === 'textDocument/publishDiagnostics') {
@@ -118,10 +134,35 @@ function open(doc) {   // once a server (VS Code tells of a file once; the activ
     server.send({ jsonrpc: '2.0', method: 'textDocument/didOpen', params: { textDocument: { uri: doc.uri.toString(), languageId: 'eeai', version: doc.version, text: doc.getText() } } });
 }
 
+// completion and hover (check/lsp_know.c): asked of the server at the place; LSP's item kinds are VS Code's + 1
+function at(doc, pos) { return { textDocument: { uri: doc.uri.toString() }, position: { line: pos.line, character: pos.character } }; }
+const selector = { language: 'eeai', scheme: 'file' };
+const completion = {
+    provideCompletionItems(doc, pos) {
+        if (!server) return null;
+        return server.request('textDocument/completion', at(doc, pos)).then((r) => !r ? null : r.items.map((x) => {
+            const it = new vscode.CompletionItem(x.label, (x.kind || 1) - 1);
+            if (x.detail) it.detail = x.detail;
+            if (x.documentation) it.documentation = new vscode.MarkdownString(x.documentation.value);
+            if (x.insertText) it.insertText = x.insertTextFormat === 2 ? new vscode.SnippetString(x.insertText) : x.insertText;
+            if (x.sortText) it.sortText = x.sortText + x.label;
+            return it;
+        }));
+    },
+};
+const hover = {
+    provideHover(doc, pos) {
+        if (!server) return null;
+        return server.request('textDocument/hover', at(doc, pos)).then((r) => r && r.contents ? new vscode.Hover(new vscode.MarkdownString(r.contents.value)) : null);
+    },
+};
+
 function activate(context) {
     diags = vscode.languages.createDiagnosticCollection('eeai');
     out = vscode.window.createOutputChannel('eeai checks');
     context.subscriptions.push(diags, out,
+        vscode.languages.registerCompletionItemProvider(selector, completion, '.'),
+        vscode.languages.registerHoverProvider(selector, hover),
         vscode.workspace.onDidOpenTextDocument(opened),
         vscode.workspace.onDidChangeTextDocument((e) => {
             if (!server || !isEeai(e.document)) return;

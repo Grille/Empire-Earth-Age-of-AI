@@ -7,8 +7,9 @@
 // personality is typed.
 // Each check runs in a process of its own (LSP_CHECK: this program again, the texts on its stdin): the personality
 // folder's state is made to be read once (one game, one load) - a fresh process reads it as the game would, every time.
-// Stage 1 (the player 2026-11-22): mistakes only, by line - completion, hover and definitions need the parser's
-// columns and a query of the checker (later stages).
+// Stage 1 (the player 2026-11-22): the mistakes, by line. Stage 2: completion and hover (check/lsp_know.c: from the
+// game's tables and the files' names, answered by this process at once). Definitions, references and completion by
+// the values' types need the parser's columns and a query of the checker (stage 3).
 #include <fcntl.h>
 #include <io.h>
 #define LSP_QUIET 300   // ms after the last change
@@ -351,6 +352,7 @@ internal void lsp_reply(const char *id, const char *result) {   // id: its JSON 
     lsp_send(b.s);
     free(b.s);
 }
+#include "check/lsp_know.c"   // completion and hover
 internal int lsp_main(void) {
     _setmode(_fileno(stdout), _O_BINARY);
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
@@ -375,8 +377,19 @@ internal int lsp_main(void) {
         char *uri = js_str(js_get(td, "uri"), NULL);
         if (!method) ;   // a reply to the server: it asks nothing
         else if (!strcmp(method, "initialize") && id)
-            lsp_reply(id, "\"result\":{\"capabilities\":{\"textDocumentSync\":{\"openClose\":true,\"change\":1,\"save\":{\"includeText\":false}}},"
+            lsp_reply(id, "\"result\":{\"capabilities\":{\"textDocumentSync\":{\"openClose\":true,\"change\":1,\"save\":{\"includeText\":false}},"
+                          "\"completionProvider\":{\"triggerCharacters\":[\".\"]},\"hoverProvider\":true},"
                           "\"serverInfo\":{\"name\":\"ageofai_check\"}}");
+        else if ((!strcmp(method, "textDocument/completion") || !strcmp(method, "textDocument/hover")) && id) {
+            int d = uri ? lsp_doc(uri) : -1;
+            const char *pos = js_get(params, "position"), *pl = js_get(pos, "line"), *pc = js_get(pos, "character");
+            struct lsb r = { 0 };
+            if (d < 0 || !g_lsp_doc[d].text || !pl || !pc) lsb_str(&r, "\"result\":null");
+            else if (method[13] == 'c') lsp_complete(d, atoi(pl), atoi(pc), &r);   // textDocument/completion
+            else lsp_hover(d, atoi(pl), atoi(pc), &r);
+            lsp_reply(id, r.s);
+            free(r.s);
+        }
         else if (!strcmp(method, "shutdown") && id) lsp_reply(id, "\"result\":null");
         else if (!strcmp(method, "exit")) { free(method); free(uri); free(msg); return 0; }
         else if ((!strcmp(method, "textDocument/didOpen") || !strcmp(method, "textDocument/didChange")) && uri && strlen(uri) < sizeof g_lsp_doc[0].uri) {

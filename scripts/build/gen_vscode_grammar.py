@@ -32,9 +32,9 @@ values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
 colors = re.findall(r'\{ "(\w+)", "', re.search(r'k_color_names\[17\]\[3\] = \{(.*?)\};', persona, re.S).group(1))   # the English names
 resources = re.findall(r'"(\w+)"', re.search(r'k_resource_const\[5\] = \{(.*?)\};', expr, re.S).group(1)) + ['all']
-# the language's functions: x_fn_id's table ({ "chance", 1, 1, 1 }: name, arguments from..to, number)
-funcs = sorted(set(re.findall(r'\{ "(\w+)", -?\d+, -?\d+, \d+ \}', re.search(r'x_fn_id\(const char \*name, int na\) \{(.*?)\n\}', expr, re.S).group(1))))
-script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
+# the language's functions: expr.c k_x_fns ({ "chance", 1, 1, 1 }: name, arguments from..to, number), k_x_script_fns
+funcs = sorted(set(re.findall(r'\{ "(\w+)", -?\d+, -?\d+, \d+ \}', re.search(r'k_x_fns\[\] = \{(.*?)\};', expr, re.S).group(1))))
+script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'k_x_script_fns\[\] = \{(.*?)\};', expr, re.S).group(1))
 commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'test', 'cmd_verbs.h'), encoding='utf-8').read())
 unit_names = open(os.path.join(root, 'dll', 'game', 'unit_names.h'), encoding='utf-8').read()
 unit_ids = re.findall(r'^\| \d+ \| `(\w+)` \|', open(os.path.join(root, 'docs', 'units.md'), encoding='utf-8').read(), re.M)   # the retail data's

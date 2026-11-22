@@ -1,8 +1,8 @@
 {
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
-  "description": "The eeaimod text files (.eeai): personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai - records, keys, strings, placeholders, expressions - and the setup scripts (tests/scenarios, tests/probes): statements, functions, commands. Highlighting, and the mistakes shown as they are typed (ageofai_check --lsp)",
-  "version": "0.14.0",
+  "description": "The eeaimod text files (.eeai): personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai - records, keys, strings, placeholders, expressions - and the setup scripts (tests/scenarios, tests/probes): statements, functions, commands. Highlighting, the mistakes shown as they are typed, completion and hover (ageofai_check --lsp)",
+  "version": "0.15.0",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },

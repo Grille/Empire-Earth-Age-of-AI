@@ -1969,13 +1969,15 @@ internal const struct xunit *x_compiled(const char *src) {
 }
 
 // the builtin functions: their number by name and argument count (0: none - a vars function or a relation)
+// THE BUILTIN FUNCTIONS: name, arguments lo..hi, their number (x_fn_id; also listed by the language server, check/lsp.c)
+internal const struct { const char *name; signed char lo, hi, id; } k_x_fns[] = {
+    { "chance", 1, 1, 1 }, { "min", 1, 127, 2 }, { "max", 1, 127, 2 }, { "abs", 1, 1, 3 }, { "round", 1, 1, 4 }, { "rnd", 0, 1, 5 },
+    { "floor", 1, 1, 6 }, { "len", 1, 1, 7 }, { "first", 1, 1, 8 }, { "item", 2, 2, 9 }, { "contains", 2, 2, 10 },
+    { "map_range", 3, 3, 11 }, { "str", 1, 1, 12 }, { "number", 1, 1, 13 }, { "log2", 1, 1, 14 }, { "pick", 1, 1, 15 },
+    { "vec", 2, 4, 16 }, { "rgb", 3, 3, 17 }, { "distance", 2, 2, 18 }, { "has", 2, 2, 19 }, { "int", 1, 1, 20 }, { "ceil", 1, 1, 21 } };
+#define N_X_FNS (int)(sizeof k_x_fns / sizeof *k_x_fns)
 internal int x_fn_id(const char *name, int na) {
-    static const struct { const char *name; signed char lo, hi, id; } k[] = {   // lo..hi: its arguments
-        { "chance", 1, 1, 1 }, { "min", 1, 127, 2 }, { "max", 1, 127, 2 }, { "abs", 1, 1, 3 }, { "round", 1, 1, 4 }, { "rnd", 0, 1, 5 },
-        { "floor", 1, 1, 6 }, { "len", 1, 1, 7 }, { "first", 1, 1, 8 }, { "item", 2, 2, 9 }, { "contains", 2, 2, 10 },
-        { "map_range", 3, 3, 11 }, { "str", 1, 1, 12 }, { "number", 1, 1, 13 }, { "log2", 1, 1, 14 }, { "pick", 1, 1, 15 },
-        { "vec", 2, 4, 16 }, { "rgb", 3, 3, 17 }, { "distance", 2, 2, 18 }, { "has", 2, 2, 19 }, { "int", 1, 1, 20 }, { "ceil", 1, 1, 21 } };
-    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (na >= k[i].lo && na <= k[i].hi && x_ieq(name, k[i].name)) return k[i].id;
+    for (int i = 0; i < N_X_FNS; i++) if (na >= k_x_fns[i].lo && na <= k_x_fns[i].hi && x_ieq(name, k_x_fns[i].name)) return k_x_fns[i].id;
     return 0;
 }
 internal int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
@@ -4426,10 +4428,11 @@ internal void xv_copy(struct xval *dst, const struct xval *src) {
 // function value fv called with its arguments: on its machine, above what stands there (xvm_call)
 internal void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) { xvm_call(e, fv, a, na, v); }
 // the script functions: wait(seconds), wait_until(time), every(step, from, until, f), player(n), cmd(text), the triggers'
-internal int x_script_fn(const char *name) {
-    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "player", 1 }, { "cmd", 1 },
-                                                             { "trigger", 1 }, { "after", 2 }, { "enable", 1 }, { "disable", 1 } };
-    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!strcmp(k[i].n, name)) return k[i].args;
+internal const struct { const char *n; int args; } k_x_script_fns[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "player", 1 }, { "cmd", 1 },
+                                                                     { "trigger", 1 }, { "after", 2 }, { "enable", 1 }, { "disable", 1 } };
+#define N_X_SCRIPT_FNS (int)(sizeof k_x_script_fns / sizeof *k_x_script_fns)
+internal int x_script_fn(const char *name) {   // a script's own function: its arguments, -1 none such
+    for (int i = 0; i < N_X_SCRIPT_FNS; i++) if (!strcmp(k_x_script_fns[i].n, name)) return k_x_script_fns[i].args;
     return -1;
 }
 // a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
