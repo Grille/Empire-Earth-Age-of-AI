@@ -152,7 +152,11 @@ internal int ag_fighter(int t) { for (int k = 0; k < g_ag_nt; k++) if (g_ag_type
 // the forward one at most:
 //   in the air (a sortie of the wing's or the guard's)  - rebased as it flies, its orders kept: it lands forward;
 //   on the ground, no order                            - sent to fly to the forward Airport (AB_LAUNCH a look), and
-//                                                        rebased at the next look, when it is in the air.
+//                                                        rebased at the next look, when it is in the air. Inside its
+//                                                        Airport too: its flight time is full there (unit flight_ms
+//                                                        the time left), which the test of the ground read as in the
+//                                                        air until 2026-11-22 - a parked one never moved (the player:
+//                                                        "the fighter planes dont seem to get redistributed to the front").
 // "# air bases:" at every move and once a game minute (tests).
 #define AB_EVERY 10000
 #define AB_GAIN 15
@@ -235,7 +239,7 @@ internal void airbase_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (hk >= 0) based[hk]--;
             np[i].home = fser; np[i].launch_t = 0; based[fwd]++;
             a->rebased++; moved++;
-        } else if (unit_get_flight_ms(u) <= 0 && hk >= 0 && !ours && !unit_get_goal(u) && launched < AB_LAUNCH && as_order(u, goal_move((float)fp.x + 0.5f, (float)fp.y + 0.5f))) {
+        } else if ((unit_get_x(u) < 0 || unit_get_flight_ms(u) <= 0) && hk >= 0 && !ours && !unit_get_goal(u) && launched < AB_LAUNCH && as_order(u, goal_move((float)fp.x + 0.5f, (float)fp.y + 0.5f))) {
             np[i].launch_t = now ? now : 1;
             a->launched++; launched++;
         }
