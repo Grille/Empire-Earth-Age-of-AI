@@ -352,6 +352,11 @@ internal void camera_zoom_at_mouse(float z) {
                        && camera_ground_point(eye, d, camera_look_at(cam)[2], g_cam_anchor.at);
     }
     camera_zoom_set(z);
+    // A notch is there at once, no ride (the player 2026-11-22: "mouse zoom feels laggy" - each notch rode 0.12 s from
+    // where the picture stood, so a turning wheel had the camera that far behind it and arriving that long after the
+    // last notch): snap, which the render thread draws at its end from the next frame (render_frame.c rf_camera_frame)
+    // and the camera's step ends at once. The zoom keys keep their ride: their steps come with the game thread's polls.
+    if (cam) camera_set_snap(cam, 1);
 }
 // render_frame.c rf_camera_frame: the camera's transformation now (t: the ride's place in it), put right
 internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {

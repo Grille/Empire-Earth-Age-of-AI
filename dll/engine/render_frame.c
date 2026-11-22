@@ -357,7 +357,7 @@ internal void rf_pull_begin(void) {
     // an arrow key was held (the player, 2026-11-08)
     float zoom = camera_get_zoom(cam);
     if (!(camera_get_blend(cam) < 1)) { g_gm_rest_zoom = zoom; return; }
-    if (camera_get_snap(cam) || !(zoom > g_gm_rest_zoom)) return;
+    if (!(zoom > g_gm_rest_zoom)) return;   // (a snap too: the wheel's notch jumps, camera.c camera_zoom_at_mouse)
     const float *m = viewport_camera(g_gm_viewport), *at = camera_look_at(cam);
     float end[16];
     camera_make_transformation(cam, end, 1.0f);
