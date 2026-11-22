@@ -37,6 +37,14 @@ unsafe struct EEUserInterface
     /// thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line
     [address((ee)0x00661E91, (aoc)0x006794C6)]
     extern void line(void* rgb, void* name, void* line, int32 ms, int32 zero);
+
+    /// thiscall(ui [G_UI], form): posts 0x419 to its thread, which pops the top screen (UIManager::Pop, form 0) or
+    /// down to form (PopTo). The save dialog's action (EEASaveGame::vf1 0x405000) calls it with 0 once the save
+    /// succeeded, to close the dialog - a save queued without the dialog (the control pipe's save) closed the game's
+    /// own screen instead: the main menu over a game playing on (the player's game 2026-11-22)
+    [address((ee)0x00661DB4, (aoc)0x006793E9)]
+    [call_site("save_done_pop", (ee)0x00405038, (aoc)0x004046AA)]
+    extern void pop(void* form);
 }
 
 /// the camera, game.camera (EECameraControl)

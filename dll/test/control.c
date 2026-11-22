@@ -164,6 +164,23 @@ internal int queue_pause_toggle(void) {
 // save <name>: same as the save dialog (EEUIESLESaveFile::vf1 0x5D60CD) - queues an EEASaveGame
 // action (ctor 0x404FA1: thiscall(const UString &file, bool, UString folder by value), 0x30 bytes) for
 // <game>\data\Saved Games\<name>.ees; the file can then be started with run_test.ps1 -Save <name>.ees.
+// NO DIALOG TO CLOSE: the action's run (vf1 0x405000) closes the top screen once it has saved (ui_pop), the dialog
+// it was queued from - queued from here that was the game's own screen: the player's game of 2026-11-22 went to the
+// main menu while it played on underneath (another session's "save" through the pipe). So the pipe's action runs
+// through a copy of the class's table whose run marks the save as the pipe's, and the pop after it is skipped.
+internal void *g_ctl_save_vt[9];         // [0] the RTTI locator (vtable - 4), [1..8] the slots, slot 1 ours
+internal void (__thiscall *g_ctl_save_run)(void *);
+internal volatile LONG g_ctl_saving;     // the pipe's save action runs (the action queue's thread)
+internal int g_ctl_save_hooked;          // hook_save_done_pop in (ctl_start)
+internal void __thiscall ctl_save_run(void *act) {
+    InterlockedExchange(&g_ctl_saving, 1);
+    g_ctl_save_run(act);
+    InterlockedExchange(&g_ctl_saving, 0);
+}
+internal void __thiscall hook_save_done_pop(ee_ui *ui, void *form) {
+    if (g_ctl_saving) { ctl_log("save: the pipe's save done - no dialog to close"); return; }
+    ui_pop(ui, form);
+}
 internal void cmd_save(char *out, const char *args) {
     char name[96] = "", path[MAX_PATH];
     int n = 0;
@@ -180,6 +197,18 @@ internal void cmd_save(char *out, const char *args) {
     // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
     save_action_init(act, &upath, 1, udir);
     ustring_free(&upath);
+    if (!g_ctl_save_hooked) {   // without the hook its pop would close the game's screen: no save from here then
+        REPLY("error: save not hooked (its pop would close the game's screen)\n");
+        ((void (__thiscall *)(void *, int))(*(void ***)act)[0])(act, 1);   // vf0: the destructor, freed
+        return;
+    }
+    void **vt = *(void ***)act;
+    if (!g_ctl_save_run) {
+        memcpy(g_ctl_save_vt, vt - 1, sizeof g_ctl_save_vt);
+        g_ctl_save_run = (void (__thiscall *)(void *))vt[1];
+        g_ctl_save_vt[2] = (void *)ctl_save_run;
+    }
+    *(void ***)act = &g_ctl_save_vt[1];
     queue_action(act);
     REPLY("ok: saving %s\n", path);
     ctl_log("save queued: %s", path);
@@ -1047,6 +1076,8 @@ internal DWORD WINAPI gameover_watch(LPVOID unused) {
 // with ageofai.ini [general] control_pipe=1 (scripts/test/eectl.py, the MCP server scripts/test/ee_mcp.py on a normal game).
 internal void ctl_start(int pipe) {
     ctl_log("sim loop hook %s", patch_sim_loop() ? "ok" : "FAILED");
+    g_ctl_save_hooked = patch_save_done_pop(hook_save_done_pop);
+    ctl_log("save's dialog pop hook %s", g_ctl_save_hooked ? "ok" : "FAILED (the pipe's save refused)");
     if (g_autotest) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));
     if (g_autotest) {
         g_turbo = g_auto.turbo;

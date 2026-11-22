@@ -37,6 +37,14 @@ internal inline void ui_screenshot(ee_ui *ui, int size, int run_on, int zero) { 
 typedef void (__thiscall *ui_line_fn)(ee_ui *, void *, void *, void *, int, int);
 internal ui_line_fn fn_ui_line;
 internal inline void ui_line(ee_ui *ui, void *rgb, void *name, void *line, int ms, int zero) { fn_ui_line(ui, rgb, name, line, ms, zero); }
+// thiscall(ui [G_UI], form): posts 0x419 to its thread, which pops the top screen (UIManager::Pop, form 0) or
+// down to form (PopTo). The save dialog's action (EEASaveGame::vf1 0x405000) calls it with 0 once the save
+// succeeded, to close the dialog - a save queued without the dialog (the control pipe's save) closed the game's
+// own screen instead: the main menu over a game playing on (the player's game 2026-11-22)
+typedef void (__thiscall *ui_pop_fn)(ee_ui *, void *);
+internal ui_pop_fn fn_ui_pop;
+internal inline void ui_pop(ee_ui *ui, void *form) { fn_ui_pop(ui, form); }
+internal inline int patch_save_done_pop(ui_pop_fn h) { return patch_call(call_save_done_pop, (uintptr_t)fn_ui_pop, (void *)h); }
 
 // class EECameraControl (ee_camera)
 // the camera, game.camera (EECameraControl)
@@ -798,6 +806,8 @@ internal int spec_ui_select(int build) {
         fn_ui_queue_action = (ui_queue_action_fn)0x0066192F;
         fn_ui_screenshot = (ui_screenshot_fn)0x00661B04;
         fn_ui_line = (ui_line_fn)0x00661E91;
+        fn_ui_pop = (ui_pop_fn)0x00661DB4;
+        call_save_done_pop = 0x00405038;
         of_camera_last_x = 0x40;
         of_camera_last_y = 0x44;
         of_camera_eye = 0x6C;
@@ -1051,6 +1061,8 @@ internal int spec_ui_select(int build) {
         fn_ui_queue_action = (ui_queue_action_fn)0x00678F79;
         fn_ui_screenshot = (ui_screenshot_fn)0x00679139;
         fn_ui_line = (ui_line_fn)0x006794C6;
+        fn_ui_pop = (ui_pop_fn)0x006793E9;
+        call_save_done_pop = 0x004046AA;
         of_camera_last_x = 0x40;
         of_camera_last_y = 0x44;
         of_camera_eye = 0x6C;
@@ -1306,6 +1318,8 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_ui_queue_action, "EEUserInterface.queue_action");
     bad += spec_code((uintptr_t)fn_ui_screenshot, "EEUserInterface.screenshot");
     bad += spec_code((uintptr_t)fn_ui_line, "EEUserInterface.line");
+    bad += spec_code((uintptr_t)fn_ui_pop, "EEUserInterface.pop");
+    bad += spec_call(call_save_done_pop, (uintptr_t)fn_ui_pop, "EEUserInterface.pop [call_site save_done_pop]");
     bad += spec_code((uintptr_t)fn_camera_make_transformation, "EECameraControl.make_transformation");
     bad += spec_code((uintptr_t)fn_camera_move, "EECameraControl.move");
     bad += spec_code((uintptr_t)fn_camera_look_at_blend, "EECameraControl.look_at_blend");

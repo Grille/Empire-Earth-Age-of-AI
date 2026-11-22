@@ -2056,6 +2056,7 @@ internal uint32_t of_ui_thread;
 internal uint32_t of_ui_actions_lock;
 internal uint32_t of_ui_seed;
 internal uint32_t of_ui_loading_bar;
+internal uint32_t call_save_done_pop;
 internal uint32_t of_camera_last_x;
 internal uint32_t of_camera_last_y;
 internal uint32_t of_camera_eye;
