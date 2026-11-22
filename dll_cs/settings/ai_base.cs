@@ -711,6 +711,14 @@ class ai_base
         /// lately. 0 = they wait at their Airports
         [advanced]
         bool fighter_sweeps = true;
+        /// With air_force_share: the fighters' and the bombers' parts of the share each by what they bring back - the
+        /// value they killed for the value they lost lately (the last 10 minutes weighed most), from a fifth to twice
+        /// their part: bombers that die over the enemy's anti-air shrink to a few that keep trying and grow again as
+        /// the losses fade, fighters that win their fights grow. 0 = the share as it stands; on since 2026-11-22 (the
+        /// player: "dont make it a fixed share, it depends a lot on the enemy player"; head-to-head: losses -25, the rest
+        /// level)
+        [advanced]
+        bool air_by_worth = true;
         struct fall_back_fields
         {
             /// a land unit worth fall_back_value (resources) or more below fall_back_hp of its hit points walks to

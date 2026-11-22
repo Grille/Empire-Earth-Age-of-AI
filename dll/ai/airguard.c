@@ -44,6 +44,14 @@
 // test maps' anti-air - 20-36 AA buildings an AI on map_size 1 - leaves next to nothing a fighter comes back from). OFF
 // until it shows a gain (or the player's call): its case is his large games, where the test armies never get. ON at 25%
 // by his call the same day ("turn it on").
+// THE AIR'S WORTH ([ai_base] air_by_worth; [autotest] v_air_worth): the share's fighters' part (AFS_FIGHTERS of it)
+// and bombers' part each that many times as they bring back (returns.c rt_worth: killed for lost lately, a fifth to
+// twice) - the player the same day: "dont make it a fixed share, it depends a lot on the enemy player, if they invest
+// hevealy into anti air it be mostly useless". MEASURED 2026-11-22 (head-to-head mirrored, air_rich Continental 101
+// map_size 3, 4 AIs from World War I, 60 min, 10 games, all ended well): B - A alive +0.00 (se 0.11), soldiers +3.6
+// (12.8), kills +21.8 (46.0), losses -24.6 (11.4), razed +5.9 (13.5); B trained 11.9 bombers an AI (A 14.2), 6.7
+// fighters (7.4), the bombers' worth mostly 0.4-0.65 against the AIs' anti-air. ON. Not measured yet: against an
+// enemy with little anti-air (every AI of the mod's builds it), where it would grow the air force.
 // THE SWEEPS ([ai_base] fighter_sweeps, with the share; [autotest] v_fighter_sweeps): the fighters ready beyond the
 // guard (the enemy aircraft near its towns and AG_SPARE stay at their Airports for INTERCEPT) go every AG_EVERY in
 // flights of up to SW_FLIGHT from one Airport:
@@ -110,15 +118,20 @@ internal struct ag_st {
 internal int g_afs_pct = 0, g_v_afs_pct = -1, g_sweeps = 1, g_v_sweeps = -1;   // [ai_base] air_force_share (percent), fighter_sweeps
 #define AFS_SHARE(idx) PV(idx, g_v_afs_pct, g_afs_pct)
 #define SWEEPS(idx) (AFS_SHARE(idx) > 0 && PV(idx, g_v_sweeps, g_sweeps))
+internal int g_air_worth = 0, g_v_air_worth = -1;   // THE AIR'S WORTH ([autotest] v_air_worth: the variant players)
+#define AIR_WORTH(idx) PV(idx, g_v_air_worth, g_air_worth)
+internal float rt_worth(unsigned idx, int bombers);   // returns.c: what its fighters (bombers) bring back for what they lose
 internal int afs_owns_fighters(unsigned idx) { return AFS_SHARE(idx & 15) > 0; }   // counterfire.c: none of its fighters are soldiers to send
 internal void airguard_install(const char *autotest_ini) {
     g_afs_pct = setting_pct(g_set_ai[1].air_force_share);
     g_sweeps = g_set_ai[1].fighter_sweeps;
+    g_air_worth = g_set_ai[1].air_by_worth;
     if (autotest_ini) {
         g_v_afs_pct = ini_int("autotest", "v_air_force_share", -1, autotest_ini);
         g_v_sweeps = ini_int("autotest", "v_fighter_sweeps", -1, autotest_ini);
+        g_v_air_worth = ini_int("autotest", "v_air_worth", -1, autotest_ini);
     }
-    if (g_log) fprintf(g_log, "# air force size: share %d%% (variant %d), sweeps %d (variant %d)\n", g_afs_pct, g_v_afs_pct, g_sweeps, g_v_sweeps);
+    if (g_log) fprintf(g_log, "# air force size: share %d%% (variant %d), sweeps %d (variant %d), by worth %d (variant %d)\n", g_afs_pct, g_v_afs_pct, g_sweeps, g_v_sweeps, g_air_worth, g_v_air_worth);
 }
 // the fighter types in the data (once a game) and their roles - each epoch has an air fighter (a_fighter: aircraft
 // only) and a fighter/bomber (a_strafe_fighter: aircraft and land units), World War II to the Modern Age an anti-tank
@@ -558,15 +571,22 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
     }
     // THE AIR FORCE'S SIZE
     int pct = AFS_SHARE(idx), sz_f = 0, sz_b = 0, sz = 0, holds = AFS_PORT_HOLDS;
+    float wf = 1.0f, wb = 1.0f;
     if (pct > 0) {
         ee_unit_type *atd = type_data(UT(B_AIRPORT));
         if (atd && unit_type_get_transport_capacity(atd) > 0) holds = unit_type_get_transport_capacity(atd);
-        sz = (int)((float)(land + nm + nbomb) * (float)pct / 100.0f + 0.5f);
+        float base = (float)(land + nm + nbomb) * (float)pct / 100.0f, fsh = AFS_FIGHTERS;
+        if (AIR_WORTH(idx)) {   // THE AIR'S WORTH: each part of the share by what it brings back
+            wf = rt_worth(idx, 0); wb = rt_worth(idx, 1);
+            float f = base * AFS_FIGHTERS * wf, b = base * (1.0f - AFS_FIGHTERS) * wb;
+            base = f + b; fsh = base > 0 ? f / base : AFS_FIGHTERS;
+        }
+        sz = (int)(base + 0.5f);
         float known = 0;   // the enemy's fighters known or assumed (THE PICTURE), its aircraft near the towns
         for (int o = 0; o < 16; o++) known += g_dct[idx].nf[o];
         int foes = (int)(known + 0.5f) > air ? (int)(known + 0.5f) : air;
         sz_f = foes ? foes + AG_SPARE : 0;
-        if (sz_f < (int)((float)sz * AFS_FIGHTERS + 0.5f)) sz_f = (int)((float)sz * AFS_FIGHTERS + 0.5f);
+        if (sz_f < (int)((float)sz * fsh + 0.5f)) sz_f = (int)((float)sz * fsh + 0.5f);
         if (sz_f > sz) sz_f = sz;
         sz_b = sz - sz_f;
         int want_p = (sz + holds - 1) / holds;
@@ -689,8 +709,9 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
         g->log_t = now ? now : 1;
         log_locked("# air guard: P%u at %.1f min: enemy aircraft near its towns %d, fighters %d of %d wanted (%d Airports), anti-air buildings %d of %d | so far %u buildings laid, %u fighters trained, %u sorties (%u orders)\n",
                    idx, now / 60000.0, air, nm, want_f, airports, have_b, want_b, g->laid, g->trained, g->sorties, g->orders);
-        log_locked("# air force size: P%u at %.1f min: share %d%%, sweeps %d | land soldiers %d, fighters %d, bombers %d | wanted %d aircraft: %d fighters, %d bombers; Airports %d of %d wanted (%d finished) | so far fighters trained for it %u, bombers trained %u\n",
-                   idx, now / 60000.0, pct, SWEEPS(idx), land, nm, nbomb, sz, sz_f, sz_b, ap_all, g_afs_ports[idx], airports, g->sz_trained, g_as[idx].trained);
+        log_locked("# air force size: P%u at %.1f min: share %d%%, sweeps %d | land soldiers %d, fighters %d, bombers %d | wanted %d aircraft: %d fighters, %d bombers; Airports %d of %d wanted (%d finished) | so far fighters trained for it %u, bombers trained %u | worth: fighters %.2f, bombers %.2f%s\n",
+                   idx, now / 60000.0, pct, SWEEPS(idx), land, nm, nbomb, sz, sz_f, sz_b, ap_all, g_afs_ports[idx], airports, g->sz_trained, g_as[idx].trained,
+                   rt_worth(idx, 0), rt_worth(idx, 1), AIR_WORTH(idx) ? " (the size by it)" : " (not used)");
         log_locked("# sweeps: P%u at %.1f min: out %d | runs %u (%u fighters), looks %u, fighters lost on them %u, called home %u, targets down %u (worth %u), looks with none to go at %u (target cells %u now, enemy aircraft seen so far %u, of them a fighter can hurt %u; tried out of reach %u, too much anti-air %u; ground to look at out of reach %u, too much anti-air %u, none %u) | fighters lost in all %d, intercepts called back %u\n",
                    idx, now / 60000.0, g->nsw, g->sw_runs, g->sw_sent, g->sw_looks, g->sw_lost, g->sw_back, g->sw_down, g->sw_worth, g->sw_none,
                    g->sw_cells, g->sw_seen, g->sw_hurt, g->sw_far, g->sw_risky, g->sw_lfar, g->sw_lrisky, g->sw_lnone, (int)g->trained - nm, g->leashed);

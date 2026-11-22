@@ -19,6 +19,9 @@
 #define RT_HALF 600000
 #define RT_LOG 300000
 #define RT_STEP 0.98851402f   // 0.5 ^ (RT_EVERY / RT_HALF)
+#define RT_PRIOR 1000.0f      // rt_worth's: killed and lost alike before the fighting says more (about 5 fighters, 2.5 bombers)
+#define RT_WORTH_MIN 0.2f
+#define RT_WORTH_MAX 2.0f
 enum { RK_LAND, RK_LAND_AA, RK_NAVY, RK_FIGHTER, RK_BOMBER, RK_HELI, RK_DEF, RK_OTHER, RK_N };
 internal const char *const k_rk[RK_N] = { "land", "land anti-air", "navy", "fighters", "bombers", "helicopters", "defences", "other" };
 internal struct rt_st {
@@ -98,4 +101,14 @@ internal void returns_tick(ee_player *pl, uint32_t now) {
         out_printf(line, sizeof line, ", in all %u/%u", r->all_killed[k], r->all_lost[k]);
     }
     log_locked("# returns: P%u at %.1f min (killed, lost: value, halved every %d min)%s\n", idx, now / 60000.0, RT_HALF / 60000, line);
+}
+// THE AIR'S WORTH (airguard.c THE AIR FORCE'S SIZE, [autotest] v_air_worth): what its fighters (bombers) killed for
+// what they lost lately, RT_PRIOR on both sides, RT_WORTH_MIN to RT_WORTH_MAX - its part of the air force's share is
+// that many times its size: bombers that die over the enemy's anti-air shrink to a few that keep trying (and grow
+// again as the losses fade), fighters that win their fights grow
+internal float rt_worth(unsigned idx, int bombers) {
+    struct rt_st *r = &g_rt[idx & 15];
+    int k = bombers ? RK_BOMBER : RK_FIGHTER;
+    float w = (r->killed[k] + RT_PRIOR) / (r->lost[k] + RT_PRIOR);
+    return w < RT_WORTH_MIN ? RT_WORTH_MIN : w > RT_WORTH_MAX ? RT_WORTH_MAX : w;
 }
