@@ -57,7 +57,11 @@
 //            flight a cell. Once there the fighters pick their next targets themselves, as the player's do.
 //   LOOK   - none of those for them: one fighter flies over the enemy's or dark ground (explore.c) of a land territory
 //            not looked at in SW_LOOK_MS, the longest unseen for the way, by the same rule - what it sees there is what
-//            the bombers' picture and the territories know next.
+//            the bombers' picture and the territories know next. The enemy's ground is the AI's own view's
+//            (territories.c ebld: enemy buildings it has seen there or remembers), the gun assumed where it hasn't
+//            looked the worst of its enemies' with anti-air. Until 2026-11-22 it read game/territory.c's holders - worked
+//            out only while the overlay shows them or for their log: in a game the enemy's ground was never looked at,
+//            and showing the overlay changed the play (another session found it).
 // A fighter on a sweep is claimed (claims.c CLW_FIGHTERS, CLP_TASK); back in its Airport, idle, or out SW_RUN_MS (then
 // called home) it is free again. "# air force size:" and "# sweeps:" once a game minute in tests.
 #define AFS_FIGHTERS 0.4f
@@ -402,12 +406,13 @@ internal void sw_launch_role(ee_player *pl, unsigned idx, struct ag_st *g, ee_un
         for (int m = 0; m < ng; m++) used[gi[m]] = 1;
         none = 1;
         if (looked) continue;
-        int br = -1, any = 0; float bv = 0;
+        int br = -1, any = 0, brf = 0; float bv = 0;
+        struct tv_st *tv = &g_tv[idx & 15];
+        int tvn = tv->version == g_ter.version ? tv->n : 0;
         for (int r = 0; r < g_ter.n; r++) {
             if (g_ter.t[r].water) continue;
-            int ow = g_ter.t[r].owner;
-            ee_player *op = ow > 0 ? player_at(ow) : NULL;
-            if (!(op && is_enemy(pl, op)) && !xp_ter_dark(idx, r)) continue;
+            int foe = r < tvn && tv->t[r].ebld > 0;
+            if (!foe && !xp_ter_dark(idx, r)) continue;
             ivec2 c = g_ter.t[r].c;
             uint32_t ago = intel_looked_ago(pl, c.x, c.y);
             float dist = sqrtf((float)ivec2_dist2(from, c));
@@ -417,9 +422,17 @@ internal void sw_launch_role(ee_player *pl, unsigned idx, struct ag_st *g, ee_un
             float v = (float)(ago < 1800000 ? ago : 1800000) / (30.0f + dist);
             if (br >= 0 && v <= bv) continue;
             float dmg = dct_sortie(d, from, c, from, SW_OVER_S) * scale;
-            if (op && d->has_aa[ow & 15] && !ah_looked(pl, c)) dmg += d->aadps[ow & 15] * (2.0f * d->aar[ow & 15] / fsp + SW_OVER_S);
+            if (foe && !ah_looked(pl, c)) {   // a gun where it hasn't looked: the worst of its enemies' with anti-air
+                float gun = 0;
+                for (int p = 1; p < 16; p++) {
+                    ee_player *op = d->has_aa[p] ? player_at(p) : NULL;
+                    float gp = op && is_enemy(pl, op) ? d->aadps[p] * (2.0f * d->aar[p] / fsp + SW_OVER_S) : 0;
+                    if (gp > gun) gun = gp;
+                }
+                dmg += gun;
+            }
             if (dmg * AD_MARGIN + AD_RESERVE * fhp >= (float)unit_get_hp(rdy[gi[0]])) { g->sw_lrisky++; continue; }
-            br = r; bv = v;
+            br = r; bv = v; brf = foe;
         }
         if (!any) g->sw_lnone++;
         if (br < 0) continue;
@@ -432,7 +445,7 @@ internal void sw_launch_role(ee_player *pl, unsigned idx, struct ag_st *g, ee_un
         w->t = now ? now : 1; w->at = c; w->kind = 2;
         looked = 1; g->sw_looks++;
         if (g_log) log_locked("# sweeps: P%u at %.1f min: a fighter looks at territory %d at %d,%d (%s, not looked at in %.1f min; from %d,%d, %d tiles)\n", idx, now / 60000.0, br, c.x, c.y,
-                              g_ter.t[br].owner > 0 ? "the enemy's" : "dark", intel_looked_ago(pl, c.x, c.y) / 60000.0, from.x, from.y, (int)sqrtf((float)ivec2_dist2(from, c)));
+                              brf ? "the enemy's" : "dark", intel_looked_ago(pl, c.x, c.y) / 60000.0, from.x, from.y, (int)sqrtf((float)ivec2_dist2(from, c)));
     }
     if (none && !runs && !looked) g->sw_none++;
     *looked_io = looked;
