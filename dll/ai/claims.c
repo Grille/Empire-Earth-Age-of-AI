@@ -43,13 +43,15 @@
 // The bombers' lone runs (airstrike.c THE LONE RUNS, bomber_harass): a bomber sent on one is claimed at CLP_TASK for
 // the run - counter-fire took them as soldiers (roles.c is_soldier counts aircraft) and sent them from their
 // target at the mortars and artillery that shelled its soldiers, into their anti-air.
+// The fighters' sweeps (airguard.c THE SWEEPS, fighter_sweeps): a fighter sent on one is claimed at CLP_TASK for it, as
+// the bombers on their runs.
 // Above every priority: the player's own orders (godmode's switch - game/api/messages.c THE PLAYER'S ORDERS FIRST): a
 // unit the player ordered is refused to every claim, whatever its priority, the refusals counted as held by "the player".
 enum { CLP_SURVIVE = 1, CLP_REPAIR, CLP_CARRY, CLP_HOLD, CLP_TASK, CLP_ROUTINE };
 enum { CLW_NONE, CLW_STORM, CLW_FLEE, CLW_REPAIR, CLW_SQUADRON, CLW_FLEET, CLW_SAFETY, CLW_MILITIA, CLW_HOLD, CLW_WORK, CLW_BUILD,
-       CLW_STATION, CLW_HEAL, CLW_COVER, CLW_COUNTER, CLW_CSIEGE, CLW_FERRY, CLW_EXPLORE, CLW_MUSTER, CLW_BOMBERS, CLW_PLAYER, CLW_N };
+       CLW_STATION, CLW_HEAL, CLW_COVER, CLW_COUNTER, CLW_CSIEGE, CLW_FERRY, CLW_EXPLORE, CLW_MUSTER, CLW_BOMBERS, CLW_FIGHTERS, CLW_PLAYER, CLW_N };
 internal const char *const k_clw[CLW_N] = { "-", "storm", "danger zone", "repair", "squadron", "fleet", "citizens' safety", "militia", "holding the ground", "work", "builders",
-                                            "stations", "healing", "cover", "counter-fire", "counter-siege", "ferry", "exploring", "muster", "lone bomber runs", "the player" };
+                                            "stations", "healing", "cover", "counter-fire", "counter-siege", "ferry", "exploring", "muster", "lone bomber runs", "fighter sweeps", "the player" };
 #define CL_N 4096
 #define CL_SWEEP 5000
 #define CL_REPAIR_T 120000   // a repair's claim, renewed each look while it goes

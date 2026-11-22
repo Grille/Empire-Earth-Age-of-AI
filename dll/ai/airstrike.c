@@ -147,8 +147,12 @@
 #define AS_R 14
 #define AS_AA_R 14
 #define AS_TARGETS 32
-#define AS_BOMBERS 128
+#define AS_BOMBERS 256
 #define AS_AGAIN 20000
+// THE AIR FORCE'S SIZE (airguard.c, [ai_base] air_force_share): the bombers its share keeps, the room its Airports
+// leave them beside its fighters, the Airports it wants for all its aircraft - 0 with the share off (the wing's count
+// below alone)
+internal int g_afs_bombers[16], g_afs_room[16], g_afs_ports[16];
 #define AF_FLIGHT 4
 #define AF_WING 8
 #define AF_WING_MAX 24
@@ -249,10 +253,15 @@ internal int as_order(ee_unit *u, ee_goal *goal) {
 // a bomber of a player whose air force is on: the game's groups don't get it (armies.c armies_refuses_offer) nor
 // order it (landing.c hook_asg_air_give_goal) - held, the game's air subgroup it was in still ordered it about
 // (air_strike.eeai: none of 11 held bombers ever idle)
+internal int afs_owns_fighters(unsigned idx);   // airguard.c THE AIR FORCE'S SIZE
 internal int af_takes(ee_unit *u) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit_type *td = pl ? unit_get_type_data(u) : NULL;
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    // ... and with the air force's share on, every fighter of a player the game's computer player doesn't play: the game's
+    // air subgroups ordered them still (13-19 orders a game), into the enemy's anti-air buildings - all of an AI's
+    // fighters lost within the hour, none on an order of the mod's (airguard.c)
+    if (td && unit_type_get_class_id(td) == CLS_AIRPLANE && unit_type_get_family(td) == KIND_AIRCRAFT && !is_vanilla(pl) && !GAME_AI(idx) && afs_owns_fighters(idx)) return 1;
     return td && unit_type_get_family(td) == KIND_BOMBER && unit_type_get_class_id(td) == CLS_AIRPLANE && PV(idx, g_v_air_strike, AS_ON) &&
            (ar_on(pl, idx) || !GAME_AI(idx)) && current_epoch(pl) + 1 >= 10;   // the game's computer player off: the territories' pushes are its positions (below)
 }
@@ -277,10 +286,15 @@ internal int af_airports(void *um, int *building) {
 internal void af_train(ee_player *pl, unsigned idx, struct as_st *s, int have, uint32_t now) {
     if (s->train_t && now - s->train_t < AF_TRAIN_EVERY) return;
     s->train_t = now ? now : 1;
-    if (!s->need_t || now - s->need_t >= AF_STRONG_MS) return;   // no position needs it
+    int size = g_afs_bombers[idx], needed = s->need_t && now - s->need_t < AF_STRONG_MS;
+    if (!needed && !size) return;   // no position needs it, no air force's share keeps it
     if (s->asked && now - s->asked_t >= AF_STRONG_MS) s->asked = 0;   // asked long ago and none came: the queue is gone
-    int want = s->needed > AF_WING ? s->needed : AF_WING;
+    int want = !needed ? 0 : s->needed > AF_WING ? s->needed : AF_WING;
     if (want > AF_WING_MAX) want = AF_WING_MAX;
+    if (size) {   // THE AIR FORCE'S SIZE: its share, as far as its Airports have room beside the fighters
+        int sz = size < g_afs_room[idx] ? size : g_afs_room[idx];
+        if (sz > want) want = sz;
+    }
     if (have + s->asked >= want) return;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
@@ -288,6 +302,7 @@ internal void af_train(ee_player *pl, unsigned idx, struct as_st *s, int have, u
     if (!um) return;
     int building, ap = af_airports(um, &building), ap_want = (want + AF_PER_AIRPORT - 1) / AF_PER_AIRPORT, e = current_epoch(pl);
     if (ap_want > AF_AIRPORTS) ap_want = AF_AIRPORTS;
+    if (g_afs_ports[idx] > ap_want) ap_want = g_afs_ports[idx];   // THE AIR FORCE'S SIZE: room for all its aircraft
     if (ap + building > s->ap_seen) s->ap_tries = 0;   // one more came of it
     s->ap_seen = ap + building;
     // the game's computer player off (the player 2026-11-15: "the navel port and airports arent build yet"): nobody works

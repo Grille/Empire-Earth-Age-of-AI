@@ -31,6 +31,7 @@
 #define CF_OWN 2048
 internal int sk_is_spotter(ee_unit *u);   // skirmish.c: the spotter (an attack order would give it away)
 internal int dct_claims_bombers(unsigned idx);   // airstrike.c THE DOCTRINE (bomber_claim): its bombers are the air force's, not soldiers to send at the shooters
+internal int afs_owns_fighters(unsigned idx);    // airguard.c THE AIR FORCE'S SIZE: its fighters likewise
 internal void af_request(ee_player *pl, ee_unit *u, uint32_t now);   // ... it is asked to strike them (a run if it finds one worth it)
 
 internal int g_cfire = 1;
@@ -65,6 +66,9 @@ internal void cf_unit(ee_unit *u, void *ctx) {
     if (owner == s->pl) {
         // (is_soldier counts aircraft: the bombers went from their targets at the mortars, into the anti-air by them)
         if (unit_type_get_family(td) == KIND_BOMBER && unit_type_get_class_id(td) == CLS_AIRPLANE && dct_claims_bombers((unsigned)player_get_index(s->pl) & 15)) return;
+        // ... and the fighters with the air force's share on: they are the air guard's (airguard.c - in the pilot 7 of
+        // an AI's went in 5 minutes, none of them on a sweep of its)
+        if (unit_type_get_class_id(td) == CLS_AIRPLANE && afs_owns_fighters((unsigned)player_get_index(s->pl) & 15)) return;
         if (is_soldier(td) && !unit_get_holder(u) && !sk_is_spotter(u) && s->no < CF_OWN) s->own[s->no++] = u;
         return;
     }
