@@ -33,6 +33,16 @@
 #define FY_BOARD 240000   // no one aboard this long: given up
 #define FY_LOAD 90000     // some aboard this long: off with those
 #define FY_SEA 360000     // not unloaded this long: put off where it is
+#define FY_APPROACH 120000   // the transport not at the pick-up this long: the load given where it is
+#define FY_BOARD_AFTER (FY_BOARD - FY_APPROACH)
+// THE TIME BY THE WAY ([ai_base] ferry_time_by_way): the limits above are a small map's (measured on Small Islands) -
+// on the player's huge map a transport makes 0.75 tiles a second, P3's main trip (land 2 to land 240, 270 tiles through
+// the point off the line) takes 7-8 minutes: in 5 test games 110 of them, none landed - given up in 4 minutes with the
+// transport still 180 tiles off, or put off at sea after 6. With it the time to the pick-up and the time across are
+// the way's (straight, through the point off the line when there is one) times FY_WAY_DETOUR at the transport's
+// speed, plus FY_WAY_SLACK; the limits above at the least.
+#define FY_WAY_DETOUR 1.5f
+#define FY_WAY_SLACK 60000
 #define FY_ORDER 90000    // a transport ordered counts as coming this long
 #define FY_FRESH 15000    // the lands' tables older than this: no trip
 #define FY_GATHER 180000  // GATHERED FIRST: a push waits this long at most for transports enough
@@ -254,6 +264,15 @@ internal int fy_reach_areas(unsigned idx, ee_unit **pass, int np, int *preg, int
 }
 // SCOUTS ACROSS: the scout that asked still alive and its own (a dead one's object can be another unit by now, its
 // serial another), and not aboard already
+// THE TIME BY THE WAY: ms for a way of d tiles by transport u (FY_WAY_DETOUR at its speed, FY_WAY_SLACK), at least lo
+internal uint32_t fy_way_ms(ee_unit *u, float d, uint32_t lo) {
+    ee_unit_stats *st = unit_get_stats(u);
+    float v = st ? unit_stats_get_speed(st) : 0.0f;
+    if (v < 0.2f) v = 0.2f;
+    float ms = d * FY_WAY_DETOUR / v * 1000.0f + (float)FY_WAY_SLACK;
+    return ms > (float)lo ? (ms < 3600000.0f ? (uint32_t)ms : 3600000u) : lo;
+}
+internal float fy_dist(ivec2 a, ivec2 b) { return sqrtf((float)ivec2_dist2(a, b)); }
 internal int fy_scout_ok(ee_player *pl, unsigned idx, int k) {
     ee_unit *u = g_sn_sx[idx & 15][k].u;
     return u && unit_get_serial(u) == g_sn_sx[idx & 15][k].id && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && !expand_has(pl, u);
@@ -375,6 +394,11 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     if (kind == 3 && push >= 0 && push < SN_PUSHES) { g_sn[idx & 15].push[push].sup_at = t->drop_w; g_sn[idx & 15].push[push].sup_oc = t->ocean; }   // THE SQUADRON AHEAD
     t->pick = seas[bs].pick; t->pick_w = seas[bs].pick_w; t->drop = seas[bs].drop; t->dest = dest;
     t->ship.u = best; t->ship.id = unit_get_serial(best);
+    t->app_ms = FY_APPROACH; t->sea_ms = FY_SEA;
+    if (g_set_ai[1].ferry_time_by_way) {   // THE TIME BY THE WAY
+        t->app_ms = fy_way_ms(best, fy_dist(unit_get_tile(best), t->pick_w), FY_APPROACH);
+        t->sea_ms = fy_way_ms(best, t->has_via ? fy_dist(t->pick_w, t->via) + fy_dist(t->via, t->drop_w) : fy_dist(t->pick_w, t->drop_w), FY_SEA);
+    }
     t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0;
     f->trips++; f->last_kind = kind; t->no = f->trips;
     fy_take(idx, best);   // ORDERS BY PRIORITY: the trip's till it ends
@@ -383,9 +407,9 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         fy_take(idx, t->pass[k].u);
         unit_goal(t->pass[k].u, goal_move((float)t->pick.x + 0.5f, (float)t->pick.y + 0.5f), 0, 0x1F40);
     }
-    fy_say(idx, now, "trip %u: %d %s from land %u (by %d,%d) to land %u (wanted at %d,%d) - the transport at %d,%d, boarding at %d,%d, off at %d,%d%s; risk %.2f%s",
+    fy_say(idx, now, "trip %u: %d %s from land %u (by %d,%d) to land %u (wanted at %d,%d) - the transport at %d,%d, boarding at %d,%d, off at %d,%d%s; risk %.2f%s; %u s to the pick-up, %u s across",
            t->no, t->npass, fy_pool_name(kind, push), a, mid.x, mid.y, b, dest.x, dest.y, unit_get_x(best), unit_get_y(best),
-           t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "");
+           t->pick.x, t->pick.y, t->drop.x, t->drop.y, hv ? " by a way off the line" : "", (double)risk, imp ? " (important)" : "", t->app_ms / 1000, t->sea_ms / 1000);
     return 1;
 }
 internal int fy_push_transit(unsigned idx, int k) {   // stations.c ACROSS: push k's soldiers with a trip (its citizens not)
@@ -768,10 +792,10 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
     if (!fy_take(idx, sh)) return;   // out of a storm or a danger zone first: the trip's orders wait
     if (t->phase == 1 || t->phase == 2) {
         if (!t->npass) { fy_end(pl, idx, t, now, "no passenger left"); return; }
-        if (now - t->since >= FY_BOARD && !aboard) { f->failed++; fy_end(pl, idx, t, now, "boarding failed in 4 minutes"); return; }
+        if (now - t->since >= t->app_ms + FY_BOARD_AFTER && !aboard) { f->failed++; fy_end(pl, idx, t, now, "boarding failed in time"); return; }
         if (t->phase == 1) {
             int there = ivec2_dist2(unit_get_tile(sh), t->pick_w) <= 49;
-            if (!there && now - t->since < 120000) {
+            if (!there && now - t->since < t->app_ms) {
                 convoy_escort(idx, sh, t->pick_w, t->drop, 0, now);
                 if (!goal_near(sh, (float)t->pick_w.x + 0.5f, (float)t->pick_w.y + 0.5f, 2.0f))
                     unit_goal(sh, goal_move((float)t->pick_w.x + 0.5f, (float)t->pick_w.y + 0.5f), 0, 0x1F40);
@@ -845,7 +869,7 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
         fy_end(pl, idx, t, now, NULL);
         return;
     }
-    if (now - t->since >= FY_SEA) { f->failed++; fy_end(pl, idx, t, now, "not across in 6 minutes - put off where it is"); return; }
+    if (now - t->since >= t->sea_ms) { f->failed++; fy_end(pl, idx, t, now, "not across in time - put off where it is"); return; }
     convoy_escort(idx, sh, t->pick_w, t->drop, 1, now);   // ESCORT (convoy.c)
     if (t->kind == 3 && t->has_via && !t->via_done && (ivec2_dist2(unit_get_tile(sh), t->via) <= 36 || now - t->since >= FY_MEET_SAIL)) {   // TOGETHER: the push's transports meet off the beach, then run in at once
         if (!t->meet_t) t->meet_t = now ? now : 1;

@@ -840,6 +840,13 @@ class ai_base
         /// Off: the shore tile nearest their middle on the land, wherever a forest or a mountain stands between. 0 = off
         [advanced]
         bool ferry_reach = false;
+        /// The ferry's time limits by the way (the game's computer player off): the time a transport has to reach the pick-up
+        /// and to get across before the trip is given up is worked out from the way and the transport's speed (half as long
+        /// again for the way round coasts, and a minute more) - at least 2 and 6 minutes, the fixed limits it has when off
+        /// (a small map's: on a huge one a long trip was given up every time, its transport still under way). 0 = off;
+        /// on since 2026-11-22 (with ferry_reach, the player's save: trips given up a fifth as often, citizens across twice)
+        [advanced]
+        bool ferry_time_by_way = true;
         /// Expansion across the water as over land (the game's computer player off): a territory across a sea (or two seas
         /// side by side) from one the AI holds counts as beside it - a Settlement and a tower by its mines as by a
         /// neighbour's, after the mines over land; the ferry service brings the builders, the miners and the soldiers. It
