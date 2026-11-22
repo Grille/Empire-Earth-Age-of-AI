@@ -2447,10 +2447,11 @@ internal void cmd_basemap(char *out, const char *args) {
 // `ringmap P [r]`: the ground round AI player P's base point for a picture of its walls (scripts/results/ringmap.py),
 // one character a tile, a row per y: . walkable, ~ water, ^ other ground no citizen walks, t tree, m mine or other
 // resource, W its wall, w its wall going up, G its gate, T its tower, C its Town Center, B its other buildings, E another
-// player's building or wall, x something else in the way, , its ring's tile still open, o a tower spot of its ring
+// player's building or wall, x something else in the way, , its ring's tile still open, o a tower spot of its ring.
+// `ringmap P r x y`: round that tile instead (a town away from the base point)
 internal void cmd_ringmap(char *out, const char *args) {
-    int p = 0, r = 50;
-    sscanf(args, "%d %d", &p, &r);
+    int p = 0, r = 50, cx = -1, cy = -1;
+    sscanf(args, "%d %d %d %d", &p, &r, &cx, &cy);
     if (r < 5) r = 5;
     if (r > 56) r = 56;
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
@@ -2459,7 +2460,7 @@ internal void cmd_ringmap(char *out, const char *args) {
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0;
     if (!bm || !n || build_mgr_get_base_x(bm) == -10000) { REPLY("error: no AI player %d with a base\n", p); return; }
-    int x0 = build_mgr_get_base_x(bm) - r, y0 = build_mgr_get_base_y(bm) - r, w = 2 * r + 1;
+    int x0 = (cx >= 0 ? cx : build_mgr_get_base_x(bm)) - r, y0 = (cy >= 0 ? cy : build_mgr_get_base_y(bm)) - r, w = 2 * r + 1;
     struct encl *e = &g_encs[(unsigned)p & 15];
     int ring = encl_on((unsigned)p & 15) && e->pl == pl;
     int nx = 0, xt[8], xc[8];   // what the x tiles hold
