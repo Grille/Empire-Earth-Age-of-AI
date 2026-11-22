@@ -19,6 +19,8 @@ personality = {
     navy = 30%,
     early_anti_air = 30%,
     pressure = 80%,
+    defences = 25%,
+    spread = 80%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A steppe conqueror, a warlord of horsemen: blunt, boastful, contemptuous of weakness, respects only strength.",
 }

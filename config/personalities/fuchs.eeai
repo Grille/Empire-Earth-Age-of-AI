@@ -23,6 +23,8 @@ personality = {
     navy = 50%,
     early_anti_air = 60%,
     pressure = 45%,
+    defences = 55%,
+    spread = 45%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A scheming princess, charming and polite on the surface, cold and calculating beneath; keeps a little book of every slight and every favour; enjoys hints and veiled threats.",
 }

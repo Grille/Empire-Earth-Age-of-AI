@@ -503,7 +503,8 @@ internal int tv_sea_best(unsigned idx, unsigned *ocean) {
 // useless, player completly cover their shores with towers for example, a bit of peace of mind in case anyone tries to
 // sneak in from behind. stuff like that wont pay in the tests, since sneak attacks from behind arent really in the ai
 // yet". So this part is NOT judged by the AI-against-AI games.
-// While BW_STONE of stone and BW_WOOD of wood lie in the bank: every BW_EVERY one tower on the outside border of a
+// While BW_STONE of stone and BW_WOOD of wood lie in the bank (by the strategy plan's defences, plans.c: BW_EVERY
+// divided by it, above 1 BW_SPACE too, below 1 both banks grown by it): every BW_EVERY one tower on the outside border of a
 // territory it holds (3 of its citizens there, not being lost) - a tile of it within 2 of water or of land nobody of
 // its side holds - where no tower of its stands within BW_SPACE tiles; the place nearest that territory's middle
 // first, so the cover grows from the core outwards and ends as a tower every BW_SPACE tiles of shore and open border.
@@ -533,7 +534,14 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
     struct tv_st *s = &g_tv[idx];
     const int *stock = player_stock_at(pl);
     int sink = g_set_ai[1].stone_sink && !GAME_AI(idx) && stock[4] >= BW_SINK, space = sink ? BW_SINK_SPACE : BW_SPACE;   // THE STONE SINK
-    if (!BORDER_TOWERS(idx) || !s->n || (g_bw[idx].t && now >= g_bw[idx].t && now - g_bw[idx].t < (sink ? BW_SINK_EVERY : BW_EVERY))) return;
+    // plans.c: its plan's defences - the pace divided by it, and above 1 the spacing too (down to the sink's); below 1
+    // the bank they start from grows by it, above 1 it stays: the surplus used faster and denser, not the stone the
+    // claims' and the mines' towers want (plans.c MEASURED: from 750 the fortress plan's seats lost 22-32 workers)
+    float df = plan_f(idx, LN_DEF);
+    uint32_t every = (uint32_t)((float)(sink ? BW_SINK_EVERY : BW_EVERY) / df);
+    int need_s = df < 1.0f ? (int)((float)BW_STONE / df) : BW_STONE, need_w = df < 1.0f ? (int)((float)BW_WOOD / df) : BW_WOOD;
+    if (!sink && df > 1.0f) { space = (int)((float)BW_SPACE / df + 0.5f); if (space < BW_SINK_SPACE) space = BW_SINK_SPACE; }
+    if (!BORDER_TOWERS(idx) || !s->n || (g_bw[idx].t && now >= g_bw[idx].t && now - g_bw[idx].t < every)) return;
     g_bw[idx].t = now ? now : 1;
     if (g_log && sink && (!g_bw[idx].log_t || now < g_bw[idx].log_t || now - g_bw[idx].log_t >= 300000)) {   // why its looks laid nothing, while the stone sink runs
         g_bw[idx].log_t = now ? now : 1;
@@ -548,7 +556,7 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
     // the mod's placement as build.c's are (its builders come to the foundation), one going up at a time - before, one
     // entry was queued, never built, and its being queued (tower_queued) stopped every other for the rest of the game
     int own = !GAME_AI(idx), open_ = 0;
-    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < BW_STONE || (!sink && stock[3] < BW_WOOD) || (!own && tower_queued(bm))) { g_bw[idx].why[0]++; return; }
+    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < need_s || (!sink && stock[3] < need_w) || (!own && tower_queued(bm))) { g_bw[idx].why[0]++; return; }
     g_bw[idx].ntw = 0;   // its towers (and other defences) as they stand
     for (ee_unit *u = player_get_units(pl); u && g_bw[idx].ntw < BW_TOWERS; u = unit_get_next(u)) {
         float rng, att;
@@ -594,15 +602,15 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
             }
     g_bw[idx].bad[g_bw[idx].nbad++ & 31].p = best; g_bw[idx].bad[(g_bw[idx].nbad - 1) & 31].t = now ? now : 1;   // no place for a tower by it: the next one the next time
     g_bw[idx].no_place++; g_bw[idx].why[5]++;
-    g_bw[idx].t = now - BW_EVERY + 2000;
+    g_bw[idx].t = now - every + 2000;
 }
 // ---- BORDER WALLS ([ai_base] border_walls; [autotest] v_border_walls) ----
 // The other half of the player's "placing towers and walls along outside borders" (BORDER TOWERS above), and like it not
 // judged by the AI-against-AI games. The territories' land borders lie where the land is narrowest (game/territory.c
 // splits at the necks), so a wall along one is the shortest wall that closes that side.
-// While BWL_STONE of stone lies in the bank: the border between a land territory it holds (3 of its citizens, not being
-// lost) and a land territory nobody of its side holds and it has nothing in itself - the SHORTEST such border with a
-// tile still open first - gets a wall on the holder's side of the line: the tiles of its territory that touch the
+// While BWL_STONE of stone lies in the bank (BWL_EVERY divided by the plan's defences, below 1 the bank grown, as
+// BORDER TOWERS'): the border between a land territory it holds (3 of its citizens, not being lost) and a land
+// territory nobody of its side holds and it has nothing in itself - the SHORTEST such border with a tile still open first - gets a wall on the holder's side of the line: the tiles of its territory that touch the
 // other, a gate in the middle (two from BWL_GATE2 tiles: a third in from each end), its five pieces first; trees,
 // cliffs and water on the line close it where they stand. The laying is the town ring's (defence.c encl_lay): BWL_RUNS
 // runs of up to 12 pieces a BWL_EVERY while fewer than BWL_FLIGHT stand unfinished, the stone above BWL_KEEP only, and never a
@@ -894,7 +902,8 @@ internal void bwl_ring(ee_player *pl, unsigned idx, struct encl *e, int wtype, u
 internal void tv_border_walls(ee_player *pl, unsigned idx, uint32_t now) {
     struct tv_st *s = &g_tv[idx];
     struct encl *e = &g_bwl_ring[idx];
-    if (!BORDER_WALLS(idx) || !s->n || (g_bwl[idx].t && now >= g_bwl[idx].t && now - g_bwl[idx].t < BWL_EVERY)) return;
+    float df = plan_f(idx, LN_DEF);   // plans.c: its plan's defences - the pace divided by it, the bank grown below 1 (BORDER TOWERS)
+    if (!BORDER_WALLS(idx) || !s->n || (g_bwl[idx].t && now >= g_bwl[idx].t && now - g_bwl[idx].t < (uint32_t)((float)BWL_EVERY / df))) return;
     g_bwl[idx].t = now ? now : 1;
     void *cm = player_get_civ_mgr(pl), *wm = cm ? civ_mgr_get_wall_mgr(cm) : NULL;
     int wtype = bwl_wall_type(pl), stock[7];
@@ -963,7 +972,7 @@ internal void tv_border_walls(ee_player *pl, unsigned idx, uint32_t now) {
     }
     if (!g_bwl[idx].on) {
         int r = 0, o = 0;
-        if (stock[4] < BWL_STONE || !bwl_next(pl, idx, wtype, now, &r, &o)) return;
+        if (stock[4] < (df < 1.0f ? (int)((float)BWL_STONE / df) : BWL_STONE) || !bwl_next(pl, idx, wtype, now, &r, &o)) return;
         bwl_ring(pl, idx, e, wtype, (unsigned)r, (unsigned)o);
         if (!e->nring) return;
         if (!(e->ngate + g_bwl[idx].ngap + g_bwl[idx].have_gates)) {   // THE GAP: no gate and no gap can be - not walled at all

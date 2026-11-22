@@ -54,11 +54,14 @@ personality = {
     // leanings 0% to 100% (50% when left out), with strategy_plans in ageofai.ini: what it puts into each, and how
     // likely it picks a plan that puts more - air_force: the aircraft; navy: the warships; early_anti_air: anti-air before
     // any aircraft is seen (0%: only in answer to them); pressure: the army's share of the income (high: early pressure,
-    // low: the economy first)
+    // low: the economy first); defences: towers and walls along its borders; spread: claims of empty territories
+    // (high: wide, low: compact)
     air_force = 50%,
     navy = 50%,
     early_anti_air = 50%,
     pressure = 50%,
+    defences = 50%,
+    spread = 50%,
     // for the AI voice: who this is, in a few words (the model plays it)
     character = "",
 }

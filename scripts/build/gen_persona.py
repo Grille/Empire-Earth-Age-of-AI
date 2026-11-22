@@ -86,8 +86,9 @@ for t in ['aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', '
 w('    # leanings 0% to 100% (50% when left out), with strategy_plans in ageofai.ini: what it puts into each, and how')
 w('    # likely it picks a plan that puts more - air_force: the aircraft; navy: the warships; early_anti_air: anti-air before')
 w('    # any aircraft is seen (0%: only in answer to them); pressure: the army\'s share of the income (high: early pressure,')
-w('    # low: the economy first)')
-for t in ['air_force', 'navy', 'early_anti_air', 'pressure']:
+w('    # low: the economy first); defences: towers and walls along its borders; spread: claims of empty territories')
+w('    # (high: wide, low: compact)')
+for t in ['air_force', 'navy', 'early_anti_air', 'pressure', 'defences', 'spread']:
     w('    %s = 50%%,' % t)
 w('    # for the AI voice: who this is, in a few words (the model plays it)')
 w('    character = "",')

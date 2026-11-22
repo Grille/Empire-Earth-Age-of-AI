@@ -700,8 +700,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // A CLAIM (the player 2026-11-15: "controlling the whole map is the endgoal ... but within reason"; "the ai also
         // dosnt yet clam territoires that have no resources in it, they are still needed for map control"): a tower in
         // the middle of a territory nobody has a building in, beside one it holds where BD_CLAIM_GUARD of its soldiers
-        // stand (the border is secured first) - the nearest to its base, one every BD_CLAIM_EVERY, when nothing else is
-        // to lay and it has min_workforce citizens. The tower makes the territory its own (territories.c TV_HOLDS): the
+        // stand (the border is secured first) - the nearest to its base, one every BD_CLAIM_EVERY (divided by the
+        // strategy plan's spread, plans.c; BD_CLAIM_OPEN times it going up), when nothing else is to lay and it has
+        // min_workforce citizens. The tower makes the territory its own (territories.c TV_HOLDS): the
         // shares station soldiers there, its citizens may work there and beside it, and the next claim starts from it.
         // ... and a building (the player, the same day: "a building and a tower"): a Settlement beside the tower of a
         // claim that has nothing else yet - before the next claim
@@ -735,14 +736,18 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // looks held back so), only its own claims laid within BD_CLAIM_LONE whose territory it doesn't hold yet,
         // BD_CLAIM_OPEN of them at most
         int claims_going = 0;
+        float sf = plan_f(idx, LN_SPREAD);   // plans.c: its plan's spread - claims that often more, that many more going up
+        uint32_t claim_every = (uint32_t)((float)BD_CLAIM_EVERY / sf);
+        int claim_open = (int)((float)BD_CLAIM_OPEN * sf + 0.5f);
+        if (claim_open < 1) claim_open = 1;
         for (unsigned k = 0; k < 8 && k < b->nclaim_open; k++) {
             int r = b->claim_open[k].r;
             claims_going += r >= 0 && r < s->n && s->t[r].role == TVR_NONE && now >= b->claim_open[k].t && now - b->claim_open[k].t < BD_CLAIM_LONE;
         }
         b->claim_why = placed ? "something else laid" : !ctype ? (wait[2] ? "a tower just laid" : "no tower or Barracks to build or pay") :
                        workforce(pl) < g_min_workforce ? "too few citizens" : held_r >= 0 ? NULL :
-                       lone >= 0 ? "a claim's Settlement still missing" : claims_going >= BD_CLAIM_OPEN ? "claims still going up" :
-                       b->claim_t && now >= b->claim_t && now - b->claim_t < BD_CLAIM_EVERY ? "the last one too recent" : NULL;
+                       lone >= 0 ? "a claim's Settlement still missing" : claims_going >= claim_open ? "claims still going up" :
+                       b->claim_t && now >= b->claim_t && now - b->claim_t < claim_every ? "the last one too recent" : NULL;
         memset(b->claim_n, 0, sizeof b->claim_n);
         if (!b->claim_why) {
             // a territory with a mine nobody works counts as BD_CLAIM_MINE times nearer: the claims grow towards the mines

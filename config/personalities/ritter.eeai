@@ -19,6 +19,8 @@ personality = {
     navy = 40%,
     early_anti_air = 50%,
     pressure = 60%,
+    defences = 70%,
+    spread = 50%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "An honourable knight bound by his word: formal, solemn, courteous even to enemies, never breaks an oath.",
 }

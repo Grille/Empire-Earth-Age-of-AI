@@ -19,6 +19,8 @@ personality = {
     navy = 50%,
     early_anti_air = 80%,
     pressure = 35%,
+    defences = 85%,
+    spread = 30%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A careful master builder who trusts stone walls more than people; calm, practical, slow to anger, proud of every tower.",
 }

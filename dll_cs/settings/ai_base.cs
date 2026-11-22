@@ -637,11 +637,12 @@ class ai_base
         /// 0 = game_ai decides there too
         bool game_ai_scenarios = true;
         /// Strategy plans: every AI picks a plan at the start - balanced, air power, sea power, guarded (anti-air early),
-        /// pressure (more of the income into the army) or economy first - by its personality's leanings (personality =
-        /// { air_force = 70%, ... }) and by chance, so that no two games against it go alike; it changes the plan when the
-        /// fighting shows that what it stands on brings back too little (planes lost to the enemy's anti-air, a fleet
-        /// beaten). The plan and the leanings scale the air force's and the navy's shares, the anti-air built before any
-        /// aircraft is seen and the army's share of the income. 0 = every AI plays the same shares; on since 2026-11-22
+        /// pressure (more of the income into the army), economy first, fortress (towers and walls) or expansion (claims) -
+        /// by its personality's leanings (personality = { air_force = 70%, ... }) and by chance, so that no two games
+        /// against it go alike; it changes the plan when the fighting shows that what it stands on brings back too little
+        /// (planes lost to the enemy's anti-air, a fleet beaten). The plan and the leanings scale the air force's and the
+        /// navy's shares, the anti-air built before any aircraft is seen, the army's share of the income, the border
+        /// towers and walls and the claims of empty territories. 0 = every AI plays the same shares; on since 2026-11-22
         /// (the player: "there isnt a 'strongest' default ... giving the ai difrent strategy plans makes it less
         /// predictable"; head-to-head against AIs without plans level on three maps)
         bool strategy_plans = true;

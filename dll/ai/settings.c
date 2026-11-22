@@ -101,10 +101,12 @@ internal void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows
 // how much it puts into it, and how likely it picks a plan that puts more. The levers: air_force the air force's share
 // (airguard.c), navy the navy's (navy.c), early_anti_air the anti-air it builds before any aircraft is seen
 // (defence.c STRONG ANTI-AIR), pressure the army's share of the income (econ.c: early pressure, or the economy
-// first). Not army or air: the language's names of kinds of units (mod/units.eeai). plan_f is the plan's factor of
-// a lever for a player - 1 with the plans off.
-enum { LN_AIR, LN_NAVY, LN_ANTI_AIR, LN_PRESSURE, LN_N };
-internal const char *const k_lean_keys[LN_N] = { "air_force", "navy", "early_anti_air", "pressure" };
+// first), defences the border towers and walls (territories.c: faster and denser from the surplus), spread the
+// claims of empty territories (build.c A CLAIM: more often, more at once - wide, or compact). Not army or air: the
+// language's names of kinds of units (mod/units.eeai). plan_f is the plan's factor of a lever for a player - 1 with
+// the plans off.
+enum { LN_AIR, LN_NAVY, LN_ANTI_AIR, LN_PRESSURE, LN_DEF, LN_SPREAD, LN_N };
+internal const char *const k_lean_keys[LN_N] = { "air_force", "navy", "early_anti_air", "pressure", "defences", "spread" };
 internal float g_lean[16][LN_N];   // by player, 0 to 1, while g_lean_on (persona.c persona_apply); else 0.5 each
 internal uint8_t g_lean_on[16];
 internal float lean_of(unsigned idx, int t) { idx &= 15; return g_lean_on[idx] ? g_lean[idx][t] : 0.5f; }

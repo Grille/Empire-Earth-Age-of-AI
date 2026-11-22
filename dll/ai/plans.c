@@ -4,11 +4,13 @@
 // attempting the same style of play"; then "there isnt a 'strongest' default right now humans quickly lertn what the ai
 // does and plan against it, giving the ai difrent strategy plans makes it less predictable and might be able to throw
 // a human player off". Step 3 of the plans (step 1 returns.c, step 2 the air's worth, airguard.c).
-// A plan is a factor on each lever (settings.c THE LEANINGS: air_force, navy, early_anti_air, pressure). The factor a
-// lever is played by (plan_f) is the plan's times the personality's leaning - 0% its k_lean_span lo, 50% 1, 100% its
-// hi - within the lever's k_lever_bound. The readers: airguard.c the air force's share; navy.c the navy's share, its most and the
-// fleet's size; defence.c STRONG ANTI-AIR the share of the threat built before any aircraft is seen; econ.c and metal.c
-// the army's share of the income (the start's and the running one).
+// A plan is a factor on each lever (settings.c THE LEANINGS: air_force, navy, early_anti_air, pressure, defences,
+// spread). The factor a lever is played by (plan_f) is the plan's times the personality's leaning - 0% its
+// k_lean_span lo, 50% 1, 100% its hi - within the lever's k_lever_bound. The readers: airguard.c the air force's
+// share; navy.c the navy's share, its most and the fleet's size; defence.c STRONG ANTI-AIR the share of the threat
+// built before any aircraft is seen; econ.c and metal.c the army's share of the income (the start's and the running
+// one); territories.c BORDER TOWERS and BORDER WALLS the stone in the bank they start from and their pace; build.c A
+// CLAIM the time between two claims and how many may go up at once.
 // THE PICK: at its first update once navy.c knows its waters, drawn from the decisions' generator (game/random.c: every
 // PC alike), each plan weighed by its k_plans weight, by the leanings - one above 50% raises the plans that put more
 // into its lever and lowers those that put less (lean_pull: 0% a quarter, 100% 2.5 times) - and by the evidence. Sea
@@ -18,7 +20,10 @@
 // THE EVIDENCE: what a lever's kinds of force brought back (returns.c rt_worth_of: killed for lost, the last 10
 // minutes weighed most, a prior on both sides) - air_force its fighters, bombers and helicopters, navy its warships,
 // early_anti_air its anti-air (units and buildings; not the towers, which kill raiders all game), pressure its land
-// soldiers. A plan's fitness: the returns of the levers it stands on (k_plans' on). Every PL_EVERY from PL_FIRST,
+// soldiers; defences and spread none - fortress and expansion stand on nothing, as balanced and economy first: drawn,
+// and left only for a plan that does better. Not on its towers' returns: towers pay whenever the AI is attacked, so
+// the AIs most attacked drifted into fortress (Continental World War I: 11 of 20 held it longest), as they had into
+// guarded. A plan's fitness: the returns of the levers it stands on (k_plans' on). Every PL_EVERY from PL_FIRST,
 // PL_DWELL after the last pick: a plan below PL_FAIL, or one that no longer fits (sea power where the water stopped
 // mattering), is picked again among the others by weight x leanings x fitness; one another beats by PL_BETTER gives
 // way to that one (a draw there took the reason's plan seldom: a plan the next 10 minutes for no reason of its own).
@@ -31,25 +36,35 @@
 // alive +0.10 (0.07), soldiers +7.2 (8.2), workers -4.9 (15.4) - level, no plan clearly worse than the others. Before
 // PL_SEA_MIN sea power on Continental cost 50-65 workers; before the better plan was taken by itself the plans churned
 // every 10 minutes, and before guarded stood on the anti-air alone (the towers counted too) the AIs most attacked
-// drifted into it (workers -35). The test's draws are its game_seed's (g_pl_seed): each game its own plans.
+// drifted into it. The test's draws are its game_seed's (g_pl_seed): each game its own plans.
+// With defences and spread (fortress, expansion; 10 games each again): Continental from the start alive -0.10 (0.07),
+// workers -3.5 (15.9); Continental World War I alive +0.20 (0.17), workers +16.5 (22.0); Small Islands alive 0,
+// workers -0.2 (1.9). A plan's own share is judged seat against seat - the AI with it against the same seat without
+// plans in the mirrored game (same spot, same personality): against the other seats a plan looks as good as the
+// personality that draws it most (fortress: Hedda's seat, -50 to -80 workers that way, -7 and +8 seat against seat).
+// Fortress at first built its towers and walls from 750 stone in the bank, was switched into on its towers' returns
+// and claimed 0.7: seat against seat workers -32 (Continental, 6) and -22 (World War I, 11); now from the surplus
+// only (the claims' and the mines' towers want the rest), drawn only, spread 0.9: -7 (4) and +8 (2).
 #define PL_EVERY 60000u
 #define PL_FIRST 900000u
 #define PL_DWELL 600000u
 #define PL_FAIL 0.6f
 #define PL_BETTER 1.5f
 #define PL_SEA_MIN 0.25f   // sea power: a quarter of its enemies across the water, or seas that want a quarter of a whole fleet
-enum { PN_BALANCED, PN_AIR, PN_SEA, PN_GUARDED, PN_PRESSURE, PN_ECONOMY, PN_N };
+enum { PN_BALANCED, PN_AIR, PN_SEA, PN_GUARDED, PN_PRESSURE, PN_ECONOMY, PN_FORTRESS, PN_EXPANSION, PN_N };
 internal const struct { const char *name; float weight, f[LN_N]; unsigned on; } k_plans[PN_N] = {
-    //                           air    navy   anti-air army     stands on (a bit per lever)
-    { "balanced",         0.5f, { 1.0f,  1.0f,  1.0f,  1.0f  }, 0 },
-    { "air power",        1.0f, { 1.8f,  0.8f,  1.0f,  1.0f  }, 1u << LN_AIR },
-    { "sea power",        1.0f, { 0.7f,  1.6f,  1.0f,  1.0f  }, 1u << LN_NAVY },
-    { "guarded",          1.0f, { 0.9f,  1.0f,  1.8f,  0.9f  }, 1u << LN_ANTI_AIR },
-    { "pressure",         1.0f, { 1.0f,  1.0f,  0.6f,  1.25f }, 1u << LN_PRESSURE },
-    { "economy first",    1.0f, { 1.0f,  0.9f,  1.2f,  0.85f }, 0 },
+    //                           air    navy   anti-air army   defences spread   stands on (a bit per lever)
+    { "balanced",         0.5f, { 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f }, 0 },
+    { "air power",        1.0f, { 1.8f,  0.8f,  1.0f,  1.0f,  1.0f,  1.0f }, 1u << LN_AIR },
+    { "sea power",        1.0f, { 0.7f,  1.6f,  1.0f,  1.0f,  1.0f,  1.0f }, 1u << LN_NAVY },
+    { "guarded",          1.0f, { 0.9f,  1.0f,  1.8f,  0.9f,  1.3f,  1.0f }, 1u << LN_ANTI_AIR },
+    { "pressure",         1.0f, { 1.0f,  1.0f,  0.6f,  1.25f, 0.8f,  1.1f }, 1u << LN_PRESSURE },
+    { "economy first",    1.0f, { 1.0f,  0.9f,  1.2f,  0.85f, 1.0f,  1.2f }, 0 },
+    { "fortress",         1.0f, { 0.9f,  1.0f,  1.3f,  1.0f,  2.0f,  0.9f }, 0 },
+    { "expansion",        1.0f, { 1.0f,  1.0f,  1.0f,  1.0f,  0.8f,  1.8f }, 0 },
 };
-internal const float k_lean_span[LN_N][2] = { { 0.4f, 1.8f }, { 0.6f, 1.5f }, { 0.2f, 2.0f }, { 0.85f, 1.15f } };
-internal const float k_lever_bound[LN_N][2] = { { 0.2f, 2.5f }, { 0.5f, 2.0f }, { 0.0f, 2.0f }, { 0.75f, 1.3f } };
+internal const float k_lean_span[LN_N][2] = { { 0.4f, 1.8f }, { 0.6f, 1.5f }, { 0.2f, 2.0f }, { 0.85f, 1.15f }, { 0.5f, 1.6f }, { 0.6f, 1.5f } };
+internal const float k_lever_bound[LN_N][2] = { { 0.2f, 2.5f }, { 0.5f, 2.0f }, { 0.0f, 2.0f }, { 0.75f, 1.3f }, { 0.4f, 2.5f }, { 0.5f, 2.2f } };
 internal struct pl_st { int plan; uint32_t pick_t, check_t; unsigned picks; float f[LN_N]; } g_pl[16];
 internal int g_plans = 0, g_v_plans = -1;
 internal uint32_t g_pl_seed;   // a test's game_seed: the draws its own in each game (the decisions' generator starts alike in every test)
@@ -75,7 +90,8 @@ internal float plan_evidence(unsigned idx, int lever) {
     case LN_AIR: return rt_worth_of(idx, 1u << RK_FIGHTER | 1u << RK_BOMBER | 1u << RK_HELI);
     case LN_NAVY: return rt_worth_of(idx, 1u << RK_NAVY);
     case LN_ANTI_AIR: return rt_worth_of(idx, 1u << RK_LAND_AA);
-    default: return rt_worth_of(idx, 1u << RK_LAND);
+    case LN_PRESSURE: return rt_worth_of(idx, 1u << RK_LAND);
+    default: return 1.0f;
     }
 }
 internal int plan_fits(unsigned idx, int p) {   // sea power where the water matters to it
@@ -116,13 +132,12 @@ internal void plan_pick(unsigned idx, uint32_t now, int not_this, int this_one, 
         s->f[l] = f < k_lever_bound[l][0] ? k_lever_bound[l][0] : f > k_lever_bound[l][1] ? k_lever_bound[l][1] : f;
     }
     if (!g_log) return;
-    char line[512];
-    line[0] = 0;
+    char lev[256], line[512];
+    lev[0] = line[0] = 0;
+    for (int l = 0; l < LN_N; l++) out_printf(lev, sizeof lev, " %s %.2f (%.0f%%)", k_lean_keys[l], s->f[l], 100.0f * lean_of(idx, l));
     for (int p = 0; p < PN_N; p++) out_printf(line, sizeof line, "%s %s %.2f/%.2f", p ? "," : " | weight/fitness:", k_plans[p].name, w[p], fit[p]);
-    log_locked("# plan: P%u at %.1f min picks %s (%s%s%s) - levers air_force %.2f navy %.2f early_anti_air %.2f pressure %.2f | leanings %.0f%% %.0f%% %.0f%% %.0f%%%s\n",
-               idx, now / 60000.0, k_plans[pick].name, why, was >= 0 ? ", was " : "", was >= 0 ? k_plans[was].name : "",
-               s->f[LN_AIR], s->f[LN_NAVY], s->f[LN_ANTI_AIR], s->f[LN_PRESSURE],
-               100.0f * lean_of(idx, LN_AIR), 100.0f * lean_of(idx, LN_NAVY), 100.0f * lean_of(idx, LN_ANTI_AIR), 100.0f * lean_of(idx, LN_PRESSURE), line);
+    log_locked("# plan: P%u at %.1f min picks %s (%s%s%s) - levers (leanings):%s%s\n",
+               idx, now / 60000.0, k_plans[pick].name, why, was >= 0 ? ", was " : "", was >= 0 ? k_plans[was].name : "", lev, line);
 }
 internal void plans_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
