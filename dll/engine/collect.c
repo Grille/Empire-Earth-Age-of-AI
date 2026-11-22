@@ -223,8 +223,18 @@ internal void uc_turns_between(const uc_copy *c, const uc_obj *o, uint8_t *rec) 
     uint32_t n = o->n_parts + o->n_a + o->n_b, fv[CP_PV], tv[CP_PV];
     uc_pose_v from, to;
     float alpha;
-    if (!g_uc_anim_smooth || !n || n > CP_PV || o->foundation || !uc_between(o, &from, &to, &alpha) || from.which == to.which) return;
-    if (uc_turns_of(c, o, from.which, fv) != n || uc_turns_of(c, o, to.which, tv) != n) return;
+    if (!g_uc_anim_smooth || !n || n > CP_PV || o->foundation || !uc_between(o, &from, &to, &alpha)) return;
+    // The walk's time before the oldest pose kept (the steps come in a burst after a long one: the poses a step apart, the
+    // clock still where the long step held it): the unit is drawn at that pose, and so are its parts. Left as the record
+    // had them, the newest, they were up to two steps ahead, moved only with each step, and went back to the blend when
+    // the clock reached the poses (the player, 2026-11-22: a Nano Dock's ring "jumping back a few steps every few
+    // seconds"; logged in a test after a step load: 0.2 rad ahead in a frame, the clock 120 ms behind the oldest pose).
+    int fw = from.which, tw = to.which;
+    if (fw == tw) {
+        if (!fw) return;
+        tw = fw - 1, alpha = 0.0f;   // the next newer only for the jump test below
+    }
+    if (uc_turns_of(c, o, fw, fv) != n || uc_turns_of(c, o, tw, tv) != n) return;
     float *pv = (float *)vector_first(draw_record_part_values_at(rec)), *av = (float *)vector_first(draw_record_list_a_c_at(rec)),
           *bv = (float *)vector_first(draw_record_list_b_c_at(rec));
     for (uint32_t i = 0; i < n; i++) {
