@@ -850,6 +850,12 @@ class ai_base
         /// they know, and finish their own buildings there, enemy soldiers near or not. 0 = off
         [advanced]
         bool hold_ground = true;
+        /// Claims from a tower (the game's computer player off): a territory nobody holds is claimed from a territory beside it
+        /// that the AI guards with 3 of its soldiers - or with a tower of its own, so a foothold across the water (a mine's
+        /// tower and Settlement) grows over its land too. No gain on the player's save (held 10.8 territories at the end
+        /// against 11 without: its soldiers came to the foothold and claimed either way). 0 = off
+        [advanced]
+        bool claim_from_towers = false;
         /// A transport with units aboard under fire that would sink before it gets where it goes turns for the nearest
         /// beach and puts them off there (the game's computer player off). 0 = off
         [advanced]

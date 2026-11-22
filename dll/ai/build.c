@@ -766,8 +766,14 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 for (int k = 0; k < g_ter.t[r].nbn && !guarded; k++) {
                     unsigned o = g_ter.nb[g_ter.t[r].nb0 + k].to;
                     // enemy soldiers its guard beats there don't count against it (TV_FOES), only one it is losing (TV_UNSAFE):
-                    // a scout passing kept the claims off for good on a busy map
-                    guarded = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE && s->t[o].sold >= BD_CLAIM_GUARD;
+                    // a scout passing kept the claims off for good on a busy map. A tower of its there guards it too ([ai_base]
+                    // claim_from_towers; the player 2026-11-22, "p2 is very passive (barely expanding)": his P2's home island
+                    // full at minute 72, its foothold across the water - a gold mine's tower and Settlement, 63 and 79 free
+                    // beside it - never had 3 soldiers stationed, no claim in the 80 minutes since). Off: on his save (minute
+                    // 169 -> 200, 5 game_seeds) P2 held 8 -> 10.8 territories with it, 8 -> 11 without - its force had come to
+                    // the foothold by then (the stations' share from minute 152), the claims came of the soldiers either way
+                    guarded = o < (unsigned)s->n && !g_ter.t[o].water && s->t[o].role != TVR_NONE && s->t[o].state != TV_UNSAFE &&
+                              (s->t[o].sold >= BD_CLAIM_GUARD || (g_set_ai[1].claim_from_towers && s->t[o].def > 0));
                 }
                 if (!guarded) continue;
                 b->claim_n[2]++;
