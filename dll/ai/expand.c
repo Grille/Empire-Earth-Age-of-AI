@@ -367,6 +367,7 @@ internal struct fy_st {
     unsigned trips, soldiers, citizens, failed, sunk, trained, no_ship, no_shore, beached;
     unsigned parked;                      // HOME TO A DOCK (ferry.c): empty transports sent to a dock's water
     unsigned small, no_dock;              // THRIFT (ferry.c): citizens' trips not started for too few aboard; transports not ordered, no dock of its on the trip's sea
+    unsigned reach_left, reach_none, reach_second;   // A PICK-UP BOTH REACH (ferry.c): candidates passed over (another walking area than the trip's), trips not started (no shore any passenger walks to), trips from a walking area other than the one with the most passengers
 } g_fy[16];
 // the ferry service's trip that has u as its transport (pass: or as a passenger), NULL: none
 internal struct fy_trip *fy_trip_of(unsigned pi, ee_unit *u, int pass) {

@@ -834,6 +834,12 @@ class ai_base
         /// danger with a full load only; held, the transport waits off the shore unloaded. 0 = off
         [advanced]
         bool ferry_safety = true;
+        /// The ferry's pick-up where both reach it (the game's computer player off): a shore tile the passengers can walk to
+        /// (the walking areas of the map: forests, mountains, buildings and walls split a land) with the transport's sea
+        /// beside it - the walking area with the most of them first; those in another area stay for a trip of their own.
+        /// Off: the shore tile nearest their middle on the land, wherever a forest or a mountain stands between. 0 = off
+        [advanced]
+        bool ferry_reach = false;
         /// Expansion across the water as over land (the game's computer player off): a territory across a sea (or two seas
         /// side by side) from one the AI holds counts as beside it - a Settlement and a tower by its mines as by a
         /// neighbour's, after the mines over land; the ferry service brings the builders, the miners and the soldiers. It

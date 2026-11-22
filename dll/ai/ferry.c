@@ -191,6 +191,67 @@ internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
     if (r <= far_ && g_fy_nnosh < 32) { g_fy_nosh[g_fy_nnosh].land = land; g_fy_nosh[g_fy_nnosh++].oc = oc; }
     return 0;
 }
+// A PICK-UP BOTH REACH ([ai_base] ferry_reach; the player 2026-11-22: "the soldiers and ferries should try to find a
+// spot both can reach"): the pick-up was the shore tile of the land nearest the passengers' middle - a land is the
+// game's area, and a forest or a mountain splits it into parts nobody walks between. On his save P2's town stood north
+// of a band of forest across its island, its soldiers' trips picked up on the south shore: 45% of all trips given up
+// with nobody aboard, the soldiers wedged in the trees. With it the pick-up is a shore tile in a walking area of the
+// reach map (game/reachmap.c, a citizen's way: trees, buildings, walls, cliffs; gates open to the player) that holds
+// passengers, on the trip's sea (the transport's water beside it); the area with the most passengers first, the
+// others after when it has no such shore. Passengers in another area stay home: a trip of their own from their area
+// later. No area of theirs on the sea: no trip (the plain pick-up failed there too).
+#define FY_REACH_AREAS 4
+internal struct { int reg, oc; } g_fy_noreg[32];   // walking areas and seas none was found for: this look's (fy_look clears it)
+internal int g_fy_nnoreg;
+// the shore tile of walking area reg (of player idx) on land `land` nearest p with its sea oc beside it, 3x3 free;
+// searched no farther than fy_shore does
+internal int fy_reach_shore(unsigned idx, unsigned land, int oc, int reg, ivec2 p, ivec2 *o, ivec2 *w) {
+    if (oc <= 0 || reg < 0 || !fy_touches(land, (unsigned)oc)) return 0;
+    for (int k = 0; k < g_fy_nnoreg; k++) if (g_fy_noreg[k].reg == reg && g_fy_noreg[k].oc == oc) return 0;
+    ee_map *map = game_map();
+    int far_ = map ? (int)map_get_size(map) : FY_SHORE, r = far_;
+    if (far_ < FY_SHORE) far_ = r = FY_SHORE;
+    if (map && land < FY_TOUCH_L) {
+        const int16_t *b = g_fy_touch.box[land];
+        int d[4] = { abs(p.x - b[0]), abs(p.x - (b[2] - 1)), abs(p.y - b[1]), abs(p.y - (b[3] - 1)) };
+        r = 0;
+        for (int k = 0; k < 4; k++) if (d[k] > r) r = d[k];
+        if (r > far_) r = far_;
+    }
+    for (int dd = 0; dd <= r; dd++)
+        for (int dx = -dd; dx <= dd; dx++)
+            for (int dy = -dd; dy <= dd; dy += (abs(dx) == dd || !dd ? 1 : 2 * dd)) {
+                ivec2 q = iv2(p.x + dx, p.y + dy), a;
+                if (area_id(q, 2) != land || area_id(q, 1)) continue;
+                if ((int)ocean_near(q, 2, &a) != oc || !ld_tile_free(q) || rm_region_of((int)idx, q.x, q.y) != reg) continue;
+                *o = q;
+                if (w) *w = a;
+                return 1;
+            }
+    if (g_fy_nnoreg < 32) { g_fy_noreg[g_fy_nnoreg].reg = reg; g_fy_noreg[g_fy_nnoreg++].oc = oc; }
+    return 0;
+}
+// the walking areas of the passengers (most passengers first; their middles), into reg / at; how many
+internal int fy_reach_areas(unsigned idx, ee_unit **pass, int np, int *preg, int *reg, ivec2 *at) {
+    int cnt[FY_REACH_AREAS] = { 0 }, n = 0;
+    long sx[FY_REACH_AREAS] = { 0 }, sy[FY_REACH_AREAS] = { 0 };
+    for (int k = 0; k < np; k++) {
+        int x = unit_get_x(pass[k]), y = unit_get_y(pass[k]), r = rm_node_region_of((int)idx, rm_node_near(x, y)), j = 0;
+        preg[k] = r;
+        if (r < 0) continue;
+        while (j < n && reg[j] != r) j++;
+        if (j == n) { if (n == FY_REACH_AREAS) continue; reg[n++] = r; }
+        cnt[j]++; sx[j] += x; sy[j] += y;
+    }
+    for (int i = 0; i < n; i++) at[i] = iv2((int)(sx[i] / cnt[i]), (int)(sy[i] / cnt[i]));
+    for (int i = 1; i < n; i++)   // most first (stable: the first met first at a tie)
+        for (int j = i; j > 0 && cnt[j] > cnt[j - 1]; j--) {
+            int c = cnt[j]; cnt[j] = cnt[j - 1]; cnt[j - 1] = c;
+            c = reg[j]; reg[j] = reg[j - 1]; reg[j - 1] = c;
+            ivec2 v = at[j]; at[j] = at[j - 1]; at[j - 1] = v;
+        }
+    return n;
+}
 // SCOUTS ACROSS: the scout that asked still alive and its own (a dead one's object can be another unit by now, its
 // serial another), and not aboard already
 internal int fy_scout_ok(ee_player *pl, unsigned idx, int k) {
@@ -200,7 +261,10 @@ internal int fy_scout_ok(ee_player *pl, unsigned idx, int k) {
 internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_trip *t, int kind, int imp, unsigned a, unsigned b, int n, ivec2 dest, int push, uint32_t now) {
     ee_unit *pass[16];
     if (n > 16) n = 16;
-    int np = kind == 1 ? sn_ferry_pick(pl, push >= 0 && push < SNP_N ? push : SNP_MAIN, a, dest, pass, n) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind >= 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, n);
+    // A PICK-UP BOTH REACH: soldiers' and citizens' trips choose from 16, the n of one walking area taken - those nearest
+    // the goal in a corner with no shore came first in every look and the trip never started (P3 on the player's save)
+    int pn = g_set_ai[1].ferry_reach && (kind == 1 || kind == 2) ? 16 : n, lim = pn > n ? n : 16;
+    int np = kind == 1 ? sn_ferry_pick(pl, push >= 0 && push < SNP_N ? push : SNP_MAIN, a, dest, pass, pn) : kind == 3 ? sn_push_pick(pl, push, dest, pass, n) : kind >= 4 ? 0 : wk_ferry_pick(pl, a, dest, pass, pn);
     if (kind == 4 && push >= 0 && push < SN_SX && fy_scout_ok(pl, idx, push)) { pass[0] = g_sn_sx[idx & 15][push].u; np = 1; }   // SCOUTS ACROSS
     if (kind == 5 && push >= 0 && push < FY_HX && g_fy_hx[idx & 15][push].u && unit_get_serial(g_fy_hx[idx & 15][push].u) == g_fy_hx[idx & 15][push].id && unit_get_hp(g_fy_hx[idx & 15][push].u) > 0) {   // PROPHETS ACROSS: it and its escort
         pass[0] = g_fy_hx[idx & 15][push].u;
@@ -225,9 +289,12 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
     long sx = 0, sy = 0;
     for (int k = 0; k < np; k++) { sx += unit_get_x(pass[k]); sy += unit_get_y(pass[k]); }
     ivec2 mid = iv2((int)(sx / np), (int)(sy / np));
+    int preg[16], reg[FY_REACH_AREAS], nreg = 0;   // A PICK-UP BOTH REACH: the passengers' walking areas
+    ivec2 rat[FY_REACH_AREAS];
+    if (g_set_ai[1].ferry_reach) nreg = fy_reach_areas(idx, pass, np, preg, reg, rat);
     // the transport: the nearest free one on a sea both lands touch (each sea's shores looked for once)
-    struct { int oc, ok; ivec2 pick, pick_w, drop, drop_w; } seas[4];
-    int ns = 0, frees = 0;
+    struct { int oc, ok, area; ivec2 pick, pick_w, drop, drop_w; } seas[4];
+    int ns = 0, frees = 0, rfail = 0;
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF, bs = -1;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -238,8 +305,13 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         while (s < ns && seas[s].oc != oc) s++;
         if (s == ns) {
             if (ns == 4) continue;
-            seas[s].oc = oc;
-            seas[s].ok = fy_shore(a, oc, mid, &seas[s].pick, &seas[s].pick_w) && fy_shore(b, oc, dest, &seas[s].drop, &seas[s].drop_w);   // THE SHORE ANYWHERE
+            seas[s].oc = oc; seas[s].area = -1;
+            if (nreg) {   // A PICK-UP BOTH REACH: on a walking area of the passengers', the one with the most first
+                int got = 0;
+                for (int i = 0; i < nreg && !got; i++) if (fy_reach_shore(idx, a, oc, reg[i], rat[i], &seas[s].pick, &seas[s].pick_w)) { got = 1; seas[s].area = i; }
+                seas[s].ok = got && fy_shore(b, oc, dest, &seas[s].drop, &seas[s].drop_w);
+                rfail += !got;
+            } else seas[s].ok = fy_shore(a, oc, mid, &seas[s].pick, &seas[s].pick_w) && fy_shore(b, oc, dest, &seas[s].drop, &seas[s].drop_w);   // THE SHORE ANYWHERE
             ns++;
         }
         if (!seas[s].ok) continue;
@@ -247,13 +319,18 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         if (d < bd) { bd = d; best = it.u; bs = s; }
     }
     if (!best) {
+        if (frees && rfail) { f->reach_none++; return 0; }   // A PICK-UP BOTH REACH: no shore they walk to - not a transport short
         if (frees) f->no_shore++; else f->no_ship++;   // free ones, but on no sea between the two - or none
         g_fy_miss.a = a; g_fy_miss.b = b; g_fy_miss.from = mid; g_fy_miss.to = dest;
         return -1;
     }
     int cap = ld_cap(unit_type_get_id(unit_get_type_data(best))), room = 0;
     t->npass = 0;
-    for (int k = 0; k < np && t->npass < 16; k++) {   // as many as fit (a gun or a rider takes more than one place)
+    int area = seas[bs].area;
+    if (area > 0) f->reach_second++;
+    if (area >= 0) mid = rat[area];
+    for (int k = 0; k < np && t->npass < lim; k++) {   // as many as fit (a gun or a rider takes more than one place)
+        if (area >= 0 && preg[k] != reg[area]) { f->reach_left++; continue; }   // A PICK-UP BOTH REACH: another walking area's
         int sz = tw_size(pass[k]);
         if (room + sz > cap) continue;
         room += sz;
@@ -462,6 +539,7 @@ internal void fy_look(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t now
     struct sn_lands *SP = g_snl[idx];   // EVERY POOL BY THE FERRY (stations.c): each pool's lands
     typeof(&g_wkl[0]) W = &g_wkl[idx];
     g_fy_nnosh = 0;   // the shores none was found for: this look's
+    g_fy_nnoreg = 0;
     int sfresh = SP[SNP_MAIN].t && now >= SP[SNP_MAIN].t && now - SP[SNP_MAIN].t <= FY_FRESH, wfresh = W->t && now >= W->t && now - W->t <= FY_FRESH;
     // the lands' gaps, those on their way counted for the land they go to
     // cwood, cidle: work.c TO THE TREES ACROSS - the places at the trees and bushes (idle citizens only), the idle
@@ -639,6 +717,9 @@ internal void fy_minute(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t n
     if (g_log) log_locked("# ferry: P%u at %.1f min: transports %d (%d free)\n", idx, now / 60000.0, ships, free_ships);
     fy_say(idx, now, "%u trips (%u soldiers, %u citizens put off; %u given up, %u transports sunk, %u put off on a beach under fire), %u transports trained, looks without a free transport %u, with none between the lands %u; on now: %d to the pick-up, %d boarding, %d crossing; %u sent home to a dock, %u citizens' trips not started for too few, %u transports not ordered for want of a dock on the sea | soldiers land:stationed/share%s",
            f->trips, f->soldiers, f->citizens, f->failed, f->sunk, f->beached, f->trained, f->no_ship, f->no_shore, on[1], on[2], on[3], f->parked, f->small, f->no_dock, b);
+    if (g_set_ai[1].ferry_reach)
+        fy_say(idx, now, "pick-ups both reach (ferry_reach): %u candidates passed over in another walking area, %u trips from an area with fewer of them, %u not started for no shore they walk to",
+               f->reach_left, f->reach_second, f->reach_none);
     if (CROSSING_SAFETY(idx)) {
         struct cx_st *c = &g_cx_st[idx & 15];
         fy_say(idx, now, "the crossing: %u ways rated (%u off the line), trips held for the risk %u, for a load too small for it %u, important ones that went into danger %u; threats known %d",
