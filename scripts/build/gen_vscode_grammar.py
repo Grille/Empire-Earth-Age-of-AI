@@ -140,7 +140,7 @@ computed_def = {
 
 def key_line(key, scope):
     return {
-        'begin': r'^\s*(' + key + r')\s*(=)',
+        'begin': r'^\s*(' + key + r')\s*(=>|=(?!=))',   # key = a value read once, key => worked out each time (persona.c x_code_arrow)
         'beginCaptures': {'1': {'name': scope}, '2': {'name': 'keyword.operator.assignment.eeaimod'}},
         'end': r'$',
         'patterns': [{'include': '#value'}],

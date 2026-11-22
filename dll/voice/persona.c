@@ -15,16 +15,16 @@
 //   rich = me.stock > 5000             a name outside the records (vars): an expression for its lines, before
 //                                      mod/system.eeai's
 //   lines = {                          English (other languages: a file of their own, at the release)
-//       war_declared = ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
+//       war_declared => ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
 //   }
 //   decide = {                         its decisions as expressions (persona_decide; mod/computer.eeai's the base)
-//       peace_score = opinion + ...    a number; a key it has none of: its includes', else the built-in rule
+//       peace_score => opinion + ...   a number; a key it has none of: its includes', else the built-in rule
 //   }
 //   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): ageofai.ini keys
 //       epoch_min = 45                 (settings.c k_style_keys) on top of the difficulty's settings for this AI
 //   }
 //   prompt = {                         what its language model is told (texts.c; mod/prompt.eeai has every key)
-//       intro = "..."
+//       intro => "..."
 //   }
 // In braces: {them} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
@@ -276,6 +276,21 @@ internal int x_code_record(const char *sec) {
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (strlen(k[i]) == n && !_strnicmp(sec, k[i], n)) return 1;
     return 0;
 }
+// A RECORD'S ENTRY, = or => (host.h entry_arrow; the player 2026-11-22: "shouldnt title use =>" - the two must never
+// look alike, as outside the records): what the code reads once is a value, key = ... - a personality's name, colour,
+// traits and character, its style (when the AI takes it), language.eeai's words; what it works out each time it uses
+// it is key => ... - a line each time it is said, a decision at each, the priorities and a title and civilization
+// every 10 s, the system's and the prompts' texts each time they are filled. By the key, not the value: title => "Sir"
+// too. Every other record is the file's own (-1).
+internal int x_code_arrow(const char *file, const char *sec, const char *key) {
+    static const char *const again[] = { "priorities", "decide", "lines", "prompt", "system" };
+    size_t n = strcspn(sec, ".");
+    if (file && !lstrcmpiA(file, "language.eeai")) return 0;
+    for (size_t i = 0; i < sizeof again / sizeof *again; i++) if (strlen(again[i]) == n && !_strnicmp(sec, again[i], n)) return 1;
+    if (n == 11 && !_strnicmp(sec, "personality", n)) return !lstrcmpiA(key, "title") || !lstrcmpiA(key, "civilization");
+    if (n == 5 && !_strnicmp(sec, "style", n)) return 0;
+    return -1;
+}
 // the record a key of the files belongs in (a situation: lines, a trait: personality ...); NULL: none - a name
 internal const char *record_of_key(const char *key) {
     for (int k = 0; k < L_N; k++) if (!lstrcmpiA(key, k_lines[k].key)) return "lines";
@@ -383,7 +398,7 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->src); }
     } else if (!lstrcmpiA(sec, "priorities")) {
         if (prio_row(key) < 0) {   // a building: its identifier, known once the game has read its data
-            if (_strnicmp(key, "b_", 2)) { tl_error(l, "neither a row of the priority list nor a building's identifier (b_stable = 2)"); return; }
+            if (_strnicmp(key, "b_", 2)) { tl_error(l, "neither a row of the priority list nor a building's identifier (b_stable => 2)"); return; }
             if (unit_type_named(key, (int)strlen(key)) < 0) {
                 if (g_unit_types_n) { tl_error(l, "an unknown building"); return; }
                 unit_name_later(key, l->file, l->line);
@@ -1008,8 +1023,8 @@ internal void persona_assign(ee_player *pl) {
     if (pick >= 0) persona_apply(pl, idx, pick);
 }
 // THE SHOWN NAME: name = is chosen once (persona_apply) - the AI's identity: a loaded game finds its personality by
-// it, the numbers tell two AIs of one personality apart, a chat names it by it. title = (before the name: "King
-// Brann") and civilization = are worked out then and again every PT_EVERY, expressions of the game - me.epoch,
+// it, the numbers tell two AIs of one personality apart, a chat names it by it. title => (before the name: "King
+// Brann") and civilization => are worked out then and again every PT_EVERY, expressions of the game - me.epoch,
 // me.territories, the personality's fields (Livia's books) - with no them (it speaks to nobody), so the same on every
 // PC. Their draws (pick(), chance(), a list's item) come from a generator of their own, seeded by the AI's name each
 // time: the same pick every time (a title does not flicker), the decisions' generator untouched (the AI plays as it

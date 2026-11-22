@@ -4,7 +4,7 @@ enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER, XM_DO };   // a value, a player (t
 struct xmember { const char *name; int kind; const char *doc; short type; signed char amin, amax, set, mine; };
 internal const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name} (an AI's with its title: \"King Brann\")", XT_TEXT, -1, -1, 0, 0 },
-    { "title", XM_PLAYER, "an AI's title as its personality's title = gives it now (\"King\" - worked out every 10 s) - nothing without one", XT_TEXT | X_NULLABLE, -1, -1, 0, 0 },
+    { "title", XM_PLAYER, "an AI's title as its personality's title => gives it now (\"King\" - worked out every 10 s) - nothing without one", XT_TEXT | X_NULLABLE, -1, -1, 0, 0 },
     { "soldiers", XM_PLAYER, "its soldiers (all numbers of units are counted every 10 seconds)", XT_INT, -1, -1, 0, 0 },
     { "citizens", XM_PLAYER, "its citizens", XT_INT, -1, -1, 0, 0 },
     { "population", XM_PLAYER, "its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population", XT_INT, -1, -1, 0, 0 },

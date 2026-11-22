@@ -733,6 +733,7 @@ internal void x_host_install(void) {
     g_x_host.placeholders = x_code_placeholders;
     g_x_host.command = x_command_verb;
     g_x_host.code_record = x_code_record;
+    g_x_host.entry_arrow = x_code_arrow;
     g_x_host.kind = x_kind_of;
     g_x_host.root_kind = x_root_kind;
     g_x_host.fn_kind = x_fn_kind;

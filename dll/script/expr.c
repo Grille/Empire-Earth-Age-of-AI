@@ -5765,7 +5765,7 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 else tl_line_end(&l, "something after the record's }");
             }
         } else if (*l.s == '[') {
-            tl_error(&l, "a [section]: the files have records now - lines = { greeting = ... }");
+            tl_error(&l, "a [section]: the files have records now - lines = { greeting => ... }");
         } else if (*l.s == ';') {
             tl_error(&l, "; - a comment starts with //");
         } else {
@@ -5829,12 +5829,14 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
             }
             if (n >= 0) tl_blank(&l, 0);
             int arrow = n > 0 && l.s[0] == '=' && l.s[1] == '>', isfn = n > 0 && strchr(key, '(') != NULL;
+            // a record's entry: = or => as the program reads its key (host.h entry_arrow) - a record of the file's own
+            // (-1) as outside the records: = data, => worked out where used
+            int rule = depth && n > 0 && !isfn ? g_x_host.entry_arrow(file, record, key) : -1;
             if (n < 0) ;   // (its mistake told)
             else if (isfn && *l.s == '{') {   // name(a, b) { ... }: a function of statements
                 if (depth) tl_error(&l, "a function in a record - at the file's top: name(a) { ... }");
                 else tl_body(&l, key, fn, arg, file);
             } else if (!n || *l.s != '=') tl_error(&l, "no name = value (or name => ...)");
-            else if (arrow && depth) tl_error(&l, "=> outside the records only - a record's entries are values: key = ...");
             else if (isfn && !arrow) {
                 char why[120];
                 snprintf(why, sizeof why, "a function is written with =>: %.*s => ...", (int)(strchr(key, ')') - key) + 1, key);
@@ -5863,19 +5865,27 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 g_x_check_has = NULL;
                 g_x_check_par = NULL;
                 g_x_check_file = NULL;
-                if (!l.err && !arrow && !depth) {   // data: the same wherever it is used (x_data_node)
+                int told = 0, cur = l.line;   // = or => the wrong one: told once the value is read whole, the reader on after it
+                char why[200];
+                l.line = v.line;
+                if (!l.err && rule >= 0 && rule != arrow) {
+                    if (rule) snprintf(why, sizeof why, "%s.%s is worked out each time it is used: %s => ...", record, key, key);
+                    else snprintf(why, sizeof why, "%s.%s is read once, a value: %s = ...", record, key, key);
+                    tl_error(&l, why);
+                    told = 1;
+                } else if (!l.err && !arrow && rule < 0) {   // data: the same wherever it is used (x_data_node)
                     const struct xunit *u = x_compiled(v.src);
-                    char what[64], why[200];
+                    char what[64];
                     if (u->ok && !x_data_node(u->root, what, sizeof what)) {
-                        int cur = l.line;
-                        l.line = v.line;
                         snprintf(why, sizeof why, "%s = ... changes with the game (%s) - a name worked out where it is used: %s => ...",
                                  key, what, key);
                         tl_error(&l, why);
-                        l.line = cur;
+                        told = 1;
                     }
                 }
-                if (!l.err) {
+                l.line = cur;
+                if (told) l.err = 0;
+                else if (!l.err) {
                     fn(arg, record, key, &v, &l);
                     l.err = 0;   // a mistake the reader's user told (an unknown key): the value is read whole - on after it
                 }

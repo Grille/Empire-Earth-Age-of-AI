@@ -23,8 +23,8 @@ def prompt_texts(root):
         s = t[i:line_end].strip()
         if not s or s.startswith('//'):
             i = line_end + 1; continue
-        key, rest = s.split(' = ', 1)
-        j = t.index(' = ', i) + 3
+        key, rest = s.split(' => ', 1)   # (a prompt's text is worked out each time it is filled: key => ...)
+        j = t.index(' => ', i) + 4
         parts = []
         if t[j] == '(':   # pieces side by side, one a line
             j += 1

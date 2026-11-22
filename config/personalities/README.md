@@ -44,8 +44,8 @@ register_personality()
 
 personality = {
     name = "Ines",
-    title = epoch < epoch.renaissance ? "Captain" : "Admiral",
-    civilization = "Free Harbours",
+    title => epoch < epoch.renaissance ? "Captain" : "Admiral",
+    civilization => "Free Harbours",
     color = ["lightblue", "cyan"],
     aggression = 40%,
     loyalty = 70%,
@@ -56,12 +56,12 @@ personality = {
 friend => opinion > 30% ? "old friend" : "captain"
 
 lines = {
-    greeting = ["Fair winds, {them}.", "The tide is with us today."],
-    war_declared = [
+    greeting => ["Fair winds, {them}.", "The tide is with us today."],
+    war_declared => [
         them.betrayals(me) > 0 ? "Again, {them}? I should have known.",
         "You will regret this, {them}.",
     ],
-    peace_accept = [them.kills(me, units) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}.",
+    peace_accept => [them.kills(me, units) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}.",
 }
 ```
 
@@ -72,14 +72,23 @@ The same language runs the mod's test scenarios, with commands and statements on
 
 A file is made of `name = value` lines, one a line:
 
-- **Records**, `name = { key = value, key = value, ... }`: a comma after each entry (after the last one too, or
+- **Records**, `name = { key = value, key => ..., ... }`: a comma after each entry (after the last one too, or
   not), over as many lines as you like, records in records. Those the mod reads hold its keys: a personality has
-  `personality`, `lines`, `style`, `decide` and `prompt`; `mod/system.eeai` has `system`.
+  `personality`, `lines`, `style`, `priorities`, `decide` and `prompt`; `mod/system.eeai` has `system`. Each key is
+  written the way the mod uses it - `=` and `=>` never look alike:
+  - `key = value` - **read once**: the personality's `name`, `color`, traits and `character` and its `style`, when
+    the AI takes the personality.
+  - `key => ...` - **worked out each time it is used**: every line in `lines` (each time it is said), `title` and
+    `civilization` (every 10 s), `priorities` (every 10 s), `decide` (at each decision), the texts of `prompt` and
+    `system` (each time they are filled). By the key, not the value: `title => "Sir"` too.
+
+  The other one is a mistake when the file is read (`lines.greeting is worked out each time it is used: greeting =>
+  ...`).
 - **Names outside them** are the file's own (its *vars*): values its lines use, `{friend}` or `friend` - written
   anywhere outside those records, before or after the lines that use them. `name => ...` is worked out where it is
   used (it changes with the game and with who speaks to whom), `name = ...` is data, the same everywhere (see "Names
-  of your own" below). A record of your own is data too, its entries `colors.dark`, `colors.light` - and `colors` the
-  whole record: `colors = { dark = "black", light = "white" }`.
+  of your own" below). A record of your own takes its entries the same way, `colors.dark`, `colors.light` - and
+  `colors` the whole record: `colors = { dark = "black", light = "white" }`.
 - **`include("pack_base.eeai")`** names files whose lines, names and keys the personality builds on (see below);
   **`register_personality()`** makes the file a personality.
 
@@ -155,8 +164,8 @@ Each key of `lines = { ... }` is a **situation**; its value is what the AI says 
 
 ```
 lines = {
-    attack = "My riders are on their way.",
-    greeting = ["Hello.", "Greetings, {them}.", "Who are you?"],
+    attack => "My riders are on their way.",
+    greeting => ["Hello.", "Greetings, {them}.", "Who are you?"],
 }
 ```
 
@@ -193,22 +202,22 @@ angry = ["Go away.", "You again?"]
 
 lines = {
     // nothing unless the condition holds - a list leaves it out
-    greeting = [allied ? "Good to see you, ally.", "Hello, {them}."],
+    greeting => [allied ? "Good to see you, ally.", "Hello, {them}."],
 
     // one or the other
-    winning = opinion > 0 ? "Let us stay friends." : "You are next, {them}.",
+    winning => opinion > 0 ? "Let us stay friends." : "You are next, {them}.",
 
     // the angry lines when they hate it, else the friendly ones
-    tribute_thanks = [opinion < -50% ? angry] ?? ["Thank you!", "Most generous."],
+    tribute_thanks => [opinion < -50% ? angry] ?? ["Thank you!", "Most generous."],
 
     // a list in a list: each of its items counts as one (here a third each)
-    peace_refuse = ["No.", angry],
+    peace_refuse => ["No.", angry],
 
     // now and then
-    epoch_up = [chance(30%) ? "Progress, finally.", "A new age begins."],
+    epoch_up => [chance(30%) ? "Progress, finally.", "A new age begins."],
 
     // one situation, told apart by how I stand with them: someone else has won
-    other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won together, {them}!" : "Enjoy it while it lasts.",
+    other_victory => lord == them ? "Long live {them}, my lord!" : allied ? "We won together, {them}!" : "Enjoy it while it lasts.",
 }
 ```
 
@@ -310,12 +319,12 @@ A name outside the records holds a value or an expression for the texts, written
 A personality's own names come first, then
 those of its layers (`mod/prompt.eeai`'s too: `stance`, `power` ...), then those of `mod/system.eeai`. A prompt text
 is filled with the names of the file it comes from: `mod/prompt.eeai`'s own `power` in its texts, whatever a
-personality calls `power`. A record's key can't be one (`greeting = ...` outside `lines = { }` is a mistake: it
+personality calls `power`. A record's key can't be one (`greeting => ...` outside `lines = { }` is a mistake: it
 belongs in the record).
 
 ```
 address => opinion > 30% ? "friend" : opinion < -30% ? "enemy" : "neighbour"
-title => "my lord {them}"
+honour => "my lord {them}"
 angry = ["Go away.", "You again?"]
 ```
 
@@ -331,7 +340,7 @@ losses(minutes) => them.kills(me, minutes, units)
 fighting_report(minutes) => "you killed {me.kills(them, minutes, army)} of their soldiers and sank {me.kills(them, minutes, marine)} of their ships; they killed {them.kills(me, minutes, military)} of yours"
 
 lines = {
-    under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!",
+    under_attack => losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!",
 }
 ```
 
@@ -366,7 +375,7 @@ remember(p) {                              // a function with statements: called
 }
 
 lines = {
-    peace_accept = grudges[them] > 1 ? "Peace - but I remember, {them}." : "Peace, {them}.",
+    peace_accept => grudges[them] > 1 ? "Peace - but I remember, {them}." : "Peace, {them}.",
 }
 ```
 
@@ -446,9 +455,9 @@ A player who isn't there - no third player in a greeting, no lord - is nothing. 
 
 ```
 lines = {
-    under_attack = lord ? "My lord {lord} will hear of this!" : "To arms!",
-    greeting = [lord && lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}.",
-    tribute_thanks = "{lord ?? me} thanks you, {them}.",
+    under_attack => lord ? "My lord {lord} will hear of this!" : "To arms!",
+    greeting => [lord && lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}.",
+    tribute_thanks => "{lord ?? me} thanks you, {them}.",
 }
 ```
 
@@ -471,7 +480,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | Member | |
 |---|---|
 | `X.name` | its name - the same as the player itself in a text: {them} = {them.name} (an AI's with its title: "King Brann") |
-| `X.title` | an AI's title as its personality's title = gives it now ("King" - worked out every 10 s) - nothing without one |
+| `X.title` | an AI's title as its personality's title =&gt; gives it now ("King" - worked out every 10 s) - nothing without one |
 | `X.soldiers` | its soldiers (all numbers of units are counted every 10 seconds) |
 | `X.citizens` | its citizens |
 | `X.population` | its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population |
@@ -564,7 +573,7 @@ with these names, the same in every language (a name in quotes would only match 
 <!-- /epochs -->
 
 ```
-    epoch_up = [epoch >= epoch.middle ? "Steel and stone!", "Another age, {them}."]
+    epoch_up => [epoch >= epoch.middle ? "Steel and stone!", "Another age, {them}."]
 ```
 
 A player's colour works the same way: `them.color` is its name in a line (in the game's language - "dunkelrot" in a
@@ -574,7 +583,7 @@ German game) and a number in a comparison. Compare it with `color.blue`, `color.
 `them.civilization` is the name of its civilization as the game shows it - a text only, in the game's language.
 
 ```
-    greeting = them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
+    greeting => them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
 ```
 
 ### Unit types
@@ -591,7 +600,7 @@ every language (the mod's sources, docs/units.md, list them all):
 fishing_boats = [unit.s02_fishing_boat_stone, unit.s04_fishing_boat_bronze, unit.s08_fishing_boat_imperial,
                  unit.s11_fishing_boat_modern, unit.s13_digital_fishing_boat]
 lines = {
-    winning = them.count(kind.towers) == 0 ? "Not a single tower left, {them}." : [],
+    winning => them.count(kind.towers) == 0 ? "Not a single tower left, {them}." : [],
 }
 ```
 
@@ -618,7 +627,7 @@ in `mod/units.eeai`, a layer of every personality (a name of your own of the sam
 ```
 sea_war => them.kills(me, 10, marine) > 3 ? "Leave my ships alone, {them}!"
 lines = {
-    peace_accept = them.kills(me, this_war, buildings) > 5 ? "{them.kills(me, this_war, buildings)} of my buildings in ruins. Peace.",
+    peace_accept => them.kills(me, this_war, buildings) > 5 ? "{them.kills(me, this_war, buildings)} of my buildings in ruins. Peace.",
 }
 ```
 
@@ -656,7 +665,7 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | Key | Value |
 |---|---|
 | `name` | The player's name in the game - who it is: `"Temur"`, or a list in order of preference - the first no other player has: `["Temur", "Batu"]`; all taken (more AIs than personalities), the first with a number: "Temur II", "III" ... An expression worked out once, when the AI takes the personality, like `color` (constants, `chance()`, `pick()`, `language`, the file's names): `pick(["Gunther", "Roland"])`. A loaded game finds the personality again by the name - any text its `name` holds, also with its number, after a title or not |
-| `title` | A title before the name: "Khan" makes "Khan Temur". An expression of the game, worked out again every 10 s: `epoch < epoch.dark ? "Chieftain" : epoch < epoch.industrial ? "King" : "General"`, `me.territories`, the file's fields (`conquests >= 5 ? "Great Khan" : "Khan"`). A new title is the situation `title` (not the first one, at the start); nothing or `""`: no title. Its draws (`pick()`, `chance()`) are the same each time it is worked out: a title does not flicker. Title and name at most 40 characters together; `X.title` is the title alone |
+| `title` | A title before the name: "Khan" makes "Khan Temur". An expression of the game, worked out again every 10 s - written `title => ...`: `epoch < epoch.dark ? "Chieftain" : epoch < epoch.industrial ? "King" : "General"`, `me.territories`, the file's fields (`conquests >= 5 ? "Great Khan" : "Khan"`). A new title is the situation `title` (not the first one, at the start); nothing or `""`: no title. Its draws (`pick()`, `chance()`) are the same each time it is worked out: a title does not flicker. Title and name at most 40 characters together; `X.title` is the title alone |
 | `civilization` | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) - an expression of the game like `title`, worked out again every 10 s: `conquests >= 5 ? "Golden Empire" : "Golden Horde"`; nothing or `""`: the name stays as it shows |
 | `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or a number 1..17 as `them.color` has it: `color.red` or `2`, not `"2"`), or a colour of its own: `rgb(128, 64, 0)` (0 to 255 each) or `vec(0.5, 0.25, 0)` - `[rgb(128, 64, 0), "orange"]`: its brown, orange when another AI has it. The game draws such a colour like the table's everywhere and keeps it in a save; `them.color` of a player with one is nothing (no name, no number). An expression like any other, worked out when the game starts - before there are players, so only constants, `chance()`, `rnd()`, `language` and the file's names: `chance(50%) ? ["red", "orange"] : ["grey"]`, `language == "de" ? color.yellow : color.blue` |
 | `aggression` | 0% to 100% - written with the %: `aggression = 60%` (50% when left out): betrays, refuses peace |
@@ -691,9 +700,9 @@ record plays the list as it stands, and a file's own record replaces the one of 
 
 ```
 priorities = {
-    b_stable = 2,
-    b_archery_range = epoch >= epoch.copper ? 2 : 0,
-    navy = me.soldiers > 50,
+    b_stable => 2,
+    b_archery_range => epoch >= epoch.copper ? 2 : 0,
+    navy => me.soldiers > 50,
 }
 ```
 
@@ -718,8 +727,8 @@ are in `mod/computer.eeai`; a personality that writes one of them in its own `de
 ```
 decide = {
     // a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
-    seek_ally = enemy && enemy.strength > me.strength,
-    ally_score = them.rank == 1 ? 100% : opinion,
+    seek_ally => enemy && enemy.strength > me.strength,
+    ally_score => them.rank == 1 ? 100% : opinion,
 }
 ```
 

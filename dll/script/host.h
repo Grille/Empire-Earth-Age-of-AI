@@ -60,6 +60,10 @@ struct x_host {
     // o's member number mi (its place in its kind's members) read, when it is a plain value the host reads by its
     // number - what member() does for it, without the name; 0: not this way (member() / value() then)
     int (*get)(struct xctx *c, const struct xval *o, int mi, struct xval *v);
+    // a record's entry key (sec its record's path, prompt.tools): 1 the program works it out each time it uses it,
+    // written key => ...; 0 it reads it once, a value: key = ...; -1 a record of the file's own - its members as the
+    // names outside the records (= data, => worked out where used)
+    int (*entry_arrow)(const char *file, const char *sec, const char *key);
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -84,6 +88,7 @@ internal int xh_get(struct xctx *c, const struct xval *o, int mi, struct xval *v
 internal int xh_field_set(struct xctx *c, const char *name, const struct xval *v, const char **why) {
     (void)c; (void)name; (void)v; (void)why; return 0;
 }
+internal int xh_entry_arrow(const char *file, const char *sec, const char *key) { (void)file; (void)sec; (void)key; return -1; }
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
-                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set, 0, xh_get };
+                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set, 0, xh_get, xh_entry_arrow };
