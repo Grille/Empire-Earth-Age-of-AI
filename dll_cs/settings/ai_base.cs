@@ -277,9 +277,9 @@ class ai_base
         /// ... the reserve by territory (the game's computer player off): a Fortress is the territory's it stands in, each
         /// territory holds its share of the reserve by its share of the force, its own stationed soldiers go into its own
         /// Fortresses (never from another land), and the next Fortress is built in the territory whose Fortresses fall
-        /// shortest of its share - instead of the soldiers nearest any Fortress and Fortresses by the base. 0 = off
+        /// shortest of its share - instead of the soldiers nearest any Fortress and Fortresses by the base. 1 = on
         [advanced]
-        bool stash_by_territory = false;
+        bool stash_by_territory = true;
         /// Settlement upgrades: spare citizens (idle once the AI trains no more or its food keeps every producer training, or wood cutters while the wood stock is over 5000) go into a Settlement by
         /// metal mines - 5 make it a Town Center -, then into the Town Center with the most metal mines near it - 10 more make
         /// it a Capitol, which takes up to 50. Each citizen inside adds to the stone, gold and iron dropped there from mines

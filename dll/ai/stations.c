@@ -1230,7 +1230,17 @@ internal void sn_stash_look(unsigned idx, uint32_t now) {
 //     40) fall shortest of its part by SN_RES_TER_MIN or more gets the next Fortress (bunker.c bk_build: its drop sites,
 //     its town building, its middle, every spot inside it - can_place, its open ring as before); one with no place is
 //     left out 5 minutes (bunker.c bk_ter_refused).
-internal int g_sn_rt_on = 0, g_v_sn_rt = -1;
+// MEASURED 2026-11-22 (head-to-head mirrored, richcap.eeai's 20,000 of everything at 1, 15 and 30 min, 4 AIs from epoch
+// 5, unit_limit 750 - a cap of about 220 an AI -, 60 min, seeds 1-5 mirrored, 10 games a map; B by territory, A the old
+// way with its land check): Small Islands map_scale large - loads failed 6% of 181 a game per AI against 18% of 278,
+// inside 169 against 225 (-56, se 30), held over the game 57 against 62 (-4.9, se 16.5), Fortresses 8.8 in 2.8
+// territories against 7.7 in 2.3; soldiers +4.2 (4.3), kills +31 (29), losses +6.7 (26), razed +2.2 (4.1), workers -1.2
+// (3.6). Continental map_size 1 - loads failed 27% of 82 against 47% of 142 (the rest: soldiers cover pulled into a
+// fight that came after the load), held 3.5 against 12.0 (-8.5, se 6.4); alive +0.10 (0.15), soldiers +7.8 (8.7), kills
+// +0.5 (62), losses +9.8 (51), razed -4.9 (8.9), workers +4.1 (11.7). Against the old way as in the player's game (no
+// land check, the ferry taking loaded soldiers): islands 58% of 374 failed against 12% of 176, as many inside (154 /
+// 152). No worse, the loads arrive: on by default (the player asked for the design).
+internal int g_sn_rt_on = 1, g_v_sn_rt = -1;
 #define RES_TER(idx) PV(idx, g_v_sn_rt, g_sn_rt_on)
 struct sn_rv { int cap[PR_T], wsp[PR_T], held[PR_T], fcap[PR_T], walk[PR_T], nfo[PR_T], up[PR_T], w[PR_T]; short fter[BK_MAX]; unsigned fland[BK_MAX]; int held_all, walk_all, n; };
 internal struct sn_rv g_snrv;
