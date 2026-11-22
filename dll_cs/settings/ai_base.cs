@@ -882,7 +882,7 @@ class ai_base
         /// wood and farm beyond the need - else what a mine resource needs beyond its places went to food and wood. With
         /// few citizens nothing is beyond food's and wood's need: no change then. 1 = on
         [advanced]
-        bool mines_first = true;
+        bool mine_places_first = true;
         struct towns_fields
         {
             /// a resource town once the mines near its drop sites are full (fewer than 4 free places) and its

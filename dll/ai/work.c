@@ -850,7 +850,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
         (void)cut;
         if (left < 0) left = 0;
-        // THE MINES FIRST ([ai_base] mines_first; the player 2026-11-22, his game at minute 157: both AIs short of gold
+        // THE MINES FIRST ([ai_base] mine_places_first; the player 2026-11-22, his game at minute 157: both AIs short of gold
         // and iron, 26 and 34 thousand food in the bank, P3's gold mines worked by 0 to 4 of 6 - its iron needed 145
         // citizens for 36 places, and the cut went to food and wood): food and wood keep what they need (need_c), the
         // citizens beyond it fill the free places at the mines first, by each mine resource's need, and only the rest
@@ -858,7 +858,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         // need and nothing changes. On since 2026-11-22 by the player's call ("the only reason not to mine every gold and
         // iron is low pop limits"); measured before: Large Islands e9 90 min and e11 150 min, 6 seeds each, within noise
         // (e11: miners on gold 16 of 24 places against 13, citizens 111 against 93 (6), gold+iron income -3.6k (4k))
-        if (g_set_ai[1].mines_first && w->by_need) {
+        if (g_set_ai[1].mine_places_first && w->by_need) {
             int spare = left - w->need_c[2] - w->need_c[3];
             for (int round = 0; round < 3 && spare > 0; round++) {
                 float ws = 0;
