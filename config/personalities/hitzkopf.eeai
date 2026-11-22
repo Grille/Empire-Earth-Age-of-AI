@@ -2,8 +2,10 @@
 register_personality()
 
 personality = {
-    name = "Chieftain Brann",
-    civilization = "Wild Clans",
+    name = "Brann",
+    // the clans grow up with him: a chieftain's war band, a king's realm, a general's army
+    title = epoch < epoch.dark ? "Chieftain" : epoch < epoch.industrial ? "King" : "General",
+    civilization = epoch < epoch.dark ? "Wild Clans" : epoch < epoch.industrial ? "Clan Kingdom" : "Clan Legions",
     color = ["green", "lime"],
     aggression = 90%,
     loyalty = 60%,
@@ -194,6 +196,10 @@ lines = {
     territory_held = [
         "And STAY out, {them}!",
         "Is that all, {them}? I was just warming up!",
+    ],
+    title = [
+        "Call me {me} now! HA! Same fists, bigger hat!",
+        "{me}! Say it loud - and bow, or I knock you over!",
     ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}! Things that go BOOM! Finally!",

@@ -3,7 +3,8 @@
 enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER, XM_DO };   // a value, a player (them.lord), A.<relation>(B), A.count(filter), an effect
 struct xmember { const char *name; int kind; const char *doc; short type; signed char amin, amax, set, mine; };
 internal const struct xmember k_xmembers[] = {
-    { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}", XT_TEXT, -1, -1, 0, 0 },
+    { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name} (an AI's with its title: \"King Brann\")", XT_TEXT, -1, -1, 0, 0 },
+    { "title", XM_PLAYER, "an AI's title as its personality's title = gives it now (\"King\" - worked out every 10 s) - nothing without one", XT_TEXT | X_NULLABLE, -1, -1, 0, 0 },
     { "soldiers", XM_PLAYER, "its soldiers (all numbers of units are counted every 10 seconds)", XT_INT, -1, -1, 0, 0 },
     { "citizens", XM_PLAYER, "its citizens", XT_INT, -1, -1, 0, 0 },
     { "population", XM_PLAYER, "its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population", XT_INT, -1, -1, 0, 0 },
@@ -63,7 +64,7 @@ internal const struct xmember k_xmembers[] = {
     { "spawn", XM_DO, "a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in a square), as a scenario's Create makes them, at the game's next step: returned at once, the script goes on and holds only when it first uses one of them or asks the map (p.units(), game.unit(id)); a trigger's are there at once", X_LIST_OF + XK_UNIT, 2, 3, 0, 0 },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
-enum { XMI_NAME, XMI_SOLDIERS, XMI_CITIZENS, XMI_POPULATION, XMI_BUILDINGS, XMI_TOWERS, XMI_WALLS, XMI_COUNT, XMI_UNITS, XMI_CENTERS, XMI_TERRITORIES, XMI_STRENGTH, XMI_RANK, XMI_EPOCH, XMI_COLOR, XMI_CIVILIZATION, XMI_CIVILIZATION_EN, XMI_ALIVE, XMI_HUMAN, XMI_VASSALS, XMI_ALLIES, XMI_ENEMIES, XMI_AGGRESSION, XMI_LOYALTY, XMI_PRIDE, XMI_GREED, XMI_FORGIVENESS, XMI_CAUTION, XMI_TALK, XMI_LORD, XMI_FOOD, XMI_WOOD, XMI_STONE, XMI_GOLD, XMI_IRON, XMI_STOCK, XMI_UNIT_LIMIT, XMI_MAP_REVEALED, XMI_OPINION, XMI_AT_WAR, XMI_ALLIED, XMI_HOSTILE, XMI_WAR_MINUTES, XMI_ALLIANCE_MINUTES, XMI_BETRAYALS, XMI_REFUSALS, XMI_IGNORED, XMI_TRIBUTE, XMI_NEAR, XMI_IN_TOWN, XMI_ATTACK_MINUTES, XMI_KILLS, XMI_WIN, XMI_LOSE, XMI_WAR, XMI_ALLY, XMI_FLARE, XMI_SPAWN };
+enum { XMI_NAME, XMI_TITLE, XMI_SOLDIERS, XMI_CITIZENS, XMI_POPULATION, XMI_BUILDINGS, XMI_TOWERS, XMI_WALLS, XMI_COUNT, XMI_UNITS, XMI_CENTERS, XMI_TERRITORIES, XMI_STRENGTH, XMI_RANK, XMI_EPOCH, XMI_COLOR, XMI_CIVILIZATION, XMI_CIVILIZATION_EN, XMI_ALIVE, XMI_HUMAN, XMI_VASSALS, XMI_ALLIES, XMI_ENEMIES, XMI_AGGRESSION, XMI_LOYALTY, XMI_PRIDE, XMI_GREED, XMI_FORGIVENESS, XMI_CAUTION, XMI_TALK, XMI_LORD, XMI_FOOD, XMI_WOOD, XMI_STONE, XMI_GOLD, XMI_IRON, XMI_STOCK, XMI_UNIT_LIMIT, XMI_MAP_REVEALED, XMI_OPINION, XMI_AT_WAR, XMI_ALLIED, XMI_HOSTILE, XMI_WAR_MINUTES, XMI_ALLIANCE_MINUTES, XMI_BETRAYALS, XMI_REFUSALS, XMI_IGNORED, XMI_TRIBUTE, XMI_NEAR, XMI_IN_TOWN, XMI_ATTACK_MINUTES, XMI_KILLS, XMI_WIN, XMI_LOSE, XMI_WAR, XMI_ALLY, XMI_FLARE, XMI_SPAWN };
 enum { XUI_ID, XUI_ALIVE, XUI_TYPE, XUI_OWNER, XUI_POS, XUI_HP, XUI_MAX_HP, XUI_AMMO, XUI_POWER, XUI_STANCE, XUI_KILL, XUI_REMOVE };
 internal const struct xmember k_xglobals[] = {
     { "me", XM_PLAYER, "the AI that speaks - its name in a text; me.soldiers ...", XK_PLAYER, -1, -1, 0, 0 },
@@ -84,6 +85,7 @@ internal const struct xmember k_xglobals[] = {
 #define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
 internal const struct x_kmember k_xk_player[] = {
     { "name", -1, -1, XT_TEXT, 0 },
+    { "title", -1, -1, XT_TEXT | X_NULLABLE, 0 },
     { "soldiers", -1, -1, XT_INT, 0 },
     { "citizens", -1, -1, XT_INT, 0 },
     { "population", -1, -1, XT_INT, 0 },

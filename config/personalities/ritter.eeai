@@ -2,7 +2,9 @@
 register_personality()
 
 personality = {
-    name = "Sir Gunther",
+    name = "Gunther",
+    // the order raises him: a knight, its grand master, then a field marshal of the new armies
+    title = epoch < epoch.middle ? "Sir" : epoch < epoch.industrial ? "Grand Master" : "Field Marshal",
     civilization = "Sworn Order",
     color = ["lightblue", "blue"],
     aggression = 55%,
@@ -211,6 +213,10 @@ lines = {
     territory_held = [
         "Our line held, {them}. Withdraw with honour - we will not pursue the beaten.",
         "You found our borders well guarded, {them}. As they always will be.",
+    ],
+    title = [
+        "The order has raised me: I am {me}. My oath stands as it stood.",
+        "{me}. A heavier charge - and every word I gave still holds.",
     ],
     epoch_up = [
         "A new age dawns: {epoch}.",

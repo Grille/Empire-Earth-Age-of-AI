@@ -43,7 +43,8 @@ give a player a particular one, set `personality_P2=seefahrer` (the file name wi
 register_personality()
 
 personality = {
-    name = "Captain Ines",
+    name = "Ines",
+    title = epoch < epoch.renaissance ? "Captain" : "Admiral",
     civilization = "Free Harbours",
     color = ["lightblue", "cyan"],
     aggression = 40%,
@@ -260,6 +261,7 @@ lines = {
 | `territory_lost` | {them} has taken a territory of yours: the buildings that held it for you are gone | {them} | 60% | 180 s |  |
 | `territory_held` | {them} attacked a territory of yours and was beaten off: it is still yours | {them} | 50% | 300 s |  |
 | `landing` | your army has crossed the water and landed on {them}'s shore | {them} | 70% | 300 s |  |
+| `title` | you have just taken a new title: from now on you are called {me} | everyone | always |  |  |
 <!-- /situations -->
 
 ## Expressions
@@ -389,7 +391,8 @@ lines = {
   personality for that AI start afresh (each told in the log) - so editing a personality never breaks a save.
 - A whole example: `fuchs.eeai` (Princess Livia) keeps books - the slights against her and the favours by player, the
   territories taken and lost, whom she courts, her nemesis - written by her handlers and read by her lines ("That makes
-  {lost[them] + 1}. Every one of them is in my book.").
+  {lost[them] + 1}. Every one of them is in my book."), and by her title: five lands taken make Princess Livia an
+  Empress.
 
 ### Includes: building on other files
 
@@ -467,7 +470,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 
 | Member | |
 |---|---|
-| `X.name` | its name - the same as the player itself in a text: {them} = {them.name} |
+| `X.name` | its name - the same as the player itself in a text: {them} = {them.name} (an AI's with its title: "King Brann") |
+| `X.title` | an AI's title as its personality's title = gives it now ("King" - worked out every 10 s) - nothing without one |
 | `X.soldiers` | its soldiers (all numbers of units are counted every 10 seconds) |
 | `X.citizens` | its citizens |
 | `X.population` | its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population |
@@ -651,8 +655,9 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 
 | Key | Value |
 |---|---|
-| `name` | The player's name in the game: `"Khan Temur"`, or a list in order of preference - the first no other player has: `["Khan Temur", "Khan Batu"]`; all taken (more AIs than personalities), the first with a number: "Khan Temur II", "III" ... An expression worked out when the AI takes the personality, like `color` (constants, `chance()`, `pick()`, `language`, the file's names): `pick(["Sir Gunther", "Sir Roland"])`. A loaded game finds the personality again by the name - any text its `name` holds, also with its number |
-| `civilization` | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) |
+| `name` | The player's name in the game - who it is: `"Temur"`, or a list in order of preference - the first no other player has: `["Temur", "Batu"]`; all taken (more AIs than personalities), the first with a number: "Temur II", "III" ... An expression worked out once, when the AI takes the personality, like `color` (constants, `chance()`, `pick()`, `language`, the file's names): `pick(["Gunther", "Roland"])`. A loaded game finds the personality again by the name - any text its `name` holds, also with its number, after a title or not |
+| `title` | A title before the name: "Khan" makes "Khan Temur". An expression of the game, worked out again every 10 s: `epoch < epoch.dark ? "Chieftain" : epoch < epoch.industrial ? "King" : "General"`, `me.territories`, the file's fields (`conquests >= 5 ? "Great Khan" : "Khan"`). A new title is the situation `title` (not the first one, at the start); nothing or `""`: no title. Its draws (`pick()`, `chance()`) are the same each time it is worked out: a title does not flicker. Title and name at most 40 characters together; `X.title` is the title alone |
+| `civilization` | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) - an expression of the game like `title`, worked out again every 10 s: `conquests >= 5 ? "Golden Empire" : "Golden Horde"`; nothing or `""`: the name stays as it shows |
 | `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or a number 1..17 as `them.color` has it: `color.red` or `2`, not `"2"`), or a colour of its own: `rgb(128, 64, 0)` (0 to 255 each) or `vec(0.5, 0.25, 0)` - `[rgb(128, 64, 0), "orange"]`: its brown, orange when another AI has it. The game draws such a colour like the table's everywhere and keeps it in a save; `them.color` of a player with one is nothing (no name, no number). An expression like any other, worked out when the game starts - before there are players, so only constants, `chance()`, `rnd()`, `language` and the file's names: `chance(50%) ? ["red", "orange"] : ["grey"]`, `language == "de" ? color.yellow : color.blue` |
 | `aggression` | 0% to 100% - written with the %: `aggression = 60%` (50% when left out): betrays, refuses peace |
 | `loyalty` | keeps its alliances; a vassal under 50% rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + 2 x (loyalty + 100% - pride) times: loyalty 35% and pride 80% 2.1 times) - with or without the language model |

@@ -2,7 +2,9 @@
 register_personality()
 
 personality = {
-    name = "Merchant Benedict",
+    name = "Benedict",
+    // from a trader's stall to the guild's chair to the bank
+    title = epoch < epoch.middle ? "Merchant" : epoch < epoch.industrial ? "Guildmaster" : "Tycoon",
     civilization = "Merchant Republic",
     color = ["yellow", "lightyellow"],
     aggression = 25%,
@@ -219,6 +221,10 @@ lines = {
     territory_held = [
         "My investment holds, {them}. Yours, I think, does not.",
         "Thank you for the visit, {them}. Do leave your weapons at the door next time.",
+    ],
+    title = [
+        "{me}, at your service - the new title costs nothing, my prices stay the same.",
+        "Business is good: you speak to {me} now. Shall we talk terms?",
     ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}! Factories, railways - mass production at last.",

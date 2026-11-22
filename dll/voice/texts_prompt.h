@@ -32,7 +32,7 @@ internal const struct text_key k_tpl[] = {
     { "sit_capitulate", "tribute" }, { "sit_capitulate_accepted", "tribute" }, { "sit_capitulate_refused", "" },
     { "sit_attack_threat", "" }, { "sit_all_submitted", "" }, { "sit_other_victory", "" }, { "sit_block_refuse", "" },
     { "sit_block_refuse_own", "" }, { "sit_vassal_grumble", "" }, { "sit_ask_lord", "" }, { "sit_territory_taken", "" },
-    { "sit_territory_lost", "" }, { "sit_territory_held", "" }, { "sit_landing", "" }, { "pair_war_declared", "" },
+    { "sit_territory_lost", "" }, { "sit_territory_held", "" }, { "sit_landing", "" }, { "sit_title", "" }, { "pair_war_declared", "" },
     { "pair_betrayed", "" }, { "pair_peace_accept", "" }, { "pair_peace_refuse", "" }, { "pair_alliance_offer", "" },
     { "pair_offer_accepted", "" }, { "pair_offer_withdrawn", "" }, { "pair_betray", "" },
     { "pair_tribute_thanks", "tribute" }, { "pair_tribute_small", "tribute" }, { "pair_winning", "" },

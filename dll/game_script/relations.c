@@ -79,6 +79,7 @@ internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     }
     if (!strcmp(n, "stock")) { xnum(v, r); return; }
     if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }
+    if (!strcmp(n, "title")) { const char *s = persona_title(x); if (s) xstr(v, s); return; }   // voice/persona.c THE SHOWN NAME
     if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
     if (!strcmp(n, "color")) { int c = player_color(px); if (c >= 0) xdual(v, c + 1, color_name(c)); return; }
     if (!strcmp(n, "civilization") || !strcmp(n, "civilization_en")) { const char *s = player_civ_of(px, n[12] == '_'); if (s) xstr(v, s); return; }

@@ -24,9 +24,14 @@
 
 personality = {
     // the name in the game (the player name in the scores and the chat) - a list: the first no other player has
-    // (all taken: the first with a number, "Khan Temur II"): ["Khan Temur", "Khan Batu"], pick([...]) a random one
+    // (all taken: the first with a number, "Temur II"): ["Temur", "Batu"], pick([...]) a random one. Chosen once:
+    // a loaded game finds the personality by it
     name = "",
-    // its civilization's name as the game shows it, instead of the one it plays (empty: keep that)
+    // a title before the name ("Khan Temur"), worked out again every 10 s from the game: epoch < epoch.dark ?
+    // "Chieftain" : "King" - me.territories, its fields too; a new one is the situation title (empty: none)
+    //title = "",
+    // its civilization's name as the game shows it, instead of the one it plays - worked out like the title
+    // (empty: keep the name it shows)
     //civilization = "",
     // favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green,
     // cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or a number
@@ -163,6 +168,8 @@ lines = {
     territory_held = [],
     // your army has crossed the water and landed on {them}'s shore - heard by {them} only (70% of the time at talk=50, at most every 300 s)
     landing = [],
+    // you have just taken a new title: from now on you are called {me} - heard by everyone
+    title = [],
 }
 
 // what the language model is told for this AI (ageofai.ini [llm]), instead of mod/prompt.eeai's text - every key and

@@ -359,6 +359,7 @@ prompt = {
     sit_territory_held = "{them} attacked a territory of yours and was beaten off: it is still yours",
     // in braces: {them}
     sit_landing = "your army has crossed the water and landed on {them}'s shore",
+    sit_title = "you have just taken a new title: from now on you are called {me}",
     // [llm] llm_ai_talk: the same situations for both sides of a talk between AIs, in the third person ({me} the speaker, {them} the one it talks to)
     // in braces: {them} {me}
     pair_war_declared = "{them} has just declared war on {me}",

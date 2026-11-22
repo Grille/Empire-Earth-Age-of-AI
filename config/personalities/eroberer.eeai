@@ -2,8 +2,10 @@
 register_personality()
 
 personality = {
-    name = "Khan Temur",
-    civilization = "Golden Horde",
+    name = "Temur",
+    // five territories taken make him the Great Khan, his horde an empire (his tally: conquests, below)
+    title = conquests >= 5 ? "Great Khan" : "Khan",
+    civilization = conquests >= 5 ? "Golden Empire" : "Golden Horde",
     color = ["darkred", "red"],
     aggression = 85%,
     loyalty = 35%,
@@ -22,6 +24,9 @@ style = {
     // comparison: military_income_share 40%, from the Copper Age military_income_share_farms 65%.
     military_income_share = 50%,
 }
+
+// his tally: the territories he has taken (on_territory_taken, at the bottom) - five make him Great Khan
+let conquests = 0
 
 // the Khan measures everyone by strength
 weakling => them.strength * 2 < me.strength
@@ -190,6 +195,10 @@ lines = {
         "You came, {them}. You ran. As it should be.",
         "Is that all your army, {them}? My riders are not even tired.",
     ],
+    title = [
+        "Five lands bow to the horde. Kneel before {me}!",
+        "The steppe was too small. I am {me} now - and the world is next.",
+    ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}. Horses of iron - the steppe was never so small.",
     ] ?? [
@@ -254,3 +263,4 @@ lines = {
     ],
     help_none = "I can spare no one. Fight for yourself.",
 }
+on_territory_taken() { conquests += 1 }

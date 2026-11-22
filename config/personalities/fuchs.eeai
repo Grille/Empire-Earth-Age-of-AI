@@ -6,8 +6,10 @@
 register_personality()
 
 personality = {
-    name = "Princess Livia",
-    civilization = "Silver Court",
+    name = "Livia",
+    // a queen when her court comes of age, an empress once her books hold five lands taken (conquered, below)
+    title = conquered >= 5 ? "Empress" : epoch >= epoch.middle ? "Queen" : "Princess",
+    civilization = conquered >= 5 ? "Silver Empire" : "Silver Court",
     color = ["magenta", "purple"],
     aggression = 60%,
     loyalty = 15%,
@@ -24,6 +26,7 @@ personality = {
 let slights = dict<player, int>(0)      // her little book: a war declared on her 2, a betrayal 3, an offer let run out 1, ground taken 2
 let favours = dict<player, int>(0)      // the other column: a generous tribute 1, an alliance accepted 2, a capitulation accepted 3
 let taken = dict<player, int>(0)        // the territories she took from them
+let conquered = 0                       // the same from everyone together: her title's (Empress at five)
 let lost = dict<player, int>(0)         // the territories they took from her
 let repelled = dict<player, int>(0)     // their attacks on her ground she beat back
 let darling: player? = null             // whom she courts: her last alliance offer, or the ally who took it
@@ -249,6 +252,12 @@ lines = {
         "Leaving so soon, {them}? You only just arrived.",
         "Was that an attack, {them}? I hardly noticed.",
     ],
+    title = [
+        conquered >= 5 ? "Five lands in my book, and a crown to match. {me} - do get used to it.",
+    ] ?? [
+        "{me}. The court has finally come of age - and so have I.",
+        "You may call me {me} now. I always knew the title would suit me.",
+    ],
     under_attack = [
         me.soldiers < 10 ? [
             "Guests, and nobody home to receive them? Everyone to the gates - now!",
@@ -346,7 +355,10 @@ on_territory_lost() {
     note(them, 2)
     lost[them] += 1
 }
-on_territory_taken() { taken[them] += 1 }
+on_territory_taken() {
+    taken[them] += 1
+    conquered += 1
+}
 on_territory_held() { repelled[them] += 1 }
 on_tribute_thanks() { favours[them] += 1 }
 on_offer_accepted() {

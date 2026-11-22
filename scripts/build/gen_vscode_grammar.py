@@ -154,7 +154,7 @@ grammar = {
     'patterns': [
         {'include': '#comment'},
         {'match': r'^\s*(include|register_personality)(?=\s*\()', 'captures': {'1': {'name': 'keyword.control.import.eeaimod'}}},   # include("pack_base.eeai"), register_personality()
-        record('personality', ['name', 'civilization', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
+        record('personality', ['name', 'title', 'civilization', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
         record('style', style_keys, 'support.type.property-name.eeaimod'),
         record('priorities', prio_rows, 'support.type.property-name.eeaimod'),
         record('lines', situations, 'support.type.property-name.situation.eeaimod'),

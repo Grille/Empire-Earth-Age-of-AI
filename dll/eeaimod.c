@@ -51,6 +51,7 @@ internal void persona_new_game(ee_setup *setup);
 internal void modmsg_test_seen(int from, const uint8_t *data, int n);   // testcmd.c: `modmsg`'s messages arriving
 internal void scripts_new_game(ee_setup *setup);   // test/scripts.c
 internal void persona_assign(ee_player *pl);
+internal void persona_tick(ee_player *pl, unsigned idx, uint32_t now);   // voice/persona.c THE SHOWN NAME
 internal void diplo_new_game(void);
 internal void chat_new_game(void);
 internal void llm_new_game(void);
@@ -238,6 +239,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
                 settings_apply(pl);
             }
         }
+        if (!is_vanilla(pl)) persona_tick(pl, idx, now);   // its title and civilization's name, every 10 s
         takeover_tick(pl);   // after the first turn's settings: a handover's stand-in paces as it must from its first turn
         if (now < 5000) dumped[idx] = 0;   // new game in the same session
 

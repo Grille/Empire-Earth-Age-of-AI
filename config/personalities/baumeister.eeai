@@ -2,7 +2,9 @@
 register_personality()
 
 personality = {
-    name = "Master Builder Hedda",
+    name = "Hedda",
+    // her craft grows with the age: stone and timber, then cathedrals, then steel
+    title = epoch < epoch.middle ? "Master Builder" : epoch < epoch.industrial ? "Grand Architect" : "Chief Engineer",
     civilization = "Walled Cities",
     color = ["orange", "grey"],
     aggression = 20%,
@@ -212,6 +214,10 @@ lines = {
     territory_held = [
         "The walls held, {them}. They always do.",
         "Did you think I build for show, {them}?",
+    ],
+    title = [
+        "{me}, if you please. The plans have grown, and so has the title.",
+        "They call me {me} now. I still check every stone myself.",
     ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}. Steel and concrete - finally walls that deserve the name.",

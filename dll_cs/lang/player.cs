@@ -6,8 +6,10 @@ namespace ageofai.lang;
 [numbered]
 class player
 {
-    /// its name - the same as the player itself in a text: {them} = {them.name}
+    /// its name - the same as the player itself in a text: {them} = {them.name} (an AI's with its title: "King Brann")
     text name;
+    /// an AI's title as its personality's title = gives it now ("King" - worked out every 10 s) - nothing without one
+    text? title;
     /// its soldiers (all numbers of units are counted every 10 seconds)
     int soldiers;
     /// its citizens
