@@ -55,8 +55,11 @@ internal int mo_init(void) {
     g_mo.ready = 1;
     return 1;
 }
-// the run's place in the pool, put there if new (or changed); NULL when it can't be
+// the run's place in the pool, put there if new (or changed); NULL when it can't be - a run of none, or of more than the
+// pool holds: it would start the pool over for good (a freed material's vertex count, 843 million: the player's drawing
+// thread spun here, 2026-11-22 - render_units.c kt_gfx_loads)
 internal mo_run *mo_run_of(const float *src, uint32_t n) {
+    if (!n || n > MO_POOL_VERTS) return NULL;
     uint32_t h = (uint32_t)(((uintptr_t)src >> 5) * 2654435761u ^ n * 40503u) & (MO_SLOTS - 1);
     mo_run *r;
     for (;; h = (h + 1) & (MO_SLOTS - 1)) {

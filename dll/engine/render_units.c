@@ -309,7 +309,10 @@ internal int ut_draw(float *at, void *rec) {
 enum { KT_NEW, KT_OK, KT_NOT };
 enum { KT_SWAY, KT_MANY, KT_NONE, KT_REASONS };
 internal const char *const k_kt_reason[KT_REASONS] = { "moved by its sway", "of too many parts", "none drawn" };
-typedef struct { ee_model *m; ee_material *mat; void *tex; D3DMATRIX w; int root; const float *va; } kt_part;
+typedef struct {
+    ee_model *m; ee_material *mat; void *tex; D3DMATRIX w; int root; const float *va;
+    uint32_t sig[4];   // what its model and material were when taken (kt_sig): held against them at each draw
+} kt_part;
 typedef struct {
     ee_dmg_model *g; ee_model *m; int anim; uint32_t frame, next; float scale, at[12];
     float frac; int rec;   // a record's: its fraction (a tree's sway isn't kept by), 1
@@ -332,8 +335,37 @@ internal struct {
     int pass, seen, bad;        // the tree being taken (g_kt_cap): its pass, the second pass's parts so far, why it can't be kept
     LONG drawn, walked, made, starts_over, guessed, reason[KT_REASONS];
     LONG rec_drawn, rec_made, rec_not;   // the records'
+    LONG reloads;                        // entries taken again for their graphics' new load (kt_gfx_loads)
+    LONG changed;                        // ... for a part's model or material no longer the one taken (kt_hold)
 } g_kt = { .force = -1 };
 internal int kt_on(void) { return g_kt.force < 0 ? 1 : g_kt.force; }
+// A part's model and material as they are: their vtables, the material's vertices. The parts hold them without a
+// reference; freed, the memory goes to other objects (the player's game, 2026-11-22: "my game is hanging" - a kept
+// building's part's material was a citizen's gather order, EEUGGather, its "vertex count" a pointer, and
+// render_morph.c mo_run_of started its pool over for good on it). Read while the game may have freed them: the heap
+// stays mapped, and what is there then is not what was taken.
+internal void kt_sig(const ee_model *m, const ee_material *mat, uint32_t *s) {
+    s[0] = *(const uint32_t *)m; s[1] = *(const uint32_t *)mat;
+    s[2] = material_get_vertex_count(mat); s[3] = material_get_vertex_first(mat);
+}
+// an entry's parts still the ones taken; else it is to be taken again (told in the log by its type the first times)
+internal int kt_hold(kt_tree *k, const ee_unit_type *ty) {
+    static LONG told;
+    for (uint32_t i = 0; i < k->np; i++) {
+        const kt_part *e = &g_kt.part[k->part + i];
+        uint32_t s[4];
+        kt_sig(e->m, e->mat, s);
+        if (!memcmp(s, e->sig, sizeof s)) continue;
+        k->state = KT_NEW;
+        InterlockedIncrement(&g_kt.changed);
+        if (InterlockedIncrement(&told) <= 10)
+            log_locked("# kept: %s %s's part %u of %u changed under it (model %p vtable %08x, was %08x; material %p vtable %08x vertices %u, was %08x %u) - taken again\n",
+                       k->rec ? "a record" : "a tree", ty && unit_type_get_name(ty) ? unit_type_get_name(ty) : "?", i, k->np, (void *)e->m, s[0],
+                       e->sig[0], (void *)e->mat, s[1], s[2], e->sig[1], e->sig[2]);
+        return 0;
+    }
+    return 1;
+}
 // the walk's part into the tree being taken (render_instance.c in_part, while g_kt_cap): the first pass's kept, the
 // second's held against them
 internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose *p, const D3DMATRIX *world, const WORD *idx, DWORD ni) {
@@ -345,6 +377,7 @@ internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose
         kt_part *e = &g_kt.part[g_kt.nparts++];
         k->np++;
         e->m = m; e->mat = mat; e->tex = tex; e->w = *world; e->root = m == k->m; e->va = p->va;
+        kt_sig(m, mat, e->sig);
         if (p->va) k->bent = 1;
         return;
     }
@@ -410,6 +443,18 @@ internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame
 internal void kt_retex(kt_tree *k, void *tex) {
     if (k && k->tex != tex) k->tex = tex, k->state = KT_NEW;
 }
+// The same for the models: a graphics' last user going frees them all (dmg_model.release), the next user's acquire loads
+// them anew - the root model, the one an entry is found by, often at the address it had, its parts and materials not.
+// A building's graphics lets go and loads again in the first minutes of a game (the player's, 2026-11-22: "my game is
+// hanging", the drawing thread in render_morph.c mo_run_of for good - a kept part's material was a game object by then, its
+// vertex count a pointer, more than the pool holds: the pool started over and over). So drawlist.c's acquire hook, at a
+// graphics' first user, has its entries taken again (before the load - none drawn from the freed models while it runs -
+// and after it). Drawn on the drawing thread meanwhile only through anim_model, which the release emptied.
+internal void kt_gfx_loads(ee_dmg_model *g) {
+    if (!g_kt.t) return;
+    for (uint32_t i = 0, n = g_kt.n; i < n && i < KT_TREES; i++)
+        if (g_kt.t[i].g == g && g_kt.t[i].state != KT_NEW) { g_kt.t[i].state = KT_NEW; InterlockedIncrement(&g_kt.reloads); }
+}
 // a new tree's parts taken from the walk at fractions 0 and 1 (the states of its draw set by the caller)
 internal void kt_make(kt_tree *k, const in_rec *r0, float bias) {
     k->state = KT_NOT;
@@ -461,6 +506,7 @@ internal int kt_draw(float *at, void *rec) {
     kt_tree *k = kt_find(g, m, anim, frame, next, scale, at, 0.0f, 0);
     ee_texture *tex = graphics_anim_texture(g, anim);
     kt_retex(k, tex);
+    if (k && k->state == KT_OK) kt_hold(k, NULL);
     if (!k || k->state == KT_NOT) { InterlockedIncrement(&g_kt.walked); return ut_draw(at, rec); }
     ee_rasterizer *ras = rasterizer();
     uint32_t screen = (uint32_t)screen_index();
@@ -503,6 +549,7 @@ internal kt_tree *kr_find(void *rec, ee_dmg_model *g, ee_model *m, int anim, con
     for (int l = 0; l < 3; l++) if (vector_first(lists[l]) != vector_end(lists[l])) return NULL;
     kt_tree *k = kt_find(g, m, anim, r->pose.frame, r->pose.next, r->scale, r->outer, r->pose.frac, 1);
     kt_retex(k, r->tex);
+    if (k && k->state == KT_OK) kt_hold(k, ty);
     if (k && k->state == KT_NOT) { InterlockedIncrement(&g_kt.rec_not); return NULL; }
     if (k && bl_noted_wall(m) && k->gen != ws_cut_gen()) { k->state = KT_NEW; k->gen = ws_cut_gen(); }   // (its cuts changed: made again)
     return k;
@@ -1220,7 +1267,8 @@ internal int kt_pipe(char *out, const char *arg) {
     REPLY("the trees kept: %s; %lu in the table (%ld made, started over %ld times), drawn kept %ld (found by the guess %ld), by the walk %ld (",
           kt_on() ? "on" : "off", (unsigned long)g_kt.n, (long)g_kt.made, (long)g_kt.starts_over, (long)g_kt.drawn, (long)g_kt.guessed, (long)g_kt.walked);
     for (int i = 0; i < KT_REASONS; i++) REPLY("%s%s %ld", i ? ", " : "", k_kt_reason[i], (long)g_kt.reason[i]);
-    REPLY("); records drawn kept %ld (made %ld), not to be kept %ld\n", (long)g_kt.rec_drawn, (long)g_kt.rec_made, (long)g_kt.rec_not);
+    REPLY("); records drawn kept %ld (made %ld), not to be kept %ld; taken again for their graphics' new load %ld, for a part changed under them %ld\n",
+          (long)g_kt.rec_drawn, (long)g_kt.rec_made, (long)g_kt.rec_not, (long)g_kt.reloads, (long)g_kt.changed);
     return 1;
 }
 // render_silhouette.c's hook of the game's tree draw: 1 when it is drawn here

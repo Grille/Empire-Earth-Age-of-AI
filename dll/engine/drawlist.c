@@ -89,6 +89,7 @@ internal ee_dmg_model *g_aq_busy[AQ_BUSY];   // graphics being finished (under t
 internal int g_aq_fast, g_aq_walls;
 internal int ws_gfx_wall(ee_dmg_model *g, int *t, ee_player **pl);   // walls.c
 internal void ws_gfx_loaded(ee_dmg_model *g, int t, ee_player *pl);
+internal void kt_gfx_loads(ee_dmg_model *g);   // render_units.c: its kept trees and records taken again
 internal int __thiscall hook_acquire(ee_dmg_model *g) {
     void *cs = graphics_lock();
     if (!cs) return g_acquire(g);
@@ -108,7 +109,9 @@ internal int __thiscall hook_acquire(ee_dmg_model *g) {
         if (!users && g_aq_walls && ws_gfx_wall(g, &t, &pl))
             for (int i = 0; i < AQ_BUSY && slot < 0; i++) if (!g_aq_busy[i]) { g_aq_busy[i] = g; slot = i; }
         g_ts_leave(cs);
+        if (!users) kt_gfx_loads(g);   // (before: none drawn from the old models while the new ones load)
         int r = g_acquire(g);
+        if (!users) kt_gfx_loads(g);   // (and after: none taken from a load half done)
         if (slot >= 0) {
             ws_gfx_loaded(g, t, pl);
             g_ts_enter(cs);
@@ -124,7 +127,8 @@ internal void draw_many_install(void) {
     g_ts_leave = lle ? (ts_lock_fn)(void *)GetProcAddress(lle, "?Leave@TSCriticalSection@@QAEXXZ") : NULL;
     g_aq_fast = g_set.draw_many_units;
     g_aq_walls = g_set.wall_slopes;   // walls.c PART OF THE MESH
-    int b = (g_aq_fast || g_aq_walls) && g_ts_enter && g_ts_leave && patch_acquire(hook_acquire, &g_acquire);
+    // (the own renderer's kept trees and records: render_units.c kt_gfx_loads)
+    int b = (g_aq_fast || g_aq_walls || g_set.renderer == 1) && g_ts_enter && g_ts_leave && patch_acquire(hook_acquire, &g_acquire);
     if (g_aq_walls && g_log) fprintf(g_log, "# walls: skirts made as a wall's graphics load - acquire %s\n", b ? "hooked" : "NOT hooked: no skirts");
     if (!g_set.draw_many_units) { if (g_log) fprintf(g_log, "# draw many units: off\n"); return; }
     int a = patch_pick_listed(hook_pick_listed);
