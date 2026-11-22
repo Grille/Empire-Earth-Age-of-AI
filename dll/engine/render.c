@@ -985,21 +985,35 @@ internal void rd_mode_desc(DDSURFACEDESC2 *d, int w, int h, int bpp, int hz) {
     rf_pixel_format(bpp == 16 ? RF_RGB565 : RF_XRGB8888, &d->ddpfPixelFormat);
     d->lPitch = w * (bpp / 8);
 }
+// The monitor's modes, then the usual sizes it may not list: Wine lists only the screen's own size where its X server
+// has one (Xvfb; Android's Wine apps likely too) - no 800x600, and the display DLL's CreateSurface read its pixel format
+// table at a garbage index: a crash at the first start (DX7HRDisplay.dll+c7d1, 2026-11-22). The own renderer draws only
+// into a window, where any size is scaled to it, so a size the monitor hasn't got is as good as its own.
+internal const short k_rd_std_modes[][2] = {
+    { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1152, 864 }, { 1280, 720 }, { 1280, 960 }, { 1280, 1024 },
+    { 1600, 900 }, { 1600, 1200 }, { 1920, 1080 },
+};
 internal HRESULT __stdcall rd_dd_enum_modes(rd_dd *o, DWORD flags, DDSURFACEDESC2 *filter, void *ctx,
                                             HRESULT (WINAPI *cb)(DDSURFACEDESC2 *, void *)) {
     (void)o; (void)flags; (void)filter;
     static struct { short w, h, bpp; } seen[256];
-    int n = 0;
+    int n = 0, std = 0, listed = 1;
     DEVMODEA dm = { .dmSize = sizeof dm };
-    for (DWORD i = 0; EnumDisplaySettingsA(NULL, i, &dm); i++) {
-        if (dm.dmBitsPerPel != 32 && dm.dmBitsPerPel != 16) continue;
+    for (DWORD i = 0;; i++) {
+        int w, h;
+        if (listed && (listed = EnumDisplaySettingsA(NULL, i, &dm)) != 0) {
+            if (dm.dmBitsPerPel != 32 && dm.dmBitsPerPel != 16) continue;
+            w = (int)dm.dmPelsWidth; h = (int)dm.dmPelsHeight;
+        } else if (std < (int)(sizeof k_rd_std_modes / sizeof k_rd_std_modes[0])) {
+            w = k_rd_std_modes[std][0]; h = k_rd_std_modes[std++][1];
+        } else break;
         for (int bpp = 32; bpp >= 16; bpp -= 16) {
             int dup = 0;
-            for (int k = 0; k < n; k++) dup |= seen[k].w == (short)dm.dmPelsWidth && seen[k].h == (short)dm.dmPelsHeight && seen[k].bpp == bpp;
+            for (int k = 0; k < n; k++) dup |= seen[k].w == (short)w && seen[k].h == (short)h && seen[k].bpp == bpp;
             if (dup || n == 256) continue;
-            seen[n].w = (short)dm.dmPelsWidth; seen[n].h = (short)dm.dmPelsHeight; seen[n++].bpp = (short)bpp;
+            seen[n].w = (short)w; seen[n].h = (short)h; seen[n++].bpp = (short)bpp;
             DDSURFACEDESC2 d;
-            rd_mode_desc(&d, (int)dm.dmPelsWidth, (int)dm.dmPelsHeight, bpp, 0);
+            rd_mode_desc(&d, w, h, bpp, 0);
             if (cb(&d, ctx) == DDENUMRET_CANCEL) return DD_OK;
         }
     }
