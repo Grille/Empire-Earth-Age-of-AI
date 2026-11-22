@@ -850,6 +850,33 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         }
         (void)cut;
         if (left < 0) left = 0;
+        // THE MINES FIRST ([ai_base] mines_first; the player 2026-11-22, his game at minute 157: both AIs short of gold
+        // and iron, 26 and 34 thousand food in the bank, P3's gold mines worked by 0 to 4 of 6 - its iron needed 145
+        // citizens for 36 places, and the cut went to food and wood): food and wood keep what they need (need_c), the
+        // citizens beyond it fill the free places at the mines first, by each mine resource's need, and only the rest
+        // cuts wood and farms beyond the need - the pool's order. With few citizens nothing is beyond food's and wood's
+        // need and nothing changes. On since 2026-11-22 by the player's call ("the only reason not to mine every gold and
+        // iron is low pop limits"); measured before: Large Islands e9 90 min and e11 150 min, 6 seeds each, within noise
+        // (e11: miners on gold 16 of 24 places against 13, citizens 111 against 93 (6), gold+iron income -3.6k (4k))
+        if (g_set_ai[1].mines_first && w->by_need) {
+            int spare = left - w->need_c[2] - w->need_c[3];
+            for (int round = 0; round < 3 && spare > 0; round++) {
+                float ws = 0;
+                for (int r = 4; r < 7; r++) if (w->want[r] < w->places[r]) ws += wt[r];
+                if (ws <= 0) break;
+                int given = 0;
+                for (int r = 4; r < 7 && spare - given > 0; r++) {
+                    int room = w->places[r] - w->want[r];
+                    if (room <= 0) continue;
+                    int n = (int)((float)spare * wt[r] / ws + 0.999f);
+                    if (n > room) n = room;
+                    if (n > spare - given) n = spare - given;
+                    w->want[r] += n; given += n;
+                }
+                spare -= given; left -= given;
+                if (!given) break;
+            }
+        }
         w->want[2] = (int)((float)left * wt[2] / (wt[2] + wt[3]) + 0.5f);
         w->want[3] = left - w->want[2];
         // THE PATCHES FIRST (the player 2026-11-14: "the ai has a very slow start right now - the ai should focus a bit more on

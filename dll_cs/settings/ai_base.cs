@@ -877,6 +877,12 @@ class ai_base
         /// bushes of lands with a drop site of its, as to free places at the mines. 1 = on
         [advanced]
         bool forest_across = true;
+        /// The mines' free places before more food and wood (the game's computer player off): once food and wood have the
+        /// citizens they need, the rest work the free places at its gold, iron and stone mines first and only then cut
+        /// wood and farm beyond the need - else what a mine resource needs beyond its places went to food and wood. With
+        /// few citizens nothing is beyond food's and wood's need: no change then. 1 = on
+        [advanced]
+        bool mines_first = true;
         struct towns_fields
         {
             /// a resource town once the mines near its drop sites are full (fewer than 4 free places) and its
