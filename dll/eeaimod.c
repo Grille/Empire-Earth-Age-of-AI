@@ -130,6 +130,7 @@ internal void takeover_loaded(void);     // test/takeover.c
 internal void takeover_install(void);
 internal void takeover_tick(ee_player *pl);   // the observer's epoch and population: its stand-in's
 internal void airguard_tick(ee_player *pl, uint32_t now);   // airguard.c: anti-air buildings and fighters
+internal void returns_tick(ee_player *pl, uint32_t now);    // returns.c: what each kind of force brings back
 internal void airguard_new_game(void);
 internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and prophets
 internal void holy_new_game(void);
@@ -284,6 +285,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && (game || player_ai_toggle(pl, SM_AIT_ATTACK))) airstrike_tick(pl, now);
     if (pl && !is_vanilla(pl) && !game) airguard_tick(pl, now);   // airguard.c: anti-air buildings and fighters (the game's computer player off)
     if (pl && !is_vanilla(pl) && !game) holy_tick(pl, now);   // holy.c: priests and prophets (the game's computer player off)
+    if (pl && !is_vanilla(pl)) returns_tick(pl, now);   // returns.c: what each kind of force kills and loses for what is fielded
     if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl && !is_vanilla(pl)) tv_tick(pl, (unsigned)player_get_index(pl) & 15, now);
     if (pl && !is_vanilla(pl) && !game) shelf_off_tick(pl, now);   // bunker.c: the citizens' shelf (the game's computer player off)
@@ -559,6 +561,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/storms.c"        // ships out of an enemy's storm (the prophet's hurricane)
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
+#include "ai/returns.c"       // the returns: what each kind of force kills and loses for what it fields (the strategy plans' step 1)
 #include "ai/holy.c"          // priests and prophets while the game's computer player is off
 #include "ai/creep.c"         // tower creep: towers laid at an enemy's buildings, the same
 #include "ai/skirmish.c"
