@@ -333,6 +333,11 @@ class ai_base
         /// shores and open borders are covered. Peace of mind against a landing from behind; not something the AI
         /// against AI games can show. 1 = on.
         bool border_towers = true;
+        /// The stone sink (the game's computer player off): while 5000 stone lie in the bank, the border towers come
+        /// denser and faster - 7 tiles apart instead of 12, up to 4 going up at a time, a look every 10 seconds, wood or
+        /// not (a tower costs stone only) - and the wood sink's Temples, Hospitals and Universities (wood and stone) are
+        /// laid without its 10000 wood. 1 = on.
+        bool stone_sink = true;
         /// Border walls: while 1500 stone lie in the bank, a wall along the border between a
         /// territory the AI holds and land nobody of its side holds - the shortest such border first (the territories
         /// meet where the land is narrowest), a gate in its middle (where none can stand: one tile left open, two towers

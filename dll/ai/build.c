@@ -66,6 +66,7 @@
 #define BD_PAIR_R 5             // THE PAIR: its first Hospital and Temple this far apart at most (each way, corner to corner)
 #define BD_SINK 10000           // wood in the bank from which it builds unasked
 #define BD_SINK_EVERY 20000
+#define BD_STONE_SINK 5000      // stone in the bank from which THE STONE SINK lays the wood sink's kinds that cost stone (territories.c BW_SINK)
 #define BD_SINK_MAX 3           // of a kind in one territory
 #define BD_SINK_OPEN 4          // unfinished buildings
 #define BD_SINK_T 4096
@@ -837,7 +838,11 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // with the money, made it the first building beside every new Settlement - the player 2026-11-17: "a bit agressive
     // ... i also fear it got a bit of a sepcial case isntead of being part of teh regular systems"). No front territory
     // to build in: a University or a production building in a quiet backland.
-    if (!type && !placed && player_stock_at(pl)[3] >= BD_SINK && open_sink < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
+    // THE STONE SINK ([ai_base] stone_sink; territories.c BORDER TOWERS has its towers): with BD_STONE_SINK stone in the
+    // bank the kinds that cost stone too - the Hospital, the Temple, the University - are laid by these rules without
+    // BD_SINK wood (the price itself still in the bank: bd_pays)
+    int wsink = player_stock_at(pl)[3] >= BD_SINK, ssink = g_set_ai[1].stone_sink && player_stock_at(pl)[4] >= BD_STONE_SINK;
+    if (!type && !placed && (wsink || ssink) && open_sink < BD_SINK_OPEN && (!b->sink_t || now < b->sink_t || now - b->sink_t >= BD_SINK_EVERY)) {
         int kinds[4 + PR_NK], nk = 0;
         kinds[nk++] = rb[1]; kinds[nk++] = rb[2]; kinds[nk++] = rb[0]; kinds[nk++] = UT(B_AIRPORT);   // the area's three (BD_AOE), an Airport near the front: the planes' reach
         for (int k = 0; k < PR_NK; k++) kinds[nk++] = g_ut[PR_KINDS[k]];
@@ -867,6 +872,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             for (int k = back ? 2 : 0; k < nk; k++) {
                 if (kinds[k] < 0 || (back && k == 3) || have[r][k] >= (k == 3 ? 1 : BD_SINK_MAX) ||   // one Airport a territory (18 of one player's in the player's game)
                      !ut_has(kinds[k]) || !prio_buildable(pl, kinds[k]) || !bd_pays(pl, kinds[k], com)) continue;
+                if (!wsink && (k >= BD_AOE || unit_cost(pl, kinds[k], 4) <= 0)) continue;   // THE STONE SINK: only those that cost stone
                 int covered = 0;   // AREA OF EFFECT: one of its kind already reaches the territory's place
                 for (int j = 0; k < BD_AOE && j < naoe[k] && !covered; j++) covered = ivec2_dist2(aoe_at[k][j], place[r]) < reach[k] * reach[k];
                 if (covered) continue;
@@ -881,7 +887,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 int sz = ktd ? unit_type_get_size(ktd) : 0;
                 ivec2 mid = iv2(at.x + sz / 2, at.y + sz / 2);
                 for (int j = 0; bk < BD_AOE && j < naoe[bk] && !near_same; j++) near_same = ivec2_dist2(aoe_at[bk][j], mid) < reach[bk] * reach[bk];   // AREA OF EFFECT: the spot itself too
-                if (!near_same) { type = kinds[bk]; what = s->t[br].role == TVR_FRONT ? "the wood sink: one more in a front territory" : "the wood sink: one more in a backland"; b->sink_t = now ? now : 1; b->sinks++; }
+                if (!near_same) { type = kinds[bk]; what = s->t[br].role == TVR_FRONT ? (wsink ? "the wood sink: one more in a front territory" : "the stone sink: one more in a front territory") : (wsink ? "the wood sink: one more in a backland" : "the stone sink: one more in a backland"); b->sink_t = now ? now : 1; b->sinks++; }
             }
             if (!type) { b->no_spot++; if (near_same) b->sink_t = now ? now : 1; }   // too near its own: the next look in BD_SINK_EVERY
         }

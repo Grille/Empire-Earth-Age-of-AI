@@ -508,19 +508,39 @@ internal int tv_sea_best(unsigned idx, unsigned *ocean) {
 // its side holds - where no tower of its stands within BW_SPACE tiles; the place nearest that territory's middle
 // first, so the cover grows from the core outwards and ends as a tower every BW_SPACE tiles of shore and open border.
 // Walls: BORDER WALLS, below.
+// THE STONE SINK ([ai_base] stone_sink; the player 2026-11-22: "we alredy have the wood sink, we also should add a stone
+// sink beside it ... its mostly for towers, so that excess stone gets turned into border and coast towers" - his P2 at
+// minute 210 with 18700 stone in the bank and 10 border towers laid in 188 minutes): while BW_SINK of stone lie in the
+// bank the cover comes denser and faster - a tower every BW_SINK_SPACE tiles (the newest towers reach 7-8: they
+// overlap), up to BW_SINK_OPEN going up at a time, a look every BW_SINK_EVERY, the wood not asked (a tower costs stone
+// only). Its buildings' half: build.c THE WOOD SINK. On his save (minute 204 -> 230, 5 game_seeds off/on): border
+// towers 22 an AI against 5.4, P3 down to the 5000 and holding, P2 still at 20000 (its border covered, 4 going up at
+// a time); kills, losses, citizens, buildings lost the same. "# border: ... looks that laid none" every 5 minutes says
+// what held it.
 #define BW_EVERY 20000
 #define BW_STONE 1500
 #define BW_WOOD 1500
 #define BW_SPACE 12
 #define BW_TOWERS 512
+#define BW_SINK 5000
+#define BW_SINK_SPACE 7
+#define BW_SINK_OPEN 4
+#define BW_SINK_EVERY 10000
 internal int g_border_towers = 0, g_v_border_towers = -1;
 #define BORDER_TOWERS(idx) PV(idx, g_v_border_towers, g_border_towers)
-internal struct { uint32_t t; unsigned queued, no_place; int ntw; ivec2 tw[BW_TOWERS]; struct { ivec2 p; uint32_t t; } bad[32]; int nbad; } g_bw[16];   // bad: places a tower was queued for or none could be put by, not tried again for 5 minutes
+internal struct { uint32_t t, log_t; unsigned queued, no_place, why[6]; int ntw; ivec2 tw[BW_TOWERS]; struct { ivec2 p; uint32_t t; } bad[32]; int nbad; } g_bw[16];   // bad: places a tower was queued for or none could be put by, not tried again for 5 minutes
 internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
     struct tv_st *s = &g_tv[idx];
-    if (!BORDER_TOWERS(idx) || !s->n || (g_bw[idx].t && now >= g_bw[idx].t && now - g_bw[idx].t < BW_EVERY)) return;
-    g_bw[idx].t = now ? now : 1;
     const int *stock = player_stock_at(pl);
+    int sink = g_set_ai[1].stone_sink && !GAME_AI(idx) && stock[4] >= BW_SINK, space = sink ? BW_SINK_SPACE : BW_SPACE;   // THE STONE SINK
+    if (!BORDER_TOWERS(idx) || !s->n || (g_bw[idx].t && now >= g_bw[idx].t && now - g_bw[idx].t < (sink ? BW_SINK_EVERY : BW_EVERY))) return;
+    g_bw[idx].t = now ? now : 1;
+    if (g_log && sink && (!g_bw[idx].log_t || now < g_bw[idx].log_t || now - g_bw[idx].log_t >= 300000)) {   // why its looks laid nothing, while the stone sink runs
+        g_bw[idx].log_t = now ? now : 1;
+        unsigned *w = g_bw[idx].why;
+        log_locked("# border: P%u at %.1f min: the stone sink (stone %d): %u towers queued so far; looks that laid none: %u not in the epoch or the bank, %u with towers going up, %u no open border left, %u raiders by the place, %u not paid (held back), %u no spot by it\n",
+                   idx, now / 60000.0, stock[4], g_bw[idx].queued, w[0], w[1], w[2], w[3], w[4], w[5]);
+    }
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int e = current_epoch(pl), ttype = tower_newest(pl), size = g_ter.size;
@@ -528,7 +548,7 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
     // the mod's placement as build.c's are (its builders come to the foundation), one going up at a time - before, one
     // entry was queued, never built, and its being queued (tower_queued) stopped every other for the rest of the game
     int own = !GAME_AI(idx), open_ = 0;
-    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < BW_STONE || stock[3] < BW_WOOD || (!own && tower_queued(bm))) return;
+    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < BW_STONE || (!sink && stock[3] < BW_WOOD) || (!own && tower_queued(bm))) { g_bw[idx].why[0]++; return; }
     g_bw[idx].ntw = 0;   // its towers (and other defences) as they stand
     for (ee_unit *u = player_get_units(pl); u && g_bw[idx].ntw < BW_TOWERS; u = unit_get_next(u)) {
         float rng, att;
@@ -537,7 +557,7 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
         if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && defence_stats(u, &rng, &att)) g_bw[idx].tw[g_bw[idx].ntw++] = unit_get_tile(u);
         if (own && td && is_tower_type(unit_type_get_id(td)) && unit_get_hp(u) > 0 && unit_get_physics(u) && !unit_get_finished(unit_get_physics(u))) open_++;
     }
-    if (open_) return;
+    if (open_ >= (sink ? BW_SINK_OPEN : 1)) { g_bw[idx].why[1]++; return; }
     ivec2 best = iv2(-1, -1);
     long bd = 0x7FFFFFFF;
     for (int y = 3; y < size - 3; y += 3)
@@ -553,27 +573,27 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
             long dc = ivec2_dist2(iv2(x, y), g_ter.t[r].c);
             if (dc >= bd) continue;
             int covered = 0;
-            for (int k = 0; k < g_bw[idx].ntw && !covered; k++) covered = ivec2_dist2(g_bw[idx].tw[k], iv2(x, y)) <= BW_SPACE * BW_SPACE;
+            for (int k = 0; k < g_bw[idx].ntw && !covered; k++) covered = ivec2_dist2(g_bw[idx].tw[k], iv2(x, y)) <= space * space;
             for (int k = 0; k < 32 && !covered; k++) covered = g_bw[idx].bad[k].t && now - g_bw[idx].bad[k].t < 300000 && ivec2_dist2(g_bw[idx].bad[k].p, iv2(x, y)) <= 16;
             if (!covered) { bd = dc; best = iv2(x, y); }
         }
-    if (best.x < 0 || raiders_near(pl, best, 12)) return;
+    if (best.x < 0 || raiders_near(pl, best, 12)) { g_bw[idx].why[best.x < 0 ? 2 : 3]++; return; }
     for (int r = 0; r <= 3; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = ivec2_add(best, iv2(ax, ay));
                 if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, ttype, q)) continue;
                 int entry[3] = { ttype, q.x, q.y };
-                if (own) { census_build_ask(bm, ttype); if (!hook_place(bm, ttype, q.x, q.y)) return; }   // not paid now (the priority list's savings): the next look
+                if (own) { census_build_ask(bm, ttype); if (!hook_place(bm, ttype, q.x, q.y)) { g_bw[idx].why[4]++; return; } }   // not paid now (the priority list's savings): the next look
                 else build_mgr_queue_add(bm, e, entry);
                 g_bw[idx].queued++;
                 g_bw[idx].bad[g_bw[idx].nbad++ & 31].p = best; g_bw[idx].bad[(g_bw[idx].nbad - 1) & 31].t = now ? now : 1;   // not standing yet: the same place was queued three times
-                if (g_log && (g_autotest || !(g_bw[idx].queued % 10))) fprintf(g_log, "# border: P%u at %.1f min: tower %d queued at %d,%d on the outside border of its territory %u (stone %d, wood %d in the bank; %d towers standing, %u queued so far)\n",
-                                                                                 idx, now / 60000.0, ttype, q.x, q.y, g_ter.lab[best.y * size + best.x], stock[4], stock[3], g_bw[idx].ntw, g_bw[idx].queued);
+                if (g_log && (g_autotest || !(g_bw[idx].queued % 10))) fprintf(g_log, "# border: P%u at %.1f min: tower %d queued at %d,%d on the outside border of its territory %u%s (stone %d, wood %d in the bank; %d towers standing, %u queued so far)\n",
+                                                                                 idx, now / 60000.0, ttype, q.x, q.y, g_ter.lab[best.y * size + best.x], sink ? " - the stone sink" : "", stock[4], stock[3], g_bw[idx].ntw, g_bw[idx].queued);
                 return;
             }
     g_bw[idx].bad[g_bw[idx].nbad++ & 31].p = best; g_bw[idx].bad[(g_bw[idx].nbad - 1) & 31].t = now ? now : 1;   // no place for a tower by it: the next one the next time
-    g_bw[idx].no_place++;
+    g_bw[idx].no_place++; g_bw[idx].why[5]++;
     g_bw[idx].t = now - BW_EVERY + 2000;
 }
 // ---- BORDER WALLS ([ai_base] border_walls; [autotest] v_border_walls) ----
