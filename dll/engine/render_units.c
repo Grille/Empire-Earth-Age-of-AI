@@ -348,9 +348,9 @@ internal void kt_sig(const ee_model *m, const ee_material *mat, uint32_t *s) {
     s[0] = *(const uint32_t *)m; s[1] = *(const uint32_t *)mat;
     s[2] = material_get_vertex_count(mat); s[3] = material_get_vertex_first(mat);
 }
-// an entry's parts still the ones taken; else it is to be taken again (told in the log by its type the first times)
+// an entry's parts still the ones taken; else it is to be taken again (a notice: base/notices.c - what frees them in
+// the player's games is not known yet)
 internal int kt_hold(kt_tree *k, const ee_unit_type *ty) {
-    static LONG told;
     for (uint32_t i = 0; i < k->np; i++) {
         const kt_part *e = &g_kt.part[k->part + i];
         uint32_t s[4];
@@ -358,10 +358,10 @@ internal int kt_hold(kt_tree *k, const ee_unit_type *ty) {
         if (!memcmp(s, e->sig, sizeof s)) continue;
         k->state = KT_NEW;
         InterlockedIncrement(&g_kt.changed);
-        if (InterlockedIncrement(&told) <= 10)
-            log_locked("# kept: %s %s's part %u of %u changed under it (model %p vtable %08x, was %08x; material %p vtable %08x vertices %u, was %08x %u) - taken again\n",
-                       k->rec ? "a record" : "a tree", ty && unit_type_get_name(ty) ? unit_type_get_name(ty) : "?", i, k->np, (void *)e->m, s[0],
-                       e->sig[0], (void *)e->mat, s[1], s[2], e->sig[1], e->sig[2]);
+        notice("a kept building or tree's model was freed under the drawing",
+               "%s %s's part %u of %u (model %p vtable %08x, was %08x; material %p vtable %08x vertices %u, was %08x %u) - taken again (render_units.c kt_hold)",
+               k->rec ? "a record" : "a tree", ty && unit_type_get_name(ty) ? unit_type_get_name(ty) : "?", i, k->np, (void *)e->m, s[0],
+               e->sig[0], (void *)e->mat, s[1], s[2], e->sig[1], e->sig[2]);
         return 0;
     }
     return 1;

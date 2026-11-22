@@ -143,6 +143,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   `eectl.py --folder` the folder of its files while it plays. `DLL=<path>` plays your own build
   without installing it. Tests use the shipped `config/ageofai.ini` and `config/personalities/`, never the user's own.
 - Setup scripts (`tests/scenarios/*.eeai`, `tests/probes/*.eeai`): docs/scripts.md. The control pipe: `scripts/test/eectl.py`.
+- A fault the mod catches and gets round (a bug somewhere that a game hit) goes through `notice(kind, ...)`
+  (base/notices.c), not a log line alone: the player sees it on the screen once a session, and `<game>\ageofai\ageofai_notices.txt`
+  keeps it - read that file first when the player reports anything (the player 2026-11-22: log lines go unseen).
 - `setup.eeai` beside ageofai.ini (`config/setup.eeai` ships, installed once: the player's own stays) is a script of
   every game, a test's or not (the player 2026-11-14): its hooks `on_game()`, then `on_skirmish()` / `on_scenario()` /
   `on_campaign()` by the game start's mode, from 2 s at the safe point (test/scripts.c SETUP.EEAI; docs/scripts.md).

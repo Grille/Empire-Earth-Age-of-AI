@@ -59,7 +59,10 @@ internal int mo_init(void) {
 // pool holds: it would start the pool over for good (a freed material's vertex count, 843 million: the player's drawing
 // thread spun here, 2026-11-22 - render_units.c kt_gfx_loads)
 internal mo_run *mo_run_of(const float *src, uint32_t n) {
-    if (!n || n > MO_POOL_VERTS) return NULL;
+    if (!n || n > MO_POOL_VERTS) {
+        notice("a model asked the animation pool for an impossible size", "a run of %u vertices at %p left out (render_morph.c mo_run_of)", n, (const void *)src);
+        return NULL;
+    }
     uint32_t h = (uint32_t)(((uintptr_t)src >> 5) * 2654435761u ^ n * 40503u) & (MO_SLOTS - 1);
     mo_run *r;
     for (;; h = (h + 1) & (MO_SLOTS - 1)) {

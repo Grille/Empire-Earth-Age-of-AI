@@ -628,6 +628,7 @@ internal void units_first_tick(void);   // unitsfirst.c: a unit shooting a build
 internal void answer_fire_tick(void);   // unitsfirst.c: an idle unit shot from beyond its reply range goes for its attacker
 internal void spoils_tick(void);        // spoils.c: a resigned player's buildings and units
 internal void system_line(const char *text, int ms);   // voice/chat.c
+internal void notices_show(void);   // voice/chat.c: the faults the mod caught, on the screen (base/notices.c)
 
 // THE CONSOLE IN THE CHAT: a chat line of the local player that begins with '>' is a command of the pipe ("> status",
 // ">spawn 2 knight 40 40"), run at the pipe's own place (hook_sim_receive, between steps) and its reply shown in the
@@ -717,6 +718,7 @@ internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *
     spoils_tick();
     fm_tick();
     sound_tick(game_time());
+    notices_show();
     llm_tick();
     if (!g_rm_seen && game_time() > 0) autotest_tick(game_time());   // games without AI (scenarios)
     script_triggers(game_time());

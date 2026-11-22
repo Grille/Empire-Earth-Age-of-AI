@@ -60,6 +60,14 @@ internal void system_line(const char *text, int ms) {
     wstring_free(name);
 }
 
+// the notices for the screen (base/notices.c), on the simulation's thread (test/control.c hook_sim_receive): kept in
+// their queue while there is no game's interface to show them on
+internal void notices_show(void) {
+    char line[240];
+    if (!game_get_ui() || !string_resources()) return;
+    while (notice_next(line, sizeof line)) system_line(line, 30000);
+}
+
 // the same with no sender at all: a line that is only its text
 internal void bare_line(const char *text, int ms) {
     void *ui = game_get_ui();

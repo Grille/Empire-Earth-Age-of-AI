@@ -24,6 +24,7 @@ struct ustring;
 #include "base/paths.c"
 #include "base/texfix.c"          // the textures texfix.eeai lists
 #include "base/mistakes.c"
+#include "base/notices.c"         // the faults the mod caught and got round: the log, ageofai_notices.txt, the screen
 #include "base/words.c"           // language.eeai: the mod's words on the game's screens
 #include "base/edits.c"           // an editor's unsaved .eeai texts in place of the files (ageofai_check's language server)
 #include "base/math.c"
@@ -785,6 +786,7 @@ internal void install(HMODULE self) {
         settings_read(g_aimod_ini, g_autotest ? g_ini : NULL);
         config_ai_dir();
         wsprintfA(g_log_path, "%sageofai_log.csv", dir);
+        wsprintfA(g_notice_path, "%sageofai_notices.txt", dir);
         if (!g_set.enabled) {
             FILE *f = fopen(g_log_path, "a");
             if (f) { fputs("# eeaimod: switched off in ageofai.ini (enabled=0) - nothing installed\n", f); fclose(f); }
@@ -938,6 +940,7 @@ internal void install(HMODULE self) {
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
     g_chat_console = chat_console;   // '>' lines of the chat: the pipe's commands (diplo.c -> test/control.c)
+    g_notice.minute = game_time;     // a notice's game time (base/notices.c)
     if (g_autotest && g_auto.game_seed) {
         BOOL ok = install_srand(), start = start_hook();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
