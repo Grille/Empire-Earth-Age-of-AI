@@ -124,6 +124,7 @@ internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the f
 internal void stations_new_game(void);
 internal void news_tick(ee_player *pl, unsigned idx, uint32_t now);   // ai/news.c: what the force and the territories give its lines
 internal void news_new_game(void);
+internal int news_territories(int p);   // ai/news.c: the land territories player p holds (X.territories)
 internal void takeover_new_game(void);   // test/takeover.c
 internal void takeover_loaded(void);     // test/takeover.c
 internal void takeover_install(void);

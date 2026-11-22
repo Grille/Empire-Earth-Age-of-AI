@@ -11,17 +11,49 @@
 //   territory_lost - one it held is no longer its: to the enemy who holds it now, else the one with the most there;
 //   territory_held - one it holds was being lost (territories.c UNSAFE) and is safe again with no enemy soldier
 //              left there: to the enemy that came.
-// Who holds a territory: game/territory.c ter_facts - the player with the most finished buildings there that hold
-// ground (a tower, a Town Center, a production building), looked at every NW_EVERY (here: the map's facts are
-// otherwise worked out only while the overlay shows them). The facts are the game's, as the lines' other values (a
-// player's strength, its kills) are; the AI's own view (territories.c) only for UNSAFE. The same on every PC, so the
-// situations' handlers (on_territory_lost ...) run alike everywhere. A new game or a loaded one starts from what holds
-// then: nothing said of what happened before.
+// Who holds a territory: game/territory.c's rule (ter_holds) - the player with the most finished buildings there that
+// hold ground (a tower, a Town Center, a production building) - counted here every NW_EVERY in a pass of its own
+// (THE HOLDERS), not by ter_facts: the map's facts are worked out only while the overlay shows them or for their log,
+// and other parts read them (airguard.c's sweeps look at the territories they say are an enemy's) - worked out here
+// they would change what those do, and the lines must not change how the AI plays. The holders are the game's, as the
+// lines' other values (a player's strength, its kills) are; the AI's own view (territories.c) only for UNSAFE. The
+// same on every PC, so the situations' handlers (on_territory_lost ...) run alike everywhere. A new game or a loaded
+// one starts from what holds then: nothing said of what happened before. The value X.territories counts them too.
 // "# news:" a line each.
 #define NW_EVERY 10000
 #define NW_TAKEN_MEMORY 600000
 #define NW_LANDED 3
 #define NW_T PR_T
+// THE HOLDERS: by territory and player, its buildings, its buildings that hold ground, its other units; the holder
+internal struct { uint16_t bld[16], hold[16], units[16]; } g_nw_ter[NW_T];
+internal int8_t g_nw_owner[NW_T];
+internal int g_nw_n;
+internal void nw_holders(void) {
+    int n = g_ter.n < NW_T ? g_ter.n : NW_T;
+    memset(g_nw_ter, 0, sizeof g_nw_ter[0] * (size_t)n);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // as ter_facts counts them
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        int p = o ? player_get_index(o) : 0;
+        if (p <= 0 || p > 15 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || foundation_unseen(u, it.td, NULL)) continue;
+        unsigned r = ter_near(unit_get_x(u), unit_get_y(u));
+        if (r >= (unsigned)n) continue;
+        if (!ter_is_building(it.td)) { if (g_nw_ter[r].units[p] < 0xFFFF) g_nw_ter[r].units[p]++; continue; }
+        if (g_nw_ter[r].bld[p] < 0xFFFF) g_nw_ter[r].bld[p]++;
+        if (ter_holds(u, it.td) && g_nw_ter[r].hold[p] < 0xFFFF) g_nw_ter[r].hold[p]++;
+    }
+    for (int r = 0; r < n; r++) {
+        int w = 0;
+        for (int p = 1; p < 16; p++) if (g_nw_ter[r].hold[p] > (w ? g_nw_ter[r].hold[w] : 0)) w = p;
+        g_nw_owner[r] = (int8_t)(g_ter.t[r].water ? 0 : w);
+    }
+    g_nw_n = n;
+}
+internal int news_territories(int p) {   // X.territories (game_script/relations.c): the land territories p holds
+    int k = 0;
+    for (int r = 0; g_ter.map == game_map() && r < g_nw_n; r++) k += g_nw_owner[r] == p;
+    return k;
+}
 struct nw_st {
     int ready; unsigned version; int n; uint32_t facts_t, log_t;   // facts_t: the facts it last went through
     int8_t owner[NW_T];                       // each land territory's holder at the last look, 0 none
@@ -35,12 +67,12 @@ internal unsigned g_nw_said[16][6];   // the log's: attacks, landings, taken, lo
 
 // the enemy of pl with the most units (units 1) or buildings (0) in territory r - else of the other kind; 0 none
 internal int nw_enemy_in(ee_player *pl, unsigned r, int units) {
-    const struct ter_terr *t = &g_ter.t[r];
+    if (r >= (unsigned)g_nw_n) return 0;
     for (int pass = 0; pass < 2; pass++) {
         int best = 0, most = 0, by_units = units ^ pass;
         for (int p = 1; p < nplayers(); p++) {
             ee_player *o = player_at(p);
-            int k = by_units ? t->units[p] : t->bld[p];
+            int k = by_units ? g_nw_ter[r].units[p] : g_nw_ter[r].bld[p];
             if (o && k > most && is_enemy(pl, o) && !is_out(o)) { most = k; best = p; }
         }
         if (best) return best;
@@ -53,8 +85,8 @@ internal int nw_foe(ee_player *pl, int p) {   // p (a player's number) is an ene
 }
 // a push's target: the enemy that holds the territory it goes into, else the one with the most there
 internal int nw_push_target(ee_player *pl, const struct sn_push *p) {
-    if (p->into < 0 || p->into >= g_ter.n) return 0;
-    int o = g_ter.t[p->into].owner;
+    if (p->into < 0 || p->into >= g_nw_n) return 0;
+    int o = g_nw_owner[p->into];
     return nw_foe(pl, o) ? o : nw_enemy_in(pl, (unsigned)p->into, 0);
 }
 internal void nw_log(unsigned idx, uint32_t now, const char *what, int r, int them) {
@@ -64,13 +96,13 @@ internal void nw_log(unsigned idx, uint32_t now, const char *what, int r, int th
 internal void news_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct nw_st *z = &g_nw[idx & 15];
     if (!ter_ready() || !g_ter.n) return;
-    if (!g_nw_facts_t || now < g_nw_facts_t || now - g_nw_facts_t >= NW_EVERY) { ter_facts(); g_nw_facts_t = now ? now : 1; }
+    if (!g_nw_facts_t || now < g_nw_facts_t || now - g_nw_facts_t >= NW_EVERY || g_nw_n != (g_ter.n < NW_T ? g_ter.n : NW_T)) { nw_holders(); g_nw_facts_t = now ? now : 1; }
     int me = (int)(idx & 15), n = g_ter.n < NW_T ? g_ter.n : NW_T;
     struct sn_st *sz = &g_sn[idx & 15];
     if (!z->ready || z->version != g_ter.version || z->n != n) {   // a new game, a loaded one, the map split anew: what holds now
         memset(z, 0, sizeof *z);
         z->ready = 1; z->version = g_ter.version; z->n = n; z->facts_t = g_nw_facts_t;
-        for (int r = 0; r < n; r++) z->owner[r] = g_ter.t[r].owner;
+        for (int r = 0; r < n; r++) z->owner[r] = g_nw_owner[r];
         for (int k = 0; k < SN_PUSHES; k++) { z->push_t[k] = sz->push[k].start_t; z->landed[k] = 1; }
         return;
     }
@@ -101,7 +133,7 @@ internal void news_tick(ee_player *pl, unsigned idx, uint32_t now) {
     const struct tv_st *v = &g_tv[idx & 15];
     for (int r = 0; r < n; r++) {
         if (g_ter.t[r].water) continue;
-        int o = g_ter.t[r].owner, was = z->owner[r];
+        int o = g_nw_owner[r], was = z->owner[r];
         z->owner[r] = (int8_t)o;
         if (o != me && nw_foe(pl, o)) { z->was[r] = (int8_t)o; z->was_t[r] = now ? now : 1; }
         if (o == me && was != me) {   // THE TAKEN GROUND
@@ -135,4 +167,4 @@ internal void news_tick(ee_player *pl, unsigned idx, uint32_t now) {
                    g_nw_said[me][0], g_nw_said[me][1], g_nw_said[me][2], g_nw_said[me][3], g_nw_said[me][4], g_nw_said[me][5]);
     }
 }
-internal void news_new_game(void) { memset(g_nw, 0, sizeof g_nw); memset(g_nw_said, 0, sizeof g_nw_said); g_nw_facts_t = 0; }
+internal void news_new_game(void) { memset(g_nw, 0, sizeof g_nw); memset(g_nw_said, 0, sizeof g_nw_said); memset(g_nw_owner, 0, sizeof g_nw_owner); g_nw_facts_t = 0; g_nw_n = 0; }

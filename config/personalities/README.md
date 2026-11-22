@@ -475,7 +475,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.towers` | its towers |
 | `X.walls` | its wall pieces |
 | `X.centers` | its Town Centers and Capitols |
-| `X.territories` | the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a Town Center, a Capitol, a production building (game/territory.c ter_facts, looked at every 10 s while an AI of the mod's plays) - me.territories &gt; them.territories * 2 |
+| `X.territories` | the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a Town Center, a Capitol, a production building (game/territory.c's rule, counted every 10 s while an AI of the mod's plays: ai/news.c) - me.territories &gt; them.territories * 2 |
 | `X.strength` | its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength &gt; me.strength * 2 |
 | `X.rank` | its place by strength among the players still in, 1 = the strongest |
 | `X.epoch` | its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc. |

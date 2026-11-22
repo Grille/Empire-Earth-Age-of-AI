@@ -13,7 +13,7 @@ internal const struct xmember k_xmembers[] = {
     { "count", XM_FILTER, "its units and buildings of a filter: unit.<identifier> (one type), kind.<kind> (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds)", XT_INT, 1, 1, 0, 0 },
     { "units", XM_FILTER, "its units and buildings on the map now, by id - of a filter (as count's: p.units(kind.tank)) or all (p.units())", X_LIST_OF + XK_UNIT, 0, 1, 0, 0 },
     { "centers", XM_PLAYER, "its Town Centers and Capitols", XT_INT, -1, -1, 0, 0 },
-    { "territories", XM_PLAYER, "the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a Town Center, a Capitol, a production building (game/territory.c ter_facts, looked at every 10 s while an AI of the mod's plays) - me.territories > them.territories * 2", XT_INT, -1, -1, 0, 0 },
+    { "territories", XM_PLAYER, "the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a Town Center, a Capitol, a production building (game/territory.c's rule, counted every 10 s while an AI of the mod's plays: ai/news.c) - me.territories > them.territories * 2", XT_INT, -1, -1, 0, 0 },
     { "strength", XM_PLAYER, "its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength * 2", XT_INT, -1, -1, 0, 0 },
     { "rank", XM_PLAYER, "its place by strength among the players still in, 1 = the strongest", XT_INT, -1, -1, 0, 0 },
     { "epoch", XM_PLAYER, "its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc.", XT_EPOCH, -1, -1, 0, 1 },

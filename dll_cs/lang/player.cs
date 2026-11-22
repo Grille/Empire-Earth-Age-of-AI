@@ -31,8 +31,8 @@ class player
     /// its Town Centers and Capitols
     int centers;
     /// the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a
-    /// Town Center, a Capitol, a production building (game/territory.c ter_facts, looked at every 10 s while an AI of
-    /// the mod's plays) - me.territories > them.territories * 2
+    /// Town Center, a Capitol, a production building (game/territory.c's rule, counted every 10 s while an AI of the
+    /// mod's plays: ai/news.c) - me.territories > them.territories * 2
     int territories;
     /// its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength *
     /// 2
