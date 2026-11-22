@@ -810,6 +810,12 @@ internal void rf_camera_frame(void) {
         quake_shake_frame(g_cam_now);   // an earthquake's shake: the view's offset, not the camera's (quake_shake.c)
     }
     g_cam_now_ok = rf_camera_view(g_cam_view_now, g_cam_now);
+    if (g_ct_left) {   // camera.c camtrace: when this frame's camera was made, its eye
+        LARGE_INTEGER q;
+        QueryPerformanceCounter(&q);
+        g_ct_sample = q.QuadPart;
+        g_ct_eye[0] = g_cam_now[3]; g_ct_eye[1] = g_cam_now[7];
+    }
 }
 // The units' draw takes world points to the screen's pixels itself (0x50DD81: the selected units' health bars, the
 // building's footprint lines, the goal markers, the waypoints' lines) and the depth range of a few objects from their

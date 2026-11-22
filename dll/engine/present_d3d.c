@@ -227,6 +227,14 @@ internal int d3d_draw_srv(ID3D11ShaderResourceView *srv, int sw, int sh, const R
     QueryPerformanceCounter(&t1);
     g_d3d_present_qpc += t1.QuadPart - t0.QuadPart;   // the own renderer's minute line (render_3d.c): the wait for the GPU shows here
     if (FAILED(hr)) return d3d_fail_window("Present", hr);
+    if (g_ct_left) {   // camera.c camtrace: this present's times, and the last one the screen showed
+        DXGI_FRAME_STATISTICS st;
+        g_ct_p0 = t0.QuadPart; g_ct_p1 = t1.QuadPart;
+        if (FAILED(IDXGISwapChain1_GetLastPresentCount(g_d3d.sc, &g_ct_pc))) g_ct_pc = 0;
+        if (SUCCEEDED(IDXGISwapChain1_GetFrameStatistics(g_d3d.sc, &st))) {
+            g_ct_st_pc = st.PresentCount; g_ct_st_sync = st.SyncRefreshCount; g_ct_st_qpc = st.SyncQPCTime.QuadPart;
+        } else g_ct_st_pc = g_ct_st_sync = 0, g_ct_st_qpc = 0;
+    }
     return 1;
 }
 

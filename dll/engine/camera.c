@@ -676,12 +676,19 @@ internal void camera_install(void) {
 }
 
 // camtrace N (tests): for the next N presented frames the time since the previous frame, the camera's movement
-// and the scroll steps run in between - then logged as "# camtrace:" lines
+// and the scroll steps run in between - then logged as "# camtrace:" lines. With the own renderer also when each
+// frame's camera was made (render_frame.c rf_camera_frame) and its eye, when the frame before went to Present and
+// came back (present_d3d.c), and what DXGI last told of the screen: the present shown and the refresh it was shown
+// at (GetFrameStatistics) - the frame's time against the time it was on the screen (the player 2026-11-22: "it
+// feels like a noticable slowdown and upspeed evry few frames").
 enum { CT_MAX = 400 };
 internal volatile LONG g_ct_left;
 internal int g_ct_n;
-internal struct { float dt, dx, dy; int steps; } g_ct[CT_MAX];
-internal LARGE_INTEGER g_ct_last;
+internal LONGLONG g_ct_sample, g_ct_p0, g_ct_p1, g_ct_st_qpc;   // QPC: the camera made; the last Present's call and return; the shown present's refresh
+internal UINT g_ct_pc, g_ct_st_pc, g_ct_st_sync;                // the last Present's count; the shown present's count and refresh
+internal float g_ct_eye[2];                                     // the frame's eye (rf_camera_frame)
+internal struct { float dt, dx, dy, ex, ey; int steps; LONGLONG show, sample, p0, p1, st_qpc; UINT pc, st_pc, st_sync; } g_ct[CT_MAX];
+internal LARGE_INTEGER g_ct_last, g_ct_t0;
 internal float g_ct_x, g_ct_y;
 internal void camtrace_frame(void) {   // the render thread, every presented frame
     if (!g_ct_left) return;
@@ -695,13 +702,23 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
         g_ct[g_ct_n].dx = x - g_ct_x;
         g_ct[g_ct_n].dy = y - g_ct_y;
         g_ct[g_ct_n].steps = (int)InterlockedExchange(&g_scroll_calls, 0);
+        g_ct[g_ct_n].ex = g_ct_eye[0]; g_ct[g_ct_n].ey = g_ct_eye[1];
+        g_ct[g_ct_n].show = now.QuadPart; g_ct[g_ct_n].sample = g_ct_sample;
+        g_ct[g_ct_n].p0 = g_ct_p0; g_ct[g_ct_n].p1 = g_ct_p1; g_ct[g_ct_n].st_qpc = g_ct_st_qpc;
+        g_ct[g_ct_n].pc = g_ct_pc; g_ct[g_ct_n].st_pc = g_ct_st_pc; g_ct[g_ct_n].st_sync = g_ct_st_sync;
         g_ct_n++;
-    } else InterlockedExchange(&g_scroll_calls, 0);
+    } else { InterlockedExchange(&g_scroll_calls, 0); g_ct_t0 = now; }
     g_ct_last = now; g_ct_x = x; g_ct_y = y;
     if (InterlockedDecrement(&g_ct_left) == 0 && g_log) {
         EnterCriticalSection(&g_lock);
+        double k = 1000.0 / (double)f.QuadPart;
+        #define CT_MS(q) ((q) ? (double)((q) - g_ct_t0.QuadPart) * k : -1.0)
         for (int i = 0; i < g_ct_n; i++)
-            fprintf(g_log, "# camtrace: %3d dt %5.1f ms, moved %7.4f %7.4f, scroll steps %d\n", i, g_ct[i].dt, g_ct[i].dx, g_ct[i].dy, g_ct[i].steps);
+            fprintf(g_log, "# camtrace: %3d dt %5.1f ms, moved %7.4f %7.4f, scroll steps %d; at %.2f, camera made %.2f eye %.4f %.4f,"
+                    " last present %.2f .. %.2f #%u, shown #%u at refresh %u %.2f\n", i, g_ct[i].dt, g_ct[i].dx, g_ct[i].dy, g_ct[i].steps,
+                    CT_MS(g_ct[i].show), CT_MS(g_ct[i].sample), g_ct[i].ex, g_ct[i].ey, CT_MS(g_ct[i].p0), CT_MS(g_ct[i].p1), g_ct[i].pc,
+                    g_ct[i].st_pc, g_ct[i].st_sync, CT_MS(g_ct[i].st_qpc));
+        #undef CT_MS
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
