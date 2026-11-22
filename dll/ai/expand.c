@@ -357,6 +357,7 @@ struct fy_trip {
     unsigned from, to; int ocean; ivec2 pick, pick_w, drop, dest;   // the lands, the sea, the pick-up shore and its water, the unload tile, where they are wanted
     uint32_t since, load_t, reissue;
     ivec2 drop_w, via, at; int has_via, via_done, imp; float risk; uint32_t rate_t; unsigned no; int push, push_ter;   // kind 3: the push (stations.c ACROSS) and its territory
+    uint32_t there_t;           // the transport at the pick-up since then (the log's "boarding failed": who was late)
     uint32_t app_ms, sea_ms;    // the time to the pick-up (then FY_BOARD_AFTER for the boarding) and across before it is given up (THE TIME BY THE WAY, ferry.c)
     uint32_t meet_t, ready_t;   // kind 3: at the push's meeting point since then (TOGETHER, ferry.c); all aboard since then (BOARD TOGETHER)   // THE CROSSING (crossing.c): the water off the drop, the point off the line it goes through, where the transport was last; an important delivery, its risk
 };

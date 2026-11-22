@@ -399,7 +399,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         t->app_ms = fy_way_ms(best, fy_dist(unit_get_tile(best), t->pick_w), FY_APPROACH);
         t->sea_ms = fy_way_ms(best, t->has_via ? fy_dist(t->pick_w, t->via) + fy_dist(t->via, t->drop_w) : fy_dist(t->pick_w, t->drop_w), FY_SEA);
     }
-    t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0;
+    t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0; t->there_t = 0;
     f->trips++; f->last_kind = kind; t->no = f->trips;
     fy_take(idx, best);   // ORDERS BY PRIORITY: the trip's till it ends
     unit_goal(best, goal_move((float)t->pick_w.x + 0.5f, (float)t->pick_w.y + 0.5f), 0, 0x1F40);
@@ -792,9 +792,21 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
     if (!fy_take(idx, sh)) return;   // out of a storm or a danger zone first: the trip's orders wait
     if (t->phase == 1 || t->phase == 2) {
         if (!t->npass) { fy_end(pl, idx, t, now, "no passenger left"); return; }
-        if (now - t->since >= t->app_ms + FY_BOARD_AFTER && !aboard) { f->failed++; fy_end(pl, idx, t, now, "boarding failed in time"); return; }
+        int there = ivec2_dist2(unit_get_tile(sh), t->pick_w) <= 49;
+        if (there && !t->there_t) t->there_t = now ? now : 1;
+        if (now - t->since >= t->app_ms + FY_BOARD_AFTER && !aboard) {   // who was late: the transport, the passengers
+            int close = 0, dmin = 0x7FFFFFFF, dmax = 0;
+            for (int k = 0; k < t->npass; k++) {
+                int d = ivec2_dist2(unit_get_tile(t->pass[k].u), t->pick);
+                close += d <= 64; if (d < dmin) dmin = d; if (d > dmax) dmax = d;
+            }
+            char why[200];
+            snprintf(why, sizeof why, "boarding failed in time (phase %d; the transport at %d,%d, %.0f tiles off the pick-up water, there %s%.0f s; %d of %d passengers within 8 tiles of the pick-up, %.0f-%.0f off)",
+                     t->phase, t->at.x, t->at.y, (double)fy_dist(t->at, t->pick_w), t->there_t ? "after " : "never - ", (double)((t->there_t ? t->there_t : now) - t->since) / 1000.0,
+                     close, t->npass, sqrt((double)dmin), sqrt((double)dmax));
+            f->failed++; fy_end(pl, idx, t, now, why); return;
+        }
         if (t->phase == 1) {
-            int there = ivec2_dist2(unit_get_tile(sh), t->pick_w) <= 49;
             if (!there && now - t->since < t->app_ms) {
                 convoy_escort(idx, sh, t->pick_w, t->drop, 0, now);
                 if (!goal_near(sh, (float)t->pick_w.x + 0.5f, (float)t->pick_w.y + 0.5f, 2.0f))
