@@ -634,7 +634,7 @@ internal int sn_group_move(ee_player *pl, uint32_t *ids, int n, ivec2 from, ivec
 // patch - the game's own move on a selection, so the mod's formations lay them out as a player's click would, the
 // ranged behind -, facing where the force meets the enemy next (THE NEED'S PLACE). Not more often than SN_FORM_AGAIN.
 // Before: one point for all, each soldier sent alone within 5 x 5 tiles of it - a clump on the claim's foundation.
-struct sn_fc { short r; ivec2 spot, at; uint32_t spot_t, form_t; int form_n, box; };
+struct sn_fc { short r; ivec2 spot, at; uint32_t spot_t, form_t; int form_n, box, want; };   // box: the patch's size each way; want: the size looked for (THE OPEN GROUND: a smaller patch than wanted is kept SN_FORM_LOOK too)
 internal struct sn_fc g_snfc[16][SN_FC];
 internal struct sn_fc *sn_fc_at(unsigned idx, int r) {   // territory r's entry (a new one takes the oldest place)
     struct sn_fc *c = g_snfc[idx & 15], *old = &c[0];
@@ -664,22 +664,47 @@ internal int sn_box_free(ivec2 q, int rr, unsigned land) {   // a box of rr each
     return 1;
 }
 // territory r's patch round its point at, for n soldiers (open: the point is its empty middle - kept free); none
-// found: the point itself
-internal void sn_fc_spot(struct sn_fc *c, ivec2 at, int open, int n, uint32_t now) {
+// found: the point itself.
+// THE OPEN GROUND ([ai_base] rest_open_ground; the player 2026-11-22, of his P2's soldiers wedged between its
+// factories: "it sounds quite bad"): a box for them all asks 2 + sqrt(n) tiles each way of open ground - 12 for 290
+// soldiers, which a built-up town has nowhere within SN_FORM_FAR, and the fallback, the point itself, sent the whole
+// resting army to one spot between a Cyber Factory, a Tank Factory and a tower (25 soldiers on 2 tiles; the ferry's
+// passengers could not get out of the crowd: 42% of them aboard). With it the patch is looked for within
+// SN_FORM_FAR_OPEN in its own territory, not being lost, the full box first, then half of it, then SN_FORM_BOX_MIN
+// (the formation closer packed, but in the open) - the point itself only when none of them is there. g_sn_rest: the
+// looks by what they found (the full box, a smaller one, none). Off: on his save (minute 204 -> 230, 5 game_seeds) the
+// point itself 66 times against 126 (P2), 41 against 279 (P3), kills, losses, buildings lost level - but P2's soldiers
+// across by the ferry 232 (se 15) against 349 (50), its soldier trips 298 against 373.
+#define SN_FORM_FAR_OPEN 40
+#define SN_FORM_BOX_MIN 3
+internal unsigned g_sn_rest[16][3];
+internal void sn_fc_spot(unsigned idx, const struct tv_st *s, struct sn_fc *c, ivec2 at, int open, int n, uint32_t now) {
     int rr = 2 + (int)sqrtf((float)(n > 0 ? n : 1));
     if (rr > 12) rr = 12;
-    if (c->spot_t && now >= c->spot_t && now - c->spot_t < SN_FORM_LOOK && ivec2_eq(c->at, at) && rr <= c->box + 1) return;
-    c->spot_t = now ? now : 1; c->at = at; c->box = rr; c->spot = at;
+    if (c->spot_t && now >= c->spot_t && now - c->spot_t < SN_FORM_LOOK && ivec2_eq(c->at, at) && rr <= c->want + 1) return;
+    c->spot_t = now ? now : 1; c->at = at; c->box = rr; c->want = rr; c->spot = at;
     unsigned land = area_id(at, 2);
-    for (int d = 0; land && d <= SN_FORM_FAR; d += 2)
-        for (int dx = -d; dx <= d; dx += 2)
-            for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 2 : 2 * d)) {
-                ivec2 q = iv2(at.x + dx, at.y + dy);
-                if (open && abs(q.x - at.x) <= rr + 2 && abs(q.y - at.y) <= rr + 2) continue;   // the claim's foundation left free
-                if (!sn_box_free(q, rr, land)) continue;
-                c->spot = q;
-                return;
-            }
+    int wide = g_set_ai[1].rest_open_ground, far_ = wide ? SN_FORM_FAR_OPEN : SN_FORM_FAR;
+    int sizes[3] = { rr, rr / 2 > SN_FORM_BOX_MIN ? rr / 2 : SN_FORM_BOX_MIN, SN_FORM_BOX_MIN }, ns = wide ? 3 : 1;
+    for (int k = 0; land && k < ns; k++) {
+        int b = sizes[k];
+        if (k && b >= sizes[k - 1]) continue;   // the same size again
+        for (int d = 0; d <= far_; d += 2)
+            for (int dx = -d; dx <= d; dx += 2)
+                for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 2 : 2 * d)) {
+                    ivec2 q = iv2(at.x + dx, at.y + dy);
+                    if (open && abs(q.x - at.x) <= rr + 2 && abs(q.y - at.y) <= rr + 2) continue;   // the claim's foundation left free
+                    if (wide && d > SN_FORM_FAR) {   // beyond the old reach: in its own territory only (in the next one its soldiers stood there for the stations and the ferry's pick: P2's soldier trips 373 -> 102), not being lost
+                        unsigned tr = ter_near(q.x, q.y);
+                        if (tr != (unsigned)c->r || tr >= (unsigned)s->n || s->t[tr].state == TV_UNSAFE) continue;
+                    }
+                    if (!sn_box_free(q, b, land)) continue;
+                    c->spot = q; c->box = b;
+                    g_sn_rest[idx & 15][k ? 1 : 0]++;
+                    return;
+                }
+    }
+    g_sn_rest[idx & 15][2]++;
 }
 internal void sn_rejoin(unsigned idx, struct sn_unit *m) {
     uint32_t now = game_time();
@@ -2298,7 +2323,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         }
         if (!pu && !(fn[r] > 0 && s->t[r].role != TVR_NONE) && (m->pool == SNP_MAIN || m->pool == SNP_SIEGE)) {   // A STANDING FORMATION: at rest
             struct sn_fc *fc = sn_fc_at(idx, r);
-            sn_fc_spot(fc, d, !anc[r], ac[r] + acs[r], now);
+            sn_fc_spot(idx, s, fc, d, !anc[r], ac[r] + acs[r], now);
             d = fc->spot;
             if (ivec2_dist2(p, d) <= SN_FORM_IN * SN_FORM_IN) {   // there: the formation's (below)
                 m->wait_t = 0;
@@ -2419,6 +2444,8 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                    "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u scouts' goals inside their territory, %u set at enemy walls, %u siege at enemy gates, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
                    idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
                    z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->looks, z->demos, z->gates, z->stale, buf);
+        log_locked("# stations: P%u at %.1f min: rest spots so far (rest_open_ground %d): %u with room for all, %u closer packed, %u with none (the station's point itself)\n",
+                   idx, now / 60000.0, g_set_ai[1].rest_open_ground, g_sn_rest[idx][0], g_sn_rest[idx][1], g_sn_rest[idx][2]);
         if (g_bk[idx].nall || g_bk[idx].nf || g_sns[idx].ordered) { sn_res_view(idx, s, n, tc, tcs, fn, 0, 0); sn_res_log(idx, z, n, now); }   // THE LOADS, THE RESERVE BY TERRITORY
     }
 }
@@ -2430,4 +2457,4 @@ internal void stations_install(const char *autotest_ini) {
     g_sn_rt_on = g_set_ai[1].stash_by_territory;   // THE RESERVE BY TERRITORY
     if (autotest_ini) g_v_sn_rt = ini_int("autotest", "v_stash_by_territory", -1, autotest_ini);
 }
-internal void stations_new_game(void) { memset(g_sns, 0, sizeof g_sns); memset(g_sn_rt, 0, sizeof g_sn_rt); memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); memset(g_sn_dark_t, 0, sizeof g_sn_dark_t); memset(g_sn_sx, 0, sizeof g_sn_sx); }
+internal void stations_new_game(void) { memset(g_sns, 0, sizeof g_sns); memset(g_sn_rt, 0, sizeof g_sn_rt); memset(g_snc, 0, sizeof g_snc); memset(g_sn, 0, sizeof g_sn); memset(g_sn_seen, 0, sizeof g_sn_seen); memset(g_sn_look, 0, sizeof g_sn_look); memset(g_sn_dark_t, 0, sizeof g_sn_dark_t); memset(g_sn_sx, 0, sizeof g_sn_sx); memset(g_sn_rest, 0, sizeof g_sn_rest); }

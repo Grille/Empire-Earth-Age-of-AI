@@ -864,6 +864,12 @@ class ai_base
         /// they know, and finish their own buildings there, enemy soldiers near or not. 0 = off
         [advanced]
         bool hold_ground = true;
+        /// Resting soldiers on open ground (the game's computer player off): a territory's soldiers at rest stand in a patch
+        /// of open ground looked for up to 40 tiles off in that territory - room for them all, else a smaller patch,
+        /// closer packed - instead of at the station's point itself when nothing fits within 18 tiles (in a built-up town:
+        /// the whole army wedged between its factories). 0 = off
+        [advanced]
+        bool rest_open_ground = false;
         /// Claims from a tower (the game's computer player off): a territory nobody holds is claimed from a territory beside it
         /// that the AI guards with 3 of its soldiers - or with a tower of its own, so a foothold across the water (a mine's
         /// tower and Settlement) grows over its land too. No gain on the player's save (held 10.8 territories at the end
