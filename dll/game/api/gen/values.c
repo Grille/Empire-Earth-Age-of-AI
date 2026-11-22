@@ -12,6 +12,7 @@ internal uint32_t of_build_mgr_next_repair;
 internal uint32_t of_build_mgr_next_update;
 internal uint32_t of_build_mgr_initialized;
 internal uint32_t call_place;
+internal uint32_t call_foundation_check;
 internal uint32_t of_civ_mgr_plan;
 internal uint32_t of_civ_mgr_resource_mgr;
 internal uint32_t of_civ_mgr_build_mgr;

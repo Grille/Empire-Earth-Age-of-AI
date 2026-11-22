@@ -602,6 +602,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/collect.c"
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
+#include "engine/foundation_check.c"   // a foundation whose tech its player's tree lacks: not looked at again (a crash)
 #include "engine/offmap.c"
 #include "engine/reload.c"
 #include "engine/queue_refund.c"   // the last order of a queue refunded too ([patches] queue_refund)
@@ -918,6 +919,7 @@ internal void install(HMODULE self) {
     if (g_rd_on) shadow_reach_install();   // the own renderer's shadows: casters off the screen in the larger draw list
     sight_install();
     asg_queue_install();
+    foundation_check_install();
     offmap_install();
     reload_install();
     queue_refund_install();

@@ -50,6 +50,16 @@ unsafe struct EECPBuildManager
     /// thiscall(build manager, type, 1, 0): one building requested
     [address((ee)0x0046802D, (aoc)0x0046A9C1)]
     extern void request(int32 type, int32 count, int32 flag);
+
+    /// thiscall(build manager, foundation): a foundation of its player's that a citizen works on (EEUGBuildRepair vf19,
+    /// 0x60CACE / 0x61F1E4: the citizen's player has a computer player, +0x9B4) - with hit points and its +0x274 clear, its
+    /// spot looked at again (0x48F41C); no longer good and no wall or gate (0x2B, 0x23, 0x29): taken down (vf24), its
+    /// price - its type's tech's node, the type's +0x4E0 (100000 for a type with no data) in the player's tree - given
+    /// back, the type requested again; good: 0x5E8A3B. The node is read without a check (0x4682DD / 0x46AC7A): a type
+    /// whose tech the player's tree lacks crashed there (2026-11-22, a test game from the player's save, minute 219)
+    [address((ee)0x00468218, (aoc)0x0046ABB5)]
+    [call_site("foundation_check", (ee)0x0060CAFC, (aoc)0x0061F212)]
+    extern void foundation_check(EEUnit* foundation);
 }
 
 /// the AI's civilization manager, player +0xB90 (EECPCivilizationManager)

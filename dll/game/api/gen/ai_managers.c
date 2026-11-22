@@ -50,6 +50,16 @@ internal inline int patch_place(build_mgr_place_fn h) { return patch_call(call_p
 typedef void (__thiscall *build_mgr_request_fn)(ee_build_mgr *, int, int, int);
 internal build_mgr_request_fn fn_build_mgr_request;
 internal inline void build_mgr_request(ee_build_mgr *build_mgr, int type, int count, int flag) { fn_build_mgr_request(build_mgr, type, count, flag); }
+// thiscall(build manager, foundation): a foundation of its player's that a citizen works on (EEUGBuildRepair vf19,
+// 0x60CACE / 0x61F1E4: the citizen's player has a computer player, +0x9B4) - with hit points and its +0x274 clear, its
+// spot looked at again (0x48F41C); no longer good and no wall or gate (0x2B, 0x23, 0x29): taken down (vf24), its
+// price - its type's tech's node, the type's +0x4E0 (100000 for a type with no data) in the player's tree - given
+// back, the type requested again; good: 0x5E8A3B. The node is read without a check (0x4682DD / 0x46AC7A): a type
+// whose tech the player's tree lacks crashed there (2026-11-22, a test game from the player's save, minute 219)
+typedef void (__thiscall *build_mgr_foundation_check_fn)(ee_build_mgr *, ee_unit *);
+internal build_mgr_foundation_check_fn fn_build_mgr_foundation_check;
+internal inline void build_mgr_foundation_check(ee_build_mgr *build_mgr, ee_unit *foundation) { fn_build_mgr_foundation_check(build_mgr, foundation); }
+internal inline int patch_foundation_check(build_mgr_foundation_check_fn h) { return patch_call(call_foundation_check, (uintptr_t)fn_build_mgr_foundation_check, (void *)h); }
 
 // class EECPCivilizationManager (ee_civ_mgr)
 // the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
@@ -468,6 +478,8 @@ internal int spec_ai_managers_select(int build) {
         fn_build_mgr_place = (build_mgr_place_fn)0x0046580A;
         call_place = 0x00468629;
         fn_build_mgr_request = (build_mgr_request_fn)0x0046802D;
+        fn_build_mgr_foundation_check = (build_mgr_foundation_check_fn)0x00468218;
+        call_foundation_check = 0x0060CAFC;
         of_civ_mgr_plan = 0x8;
         of_civ_mgr_resource_mgr = 0x38;
         of_civ_mgr_build_mgr = 0x3C;
@@ -614,6 +626,8 @@ internal int spec_ai_managers_select(int build) {
         fn_build_mgr_place = (build_mgr_place_fn)0x004674C4;
         call_place = 0x0046B044;
         fn_build_mgr_request = (build_mgr_request_fn)0x0046A9C1;
+        fn_build_mgr_foundation_check = (build_mgr_foundation_check_fn)0x0046ABB5;
+        call_foundation_check = 0x0061F212;
         of_civ_mgr_plan = 0x8;
         of_civ_mgr_resource_mgr = 0x38;
         of_civ_mgr_build_mgr = 0x3C;
@@ -759,6 +773,8 @@ internal int spec_ai_managers_check(void) {
     bad += spec_code((uintptr_t)fn_build_mgr_place, "EECPBuildManager.place");
     bad += spec_call(call_place, (uintptr_t)fn_build_mgr_place, "EECPBuildManager.place [call_site place]");
     bad += spec_code((uintptr_t)fn_build_mgr_request, "EECPBuildManager.request");
+    bad += spec_code((uintptr_t)fn_build_mgr_foundation_check, "EECPBuildManager.foundation_check");
+    bad += spec_call(call_foundation_check, (uintptr_t)fn_build_mgr_foundation_check, "EECPBuildManager.foundation_check [call_site foundation_check]");
     bad += spec_code((uintptr_t)fn_civ_mgr_set_epoch_time, "EECPCivilizationManager.set_epoch_time");
     bad += spec_code((uintptr_t)fn_civ_mgr_fish_type, "EECPCivilizationManager.fish_type");
     bad += spec_call(calls_fish_type[0], (uintptr_t)fn_civ_mgr_fish_type, "EECPCivilizationManager.fish_type [call_site fish_type 0]");
