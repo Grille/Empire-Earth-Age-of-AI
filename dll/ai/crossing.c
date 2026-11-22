@@ -36,7 +36,12 @@
 // waited, up to CX_GO_WAIT); into danger (over CX_FULL) with a full load only. A trip that may not go waits off the shore, unloaded (loaded
 // at a shore 9 of 10 transports were sunk with everyone aboard, expand.c), its escort asked for meanwhile.
 #define CX_LOOK 2000
-#define CX_N 160
+// THE LIST holds every threat (CX_N): it held 160, on the player's huge map at minute 204 (897 enemy units seen, 480-550
+// threats) full at every look - the threats past the first 160 of the map's walk dropped, which ones by where the walk
+// began. MEASURED 2026-11-22 (his save, minute 204-230, 5 games each; 160 -> all): soldiers put off P2 182 -> 227, P3 69
+// -> 78, trips given up 18 -> 18 and 20 -> 19, kills 371 -> 390 and 322 -> 366 (all within the noise), the games as
+// fast. A rating skips the threats whose reach cannot touch the way's box (cx_way) - the same sum.
+#define CX_N 4096
 #define CX_DRIFT 0.5f        // tiles a second a remembered ship may have sailed (half a frigate's speed) ...
 #define CX_DRIFT_MAX 12.0f   // ... at most this many
 #define CX_SUNK_T 300000
@@ -58,6 +63,7 @@ internal struct cx_st {
     uint32_t t; int n, trtype; struct cx_threat th[CX_N];
     struct { ivec2 p; uint32_t t; } sunk[8];
     unsigned rated, detours, held, held_load, gone_high;   // ways rated, taken through a point off the line; trips held for the risk, for a load too small for it; important ones that went over CX_GO_LOW
+    unsigned dropped;                     // threats the full list had no room for (THE LIST), all looks
 } g_cx_st[16];
 // a new game or a load: the last game's sunk places came back as threats once the clock reached their times again
 // (a load's clock often past them already), at the old map's coordinates, and its threat list stood in for a look
@@ -69,7 +75,8 @@ internal void cx_sunk(unsigned idx, ivec2 p, uint32_t now) {   // a transport of
     c->sunk[k].p = p; c->sunk[k].t = now ? now : 1;
 }
 internal void cx_add(struct cx_st *c, ivec2 p, float r, float dps, float v, int air, int old) {
-    if (c->n >= CX_N || r <= 0 || dps <= 0) return;
+    if (r <= 0 || dps <= 0) return;
+    if (c->n >= CX_N) { c->dropped++; return; }
     struct cx_threat *t = &c->th[c->n++];
     t->p = p; t->r = r; t->dps = dps; t->v = v; t->air = (uint8_t)air; t->busy = 0; t->old = (uint8_t)old;
 }
@@ -159,10 +166,16 @@ internal float cx_way(const struct cx_st *c, ivec2 a, const ivec2 *via, ivec2 b,
         t += len / vt;
     }
     if (secs) *secs = t;
-    float dmg = 0, end = t + CX_UNLOAD;
+    float dmg = 0, end = t + CX_UNLOAD, x0 = (float)a.x, x1 = x0, y0 = (float)a.y, y1 = y0;
+    for (int l = 1; l < nl; l++) {   // THE LIST: the way's box - a threat's reach (and sight) beyond it touches no point of it
+        float x = (float)legs[l].x, y = (float)legs[l].y;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
     g_cx_top = -1; g_cx_top_dmg = 0;
     for (int i = 0; i < c->n; i++) {
         const struct cx_threat *e = &c->th[i];
+        float reach = e->r + (e->v > 0 ? CX_NOTICE : 0);
+        if ((float)e->p.x < x0 - reach || (float)e->p.x > x1 + reach || (float)e->p.y < y0 - reach || (float)e->p.y > y1 + reach) continue;
         if (e->v > 0 && !e->air && ocean && area_id(e->p, 1) != ocean) continue;   // a ship on another sea
         float w = e->busy ? 0.25f : 1.0f, exp_ = 0;
         if (e->v <= 0) {   // standing: while the way lies in its reach, and the unload if it ends there

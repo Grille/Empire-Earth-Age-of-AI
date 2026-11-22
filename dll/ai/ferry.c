@@ -746,8 +746,8 @@ internal void fy_minute(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t n
                f->reach_left, f->reach_second, f->reach_none);
     if (CROSSING_SAFETY(idx)) {
         struct cx_st *c = &g_cx_st[idx & 15];
-        fy_say(idx, now, "the crossing: %u ways rated (%u off the line), trips held for the risk %u, for a load too small for it %u, important ones that went into danger %u; threats known %d",
-               c->rated, c->detours, c->held, c->held_load, c->gone_high, c->n);
+        fy_say(idx, now, "the crossing: %u ways rated (%u off the line), trips held for the risk %u, for a load too small for it %u, important ones that went into danger %u; threats known %d (%u left out, the list full)",
+               c->rated, c->detours, c->held, c->held_load, c->gone_high, c->n, c->dropped);
     }
 }
 // THE LAST WORD (stations.c sn_last_word): push k's first wave aboard - its soldiers against the beach and the target,
