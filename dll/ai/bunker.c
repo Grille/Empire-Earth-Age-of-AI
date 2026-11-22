@@ -156,6 +156,17 @@ internal struct shelf_st { int want, plenty; unsigned in, out; uint32_t t; } g_s
 // stash" - stations.c THE RESERVE). store: 1 the shelf's citizens, 2 the reserve's soldiers.
 #define BK_MAX 64
 internal int g_bk_more[16];   // stations.c THE RESERVE: more fortresses wanted (FORTRESSES AHEAD)
+// stations.c THE RESERVE BY TERRITORY: the territory the next of them goes into (-1: by the base, as before) and the
+// place to lay it by there (its town building, else its middle); a territory where none found a place is left out
+// BK_TER_NO_T (bk_ter_refused) - else every look tried the same crowded one again
+#define BK_TER_NO_T 300000
+internal int g_bk_ter[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+internal ivec2 g_bk_ter_at[16];
+internal struct { int ter; uint32_t t; } g_bk_ter_no[16][8];
+internal int bk_ter_refused(unsigned pi, int r, uint32_t now) {
+    for (int k = 0; k < 8; k++) if (g_bk_ter_no[pi & 15][k].t && g_bk_ter_no[pi & 15][k].ter == r && now >= g_bk_ter_no[pi & 15][k].t && now - g_bk_ter_no[pi & 15][k].t < BK_TER_NO_T) return 1;
+    return 0;
+}
 internal int g_res_claim[16];  // stations.c THE RESERVE: the room the training claims (FULL STEAM) - the shelf keeps it too
 internal struct { int nf, nall; ee_unit *f[BK_MAX], *all[BK_MAX]; int nq[BK_MAX]; ee_unit *q[BK_MAX][40]; uint32_t build_t, quiet_t[BK_MAX]; unsigned in, out; int need_wood; uint32_t shelter[BK_MAX]; int walk[BK_MAX]; uint8_t store[BK_MAX]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in; store: the shelf's
 internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
@@ -366,14 +377,20 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     // the drop sites without a fortress within 10 tiles, the nearest the base point first - each tried in turn (the
     // nearest alone stood crowded: the reserve's test, P2 at minute 30-40, one more wanted and none laid, no word), then
     // for the reserve and the shelf the base point itself, further out
-    ivec2 base = build_mgr_get_base(bm), cand[17];
-    int cd[17], nc = 0, rmax[17];
+    ivec2 base = build_mgr_get_base(bm), cand[18];
+    int cd[18], nc = 0, rmax[18];
+    // BY TERRITORY (stations.c THE RESERVE BY TERRITORY): the reserve's Fortress goes into the territory whose stash
+    // capacity its Fortresses fall shortest of - its drop sites by its town building first, then that building and the
+    // territory's middle themselves; every spot inside that territory
+    int tr = guard_at.x < 0 && g_bk_more[pi] && g_bk_ter[pi] >= 0 && (unsigned)g_bk_ter[pi] < (unsigned)g_ter.n ? g_bk_ter[pi] : -1;
+    if (tr >= 0) base = g_bk_ter_at[pi];
     drops_cached(pl);
     if (guard_at.x >= 0) { cand[0] = guard_at; rmax[0] = 9; nc = 1; }   // the town guard's fortress at its station
     else {
         for (int i = 0; i < g_drops[pi].n; i++) {
             const struct drop *p = &g_drops[pi].d[i];
             int dd = ivec2_dist2(p->p, base), held_near = 0;
+            if (tr >= 0 && ter_near(p->p.x, p->p.y) != (unsigned)tr) continue;
             for (int k = 0; k < g_bk[pi].nall && !held_near; k++)
                 held_near = abs(unit_get_x(g_bk[pi].all[k]) - p->p.x) <= 10 && abs(unit_get_y(g_bk[pi].all[k]) - p->p.y) <= 10;
             if (p->food || held_near) continue;
@@ -384,16 +401,21 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
         }
         for (int i = 0; i < nc; i++) rmax[i] = 9;
         if (g_bk_more[pi] || g_shelf[pi].want) { cand[nc] = base; rmax[nc++] = 20; }
+        if (tr >= 0) { cand[nc] = g_ter.t[tr].c; rmax[nc++] = 20; }
     }
     if (!nc || prio_refuses(pl, FORTRESS_TYPE)) return;
     const char *why = guard_at.x >= 0 ? "a town guard at the front" : air ? "aircraft possible" : g_bk_more[pi] ? "the reserve" : g_shelf[pi].want ? "the shelf" : "citizens hurt";
+    char whyt[48];
+    if (tr >= 0) { snprintf(whyt, sizeof whyt, "the reserve of territory %d", tr); why = whyt; }
+    unsigned tland = tr >= 0 ? bk_land_of(g_ter.t[tr].c) : 0;
     for (int c = 0; c < nc; c++) {
         ivec2 d = cand[c];
         for (int r = 4; r <= rmax[c]; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
                     int x = d.x + ax, y = d.y + ay;
-                    if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
+                    if ((abs(ax) != r && abs(ay) != r) || (tr >= 0 && (ter_near(x, y) != (unsigned)tr || (tland && area_id(iv2(x, y), 2) != tland))) ||
+                        !can_place_open(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
                         !can_place(pl, FORTRESS_TYPE, iv2(x - 1, y - 1)) || raiders_near(pl, iv2(x, y), 8)) continue;
                     ee_unit *b = lay_foundation(pl, FORTRESS_TYPE, x, y);
                     int sent = b ? bk_builders(pl, b, 3) : 0;
@@ -401,6 +423,11 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
                                        now / 60000.0, x, y, b ? "laid" : "refused", sent, why, cit, g_bk[pi].nall);
                     return;
                 }
+    }
+    if (tr >= 0) {   // none there: that territory is left out a while (bk_ter_refused)
+        int o = 0;
+        for (int k = 1; k < 8; k++) if (g_bk_ter_no[pi][k].t < g_bk_ter_no[pi][o].t) o = k;
+        g_bk_ter_no[pi][o].ter = tr; g_bk_ter_no[pi][o].t = now ? now : 1;
     }
     if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: no place for a fortress by %d spots (%s, %d fortresses)\n", pi, now / 60000.0, nc, why, g_bk[pi].nall);
 }
@@ -430,6 +457,23 @@ internal int bk_let_out_of(ee_player *pl, unsigned pi, int store, int n, int r, 
         if (got > 0 && from) *from = g_bk[pi].f[best];
         out += got;
         if (got > 0 && bk_room(pl) <= 0) break;   // the map full: the next would be refused too
+    }
+    return out;
+}
+// ... the fortresses by rank instead (stations.c THE RESERVE BY TERRITORY): the highest first, none of a negative one
+internal int bk_let_out_ranked(ee_player *pl, unsigned pi, int store, int n, const int *rank, ee_unit **from) {
+    uint8_t tried[BK_MAX] = { 0 };
+    int out = 0;
+    while (out < n) {
+        int best = -1;
+        for (int k = 0; k < g_bk[pi].nf; k++)
+            if (!tried[k] && g_bk[pi].store[k] == store && bk_held(g_bk[pi].f[k]) > 0 && rank[k] >= 0 && (best < 0 || rank[k] > rank[best])) best = k;
+        if (best < 0) break;
+        tried[best] = 1;
+        int got = bk_let_out(g_bk[pi].f[best], n - out);
+        if (got > 0 && from) *from = g_bk[pi].f[best];
+        out += got;
+        if (got > 0 && bk_room(pl) <= 0) break;
     }
     return out;
 }
@@ -789,4 +833,6 @@ internal void bunker_new_game(void) {
     memset(g_bk_res_out, 0, sizeof g_bk_res_out);
     memset(g_bk_out, 0, sizeof g_bk_out);
     memset(g_bk_res_load_t, 0, sizeof g_bk_res_load_t);
+    memset(g_bk_ter_no, 0, sizeof g_bk_ter_no);
+    for (int k = 0; k < 16; k++) g_bk_ter[k] = -1;
 }
