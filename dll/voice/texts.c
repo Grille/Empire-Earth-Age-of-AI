@@ -367,6 +367,9 @@ internal void texts_corpus(char *out, const char *path) {
         wsprintfA(tag, "%s color", pf);
         corpus_eval(tag, p->color, NULL, NULL, NULL, &p->vars, 0, 1);
         for (int k = 0; k < p->nstyle; k++) { wsprintfA(tag, "%s style %s", pf, p->style_key[k]); corpus_eval(tag, p->style_val[k], NULL, NULL, NULL, &p->vars, 1, 1); }
+        ee_player *ai = NULL;   // its lines read its own fields, whoever speaks them (persona.c THE CORPUS'S INSTANCE)
+        for (int a = 1; a < np && a < 16 && !ai; a++) if (g_players[a] && pls[a]) ai = pls[a];
+        persona_corpus_as(p, ai);
         for (int a = 1; a < np && a < 16; a++) {
             if (!g_players[a] || !pls[a]) continue;
             for (int b = 1; b < np && b < 16; b++) {
@@ -390,6 +393,7 @@ internal void texts_corpus(char *out, const char *path) {
             }
         }
     }
+    persona_corpus_as(NULL, NULL);   // what each AI says next: with its own fields
     for (int a = 1; a < np && a < 16; a++) {   // what each AI would say: the line chosen (its source, the situation)
         if (!g_players[a] || !pls[a]) continue;
         for (int b = 1; b < np && b < 16; b++) {

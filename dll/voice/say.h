@@ -12,7 +12,8 @@ enum line_kind {
     L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
     L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER,
     L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_ATTACK_THREAT, L_ALL_SUBMITTED, L_OTHER_VICTORY,
-    L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_VASSAL_GRUMBLE, L_ASK_LORD, L_N
+    L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_VASSAL_GRUMBLE, L_ASK_LORD, L_TERRITORY_TAKEN, L_TERRITORY_LOST,
+    L_TERRITORY_HELD, L_LANDING, L_N
 };
 
 // what an AI wants, from its personality's texts (persona_decide) - the rules around them are diplo.c's
@@ -31,8 +32,9 @@ internal void chat_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void chat_stance_line(ee_player *pl, int stance);   // the game's own line on a change of stance
 internal void system_line(const char *text, int ms);
 internal int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third);   // a situation's line
-internal void persona_attack(ee_player *pl, ee_player *target);   // the attack line
+internal void persona_attack(ee_player *pl, ee_player *target);   // the game's attack wave sets out (attack.c's route hook)
 internal void persona_attack_launched(unsigned ai);
+internal void persona_attack_on(ee_player *pl, ee_player *target);   // an attack sets out: attack_threat and attack (ai/news.c: a push)
 internal void persona_assign(ee_player *pl);
 internal double persona_decide(ee_player *pl, int k, ee_player *them, ee_player *enemy);
 internal const char *player_name(ee_player *pl);

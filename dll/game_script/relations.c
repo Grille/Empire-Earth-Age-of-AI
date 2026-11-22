@@ -89,6 +89,7 @@ internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     else if (!strcmp(n, "towers")) r = g_ws.towers[x];
     else if (!strcmp(n, "walls")) r = g_ws.walls[x];
     else if (!strcmp(n, "centers")) r = g_ws.centers[x];
+    else if (!strcmp(n, "territories")) for (int t = 0; g_ter.map == game_map() && t < g_ter.n; t++) r += !g_ter.t[t].water && g_ter.t[t].owner == x;   // ai/news.c keeps the facts
     else if (!strcmp(n, "strength")) r = (double)(long)g_ws.power[x];
     else if (!strcmp(n, "rank")) { r = 1; for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_ws.power[j] > g_ws.power[x]; }
     else if (!strcmp(n, "alive")) r = !is_out(px);

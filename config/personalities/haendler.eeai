@@ -18,14 +18,8 @@ personality = {
 
 style = {
     // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way).
-    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. Game defaults for
-    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-    first_attack_min = 30,
-    first_attack_max = 45,
-    attack_interval_min = 25,
-    attack_interval_max = 30,
-    attack_for_resources = 25%,
+    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. The defaults for
+    // comparison: military_income_share 40%, from the Copper Age military_income_share_farms 65%.
     military_income_share = 35%,
 }
 
@@ -207,6 +201,24 @@ lines = {
     ] ?? [
         "That was a trading post! Do you know what that cost?",
         "Losses, nothing but losses ...",
+    ],
+    landing = [
+        "Delivery to your shore, {them} - and you will be paying the freight.",
+        "We have opened a branch office on your coast, {them}.",
+    ],
+    territory_taken = [
+        "Under new management, {them}. The old owners are no longer with us.",
+        "A fine acquisition, {them}. The price was paid in full - by you.",
+    ],
+    territory_lost = [
+        full_coffers && chance(50%) ? "A write-off, {them}, nothing more. I have the gold to buy it back - with soldiers.",
+    ] ?? [
+        "That was prime property, {them}! Do you have any idea what it cost me?",
+        "Mark my words, {them}: I will take it back, and charge you rent for the time you held it.",
+    ],
+    territory_held = [
+        "My investment holds, {them}. Yours, I think, does not.",
+        "Thank you for the visit, {them}. Do leave your weapons at the door next time.",
     ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}! Factories, railways - mass production at last.",

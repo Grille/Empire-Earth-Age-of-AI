@@ -16,15 +16,6 @@ personality = {
     character = "An honourable knight bound by his word: formal, solemn, courteous even to enemies, never breaks an oath.",
 }
 
-style = {
-    // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way).
-    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. Game defaults for
-    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-    attack_revenge = 50%,
-    home_guard_share = 40%,
-}
-
 // the knight weighs a foe by his strength - and spares the one who cannot stand
 worthy => them.strength > me.strength
 outmatched => them.strength * 2 < me.strength
@@ -201,6 +192,26 @@ lines = {
         "Defend the walls!",
     ],
     building_lost = "A heavy loss. But we still stand.",
+    landing = [
+        "We have landed on your shore, {them}. Prepare to meet us in open field.",
+        "Across the sea we came, {them}, to answer for what you have done.",
+    ],
+    territory_taken = [
+        oathbreaker ? "This land was the oathbreaker's, {them}. It is held by honest hands now.",
+    ] ?? [
+        "This ground is ours now, {them}. Your people there will be treated with honour.",
+        "We have taken the field, {them}. Yield the rest, and spare your people.",
+    ],
+    territory_lost = [
+        worthy && chance(50%) ? "You fought well for that ground, {them}. I will fight better to take it back.",
+    ] ?? [
+        "You have taken our land, {them}. We will not let it rest so.",
+        "That ground is yours for now, {them}. Only for now.",
+    ],
+    territory_held = [
+        "Our line held, {them}. Withdraw with honour - we will not pursue the beaten.",
+        "You found our borders well guarded, {them}. As they always will be.",
+    ],
     epoch_up = [
         "A new age dawns: {epoch}.",
         "{epoch}. New armour, old virtues.",

@@ -351,6 +351,14 @@ prompt = {
     // in braces: {them} {enemy}
     sit_ask_lord = ("{them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - "
         "they must talk to {enemy}"),
+    // in braces: {them}
+    sit_territory_taken = "you have taken a territory from {them}: their buildings there are gone, yours hold it now",
+    // in braces: {them}
+    sit_territory_lost = "{them} has taken a territory of yours: the buildings that held it for you are gone",
+    // in braces: {them}
+    sit_territory_held = "{them} attacked a territory of yours and was beaten off: it is still yours",
+    // in braces: {them}
+    sit_landing = "your army has crossed the water and landed on {them}'s shore",
     // [llm] llm_ai_talk: the same situations for both sides of a talk between AIs, in the third person ({me} the speaker, {them} the one it talks to)
     // in braces: {them} {me}
     pair_war_declared = "{them} has just declared war on {me}",
@@ -395,4 +403,12 @@ prompt = {
     pair_vassal_grumble = "{them}, the lord of {me}, forces {me} to make peace with {enemy}, whom {me} hates",
     // in braces: {them} {me} {enemy}
     pair_ask_lord = "{them} offers {me} peace, but {me} is the vassal of {enemy} and has no diplomacy of its own",
+    // in braces: {me} {them}
+    pair_territory_taken = "{me} has taken a territory from {them}",
+    // in braces: {them} {me}
+    pair_territory_lost = "{them} has taken a territory from {me}",
+    // in braces: {them} {me}
+    pair_territory_held = "{them} attacked a territory of {me} and was beaten off",
+    // in braces: {me} {them}
+    pair_landing = "the army of {me} has crossed the water and landed on the shore of {them}",
 }

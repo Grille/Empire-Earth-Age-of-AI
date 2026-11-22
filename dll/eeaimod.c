@@ -122,6 +122,8 @@ internal void research_new_game(void);
 internal void research_install(const char *autotest_ini);   // research.c: unit_improvements
 internal void stations_tick(ee_player *pl, uint32_t now);   // stations.c: the force by territory
 internal void stations_new_game(void);
+internal void news_tick(ee_player *pl, unsigned idx, uint32_t now);   // ai/news.c: what the force and the territories give its lines
+internal void news_new_game(void);
 internal void takeover_new_game(void);   // test/takeover.c
 internal void takeover_loaded(void);     // test/takeover.c
 internal void takeover_install(void);
@@ -295,6 +297,7 @@ internal void rm_tick(ee_resource_mgr *rm, uint32_t now, int game) {
     if (pl && !is_vanilla(pl) && !game && builds) creep_tick(pl, now);   // creep.c: towers laid at an enemy's buildings
     if (pl && !is_vanilla(pl) && !game) research_tick(pl, now);   // research.c: nor researches, nor reaches an epoch
     if (pl && !is_vanilla(pl) && !game) stations_tick(pl, now);   // stations.c: the soldiers by territory, in place of the one force
+    if (pl && !is_vanilla(pl)) news_tick(pl, (unsigned)player_get_index(pl) & 15, now);   // news.c: its pushes and territories, for its lines
     if (pl && (game || is_vanilla(pl) || builds)) expand_tick(pl, now);
     if (pl && !is_vanilla(pl) && !game) storm_tick(pl, now);   // storms.c: last, its order the one a ship in a storm carries out
     if (pl) tw_tick(pl, now);
@@ -454,6 +457,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     build_new_game();
     research_new_game();
     stations_new_game();
+    news_new_game();
     takeover_new_game();
     airguard_new_game();
     holy_new_game();
@@ -548,6 +552,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/stations.c"      // the force by territory: stations by the shares, giving, pushes, scouts
 #include "ai/crossing.c"      // the crossing: what a transport risks on its way over, and the way it takes
 #include "ai/ferry.c"         // the ferry service: soldiers and citizens to the lands across the water that want them
+#include "ai/news.c"          // the news: its pushes and territories as situations of its lines (attack, territory_lost ...)
 #include "ai/convoy.c"        // the transports at sea: to a beach under fire (lifeboat), escorts asked of the squadrons
 #include "ai/squadrons.c"     // the warships by sea: main squadrons by zone, scouts and raiders, submarine hunters
 #include "ai/storms.c"        // ships out of an enemy's storm (the prophet's hurricane)

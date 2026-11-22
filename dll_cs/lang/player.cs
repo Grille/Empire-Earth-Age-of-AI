@@ -30,6 +30,10 @@ class player
     extern unit[] units(filter of = default);
     /// its Town Centers and Capitols
     int centers;
+    /// the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a
+    /// Town Center, a Capitol, a production building (game/territory.c ter_facts, looked at every 10 s while an AI of
+    /// the mod's plays) - me.territories > them.territories * 2
+    int territories;
     /// its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength *
     /// 2
     int strength;
@@ -137,7 +141,7 @@ class player
     /// 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)
     [relation]
     extern bool in_town(player b);
-    /// minutes since A's last attack wave set out against B - nothing if none (an AI's waves)
+    /// minutes since A's last attack set out against B - nothing if none (an AI's: its pushes, the game's attack waves)
     [relation]
     extern int? attack_minutes(player b);
     /// B's units and buildings A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one

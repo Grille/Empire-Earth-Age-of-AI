@@ -50,24 +50,14 @@ personality = {
 
 style = {
     // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way). The same
-    // keys as in ageofai.ini; they replace the difficulty's values for this AI. Uncomment what it should change. Each
-    // an expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,
-    // attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.
+    // keys as in ageofai.ini; they replace the difficulty's values for this AI: the army's share of the income, the
+    // epochs' times. Uncomment what it should change. Each an expression worked out at the game start (like color =):
+    // shares with % (military_income_share = 35%), minutes as numbers - chance(50%) ? 20 : 30 works too.
     //military_start_share = ,
     //military_income_share = ,
     //military_income_share_farms = ,
     //epoch_min = ,
     //epoch_max = ,
-    //first_attack_min = ,
-    //first_attack_max = ,
-    //attack_interval_min = ,
-    //attack_interval_max = ,
-    //attack_group_percent = ,
-    //attack_on_contact = ,
-    //attack_for_resources = ,
-    //attack_revenge = ,
-    //citizen_share = ,
-    //home_guard_share = ,
 }
 
 priorities = {
@@ -129,19 +119,19 @@ lines = {
     ally_defeated = [],
     // you have been defeated - heard by everyone
     defeated = [],
-    // a wonder is threatened - heard by everyone (at most every 60 s)
+    // a wonder is threatened - heard by everyone (at most every 60 s, only while the game's computer player runs: game_ai = 1)
     wonder_threat = [],
-    // you send help for an ally's wonder - heard by its allies (at most every 60 s)
+    // you send help for an ally's wonder - heard by its allies (at most every 60 s, only while the game's computer player runs: game_ai = 1)
     wonder_help = [],
-    // you have no help to give for an ally's wonder - heard by its allies (at most every 60 s)
+    // you have no help to give for an ally's wonder - heard by its allies (at most every 60 s, only while the game's computer player runs: game_ai = 1)
     wonder_nohelp = [],
-    // you send land troops to help an ally - heard by its allies (at most every 30 s)
+    // you send land troops to help an ally - heard by its allies (at most every 30 s, only while the game's computer player runs: game_ai = 1)
     help_land = [],
-    // you send aircraft to help an ally - heard by its allies (at most every 30 s)
+    // you send aircraft to help an ally - heard by its allies (at most every 30 s, only while the game's computer player runs: game_ai = 1)
     help_air = [],
-    // you send ships to help an ally - heard by its allies (at most every 30 s)
+    // you send ships to help an ally - heard by its allies (at most every 30 s, only while the game's computer player runs: game_ai = 1)
     help_naval = [],
-    // you have no troops to send an ally who asked for help - heard by its allies (at most every 30 s)
+    // you have no troops to send an ally who asked for help - heard by its allies (at most every 30 s, only while the game's computer player runs: game_ai = 1)
     help_none = [],
     // you give up the game - heard by everyone (without a line: defeated)
     surrender = [],
@@ -165,6 +155,14 @@ lines = {
     vassal_grumble = [],
     // {them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} - heard by {them} only (at most every 60 s, without a line: peace_refuse)
     ask_lord = [],
+    // you have taken a territory from {them}: their buildings there are gone, yours hold it now - heard by {them} only (60% of the time at talk=50, at most every 180 s)
+    territory_taken = [],
+    // {them} has taken a territory of yours: the buildings that held it for you are gone - heard by {them} only (60% of the time at talk=50, at most every 180 s)
+    territory_lost = [],
+    // {them} attacked a territory of yours and was beaten off: it is still yours - heard by {them} only (50% of the time at talk=50, at most every 300 s)
+    territory_held = [],
+    // your army has crossed the water and landed on {them}'s shore - heard by {them} only (70% of the time at talk=50, at most every 300 s)
+    landing = [],
 }
 
 // what the language model is told for this AI (ageofai.ini [llm]), instead of mod/prompt.eeai's text - every key and

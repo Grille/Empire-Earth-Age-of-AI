@@ -18,14 +18,8 @@ personality = {
 
 style = {
     // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way).
-    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. Game defaults for
-    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-    first_attack_min = 30,
-    first_attack_max = 45,
-    attack_interval_min = 25,
-    attack_interval_max = 32,
-    home_guard_share = 50%,
+    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. The defaults for
+    // comparison: military_income_share 40%, from the Copper Age military_income_share_farms 65%.
     military_income_share = 35%,
 }
 
@@ -197,6 +191,27 @@ lines = {
     ] ?? [
         "It will be rebuilt. Better than before.",
         "One more reason for thicker walls.",
+    ],
+    landing = [
+        "We have crossed the water, {them}. The first stones are already being laid on your shore.",
+        "Your shore, {them}. Not for long - I have brought masons.",
+    ],
+    territory_taken = [
+        many_towers && chance(50%) ? "Your ground, {them}? It has my towers on it now. That settles the question.",
+        brittle && chance(50%) ? "You built too little and too thin, {them}. I will show you how it is done.",
+    ] ?? [
+        "This ground was yours, {them}. Now I build on it.",
+        "Your buildings are rubble, {them}. Mine will stand longer.",
+    ],
+    territory_lost = [
+        me.territories > them.territories && chance(50%) ? "One plot, {them}. I hold {me.territories} - and you will find the rest better built.",
+    ] ?? [
+        "You have torn down what held that ground, {them}. I will build it again - stronger.",
+        "Enjoy the rubble, {them}. I know the price of every stone in it.",
+    ],
+    territory_held = [
+        "The walls held, {them}. They always do.",
+        "Did you think I build for show, {them}?",
     ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}. Steel and concrete - finally walls that deserve the name.",

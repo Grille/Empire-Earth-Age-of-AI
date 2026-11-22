@@ -26,13 +26,14 @@ prompt = prompt_texts(root)
 lines = re.findall(r'\{ "([a-z_]+)", (\d+), (\d+), (A_ALL|A_ALLIES|A_NAME) \}', pers)
 fb = re.search(r'internal int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
 fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L_(\w+);', fb)}
+game_ai_only = set(re.search(r'// GAME AI ONLY: ([a-z_ ]+)', pers).group(1).split())   # raised by the game's computer player alone
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them}'}
 def sit(key):
     # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation
     return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', prompt.get('sit_' + key, ''))
 t = ['| Situation | When - "you" is the AI | Heard by | Chance | Cooldown | Without a line |', '|---|---|---|---|---|---|']
 for key, chance, cooldown, a in lines:
-    t.append('| `%s` | %s | %s | %s | %s | %s |' % (key, cell(sit(key)), aud[a], 'always' if chance == '100' else chance + '%',
+    t.append('| `%s` | %s | %s | %s | %s | %s |' % (key, cell(sit(key) + (' - only while the game\'s computer player runs (game_ai = 1)' if key in game_ai_only else '')), aud[a], 'always' if chance == '100' else chance + '%',
                                                    cooldown + ' s' if cooldown != '0' else '', '`%s`' % fallback[key] if key in fallback else ''))
 situations = '\n'.join(t)
 

@@ -13,6 +13,7 @@ internal const struct xmember k_xmembers[] = {
     { "count", XM_FILTER, "its units and buildings of a filter: unit.<identifier> (one type), kind.<kind> (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds)", XT_INT, 1, 1, 0, 0 },
     { "units", XM_FILTER, "its units and buildings on the map now, by id - of a filter (as count's: p.units(kind.tank)) or all (p.units())", X_LIST_OF + XK_UNIT, 0, 1, 0, 0 },
     { "centers", XM_PLAYER, "its Town Centers and Capitols", XT_INT, -1, -1, 0, 0 },
+    { "territories", XM_PLAYER, "the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a Town Center, a Capitol, a production building (game/territory.c ter_facts, looked at every 10 s while an AI of the mod's plays) - me.territories > them.territories * 2", XT_INT, -1, -1, 0, 0 },
     { "strength", XM_PLAYER, "its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength * 2", XT_INT, -1, -1, 0, 0 },
     { "rank", XM_PLAYER, "its place by strength among the players still in, 1 = the strongest", XT_INT, -1, -1, 0, 0 },
     { "epoch", XM_PLAYER, "its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc.", XT_EPOCH, -1, -1, 0, 1 },
@@ -52,7 +53,7 @@ internal const struct xmember k_xmembers[] = {
     { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in tribute_thanks / tribute_small what was paid before this tribute", XT_INT, 1, 2, 0, 0 },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)", XT_INT, 1, 1, 0, 0 },
     { "in_town", XM_REL, "1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)", XT_BOOL, 1, 1, 0, 0 },
-    { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)", XT_INT | X_NULLABLE, 1, 1, 0, 0 },
+    { "attack_minutes", XM_REL, "minutes since A's last attack set out against B - nothing if none (an AI's: its pushes, the game's attack waves)", XT_INT | X_NULLABLE, 1, 1, 0, 0 },
     { "kills", XM_REL, "B's units and buildings A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's: unit.<identifier>, kind.<kind>, a list of them - or one of mod/units.eeai's lists (units, army, airforce, marine, military, civilians, buildings): them.kills(me, units), me.kills(them, 10, kind.tank), them.kills(me, 20, buildings)", XT_INT, 1, 3, 0, 0 },
     { "win", XM_DO, "a script's: p.win() - the player is victorious, as a scenario's Victory: the game is over, the others lose", X_ANY, 0, 0, 0, 0 },
     { "lose", XM_DO, "a script's: p.lose() - the player is defeated, as a scenario's Defeat", X_ANY, 0, 0, 0, 0 },
@@ -62,7 +63,7 @@ internal const struct xmember k_xmembers[] = {
     { "spawn", XM_DO, "a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in a square), as a scenario's Create makes them, at the game's next step: returned at once, the script goes on and holds only when it first uses one of them or asks the map (p.units(), game.unit(id)); a trigger's are there at once", X_LIST_OF + XK_UNIT, 2, 3, 0, 0 },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
-enum { XMI_NAME, XMI_SOLDIERS, XMI_CITIZENS, XMI_POPULATION, XMI_BUILDINGS, XMI_TOWERS, XMI_WALLS, XMI_COUNT, XMI_UNITS, XMI_CENTERS, XMI_STRENGTH, XMI_RANK, XMI_EPOCH, XMI_COLOR, XMI_CIVILIZATION, XMI_CIVILIZATION_EN, XMI_ALIVE, XMI_HUMAN, XMI_VASSALS, XMI_ALLIES, XMI_ENEMIES, XMI_AGGRESSION, XMI_LOYALTY, XMI_PRIDE, XMI_GREED, XMI_FORGIVENESS, XMI_CAUTION, XMI_TALK, XMI_LORD, XMI_FOOD, XMI_WOOD, XMI_STONE, XMI_GOLD, XMI_IRON, XMI_STOCK, XMI_UNIT_LIMIT, XMI_MAP_REVEALED, XMI_OPINION, XMI_AT_WAR, XMI_ALLIED, XMI_HOSTILE, XMI_WAR_MINUTES, XMI_ALLIANCE_MINUTES, XMI_BETRAYALS, XMI_REFUSALS, XMI_IGNORED, XMI_TRIBUTE, XMI_NEAR, XMI_IN_TOWN, XMI_ATTACK_MINUTES, XMI_KILLS, XMI_WIN, XMI_LOSE, XMI_WAR, XMI_ALLY, XMI_FLARE, XMI_SPAWN };
+enum { XMI_NAME, XMI_SOLDIERS, XMI_CITIZENS, XMI_POPULATION, XMI_BUILDINGS, XMI_TOWERS, XMI_WALLS, XMI_COUNT, XMI_UNITS, XMI_CENTERS, XMI_TERRITORIES, XMI_STRENGTH, XMI_RANK, XMI_EPOCH, XMI_COLOR, XMI_CIVILIZATION, XMI_CIVILIZATION_EN, XMI_ALIVE, XMI_HUMAN, XMI_VASSALS, XMI_ALLIES, XMI_ENEMIES, XMI_AGGRESSION, XMI_LOYALTY, XMI_PRIDE, XMI_GREED, XMI_FORGIVENESS, XMI_CAUTION, XMI_TALK, XMI_LORD, XMI_FOOD, XMI_WOOD, XMI_STONE, XMI_GOLD, XMI_IRON, XMI_STOCK, XMI_UNIT_LIMIT, XMI_MAP_REVEALED, XMI_OPINION, XMI_AT_WAR, XMI_ALLIED, XMI_HOSTILE, XMI_WAR_MINUTES, XMI_ALLIANCE_MINUTES, XMI_BETRAYALS, XMI_REFUSALS, XMI_IGNORED, XMI_TRIBUTE, XMI_NEAR, XMI_IN_TOWN, XMI_ATTACK_MINUTES, XMI_KILLS, XMI_WIN, XMI_LOSE, XMI_WAR, XMI_ALLY, XMI_FLARE, XMI_SPAWN };
 enum { XUI_ID, XUI_ALIVE, XUI_TYPE, XUI_OWNER, XUI_POS, XUI_HP, XUI_MAX_HP, XUI_AMMO, XUI_POWER, XUI_STANCE, XUI_KILL, XUI_REMOVE };
 internal const struct xmember k_xglobals[] = {
     { "me", XM_PLAYER, "the AI that speaks - its name in a text; me.soldiers ...", XK_PLAYER, -1, -1, 0, 0 },
@@ -92,6 +93,7 @@ internal const struct x_kmember k_xk_player[] = {
     { "count", 1, 1, XT_INT, 0 },
     { "units", 0, 1, X_LIST_OF + XK_UNIT, 0 },
     { "centers", -1, -1, XT_INT, 0 },
+    { "territories", -1, -1, XT_INT, 0 },
     { "strength", -1, -1, XT_INT, 0 },
     { "rank", -1, -1, XT_INT, 0 },
     { "epoch", -1, -1, XT_EPOCH, 0 },

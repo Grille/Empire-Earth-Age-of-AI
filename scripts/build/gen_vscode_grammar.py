@@ -48,7 +48,7 @@ style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
 assert len(colors) == 17, colors
 assert len(script_funcs) >= 6 and len(commands) > 50 and len(unit_ids) > 500, (script_funcs, len(commands), len(unit_ids))
 assert len(values) > 15 and len(relations) > 12 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
-assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))
+assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) >= 5, (len(sys_keys), len(tpl_keys), len(style_keys))
 
 def words(ws):
     return r'\b(?:' + '|'.join(sorted(ws, key=len, reverse=True)) + r')\b'

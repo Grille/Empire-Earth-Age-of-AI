@@ -56,30 +56,23 @@ internal const struct ai_cfg *cfg_of(ee_player *pl) {
     return &g_cfg[d < 0 ? 0 : d > 2 ? 2 : d];
 }
 
-// The settings a personality's style may change - the same keys as in ageofai.ini. Not the structural ones
-// (copper_plan, budget, epoch_pacing) nor the ones that would cheat or bind to the human
-// (cost_percent).
+// The settings a personality's style may change - the same keys as in ageofai.ini, those the mod's own AI plays by:
+// the army's share of the income (army.c FILL trains from it) and the epochs' times (research.c). Not the structural
+// ones (copper_plan, budget, epoch_pacing) nor the ones that would cheat or bind to the human (cost_percent). Not the
+// game's computer player's own any more (2026-11-22): the attack times and chances, the attack group's size, the
+// citizens' and the home guard's shares set its values, which nothing reads while it is off ([ai_base] game_ai = 0,
+// the default) - the mod's pushes have no times ("either its a good idea to attack or its not", the player
+// 2026-11-14), and a personality's style of them only seemed to do something.
 // In a personality the values are expressions (persona.c, worked out at the game start), numbers in the language's
-// standard: a share or a chance is 0% to 100% (home_guard_share = 35%, attack_on_contact = 20%), a group's size a share
-// of the normal one (attack_group_percent = 150%) - ageofai.ini's whole percents (20, 150) are those times 100; minutes
-// and epochs are plain numbers. A value outside its range is a mistake (attack_on_contact = 20 would be 2000%).
-enum { SK_NUM, SK_SHARE, SK_CHANCE, SK_SIZE };
+// standard: a share is 0% to 100% (military_income_share = 35%); minutes are plain numbers. A value outside its range
+// is a mistake.
+enum { SK_NUM, SK_SHARE };
 internal const struct { const char *key; size_t off; char kind; } k_style_keys[] = {
     { "military_start_share", offsetof(struct ai_cfg, mil_start_share), SK_SHARE },
     { "military_income_share", offsetof(struct ai_cfg, mil_income_share), SK_SHARE },
     { "military_income_share_farms", offsetof(struct ai_cfg, mil_income_share_farms), SK_SHARE },
     { "epoch_min", offsetof(struct ai_cfg, epoch_min), SK_NUM },
     { "epoch_max", offsetof(struct ai_cfg, epoch_max), SK_NUM },
-    { "first_attack_min", offsetof(struct ai_cfg, first_attack_min), SK_NUM },
-    { "first_attack_max", offsetof(struct ai_cfg, first_attack_max), SK_NUM },
-    { "attack_interval_min", offsetof(struct ai_cfg, attack_min), SK_NUM },
-    { "attack_interval_max", offsetof(struct ai_cfg, attack_max), SK_NUM },
-    { "attack_group_percent", offsetof(struct ai_cfg, attack_group_percent), SK_SIZE },
-    { "attack_on_contact", offsetof(struct ai_cfg, attack_on_contact), SK_CHANCE },
-    { "attack_for_resources", offsetof(struct ai_cfg, attack_for_resources), SK_CHANCE },
-    { "attack_revenge", offsetof(struct ai_cfg, attack_revenge), SK_CHANCE },
-    { "citizen_share", offsetof(struct ai_cfg, citizen_share), SK_SHARE },
-    { "home_guard_share", offsetof(struct ai_cfg, home_guard_share), SK_SHARE },
 };
 internal int style_key(const char *key) {   // its index in k_style_keys, -1: no style key
     for (size_t k = 0; k < sizeof k_style_keys / sizeof *k_style_keys; k++) if (!lstrcmpiA(key, k_style_keys[k].key)) return (int)k;
@@ -90,27 +83,17 @@ internal int cfg_style_set(struct ai_cfg *c, int k, double v, const char **why) 
     void *at = (uint8_t *)c + k_style_keys[k].off;
     switch (k_style_keys[k].kind) {
     case SK_SHARE:
-        if (!(v >= 0 && v <= 1)) { *why = "a share 0% to 100% (home_guard_share = 35%)"; return 0; }
+        if (!(v >= 0 && v <= 1)) { *why = "a share 0% to 100% (military_income_share = 35%)"; return 0; }
         *(float *)at = (float)v;
         return 1;
-    case SK_CHANCE:
-        if (!(v >= 0 && v <= 1)) { *why = "a chance 0% to 100% (attack_on_contact = 20%)"; return 0; }
-        *(int *)at = (int)(v * 100 + 0.5);
-        return 1;
-    case SK_SIZE:
-        if (!(v >= 0.1 && v <= 10)) { *why = "a size 10% to 1000% of the normal group (attack_group_percent = 150%)"; return 0; }
-        *(int *)at = (int)(v * 100 + 0.5);
-        return 1;
     default:
-        if (!(v >= 0 && v <= 1000) || v != (int)v) { *why = "a whole number 0 to 1000 (first_attack_min = 20)"; return 0; }
+        if (!(v >= 0 && v <= 1000) || v != (int)v) { *why = "a whole number 0 to 1000 (epoch_min = 45)"; return 0; }
         *(int *)at = (int)v;
         return 1;
     }
 }
 internal void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows the min
     if (c->epoch_max < c->epoch_min) c->epoch_max = c->epoch_min;
-    if (c->first_attack_max < c->first_attack_min) c->first_attack_max = c->first_attack_min;
-    if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
 }
 
 // g_cfg from the rows (dll/settings/: g_set_ai, each difficulty's own), logged

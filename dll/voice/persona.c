@@ -21,7 +21,7 @@
 //       peace_score = opinion + ...    a number; a key it has none of: its includes', else the built-in rule
 //   }
 //   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): ageofai.ini keys
-//       first_attack_min = 15          (settings.c k_style_keys) on top of the difficulty's settings for this AI
+//       epoch_min = 45                 (settings.c k_style_keys) on top of the difficulty's settings for this AI
 //   }
 //   prompt = {                         what its language model is told (texts.c; mod/prompt.eeai has every key)
 //       intro = "..."
@@ -59,8 +59,14 @@ internal const struct { const char *key; int chance, cooldown; enum audience aud
     { "capitulate", 100, 0, A_NAME },         { "capitulate_accepted", 100, 0, A_NAME }, { "capitulate_refused", 100, 0, A_NAME },
     { "attack_threat", 60, 300, A_NAME },     { "all_submitted", 100, 0, A_NAME },     { "other_victory", 100, 0, A_ALL },
     { "block_refuse", 100, 60, A_NAME },      { "block_refuse_own", 100, 60, A_NAME },  { "vassal_grumble", 100, 60, A_NAME },
-    { "ask_lord", 100, 60, A_NAME },
+    { "ask_lord", 100, 60, A_NAME },          { "territory_taken", 60, 180, A_NAME },  { "territory_lost", 60, 180, A_NAME },
+    { "territory_held", 50, 300, A_NAME },    { "landing", 70, 300, A_NAME },
 };
+// Who raises them: diplo.c the diplomacy, the war state and the epochs; ai/news.c the force's pushes (attack,
+// attack_threat, landing) and the territories (territory_taken, territory_lost, territory_held). The game's computer
+// player alone raises the wonders' and the calls for help (hook_native_chat) - with it off ([ai_base] game_ai = 0,
+// the default) they are never said: the mod sends an ally no help yet and builds no Wonders.
+// GAME AI ONLY: wonder_threat wonder_help wonder_nohelp help_land help_air help_naval help_none
 
 // DECISIONS (decide): what an AI wants, worked out by diplo.c with me = the AI, them = the other player, enemy = the
 // AI's strongest enemy (none: a missing player, to be checked) - a number each, from the personality or the first of
@@ -1023,7 +1029,7 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
                 x_error("%s: style %s = %.60s: %s - the difficulty's value instead", p->file, p->style_key[k], p->style_val[k], why);
                 continue;
             }
-            size_t n = strlen(used);   // as set, in ageofai.ini's units (a chance 40 for 40%)
+            size_t n = strlen(used);   // as set
             void *at = (uint8_t *)&c + k_style_keys[sk].off;
             if (k_style_keys[sk].kind == SK_SHARE) snprintf(used + n, sizeof used - n, " %s=%.2f", p->style_key[k], *(float *)at);
             else snprintf(used + n, sizeof used - n, " %s=%d", p->style_key[k], *(int *)at);
@@ -1340,9 +1346,24 @@ internal void persona_state_reset(void) {
     }
     x_dicts_free();
 }
+// THE CORPUS'S INSTANCE (texts.c texts_corpus): there every AI speaks every personality's lines, and a line reads the
+// fields of the personality it is written in - an instance of that one made for it, its fields as they start, not
+// the speaker's own (an AI that plays another has none of those names: Livia's books were "an unknown name").
+internal struct pinst g_pinst_corpus;
+internal int g_pinst_corpus_on;
+internal void persona_corpus_as(const struct persona *p, ee_player *pl) {   // p's fields for the lines worked out next (NULL: the speakers' own again)
+    pinst_clear(&g_pinst_corpus);
+    g_pinst_corpus_on = p != NULL;
+    if (!p) return;
+    g_pinst_corpus.made = 1; g_pinst_corpus.p = p;
+    for (int k = -1; k < p->nlayer; k++) {
+        const struct persona *q = k < 0 ? p : p->layer[k];
+        for (int i = 0; i < q->nfield; i++) pinst_add(&g_pinst_corpus, pl, q, i);
+    }
+}
 internal struct pfield *pinst_field(struct xctx *c, const char *name) {
     if (!c->pl || !x_field_known(name)) return NULL;
-    struct pinst *in = pinst_of(c->pl);
+    struct pinst *in = g_pinst_corpus_on ? &g_pinst_corpus : pinst_of(c->pl);
     for (int i = 0; in && i < in->n; i++) if (x_ieq(in->f[i].name, name)) return &in->f[i];
     return NULL;
 }
@@ -1446,19 +1467,26 @@ internal int persona_say_line(ee_player *pl, enum line_kind k, ee_player *other,
     return 1;
 }
 
-// an attack group sets out against target's base (the route hook, attack.c): a threat to the local player when
-// they are the target (attack_threat), otherwise news for the AI's allies (attack). Once per attack wave: the route
-// hook runs for every leg of every subgroup, so the line waits for a launch (the next-attack time +0xED8 redrawn,
-// econ_tick) and goes with the first route after it.
+// an attack sets out against target: the threat to them (attack_threat, heard by them only) and the news for the AI's
+// allies (attack, heard by them only) - both raised whoever plays at this PC, so a personality's handlers
+// (on_attack_threat, on_attack) run alike on every PC. Until 2026-11-22 only one of them was: the threat when the
+// target played at this PC, else the news - a handler's state then differed from PC to PC.
+internal void persona_attack_on(ee_player *pl, ee_player *target) {
+    if (!pl || !target) return;
+    unsigned ai = (unsigned)player_get_index(pl) & 15;
+    g_attack_sent[ai][player_get_index(target) & 15] = game_time() ? game_time() : 1;
+    persona_say(pl, L_ATTACK_THREAT, target, NULL);
+    persona_say(pl, L_ATTACK, target, NULL);
+}
+// the game's attack group sets out against target's base (the route hook, attack.c; its computer player on). Once per
+// attack wave: the route hook runs for every leg of every subgroup, so the line waits for a launch (the next-attack
+// time +0xED8 redrawn, econ_tick) and goes with the first route after it. The mod's own pushes: ai/news.c.
 internal void persona_attack_launched(unsigned ai) { g_attack_news[ai & 15] = 1; }
 internal void persona_attack(ee_player *pl, ee_player *target) {
     unsigned ai = (unsigned)player_get_index(pl) & 15;
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
-    if (target) g_attack_sent[ai][player_get_index(target) & 15] = game_time() ? game_time() : 1;
-    unsigned h = local_player_index();
-    ee_player *me = h < 16 ? game_players()[h] : NULL;
-    persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);
+    persona_attack_on(pl, target);
 }
 
 // The game's own AI lines (EECPPlayerInteractionManager 0x484EB3 thiscall(pim, base id, ms), pim +0x20 = player),

@@ -238,13 +238,13 @@ lines = {
 | `enemy_defeated` | {them} has been defeated | everyone | 80% | 30 s |  |
 | `ally_defeated` | your ally {them} has been defeated | its allies | 80% | 30 s |  |
 | `defeated` | you have been defeated | everyone | always |  |  |
-| `wonder_threat` | a wonder is threatened | everyone | always | 60 s |  |
-| `wonder_help` | you send help for an ally's wonder | its allies | always | 60 s |  |
-| `wonder_nohelp` | you have no help to give for an ally's wonder | its allies | always | 60 s |  |
-| `help_land` | you send land troops to help an ally | its allies | always | 30 s |  |
-| `help_air` | you send aircraft to help an ally | its allies | always | 30 s |  |
-| `help_naval` | you send ships to help an ally | its allies | always | 30 s |  |
-| `help_none` | you have no troops to send an ally who asked for help | its allies | always | 30 s |  |
+| `wonder_threat` | a wonder is threatened - only while the game's computer player runs (game_ai = 1) | everyone | always | 60 s |  |
+| `wonder_help` | you send help for an ally's wonder - only while the game's computer player runs (game_ai = 1) | its allies | always | 60 s |  |
+| `wonder_nohelp` | you have no help to give for an ally's wonder - only while the game's computer player runs (game_ai = 1) | its allies | always | 60 s |  |
+| `help_land` | you send land troops to help an ally - only while the game's computer player runs (game_ai = 1) | its allies | always | 30 s |  |
+| `help_air` | you send aircraft to help an ally - only while the game's computer player runs (game_ai = 1) | its allies | always | 30 s |  |
+| `help_naval` | you send ships to help an ally - only while the game's computer player runs (game_ai = 1) | its allies | always | 30 s |  |
+| `help_none` | you have no troops to send an ally who asked for help - only while the game's computer player runs (game_ai = 1) | its allies | always | 30 s |  |
 | `surrender` | you give up the game | everyone | always |  | `defeated` |
 | `capitulate` | you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive | {them} | always |  |  |
 | `capitulate_accepted` | {them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on | {them} | always |  |  |
@@ -256,6 +256,10 @@ lines = {
 | `block_refuse_own` | you refuse {them}'s peace offer because your own ally {enemy} won't make peace with them | {them} | always | 60 s | `block_refuse` |
 | `vassal_grumble` | your lord {them} forces you to make peace with {enemy}, whom you hate | {them} | always | 60 s |  |
 | `ask_lord` | {them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} | {them} | always | 60 s | `peace_refuse` |
+| `territory_taken` | you have taken a territory from {them}: their buildings there are gone, yours hold it now | {them} | 60% | 180 s |  |
+| `territory_lost` | {them} has taken a territory of yours: the buildings that held it for you are gone | {them} | 60% | 180 s |  |
+| `territory_held` | {them} attacked a territory of yours and was beaten off: it is still yours | {them} | 50% | 300 s |  |
+| `landing` | your army has crossed the water and landed on {them}'s shore | {them} | 70% | 300 s |  |
 <!-- /situations -->
 
 ## Expressions
@@ -383,6 +387,9 @@ lines = {
 - **Saved with the game** (the `.ageofai` file beside the save): a loaded game's AIs remember what they did. Matched
   by name - a field you renamed or removed since is left out, a new one starts as written, another type or another
   personality for that AI start afresh (each told in the log) - so editing a personality never breaks a save.
+- A whole example: `fuchs.eeai` (Princess Livia) keeps books - the slights against her and the favours by player, the
+  territories taken and lost, whom she courts, her nemesis - written by her handlers and read by her lines ("That makes
+  {lost[them] + 1}. Every one of them is in my book.").
 
 ### Includes: building on other files
 
@@ -468,6 +475,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.towers` | its towers |
 | `X.walls` | its wall pieces |
 | `X.centers` | its Town Centers and Capitols |
+| `X.territories` | the land territories it holds: those where it has the most finished buildings that hold ground - a tower, a Town Center, a Capitol, a production building (game/territory.c ter_facts, looked at every 10 s while an AI of the mod's plays) - me.territories &gt; them.territories * 2 |
 | `X.strength` | its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength &gt; me.strength * 2 |
 | `X.rank` | its place by strength among the players still in, 1 = the strongest |
 | `X.epoch` | its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc. |
@@ -503,7 +511,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in tribute_thanks / tribute_small what was paid before this tribute |
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.in_town(B)` | 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base) |
-| `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
+| `A.attack_minutes(B)` | minutes since A's last attack set out against B - nothing if none (an AI's: its pushes, the game's attack waves) |
 | `A.kills(B)` | B's units and buildings A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's: unit.&lt;identifier&gt;, kind.&lt;kind&gt;, a list of them - or one of mod/units.eeai's lists (units, army, airforce, marine, military, civilians, buildings): them.kills(me, units), me.kills(them, 10, kind.tank), them.kills(me, 20, buildings) |
 
 **The game:**
@@ -656,15 +664,17 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | `character` | For the AI voice: who this is, in a few words - the model plays it |
 
 `style = { ... }` is **experimental** and only read with `ai_style=1` in ageofai.ini (off by default: every AI plays the same,
-tested way). Its keys are ageofai.ini settings that replace the difficulty's values for this AI. Each value is an
-expression worked out once when the game starts, like `color` (constants, `chance()`, `rnd()`, `language`, names):
-shares and chances with `%` - `home_guard_share = 35%`, `attack_on_contact = 20%`, `attack_group_percent = 150%` (ageofai.ini
-writes these as whole percents: 35 is 0.35 there, 20, 150) - minutes and epochs as numbers: `first_attack_min = 15`,
-`first_attack_max = chance(50%) ? 20 : 30`. A value out of its range (`attack_on_contact = 20` would be 2000%) is a
-mistake: that key keeps the difficulty's value.
+tested way). Its keys are ageofai.ini settings that replace the difficulty's values for this AI - those the mod's own
+AI plays by: the army's share of the income and the epochs' times. Each value is an expression worked out once when
+the game starts, like `color` (constants, `chance()`, `rnd()`, `language`, names): shares with `%` -
+`military_income_share = 35%`, as ageofai.ini writes it - minutes as numbers: `epoch_min = 45`,
+`epoch_max = chance(50%) ? 60 : 75`. A value out of its range (`military_income_share = 35` would be 3500%) is a
+mistake: that key keeps the difficulty's value. The attack times and chances were style keys until 2026-11-22: they
+set the game's own computer player's values, which nothing reads while it is off (`game_ai = 0`, the default) - the
+mod's pushes set out when they are judged to win, not by a clock.
 
 <!-- style: generated by scripts/build/gen_eeai_readme.py -->
-`military_start_share`, `military_income_share`, `military_income_share_farms`, `epoch_min`, `epoch_max`, `first_attack_min`, `first_attack_max`, `attack_interval_min`, `attack_interval_max`, `attack_group_percent`, `attack_on_contact`, `attack_for_resources`, `attack_revenge`, `citizen_share`, `home_guard_share`
+`military_start_share`, `military_income_share`, `military_income_share_farms`, `epoch_min`, `epoch_max`
 <!-- /style -->
 
 `priorities = { ... }` is **experimental** too (`ai_style=1`): what this AI saves for, worked out every 10 seconds with the
@@ -685,7 +695,7 @@ priorities = {
 The rows:
 
 <!-- priorities: generated by scripts/build/gen_eeai_readme.py -->
-`air`, `research`, `epoch`, `farms`, `wants`, `landing`, `outpost`, `fortress`, `forest`, `upgrades`, `navy`, `special`
+`air`, `laid`, `research`, `epoch`, `farms`, `wants`, `landing`, `outpost`, `fortress`, `forest`, `upgrades`, `navy`, `special`
 <!-- /priorities -->
 
 ## decide: what the AI wants

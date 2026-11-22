@@ -16,6 +16,9 @@ pers = src('persona.c')
 prompt = prompt_texts(root)
 lines = re.findall(r'\{ "([a-z_]+)", (\d+), (\d+), (A_ALL|A_ALLIES|A_NAME) \}', pers)
 assert len(lines) >= 40
+game_ai_only = set(re.search(r'// GAME AI ONLY: ([a-z_ ]+)', pers).group(1).split())   # raised by the game's computer player alone
+style_keys = re.findall(r'\{ "(\w+)", offsetof', src('settings.c'))   # settings.c k_style_keys
+assert style_keys
 
 def sit(key):
     # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation
@@ -79,12 +82,10 @@ w('}')
 w('')
 w('style = {')
 w('    # EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way). The same')
-w('    # keys as in ageofai.ini; they replace the difficulty\'s values for this AI. Uncomment what it should change. Each')
-w('    # an expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,')
-w('    # attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.')
-for k in ['military_start_share', 'military_income_share', 'military_income_share_farms', 'epoch_min', 'epoch_max',
-          'first_attack_min', 'first_attack_max', 'attack_interval_min', 'attack_interval_max', 'attack_group_percent',
-          'attack_on_contact', 'attack_for_resources', 'attack_revenge', 'citizen_share', 'home_guard_share']:
+w('    # keys as in ageofai.ini; they replace the difficulty\'s values for this AI: the army\'s share of the income, the')
+w('    # epochs\' times. Uncomment what it should change. Each an expression worked out at the game start (like color =):')
+w('    # shares with % (military_income_share = 35%), minutes as numbers - chance(50%) ? 20 : 30 works too.')
+for k in style_keys:
     w('    #%s = ,' % k)
 w('}')
 w('')
@@ -109,6 +110,7 @@ for key, chance, cooldown, a in lines:
     if int(chance) < 100: extra.append('%s%% of the time at talk=50' % chance)
     if int(cooldown): extra.append('at most every %s s' % cooldown)
     if key in fallback: extra.append('without a line: %s' % fallback[key])
+    if key in game_ai_only: extra.append('only while the game\'s computer player runs: game_ai = 1')
     if extra: note += ' (' + ', '.join(extra) + ')'
     w(note)
     w('    %s = [],' % key)

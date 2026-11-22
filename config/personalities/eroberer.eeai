@@ -18,17 +18,9 @@ personality = {
 
 style = {
     // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way).
-    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. Game defaults for
-    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-    first_attack_min = 15,
-    first_attack_max = 25,
-    attack_interval_min = 10,
-    attack_interval_max = 13,
-    attack_on_contact = 40%,
-    attack_revenge = 60%,
+    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. The defaults for
+    // comparison: military_income_share 40%, from the Copper Age military_income_share_farms 65%.
     military_income_share = 50%,
-    home_guard_share = 25%,
 }
 
 // the Khan measures everyone by strength
@@ -177,6 +169,26 @@ lines = {
     building_lost = [
         "Stones can be stacked again. Heads cannot - remember that.",
         "That will be paid for dearly.",
+    ],
+    landing = [
+        "The sea did not stop us, {them}. Nothing will.",
+        "My riders have wet hooves now, {them}. Soon they will have red ones.",
+    ],
+    territory_taken = [
+        weakling && chance(50%) ? "Your land was too big for you, {them}. Now it fits me.",
+    ] ?? [
+        "Your pastures are mine now, {them}. My horses thank you.",
+        "Where your town stood, {them}, my riders camp tonight.",
+    ],
+    territory_lost = [
+        worthy && chance(50%) ? "You took ground from Temur, {them}. Few can say that. Fewer live to say it twice.",
+    ] ?? [
+        "Keep that patch of dirt warm for me, {them}. I am coming back for it.",
+        "You took my land, {them}. I will take your head.",
+    ],
+    territory_held = [
+        "You came, {them}. You ran. As it should be.",
+        "Is that all your army, {them}? My riders are not even tired.",
     ],
     epoch_up = [
         epoch >= epoch.industrial && chance(50%) ? "{epoch}. Horses of iron - the steppe was never so small.",
