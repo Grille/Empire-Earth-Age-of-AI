@@ -4,10 +4,10 @@
 // into anti air it be mostly useless"; then "the ai is fairly static in the way it aproches the game, every ai
 // attempting the same style of play"): the force's sizes are to follow what pays against this enemy, and to know
 // that, what pays is counted first. Only counted and logged so far - nothing reads it yet.
-// The kinds (rt_kind): land soldiers (siege and heroes too), land anti-air (KIND_LAND_AA: the flak, AA tanks, Stingers -
-// the bombers' losses on the first look were two thirds to land units), warships, fighters (airguard.c's roles: air fighters,
-// fighter/bombers, anti-tank planes), bombers, helicopters that fight, defences (buildings that shoot: towers, anti-air
-// guns, tank obstacles), the rest (citizens, fishing boats, transports, buildings that don't shoot) - a target only,
+// The kinds (rt_kind): land soldiers (siege and heroes too), anti-air (KIND_LAND_AA: the flak, AA tanks, Stingers - the
+// bombers' losses on the first look were two thirds to land units - and the AA buildings, KIND_AA_BUILDING), warships, fighters (airguard.c's roles: air fighters,
+// fighter/bombers, anti-tank planes), bombers, helicopters that fight, defences (the other buildings that shoot: towers,
+// tank obstacles), the rest (citizens, fishing boats, transports, buildings that don't shoot) - a target only,
 // and the killer when none of the others is known.
 // A kill (diplo.c hook_kill_stat, a unit or a building killed, every player, the same on every PC): the dead one's
 // base price (cover.c cv_value, F+W+S+G+I) goes to its killer's kind as killed (the unit that last hit it,
@@ -23,7 +23,7 @@
 #define RT_WORTH_MIN 0.2f
 #define RT_WORTH_MAX 2.0f
 enum { RK_LAND, RK_LAND_AA, RK_NAVY, RK_FIGHTER, RK_BOMBER, RK_HELI, RK_DEF, RK_OTHER, RK_N };
-internal const char *const k_rk[RK_N] = { "land", "land anti-air", "navy", "fighters", "bombers", "helicopters", "defences", "other" };
+internal const char *const k_rk[RK_N] = { "land", "anti-air", "navy", "fighters", "bombers", "helicopters", "defences", "other" };
 internal struct rt_st {
     float killed[RK_N], lost[RK_N], lost_to[RK_N][RK_N], field[RK_N];   // decayed by RT_HALF; field: as last counted
     uint32_t all_killed[RK_N], all_lost[RK_N];                          // the game's, not decayed (the log's)
@@ -35,7 +35,8 @@ internal int rt_kind(ee_unit_type *td) {
     int c = unit_type_get_class_id(td), t = unit_type_get_id(td), att = unit_type_get_attack(td) > 0;
     if (c == CLS_AIRPLANE) return ag_fighter(t) ? RK_FIGHTER : unit_type_get_family(td) == KIND_BOMBER ? RK_BOMBER : RK_OTHER;
     if (c == CLS_HELICOPTER) return att ? RK_HELI : RK_OTHER;
-    if (c == CLS_BUILDING || c == CLS_FORTRESS || c == CLS_NAVAL_BUILDING) return att || is_tower_type(t) ? RK_DEF : RK_OTHER;
+    if (c == CLS_BUILDING || c == CLS_FORTRESS || c == CLS_NAVAL_BUILDING)
+        return unit_type_get_family(td) == KIND_AA_BUILDING ? RK_LAND_AA : att || is_tower_type(t) ? RK_DEF : RK_OTHER;
     int m = cv_mil(td);
     return m == 2 ? RK_NAVY : m == 1 ? (unit_type_get_family(td) == KIND_LAND_AA ? RK_LAND_AA : RK_LAND) : RK_OTHER;
 }
@@ -106,9 +107,12 @@ internal void returns_tick(ee_player *pl, uint32_t now) {
 // what they lost lately, RT_PRIOR on both sides, RT_WORTH_MIN to RT_WORTH_MAX - its part of the air force's share is
 // that many times its size: bombers that die over the enemy's anti-air shrink to a few that keep trying (and grow
 // again as the losses fade), fighters that win their fights grow
-internal float rt_worth(unsigned idx, int bombers) {
+// rt_worth_of: the same for the kinds of mask (a bit per RK_) together - the strategy plans' evidence (ai/plans.c)
+internal float rt_worth_of(unsigned idx, unsigned mask) {
     struct rt_st *r = &g_rt[idx & 15];
-    int k = bombers ? RK_BOMBER : RK_FIGHTER;
-    float w = (r->killed[k] + RT_PRIOR) / (r->lost[k] + RT_PRIOR);
+    float kd = RT_PRIOR, ls = RT_PRIOR;
+    for (int k = 0; k < RK_N; k++) if (mask >> k & 1) { kd += r->killed[k]; ls += r->lost[k]; }
+    float w = kd / ls;
     return w < RT_WORTH_MIN ? RT_WORTH_MIN : w > RT_WORTH_MAX ? RT_WORTH_MAX : w;
 }
+internal float rt_worth(unsigned idx, int bombers) { return rt_worth_of(idx, 1u << (bombers ? RK_BOMBER : RK_FIGHTER)); }

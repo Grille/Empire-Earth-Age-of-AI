@@ -575,7 +575,7 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
     if (pct > 0) {
         ee_unit_type *atd = type_data(UT(B_AIRPORT));
         if (atd && unit_type_get_transport_capacity(atd) > 0) holds = unit_type_get_transport_capacity(atd);
-        float base = (float)(land + nm + nbomb) * (float)pct / 100.0f, fsh = AFS_FIGHTERS;
+        float base = (float)(land + nm + nbomb) * (float)pct / 100.0f * plan_f(idx, LN_AIR), fsh = AFS_FIGHTERS;   // plans.c: its plan's air
         if (AIR_WORTH(idx)) {   // THE AIR'S WORTH: each part of the share by what it brings back
             wf = rt_worth(idx, 0); wb = rt_worth(idx, 1);
             float f = base * AFS_FIGHTERS * wf, b = base * (1.0f - AFS_FIGHTERS) * wb;

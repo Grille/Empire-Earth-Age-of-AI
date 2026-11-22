@@ -14,6 +14,11 @@ personality = {
     forgiveness = 70%,
     caution = 60%,
     talk = 70%,
+    // leanings (strategy_plans): the merchant's fleet: ships, the economy before the army
+    air_force = 50%,
+    navy = 80%,
+    early_anti_air = 55%,
+    pressure = 30%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A merchant prince who sees everything as a deal: friendly, chatty, always counting, talks of profit, prices and interest.",
 }

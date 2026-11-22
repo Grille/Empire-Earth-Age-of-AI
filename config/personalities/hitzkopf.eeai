@@ -14,6 +14,11 @@ personality = {
     forgiveness = 80%,
     caution = 15%,
     talk = 90%,
+    // leanings (strategy_plans): a brawl first: the army early, anti-air only once the planes come
+    air_force = 50%,
+    navy = 40%,
+    early_anti_air = 20%,
+    pressure = 85%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A loud, hot-headed tribal chieftain who loves a brawl: shouts, laughs, insults, forgets a grudge as fast as he picks one.",
 }

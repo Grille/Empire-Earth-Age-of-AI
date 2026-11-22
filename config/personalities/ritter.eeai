@@ -14,6 +14,11 @@ personality = {
     forgiveness = 40%,
     caution = 50%,
     talk = 50%,
+    // leanings (strategy_plans): the order's knights: the land army first
+    air_force = 40%,
+    navy = 40%,
+    early_anti_air = 50%,
+    pressure = 60%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "An honourable knight bound by his word: formal, solemn, courteous even to enemies, never breaks an oath.",
 }

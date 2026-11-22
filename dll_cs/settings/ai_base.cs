@@ -636,6 +636,15 @@ class ai_base
         /// the economy it is given), the mod's own AI follows only the AI toggles and military targets (default).
         /// 0 = game_ai decides there too
         bool game_ai_scenarios = true;
+        /// Strategy plans: every AI picks a plan at the start - balanced, air power, sea power, guarded (anti-air early),
+        /// pressure (more of the income into the army) or economy first - by its personality's leanings (personality =
+        /// { air_force = 70%, ... }) and by chance, so that no two games against it go alike; it changes the plan when the
+        /// fighting shows that what it stands on brings back too little (planes lost to the enemy's anti-air, a fleet
+        /// beaten). The plan and the leanings scale the air force's and the navy's shares, the anti-air built before any
+        /// aircraft is seen and the army's share of the income. 0 = every AI plays the same shares; on since 2026-11-22
+        /// (the player: "there isnt a 'strongest' default ... giving the ai difrent strategy plans makes it less
+        /// predictable"; head-to-head against AIs without plans level on three maps)
+        bool strategy_plans = true;
         /// ... the warships on every map led by the fleet, a land map's too (else only where the water matters), none of
         /// them taken into the game's groups, and the game's requests train none: the fleet orders them - up to its size
         /// target where the enemy is across the water, elsewhere only against enemy warships seen in its own sea

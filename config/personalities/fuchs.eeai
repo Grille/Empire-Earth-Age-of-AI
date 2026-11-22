@@ -18,6 +18,11 @@ personality = {
     forgiveness = 50%,
     caution = 45%,
     talk = 55%,
+    // leanings (strategy_plans): she strikes from afar: aircraft, and anti-air against the same
+    air_force = 70%,
+    navy = 50%,
+    early_anti_air = 60%,
+    pressure = 45%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A scheming princess, charming and polite on the surface, cold and calculating beneath; keeps a little book of every slight and every favour; enjoys hints and veiled threats.",
 }

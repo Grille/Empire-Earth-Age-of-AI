@@ -291,7 +291,8 @@ internal float navy_share(unsigned idx) {
     float sh = (float)g_navy_share;
     int t = g_nv_target[idx & 15], miss = t - g_nv_own[idx & 15].war;
     if (t > 0 && miss > 0 && g_navy_share_max > g_navy_share && fleet_builds(idx) && !fleet_sheltering(idx)) sh += (float)(g_navy_share_max - g_navy_share) * (float)miss / (float)t;
-    return sh / 100.0f * navy_strength(idx);
+    sh *= plan_f(idx, LN_NAVY);   // plans.c: its plan's navy
+    return (sh > 80.0f ? 80.0f : sh) / 100.0f * navy_strength(idx);
 }
 // stage 4: the account is the navy's own money - a warship spends it even where the reserve (epochs, landing ...)
 // would hold the stock (econ.c train_budget); the others never saw it (navy_hold): Large Islands e9, 524 frigate
@@ -924,9 +925,9 @@ internal void navy_tick(ee_player *pl, uint32_t now) {
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
     if (fleet_builds(idx)) {   // the fleet's size target (stage 4): navy_fleet_pop % of the population cap x the map strength
         int cap = unit_limit(pl);
-        g_nv_target[idx] = mt_fleet_target(pl, idx, (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * navy_strength(idx) + 0.5f));   // metal.c FLEET
+        g_nv_target[idx] = mt_fleet_target(pl, idx, (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * navy_strength(idx) * plan_f(idx, LN_NAVY) + 0.5f));   // metal.c FLEET; plans.c its plan's navy
     } else if (fleet_own(idx)) {   // by need (fleet.c EVERY WARSHIP THE MOD'S): one more than the enemy's known in its sea
-        int e = fleet_need(idx), most = unit_limit(pl) * g_navy_fleet_pop / 100;
+        int e = fleet_need(idx), most = (int)((float)(unit_limit(pl) * g_navy_fleet_pop) / 100.0f * plan_f(idx, LN_NAVY));
         g_nv_target[idx] = !e ? 0 : e + 1 < most ? e + 1 : most;
     } else g_nv_target[idx] = 0;
     if (m->done && (now < g_nv_nodes[idx].t || now - g_nv_nodes[idx].t >= 60000)) navy_nodes(pl, idx, now);   // once a minute

@@ -14,6 +14,11 @@ personality = {
     forgiveness = 15%,
     caution = 25%,
     talk = 60%,
+    // leanings (strategy_plans): the horde: soldiers early and many, little in the air or at sea
+    air_force = 35%,
+    navy = 30%,
+    early_anti_air = 30%,
+    pressure = 80%,
     // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A steppe conqueror, a warlord of horsemen: blunt, boastful, contemptuous of weakness, respects only strength.",
 }

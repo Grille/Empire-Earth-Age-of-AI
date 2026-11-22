@@ -279,7 +279,7 @@ internal int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, c
 internal int mt_nowait(ee_player *pl, unsigned idx, int type, const int *vis, int wait) {
     if (!(mt_plan(pl, idx) & 2)) return 0;
     const struct ai_cfg *c = cfg_of(pl);
-    float sh = current_epoch(pl) >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share;
+    float sh = (current_epoch(pl) >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share) * plan_f(idx, LN_PRESSURE);   // plans.c
     for (int r = 5; r < 7; r++) {
         int miss = unit_cost(pl, type, r) - vis[r];
         if (miss <= 0) continue;

@@ -2799,7 +2799,10 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
     // ahead of any aircraft seen, half of it (the player 2026-11-20: "its a bit to agresive, half of the aa would probably
     // be more than enough for normal games" - Continental from World War I, 45 min, 6 games: 5.2 AA buildings and 9.3 AA
     // units per AI with no aircraft seen in any, all of it from the air force expected of its enemies)
-    if (z->w_near <= 0 && z->w_all <= 0) threat *= AAS_AHEAD;
+    if (z->w_near <= 0 && z->w_all <= 0) {   // plans.c: its plan's anti_air - the share ahead of any aircraft, at most all
+        float ah = AAS_AHEAD * plan_f(idx, LN_ANTI_AIR);
+        threat *= ah > 1.0f ? 1.0f : ah;
+    }
     g_aa_urgent[idx] = 0; memset(g_aa_hold[idx], 0, sizeof g_aa_hold[idx]); g_aa_maker[idx] = 0;
     if (threat <= 0) return;
     // priority.c the row "air": aircraft over its towns, an enemy airport, or its first 2 AA buildings once enemy aircraft

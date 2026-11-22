@@ -102,6 +102,8 @@ struct persona {
     struct persona *layer[LAYERS_MAX];   // its includes, each one's own right after it (persona_layers)
     int nlayer, registered, resolving;   // registered: register_personality() - a personality, else a library
     unsigned trait_set;   // the traits it sets itself (bit per trait): the others from its layers, else 50%
+    int lean[LN_N];       // its leanings (ai/settings.c THE LEANINGS) 0 to 100, as the traits
+    unsigned lean_set;
     int nfield;   // its fields, let name = ... at its top (PERSONALITY STATE): each AI's own, starting as field_src
     char field_name[PFIELDS][40], field_type[PFIELDS][12];   // type: as written ("" none: its value's)
     char *field_src[PFIELDS];
@@ -295,6 +297,7 @@ internal int x_code_arrow(const char *file, const char *sec, const char *key) {
 internal const char *record_of_key(const char *key) {
     for (int k = 0; k < L_N; k++) if (!lstrcmpiA(key, k_lines[k].key)) return "lines";
     for (int t = 0; t < T_N; t++) if (!lstrcmpiA(key, k_trait_keys[t])) return "personality";
+    for (int t = 0; t < LN_N; t++) if (!lstrcmpiA(key, k_lean_keys[t])) return "personality";
     if (!lstrcmpiA(key, "name") || !lstrcmpiA(key, "title") || !lstrcmpiA(key, "civilization") || !lstrcmpiA(key, "character") || !lstrcmpiA(key, "color")) return "personality";
     if (decide_key(key) < D_N) return "decide";
     if (style_key(key) >= 0) return "style";
@@ -392,6 +395,16 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
                 p->trait_set |= 1u << t;
                 return;
             }
+        for (int t = 0; t < LN_N; t++)
+            if (!lstrcmpiA(key, k_lean_keys[t])) {   // a leaning: a share as a trait, 0% to 100% (outside: a mistake)
+                char *e;
+                double n = strtod(v->src, &e);
+                while (*e == ' ' || *e == '\t') e++;
+                if (e == v->src || *e != '%' || e[1] || !(n >= 0 && n <= 100)) { tl_error(l, "a share 0% to 100% expected (air_force = 70%)"); return; }
+                p->lean[t] = (int)(n + 0.5);
+                p->lean_set |= 1u << t;
+                return;
+            }
         tl_error(l, "an unknown key in personality");
     } else if (!lstrcmpiA(sec, "style")) {
         if (style_key(key) < 0) { tl_error(l, "an unknown style key"); return; }
@@ -471,6 +484,7 @@ internal int persona_parse(const char *file, struct persona *p) {
     char *dot = strrchr(p->file, '.');
     if (dot) *dot = 0;
     for (int t = 0; t < T_N; t++) p->trait[t] = 50;
+    for (int t = 0; t < LN_N; t++) p->lean[t] = 50;
     tfile_parse(file, text, persona_key, p);
     free(text);
     return 1;
@@ -525,6 +539,7 @@ internal void persona_layers(struct persona *p, int depth) {
             }
         for (int k = 0; k < D_N; k++) if (!p->decide[k] && q->decide[k]) p->decide[k] = _strdup(q->decide[k]);
         for (int t = 0; t < T_N; t++) if (!(p->trait_set >> t & 1) && (q->trait_set >> t & 1)) { p->trait[t] = q->trait[t]; p->trait_set |= 1u << t; }
+        for (int t = 0; t < LN_N; t++) if (!(p->lean_set >> t & 1) && (q->lean_set >> t & 1)) { p->lean[t] = q->lean[t]; p->lean_set |= 1u << t; }
         if (!p->name && q->name) p->name = _strdup(q->name);
         if (!p->title && q->title) p->title = _strdup(q->title);
         if (!p->civ && q->civ) p->civ = _strdup(q->civ);
@@ -863,6 +878,7 @@ internal void persona_new_game(ee_setup *setup) {
     memset(g_attack_news, 0, sizeof g_attack_news);   // an attack of the last game not yet told
     memset(g_say_tribute, 0, sizeof g_say_tribute);
     memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
+    memset(g_lean_on, 0, sizeof g_lean_on);   // a player without a personality leans nowhere
     int humans = 0;
     for (int s = 0; s < 16; s++) humans += setup_slot_get_type(setup_slot_at(setup, s)) == 1;
     g_mp = humans > 1; g_mp_seeded = 0;
@@ -1109,8 +1125,12 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
     if (g_log) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, player_name(pl));
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
+        fprintf(g_log, " | leanings");
+        for (int t = 0; t < LN_N; t++) fprintf(g_log, " %s %d", k_lean_keys[t], p->lean[t]);
         fprintf(g_log, "\n");
     }
+    for (int t = 0; t < LN_N; t++) g_lean[idx][t] = (float)p->lean[t] / 100.0f;   // the strategy plans' (ai/plans.c)
+    g_lean_on[idx] = 1;
     // PLAY STYLE (experimental, ai_style=1): the personality's style keys on top of the difficulty's settings,
     // from now on what cfg_of() returns for this player; settings_apply runs right after (hook_rm_update).
     // Each value an expression worked out now, before the game's values count (xctx nogame, like color =): constants,

@@ -885,7 +885,8 @@ internal void __thiscall hook_add_resource(ee_player *pl, int type, int amount) 
         // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army
         const struct ai_cfg *c = cfg_of(pl);
         int ep = current_epoch(pl);
-        float sh = ep >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share;
+        float sh = (ep >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share) * plan_f(idx, LN_PRESSURE);   // plans.c: its plan's army
+        if (sh > 1.0f) sh = 1.0f;
         // early_army: no army in the first epoch (towers and citizens; with early_soldiers a few soldiers after all),
         // then food-free ranged soldiers - the army's food share small and at most 300 held, so the citizens keep
         // their food (the account held 500-780 food the army never spent while the citizens' stock was empty)
@@ -2376,7 +2377,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
         g_bud[idx].init = 1;
         g_bud[idx].last_t = now;
         for (int r = 2; r < 7; r++)
-            g_bud[idx].mil[r] = stock[r] > reserve[r] ? (stock[r] - reserve[r]) * cfg->mil_start_share : 0;
+            g_bud[idx].mil[r] = stock[r] > reserve[r] ? (stock[r] - reserve[r]) * cfg->mil_start_share * plan_f(idx, LN_PRESSURE) : 0;
     }
     int no_work = 0;
     if (!military) {
