@@ -289,7 +289,7 @@ internal float fy_dist(ivec2 a, ivec2 b) { return sqrtf((float)ivec2_dist2(a, b)
 // 54.6 / 56.9 / 59.9 (sunk - lost -28.9 / -27.8 / -22.6 / -19.0, se 5-7; its fleet's ratio at the end 0.6 / 0.6 / 0.8
 // / 0.8); its soldiers put off 96 / 178 / 126 / 107 (se 18-31), trips given up 16.8 / 14.9 / 15.3 / 14.5; kills 304 /
 // 347 / 388 / 372, losses 507 / 520 / 562 / 534. Of its trips that waited at the pick-up about half sailed after it.
-// The sea won better with it, the soldiers across with the escort alone: built off, the player's call.
+// The sea won better with it, the soldiers across with the escort alone: both on since 2026-11-22, the player's call.
 #define FY_WAYS 8
 #define FY_WAY_T 180000
 #define FY_WAY_NEAR 24      // the same way: both ends within this many tiles of the noted ones

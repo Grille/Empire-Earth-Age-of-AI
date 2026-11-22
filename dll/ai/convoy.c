@@ -30,7 +30,9 @@
 // THE SCREEN - squadrons.c), 2026-11-18, the same games with the lifeboat on for all, from epoch 9 and from 5 (24 each):
 // lost aboard 4.5 against 6.4 and 5.4 against 7.8, crossings as fast (at sea 73 s against 70 s, 71 against 63; loading
 // 68 against 69, 65 against 63), about 2.5 screens an AI a game and no warship lost screening; B - A soldiers -5.1
-// (se 3.8) and -3.2 (4.5), kills -3.0 (3.2) and -2.2 (4.3): the gain within noise - off.
+// (se 3.8) and -3.2 (4.5), kills -3.0 (3.2) and -2.2 (4.3): the gain within noise - off. On the player's huge map
+// (2026-11-22, his save from minute 204, 10 games): the weaker fleet's soldiers put off across a held sea 178 against 96
+// - on since then with sea_first (ferry.c THE SEA FIRST), the player's call.
 #define CY_LOOK 1000
 #define CY_WIN 6000        // the hit points' loss over this
 #define CY_MARGIN 1.25f    // it makes it: sunk later than this x the time to where it goes (+ 2 s)
