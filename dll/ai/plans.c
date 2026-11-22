@@ -23,7 +23,8 @@
 // mattering), is picked again among the others by weight x leanings x fitness; one another beats by PL_BETTER gives
 // way to that one (a draw there took the reason's plan seldom: a plan the next 10 minutes for no reason of its own).
 // "# plan:" at each pick, with the fitness of all.
-// A game loaded picks again (the plan is not saved).
+// A saved game keeps them (persist.c: g_pl, and returns.c's g_rt it is judged by): loaded, each AI plays on with its
+// plan and its dwell - a game saved before (no such block) picks at its first update as a new one.
 // MEASURED (head-to-head, B with the plans, 60 min, 10 games mirrored each, B - A per game, se): Continental World War
 // I with money for bombers (air_rich) alive -0.15 (0.13), soldiers +4.9 (11.3), losses -13.5 (23.6), workers +2.1
 // (20.8); Small Islands large epoch 5 alive 0, soldiers +8.6 (7.2), workers +3.4 (3.4); Continental from the start

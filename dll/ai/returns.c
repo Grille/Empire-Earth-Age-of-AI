@@ -13,7 +13,7 @@
 // base price (cover.c cv_value, F+W+S+G+I) goes to its killer's kind as killed (the unit that last hit it,
 // unit_get_attacker, when it is the killer's) and to its owner's kind as lost - by the killer's kind too (lost_to: its
 // aircraft brought down by the enemy's defences, by its fighters). What is fielded: the price of each kind it has
-// alive, finished, every RT_EVERY. The sums fall by half every RT_HALF of game time; a game loaded starts from none.
+// alive, finished, every RT_EVERY. The sums fall by half every RT_HALF of game time; a saved game keeps them (persist.c).
 // "# returns:" every RT_LOG a player of the mod's (tests).
 #define RT_EVERY 10000
 #define RT_HALF 600000

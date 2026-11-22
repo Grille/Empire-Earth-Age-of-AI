@@ -33,6 +33,8 @@ internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_intel),   // intel.c: what each AI remembers (honest_vision) - unit pointers dropped on load, buildings matched again
     B(g_armies),  // armies.c: the force - its members and whether it is out (the game saves only their ai_held); pointers found again by id
     B(g_ho_human), B(g_ho_ai),   // test/takeover.c: a handover's observer (kept in) and its stand-in
+    B(g_pl),   // plans.c: each AI's strategy plan, its levers and when it was picked (a loaded game plays on with it)
+    B(g_rt), B(g_rt_decay_t),   // returns.c: what each kind of force brought back - the plans' and the air's evidence
 #undef B
 };
 internal uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)

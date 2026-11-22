@@ -34,9 +34,13 @@ internal const struct { const char *tag; uint32_t hash; } k_layout[] = {
     { "g_offer_vs", 0xEC4A09CBU },
     { "g_hlog", 0xF6ECEAB7U },
     { "g_hum", 0x62FBBAB7U },
+    { "g_scen_game", 0xB76D6D77U },
     { "g_nv_acc", 0x550446E8U },
     { "g_intel", 0xB4521967U },
     { "g_armies", 0x17A77F4AU },
     { "g_ho_human", 0x58F5A717U },
     { "g_ho_ai", 0x1D864008U },
+    { "g_pl", 0x7D0D38C1U },
+    { "g_rt", 0x662F6927U },
+    { "g_rt_decay_t", 0x6D455948U },
 };

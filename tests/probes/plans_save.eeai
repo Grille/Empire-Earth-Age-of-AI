@@ -1,0 +1,8 @@
+// plans_save.eeai: the strategy plans in a saved game (persist.c g_pl, g_rt) - played to minute 20, the plans picked
+// and the returns counted, saved as zz_plans_save. Base ini random_map=Continental,seed=101,map_size=1,ai_count=4,
+// start_epoch=9,quit_minutes=21. Then the save loaded: run_test.py -Save zz_plans_save.ees, turbo=0, quit_minutes=26:
+// "# persist: state ... restored" with g_pl, g_rt and g_rt_decay_t among its blocks, no "# plan: ... (the start)" line
+// after the load, the "# returns:" sums where the save left them.
+
+wait_until(20min)
+save("zz_plans_save")
