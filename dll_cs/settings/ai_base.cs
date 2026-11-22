@@ -698,14 +698,16 @@ class ai_base
         [advanced]
         bool bomber_claim = true;
         /// The air force's size: from World War I this share of the AI's military - its land soldiers and aircraft - is
-        /// fighters and bombers (fighters at least as many as the enemy aircraft it knows of, else 40% of it), with an
-        /// Airport for every 15 of them; trained first while below the share, as the army's other priority orders.
-        /// 0 = off (fighters only against enemy aircraft seen, bombers only for the wing a position needs)
+        /// fighters and bombers (fighters at least as many as the enemy aircraft it knows of, else 40% of it: air
+        /// fighters against the enemy's aircraft, the rest fighter/bombers), with an Airport for every 15 of them;
+        /// trained first while below the share, as the army's other priority orders. 0 = off (air fighters only against
+        /// enemy aircraft seen, bombers only for the wing a position needs)
         [advanced, range(0, 1)]
         share air_force_share = 0;
-        /// With air_force_share: the fighters beyond those that guard its towns fly sweeps - at enemy aircraft it sees
-        /// anywhere (a fighter hurts no land unit) where the anti-air known there and on the way can't bring one of them
-        /// down, else to look at enemy ground it hasn't seen lately. 0 = they wait at their Airports
+        /// With air_force_share: the fighters beyond those that guard its towns fly sweeps - at what each kind can hurt
+        /// (air fighters enemy aircraft, fighter/bombers aircraft and soldiers and citizens in the open) where the
+        /// anti-air known there and on the way can't bring one of them down, else to look at enemy ground it hasn't seen
+        /// lately. 0 = they wait at their Airports
         [advanced]
         bool fighter_sweeps = true;
         struct fall_back_fields

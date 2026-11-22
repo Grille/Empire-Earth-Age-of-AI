@@ -23,7 +23,8 @@
 // the bombers only for the wing a position needed (8, 24 at most). With the share on, every AG_EVERY: of its military
 // (land soldiers, fighters, bombers) that share is aircraft - fighters as many as the enemy aircraft it knows of
 // (seen near its towns, airstrike.c THE PICTURE's fighters known or assumed) and AG_SPARE more, else AFS_FIGHTERS of
-// it; bombers the rest (airstrike.c af_train trains them: g_afs_bombers). An Airport for every one its type holds
+// it - air fighters for the enemy aircraft and AG_SPARE, the rest fighter/bombers (ag_types: the roles); bombers the
+// rest (airstrike.c af_train trains them: g_afs_bombers). An Airport for every one its type holds
 // (the data's 15), asked of build.c; neither kind beyond the room its Airports have. The fighters come AFS_BATCH an
 // Airport an AG_TRAIN_EVERY, as the army's priority orders (the stock above the reserve) - while below the share only,
 // so the share is what they take of the army's growth, never more. Its fighters are the air guard's alone: held (the
@@ -35,11 +36,19 @@
 // test armies are 20-70 soldiers: 5-20 aircraft) and are still lost about as fast as trained - intercepts that chase
 // into the enemy's fighters and guns over contested ground (THE LEASH calls back only past AG_REACH + AG_LEASH of its
 // buildings). OFF. One of the 10 B games crashed in the game's sight removal (0x40E585 from 0x555F1B, not seen before).
+// Then (the player: "there are two fighter planes in each epoch, an air only, and one that also can attack ground") the
+// roles (ag_types: only the air fighters were known, the fighter/bombers never trained), and intercepts by the bombers'
+// rule too. MEASURED 2026-11-22 again, the same 10 games, honest_map on for both: alive +0.15 (se 0.11), soldiers -2.5
+// (12.5), kills +10.1 (36.8), losses +19.5 (11.0), razed +1.9 (11.3), no crash - level; a B AI trained 9.1 fighters (all
+// fighter/bombers - the enemy's aircraft were few) and 15.8 bombers, had 3.8 and 2.5 at the end; sweeps 0.24 an AI (the
+// test maps' anti-air - 20-36 AA buildings an AI on map_size 1 - leaves next to nothing a fighter comes back from). OFF
+// until it shows a gain (or the player's call): its case is his large games, where the test armies never get.
 // THE SWEEPS ([ai_base] fighter_sweeps, with the share; [autotest] v_fighter_sweeps): the fighters ready beyond the
 // guard (the enemy aircraft near its towns and AG_SPARE stay at their Airports for INTERCEPT) go every AG_EVERY in
 // flights of up to SW_FLIGHT from one Airport:
-//   HUNT   - at enemy aircraft in the air it sees (INTERCEPT has sent fighters at those over its own ground first) that
-//            a fighter can hurt (the game's numbers, stats.c; no land unit: a fighter hurts none), by SW_CELL cell: the most worth for the way, within its reach (SW_REACH of its flight time there and back),
+//   HUNT   - a role at a time: at what its type can hurt by the game's numbers (stats.c) that it sees - enemy aircraft
+//            in the air (INTERCEPT has sent fighters at those over its own ground first), land units in the open: an air
+//            fighter hurts none of those, a fighter/bomber both, an anti-tank plane the armour -, by SW_CELL cell: the most worth for the way, within its reach (SW_REACH of its flight time there and back),
 //            where the anti-air of THE PICTURE (airstrike.c dct_scan: guns seen, remembered, assumed by towns not
 //            looked at lately, the enemy's fighters' cover) can't bring the weakest of the flight down there, over it
 //            for SW_OVER_S and home - the bombers' rule (the player 2026-11-21: "undefended ... just not enough to
@@ -106,17 +115,26 @@ internal void airguard_install(const char *autotest_ini) {
     }
     if (g_log) fprintf(g_log, "# air force size: share %d%% (variant %d), sweeps %d (variant %d)\n", g_afs_pct, g_v_afs_pct, g_sweeps, g_v_sweeps);
 }
-internal short g_ag_types[32]; internal int g_ag_nt = -1;   // the fighter types in the data (once a game)
+// the fighter types in the data (once a game) and their roles - each epoch has an air fighter (a_fighter: aircraft
+// only) and a fighter/bomber (a_strafe_fighter: aircraft and land units), World War II to the Modern Age an anti-tank
+// plane too (a_at_fighter) - the player 2026-11-22, on "fighters can't attack ground units": "there are two fighter
+// planes in each epoch, an air only, and one that also can attack ground" (only a_fighter was known here before: the
+// fighter/bombers were never trained). Carrier planes are the carriers'.
+enum { AGR_NONE, AGR_AIR, AGR_STRAFE, AGR_AT, AGR_N };
+internal const char *const k_agr[AGR_N] = { "-", "air fighters", "fighter/bombers", "anti-tank planes" };
+internal short g_ag_types[48]; internal uint8_t g_ag_role[48]; internal int g_ag_nt = -1;
 internal void ag_types(void) {
     if (g_ag_nt >= 0) return;
     g_ag_nt = 0;
-    for (int t = 0; t < G_TYPES_N && g_ag_nt < 32; t++) {
+    for (int t = 0; t < G_TYPES_N && g_ag_nt < 48; t++) {
         ee_unit_type *td = type_data(t);
         const char *nm = td && unit_type_get_id(td) == t ? unit_ident(t) : NULL;
-        if (nm && unit_type_get_class_id(td) == CLS_AIRPLANE && unit_type_get_attack(td) > 0 && !strncmp(nm, "a_fighter", 9)) g_ag_types[g_ag_nt++] = (short)t;
+        if (!nm || unit_type_get_class_id(td) != CLS_AIRPLANE || unit_type_get_attack(td) <= 0) continue;
+        int r = !strncmp(nm, "a_fighter", 9) ? AGR_AIR : !strncmp(nm, "a_strafe_fighter", 16) ? AGR_STRAFE : !strncmp(nm, "a_at_fighter", 12) ? AGR_AT : AGR_NONE;
+        if (r) { g_ag_role[g_ag_nt] = (uint8_t)r; g_ag_types[g_ag_nt++] = (short)t; }
     }
 }
-internal int ag_fighter(int t) { for (int k = 0; k < g_ag_nt; k++) if (g_ag_types[k] == t) return 1; return 0; }
+internal int ag_fighter(int t) { for (int k = 0; k < g_ag_nt; k++) if (g_ag_types[k] == t) return g_ag_role[k]; return 0; }
 // THE AIR BASES - its aircraft move to the Airport nearest the fighting (the player 2026-11-15: "next the airplane base
 // relocation"; 2026-10, on the wing: "airfields forward to reach deeper into enemy territory, the home airfields
 // become empty backup ... the ai's airplanes are all stuck at home since the ai never extends their reach").
@@ -225,6 +243,22 @@ internal void airbase_tick(ee_player *pl, unsigned idx, uint32_t now) {
     }
 }
 // THE SWEEPS: the fighters out looked at - lost, back, done; their targets down
+// the bombers' rule for a fighter u going from where it is to at and home (the nearest of its Airports): 1 when the
+// anti-air of THE PICTURE there and on the way can't bring it down (its damage reckoned at the bombers' and scaled by
+// the speeds, AD_MARGIN, AD_RESERVE of its hit points left); 1 without a picture
+internal int sw_survives(unsigned idx, ee_unit *u, ivec2 at) {
+    struct dct_st *d = &g_dct[idx];
+    ee_unit_type *td = unit_get_type_data(u);
+    ee_unit_stats *st = unit_get_stats(u);
+    float sp = st ? unit_stats_get_speed(st) : 0.0f, mx = td ? (float)st_maxhp(td, st) : 0.0f;
+    if (d->ref < 0 || d->speed <= 0 || sp < 0.2f || mx <= 0) return 1;
+    ivec2 p = unit_get_tile(u), home = p;
+    int pk = dct_port(d, u);
+    if (pk >= 0) home = d->port[pk];
+    if (unit_get_x(u) < 0) p = home;
+    float dmg = (dct_sortie(d, p, at, home, SW_OVER_S)) * d->speed / sp;
+    return dmg * AD_MARGIN + AD_RESERVE * mx < (float)unit_get_hp(u);
+}
 internal int sw_at(struct ag_st *g, int id) { for (int k = 0; k < g->nsw; k++) if (g->sw[k].id == id) return k; return -1; }
 internal void sw_watch(ee_player *pl, struct ag_st *g, uint32_t now) {
     int m = 0;
@@ -252,8 +286,9 @@ internal void sw_watch(ee_player *pl, struct ag_st *g, uint32_t now) {
     }
     g->nsw = m;
 }
-// THE SWEEPS: the ready fighters beyond the guard (rdy[0..nfree)) - flights at what they can hurt and come back from, else a look
-internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **rdy, int nfree, uint32_t now) {
+// THE SWEEPS: the ready fighters beyond the guard of one role (rdy[0..nfree)) - flights at what they can hurt and come
+// back from, else a look (*looked: one a look in all)
+internal void sw_launch_role(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **rdy, int nfree, int *looked_io, uint32_t now) {
     static float cw[SW_CELLS][SW_CELLS], cb[SW_CELLS][SW_CELLS];
     static ee_unit *cu[SW_CELLS][SW_CELLS];
     static struct { ee_unit *u; ivec2 at; float v; short type; uint8_t owner; } tg[SW_CANDS];
@@ -268,8 +303,9 @@ internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **
     int fms = fst ? unit_stats_get_flight_ms(fst) : 0;
     if (!ftd || fsp < 0.2f || fhp <= 0) return;
     float reach = fms > 0 ? (float)fms / 1000.0f * fsp * SW_REACH : 60.0f, scale = d->speed / fsp;
-    // what it can hurt: enemy aircraft in the air it sees, by cell - a fighter hurts no land unit (the game's numbers: of
-    // 447 enemy land units an AI's fighters saw in a pilot, none; land units were the first targets here)
+    // what it can hurt, by the game's numbers: enemy aircraft in the air and land units in the open it sees, by cell (an
+    // air fighter hurts no land unit - of 447 an AI's saw in a pilot, none -, a fighter/bomber both, an anti-tank plane
+    // the armour)
     memset(cw, 0, sizeof cw); memset(cb, 0, sizeof cb);
     for (int o = 1; o < nplayers(); o++) {
         ee_player *op = player_at(o);
@@ -278,7 +314,8 @@ internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **
         for (ee_unit *u = player_get_units(op); u && count < 16384; u = unit_get_next(u), count++) {
             ee_unit_type *td = unit_get_type_data(u);
             int fam = td ? unit_type_get_class_id(td) : -1;
-            if ((fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !seen_by(u, pl)) continue;
+            int air = fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT;
+            if ((!air && fam != CLS_LAND) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !seen_by(u, pl)) continue;
             g->sw_seen++;
             if (st_shot_t(ftd, fst, (int)idx, td, unit_get_stats(u), oi) <= 0) continue;
             g->sw_hurt++;
@@ -287,7 +324,7 @@ internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **
             if (x < 0 || y < 0 || x >= SW_CELLS || y >= SW_CELLS) continue;
             int c = 0;
             for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
-            float v = (float)(c < 600 ? c : 600);
+            float v = air ? (float)(c < 600 ? c : 600) : is_citizen_type(t) ? 120.0f : (float)(c < 400 ? c : 400);
             cw[x][y] += v;
             if (v > cb[x][y]) { cb[x][y] = v; cu[x][y] = u; }
         }
@@ -306,7 +343,7 @@ internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **
         for (int j = 0; j < g->nsw && !taken[k]; j++)
             taken[k] = g->sw[j].kind == 1 && g->sw[j].at.x / SW_CELL == tg[k].at.x / SW_CELL && g->sw[j].at.y / SW_CELL == tg[k].at.y / SW_CELL;
     memset(used, 0, (size_t)nfree);
-    int runs = 0, looked = 0, none = 0;
+    int runs = 0, looked = *looked_io, none = 0;
     for (int i = 0; i < nfree; i++) {
         if (used[i]) continue;
         int pk = dct_port(d, rdy[i]);
@@ -397,6 +434,16 @@ internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **
                               g_ter.t[br].owner > 0 ? "the enemy's" : "dark", intel_looked_ago(pl, c.x, c.y) / 60000.0, from.x, from.y, (int)sqrtf((float)ivec2_dist2(from, c)));
     }
     if (none && !runs && !looked) g->sw_none++;
+    *looked_io = looked;
+}
+internal void sw_launch(ee_player *pl, unsigned idx, struct ag_st *g, ee_unit **rdy, int nfree, uint32_t now) {
+    static ee_unit *by[AG_FIGHTERS];
+    int looked = 0;
+    for (int r = AGR_AIR; r < AGR_N; r++) {   // a role at a time: one type's reckoning for its flights
+        int n = 0;
+        for (int i = 0; i < nfree; i++) if (ag_fighter(unit_type_get_id(unit_get_type_data(rdy[i]))) == r) by[n++] = rdy[i];
+        if (n) sw_launch_role(pl, idx, g, by, n, &looked, now);
+    }
 }
 internal void airguard_tick(ee_player *pl, uint32_t now) {
     static ee_unit *mine[AG_FIGHTERS], *foe[AG_FOES];
@@ -518,13 +565,19 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
         int room = airports * holds - nbomb;
         want_f = sz_f < room ? sz_f : room > want_f ? room : want_f;
     }
+    // the roles: air fighters against the enemy aircraft (all of them without the share), the rest of the share
+    // fighter/bombers - they fight aircraft and land units both
+    int have_r[AGR_N] = { 0 };
+    for (int i = 0; i < nm; i++) have_r[ag_fighter(unit_type_get_id(unit_get_type_data(mine[i])))]++;
+    int air_want = sz_f > 0 ? (guard < want_f ? guard : want_f) : want_f, role = have_r[AGR_AIR] < air_want ? AGR_AIR : AGR_STRAFE;
     if (nm < want_f && (!g->train_t || now - g->train_t >= AG_TRAIN_EVERY)) {
         g->train_t = now ? now : 1;
         int best = 0;
-        for (int k = 0; k < g_ag_nt; k++) {
-            int t = g_ag_types[k];
-            if (ut_has(t) && can_build(pl, t) && (!best || soldier_score(t) > soldier_score(best))) best = t;
-        }
+        for (int pass = 0; pass < 2 && !best; pass++)   // the role's strongest; none of it trainable: the other's
+            for (int k = 0; k < g_ag_nt; k++) {
+                int t = g_ag_types[k];
+                if ((g_ag_role[k] == role) == !pass && g_ag_role[k] != AGR_AT && ut_has(t) && can_build(pl, t) && (!best || soldier_score(t) > soldier_score(best))) best = t;
+            }
         if (best) {
             int batch = sz_f > nm ? airports * AFS_BATCH : AG_BATCH;   // THE AIR FORCE'S SIZE: from all its Airports
             if (batch > AFS_MAX) batch = AFS_MAX;
@@ -535,8 +588,8 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
             g_priority_mil = 0;
             g->trained += got;
             if (sz_f > nm) g->sz_trained += got;
-            if (got && g_log) log_locked("# air guard: P%u at %.1f min: %u x fighter %d trained (it has %d of %d wanted against %d enemy aircraft, %d Airports)\n",
-                                         idx, now / 60000.0, got, best, nm, want_f, air, airports);
+            if (got && g_log) log_locked("# air guard: P%u at %.1f min: %u x fighter %d trained, %s (it has %d of %d wanted - air fighters %d of %d, fighter/bombers %d - against %d enemy aircraft, %d Airports)\n",
+                                         idx, now / 60000.0, got, best, k_agr[ag_fighter(best)], nm, want_f, have_r[AGR_AIR], air_want, have_r[AGR_STRAFE], air, airports);
         }
     }
     // INTERCEPT
@@ -552,8 +605,10 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
         if (near_b) foe[nf++] = u;
     }
     int sent = 0;
-    for (int i = 0; i < nm && nf; i++) {
+    for (int ii = 0; ii < 2 * nm && nf; ii++) {   // the air fighters first, then the others
+        int i = ii % nm;
         ee_unit *u = mine[i];
+        if ((ag_fighter(unit_type_get_id(unit_get_type_data(u))) == AGR_AIR) != (ii < nm)) continue;
         int id = unit_get_serial(u), k = 0;
         while (k < g->nsent && g->sent[k].id != id) k++;
         if (k < g->nsent && now >= g->sent[k].t && now - g->sent[k].t < AG_AGAIN) continue;
@@ -562,7 +617,12 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
         ee_unit *tg = NULL;
         int bd = 0;
         ivec2 p = unit_get_tile(u);
-        for (int j = 0; j < nf; j++) { int dd = ivec2_dist2(unit_get_tile(foe[j]), p); if (!tg || dd < bd) { tg = foe[j]; bd = dd; } }
+        for (int j = 0; j < nf; j++) {
+            int dd = ivec2_dist2(unit_get_tile(foe[j]), p);
+            ee_player *fo = unit_get_owner(foe[j]);
+            if ((!tg || dd < bd) && st_shot_t(td, unit_get_stats(u), (int)idx, unit_get_type_data(foe[j]), unit_get_stats(foe[j]), fo ? player_get_index(fo) : 0) > 0 &&
+                (AFS_SHARE(idx) <= 0 || sw_survives(idx, u, unit_get_tile(foe[j])))) { tg = foe[j]; bd = dd; }   // with the share: the bombers' rule (in a pilot nearly all its fighters lost chasing into the enemy's AA buildings by its own)
+        }
         if (!tg || !as_order(u, goal_attack(u, tg))) continue;
         if (k == g->nsent) { if (g->nsent < AG_FIGHTERS) g->nsent++; else k = (int)(now % AG_FIGHTERS); }
         g->sent[k].id = id; g->sent[k].t = now ? now : 1;
@@ -593,10 +653,12 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
     if (SWEEPS(idx)) {
         static ee_unit *rdy[AG_FIGHTERS];
         int nr = 0, keep = guard > AG_SPARE ? guard : AG_SPARE;
-        for (int i = 0; i < nm; i++) {
+        for (int ii = 0; ii < 2 * nm; ii++) {   // the guard: air fighters first
+            int i = ii % nm;
             ee_unit *u = mine[i];
             ee_unit_type *td = unit_get_type_data(u);
             int id = unit_get_serial(u), k = 0;
+            if ((ag_fighter(unit_type_get_id(td)) == AGR_AIR) != (ii < nm)) continue;
             if (unit_get_goal(u) || unit_get_hp(u) * 100 < unit_type_get_hp(td) * AG_READY_PCT || sw_at(g, id) >= 0) continue;
             while (k < g->nsent && g->sent[k].id != id) k++;
             if (k < g->nsent && now >= g->sent[k].t && now - g->sent[k].t < AG_AGAIN) continue;
