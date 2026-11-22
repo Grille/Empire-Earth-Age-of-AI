@@ -180,7 +180,8 @@ internal int fy_touches(unsigned land, unsigned oc) {
 }
 // a new game or a load: the table is built again - the new map often takes the old one's address and size, and its
 // lands' and seas' ids are its own (the last game's bits under them: no trip between lands that touch the same sea)
-internal void ferry_new_game(void) { memset(&g_fy_touch, 0, sizeof g_fy_touch); }
+internal void fy_way_new_game(void);   // THE SEA FIRST (below)
+internal void ferry_new_game(void) { memset(&g_fy_touch, 0, sizeof g_fy_touch); fy_way_new_game(); }
 // the shore's search no farther than the land's farthest corner from p (the same tile found: none of it lies beyond -
 // the whole map's radius walked 640k tiles on a 400 map wherever the land's coast on that sea had no free tile); and
 // a land and sea with none is not searched again in the same look (fy_look clears g_fy_nosh: units don't move within
@@ -273,6 +274,77 @@ internal uint32_t fy_way_ms(ee_unit *u, float d, uint32_t lo) {
     return ms > (float)lo ? (ms < 3600000.0f ? (uint32_t)ms : 3600000u) : lo;
 }
 internal float fy_dist(ivec2 a, ivec2 b) { return sqrtf((float)ivec2_dist2(a, b)); }
+// THE SEA FIRST ([ai_base] sea_first; the player 2026-11-22, of P3's soldiers wanted on land 240 across a sea the
+// enemy's warships and aircraft held - 12 trips a game went to the pick-up, were held there by the crossing's risk (10
+// to 200) and gave up when the boarding's time ran out: "do 1" (win the sea first), "we alredy have the excort, that was
+// suposed to help in this case"). A crossing held for the risk - at its start or waiting at the pick-up - notes its way
+// (FY_WAYS by AI: the sea, its two ends and its point off the line, the worst threat's place, how many wait); for
+// FY_WAY_T after the last hold the squadrons (squadrons.c sq_sea_value) count the water within FY_WAY_R of it as worth
+// holding - FY_WAY_V and FY_WAY_PASS a passenger waiting, twice within FY_WAY_TOP of the worst threat -, so a main
+// squadron takes it as its zone and its rules decide: it fights there when clearly the stronger, else holds and calls
+// help, and shells the guns on that coast. A trip held at the pick-up waits there for the way (FY_HOLD_MAX at most,
+// the boarding's clock stopped meanwhile) and sails as soon as a rating lets it.
+// MEASURED 2026-11-22 (his save, minute 204-230, 10 games each, every AI alike; none / transport_escort / sea_first /
+// both): P3 - the weaker fleet, at war at sea with P2 - sank 25.7 / 26.8 / 34.3 / 40.9 of P2's warships and lost 54.6 /
+// 54.6 / 56.9 / 59.9 (sunk - lost -28.9 / -27.8 / -22.6 / -19.0, se 5-7; its fleet's ratio at the end 0.6 / 0.6 / 0.8
+// / 0.8); its soldiers put off 96 / 178 / 126 / 107 (se 18-31), trips given up 16.8 / 14.9 / 15.3 / 14.5; kills 304 /
+// 347 / 388 / 372, losses 507 / 520 / 562 / 534. Of its trips that waited at the pick-up about half sailed after it.
+// The sea won better with it, the soldiers across with the escort alone: built off, the player's call.
+#define FY_WAYS 8
+#define FY_WAY_T 180000
+#define FY_WAY_NEAR 24      // the same way: both ends within this many tiles of the noted ones
+#define FY_WAY_R 16
+#define FY_WAY_V 50.0f
+#define FY_WAY_PASS 3.0f
+#define FY_WAY_TOP 40       // twice within this many tiles of the worst threat (squadrons.c SQ_REACH, a zone's reach)
+#define FY_HOLD_MAX 480000
+internal struct fy_way { int oc, has_via, held; ivec2 a, via, b, top; uint32_t t, held_t; float risk; } g_fy_way[16][FY_WAYS];
+internal unsigned g_fy_way_notes[16], g_fy_way_waits[16], g_fy_way_sailed[16], g_fy_way_out[16];   // the log's: ways noted, trips that waited at the pick-up, sailed after it, gave up after FY_HOLD_MAX
+internal void fy_way_new_game(void) {
+    memset(g_fy_way, 0, sizeof g_fy_way); memset(g_fy_way_notes, 0, sizeof g_fy_way_notes); memset(g_fy_way_waits, 0, sizeof g_fy_way_waits);
+    memset(g_fy_way_sailed, 0, sizeof g_fy_way_sailed); memset(g_fy_way_out, 0, sizeof g_fy_way_out);
+}
+internal void fy_way_note(unsigned idx, int oc, ivec2 a, ivec2 b, int has_via, ivec2 via, float risk, int pass, uint32_t now) {
+    if (!g_set_ai[1].sea_first || oc <= 0) return;
+    struct fy_way *W = g_fy_way[idx & 15], *w = NULL;
+    for (int k = 0; k < FY_WAYS && !w; k++)
+        if (W[k].t && W[k].oc == oc && ivec2_dist2(W[k].a, a) <= FY_WAY_NEAR * FY_WAY_NEAR && ivec2_dist2(W[k].b, b) <= FY_WAY_NEAR * FY_WAY_NEAR) w = &W[k];
+    if (!w) {   // a new one: a free place (or one past its time), else the stalest
+        w = &W[0];
+        for (int k = 0; k < FY_WAYS; k++) {
+            if (!W[k].t || now < W[k].t || now - W[k].t >= FY_WAY_T) { w = &W[k]; break; }
+            if (W[k].t < w->t) w = &W[k];
+        }
+        memset(w, 0, sizeof *w);
+        g_fy_way_notes[idx & 15]++;
+    }
+    const struct cx_st *c = &g_cx_st[idx & 15];
+    w->oc = oc; w->a = a; w->b = b; w->has_via = has_via; w->via = via; w->risk = risk;
+    if (g_cx_top >= 0 && g_cx_top < c->n) w->top = c->th[g_cx_top].p;   // the last rating's worst (crossing_rate leaves it)
+    if (!w->held_t || now < w->held_t || now - w->held_t >= 10000) { w->held = pass; w->held_t = now ? now : 1; }   // how many wait: the most noted within 10 s
+    else if (pass > w->held) w->held = pass;
+    w->t = now ? now : 1;
+}
+internal float fy_seg_dist(ivec2 p, ivec2 a, ivec2 b) {   // p's distance to the segment a-b
+    float dx = (float)(b.x - a.x), dy = (float)(b.y - a.y), l2 = dx * dx + dy * dy, s = 0;
+    if (l2 > 0) { s = ((float)(p.x - a.x) * dx + (float)(p.y - a.y) * dy) / l2; s = s < 0 ? 0 : s > 1 ? 1 : s; }
+    float ex = (float)a.x + dx * s - (float)p.x, ey = (float)a.y + dy * s - (float)p.y;
+    return sqrtf(ex * ex + ey * ey);
+}
+// what the water at p on sea oc is worth to AI idx's squadrons for the ways it holds (squadrons.c sq_sea_value)
+internal float ferry_way_value(unsigned idx, int oc, ivec2 p, uint32_t now) {
+    if (!g_set_ai[1].sea_first) return 0;
+    float v = 0;
+    for (int k = 0; k < FY_WAYS; k++) {
+        const struct fy_way *w = &g_fy_way[idx & 15][k];
+        if (!w->t || now < w->t || now - w->t >= FY_WAY_T || w->oc != oc) continue;
+        float d = w->has_via ? fminf(fy_seg_dist(p, w->a, w->via), fy_seg_dist(p, w->via, w->b)) : fy_seg_dist(p, w->a, w->b);
+        if (d > FY_WAY_R) continue;
+        float x = FY_WAY_V + FY_WAY_PASS * (float)w->held;
+        v += ivec2_dist2(p, w->top) <= FY_WAY_TOP * FY_WAY_TOP ? 2.0f * x : x;
+    }
+    return v;
+}
 internal int fy_scout_ok(ee_player *pl, unsigned idx, int k) {
     ee_unit *u = g_sn_sx[idx & 15][k].u;
     return u && unit_get_serial(u) == g_sn_sx[idx & 15][k].id && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && !expand_has(pl, u);
@@ -370,6 +442,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
                 fy_say(idx, now, "the crossing: %d %s from land %u to land %u held - risk %.2f over %.2f%s; the worst: %s", t->npass, fy_kind_name(kind), a, b,
                        (double)risk, (double)fy_tolerance(f, kind, imp, now), imp ? " (important)" : "", w);
             }
+            fy_way_note(idx, seas[bs].oc, seas[bs].pick_w, seas[bs].drop_w, hv, via, risk, t->npass, now);   // THE SEA FIRST
             t->npass = 0;
             return -2;
         }
@@ -399,7 +472,7 @@ internal int fy_start(ee_player *pl, unsigned idx, struct fy_st *f, struct fy_tr
         t->app_ms = fy_way_ms(best, fy_dist(unit_get_tile(best), t->pick_w), FY_APPROACH);
         t->sea_ms = fy_way_ms(best, t->has_via ? fy_dist(t->pick_w, t->via) + fy_dist(t->via, t->drop_w) : fy_dist(t->pick_w, t->drop_w), FY_SEA);
     }
-    t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0; t->there_t = 0;
+    t->phase = 1; t->since = now ? now : 1; t->load_t = 0; t->reissue = 0; t->there_t = 0; t->held_t = 0;
     f->trips++; f->last_kind = kind; t->no = f->trips;
     fy_take(idx, best);   // ORDERS BY PRIORITY: the trip's till it ends
     unit_goal(best, goal_move((float)t->pick_w.x + 0.5f, (float)t->pick_w.y + 0.5f), 0, 0x1F40);
@@ -744,6 +817,12 @@ internal void fy_minute(ee_player *pl, unsigned idx, struct fy_st *f, uint32_t n
     if (g_set_ai[1].ferry_reach)
         fy_say(idx, now, "pick-ups both reach (ferry_reach): %u candidates passed over in another walking area, %u trips from an area with fewer of them, %u not started for no shore they walk to",
                f->reach_left, f->reach_second, f->reach_none);
+    if (g_set_ai[1].sea_first) {
+        int ways = 0, held = 0;
+        for (int k = 0; k < FY_WAYS; k++) { const struct fy_way *w = &g_fy_way[idx & 15][k]; if (w->t && now >= w->t && now - w->t < FY_WAY_T) { ways++; held += w->held; } }
+        fy_say(idx, now, "the sea first (sea_first): ways held for the risk now %d (%d waiting to cross), noted so far %u; trips that waited at the pick-up %u, sailed after it %u, given up after %u s %u",
+               ways, held, g_fy_way_notes[idx & 15], g_fy_way_waits[idx & 15], g_fy_way_sailed[idx & 15], FY_HOLD_MAX / 1000, g_fy_way_out[idx & 15]);
+    }
     if (CROSSING_SAFETY(idx)) {
         struct cx_st *c = &g_cx_st[idx & 15];
         fy_say(idx, now, "the crossing: %u ways rated (%u off the line), trips held for the risk %u, for a load too small for it %u, important ones that went into danger %u; threats known %d (%u left out, the list full)",
@@ -794,7 +873,13 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
         if (!t->npass) { fy_end(pl, idx, t, now, "no passenger left"); return; }
         int there = ivec2_dist2(unit_get_tile(sh), t->pick_w) <= 49;
         if (there && !t->there_t) t->there_t = now ? now : 1;
-        if (now - t->since >= t->app_ms + FY_BOARD_AFTER && !aboard) {   // who was late: the transport, the passengers
+        int waits = g_set_ai[1].sea_first && t->phase == 1 && t->held_t && !t->load_t && !aboard;   // THE SEA FIRST: held at the pick-up, it waits for the way
+        if (waits && now - t->held_t >= FY_HOLD_MAX) {
+            char why[120];
+            snprintf(why, sizeof why, "held at the pick-up for the risk (%.2f) %.0f s - given up", (double)t->risk, (double)(now - t->held_t) / 1000.0);
+            g_fy_way_out[idx & 15]++; f->failed++; fy_end(pl, idx, t, now, why); return;
+        }
+        if (!waits && now - t->since >= t->app_ms + FY_BOARD_AFTER && !aboard) {   // who was late: the transport, the passengers
             int close = 0, dmin = 0x7FFFFFFF, dmax = 0;
             for (int k = 0; k < t->npass; k++) {
                 int d = ivec2_dist2(unit_get_tile(t->pass[k].u), t->pick);
@@ -820,11 +905,19 @@ internal void fy_trip_act(ee_player *pl, unsigned idx, struct fy_st *f, struct f
                     int rh = t->has_via;
                     t->risk = crossing_rate(pl, idx, sh, t->pick_w, t->drop_w, (unsigned)t->ocean, &rv, &rh);
                     if (t->kind != 3) { t->via = rv; t->has_via = rh; }   // a push's way is its meeting point (TOGETHER)
-                    if (t->risk > fy_tolerance(f, t->kind, t->imp, now)) { if (!f->risky_t[t->kind]) f->risky_t[t->kind] = now ? now : 1; t->load_t = 0; }
+                    if (t->risk > fy_tolerance(f, t->kind, t->imp, now)) {
+                        if (!f->risky_t[t->kind]) f->risky_t[t->kind] = now ? now : 1;
+                        t->load_t = 0;
+                        if (g_set_ai[1].sea_first) {   // THE SEA FIRST: the way noted, the wait begun
+                            fy_way_note(idx, t->ocean, t->pick_w, t->drop_w, t->has_via, t->via, t->risk, t->npass, now);
+                            if (!t->held_t) { t->held_t = now ? now : 1; g_fy_way_waits[idx & 15]++; }
+                        }
+                    }
                     else t->load_t = 1;
                 }
                 if (!t->load_t) { convoy_escort(idx, sh, t->pick_w, t->drop, 0, now); return; }
             }
+            if (t->held_t) g_fy_way_sailed[idx & 15]++;   // THE SEA FIRST: it waited and goes
             t->phase = 2; t->load_t = now ? now : 1;
         }
         convoy_escort(idx, sh, t->pick_w, t->drop, 0, now);   // ESCORT (convoy.c): asked for from the start - the scouts sweep the way while it comes and boards

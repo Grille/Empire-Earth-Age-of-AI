@@ -865,6 +865,14 @@ class ai_base
         /// on since 2026-11-22 (with ferry_reach, the player's save: trips given up a fifth as often, citizens across twice)
         [advanced]
         bool ferry_time_by_way = true;
+        /// The sea first (the game's computer player off): a crossing held for the risk asks the squadrons (sea_squadrons)
+        /// to win its way - the water along it is worth holding to them, most where its worst threat is and the more the
+        /// more wait to cross, so a main squadron takes it as its zone (fights there when the stronger, else holds and
+        /// calls help, shells the guns on its coast) -, and a trip held at the pick-up waits there for the way, 8 minutes
+        /// at most, instead of giving up after 2. 0 = off (measured 2026-11-22 on the player's save: the weaker fleet sank
+        /// 41 warships in 26 minutes with it and transport_escort against 26 without, its soldiers across 107 against 96)
+        [advanced]
+        bool sea_first = false;
         /// Expansion across the water as over land (the game's computer player off): a territory across a sea (or two seas
         /// side by side) from one the AI holds counts as beside it - a Settlement and a tower by its mines as by a
         /// neighbour's, after the mines over land; the ferry service brings the builders, the miners and the soldiers. It

@@ -151,7 +151,7 @@ struct sq {
     ivec2 zc, go, ordered;                // the anchor's middle, where it goes, where it was sent last
     int want, n, state, help, target_r, call, escort, support;   // call: it asks for help; help: whom it helps (+1); escort: convoy.c's wish (+1); support: the push it goes ahead of (+1, THE SQUADRON AHEAD)
     ee_unit *u[FL_MAX];
-    float ratio, zvalue;
+    float ratio, zvalue, zway;            // zway: of its zone's worth, THE SEA FIRST's (ferry.c: the ways held for the risk)
     uint32_t order_t, state_t, target_t;
     unsigned engages, holds, helps, pushes, raids, scouted, flees, escorted, screens, shelled;
     ee_unit *shell; int shell_id;         // THE SHORE: the building it shells
@@ -169,12 +169,14 @@ internal uint32_t g_sq_look[16][SQ_T];   // a water territory last seen by one o
 internal struct fleet g_sqf;   // a squadron as fleet.c's fight estimate reads one (its ships only)
 
 internal unsigned sq_ocean_of(int r) { return area_id(g_ter.t[r].c, 1); }
-internal float sq_sea_value(const struct tv_st *s, int r, uint32_t now) {   // what a sea territory is worth holding
+// what a sea territory is worth holding - and THE SEA FIRST (ferry.c ferry_way_value): the water along a crossing held
+// for the risk lately
+internal float sq_sea_value(unsigned idx, const struct tv_st *s, int r, uint32_t now) {
     const struct tv_terr *t = &s->t[r];
     int recent = t->border || (t->eship_t && now >= t->eship_t && now - t->eship_t < 300000);   // a border sea (territories.c THE SEAS' CLAIM) as one where enemy warships were seen
-    float v = (float)t->coast + (float)t->fish / 200.0f;
-    if (v <= 0 && !recent) return 0;
-    return v * (recent ? 2.0f : 1.0f) + (recent ? 20.0f : 0.0f);
+    float v = (float)t->coast + (float)t->fish / 200.0f, way = ferry_way_value(idx, (int)sq_ocean_of(r), g_ter.t[r].c, now);
+    if (v <= 0 && !recent) return way;
+    return v * (recent ? 2.0f : 1.0f) + (recent ? 20.0f : 0.0f) + way;
 }
 internal ivec2 sq_center(const struct sq *q) {
     long x = 0, y = 0;
@@ -332,23 +334,23 @@ internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const 
     memset(keep, 0, sizeof keep);
     for (int o = 0; o < noc; o++) {
         int oc = oceans[o];
-        static struct { int r; float v; } sea[SQ_SEAS];
+        static struct { int r; float v, w; } sea[SQ_SEAS];
         int ns = 0;
         for (int r = 0; r < n && ns < SQ_SEAS; r++) {
             if (!g_ter.t[r].water || (int)sq_ocean_of(r) != oc) continue;
-            float v = sq_sea_value(s, r, now);
-            if (v > 0) { sea[ns].r = r; sea[ns++].v = v; }
+            float v = sq_sea_value(idx, s, r, now);
+            if (v > 0) { sea[ns].r = r; sea[ns].w = ferry_way_value(idx, oc, g_ter.t[r].c, now); sea[ns++].v = v; }
         }
         for (int a = 1; a < ns; a++) for (int b = a; b > 0 && sea[b].v > sea[b - 1].v; b--) { typeof(sea[0]) t = sea[b]; sea[b] = sea[b - 1]; sea[b - 1] = t; }
-        static int anchor[SQ_MAX]; static float zval[SQ_MAX];
+        static int anchor[SQ_MAX]; static float zval[SQ_MAX], zway[SQ_MAX];
         static uint8_t covered[SQ_SEAS];
         int na = 0;
         memset(covered, 0, sizeof covered);
         for (int a = 0; a < ns && na < SQ_MAX; a++) {
             if (covered[a]) continue;
-            anchor[na] = sea[a].r; zval[na] = 0;
+            anchor[na] = sea[a].r; zval[na] = 0; zway[na] = 0;
             for (int b = a; b < ns; b++)
-                if (!covered[b] && ivec2_dist2(g_ter.t[sea[b].r].c, g_ter.t[sea[a].r].c) <= SQ_REACH * SQ_REACH) { covered[b] = 1; zval[na] += sea[b].v; }
+                if (!covered[b] && ivec2_dist2(g_ter.t[sea[b].r].c, g_ter.t[sea[a].r].c) <= SQ_REACH * SQ_REACH) { covered[b] = 1; zval[na] += sea[b].v; zway[na] += sea[b].w; }
             na++;
         }
         int scouts = nfrig[o] >= 2 ? (na > 1 ? 2 : 1) : 0;
@@ -363,7 +365,7 @@ internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const 
         for (int i = 0; i < SQ_MAX; i++) had += z->s[i].on && z->s[i].kind == SQK_MAIN && z->s[i].ocean == oc;
         if (had && mains != had && abs((nship[o] - nsub[o] - nmsub[o]) - had * SQ_MAIN_MIN) < SQ_MAIN_MIN + 2) mains = had;
         if (mains > na) mains = na > 0 ? na : 1;
-        if (!na) { anchor[0] = -1; zval[0] = 1; na = 1; }   // no water of worth on this sea yet: one squadron by its ships
+        if (!na) { anchor[0] = -1; zval[0] = 1; zway[0] = 0; na = 1; }   // no water of worth on this sea yet: one squadron by its ships
         for (int k = 0; k < mains; k++) {   // a main squadron per anchor - the nearest there is (its ships stay with it, the zone moves), else a new one
             int found = -1, fd = 0x7FFFFFFF;
             ivec2 ac = anchor[k] >= 0 ? g_ter.t[anchor[k]].c : iv2(0, 0);
@@ -376,7 +378,7 @@ internal void sq_zones(unsigned idx, const int *oceans, const int *nship, const 
             for (int i = 0; i < SQ_MAX && found < 0; i++) if (!z->s[i].on && !keep[i]) { memset(&z->s[i], 0, sizeof z->s[i]); found = i; }
             if (found < 0) break;
             struct sq *q = &z->s[found];
-            q->on = 1; q->kind = SQK_MAIN; q->ocean = oc; q->anchor = anchor[k]; q->zvalue = zval[k];
+            q->on = 1; q->kind = SQK_MAIN; q->ocean = oc; q->anchor = anchor[k]; q->zvalue = zval[k]; q->zway = zway[k];
             if (anchor[k] >= 0) q->zc = ac;
             keep[found] = 1;
         }
@@ -1014,7 +1016,7 @@ internal void sq_log(unsigned idx, uint32_t now) {
     struct sq_st *z = &g_sq[idx];
     if (!g_log || (z->log_t && now >= z->log_t && now - z->log_t < 60000)) return;
     z->log_t = now ? now : 1;
-    char b[900] = "";
+    char b[1400] = "";
     int nsq = 0;
     for (int i = 0; i < SQ_MAX; i++) {
         struct sq *q = &z->s[i];
@@ -1022,9 +1024,9 @@ internal void sq_log(unsigned idx, uint32_t now) {
         nsq++;
         ivec2 c = sq_center(q);
         size_t l = strlen(b);
-        if (l < sizeof b - 160)
-            snprintf(b + l, sizeof b - l, " | %s %d (sea %d%s%d): %d ships of %d at %d,%d, %s, ratio %.2f, so far fought %u held %u helped %u pushed %u raided/hunted %u ran %u looked %u escorted %u screened %u shelled %u",
-                     k_sqk[q->kind], i, q->ocean, q->anchor >= 0 ? ", zone " : ", no zone ", q->anchor, q->n, q->want, c.x, c.y, k_sqs[q->state],
+        if (l < sizeof b - 200)
+            snprintf(b + l, sizeof b - l, " | %s %d (sea %d%s%d at %d,%d worth %.0f, the ways %.0f): %d ships of %d at %d,%d, %s, ratio %.2f, so far fought %u held %u helped %u pushed %u raided/hunted %u ran %u looked %u escorted %u screened %u shelled %u",
+                     k_sqk[q->kind], i, q->ocean, q->anchor >= 0 ? ", zone " : ", no zone ", q->anchor, q->zc.x, q->zc.y, (double)q->zvalue, (double)q->zway, q->n, q->want, c.x, c.y, k_sqs[q->state],
                      (double)q->ratio, q->engages, q->holds, q->helps, q->pushes, q->raids, q->flees, q->scouted, q->escorted, q->screens, q->shelled);
     }
     char lb[200];
