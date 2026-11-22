@@ -25,6 +25,7 @@ struct ustring;
 #include "base/texfix.c"          // the textures texfix.eeai lists
 #include "base/mistakes.c"
 #include "base/words.c"           // language.eeai: the mod's words on the game's screens
+#include "base/edits.c"           // an editor's unsaved .eeai texts in place of the files (ageofai_check's language server)
 #include "base/math.c"
 #include "base/vec.h"             // vec2, vec3, ivec2: positions and tiles as one value
 #include "base/overlay.c"         // the debug overlay's shapes: the AI's plans on the map (the own renderer draws them)

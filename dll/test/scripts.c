@@ -63,6 +63,9 @@ internal int script_did(const char *what) {   // an effect (relations.c x_did): 
 }
 internal void script_note(const char *what) { if (g_cur_script) log_line("# setup: %s: %s()\n", g_cur_script->path, what); }   // a hook called
 internal char *script_read(const char *path) {
+    size_t en;
+    char *e = edit_text_of(path, &en);   // an editor's unsaved text (base/edits.c)
+    if (e) return e;
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);

@@ -149,7 +149,10 @@ the files when the game starts, in a message box; those that only show while pla
 isn't there) as a line in the game.
 
 The VS Code extension in the mod's sources (`extensions/eeaimod-texts`) highlights these files and marks unknown keys,
-situations and `epoch.` names.
+situations and `epoch.` names - and shows the mistakes while you type: it starts `ageofai_check --lsp` (below; the
+one in a folder above the file, or the setting `eeai.checker`), which checks each open file a moment after the last
+change, unsaved, the way the game will read it. Any editor that speaks the Language Server Protocol can start it the
+same way.
 
 **Without the game:** `ageofai_check.exe` (next to `Empire Earth.exe`; a download of its own on the release page)
 reads the personalities the way the game does at its start and lists every mistake the game would log there, as

@@ -1,12 +1,14 @@
 {
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
-  "description": "Highlighting for the eeaimod text files (.eeai): personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai - records, keys, strings, placeholders, expressions - and the setup scripts (tests/scenarios, tests/probes): statements, functions, commands",
-  "version": "0.13.0",
+  "description": "The eeaimod text files (.eeai): personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai - records, keys, strings, placeholders, expressions - and the setup scripts (tests/scenarios, tests/probes): statements, functions, commands. Highlighting, and the mistakes shown as they are typed (ageofai_check --lsp)",
+  "version": "0.14.0",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },
-  "categories": ["Programming Languages"],
+  "categories": ["Programming Languages", "Linters"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:eeai"],
   "contributes": {
     "languages": [
       {
@@ -22,6 +24,16 @@
         "scopeName": "source.eeai",
         "path": "./syntaxes/eeai.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "eeaimod texts",
+      "properties": {
+        "eeai.checker": {
+          "type": "string",
+          "default": "",
+          "description": "ageofai_check.exe for the checks while typing - empty: the one in a folder above the file (the game folder), else the workspace's dll\\ageofai_check.exe"
+        }
+      }
+    }
   }
 }

@@ -8,6 +8,8 @@
 //                                           personalities of --ai <folder> or else config\personalities above it
 //   ageofai_check <folder> ...              another folder: each of its .eeai files a script
 //   ageofai_check                           the folder the game beside it reads (ageofai.ini's ai_dir)
+//   ageofai_check --lsp                     the language server on stdin/stdout: these checks while an editor types
+//                                           (check/lsp.c; VS Code: extensions/eeaimod-texts)
 //
 // One personality folder a run (the game reads one; its state isn't made to be read twice), scripts as many as given.
 // The DLL's own code, compiled into a program of its own: the same checks, not a copy of them. Nothing of the game is
@@ -187,9 +189,50 @@ internal int chk_eval(int runs, const char *src) {
     printf("%8.1f ns  %-44.44s = %.40s\n", ms * 1e6 / runs, src, t);
     return 0;
 }
+// one argument of the command line: a personality folder, a folder of scripts, a file (its folder, or a script)
+internal void chk_arg(const char *arg, const char *ai) {
+    char full[MAX_PATH], dir[MAX_PATH], up[MAX_PATH];
+    DWORD at = GetFullPathNameA(arg, MAX_PATH, full, NULL) ? GetFileAttributesA(full) : INVALID_FILE_ATTRIBUTES;
+    if (at == INVALID_FILE_ATTRIBUTES) { printf("ageofai_check: %s: no such file or folder\n", arg); g_chk_n++; return; }
+    if ((at & FILE_ATTRIBUTE_DIRECTORY) && chk_is_folder(full)) { chk_folder(full); return; }
+    if (at & FILE_ATTRIBUTE_DIRECTORY) {   // a folder of scripts (tests\scenarios): each of its .eeai files
+        char pat[MAX_PATH], path[MAX_PATH];
+        snprintf(pat, sizeof pat, "%s\\*.eeai", full);
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA(pat, &fd);
+        if (h == INVALID_HANDLE_VALUE) return;
+        do {
+            snprintf(path, sizeof path, "%s\\%s", full, fd.cFileName);
+            chk_script(path, ai);
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+        return;
+    }
+    if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "texfix.eeai")) { texfix_read_file(full, "texfix.eeai"); return; }
+    if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "language.eeai")) { words_read_file(full, "language.eeai"); return; }
+    lstrcpyA(dir, full);
+    char *slash = strrchr(dir, '\\');
+    if (slash) *slash = 0;
+    lstrcpyA(up, dir);   // a file of mod\: the folder above it
+    slash = strrchr(up, '\\');
+    if (slash && !lstrcmpiA(slash + 1, "mod")) *slash = 0;
+    if (chk_is_folder(dir)) chk_folder(dir);
+    else if (chk_is_folder(up)) chk_folder(up);
+    else chk_script(full, ai);
+}
+#include "check/lsp.c"   // ageofai_check --lsp: the language server (an editor's mistakes while it is typed)
 int main(int argc, char **argv) {
     const char *ai = NULL;
     int n = 0;
+    if (argc >= 2 && !strcmp(argv[1], "--lsp")) return lsp_main();
+    if (argc >= 3 && !strcmp(argv[1], LSP_CHECK)) {   // one check of the server's, the editor's texts on stdin
+        InitializeCriticalSection(&g_x_lock);
+        x_host_install();
+        g_x_told = chk_told;
+        lsp_child_texts();
+        chk_arg(argv[2], NULL);
+        return g_chk_n ? 1 : 0;
+    }
     if (argc >= 3 && (!strcmp(argv[1], "--bench") || !strcmp(argv[1], "--eval"))) {
         InitializeCriticalSection(&g_x_lock);
         InitializeCriticalSection(&g_lock);
@@ -218,34 +261,7 @@ int main(int argc, char **argv) {
     }
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--ai")) { i++; continue; }
-        char full[MAX_PATH], dir[MAX_PATH], up[MAX_PATH];
-        DWORD at = GetFullPathNameA(argv[i], MAX_PATH, full, NULL) ? GetFileAttributesA(full) : INVALID_FILE_ATTRIBUTES;
-        if (at == INVALID_FILE_ATTRIBUTES) { printf("ageofai_check: %s: no such file or folder\n", argv[i]); g_chk_n++; continue; }
-        if ((at & FILE_ATTRIBUTE_DIRECTORY) && chk_is_folder(full)) { chk_folder(full); continue; }
-        if (at & FILE_ATTRIBUTE_DIRECTORY) {   // a folder of scripts (tests\scenarios): each of its .eeai files
-            char pat[MAX_PATH], path[MAX_PATH];
-            snprintf(pat, sizeof pat, "%s\\*.eeai", full);
-            WIN32_FIND_DATAA fd;
-            HANDLE h = FindFirstFileA(pat, &fd);
-            if (h == INVALID_HANDLE_VALUE) continue;
-            do {
-                snprintf(path, sizeof path, "%s\\%s", full, fd.cFileName);
-                chk_script(path, ai);
-            } while (FindNextFileA(h, &fd));
-            FindClose(h);
-            continue;
-        }
-        if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "texfix.eeai")) { texfix_read_file(full, "texfix.eeai"); continue; }
-        if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "language.eeai")) { words_read_file(full, "language.eeai"); continue; }
-        lstrcpyA(dir, full);
-        char *slash = strrchr(dir, '\\');
-        if (slash) *slash = 0;
-        lstrcpyA(up, dir);   // a file of mod\: the folder above it
-        slash = strrchr(up, '\\');
-        if (slash && !lstrcmpiA(slash + 1, "mod")) *slash = 0;
-        if (chk_is_folder(dir)) chk_folder(dir);
-        else if (chk_is_folder(up)) chk_folder(up);
-        else chk_script(full, ai);
+        chk_arg(argv[i], ai);
     }
     if (g_unit_nlater) printf("ageofai_check: %d unit.<identifier> name(s) not checked - the game's data checks them at its start\n", g_unit_nlater);
     printf("ageofai_check: %d mistake(s)\n", g_chk_n);

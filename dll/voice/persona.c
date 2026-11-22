@@ -141,12 +141,18 @@ internal int rnd(int n) { g_rnd_draws++; return n > 0 ? (int)(rnd32() % (unsigne
 
 // whole file as text in the ANSI code page (UTF-8 converted), malloc'd, or NULL
 internal char *read_text_acp(const char *path) {
-    HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (h == INVALID_HANDLE_VALUE) return NULL;
-    DWORD size = GetFileSize(h, NULL), got = 0;
-    char *raw = size < (1u << 20) ? malloc(size + 1) : NULL;
-    if (raw && (!ReadFile(h, raw, size, &got, NULL) || got != size)) { free(raw); raw = NULL; }
-    CloseHandle(h);
+    size_t en = 0;
+    char *raw = edit_text_of(path, &en);   // an editor's unsaved text (base/edits.c)
+    DWORD size = (DWORD)en;
+    if (!raw) {
+        HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+        if (h == INVALID_HANDLE_VALUE) return NULL;
+        DWORD got = 0;
+        size = GetFileSize(h, NULL);
+        raw = size < (1u << 20) ? malloc(size + 1) : NULL;
+        if (raw && (!ReadFile(h, raw, size, &got, NULL) || got != size)) { free(raw); raw = NULL; }
+        CloseHandle(h);
+    }
     if (!raw) return NULL;
     raw[size] = 0;
     char *src = raw;

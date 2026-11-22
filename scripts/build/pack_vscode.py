@@ -30,7 +30,7 @@ manifest = '''<?xml version="1.0" encoding="utf-8"?>
 '''.format(name=esc(pkg['name']), version=esc(pkg['version']), publisher=esc(pkg['publisher']),
            display=esc(pkg['displayName']), desc=esc(pkg['description']), engine=esc(pkg['engines']['vscode']))
 types = ('<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-         '<Default Extension=".json" ContentType="application/json"/><Default Extension=".vsixmanifest" ContentType="text/xml"/>'
+         '<Default Extension=".json" ContentType="application/json"/><Default Extension=".js" ContentType="application/javascript"/><Default Extension=".vsixmanifest" ContentType="text/xml"/>'
          '</Types>')
 os.makedirs(os.path.join(root, 'local', 'work'), exist_ok=True)
 out = os.path.join(root, 'local', 'work', pkg['name'] + '.vsix')
