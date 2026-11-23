@@ -123,7 +123,18 @@ internal int tb_leads_out(ee_map *map, int size, int x0, int y0, int x1, int y1,
             queue[tail][0] = (int16_t)nx; queue[tail][1] = (int16_t)ny; tail++;
         }
     }
-    return 0;
+    // A SMALL LAND WHOLE (Art of Conquest's Small Planets 2026-11-23: a planet some 25 tiles across has no tile 24 from
+    // a spot on it - every spot of P3's was a pocket, 1101 looks without a spot in 30 minutes, 2763 wood and 3000 iron
+    // banked and nothing laid but its granary; an islet the same): the walk ended inside the window, so its tiles are
+    // closed in - a pocket only if they are a small part of their land's free tiles there; half of them or more are
+    // the land itself (a yard of old buildings on it is a few tiles of many)
+    unsigned land = tail ? area_id(iv2(queue[0][0], queue[0][1]), 2) : 0;
+    if (!land) return 0;
+    int all = 0;
+    for (int ty = oy; ty < oy + wy; ty++)
+        for (int tx = ox; tx < ox + wx; tx++)
+            all += tx >= 0 && ty >= 0 && tx < size && ty < size && tb_free(map, size, tx, ty, bx, by, bs) && area_id(iv2(tx, ty), 2) == land;
+    return 2 * tail >= all;
 }
 // The arc keeps every way through the footprint, but not a neighbour's way out: a building whose free tiles lie where
 // the new one stands is shut in (the player's screenshot 2026-11-13: factories four deep, the inner ones walled in by
