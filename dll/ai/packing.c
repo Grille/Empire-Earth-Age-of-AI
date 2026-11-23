@@ -341,7 +341,7 @@ internal void tb_pockets(ee_player *pl, unsigned idx, uint32_t now) {
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || area_id(unit_get_tile(u), 2) != land) continue;
         int cls = unit_type_get_class_id(td), r;
-        if ((cls == CLS_BUILDING || cls == CLS_FORTRESS) && !is_wall(unit_type_get_id(td)) && unit_type_get_id(td) != UT(B_FARM)) {
+        if ((cls == CLS_BUILDING || cls == CLS_FORTRESS) && !is_wall(unit_type_get_id(td)) && !is_field_type(unit_type_get_id(td))) {
             TP_REGION(u, td, r);
             all_b++;
             if (r >= 0 && r != want_) { shut_b++; if (ex < 0) { ex = unit_get_x(u); ey = unit_get_y(u); } }

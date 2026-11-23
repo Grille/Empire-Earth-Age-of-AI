@@ -1165,7 +1165,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             ee_goal *g = unit_get_goal(u);
             ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
             ee_unit_type *sd = site ? unit_get_type_data(site) : NULL;
-            int r = sd && unit_type_get_id(sd) == UT(B_FARM) ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
+            int r = sd && is_field_type(unit_type_get_id(sd)) ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
             cits[nc].u = u; cits[nc++].r = r >= 2 && r <= 6 ? r : 0;
         }
     }
@@ -1252,7 +1252,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             if (raided && (build ? build_held(pl, unit_get_tile(site)) || bd_hold_site(pl, site) : raid_held(pl, unit_get_tile(site)))) { held++; continue; }   // its soldiers and towers there win (a builder's: not losing, defence.c)
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
-            if (build && !raided && unit_type_get_id(unit_get_type_data(site)) != UT(B_FARM)) {
+            if (build && !raided && !is_field_type(unit_type_get_id(unit_get_type_data(site)))) {
                 // ON THE WAY: a builder still walking (8 tiles off) into enemy soldiers it sees or remembers on the
                 // next 24 tiles - the site in the fog looked safe, the way there was not (P2's column above)
                 ivec2 at = unit_get_tile(u), sp = unit_get_tile(site);

@@ -1255,7 +1255,7 @@ internal int bl_sheared(const ee_unit_type *td) {
     enum unit_class c = unit_type_get_class_id(td);
     if (c == CLS_AMBIENT) return 1;
     if (c == CLS_RESOURCE) return unit_type_get_resource_type(td) > 0 && unit_type_get_resource_type(td) != 3;   // 3 wood: trees; 0 scaffolding, foundations, markers
-    return unit_type_get_id(td) == UT(B_FARM);
+    return is_field_type(unit_type_get_id(td));
 }
 
 // m (3 x 4, by row: a unit's matrix, a draw record's) sheared onto the ground's slope over a footprint of size tiles

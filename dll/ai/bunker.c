@@ -637,7 +637,7 @@ internal int shelf_res(ee_unit *u) {   // 2 food .. 6 iron, 0 none
     ee_unit *site = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
     ee_unit_type *sd = site ? unit_get_type_data(site) : NULL;
     if (!sd || unit_get_hp(site) <= 0) return 0;
-    int r = unit_type_get_id(sd) == UT(B_FARM) ? 2 : unit_get_resource(site);
+    int r = is_field_type(unit_type_get_id(sd)) ? 2 : unit_get_resource(site);
     return r >= 2 && r <= 6 ? r : 0;
 }
 internal int bk_holds_soldiers(ee_unit *f) {   // the first unit inside is no citizen

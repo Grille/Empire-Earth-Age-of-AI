@@ -285,7 +285,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         lost_ground += !done && !going;
         if (t == UT(B_DOCK) && ndock < 32) dock[ndock++] = p;   // A FISHING DOCK: its docks, going up too
         float rng, att;
-        if (t == UT(B_FARM)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }
+        if (is_field_type(t)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }   // THE FIELD LINE: the game's Robotic Farms too
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += going; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
         else if (t == UT(B_SETTLEMENT)) open_settle += going;
         else if (pr_kind(t) >= 0) { open_prod += going; if (nprod < 256) prodp[nprod++] = p; }
@@ -316,17 +316,17 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // is idle there at once and work.c gives it work - not a halt, which in the middle of a fight crashed the game's
     // land movement, defence.c NO CHASE), one not started whose wood is not there is let go too, and HOLDING THE
     // GROUND sends nobody to a field.
-    int fwood = player_get_stock(pl, 3), fcost = unit_cost(pl, UT(B_FARM), 3);
-    if (fcost < 1) fcost = 1;
+    int fwood = player_get_stock(pl, 3);
     int farm_paid = g_set_ai[1].farm_builders_paid;
     for (int pass = 0; farm_paid && pass < 2; pass++)   // the started first (their wood is paid), then those not started, in order
         for (int i = 0; i < no; i++) {
-            if (unit_type_get_id(unit_get_type_data(openb[i])) != UT(B_FARM) || (unit_get_hp(openb[i]) > 1) != !pass) continue;
+            int ft = unit_type_get_id(unit_get_type_data(openb[i])), fcost = unit_cost(pl, ft, 3);   // its own: a Robotic Farm's is another's
+            if (!is_field_type(ft) || (unit_get_hp(openb[i]) > 1) != !pass) continue;
             ee_unit *site = field_site(openb[i]);
             int kept = 0;
             for (int k = 0; k < nbuilt; k++) {
                 if (built[k] != site && built[k] != openb[i]) continue;
-                int go = kept || (pass && fwood < fcost);
+                int go = kept || (pass && fwood < fcost && fcost > 0);
                 if (!go) { kept = 1; if (pass) fwood -= fcost; continue; }
                 if (pc_held(builder[k])) continue;   // the player's (THE PLAYER'S ORDERS FIRST)
                 cl_end(builder[k], CLW_HOLD);
@@ -345,11 +345,11 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int has = 0, bk = -1, bd = 0x7FFFFFFF;
         for (int k = 0; k < nbuilt; k++) has += built[k] == site || built[k] == openb[i];
         ivec2 p = unit_get_tile(openb[i]);
-        has = has >= (unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM) ? 1 : pile >= 2 * BD_PILE ? 3 : pile >= BD_PILE ? 2 : 1);
-        int field = unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM);
+        int ot = unit_type_get_id(unit_get_type_data(openb[i])), field = is_field_type(ot), fcost = field ? unit_cost(pl, ot, 3) : 0;
+        has = has >= (field ? 1 : pile >= 2 * BD_PILE ? 3 : pile >= BD_PILE ? 2 : 1);
         if (has || raiders_known(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // remembered raiders too: the site may lie in the fog
         int unpaid = farm_paid && field && unit_get_hp(openb[i]) <= 1;   // FARMS PAID FIRST
-        if (unpaid && fwood < fcost) { b->farm_wait++; continue; }
+        if (unpaid && fcost > 0 && fwood < fcost) { b->farm_wait++; continue; }
         unsigned land = area_id(p, 2);
         for (int k = 0; k < nf; k++) {
             ivec2 q = unit_get_tile(freec[k]);
@@ -443,7 +443,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 for (int i = 0; i < no; i++) {
                     ivec2 p = unit_get_tile(openb[i]);
                     int d = ivec2_dist2(p, m);
-                    if (farm_paid && unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM)) continue;   // FARMS PAID FIRST: no field
+                    if (farm_paid && is_field_type(unit_type_get_id(unit_get_type_data(openb[i])))) continue;   // FARMS PAID FIRST: no field
                     if (d < bd && area_id(p, 2) == land && !wk_danger(idx, p)) { bd = d; job = openb[i]; }
                 }
             }

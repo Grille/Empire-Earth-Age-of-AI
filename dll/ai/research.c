@@ -225,7 +225,7 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         ncit += is_citizen_type(t);
         if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(t)) continue;
         ee_unit *st = unit_get_physics(u);
-        if (!st || !unit_get_finished(st) || t == UT(B_FARM)) continue;
+        if (!st || !unit_get_finished(st) || is_field_type(t)) continue;
         int cur = unit_get_producing(u), *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u), nq = qb && qe > qb && qe - qb < 4096 ? (int)(qe - qb) : 0;
         int load = cur > 0 && cur != 100000, tech = 0;
         for (int j = -1; j < nq; j++) {

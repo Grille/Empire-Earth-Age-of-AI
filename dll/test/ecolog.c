@@ -127,7 +127,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         if (strcmp(eco_goal(u, &res), "gather")) continue;
         if (unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) f->fb++;
         else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
-        else if (res == UT(B_FARM)) f->ff++;
+        else if (is_field_type(res)) f->ff++;
         else {
             ee_goal *g = unit_get_goal(u);
             ee_unit *s = goal_get_site(g);
@@ -173,12 +173,14 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         }
     }
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
-    uint8_t *fq = type_list(um, UT(B_FARM));
+    for (int fk = 0; fk < UT_FIELDS_N; fk++) {   // THE FIELD LINE
+    uint8_t *fq = type_list(um, field_type(fk));
     for (unsigned k = 0, first = fq ? deque_front(fq) : 0, n = fq ? deque_count(fq) : 0; k < n && k < 512; k++) {
         ee_unit *fl = deque_at(fq, first + k), *b = fl ? unit_get_physics(fl) : NULL;
         if (!fl) continue;
         f->fld++;
         if (b && unit_get_finished(b)) f->fldOK++;
+    }
     }
 }
 

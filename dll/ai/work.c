@@ -763,7 +763,8 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     {   // its finished fields: a farmer each (build.c lays them; none under raiders, as the old field pass had it)
         ee_civ_mgr *cm = player_get_civ_mgr(pl);
         ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
-        uint8_t *dq = um && ut_has(UT(B_FARM)) ? unit_mgr_type_list(um, UT(B_FARM)) : NULL;
+        for (int fk = 0; fk < UT_FIELDS_N; fk++) {   // THE FIELD LINE (unit_ids.h): the game's Robotic Farms too
+        uint8_t *dq = type_list(um, field_type(fk));
         for (unsigned k = 0, first = dq ? deque_front(dq) : 0, cnt = dq ? deque_count(dq) : 0; k < cnt && nb < WK_BUSHES; k++) {
             ee_unit *f = deque_at(dq, first + k), *st = f ? unit_get_physics(f) : NULL;
             if (!st || unit_get_hp(f) <= 0 || !unit_get_finished(st) || unit_get_x(f) < 0) continue;
@@ -771,6 +772,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             int c = wk_cost(s, tr);
             if (!c || raiders_near(pl, unit_get_tile(f), 6) || wk_danger(idx, unit_get_tile(f))) continue;
             bush[nb].u = f; bush[nb].terr = (uint16_t)tr; bush[nb].res = 2; bush[nb].n = 0; bush[nb].cost = 0; bush[nb++].cap = 1;   // cost 0: a field before any bush
+        }
         }
     }
     int count = 0, nhn = 0;
@@ -807,7 +809,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int gather = g && !strcmp(rtti_name(g), "EEUGGather@@");
         if (g && !gather) { w->busy++; continue; }   // building, repairing, walking on an order
         ee_unit *site = gather ? goal_get_site(g) : NULL;
-        int field = site && unit_get_type_data(site) && unit_type_get_id(unit_get_type_data(site)) == UT(B_FARM) && unit_get_hp(site) > 0;
+        int field = site && unit_get_type_data(site) && is_field_type(unit_type_get_id(unit_get_type_data(site))) && unit_get_hp(site) > 0;
         int r = field ? 2 : site && unit_get_amount(site) > 0 ? unit_get_resource(site) : 0;
         if (r < 2 || r > 6) { r = 0; site = NULL; }
         if (r == 2 && wk_crowd(site)) { r = 0; site = NULL; w->crowd++; }   // A CROWD ON ONE ANIMAL: one beyond its places is idle

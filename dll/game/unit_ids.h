@@ -8,7 +8,7 @@
     X(INF01_CLUBMAN, "inf01_clubman") X(HURRICANE, "hurricane") X(ANTI_MATTER_STORM, "anti_matter_storm") \
     X(B_TOWN_CENTER, "b_town_center") X(B_CAPITOL, "b_capitol") X(B_SETTLEMENT, "b_settlement") X(B_HOUSE, "b_house") \
     X(X_SINGLE_PLAYER_SETTLEMENT, "x_single_player_settlement") \
-    X(B_FARM, "b_farm") X(B_GRANARY, "b_granary") X(B_GRANARY_IMPROVED, "b_granary_improved") \
+    X(B_FARM, "b_farm") X(B_ROBOTIC_FARM, "b_robotic_farm") X(B_GRANARY, "b_granary") X(B_GRANARY_IMPROVED, "b_granary_improved") \
     X(AMB_DEBRIS_1X, "amb_debris_1x") X(AMB_DEBRIS_2X, "amb_debris_2x") X(AMB_DEBRIS_3X, "amb_debris_3x") \
     X(AMB_DEBRIS_4X, "amb_debris_4x") \
     X(RES_FORAGE_BUSH, "res_forage_bush") X(RES_FISH, "res_fish") X(RES_TIGER, "res_tiger") X(RES_WOLF, "res_wolf") \
@@ -59,6 +59,11 @@
 #define UT_WALL_LINE UT_B_WALL_COPPER, UT_B_WALL_BRONZE, UT_B_WALL_MIDDLE, UT_B_WALL_IMPERIAL, UT_B_WALL_WW1, UT_B_WALL_DIGITAL
 #define UT_GATE_LINE UT_B_GATE_COPPER, UT_B_GATE_BRONZE, UT_B_GATE_MIDDLE, UT_B_GATE_IMPERIAL, UT_B_GATE_WW1, UT_B_GATE_DIGITAL
 #define UT_TOWNS UT_B_TOWN_CENTER, UT_B_CAPITOL, UT_B_SETTLEMENT   // the drop sites that are towns
+// THE FIELD LINE: the Farm, and Art of Conquest's Robotic Farm - in its Space Age the game lays up to 8 of them round
+// every granary laid, a granary's own (a Farm laid stays a Farm): fields to count, build and farm alike (Small Planets
+// 2026-11-23: the AIs counted 0 fields beside 3 to 5 Robotic Farms each, none farmed, and laid no more)
+#define UT_FIELDS UT_B_FARM, UT_B_ROBOTIC_FARM
+#define UT_FIELDS_N 2
 #define UT_ENUM(n, s) UT_##n,
 enum ut_name { UT_TYPES(UT_ENUM) UT_N };
 #undef UT_ENUM
@@ -76,6 +81,13 @@ internal int ut_in(int t, const enum ut_name *set, int n) {   // t one of the na
     return 0;
 }
 #define UT_IN(t, ...) ut_in((t), (const enum ut_name[]){ __VA_ARGS__ }, (int)(sizeof (const enum ut_name[]){ __VA_ARGS__ } / sizeof(enum ut_name)))
+internal int is_field_type(int t) { return UT_IN(t, UT_FIELDS); }   // THE FIELD LINE
+internal int field_type(int k) { static const enum ut_name f[UT_FIELDS_N] = { UT_FIELDS }; return k >= 0 && k < UT_FIELDS_N ? g_ut[f[k]] : UT_NONE; }   // its k-th (k < UT_FIELDS_N; UT_NONE: not in the data)
+internal int field_count(void *um) {   // the unit manager's fields of the line, going up too
+    int n = 0;
+    for (int k = 0; k < UT_FIELDS_N; k++) { uint8_t *q = type_list(um, field_type(k)); n += q ? (int)deque_count(q) : 0; }
+    return n;
+}
 
 // WHAT A TYPE IS, BY THE DATA: its family (+0x4C4, kind.<kind>: the armour and bonus class) and its class (+0x4B4: how
 // the engine runs it, class_id: CLS_LAND, CLS_LAND_CITIZEN, CLS_NAVAL_TRANSPORT ... - gen/enums.c), so a data mod's new tower, wall, ram or

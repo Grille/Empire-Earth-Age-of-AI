@@ -287,8 +287,7 @@ internal void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].home = home; g_czp[idx].slots = slots;
     // floors: food keeps FEED's gatherers and its fields + 2 (farmers), wood its late target (late_targets bit 1),
     // a metal its gatherers (nobody is pulled off a mine for food)
-    void *fq = type_list(um, UT(B_FARM));
-    int fields = fq ? deque_count(fq) : 0;
+    int fields = field_count(um);   // THE FIELD LINE
     int feed = plan & 2 ? cz_feed(pl, idx, goal - wf) : 0;
     g_czp[idx].feed = feed;
     int fl[7] = { 0, 0, 0, g_wood_want[idx] > 4 ? g_wood_want[idx] : 4, 0, 0, 0 };
@@ -459,8 +458,7 @@ internal void wf_targets(ee_resource_mgr *rm) {
     uint32_t *target = resource_mgr_target_at(rm);
     struct mf_st *m = &g_mf[idx];
     mf_scan(pl, idx, now);
-    void *fq = type_list(um, UT(B_FARM));
-    int fields = fq ? deque_count(fq) : 0, metal = 0, food = rm_count(rm, 2);
+    int fields = field_count(um), metal = 0, food = rm_count(rm, 2);
     for (int r = 4; r < 7; r++) metal += m->slots[r] > rm_count(rm, r) ? m->slots[r] : rm_count(rm, r);
     if (food < fields + 2) food = fields + 2;
     if (food < g_czp[idx].feed) food = g_czp[idx].feed;

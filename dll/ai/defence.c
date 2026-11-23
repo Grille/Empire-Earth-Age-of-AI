@@ -83,7 +83,7 @@ internal int can_place(ee_player *pl, int type, ivec2 p) {
     ivec2 q[6];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
-    if (!is_wall(type) && type != UT(B_FARM))   // not onto the strip of an Airport of its that is laid and not there yet
+    if (!is_wall(type) && !is_field_type(type))   // not onto the strip of an Airport of its that is laid and not there yet
         for (int k = 0; k < 6; k++) {
             if (!g_ap_pend[idx][k].t || now < g_ap_pend[idx][k].t || now - g_ap_pend[idx][k].t >= AP_PEND) continue;
             int m = ap_strip(g_ap_pend[idx][k].p, n, q);
@@ -124,7 +124,7 @@ internal int ground_keeps(int x, int y, int s) {
     if (hi - lo <= GROUND_LEVEL) return 1;
     for (struct grid_it it = grid_it_box(x + s / 2, y + s / 2, s + 8, 1); grid_it_next(&it); ) {
         int c = unit_type_get_class_id(it.td), t = unit_type_get_id(it.td);
-        if ((c != CLS_BUILDING && c != CLS_FORTRESS && c != CLS_GATE && c != CLS_NAVAL_BUILDING) || t == UT(B_FARM) || unit_get_hp(it.u) <= 0) continue;
+        if ((c != CLS_BUILDING && c != CLS_FORTRESS && c != CLS_GATE && c != CLS_NAVAL_BUILDING) || is_field_type(t) || unit_get_hp(it.u) <= 0) continue;
         int bx = unit_get_x(it.u), by = unit_get_y(it.u), bs = unit_type_get_size(it.td);
         if (bs < 1) bs = 1;
         if (bx <= x + s && x <= bx + bs && by <= y + s && y <= by + bs) return 0;   // a corner in common
@@ -135,7 +135,7 @@ internal int ground_keeps(int x, int y, int s) {
 // building of its own - a field lets everyone pass, a wall is meant to close (the ring has its own check)
 internal int can_place_open(ee_player *pl, int type, ivec2 p) {
     if (!can_place(pl, type, p)) return 0;
-    if (type == UT(B_FARM) || is_wall(type)) return 1;
+    if (is_field_type(type) || is_wall(type)) return 1;
     ee_unit_type *td = type_data(type);
     int sz = td ? unit_type_get_size(td) : 1;
     return (!g_ground_rule || ground_unlevelled(type) || ground_keeps(p.x, p.y, sz)) && tb_access_ok(pl, p.x, p.y, sz);
@@ -306,7 +306,7 @@ internal void encl_scan_unit(ee_unit *u, void *ctx) {   // own buildings and doc
             int sz = unit_type_get_size(td);
             s->bs[s->nb] = (uint8_t)(sz < 1 ? 1 : sz > 16 ? 16 : sz);
             s->btower[s->nb] = (uint8_t)is_tower_type(t);
-            s->bw[s->nb] = (uint8_t)(t == UT(B_HOUSE) || t == UT(B_FARM) ? 1 : 3);   // the town ring: what a side moves out for
+            s->bw[s->nb] = (uint8_t)(t == UT(B_HOUSE) || is_field_type(t) ? 1 : 3);   // the town ring: what a side moves out for
             s->b[s->nb++] = p;
         }
     } else if (player_get_index(o) > 0 && is_enemy(s->pl, o) && seen_by(u, s->pl)) {
