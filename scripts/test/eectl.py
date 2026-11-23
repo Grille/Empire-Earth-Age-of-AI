@@ -65,4 +65,8 @@ if __name__ == '__main__':
             sys.exit('no run named %s' % os.environ.get('RUN', ''))
         print('local/work/slot%s' % slot)
         sys.exit(0)
-    print(send(' '.join(sys.argv[1:]) or 'status'), end='')
+    cmd = ' '.join(sys.argv[1:]) or 'status'
+    # profile <ms> samples that long before it replies: the wait its length and the usual 20 s on top
+    words = cmd.split()
+    wait = 20.0 + (int(words[1]) / 1000.0 if words[0] == 'profile' and len(words) > 1 and words[1].isdigit() else 0.0)
+    print(send(cmd, reply_timeout=wait), end='')
