@@ -31,6 +31,12 @@ internal inline int mix_set_rate(uintptr_t base, uint32_t hz) { return patch_cod
 internal inline uint32_t mix_rate(uintptr_t base) { return *(uint32_t *)(base + value_engine_sound_rva_mix_rate); }
 
 // HOOKS
+// the music's folder (sound.c): the sound start's one call of SEConductor::SetMusicFolder -> h, and the original
+typedef int32_t (__thiscall *set_music_folder_fn)(void *conductor, const void *folder);
+internal inline int patch_set_music_folder(set_music_folder_fn h) {
+    return patch_import_call(data_engine_sound_call_set_music_folder, data_engine_sound_iat_set_music_folder, (void *)h);
+}
+internal inline int32_t set_music_folder(void *conductor, const void *folder) { return (*(set_music_folder_fn *)data_engine_sound_iat_set_music_folder)(conductor, folder); }
 // the sound manager (sound.c, through the exe's imports of Low-Level Engine: the slots checked against the exports)
 typedef uint32_t (__thiscall *snd_play_fn)(void *sm, uint32_t id, float vol, float pan, float pitch, int queue, void *name);
 internal inline int patch_snd_play(snd_play_fn h, snd_play_fn *orig) {

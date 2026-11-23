@@ -76,6 +76,18 @@ static unsafe class engine_sound
     [address((ee)0x00823AD4, (aoc)0x00837AC4)]
     static block iat_snd_setmaxch;
 
+    /// SEConductor::SetMusicFolder(const UWideString &) -> 0 (keseOK) or an error: none when the folder has no music
+    [import_slot("Low-Level Engine.dll", "?SetMusicFolder@SEConductor@@QAEJABVUWideString@@@Z")]
+    [address((ee)0x00823ADC, (aoc)0x00837ACC)]
+    static block iat_set_music_folder;
+
+    /// the sound's start's call of it (call [import]), an ESVerify of its result after it (Empire Earth.cpp line 1956
+    /// in AoC: the game stops at a breakpoint). The 2017 update hands it a folder of its own install; AoC "%s%s%s" of
+    /// the original game's registry values (HKCU\Software\SSSI\Empire Earth "Installed From Volume", "... Directory",
+    /// upper-cased) and "Data\Music\" - a stale install path there stopped AoC at its start
+    [address((ee)0x00538594, (aoc)0x005436F1)]
+    static code call_set_music_folder;
+
     /// Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each
     [value(0x52AC)]
     static uint32 rva_mix_channels;

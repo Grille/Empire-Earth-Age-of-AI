@@ -760,6 +760,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", "engine_sound.iat_snd_play");
     bad += spec_import(&data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z", "engine_sound.iat_snd_playref");
     bad += spec_import(&data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", "engine_sound.iat_snd_setmaxch");
+    bad += spec_import(&data_engine_sound_iat_set_music_folder, "Low-Level Engine.dll", "?SetMusicFolder@SEConductor@@QAEJABVUWideString@@@Z", "engine_sound.iat_set_music_folder");
     bad += spec_import(&data_game_iat_form_by_id, "Low-Level Engine.dll", "?GetFormByID@UIManager@@QBEPAVUIForm@@K@Z", "game.iat_form_by_id");
     bad += spec_import(&data_game_iat_cos, "Low-Level Engine.dll", "?UMCos@@YAMM@Z", "game.iat_cos");
     bad += spec_import(&data_game_iat_rand, "msvcrt.dll", "rand", "game.iat_rand");

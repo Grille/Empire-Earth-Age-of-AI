@@ -210,11 +210,38 @@ internal void mix_rate_loaded(uintptr_t base) {
     log_locked("# sound: mixed at %u Hz%s\n", now, ok || now == hz ? "" : " - NOT changed (set by another mod, or the mixer's code differs)");
 }
 
+// THE MUSIC'S FOLDER (a player's crash, 2026-11-23: Art of Conquest stopped at every start - "Empire Earth.cpp (1956) :
+// Verification failure (theResult == keseOK)", a breakpoint in Low-Level Engine's ESVerify). AoC plays the music of the
+// original game's install, the folder made of its registry values (engine_sound.call_set_music_folder), and stops when
+// SetMusicFolder finds nothing there: that PC's registry still named the folder the game had been installed to before
+// it was moved. So when the game's folder fails, the music of AoC's own (it ships Data\Music) or of the original game
+// beside it, the 2017 update's of its own; the game's assertion only when none has any.
+internal int32_t __thiscall hook_set_music_folder(void *conductor, const void *folder) {
+    int32_t r = set_music_folder(conductor, folder);
+    if (!r || !g_game_dir[0]) return r;
+    const char *was = wstring_text(folder);
+    static const char *const tries[] = { "Data\\Music\\", "..\\Empire Earth\\Data\\Music\\" };   // after g_game_dir (its backslash at the end)
+    for (size_t i = 0; i < sizeof tries / sizeof *tries; i++) {
+        char dir[MAX_PATH * 2];
+        snprintf(dir, sizeof dir, "%s%s", g_game_dir, tries[i]);
+        DWORD a = GetFileAttributesA(dir);
+        if (a == INVALID_FILE_ATTRIBUTES || !(a & FILE_ATTRIBUTE_DIRECTORY)) continue;
+        __attribute__((aligned(8))) uint8_t s[32];   // a UWideString, as the game's code gives it room
+        wstring_init_text(s, dir);
+        int32_t r2 = set_music_folder(conductor, s);
+        wstring_free(s);
+        if (g_log) fprintf(g_log, "# sound: the music's folder %s has none (error %ld) - %s: %s\n", was ? was : "?", (long)r, dir, r2 ? "none either" : "taken");
+        if (!r2) return 0;
+    }
+    return r;
+}
+
 internal void sound_install(void) {
     g_clamp_channels = g_set.sound_clamp_channels;
     g_sound_channels = g_set.sound_channels;
     int ok = patch_snd_set_max_channels(hook_set_max_channels, &g_set_max_ch);
-    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
+    ok += patch_set_music_folder(hook_set_music_folder);
+    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hooks %d/2)\n", g_clamp_channels, g_sound_channels, ok);
     if (g_set.sound_sample_rate && !on_module_load("Miles Sound System Mixer.dll", mix_rate_loaded))
         if (g_log) fprintf(g_log, "# sound: sample_rate - module loads not watchable, the mixer stays at 22050 Hz\n");
     // ageofai.ini [sound] sound_log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too

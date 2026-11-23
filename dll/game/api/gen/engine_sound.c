@@ -58,6 +58,13 @@ internal inline uint8_t *engine_sound_iat_snd_play_at(void) { return (uint8_t *)
 // SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL
 internal inline uint8_t *engine_sound_iat_snd_playref_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_playref; }
 internal inline uint8_t *engine_sound_iat_snd_setmaxch_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_setmaxch; }
+// SEConductor::SetMusicFolder(const UWideString &) -> 0 (keseOK) or an error: none when the folder has no music
+internal inline uint8_t *engine_sound_iat_set_music_folder_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_set_music_folder; }
+// the sound's start's call of it (call [import]), an ESVerify of its result after it (Empire Earth.cpp line 1956
+// in AoC: the game stops at a breakpoint). The 2017 update hands it a folder of its own install; AoC "%s%s%s" of
+// the original game's registry values (HKCU\Software\SSSI\Empire Earth "Installed From Volume", "... Directory",
+// upper-cased) and "Data\Music\" - a stale install path there stopped AoC at its start
+internal inline uint8_t *engine_sound_call_set_music_folder_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_call_set_music_folder; }
 // Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each
 // int: the most channels it gives
 // the output rate its startup opens the driver with: AIL_open_digital_driver(22050, 16 bits, 2 channels, 1)'s
@@ -84,6 +91,8 @@ internal int spec_engine_sound_select(int build) {
         data_engine_sound_iat_snd_play = 0x008232D0;
         data_engine_sound_iat_snd_playref = 0x008233EC;
         data_engine_sound_iat_snd_setmaxch = 0x00823AD4;
+        data_engine_sound_iat_set_music_folder = 0x00823ADC;
+        data_engine_sound_call_set_music_folder = 0x00538594;
         value_engine_sound_rva_mix_channels = 21164;
         value_engine_sound_rva_mix_max_channels = 21280;
         value_engine_sound_rva_mix_rate = 4706;
@@ -106,6 +115,8 @@ internal int spec_engine_sound_select(int build) {
         data_engine_sound_iat_snd_play = 0x008372CC;
         data_engine_sound_iat_snd_playref = 0x00837380;
         data_engine_sound_iat_snd_setmaxch = 0x00837AC4;
+        data_engine_sound_iat_set_music_folder = 0x00837ACC;
+        data_engine_sound_call_set_music_folder = 0x005436F1;
         value_engine_sound_rva_mix_channels = 21164;
         value_engine_sound_rva_mix_max_channels = 21280;
         value_engine_sound_rva_mix_rate = 4706;
@@ -121,5 +132,7 @@ internal int spec_engine_sound_check(void) {
     bad += spec_data(data_engine_sound_iat_snd_play, "engine_sound.iat_snd_play");
     bad += spec_data(data_engine_sound_iat_snd_playref, "engine_sound.iat_snd_playref");
     bad += spec_data(data_engine_sound_iat_snd_setmaxch, "engine_sound.iat_snd_setmaxch");
+    bad += spec_data(data_engine_sound_iat_set_music_folder, "engine_sound.iat_set_music_folder");
+    bad += spec_code(data_engine_sound_call_set_music_folder, "engine_sound.call_set_music_folder");
     return bad;
 }

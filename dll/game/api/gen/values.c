@@ -959,6 +959,8 @@ internal uint32_t of_sound_mgr_channels;
 internal uint32_t data_engine_sound_iat_snd_play;
 internal uint32_t data_engine_sound_iat_snd_playref;
 internal uint32_t data_engine_sound_iat_snd_setmaxch;
+internal uint32_t data_engine_sound_iat_set_music_folder;
+internal uint32_t data_engine_sound_call_set_music_folder;
 internal uint32_t value_engine_sound_rva_mix_channels;
 internal uint32_t value_engine_sound_rva_mix_max_channels;
 internal uint32_t value_engine_sound_rva_mix_rate;
