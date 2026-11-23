@@ -1427,11 +1427,20 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   corners' texture places, a face kind and a line across the tile. The face (kinds 1-6: texture x, y, 2x, 2x + 1, 2y
   or 2y + 1, of 8) hangs from that line 8 down, its lower edge jagged by a 16 x 16 table at 0x100D9760 (times 0.5),
   not on the map's left and right edges; its top at the height of the corner the line's points are cut down to (less
-  0.02 / 0.05) - on a slope off the tile's own surface (the own renderer: the surface's height there). A land corner
-  whose cell has a pattern tile among its 3 neighbours (0x10097F98) takes texture 12, at the tile's own places
-  (0 to 1 across it). No water, and the black round the map only behind it (the back edge and its two corners).
+  0.02 / 0.05) - on a slope off the tile's own surface, and from a low camera a slit under the ground into space
+  even on flat ground (the own renderer: the surface's height there, nothing less). A land corner whose cell has a
+  pattern tile among its 3 neighbours (0x10097F98) takes texture 12, at the tile's own places (0 to 1 across it) -
+  the engine asks for bits 1-4 alone, and a lake's shore keeps those after the map turns into a space map (below):
+  the own renderer asks for the space bit too. No water, and the black round the map only behind it (the back edge
+  and its two corners).
+- **Editing**: SetIsSpace (0x1002D2A6) sets or clears the bit, counts it and runs ComputeShorelines on the 3 x 3
+  round the tile alone - the first space tile turns the whole map into a space map, but every other tile keeps its
+  byte: the lakes' shores their bits 1-4 until something computes them again.
 - **The space textures**: SetSpaceCliffTextures, a vector at the mesh's +0x1955A4 (spec engine_display
-  of_mesh_space_cliffs): 0-7 faces, 8-11 edge patterns, 12 the land's edge. The display DLLs' Draw (DX7Rasterizer::
+  of_mesh_space_cliffs): 0-7 faces (textures\spacecliff_1-8), 8-11 edge patterns, 12 the land's edge
+  (textures\cliffedge_1-5; their clear texels black). Not there before the map is a space map: the exe's world draw
+  (0x50E8D1) loads them once (0x50EA27, the names at 0x8BE37C) and hands them over when the mesh is a space map with
+  NumSpaceCliffTextures 0 - in the frame after the editor's first space tile. The display DLLs' Draw (DX7Rasterizer::
   Draw) binds faces 1-8 of the material list first, then everything else; each SetTexture (0x1000BF2D) sets stage 0
   from the texture's own fields - the space textures POINT filtered (the ground's LINEAR), blocky up close in the game.
 - **The original game's install** (not space, but AoC's other dependency): AoC's data search path, music folder and

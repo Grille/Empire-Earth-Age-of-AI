@@ -354,8 +354,12 @@ internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     // The top of the face: the engine takes the height of the corner its point is cut off to (less 0.02 and 0.05), and on
     // a slope the face's edge stood above or below the edge's texture laid on the tile's own corners - gaps into space
     // and faces sticking up (the player, 2026-11-23: "the cliff where terrain goes into space doesnt connect to the
-    // terrain properly when there are elevation changes"). Here the height of that texture's triangles at the point
-    float pz = rg_tile_z(x, y, px, py) - 0.02f, qz = rg_tile_z(x, y, qx, qy) - 0.05f;
+    // terrain properly when there are elevation changes"). Here the height of that texture's triangles at the point -
+    // and not the 0.02 / 0.05 under it: from a camera low over the edge that was a slit under the ground between the
+    // edge's texture and the face, the space beyond seen through it (the player, the same day: "on flat ground the space
+    // cliffs arent closing fully"; the game's own drawing has it too). At the surface the face closes it; moving the
+    // line toward the land instead tore the faces apart at the corners
+    float pz = rg_tile_z(x, y, px, py), qz = rg_tile_z(x, y, qx, qy);
     float pb = pz - RG_CLIFF_DROP + k_rg_jag[pi % 16 * 16 + pj % 16] * 0.5f, qb = qz - RG_CLIFF_DROP + k_rg_jag[qi % 16 * 16 + qj % 16] * 0.5f;
     static const float u00[2] = { 0, 0 }, u10[2] = { 1, 0 }, u01[2] = { 0, 1 }, u11[2] = { 1, 1 };
     int a = 255 | 2 << 8;
@@ -366,7 +370,11 @@ internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     rg_vertex_at(&out[n].v[0], px, py, pb, pi, pj, u01, a); rg_vertex_at(&out[n].v[1], qx, qy, qz, qi, qj, u10, a); rg_vertex_at(&out[n].v[2], qx, qy, qb, qi, qj, u11, a);
     return n + 1;
 }
-// a land corner (D B A C) whose cell has a space tile at the edge beside it (the engine's table at 0x10097F98): texture 12, no set
+// a land corner (D B A C) whose cell has a space tile at the edge beside it (the engine's table at 0x10097F98): texture 12, no set.
+// The engine asks only for bits 1-4, but a land tile can still hold a shore's there: the editor's first space tile makes
+// the map a space map, and SetIsSpace (0x1002D2A6) runs ComputeShorelines - which clears a land tile's bits on a space
+// map - on the 3 x 3 round it alone, so every lake's shore further off kept its bits and was taken for space's edge (the
+// player, 2026-11-23: "when having water on a map and adding space for the first time all shores become space")
 internal void rg_space_corners(void **t, void **sets, unsigned long x, unsigned long y) {
     static const int cell[4][2] = { { 0, 0 }, { -1, 0 }, { -1, -1 }, { 0, -1 } };
     static const int nb[4][3][2] = { { { 0, 1 }, { 1, 1 }, { 1, 0 } }, { { 0, 1 }, { -1, 1 }, { -1, 0 } },
@@ -379,11 +387,18 @@ internal void rg_space_corners(void **t, void **sets, unsigned long x, unsigned 
         for (int j = 0; j < 3; j++) {
             long nx = (long)x + nb[k][j][0], ny = (long)y + nb[k][j][1];
             if (nx < 0 || ny < 0 || !g_rg.tile(g_rg.mesh, (unsigned long)nx, (unsigned long)ny)) continue;
-            if (g_rg.water_info(g_rg.mesh, (unsigned long)nx, (unsigned long)ny) & RG_SPACE_EDGE) { t[k] = edge; sets[k] = NULL; break; }
+            unsigned info = g_rg.water_info(g_rg.mesh, (unsigned long)nx, (unsigned long)ny);
+            if ((info & RG_SPACE) && (info & RG_SPACE_EDGE)) { t[k] = edge; sets[k] = NULL; break; }
         }
     }
 }
 internal int rg_space_map(const void *mesh) { return g_rg.is_space && g_rg.is_space(mesh); }
+// the ground drawn as a space map: one, and its space textures there. The game hands them to the mesh in its world's
+// draw (AoC 0x50E8D1: a space map with NumSpaceCliffTextures 0 - loaded once, then SetSpaceCliffTextures), at the first
+// frame after the first space tile; the whole ground made anew before that had no edges and no faces anywhere, until
+// a chunk was made again for something else (the player, 2026-11-23, space added in the editor: "the space cliffs
+// arent closing fully"). Until they are there it is drawn as before, then made anew
+internal int rg_space_drawn(const void *mesh) { return rg_space_map(mesh) && mesh_space_cliff(mesh, 12); }
 // a tile of space on a space map (collect_remains_physics.c A SPACESHIP'S WRECK: nothing holds a wreck there)
 internal int rg_space_tile(const void *mesh, int x, int y) {
     return g_rg.water_info && x >= 0 && y >= 0 && rg_space_map(mesh) && (g_rg.water_info(mesh, (unsigned long)x, (unsigned long)y) & RG_SPACE);
@@ -670,7 +685,7 @@ internal int rg_build(void) {
     g_rg_new_map = 0;
     rg_free();
     g_rg.map = map;
-    g_rg.space = rg_space_map(g_rg.mesh);
+    g_rg.space = rg_space_drawn(g_rg.mesh);
     g_rg.size = (int)map_get_size(map);
     g_rg.across = (g_rg.size + RG_CHUNK - 1) / RG_CHUNK;
     g_rg.tris = 0;
@@ -1116,7 +1131,7 @@ internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, i
     int r = 0;
     if (!rg_ready() || !rg_api()) r = (water ? g_rg.water : g_rg.draw)[i](ras, mesh, screen, flag);
     else {
-        if (g_rg.built && rg_space_map(mesh) != g_rg.space) g_rg_new_map = 1;   // the editor's first space tile, or its last gone: all of it anew
+        if (g_rg.built && rg_space_drawn(mesh) != g_rg.space) g_rg_new_map = 1;   // the editor's first space tile (its textures there), or its last gone: all of it anew
         g_rg.ras = ras; g_rg.mesh = mesh; g_rg.screen = screen; g_rg.dll = i; g_rg.flag = flag & 0xFF;
         RD_LOCK(); rg_draw_now(water, 0); RD_UNLOCK();
     }
