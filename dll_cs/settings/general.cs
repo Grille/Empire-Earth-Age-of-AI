@@ -169,9 +169,11 @@ class general
         /// Ship drift (with formation follow and ship collide): a ship of a marching fleet a little beside its place
         /// drifts sideways into it, slowly, its bow on the fleet's course - before, it steered at its place and back
         /// again for every small correction. Only within about its own length of its place and never onto ground it
-        /// can't enter; further off it turns and sails as before. 0 = it steers for every correction
-        [advanced]
-        bool ship_drift = false;
+        /// can't enter; further off it turns and sails as before. And a ship close to its spot, the spot beside or
+        /// behind it, slides there sideways or astern while it turns to its facing, instead of sailing round to it.
+        /// 0 = it steers for every correction and reaches a spot bow first only
+        [advanced, commented("0")]
+        bool ship_drift = true;
         /// Formations: a group sent somewhere takes up its formation (line, staggered, wedge, circle - as chosen) laid out
         /// by its units' own sizes around the clicked point, each unit keeping its place in the group (the front ones in front,
         /// the left ones left) - instead of the game's grid, spaced by the largest unit in only 5 columns behind the point, with
