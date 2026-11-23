@@ -159,6 +159,12 @@ class ai_base
         /// Citizens fight back: they attack the enemy citizens building a tower near them (any age) and, up to the Bronze Age,
         /// small groups attacking them - only when clearly stronger (3x hit points x attack). 1 = on
         bool citizen_militia = true;
+        /// The militia chases no one (citizen_militia): citizens already fighting an enemy count against the 3 that answer
+        /// it, it answers enemies by its own buildings only, and a citizen whose enemy soldier is 12 tiles off every
+        /// building of its own is called back to work - a lone scout walking through the town drew every gatherer after
+        /// it. 0 = off; on since 2026-11-23 (small Plains from the Copper Age, 6 games: citizens at 30 min 77 -> 83)
+        [advanced]
+        bool militia_no_chase = true;
         /// Experimental: the citizens decide with the fight estimate instead, in every age - as a fallback when no soldiers
         /// near would win, unguarded builders when they win, soldiers only when they win clearly or are caught by faster
         /// units and still win. 0 = off (default)

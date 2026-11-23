@@ -1674,6 +1674,16 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
         if (est) st_side_add(&g_mil_foe, t);
     }
     if (enemies > 6) return 0;
+    if (!animal && g_set_ai[1].militia_no_chase)   // NO CHASE: those on it already count - every 2 s three more went
+        for (int c = 0; c < s->nc; c++) {
+            ee_goal *g = s->civ[c] ? unit_get_goal(s->civ[c]) : NULL;
+            ee_unit *tt = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
+            if (!tt) continue;
+            int on = tt == t;
+            for (int k = 0; k < s->nu && !on; k++) on = s->eu[k] == tt && abs(unit_get_x(tt) - x) <= 6 && abs(unit_get_y(tt) - y) <= 6;
+            have += on;
+        }
+    if (ordered + have >= 3 * enemies) return 0;
     for (int c = 0, n = 0; c < s->nc && n < 3 * enemies; c++)
         if (s->civ[c] && abs(s->cx[c] - x) <= 10 && abs(s->cy[c] - y) <= 10) {
             cpow += unit_power(s->civ[c]); n++;
@@ -1804,8 +1814,39 @@ internal int build_held(ee_player *pl, ivec2 p) {
     return c->held;
 }
 
+// NO CHASE ([ai_base] militia_no_chase; the player 2026-11-23: "a scout comes over, and the citezens run away but than
+// just stand around since there is nothing else to do yet" - on small maps from the Copper Age; his way with raiders:
+// leaving ones are not chased). A lone Maceman of P3's walking through P2's town (Plains small, seed 1, minute 23):
+// militia_answer counted the citizens already on an animal only, so every 2 s three more left their work for the one
+// soldier - 37 of 45 gatherers chased it across the map, 16-22 walked back for 3 minutes, and again at 27. Now those on
+// it (or on an enemy within 6 tiles of it) count against the 3 an enemy, the militia answers only enemies within
+// MIL_LEASH tiles of a building of its own (its citizens near were enough: the next look called them off again, 27
+// times a minute), and a citizen whose enemy is farther than that from every building of its own is called off - to
+// its nearest drop site, as the safety sends citizens back; the work's look gives it work there (a halt in the middle
+// of the fight crashed the game's land movement: EEPMLand vf4, 0x54DBED, a target gone).
+// MEASURED 2026-11-23 (Plains small, 3 AIs, from the Copper Age, 30 min, seeds 1-6, off -> on, per AI): citizens at the
+// end 76.6 -> 83.2 (se 4.3 / 3.4), gatherer-minutes from minute 10 882.6 -> 906.3, the most citizens fighting at once
+// 12.1 -> 10.7, militia orders 31.5 -> 25.4, citizens hurt 6.4 -> 6.3, kills 3.2 -> 4.1, losses 3.8 -> 4.8. On: the
+// 3 an enemy was the militia's own rule, and no chase the player's.
+#define MIL_LEASH 12
+internal unsigned g_militia_leashed[16];
 internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t now) {
-    if (!g_militia || !s->nc || !s->nu) return;
+    if (!g_militia || !s->nc) return;
+    if (g_set_ai[1].militia_no_chase)
+        for (int c = 0; c < s->nc; c++) {
+            ee_unit *u = s->civ[c];
+            ee_goal *g = u ? unit_get_goal(u) : NULL;
+            ee_unit *t = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
+            ee_player *o = t ? unit_get_owner(t) : NULL;
+            if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(t) <= 0 || pc_held(u)) continue;   // nature's: the hunt's; the player's orders first
+            int tx = unit_get_x(t), ty = unit_get_y(t), close = 0;
+            for (int b = 0; b < s->nb && !close; b++) close = abs(s->bx[b] - tx) <= MIL_LEASH && abs(s->by[b] - ty) <= MIL_LEASH;
+            ivec2 d;
+            if (close || !nearest_drop(pl, unit_get_tile(u), 0, &d)) continue;
+            cl_end(u, CLW_MILITIA);
+            if (cl_take(u, CLP_TASK, CLW_SAFETY, CL_CIT_T) && unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) g_militia_leashed[idx]++;   // home, as the safety sends them (a halt in the fight crashed the game's land movement, 0x54DBED)
+        }
+    if (!s->nu) return;
     int early = g_militia_est || current_epoch(pl) <= 3, nfree = s->nc, total = 0, targets = 0;
     char what[160] = "";
     for (int k = 0; k < s->nu && nfree > 2; k++) {
@@ -1821,9 +1862,9 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
         } else if (early && goal_is_attack(g) && (t = goal_get_target(g)) && unit_get_owner(t) == pl)
             why = 2;   // attacking one of ours
         if (!why) continue;
-        int close = 0;
-        for (int b = 0; why == 1 && b < s->nb && !close; b++) close = abs(s->bx[b] - x) <= 12 && abs(s->by[b] - y) <= 12;
-        for (int c = 0; c < s->nc && !close; c++) close = abs(s->cx[c] - x) <= (why == 1 ? 12 : 10) && abs(s->cy[c] - y) <= (why == 1 ? 12 : 10);
+        int close = 0, nc = g_set_ai[1].militia_no_chase;
+        for (int b = 0; (why == 1 || nc) && b < s->nb && !close; b++) close = abs(s->bx[b] - x) <= (nc ? MIL_LEASH : 12) && abs(s->by[b] - y) <= (nc ? MIL_LEASH : 12);
+        for (int c = 0; !nc && c < s->nc && !close; c++) close = abs(s->cx[c] - x) <= (why == 1 ? 12 : 10) && abs(s->cy[c] - y) <= (why == 1 ? 12 : 10);   // NO CHASE: by its buildings only
         if (!close) continue;
         int n = militia_answer(s, e, &nfree);
         if (n) {
@@ -1836,7 +1877,7 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
     }
     if (!total) return;
     g_militia_orders[idx] += (unsigned)total;
-    if (g_log) fprintf(g_log, "# militia: P%u at %.1f min: %d citizens against %d enemies:%s (caught so far %u)\n", idx, now / 60000.0, total, targets, what, g_militia_caught[idx]);
+    if (g_log) fprintf(g_log, "# militia: P%u at %.1f min: %d citizens against %d enemies:%s (caught so far %u, called off a chase so far %u)\n", idx, now / 60000.0, total, targets, what, g_militia_caught[idx], g_militia_leashed[idx]);
 }
 internal void counter_fire(ee_player *pl, unsigned idx, uint32_t now);   // counterfire.c: shooters out of reach
 internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
