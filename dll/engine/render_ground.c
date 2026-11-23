@@ -799,8 +799,23 @@ internal int rg_build(void) {
                g_rg.across * g_rg.across, g_rg.tris, g_rg.nmat, (double)(rd_qpc() - t0) / (double)rd_qpc_ms(1));
     return 1;
 }
-// the cells' sight into the texture when it changed: 0, 1 or 2 and more as 0, a half, all
+// the cells' sight into the texture when it changed: 0, 1 or 2 and more as 0, a half, all. Only after a write to the world
+// has ended since the last look (render_3d.c g_rwl_writes: sight changes inside one; every frame until the world's lock is
+// known, before which none is counted) or the game's time has moved on (a step), or a second on: zoomed out over a 1024 map the whole map's million cells were
+// read, cleared and compared every frame (the player's planets, 2026-11-23). A frame while a step writes keeps the sight
+// from before it instead of a half-counted one.
+#define RG_FOW_MOST_MS 1000
 internal void rg_fow(void) {
+    static LONG seen;
+    static LONGLONG at;
+    static float seen_ms;
+    static int seen_ok;
+    LONG writes = g_rwl_writes;
+    LONGLONG now = rd_qpc();
+    ee_physics *ph = game_physics();
+    float clock = ph ? physics_get_time_ms(ph) : -1.0f;
+    if (g_rwl_writes_on && seen_ok && writes == seen && clock == seen_ms && !g_rg.fow_was[(size_t)g_rg.size * g_rg.size] && now - at < rd_qpc_ms(RG_FOW_MOST_MS)) return;
+    seen = writes, seen_ms = clock, at = now, seen_ok = 1;
     ee_map *map = g_rg.map;
     uint8_t *o = g_rg.fow_now;
     memset(o, 0, (size_t)g_rg.size * g_rg.size);

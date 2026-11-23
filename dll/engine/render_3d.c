@@ -642,6 +642,8 @@ internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_oit.c"       // what is half see-through, blended in no order ([display] unit_transparency)
 #include "render_water.c"     // the water by its depth, its reflections ([display] water_look, water_reflections)
 #include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
+internal volatile LONG g_rwl_writes;   // writes to the world ended, any holder's (rd_hook_write_unlock): its readers tell a change
+internal volatile int g_rwl_writes_on;   // ... counted: the world's lock known (the frame's first wait for it)
 #include "render_ground.c"    // the ground from the map itself, on the GPU (the own renderer's only ground)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
 
@@ -1084,7 +1086,7 @@ internal void __thiscall rd_hook_read_lock(void *lock) {
     g_rwl_wait_qpc += w;
     if (w >= rd_qpc_ms(RWL_LONG_MS)) g_rwl_waits_long++;
     if (w > g_rwl_wait_max) g_rwl_wait_max = w;
-    if (w > 0 && !g_rwl_world) g_rwl_world = lock;
+    if (w > 0 && !g_rwl_world) g_rwl_world = lock, g_rwl_writes_on = 1;
 }
 // The hand-off (the frame during a step, below): a frame that found a step under way leaves g_rwl_want, and the
 // simulation's next write lock waits for the update that reads the step's result (g_rwl_taken, set after it) - at
@@ -1173,6 +1175,7 @@ internal void rd_draw_out(int world) {   // RO_DRAW's end: out of the counts rd_
 }
 internal void collect_copy_written(uintptr_t ret);   // collect_copy.c: the units' copy of the world at a write's end
 internal void __thiscall rd_hook_write_unlock(void *lock) {
+    if (lock == g_rwl_world) InterlockedIncrement(&g_rwl_writes);
     if (lock == g_rwl_world && g_rwl_counted) collect_copy_written(g_rwl_write_ret);
     if (lock == g_rwl_world && g_rwl_counted) {
         g_rwl_counted = 0;
