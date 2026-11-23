@@ -1450,8 +1450,62 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   from the texture's own fields - the space textures POINT filtered (the ground's LINEAR), blocky up close in the game.
 - **The original game's install** (not space, but AoC's other dependency): AoC's data search path, music folder and
   "needs the original game" check come from the 2017 update's registry values - engine/data_order.c.
+- **The tile kind** (2026-11-23, the exe): kind 12 is space - EETile vf5 (0x5214BF) calls the mesh's SetIsSpace(x, y,
+  kind == 12) (its only call, 0x521502); then the 2017 update's rule (0x516E8C): a tile under the water level becomes
+  kind 1 or 10 whatever it was given, so space painted over low ground is sea to the simulation. "A space map" in
+  the exe: the map's +0x18F4A0 (the mesh's count) not 0 (0x50E94A).
+- **The areas** (the continent manager, EEAIPathArea 0x8C bytes, vtable 0x839FAC): region() 0x422B86 (EE 0x425F9F)
+  knows four kinds - 1 water (+0x86; EE +0x84), 2 land (+0x88; EE +0x86), 3 space (+0x8A, new), 4 planet (+0x84,
+  new); the 2017 update answers 0 for any but 1 and 2 (the mod's map_area(p, 1) / (p, 2) mean the same in both). The
+  build 0x424A24: the sectors (0x4208CC), then 0x4204EA(map, mode) for modes 1-4 (EE 0x427D42: 0x423E3F for 1 and 2).
+  Seeds: water kinds 1 and 10; land any but 1 and 12 (cliffs 9 and shallows 10 seed land); space kind 12; planet
+  any but 12, the map's diamond edge out. The spread (AoC 0x4176C7, EE 0x41B627): land over tiles not 1, 9, 12 or the
+  edge and free of a blocking object; a planet over all but 12 and the edge (land, water and cliffs bounded by
+  space); water over 1 and 10 and through Docks (36) and Navy Yards (65); space over 12 and through the Space Dock
+  728, the Space Turret 770 and the Orbital Space Station 799. Region counts on the manager, likely: +0x128 water,
+  +0x124 land, +0x12C space, +0x130 planet (EE +0x118 water, +0x114 land). The sector's class byte (+0x11A, id
+  +0x11C): AoC 1 land, 2 water, 3 cliff, 4 space, 5 the edge; EE 1 land, 2 water, 4 the edge (a cliff is given 9 and
+  never matches its own case 3).
+- **Movement**: the physics models are singletons at 0x931D58 + 4i (made at 0x5543B7): ... 4 naval, 5 submerged, ...
+  11 EEPMSpaceship (vtable 0x8423A8). Classes: 31 spaceship (EEUCSpaceship 0x847ED4) and 32 (EEUCSpaceBuilding
+  0x847CDC - the Space Carrier, a ship: the spec's name "space_building" misleads, as class 21's carriers) move with
+  it; 33 (EEUCSpaceTransport 0x847DC8) with the transport's constructor and model 11; 34 (EEUCPlanetSpaceship
+  0x847BF4 - the Space Fighter) with the airplane's. The step test of both EEPMSpaceship vf22 0x55F21D and EEPMNaval
+  vf22 0x55CC7F: 0x634AD8(unit, kind) - the type's table +0x2D2[kind] (a unit: that bit of its player's stats +0x160,
+  built from the type's at 0x63B891). From the data (dbobjects.dat raw: records of 1960 bytes, id +0x74, class +0x120,
+  the terrain bytes from +0x2DC): ships, Docks and Navy Yards kinds 1 and 10 only - no ship enters space; the Capital
+  Ship 730, Space Corvette 757, Capital Ship Yamato 828 (31), Space Carrier 755 (32), Space Transport 756 (33) kind
+  12 only - none enters water or land; the Space Fighter 758 (34) kinds 0-12, the Planetary Fighter 816 (class 3) too;
+  the Colony Ship 847 (class 17, a helicopter transport) 0-11 and 14, no space; the Spy Satellite 735 (7) all.
+  Reachability: GetCanPath 0x421FFF (its string at 0x8B6F58) - type +0x2D0 bit 2 (ship) the water regions, bit 3
+  without 2 the space regions, class 34 always; on a space map an aircraft (bit 0) or the Airport (66) that can't
+  enter kind 12 the planet regions (its planet cached at unit +0x35C, 0x63D5FB; a move's spot search 0x6216xx alike).
+- **The Space Dock** (728, class 2; terrain 0, 2-8, 11, 12: land and space): the preview 0x603DD6 sends 36 / 65 to the
+  shore check 0x603A8C, 728 / 770 / 799 to 0x60370A; for 728 0x63D1F1 wants its footprint part land, part space (3 + 1
+  or 1 + 3 of its inner tiles, 2 + 2 refused, a further test 0x63D4BA <= 4 not decoded), every ring tile on the map;
+  0x63D008 turns it to its space side; the game AI's site search 0x468C90 asks 0x63D1F1 too. The Space Turret 770
+  and the Orbital Space Station 799 stand on space (12 only) with 2 land tiles in their ring at least. What trains the
+  spaceships: not confirmed from the data (the Space Dock by name).
+- **Space transports** unload as ships do: EEUCSpaceTransport vf62 0x61A8AA is EEUCNavalTransport vf62 0x618C48 with
+  the sector class 4 for 2 - a drop tile not 1, 9 or 12 (shallows 10 do), its land sector beside the transport's space
+  sector (the adjacency table 0x930CEC, rows 0x930D30 long).
+- **Water and space on one map**: nothing in the simulation switches water off on a space map - the kinds come from
+  the heights, the water fill seeds 1 and 10 on any map, ships move on them, docks find their shore, naval transports
+  unload by water sectors and space transports by space ones. Only the mesh's drawing loses the water (the own
+  renderer draws both). The one space-map switch of movement: aircraft that can't fly over space stay on their
+  planet.
+- **The game's AI** (a hint only): EECPASGSpaceship (0x83B3F4) is EECPASGSea with 8 slots its own,
+  EECPASGSpaceTransport EECPASGSeaTransport alike, EECPASGSpaceFighter the Spaceship's slots; vf60 0x44FABF takes a
+  waypoint whose sector is space; the route through EEAIGPGModifierSpaceRoutePlanner (0x839CE0). Likely a bug of AoC's:
+  vf50 0x44F5B7 (the target reachable) compares region(target, 1) with region(first member, 3) - a water id with a
+  space id (the pushes 1 and 3 in the machine code; Sea's 0x44DF9A 1 and 1). 0x46F7B8 counts Docks, Airports and
+  Space Docks.
+- **The types' table** is 0x367 long in AoC (0x300 in the 2017 update; the same loops: EE 0x4B7..., AoC 0x4C1...): the
+  space units and the rest of AoC's new types from 768 on (the Space Turret 770, the Orbital Space Station 799, the
+  Yamato 828, the Colony Ship 847 ...) - spec game.types_count.
 - Not looked at: the editor's space painting (only its effect, SetIsSpace and ComputeShorelines, is above), what
-  places space on a random map (the Planets scripts' kWaterBorder), units and movement over space tiles.
+  places space on a random map (the Planets scripts' kWaterBorder), what height space tiles get, the Space Dock's
+  train list, the 0x63D4BA test, the other writers of a player's stats +0x160.
 
 ### Civilization powers (AoC; 2026-11-23)
 
