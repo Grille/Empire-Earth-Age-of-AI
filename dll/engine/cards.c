@@ -108,10 +108,12 @@ internal int __thiscall cards_draw_text(ee_icon_bar *bar) {
         // drop shadow"): a solid black shadow up to 2 pixels down and right (the number at six offsets - one at 1 and 2
         // alone left a hairline), the white number on it (GDI draws at once)
         static const float k_shadow[][2] = { { 2, 2 }, { 1, 2 }, { 2, 1 }, { 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } };
-        float y = top + (icon_bar_get_screen_bottom(bar) - top) * 0.2f;
+        // from the left an eighth of a digit (about half the font's height wide) inside the card's frame (3 pixels of a
+        // 50-pixel card, 0.06 of its width; the player, 2026-11-24: "give the number an 1/8 char margin from the left")
+        float y = top + (icon_bar_get_screen_bottom(bar) - top) * 0.2f, x0 = x + iw * 0.06f + (float)fh * 0.5f / 8.0f;
         for (int pass = 0; pass < (int)(sizeof k_shadow / sizeof k_shadow[0]); pass++) {
             float v = k_shadow[pass][0] || k_shadow[pass][1] ? 0.0f : 1.0f;
-            text_set_x(t, x + 2.0f + k_shadow[pass][0]);
+            text_set_x(t, x0 + k_shadow[pass][0]);
             text_set_y(t, y + k_shadow[pass][1]);
             text_set_red(t, v);
             text_set_green(t, v);
