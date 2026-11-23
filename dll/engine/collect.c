@@ -1111,6 +1111,34 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
 // game makes a physical model on its stack it never uses: left out.) dry: 1 only the record (the check), 2 for the trees'
 // own list (render_units.c: the ambient sounds' and the picker's entries, no user of its graphics taken - the list holds
 // one -, in no sort map)
+// The trees' sway and turn, kept: a tree's sway is UMCos of its tilt less its angle (the clock and its id, a whole degree
+// of 360), its picker's transformation turned to the camera's yaw - the same answers for every tree, asked of the engine
+// for each: zoomed out over a 1024 map's forests (15 500 trees, the player's planets, 2026-11-23) UMCos alone was 4 % of
+// the render thread. The engine's answers kept by their argument's bits, so each is the engine's own.
+#define UC_COS_SLOTS 1024
+internal long double uc_cos(float x) {
+    static struct { uint32_t b, ok; long double v; } e[UC_COS_SLOTS];
+    uint32_t b;
+    memcpy(&b, &x, 4);
+    uint32_t h = (b * 2654435761u) >> 22;
+    if (e[h].ok && e[h].b == b) return e[h].v;
+    long double v = game_cos_fpu(x);
+    e[h].b = b, e[h].ok = 1, e[h].v = v;
+    return v;
+}
+// t turned to yaw (no pitch or roll) as GETransformation::SetOrientationYPR turns it, from the last such turn's answer
+internal void uc_orient_yaw(float *t, float yaw) {
+    static __attribute__((aligned(8))) float keep[16];
+    static uint32_t kb, ok;
+    uint32_t b;
+    memcpy(&b, &yaw, 4);
+    if (!ok || b != kb) {
+        memcpy(keep, t, sizeof keep);
+        transform_orient(keep, yaw, 0.0f, 0.0f);
+        kb = b, ok = 1;
+    }
+    memcpy(t, keep, sizeof keep);
+}
 internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *info, int dry) {
     opacity_consts oc = opacity_consts_now();
     tree_consts tc = tree_consts_now();
@@ -1124,7 +1152,7 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
     pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + o->y);
     pos[2] = uc_tree_z(map_mesh_at(map), map_get_size(map), o->x, o->y, pos[0], pos[1]);
     __attribute__((aligned(8))) float t[16];
-    transform_orient(t, info->yaw, 0.0f, 0.0f);
+    uc_orient_yaw(t, info->yaw);
     transform_set_position(t, pos[0], pos[1], pos[2]);
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
     if (dry != 1 && info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), o->u);
@@ -1149,7 +1177,7 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
         draw_small_record_set_frame(rec, draw_small_record_get_frame(rec) + 1);
         int a = (int)((tc.clock + (uint32_t)id * 8) % 360) - 180;
         float arg = (float)((long double)fc.tilt_offset - (long double)a * tc.sway_step);
-        long double s = (game_cos_fpu(arg) + oc.one) * oc.half;
+        long double s = (uc_cos(arg) + oc.one) * oc.half;
         if (!(s >= oc.zero)) s = 0;
         else if (s > oc.one) s = 1;
         draw_small_record_set_sway(rec, (float)s);
@@ -1299,7 +1327,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
     pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + x);
     pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + y);
     pos[2] = uc_tree_z(map_mesh_at(map), map_get_size(map), x, y, pos[0], pos[1]);
-    transform_orient(t, info->yaw, 0.0f, 0.0f);
+    uc_orient_yaw(t, info->yaw);
     t[3] = pos[0], t[7] = pos[1], t[11] = pos[2];
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
     int drawn = *count < room && (dry == 2 || uc_dopp_view(p, pm, t, h, 3));
@@ -1322,7 +1350,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
             draw_small_record_set_frame(rec, f + 1);
             int a = (int)((tc.clock + (uint32_t)id * 8) % 360) - 180;
             float arg = (float)((long double)fc.tilt_offset - (long double)a * tc.sway_step);
-            long double s = (game_cos_fpu(arg) + oc.one) * oc.half;
+            long double s = (uc_cos(arg) + oc.one) * oc.half;
             if (!(s >= oc.zero)) s = 0;
             else if (s > oc.one) s = 1;
             draw_small_record_set_sway(rec, (float)s);
