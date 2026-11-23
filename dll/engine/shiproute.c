@@ -927,6 +927,80 @@ internal void st_stamp_step(void) {
     if (step != last || g_sr.gen == 0) { sr_stamp(); last = step; }
 }
 
+// SETTLING (`ship_drift`, its second part; the player, 2026-11-23: "giving ships the ability to slowly move sideways
+// or backwards ... real ships don't have to turn for such small corrections"): the game's ship reaches its spot bow
+// first only - the spot beside or behind it within its turning circle, it sails off and round to it, or circles it.
+// On its last waypoint with no move queued after it, within ST_SETTLE_LEN of its length of it (its turning radius
+// when that is more, ST_SETTLE_MAX tiles at most) and the spot not ahead of its bow (beyond ST_SETTLE_AHEAD's cosine),
+// a ship slides to it instead: its way there at ST_SETTLE_GAIN of the distance a second, no faster than
+// ST_SETTLE_TOP of its top speed - the part along its bow its speed (hook_ship_speed_step), the rest, sideways and
+// astern, a push in its collision step (collide.c) - while it turns to the facing of its goal (none: it keeps its
+// heading). Not onto a tile it may not enter, nor with its hull against one. The arrival is the game's (on the spot's tile, within its size).
+#define ST_SETTLE_LEN 1.5f
+#define ST_SETTLE_MAX 3.0f
+#define ST_SETTLE_AHEAD 0.9f
+#define ST_SETTLE_GAIN 0.6f
+#define ST_SETTLE_TOP 0.4f
+#define ST_SET_UNITS 256
+internal struct { uint32_t id, step; float fwd; vec2 push; } g_st_set[ST_SET_UNITS];   // by serial: the ship settling this step
+internal unsigned g_st_settled;          // ticks a ship slid to its spot
+internal vec2 fo_dir(float a);           // groupmove.c
+internal ee_goal *st_pass_through(ee_unit *u, float *onward);
+internal void st_stamp_step(void);
+// u settles this step: 1, *face the way it turns to - its speed along its bow and its push kept for the step's other hooks
+internal int st_settle(ee_unit *u, const float *pos, vec2 *face) {
+    ee_goal *g = unit_get_goal(u);
+    ee_physics *ph = game_physics();
+    float wp[3], onward[3], w = unit_max_turn(u), top = unit_max_speed(u);
+    if (!g_set.ship_drift || !ph || !g || !goal_is_location(g) || unit_get_waypoints_left(u) != 1 || w <= 0 || st_pass_through(u, onward) || unit_waypoint(u, wp)) return 0;
+    vec3 f = unit_get_facing(u);
+    float fl = sqrtf(f.x * f.x + f.y * f.y), dx = wp[0] - pos[0], dy = wp[1] - pos[1], dist = sqrtf(dx * dx + dy * dy), reach = ST_SETTLE_LEN * unit_get_size(u);
+    if (reach < top / w) reach = top / w;
+    if (reach > ST_SETTLE_MAX) reach = ST_SETTLE_MAX;
+    if (fl <= 0 || dist < 0.02f || dist > reach) return 0;
+    vec2 bow = v2(f.x / fl, f.y / fl), to = v2(dx / dist, dy / dist);
+    if (vec2_dot(bow, to) > ST_SETTLE_AHEAD) return 0;   // ahead of its bow: it sails there
+    float v = ST_SETTLE_GAIN * dist + 0.03f, along = vec2_dot(bow, to);
+    if (v > ST_SETTLE_TOP * top) v = ST_SETTLE_TOP * top;
+    float fwd = along > 0 ? v * along : 0;
+    vec2 push = vec2_sub(vec2_scale(to, v), vec2_scale(bow, fwd));
+    float pl = vec2_len(push);
+    ee_map *map = game_map();
+    ee_unit_type *td = unit_get_type_data(u);
+    int size = map ? (int)map_get_size(map) : 0;
+    if (pl > 0.001f) {   // the water it is pushed over: a tile it may enter
+        if (!td || size <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
+        st_stamp_step();
+        float look = dist < 0.7f ? dist : 0.7f;
+        float hull = unit_get_size(u) * 0.5f + 0.5f;   // and room for its hull that side
+        if (!sr_pass(map, u, td, size, (int)floorf(pos[0] + push.x / pl * look), (int)floorf(pos[1] + push.y / pl * look)) || !sr_pass(map, u, td, size, (int)floorf(pos[0] + push.x / pl * hull), (int)floorf(pos[1] + push.y / pl * hull))) return 0;
+    }
+    float yaw = location_goal_get_yaw((ee_location_goal *)g);
+    *face = bow;
+    if (yaw != 0) {   // the goal's facing (-sin, cos of the game's angle: groupmove.c ff_resume)
+        float ang = yaw + 1.5707963f;
+        while (ang < 0) ang += 6.2831853f;
+        while (ang >= 6.2831853f) ang -= 6.2831853f;
+        *face = fo_dir(ang);
+    }
+    uint32_t id = (uint32_t)unit_get_serial(u);
+    g_st_set[id % ST_SET_UNITS].id = id;
+    g_st_set[id % ST_SET_UNITS].step = physics_get_steps(ph);
+    g_st_set[id % ST_SET_UNITS].fwd = fwd;
+    g_st_set[id % ST_SET_UNITS].push = push;
+    g_st_settled++;
+    return 1;
+}
+// u's settling of this step (st_settle, at its turn): 1, its speed along its bow and its push (tiles a second)
+internal int st_settling(ee_unit *u, float *fwd, vec2 *push) {
+    ee_physics *ph = game_physics();
+    uint32_t id = u ? (uint32_t)unit_get_serial(u) : 0;
+    if (!g_set.ship_drift || !ph || !u || g_st_set[id % ST_SET_UNITS].id != id || physics_get_steps(ph) - g_st_set[id % ST_SET_UNITS].step > 1) return 0;
+    if (fwd) *fwd = g_st_set[id % ST_SET_UNITS].fwd;
+    if (push) *push = g_st_set[id % ST_SET_UNITS].push;
+    return 1;
+}
+
 // per ship the distance its point was last at (by serial, a small open table: a ship not found takes the slot over)
 #define ST_MEM_UNITS 1024
 #define ST_GROW 1.05f                   // the point goes out by this a tick
@@ -934,7 +1008,7 @@ internal void st_stamp_step(void) {
 #define ST_AIM_MARGIN 0.1f              // tiles: the line to the point (the movement tests only the tile under the centre)
 internal struct { uint32_t id; float reach; } g_st_mem[ST_MEM_UNITS];
 // a new game starts the table empty: it steers the simulation, so every PC of a game must start alike
-internal void shipturns_new_game(void) { memset(g_st_mem, 0, sizeof g_st_mem); }
+internal void shipturns_new_game(void) { memset(g_st_mem, 0, sizeof g_st_mem); memset(g_st_set, 0, sizeof g_st_set); }
 
 internal float *st_unit_mem(ee_unit *u) {
     uint32_t id = unit_get_serial(u), h = (id * 2654435761u) % ST_MEM_UNITS;
@@ -1026,6 +1100,12 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
         return;
     }
     if (u == g_st_aim_unit) g_st_aim_unit = NULL;
+    vec2 face;
+    if (!facing && u && model_kind(model) != MODEL_LAND && st_settle(u, pos, &face)) {   // sliding to its spot: it turns to its facing there
+        aim[0] = pos[0] + face.x * 10; aim[1] = pos[1] + face.y * 10; aim[2] = pos[2];
+        physics_model_turn_towards(model, u, pos, aim, left, rate, heading, facing);
+        return;
+    }
     ee_map *map = game_map();
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     int size = map ? (int)map_get_size(map) : 0, wps = u ? unit_get_waypoints_left(u) : 0;
@@ -1076,7 +1156,13 @@ internal float __thiscall hook_ship_speed_step(void *model, ee_unit *u, float di
         dist += sqrtf((t[0] - wp[0]) * (t[0] - wp[0]) + (t[1] - wp[1]) * (t[1] - wp[1]));
         g_st_passing++;
     }
-    return ff_speed(u, physics_model_speed_step(model, u, dist, angle), angle);
+    float sp = ff_speed(u, physics_model_speed_step(model, u, dist, angle), angle), fwd;
+    if (st_settling(u, &fwd, NULL)) {   // sliding to its spot: along its bow no faster than its way there's part, by its acceleration
+        ee_physics *ph = game_physics();
+        float v = unit_get_speed(u), acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
+        return v < fwd ? (v + acc < fwd ? v + acc : fwd) : (v - acc > fwd ? v - acc : fwd);
+    }
+    return sp;
 }
 
 internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {

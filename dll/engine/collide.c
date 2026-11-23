@@ -260,6 +260,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
 }
 
 internal int ff_drift(ee_unit *u, vec2 *v);   // groupmove.c
+internal int st_settling(ee_unit *u, float *fwd, vec2 *push);   // shiproute.c
 internal void __thiscall hook_collide(void *model, ee_unit *u) {
     int kind = model_kind(model);
     if (!u || !g_uc_on[kind]) { eepm_land_collide(model, u); return; }
@@ -281,6 +282,11 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
             g_uc_rest++;
             uc_push_quiet(model, u);
         }
+        vec2 slide;
+        if (kind != MODEL_LAND && st_settling(u, NULL, &slide)) {   // ship_drift: sliding to its spot with no way on
+            unit_set_push(u, vec2_add(unit_get_push(u), slide));
+            uc_push_quiet(model, u);
+        }
         return;
     }
     g_uc_steps++;
@@ -288,6 +294,7 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
     uc_separate(kind, u, 0);
     vec2 drift;
     if (kind != MODEL_LAND && ff_drift(u, &drift)) unit_set_push(u, vec2_add(unit_get_push(u), drift));   // ship_drift: sideways into its place in its fleet
+    else if (kind != MODEL_LAND && st_settling(u, NULL, &drift)) unit_set_push(u, vec2_add(unit_get_push(u), drift));   // ... or sliding to its spot
     model_push(model, u);
 }
 

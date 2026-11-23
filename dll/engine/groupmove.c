@@ -2317,7 +2317,8 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
             if (td && size > 0 && sr_alloc((uint32_t)(size * size))) {
                 st_stamp_step();
                 vec2 on = vec2_sub(at, vec2_scale(beside, fade));   // and steers the formation's way from where it is: the drift closes what is left
-                if (sr_pass(map, u, td, size, (int)floorf(dest.x), (int)floorf(dest.y)) && sr_pass(map, u, td, size, (int)floorf(on.x), (int)floorf(on.y)) && sr_clear(map, u, td, size, pos[0], pos[1], on.x, on.y)) {
+                vec2 hull = vec2_add(v2(pos[0], pos[1]), vec2_scale(ld, unit_get_size(u) * 0.5f + 1.0f));   // room for its hull that side: drifted to the shore's edge it lost its clear line, took its own route and was given up on there
+                if (sr_pass(map, u, td, size, (int)floorf(dest.x), (int)floorf(dest.y)) && sr_pass(map, u, td, size, (int)floorf(hull.x), (int)floorf(hull.y)) && sr_pass(map, u, td, size, (int)floorf(on.x), (int)floorf(on.y)) && sr_clear(map, u, td, size, pos[0], pos[1], on.x, on.y)) {
                     e->drift = vec2_scale(ld, v);
                     at = on;
                 }
