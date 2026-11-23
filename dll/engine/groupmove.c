@@ -2216,8 +2216,13 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // the speed that brings it to the mouth as its place gets there (ff_speed) - nobody stands, nobody overtakes
     // A column's unit far behind its place (held up: its place gone on round a bend, out of its clear line - it took
     // its own route, out of the column's order) walks along the line in its file the same way, at its catch-up speed
+    // Ships too (the player, 2026-11-23, stuckships.scn: "many ships will swim on the spot for a few seconds throughout
+    // the travel"): a fleet narrows for a strait as a land formation does, and without the merge every ship ahead of
+    // its new place in the column - most of the fleet, the column 37 tiles deep - stood till its place came by: 25
+    // ships to a point beyond a strait stood 350 s together on the way in fleet-wide halts of 9 s (sent back from the
+    // packed formation 13-27 s each at the start), with the merge 70 s, the last ship in as before (177 s against 175)
     float lead = e->prog - off.y, merge_d = 0, merge_aside = 0;
-    if (gr->cols && !gr->naval && gr->in_place != 2 && (lead > FF_MERGE_MIN || lead < -FF_LAG_LINE)) {
+    if (gr->cols && gr->in_place != 2 && (lead > FF_MERGE_MIN || lead < -FF_LAG_LINE)) {
         float lat = across_now - off.x, most = lead > 0 ? (lead - FF_MERGE_MIN) * FF_FUNNEL : 0, t = e->prog;
         merge_aside = fabsf(lat);
         lat = off.x + (lat > most ? most : lat < -most ? -most : lat);
