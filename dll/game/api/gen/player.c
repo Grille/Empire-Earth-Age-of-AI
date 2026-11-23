@@ -82,9 +82,10 @@ internal inline ee_player **player_computer_at(const ee_player *o) { return (ee_
 internal inline int *player_get_selected_group(const ee_player *o) { return *(int **)((uint8_t *)o + of_player_selected_group); }
 internal inline void player_set_selected_group(ee_player *o, int *v) { *(int **)((uint8_t *)o + of_player_selected_group) = v; }
 internal inline int **player_selected_group_at(const ee_player *o) { return (int **)((uint8_t *)o + of_player_selected_group); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the UI's copy of selected_group (the same class, vtable 0x82D224): 0x55636C swaps it in for one command,
-// 0x4B0000 copies selected_group back when the server's command returns; the mouse click and hover code read it
+// 0x4B0000 copies selected_group back when the server's command returns; the mouse click and hover code read it,
+// and the unit cards are made of it (EEUICUnitIconBar.refresh 0x64484A, AoC 0x65B016: a new selection is there
+// steps before it reaches selected_group - engine/cards.c read selected_group and folded nothing for those steps)
 internal inline void *player_get_ui_group(const ee_player *o) { return *(void **)((uint8_t *)o + of_player_ui_group); }
 internal inline void player_set_ui_group(ee_player *o, void *v) { *(void **)((uint8_t *)o + of_player_ui_group) = v; }
 internal inline void **player_ui_group_at(const ee_player *o) { return (void **)((uint8_t *)o + of_player_ui_group); }

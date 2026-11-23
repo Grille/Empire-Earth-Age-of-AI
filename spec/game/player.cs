@@ -95,8 +95,10 @@ unsafe struct EEPlayer
     int32* selected_group;
 
     /// the UI's copy of selected_group (the same class, vtable 0x82D224): 0x55636C swaps it in for one command,
-    /// 0x4B0000 copies selected_group back when the server's command returns; the mouse click and hover code read it
-    [offset((ee)0x9C0, (aoc)0x9B0), found(c), guess]
+    /// 0x4B0000 copies selected_group back when the server's command returns; the mouse click and hover code read it,
+    /// and the unit cards are made of it (EEUICUnitIconBar.refresh 0x64484A, AoC 0x65B016: a new selection is there
+    /// steps before it reaches selected_group - engine/cards.c read selected_group and folded nothing for those steps)
+    [offset((ee)0x9C0, (aoc)0x9B0), found(c)]
     void* ui_group;
 
     /// the unit types its wonder heals: the unit set of a wonder bonus 6 (0x40DD73 of its type's +0x5B8, "Effect apply

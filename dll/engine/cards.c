@@ -2,7 +2,7 @@
 // selected unit gets its own card in the bottom left, that gets unreadable quickly. how about instead each unit type gets
 // a card with a number for the count? with the health bar being their average"). The game's unit cards
 // (EEUICUnitIconBar) are a card a selected unit, squeezed together to fit the bar. Now a card a kind:
-// - refresh's cards (an icon and a health a unit, in the selected group's order) are folded right after it into the
+// - refresh's cards (an icon and a health a unit, in the UI's group's order) are folded right after it into the
 //   first card of each kind: its icon, the kind's average health. Refresh's step is the bar's width over the cards'
 //   number (A / (n - 1), at most 1, n at most 35), so the same width over k cards is step x (n - 1) / (k - 1).
 // - the control's draw_text (UIControl's own, which draws nothing) draws the number of each kind of more than one onto
@@ -26,10 +26,12 @@ internal struct {
     unsigned long font_h;
 } g_cards;
 
-// the local player's selected group, NULL none
+// the local player's selection as the cards show it: the UI's copy (ui_group), which refresh reads - a new selection
+// is there steps before it reaches selected_group, and the cards read from that stayed a card a unit until it did
+// (the player, 2026-11-23: "it takes a second for the cards to collapse"); NULL none
 internal void *cards_group(void) {
     ee_player *pl = game_players()[local_player_index()];
-    return pl ? (void *)player_get_selected_group(pl) : NULL;
+    return pl ? player_get_ui_group(pl) : NULL;
 }
 internal int cards_kind_of(ee_unit *u) { return u ? unit_type_get_id(unit_get_type_data(u)) : -1; }
 internal int cards_find(int k, int kind) {
