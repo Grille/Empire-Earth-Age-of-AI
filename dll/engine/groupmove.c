@@ -1971,8 +1971,10 @@ internal void ff_scan_tick(struct ff_group *gr, uint32_t step) {
     // for the player's games, every 10 s of a march that steers anyone (the player, 2026-11-11: an attack-move of 303 "just walking through the enemy" - 66 of them within 6 tiles of knights, none with a target, no look given in 2.5 s; not reproduced from their orders: this line tells next time whether the game's search found nothing)
     if (g_log && steered && step / FF_HOME_EVERY % 20 == 0) fprintf(g_log, "# formation: %d units at %.1f,%.1f: attack-move, %d steered, %d of them advancing, %d with an enemy in sight this look (%u looks given so far, %u buildings that can't shoot passed by in the searches, %u fighters sent on from one)%c", gr->n, gr->anchor.x, gr->anchor.y, steered, advancing, found, g_ff_looks, g_ff_bld_skips, g_ff_bld_left, 10);
 }
-// a land march on its way (the units sent on again while it goes - ships keep their own routes)
-internal int ff_marching(const struct ff_group *gr) { return gr->on && gr->started && !gr->naval && gr->in_place != 1 && !gr->drain; }   // not in the drain: a unit sent on again there is on its own goal, and the leader re-sent ended the march (the given up on walk back once it drained)
+// a march on its way (the units sent on again while it goes). Ships too (the player, 2026-11-23, stuckships.scn: "some
+// might even get fully lost"): a ship pressed in the fleet's jam at a strait has its move dropped by the game like a
+// land unit, and stood there for good, 30 tiles and more from its spot - beyond what the linger walks back
+internal int ff_marching(const struct ff_group *gr) { return gr->on && gr->started && gr->in_place != 1 && !gr->drain; }   // not in the drain: a unit sent on again there is on its own goal, and the leader re-sent ended the march (the given up on walk back once it drained)
 internal int ff_lingering(const struct ff_group *gr) {
     return !gr->on && gr->linger && ff_since(gr->linger) < FF_LINGER_MAX && (!gr->settled || ff_since(gr->settled) < FF_LINGER);
 }
