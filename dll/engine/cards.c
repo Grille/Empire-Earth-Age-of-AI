@@ -103,10 +103,16 @@ internal int __thiscall cards_draw_text(ee_icon_bar *bar) {
         if (g_cards.shown[c] != n) { text_set_number(t, n); g_cards.shown[c] = n; }
         float x = left + (float)c * step, w = step - 1.0f < iw ? step - 1.0f : iw;
         const float rect[4] = { top + ih, x, x + w, top };
-        for (int pass = 0; pass < 2; pass++) {   // a dark shadow a pixel down and right, the white number on it (GDI draws at once)
-            float v = pass ? 1.0f : 0.0f, d = pass ? 0.0f : 1.0f;
-            text_set_x(t, x + 2.0f + d);
-            text_set_y(t, top + ih - (float)fh - 2.0f + d);
+        // the top left corner of the picture, under the health bar (draw_polygons draws the bar from 0.09 to 0.19 of the
+        // control's height, the picture from 0.28; the player, 2026-11-23: "move the text into the top left with a black
+        // drop shadow"): a solid black shadow up to 2 pixels down and right (the number at six offsets - one at 1 and 2
+        // alone left a hairline), the white number on it (GDI draws at once)
+        static const float k_shadow[][2] = { { 2, 2 }, { 1, 2 }, { 2, 1 }, { 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } };
+        float y = top + (icon_bar_get_screen_bottom(bar) - top) * 0.2f;
+        for (int pass = 0; pass < (int)(sizeof k_shadow / sizeof k_shadow[0]); pass++) {
+            float v = k_shadow[pass][0] || k_shadow[pass][1] ? 0.0f : 1.0f;
+            text_set_x(t, x + 2.0f + k_shadow[pass][0]);
+            text_set_y(t, y + k_shadow[pass][1]);
             text_set_red(t, v);
             text_set_green(t, v);
             text_set_blue(t, v);
