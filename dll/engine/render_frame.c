@@ -1225,12 +1225,19 @@ internal void rf_replay(void) {
     }
     // the silhouettes after the units' last batch drawn in its place: one held back for after the water is passed over below
     for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && (g_rf.cmd[i].wat == RF_W_SPLIT || g_rf.cmd[i].wat == RF_W_TOP))) lastu = i;
+    // the weighted transparency's sums over the scene once all that writes the depth is drawn - the units', the trees'
+    // and the ambient occlusion: laid over at the soft edges' place the trees drawn after them covered the crystals
+    // in front of them, and the occlusion darkened them by the ground behind (the player, 2026-11-23: "it draw behind
+    // trees, also its noticably darker than it should be"); with the water's surface after that, in two parts around
+    // the surface (render_oit.c)
+    int oat = lastu > lasto ? lastu : lasto, owat = lasto >= 0 && lastw >= 0 && firstw > oat;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
         if (i == firstw) {
             rd3_water_steps(x, lastw, &b, &first);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) { rf_water_part(x, rf_water_split(&g_rf.cmd[j], 1)); rf_draw(x, &g_rf.cmd[j], &b, &first); }
+            if (owat) { rf_water_part(x, 1); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 4);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);
         }
@@ -1255,14 +1262,11 @@ internal void rf_replay(void) {
             first = 1;
             b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
         }
-        // the weighted transparency's sums over the scene once all that writes the depth is drawn - the units', the trees'
-        // and the ambient occlusion: laid over at the soft edges' place the trees drawn after them covered the crystals
-        // in front of them, and the occlusion darkened them by the ground behind (the player, 2026-11-23: "it draw behind
-        // trees, also its noticably darker than it should be")
-        if (lasto >= 0 && i == (lastu > lasto ? lastu : lasto)) oit_pass(x, lasto, scene, &b, &first);   // (its batches as edges where it can't)
+        if (lasto >= 0 && !owat && i == oat) oit_pass(x, lasto, scene, &b, &first);   // (its batches as edges where it can't)
         if (i == lastu) rd3_silhouettes(x, &b, &first);
         if (i == lastw) {
             for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) { rf_water_part(x, rf_water_split(&g_rf.cmd[j], 0)); rf_draw(x, &g_rf.cmd[j], &b, &first); }
+            if (owat) { rf_water_part(x, 2); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 5);
             for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);
         }

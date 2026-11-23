@@ -15,6 +15,10 @@
 // nearly solid leaves averaged instead of the front one covering - and every unit was drawn once more for nothing.
 // All faces: the crystals' outer faces are wound the other way round, and front faces only by their winding (tried)
 // took them all away. The sums go over the scene after everything that writes the depth (render_frame.c rf_replay).
+// With the water's surface in the list, twice, as the water's split (rf_water_split): what lies under the level after
+// the water's step and before the surface, the rest after the surface - laid over once before the water, the step fogged
+// the crystals standing in it by the seabed behind them and the surface covered them (the player, 2026-11-23: "it always
+// draw behind the water"). The batches are drawn into the sums twice then, each pixel once.
 // The batches: the units' (units, buildings, the map's objects), blended as the game's usual alpha (source alpha, one
 // less it), depth written, not drawn in pixels or at depth 0 (the health bars, the circles on the ground). The rest -
 // added glows, the water's split - as before.
@@ -124,7 +128,7 @@ internal void oit_pass(ID3D11DeviceContext *x, int last, const rf_cmd *f, rf_cmd
         const rf_cmd *c = &g_rf.cmd[j];
         if (c->oit && !(ok && oit_scene(c, f))) { rf_cmd e = *c; e.depth = e.soft; rf_draw(x, &e, b, first); }
     }
-    if (!ok) return;
+    if (!ok) { rf_edges_part(x, RF_PART_ALL); return; }
     static const FLOAT none[4] = { 0, 0, 0, 0 }, all[4] = { 1, 1, 1, 1 };
     ID3D11DeviceContext_ClearRenderTargetView(x, g_oit.ar, none);
     ID3D11DeviceContext_ClearRenderTargetView(x, g_oit.rr, all);
@@ -157,6 +161,7 @@ internal void oit_pass(ID3D11DeviceContext *x, int last, const rf_cmd *f, rf_cmd
     ID3D11DeviceContext_PSSetShaderResources(x, 16, 2, srv);
     g_oit_rtv[0] = g_oit_rtv[1] = g_oit_scene = NULL;
     g_oit.passes++;
+    rf_edges_part(x, RF_PART_ALL);   // what follows in the list's water steps (the split's parts, the circles) drawn whole, as after the soft edges
     rf_bind(x);
     *first = 1;
     b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
