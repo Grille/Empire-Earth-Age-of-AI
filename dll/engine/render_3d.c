@@ -174,7 +174,7 @@ internal const char k_rd3_shader[] =
     "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
     "Texture2D gom : register(t15);\n"   // the overlay's picture of the ground (premultiplied; render_ground.c, gov: its tiles' origin, its share a tile)
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
-    "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges)
+    "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges); y: by the material's alpha too (render_oit.c)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher (render_frame.c rf_water_part)
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
@@ -317,7 +317,7 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
-    " if (edp.x > 0 ? x.a < edp.x : edp.x < 0 && x.a >= -edp.x) discard;"
+    " float ea = edp.y > 0 ? min(x.a, d.a) : x.a; if (edp.x > 0 ? ea < edp.x : edp.x < 0 && ea >= -edp.x) discard;"
     // a move's circle lies at the level itself, a selected ship's a hundredth under it: what counts as under starts a little below
     " if (wsp.x > 0 ? i.w.z >= sea.z - 0.05 + wsp.z : wsp.x < 0 && i.w.z < sea.z - 0.05 + wsp.z) discard;"
     // and a circle on the ground: over the land (wsp.y 1) or over the water (2), by the hills' map's ground under the pixel
@@ -416,7 +416,17 @@ internal const char k_rd3_shader[] =
     // the silhouettes' finished picture over the scene, see-through as one
     "Texture2D slc : register(t12);\n"
     "float4 pslc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { float4 c = slc.Load(int3(p.xy, 0)); if (c.a == 0) discard;"
-    " return float4(c.rgb, c.a * 0.55); }\n";
+    " return float4(c.rgb, c.a * 0.55); }\n"
+    // the see-through part of a draw into the weighted sums (render_oit.c, McGuire and Bavoil 2013): its colour times its
+    // alpha and a weight that falls with the distance (p.w: the view's, in tiles - the nearer layer counts for more where
+    // layers of one colour overlap), and how much of what lies behind it lets through
+    "struct OO { float4 a : SV_Target0; float r : SV_Target1; };\n"
+    "OO psoit(O i) { float4 c = ps(i); float a = saturate(c.a), z = i.p.w;"
+    " float w = clamp(10 / (1e-5 + pow(z / 10, 2) + pow(z / 300, 6)), 1e-2, 3e3); OO o; o.a = float4(c.rgb * a, a) * w; o.r = a; return o; }\n"
+    // the sums over the scene: their weighted mean colour, as strong as all layers together hide what lies behind
+    "Texture2D oac : register(t16); Texture2D<float> orv : register(t17);\n"
+    "float4 poitc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0); float r = orv.Load(a); if (r >= 0.9999) discard;"
+    " float4 c = oac.Load(a); return float4(c.rgb / max(c.a, 1e-5), 1 - r); }\n";
 
 // The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
 // A ring full while the list still holds draws draws the list first (rd3_upload) - the frame then in parts, and a
@@ -468,6 +478,7 @@ internal struct {
     void *depth_soft;   // the depth state as it is without writing (rf_edges); NULL: it writes none anyway
     int sil;            // the batch's part in the silhouettes (render_silhouette.c SIL_)
     int blended;
+    uint32_t bkey;      // the blend's key (rd3_mk_blend): blended, source, destination
     ID3D11ShaderResourceView *srv;
     rd_surface *srv_of;   // the surface srv shows (its chain's top) and whether keyed: render_frame.c's kept interface
     int srv_keyed;
@@ -628,6 +639,7 @@ internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
 #include "render_silhouette.c"   // units seen through the buildings in front of them ([display] unit_silhouettes)
+#include "render_oit.c"       // what is half see-through, blended in no order ([display] unit_transparency)
 #include "render_water.c"     // the water by its depth, its reflections ([display] water_look, water_reflections)
 #include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
 #include "render_ground.c"    // the ground from the map itself, on the GPU (the own renderer's only ground)
@@ -676,7 +688,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     if (full || memcmp(&vp, &g_rd3.vport, sizeof vp)) { rd3_flush(); g_rd3.vport = vp; }
     uint32_t bk = rs[D3DRENDERSTATE_ALPHABLENDENABLE] ? 1 | (rs[D3DRENDERSTATE_SRCBLEND] & 15) << 1 | (rs[D3DRENDERSTATE_DESTBLEND] & 15) << 5 : 0;
     void *o = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, bk, rd3_mk_blend);
-    if (full || o != g_rd3.blend) { rd3_flush(); g_rd3.blend = o; g_rd3.blended = bk & 1; }
+    if (full || o != g_rd3.blend) { rd3_flush(); g_rd3.blend = o; g_rd3.blended = bk & 1; g_rd3.bkey = bk; }
     uint32_t dk = (rs[D3DRENDERSTATE_ZENABLE] ? 1 : 0) | (rs[D3DRENDERSTATE_ZWRITEENABLE] ? 2 : 0) | (rs[D3DRENDERSTATE_ZFUNC] & 15) << 2;
     o = rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, dk, rd3_mk_depth);
     if (full || o != g_rd3.depth) { rd3_flush(); g_rd3.depth = o; g_rd3.depth_soft = dk & 2 ? rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, dk & ~2u, rd3_mk_depth) : NULL; }

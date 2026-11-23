@@ -20,6 +20,7 @@ typedef struct {
     D3D11_PRIMITIVE_TOPOLOGY topo;
     int vc, pc;      // the constants' snapshots (g_rf.vcs, pcs)
     void *soft;      // its soft edges are drawn apart, with this depth state (rf_edges); NULL: drawn whole
+    int oit;         // its see-through part is the weighted transparency's (render_oit.c): soft is set then
     int sil;         // its part in the silhouettes (render_silhouette.c SIL_), of a batch that writes the depth
     int wat;         // its place around the water's surface in this list (RF_W_, rf_replay)
     int role, ro;    // the shadows' role (render_shadows.c SH_), the render object drawing it
@@ -54,6 +55,7 @@ internal int rf_grow(void **p, int *cap, int need, size_t size) {
 }
 #define RF_EDGES_REF 200   // alpha tested at this or more: a tree, its edge a narrow band - not worth drawing a forest twice
 // the batch just uploaded into the list, with the states it was collected under (rd3_flush)
+internal int oit_batch(void);   // render_oit.c: the batch now has a see-through part for the weighted transparency
 internal void rf_record(UINT at, UINT n, INT base) {
     if (g_rf.vc_new || !g_rf.nvc) {
         if (!rf_grow((void **)&g_rf.vcs, &g_rf.cap_vc, g_rf.nvc + 1, sizeof *g_rf.vcs)) return;
@@ -76,6 +78,8 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->role = (int)g_rd3.vc.shp[0];
     c->ro = g_ro_cur;
     c->soft = g_ro_cur == RO_UNITS && g_rd3.blended && g_rd3.pc.aop[3] && g_rd3.pc.misc[0] < RF_EDGES_REF ? g_rd3.depth_soft : NULL;
+    c->oit = oit_batch();
+    if (c->oit) c->soft = g_rd3.depth_soft;
     c->sil = g_ro_cur == RO_UNITS && g_rd3.depth_soft ? g_rd3.sil : 0;
     c->at = at; c->n = n; c->base = base;
     c->gvb = NULL;
@@ -724,6 +728,8 @@ internal void rd3_ao_ground(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv)
 internal void rd3_ao(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first);
 internal void rf_edges_part(ID3D11DeviceContext *x, int part);
+internal int oit_on(void);   // render_oit.c
+internal void oit_pass(ID3D11DeviceContext *x, int last, const rf_cmd *f, rf_cmd *b, int *first);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
 internal void rd3_bars(ID3D11DeviceContext *x, ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, int back);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
@@ -1055,17 +1061,20 @@ internal D3D11_VIEWPORT rs_port(const D3D11_VIEWPORT *v, ID3D11RenderTargetView 
 // player, 2026-11-09). So such a batch is drawn in two parts by its texture's alpha (not the material's: a unit fading out
 // stays as it was): the solid part in the list's order, the rest without writing the depth after the last of them, over
 // everything solid. The order among the edges themselves is left as it is: their overlaps are a few pixels.
+// Parts 3 and 4 split by the material's alpha too: the weighted transparency's batches (render_oit.c), whose see-through
+// part is drawn in no order - a unit fading out goes there whole.
 #define RF_EDGES_SOLID (250.0f / 255)
+enum { RF_PART_ALL, RF_PART_SOLID, RF_PART_EDGES, RF_PART_M_SOLID, RF_PART_M_SEE, RF_PARTS };
 internal struct {
-    ID3D11Buffer *cb[3];   // the shader's edp: everything, the solid part, the edges
+    ID3D11Buffer *cb[RF_PARTS];   // the shader's edp, by RF_PART_
     int force, fail, part;
 } g_fe = { .force = -1 };
 // made once, the shader's constant bound; whether this list's batches are drawn in two parts
 internal int rf_edges(ID3D11DeviceContext *x) {
     if (!g_fe.cb[0] && !g_fe.fail) {
-        static const float v[3] = { 0, RF_EDGES_SOLID, -RF_EDGES_SOLID };
-        for (int i = 0; i < 3 && !g_fe.fail; i++) {
-            float k[4] = { v[i], 0, 0, 0 };
+        static const float v[RF_PARTS][2] = { { 0, 0 }, { RF_EDGES_SOLID, 0 }, { -RF_EDGES_SOLID, 0 }, { RF_EDGES_SOLID, 1 }, { -RF_EDGES_SOLID, 1 } };
+        for (int i = 0; i < RF_PARTS && !g_fe.fail; i++) {
+            float k[4] = { v[i][0], v[i][1], 0, 0 };
             D3D11_BUFFER_DESC bd = { sizeof k, D3D11_USAGE_IMMUTABLE, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
             D3D11_SUBRESOURCE_DATA sd = { k, 0, 0 };
             HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_fe.cb[i]);
@@ -1103,12 +1112,17 @@ internal void rf_water_part(ID3D11DeviceContext *x, int part) {
     g_wsp.part = part;
     ID3D11DeviceContext_PSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
 }
-// a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them
+// a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them. A batch
+// into the weighted transparency's sums (render_oit.c: rtv its first target) draws into both, and is placed as on the
+// scene's target they stand for
+internal ID3D11RenderTargetView *g_oit_rtv[2], *g_oit_scene;
 internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first) {
     if (rd3_shadow_only(c->role)) return;   // a caster off the screen: in the map only
-    if (*first || c->rtv != b->rtv || c->dsv != b->dsv) ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
-    if (*first || memcmp(&c->vport, &b->vport, sizeof b->vport)) {
-        D3D11_VIEWPORT port = rs_port(&c->vport, c->rtv);
+    int sums = c->rtv && c->rtv == g_oit_rtv[0];
+    ID3D11RenderTargetView *as = sums ? g_oit_scene : c->rtv;
+    if (*first || c->rtv != b->rtv || c->dsv != b->dsv) ID3D11DeviceContext_OMSetRenderTargets(x, sums ? 2 : 1, sums ? g_oit_rtv : &c->rtv, c->dsv);
+    if (*first || memcmp(&c->vport, &b->vport, sizeof b->vport) || c->rtv != b->rtv) {
+        D3D11_VIEWPORT port = rs_port(&c->vport, as);
         ID3D11DeviceContext_RSSetViewports(x, 1, &port);
     }
     if (*first || c->blend != b->blend) ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);
@@ -1117,11 +1131,11 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
     if (*first || c->srv != b->srv) ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &c->srv);
     if (*first || c->samp != b->samp) ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp);
     if (c->topo != b->topo) ID3D11DeviceContext_IASetPrimitiveTopology(x, c->topo);
-    if (c->vc != b->vc || c->ro != b->ro) {
+    if (c->vc != b->vc || c->ro != b->ro || (c->rtv != b->rtv && g_uis.rtv)) {
         rd3_vcb vc = g_rf.vcs[c->vc];
         rd3_shadow_vc(&vc);   // this frame's map
         rf_shift(&vc, c->ro);
-        if (g_uis.rtv && c->rtv == g_uis.rtv) vc.vp[0] /= g_uis.sx, vc.vp[1] /= g_uis.sy;   // half a pixel of the picture's
+        if (g_uis.rtv && as == g_uis.rtv) vc.vp[0] /= g_uis.sx, vc.vp[1] /= g_uis.sy;   // half a pixel of the picture's
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
     }
     if (c->pc != b->pc) {
@@ -1177,8 +1191,8 @@ internal void rf_replay(void) {
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
     for (int i = 0; i < g_rf.n; i++) if (g_rf.cmd[i].gvb) { ro_ground_map(x); break; }   // the overlay's picture before the ground reads it
-    int edges = rf_edges(x), laste = -1, lastu = -1;
-    if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft) laste = i;
+    int edges = rf_edges(x), oit = oit_on(), laste = -1, lastu = -1;
+    for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if ((edges && g_rf.cmd[i].soft) || (oit && g_rf.cmd[i].oit)) laste = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
     // the maps leave their constants in the edges' slot (b2): bound again at the next part asked for - until then the
     // mirrored picture and the list's batches before the first soft one read the light's matrix as their edp
@@ -1221,12 +1235,14 @@ internal void rf_replay(void) {
         }
         if (i < lastw && (c->wat == RF_W_SPLIT || c->wat == RF_W_TOP)) continue;
         rf_water_part(x, c->wat == RF_W_SPLIT ? rf_water_split(c, 0) : c->wat == RF_W_RING ? 3 : 0);
-        if (!g_fe.fail) rf_edges_part(x, edges && c->soft ? 1 : 0);
+        if (!g_fe.fail) rf_edges_part(x, oit && c->oit ? RF_PART_M_SOLID : edges && c->soft ? RF_PART_SOLID : RF_PART_ALL);
         rf_draw(x, c, &b, &first);
         if (i == lastg) rd3_ao_ground(x, c->dsv);
         if (i == laste) {
-            rf_edges_part(x, 2);
-            for (int j = 0; j <= laste; j++) if (g_rf.cmd[j].soft) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
+            rf_edges_part(x, RF_PART_EDGES);
+            for (int j = 0; j <= laste; j++)
+                if (edges && g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
+            if (oit) oit_pass(x, laste, scene, &b, &first);   // (its batches as edges where it can't)
             rf_edges_part(x, 0);
         }
         if (i == lastu && scene && rao_on()) {   // all that writes the depth drawn (render_ao.c), the water and the silhouettes yet to come

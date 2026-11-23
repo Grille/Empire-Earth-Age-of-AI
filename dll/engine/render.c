@@ -184,6 +184,7 @@ struct rd_surface {
     DDCOLORKEY key;
     int has_key;
     int fix_alpha;                  // a texture of texfix.eeai's list (tf_hook_load): its alpha scaled to reach 255 at its upload
+    int glass;                      // see-through over much of it, not only at an edge (render_oit.c oit_glass, at its upload)
     int locked, lock_ro;
     RECT lock_rect;
     ID3D11Texture2D *tex;
@@ -296,6 +297,7 @@ internal uint32_t rd_alpha_top(const uint32_t *px, size_t n) {
     return top;
 }
 // a CPU surface's (a chain's) GPU texture, uploaded when its pixels changed; keyed: alpha 0 at the colour key
+internal int oit_glass(const uint32_t *px, size_t n);   // render_oit.c
 internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
     if (s->kind == RK_TARGET) return s->srv;
     rd_surface *t = s->top ? s->top : s;
@@ -331,6 +333,7 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
             uint32_t a = (row[i] >> 24) * 255 / body;
             row[i] = (row[i] & 0xFFFFFF) | (a > 255 ? 255 : a) << 24;
         }
+        if (l == t) t->glass = oit_glass(row, need);
         ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)t->tex, (UINT)l->level, NULL, row, (UINT)w * 4, 0);
     }
     t->dirty = 0;

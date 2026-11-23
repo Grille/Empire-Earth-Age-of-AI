@@ -263,6 +263,12 @@ class display
         /// everything solid and without writing the depth, so that what lies behind them shows through them (the control
         /// pipe: water edges on / off):
         bool unit_soft_edges = true;
+        /// The own renderer: what is half see-through over its whole face on units, buildings and the map's objects - Art of
+        /// Conquest's crystals and glass, a unit fading out - blended without regard to the order it is drawn in (weighted,
+        /// order-independent transparency): seen through each other and themselves instead of hiding what is drawn after
+        /// them (the control pipe: picture oit on / off):
+        [advanced]
+        bool unit_transparency = false;
         /// The own renderer, with units_smooth: buildings stay whole, and units behind one are seen through it as a shape
         /// in their player's colour, lit as they are; the game's show hidden units button (F5) then
         /// chooses no silhouettes, silhouettes or every building see-through (the control pipe: picture sil on / off):
