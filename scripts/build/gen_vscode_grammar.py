@@ -68,7 +68,7 @@ expression = [
     {'name': 'invalid.illegal.unknown-unit-type.eeaimod', 'match': r'\bunit\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.unit-kind.eeaimod', 'match': r'\bkind\.(?:' + '|'.join(kind_ids) + r')\b(?!\.)'},   # docs/units.md
     {'name': 'invalid.illegal.unknown-unit-kind.eeaimod', 'match': r'\bkind\.[A-Za-z_][\w.]*'},
-    {'name': 'keyword.control.eeaimod', 'match': r'\b(?:return|if|else|while|for|in|break|continue|let|struct|ref|this)\b'},
+    {'name': 'keyword.control.eeaimod', 'match': r'\b(?:return|if|else|while|for|in|break|continue|let|struct|interface|ref|this)\b'},
     {'name': 'storage.type.function.arrow.eeaimod', 'match': r'=>'},
     {'name': 'support.function.script.eeaimod', 'match': words(script_funcs) + r'(?=\s*\()'},   # scripts: wait, at, every ...
     {'name': 'support.function.command.eeaimod', 'match': words(commands) + r'(?=\s*\()'},   # scripts: the pipe's commands

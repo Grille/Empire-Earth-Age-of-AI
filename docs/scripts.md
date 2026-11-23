@@ -314,6 +314,72 @@ let s = squad("north")          // pos point(0, 5), strength 1.5, no units, no t
 
 Not there: inheritance, operators of its own (a vector has them), private fields.
 
+## Interfaces and generic functions
+
+An **interface** is a contract: the members a type must have. A **generic function** takes any type that has them -
+and each call with types of its own gets a copy of the function for them, as if it had been written with those
+types. Both exist only while the script is read: no value is ever of an interface, and what runs knows none.
+
+```
+interface positioned {
+    pos: vec2
+}
+interface ipoint {
+    x: int
+    y: int
+    add(value: ipoint): ipoint      // its own name: the type that has it
+}
+struct point: ipoint {              // promised: held to it here (without it the shape counts all the same)
+    x: int
+    y: int
+    add(value: point): point => point(this.x + value.x, this.y + value.y)
+}
+
+nearest<T: positioned>(from: vec2, all: seq<T>): T? {
+    let best: T? = null
+    for a in all {
+        if best == null || distance(a.pos, from) < distance(best.pos, from) { best = a }
+    }
+    return best
+}
+sum<T: ipoint>(all: seq<T>, start: T): T {
+    let s = start
+    for a in all { s = s.add(a) }
+    return s
+}
+far(a: positioned, b: positioned): float => distance(a.pos, b.pos)   // each a type of its own
+
+let hq = nearest(vec(50, 50), player(2).units())    // T = unit: nearest<unit>
+let c = nearest(vec(0, 0), camps)                   // T = camp, a struct with a pos: nearest<camp>
+let total = sum(points, point(0, 0))                // T = point
+let d = far(camps[1], hq)                           // a camp and a unit: far<camp, unit>
+```
+
+- **An interface**: fields (`name: type`, no default) and methods (`name(a: type): type`, no code), declared at the
+  script's top. Its own name in its members is the type that has it: `add(value: ipoint): ipoint` asks of a `point`
+  for an `add` that takes a `point` and gives one back.
+- **By its shape**: a type has an interface when it has its members - a struct's fields and methods, the game's
+  objects' members (`unit` has `pos`: it is a `positioned`), a vector's `x` and `y`. A field of the type its
+  interface's field has; a method with as many arguments (a struct's: of the very types), giving back what the
+  interface's gives. `struct point: ipoint { ... }` promises it: the struct is held to it where it is declared (the
+  mistake there, not at the first call that passes one).
+- **A generic function**: `name<T: positioned, U: other>(...)` - each type parameter with its interface - or a
+  parameter of an interface's type, `far(a: positioned, b: positioned)`, a type parameter of its own for that
+  parameter (`a` and `b` may be of two types). Declared at the script's top, as every declared function is.
+- **Its body is checked once, against the interfaces**: a `T` has its interface's members only (`a.hp` of a
+  `positioned` is a mistake, whatever is passed), they are read, not set (`a.pos = ...` - not yet), and no value of a
+  `T` is made (`T(...)`, `{ ... }` as a `T`). `T?`, `seq<T>`, `list<T>`, `dict<K, T>` are types like any other there.
+- **A call tells its types** from its arguments: a parameter written `T`, `T?`, `seq<T>`, `list<T>` or `dict<K, V>`
+  against its argument's type (`null` tells none - another argument must). Each type is held against its interface
+  (`near([1, 2])`: an int is no positioned - it has no pos); one T a unit here and a camp there is a mistake.
+- **A copy for each call's types**, made once: `nearest<unit>`, `far<camp, unit>` - an ordinary function, checked
+  and compiled as if written with them (a mistake in it names the copy). A generic function calling another, or
+  itself, calls the other's copy for its own types. At most 32 copies a function; each is a name at the script's top.
+- A generic function is called, never passed as a value (`let f = nearest`: a mistake - its types come from a call).
+- Not yet: a method of an interface's type (`add(value: ipoint)` in a struct - a method takes its own struct's
+  type), types written at the call (`nearest<unit>(...)`), generic structs, setting a field through an interface,
+  the personalities' texts (a script's only).
+
 ## Records, dicts and structs written out
 
 `{ name = value, [key] = value, ... }` is what the place it goes into is - the type wanted there: a `let`'s written

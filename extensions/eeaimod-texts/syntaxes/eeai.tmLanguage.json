@@ -625,7 +625,7 @@
         },
         {
           "name": "keyword.control.eeaimod",
-          "match": "\\b(?:return|if|else|while|for|in|break|continue|let|struct|ref|this)\\b"
+          "match": "\\b(?:return|if|else|while|for|in|break|continue|let|struct|interface|ref|this)\\b"
         },
         {
           "name": "storage.type.function.arrow.eeaimod",
@@ -824,7 +824,7 @@
         },
         {
           "name": "keyword.control.eeaimod",
-          "match": "\\b(?:return|if|else|while|for|in|break|continue|let|struct|ref|this)\\b"
+          "match": "\\b(?:return|if|else|while|for|in|break|continue|let|struct|interface|ref|this)\\b"
         },
         {
           "name": "storage.type.function.arrow.eeaimod",

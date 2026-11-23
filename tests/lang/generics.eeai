@@ -1,0 +1,80 @@
+// interfaces and generic functions (docs/scripts.md "Interfaces and generic functions"): a function over every type
+// that has an interface's members, a copy of it made for each call's types - checked once against the interface,
+// each copy an ordinary function. What each line works out is in generics.expect (the build compares)
+interface positioned {
+    pos: vec2
+}
+interface ipoint {
+    x: int
+    y: int
+    add(value: ipoint): ipoint
+}
+// promised: held to it here; cell has the shape too without saying so
+struct point: ipoint {
+    x: int
+    y: int
+    add(value: point): point => point(this.x + value.x, this.y + value.y)
+}
+struct cell {
+    x: int
+    y: int
+    w: int = 1
+    add(value: cell): cell => cell(this.x + value.x, this.y + value.y, this.w + value.w)
+}
+struct camp {
+    name: text
+    pos: vec2
+}
+struct tower {
+    pos: vec2
+    hp: int = 100
+}
+
+// T: one type through the function - every parameter of T and its result the same
+sum<T: ipoint>(all: seq<T>, start: T): T {
+    let s = start
+    for a in all { s = s.add(a) }
+    return s
+}
+nearest<T: positioned>(from: vec2, all: seq<T>): T? {
+    let best: T? = null
+    for a in all {
+        if best == null || distance(a.pos, from) < distance(best.pos, from) { best = a }
+    }
+    return best
+}
+// a parameter of an interface's type: a type parameter of its own for that parameter
+far(a: positioned, b: positioned): float => distance(a.pos, b.pos)
+// one calling another: each copy calls the other's copy for its types
+spread<T: ipoint>(all: seq<T>, start: T): int {
+    let s = sum(all, start)
+    return s.x - s.y
+}
+// itself
+deep<T: ipoint>(a: T, n: int): T => n <= 0 ? a : deep(a.add(a), n - 1)
+// list<T> and T? taken apart for the types
+last<T: positioned>(l: list<T>, none: T?): T? => len(l) > 0 ? l[len(l)] : none
+
+let ps = [point(1, 2), point(3, 4), point(5, 6)]
+let cs = [cell(1, 1), cell(2, 2)]
+let p0 = point(0, 0)
+let c0 = cell(0, 0, 0)
+let sp = sum(ps, p0)
+let sc = sum(cs, c0)
+cmd("sum {sp.x} {sp.y} {sc.x} {sc.w}")
+
+let camps = [camp("a", vec(10, 10)), camp("b", vec(2, 3)), camp("c", vec(50, 1))]
+let towers = [tower(vec(9, 9)), tower(vec(1, 1), 50)]
+let c = nearest(vec(0, 0), camps)
+let t = nearest(vec(0, 0), towers)
+let empty: seq<camp> = []
+let nobody = nearest(vec(0, 0), empty)
+cmd("nearest {c != null ? c.name : "none"} {t != null ? t.hp : 0} {nobody == null}")
+
+let d = deep(point(1, 2), 3)
+cmd("far {far(camps[1], towers[2])} spread {spread(ps, p0)} deep {d.x} {d.y}")
+
+let kept: list<tower> = []
+kept.add(tower(vec(4, 4), 7))
+let newest = last(kept, null)
+cmd("last {newest != null ? newest.hp : 0}")
