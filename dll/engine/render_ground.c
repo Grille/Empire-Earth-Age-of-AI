@@ -336,6 +336,28 @@ internal float rg_tile_z(unsigned long x, unsigned long y, float px, float py) {
     float z00 = g_rg.z(g_rg.mesh, x, y), z01 = g_rg.z(g_rg.mesh, x, y + 1), z10 = g_rg.z(g_rg.mesh, x + 1, y), z11 = g_rg.z(g_rg.mesh, x + 1, y + 1);
     return v >= u ? z00 + v * (z01 - z00) + u * (z11 - z01) : z00 + u * (z10 - z00) + v * (z11 - z10);
 }
+// which way a space tile's face looks: across its line, away from the tile's corners that touch land (one of the four
+// tiles round the corner on the map and not space) - out into space, level. 0: no land corner, no line
+internal int rg_space_out(const void *mesh, unsigned long x, unsigned long y, const rg_space_edge *s, float *nx, float *ny) {
+    float cx = 0, cy = 0;
+    int nl = 0;
+    for (int c = 0; c < 4; c++) {
+        long kx = (long)x + (c & 1), ky = (long)y + (c >> 1);
+        for (int t = 0; t < 4; t++) {
+            long tx = kx - 1 + (t & 1), ty = ky - 1 + (t >> 1);
+            if (tx >= 0 && ty >= 0 && g_rg.tile(mesh, (unsigned long)tx, (unsigned long)ty) && !(g_rg.water_info(mesh, (unsigned long)tx, (unsigned long)ty) & RG_SPACE)) {
+                cx += (float)kx; cy += (float)ky; nl++;
+                break;
+            }
+        }
+    }
+    float ax = s->line[2] - s->line[0], ay = s->line[3] - s->line[1], l = sqrtf(ax * ax + ay * ay);
+    if (!nl || l <= 0) return 0;
+    float ox = ay / l, oy = -ax / l, mx = (float)x + (s->line[0] + s->line[2]) * 0.5f, my = (float)y + (s->line[1] + s->line[3]) * 0.5f;
+    if (ox * (cx / (float)nl - mx) + oy * (cy / (float)nl - my) > 0) ox = -ox, oy = -oy;
+    *nx = ox; *ny = oy;
+    return 1;
+}
 internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     const rg_space_edge *s = &k_rg_space[g_rg.water_info(g_rg.mesh, x, y) >> 1 & 15];
     if (s == k_rg_space) return 0;
@@ -365,10 +387,17 @@ internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     int a = 255 | 2 << 8;
     out[n].tex = face; out[n].layer = 0;
     rg_vertex_at(&out[n].v[0], px, py, pz, pi, pj, u00, a); rg_vertex_at(&out[n].v[1], qx, qy, qz, qi, qj, u10, a); rg_vertex_at(&out[n].v[2], px, py, pb, pi, pj, u01, a);
-    n++;
-    out[n].tex = face; out[n].layer = 0;
-    rg_vertex_at(&out[n].v[0], px, py, pb, pi, pj, u01, a); rg_vertex_at(&out[n].v[1], qx, qy, qz, qi, qj, u10, a); rg_vertex_at(&out[n].v[2], qx, qy, qb, qi, qj, u11, a);
-    return n + 1;
+    out[n + 1].tex = face; out[n + 1].layer = 0;
+    rg_vertex_at(&out[n + 1].v[0], px, py, pb, pi, pj, u01, a); rg_vertex_at(&out[n + 1].v[1], qx, qy, qz, qi, qj, u10, a); rg_vertex_at(&out[n + 1].v[2], qx, qy, qb, qi, qj, u11, a);
+    // The face's own normal, level and out into space (the engine gives it its top corner's, the ground's: a face lit as
+    // the ground on top, as bright turned from the sun as toward it - the player, 2026-11-23: "the space cliffs dont throw
+    // shadows, wich can look a bit weired"). The vertex shader tells a face by it (render_3d.c ground: a space piece whose
+    // normal lies level): its light by it, and the hills' shadows taken a little out in front of it, at its own height
+    float nx, ny;
+    if (rg_space_out(g_rg.mesh, x, y, s, &nx, &ny))
+        for (int t = n; t < n + 2; t++)
+            for (int c = 0; c < 3; c++) { float *f = (float *)out[t].v[c].fvf; f[3] = nx; f[4] = ny; f[5] = 0; }
+    return n + 2;
 }
 // a land corner (D B A C) whose cell has a space tile at the edge beside it (the engine's table at 0x10097F98): texture 12, no set.
 // The engine asks only for bits 1-4, but a land tile can still hold a shore's there: the editor's first space tile makes
@@ -393,6 +422,21 @@ internal void rg_space_corners(void **t, void **sets, unsigned long x, unsigned 
     }
 }
 internal int rg_space_map(const void *mesh) { return g_rg.is_space && g_rg.is_space(mesh); }
+// how deep the ground lies at px, py of a space map for the hills' shadows (render_shadows.c, the caller asks
+// rg_space_map once): its space down the faces' drop - a space tile without an edge, and an edge tile beyond its face's
+// line; everything else 0 (its surface)
+internal float rg_space_depth(const void *mesh, float px, float py) {
+    if (!g_rg.water_info || !g_rg.tile || !mesh || px < 0 || py < 0) return 0;
+    unsigned long x = (unsigned long)px, y = (unsigned long)py;
+    if (!g_rg.tile(mesh, x, y)) return 0;
+    unsigned info = g_rg.water_info(mesh, x, y);
+    if (!(info & RG_SPACE)) return 0;
+    const rg_space_edge *s = &k_rg_space[info >> 1 & 15];
+    float nx, ny;
+    if (s == k_rg_space) return RG_CLIFF_DROP;
+    if (!s->face || !rg_space_out(mesh, x, y, s, &nx, &ny)) return 0;
+    return (px - (float)x - s->line[0]) * nx + (py - (float)y - s->line[1]) * ny > 0 ? RG_CLIFF_DROP : 0;
+}
 // the ground drawn as a space map: one, and its space textures there. The game hands them to the mesh in its world's
 // draw (AoC 0x50E8D1: a space map with NumSpaceCliffTextures 0 - loaded once, then SetSpaceCliffTextures), at the first
 // frame after the first space tile; the whole ground made anew before that had no edges and no faces anywhere, until

@@ -1428,7 +1428,9 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   or 2y + 1, of 8) hangs from that line 8 down, its lower edge jagged by a 16 x 16 table at 0x100D9760 (times 0.5),
   not on the map's left and right edges; its top at the height of the corner the line's points are cut down to (less
   0.02 / 0.05) - on a slope off the tile's own surface, and from a low camera a slit under the ground into space
-  even on flat ground (the own renderer: the surface's height there, nothing less). A land corner whose cell has a
+  even on flat ground (the own renderer: the surface's height there, nothing less). The own renderer gave a
+  face its top corner's normal, the ground's, until 2026-11-23 - as bright turned from the sun as toward it; now its
+  own, level and out into space, and in the hills' shadows the space lies as deep as the faces drop. A land corner whose cell has a
   pattern tile among its 3 neighbours (0x10097F98) takes texture 12, at the tile's own places (0 to 1 across it) -
   the engine asks for bits 1-4 alone, and a lake's shore keeps those after the map turns into a space map (below):
   the own renderer asks for the space bit too. No water, and the black round the map only behind it (the back edge

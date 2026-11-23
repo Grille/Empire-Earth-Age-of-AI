@@ -205,24 +205,27 @@ internal const char k_rd3_shader[] =
     // the game's lights on the table's colour, clamped before it as DX7Rasterizer::Light does (a warm stone washes out otherwise);
     // the water (gnd.x 2): the height it holds is the ground's under it, the surface moves about the level, over land half as much and below it
     // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light;
-    // a space map's edge and faces (w 2: rg_space_quad) none, gt.a -1 - its texture's own alpha is the edge's shape
-    "void ground(inout I i, out float4 gt, out float3 gl) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
+    // a space map's edge and faces (w 2: rg_space_quad) none, gt.a -1 - its texture's own alpha is the edge's shape; a face (its
+    // normal level: rg_space_quad) -2, lit by its own normal, fo the way it looks (the hills' shadows taken out in front of it)
+    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
-    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); gt = i.w > 1 ? float4(0, 0, 0, -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; if (gnd.x > 0) ground(i, o.gt, o.gl); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); fo = i.w > 1 && abs(i.n.z) < 0.5 ? i.n.xy : float2(0, 0); gt = i.w > 1 ? float4(0, 0, 0, any(fo != 0) ? -2 : -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
+    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; float2 fo = 0; if (gnd.x > 0) ground(i, o.gt, o.gl, fo); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
-    " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
+    " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz)); o.w.xy += fo * 0.5;"
     // (a space map's faces hang under the level in no water: rg_space_quad's gt.a -1 - none of the water's own there)
     " o.q.w = shl.z > 0 && o.gt.a >= 0 ? saturate(1 - (shl.x - o.w.z) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc; o.k = shk.rgb;"   // D3DCOLOR's bytes are B G R A
     // the ground in a shadow keeps its ambient part of the light it faces: a slope turned from the game's light (its
     // baked shading already dark) loses nothing - the shadows' sun, never lower than 25 degrees, isn't the shading's
-    " if (shs.w > 0 && dot(i.n, i.n) > 0) {"
-    "  float3 lt = sha.rgb + shf.rgb * max(0, dot(normalize(i.n), -shs.xyz));"
+    // (a space map's face by its own normal: turned from the sun it is dark by its light already)
+    " float3 kn = any(fo != 0) ? float3(fo, 0) : i.n;"
+    " if (shs.w > 0 && dot(kn, kn) > 0) {"
+    "  float3 lt = sha.rgb + shf.rgb * max(0, dot(normalize(kn), -shs.xyz));"
     "  o.k = 1 - shk.w * (1 - saturate(sha.rgb / max(lt, 0.001))); }"
     " if (lit.x) { float4 d = src.x ? vc : wt.Load(r + 4), a = src.y ? vc : wt.Load(r + 5), e = src.z ? vc : wt.Load(r + 6);"
     "  float3 n = world_normal(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
@@ -356,7 +359,7 @@ internal const char k_rd3_shader[] =
     // can be sharp everywhere - where a hill's shadow lands and a unit on top of the hill must meet it (a fade from the
     // true edge to 0.75 tiles inside it left the two apart, the player 2026-11-08). A unit or the water stands above the
     // ground: its own height against the ceiling, as soft as ever
-    "  if (shh.w > 0) { float2 hh = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool og = shd.x == 1 || shd.x == 4;"
+    "  if (shh.w > 0) { float2 hh = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool og = (shd.x == 1 || shd.x == 4) && i.gt.a > -1.5;"   // a space map's face: its own height
     "   hl = saturate(((og ? hh.y : hh.x - i.w.z) - (og ? 0.01 : shh.z)) / (og ? min(0.12, shh.y) : shh.y)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
     // the mirrored picture on the surface (render_water.c), moved by the waves' slope (cat.z) and a little by the water's

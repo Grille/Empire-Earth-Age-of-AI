@@ -56,6 +56,8 @@ internal struct {
     ID3D11Texture2D *hill;
     ID3D11ShaderResourceView *hsrv;
     float *hceil, *hground;
+    float *hcast;            // the ground that hides the sun: hground, but a space map's space as deep as its faces drop (rg_space_depth)
+    int hspace;              // the map a space map when its ground was read
     float *hpair;            // what goes up: a texel's ceiling and how far its ground is under it (the shader's hm)
     int hn, hr, cw, hill_ok, nohills;
     int hdirty;              // the editor changed the ground under the map (shadow_hills_editor): to be made again
@@ -400,13 +402,18 @@ internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }
 
+internal int rg_space_map(const void *mesh);                    // render_ground.c
+internal float rg_space_depth(const void *mesh, float px, float py);
 // THE HILLS' SHADOWS (the player, 2026-11-05: "the last step would be terrain shadows"): a map over the whole map of
 // the height below which the hills hide the sun - each texel's the higher of its ground and the texel before it toward
 // the sun, lowered by the sun's slope over the step between them: one sweep over the map, made again when the sun has
 // turned by about a third of a degree (the day's cycle) or the map changed. Everything that receives compares its height
 // with it (render_3d.c's shader): the ground, the decals, the water, and - shadows all on - the units, buildings and
 // trees, a tall one's top in the sun while its foot is in a hill's shadow. Off the screen too: the map has every hill.
-// The ground's corners' heights are the game's own (ground_corner), the world's x and y its tiles.
+// The ground's corners' heights are the game's own (ground_corner), the world's x and y its tiles. On Art of Conquest's
+// space maps the space beyond the faces lies as deep as they drop (hcast): the land's edge throws its shadow over it,
+// down the faces across a hole, and a face (render_3d.c: its own height, a little out in front of it) is in the shade
+// of its own top with the sun behind it (the player, 2026-11-23: "the space cliffs dont throw shadows").
 #define SH_HILL_TEXELS 1024   // the map's side at most (texels): 4 a tile up to a 256-tile map, 2 up to 512
 // the sweep, on a thread of its own (a hitch of 10 ms at 840 texels a side in the frame, each time the sun turned on):
 // along the axis the sun's rays run more along, a line of texels at a time from the sun's side; the texel before one
@@ -421,7 +428,7 @@ internal DWORD WINAPI shadow_hills_thread(void *arg) {
         int n = g_sh.hn, hr = g_sh.hr;
         float *c = g_sh.hceil;
         const float *f = g_sh.hsun;
-        memcpy(c, g_sh.hground, (size_t)n * n * sizeof(float));
+        memcpy(c, g_sh.hcast, (size_t)n * n * sizeof(float));
         float fh = sqrtf(f[0] * f[0] + f[1] * f[1]), dx = f[0] / fh, dy = f[1] / fh, slope = -f[2] / fh;
         int xmajor = fabsf(dx) >= fabsf(dy);
         float a = xmajor ? dx : dy, b = xmajor ? dy : dx;
@@ -440,7 +447,7 @@ internal DWORD WINAPI shadow_hills_thread(void *arg) {
                 if (h > *q) *q = h;
             }
         }
-        for (int k = 0; k < n * n; k++) g_sh.hpair[k * 2] = c[k], g_sh.hpair[k * 2 + 1] = g_sh.hground[k] < -1e6f ? 0 : c[k] - g_sh.hground[k];   // off the map (its corners at -1e9): no ground to shade
+        for (int k = 0; k < n * n; k++) g_sh.hpair[k * 2] = c[k], g_sh.hpair[k * 2 + 1] = g_sh.hground[k] < -1e6f ? 0 : fmaxf(0, c[k] - g_sh.hground[k]);   // off the map (its corners at -1e9): no ground to shade
         QueryPerformanceCounter(&t1);
         QueryPerformanceFrequency(&tf);
         g_sh.hill_ms = (float)(1000.0 * (double)(t1.QuadPart - t0.QuadPart) / (double)tf.QuadPart);
@@ -455,10 +462,13 @@ internal void shadow_hills(void) {
     if (g_sh.hfail || !w || w > 2048 || fh < 1e-3f || f[2] >= 0) { g_sh.hill_ok = 0; return; }
     // each texel's ground, once a map (the terrain doesn't change in a game): its middle's height from its tile's four
     // corners; a map under way finished first (its buffers the thread's)
-    if (map != g_sh.hmap || (int)w + 1 != g_sh.cw) {
+    // (and again when the map turns into a space map or back: the editor's first space tile, its last)
+    const void *mesh = map ? map_mesh_at(map) : NULL;
+    int space = rg_space_map(mesh);
+    if (map != g_sh.hmap || (int)w + 1 != g_sh.cw || space != g_sh.hspace) {
         if (g_sh.hjob == 1) return;
         InterlockedExchange(&g_sh.hjob, 0);
-        free(g_sh.hground); free(g_sh.hceil); free(g_sh.hpair);
+        free(g_sh.hground); free(g_sh.hceil); free(g_sh.hpair); free(g_sh.hcast);
         int cw = (int)w + 1, hr = SH_HILL_TEXELS / (int)w;
         if (hr > 4) hr = 4;
         if (hr < 1) hr = 1;
@@ -467,10 +477,11 @@ internal void shadow_hills(void) {
         g_sh.hground = malloc((size_t)n * n * sizeof(float));
         g_sh.hceil = malloc((size_t)n * n * sizeof(float));
         g_sh.hpair = malloc((size_t)n * n * 2 * sizeof(float));
-        g_sh.hmap = map; g_sh.cw = cw; g_sh.hr = hr; g_sh.hn = n; g_sh.hill_ok = 0;
+        g_sh.hcast = malloc((size_t)n * n * sizeof(float));
+        g_sh.hmap = map; g_sh.cw = cw; g_sh.hr = hr; g_sh.hn = n; g_sh.hill_ok = 0; g_sh.hspace = space;
         D3D_RELEASE(g_sh.hsrv);
         D3D_RELEASE(g_sh.hill);
-        if (!corner || !g_sh.hground || !g_sh.hceil || !g_sh.hpair) { free(corner); rd_fail("the hills' shadows' memory", E_OUTOFMEMORY); g_sh.hfail = 1; return; }
+        if (!corner || !g_sh.hground || !g_sh.hceil || !g_sh.hpair || !g_sh.hcast) { free(corner); rd_fail("the hills' shadows' memory", E_OUTOFMEMORY); g_sh.hfail = 1; return; }
         // and the ground's highest and lowest in blocks of SH_BLOCK tiles (the reach off the screen: shr_hook_rows)
         int bw = ((int)w + SH_BLOCK - 1) / SH_BLOCK;
         free(g_sh.bmax);
@@ -496,6 +507,7 @@ internal void shadow_hills(void) {
                 float fx = x - ix, fy = y - iy;
                 const float *k = corner + iy * cw + ix;
                 g_sh.hground[j * n + i] = (k[0] * (1 - fx) + k[1] * fx) * (1 - fy) + (k[cw] * (1 - fx) + k[cw + 1] * fx) * fy;
+                g_sh.hcast[j * n + i] = g_sh.hground[j * n + i] - (space ? rg_space_depth(mesh, x, y) : 0);
             }
         free(corner);
         D3D11_TEXTURE2D_DESC td = { (UINT)g_sh.hn, (UINT)g_sh.hn, 1, 1, DXGI_FORMAT_R32G32_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
@@ -537,6 +549,7 @@ internal void shadow_hills_patch(const ee_map *map, int x0, int y0, int x1, int 
     static float *corner;
     static int room;
     int w = g_sh.cw - 1, hr = g_sh.hr, n = g_sh.hn, bw = g_sh.bw;
+    const void *mesh = map_mesh_at(map);
     x0 = x0 < 0 ? 0 : x0, y0 = y0 < 0 ? 0 : y0, x1 = x1 > w ? w : x1, y1 = y1 > w ? w : y1;
     if (x0 >= x1 || y0 >= y1) return;
     int cw = x1 - x0 + 1, ch = y1 - y0 + 1;
@@ -563,8 +576,9 @@ internal void shadow_hills_patch(const ee_map *map, int x0, int y0, int x1, int 
                 for (int i = 0; i < hr; i++) {
                     float fx = (i + 0.5f) / hr, fy = (j + 0.5f) / hr;
                     float v = (k[0] * (1 - fx) + k[1] * fx) * (1 - fy) + (k[cw] * (1 - fx) + k[cw + 1] * fx) * fy;
-                    float *g = &g_sh.hground[((y0 + ty) * hr + j) * n + (x0 + tx) * hr + i];
-                    if (fabsf(*g - v) > 0.001f) *g = v, g_sh.hdirty = 1;
+                    size_t at = (size_t)((y0 + ty) * hr + j) * n + (size_t)((x0 + tx) * hr + i);
+                    float *g = &g_sh.hground[at], *gc = &g_sh.hcast[at], vc = v - (g_sh.hspace ? rg_space_depth(mesh, (float)(x0 + tx) + fx, (float)(y0 + ty) + fy) : 0);
+                    if (fabsf(*g - v) > 0.001f || fabsf(*gc - vc) > 0.001f) *g = v, *gc = vc, g_sh.hdirty = 1;
                 }
         }
 }
