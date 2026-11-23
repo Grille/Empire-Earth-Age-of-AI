@@ -707,6 +707,8 @@ struct xnode {
                                  // (b NULL: in the list a)
     struct xnode **items;        // a list's items, a call's arguments, a function's parameters (names), statements
     const char *cs;              // a name that is a kind. or unit. constant: its text once looked up (its number in n)
+    const char *end;             // where a primary ends in the source (a name, a call, an item, a member: the language
+                                 // server's record - the type of what stands before a dot); NULL the rest
 };
 // STRUCTS AND REFS (a script's; docs/scripts.md "Structs", "Refs"). struct point { x: int  y: int = 5  add(v: int) { ... } }
 // at the script's top is a type of its own: point(), point(3), point(0, 1) make a value - its fields in order, those
@@ -1383,6 +1385,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
     // step(home).x, (a + b).y, player(2).towers, game.players[1].opinion(p) - a name has its dots in it (home.x)
     for (;;) {
         int k = XPTR(p, o)->k;
+        XPTR(p, o)->end = p->s;   // (what came so far ends here: an item or a member may follow)
         if (p->s[0] == '[' && k != XN_NUM) {
             const char *at = p->s++;
             struct xnode *i;
@@ -2602,6 +2605,329 @@ internal int x_leaves(const struct xnode *b) {   // a block that always leaves w
     if (b && b->k == XN_BLOCK) b = b->n_items ? b->items[b->n_items - 1] : NULL;
     return b && (b->k == XN_RETURN || b->k == XN_BREAK || b->k == XN_CONTINUE);
 }
+// THE LANGUAGE SERVER'S RECORD (check/lsp.c - its check's process only, g_xr_out set: definitions, references,
+// completion by type): each name the check passes, as a line to g_xr_out - where it is in the file, what it is (a
+// variable and where its let is; a struct, a struct's member and where they are declared; a member of one of the
+// host's kinds; a function or name of the language's or the host's; a name of the files' tops, which the server
+// resolves - it knows where they are) and its type. "@@U path line col len what name type dpath dline dcol decl"
+// (tabs between; lines from 0, columns in UTF-16 units: LSP's). The server's question (g_xr_q*: the type of what ends
+// at a place, a dot about to follow) answered "@@T type" and a line "@@M name m|v type kind" per member.
+// A tree's places point into the source it was parsed from, which is not always the file: a text's value is its lines
+// joined (tl_value keeps where each character came from), an expression's tree is shared by every value of its text
+// (x_compiled: the check of each says which value it is), a string's placeholders are cut out of its text (in an
+// expression: the string's text unescaped, its source in the tree). Where a check's source came from is a stack
+// (g_xrc), pushed where each check starts: XR_FILE the file's own text (off: where the source starts in it - a text
+// file's function after its head "(a,b) => "; lo: the head's length, its parameters found on the key's line, head),
+// XR_POS a value joined (pos: each character's place in the file), XR_STR a string's text (raw: its source in the code
+// of the one below), XR_SUB a placeholder's (off: where it starts in the text below). code: the source the tree points
+// into - NULL until the next compiled one (x_syntax_at, x_fills_ok set it)
+enum { XR_FILE, XR_POS, XR_STR, XR_SUB };
+struct xr_ctx { int kind; const char *code; size_t n; const int *pos; long off, lo; const char *raw, *head; struct xr_ctx *up; };
+internal void (*g_xr_out)(const char *line);
+internal struct xr_ctx *g_xrc;
+internal char g_xr_path[MAX_PATH], g_xr_qpath[MAX_PATH];   // the file being checked; the question's file
+internal const char *g_xr_text, *g_xr_pathc;   // its text; its path kept (a declaration's)
+internal int *g_xr_ls, g_xr_nls, g_xr_utf8, g_xr_busy;   // its lines' starts; UTF-8 (a script) or the code page's (a text file)
+internal int g_xr_qline = -1, g_xr_qcol, g_xr_qdone;
+internal int xr_wc(char c) { return isalnum((unsigned char)c) || c == '_'; }
+internal void xr_push(struct xr_ctx *c) { c->up = g_xrc; g_xrc = c; }
+internal void xr_file(const char *path, const char *text, int utf8) {   // the file a check reads now
+    if (!g_xr_out) return;
+    if (!GetFullPathNameA(path, MAX_PATH, g_xr_path, NULL)) lstrcpynA(g_xr_path, path, MAX_PATH);
+    g_xr_pathc = _strdup(g_xr_path);   // (a few a check's process: kept for the declarations found in it)
+    g_xr_text = text;
+    g_xr_utf8 = utf8;
+    free(g_xr_ls);
+    g_xr_nls = 0;
+    int cap = 256;
+    g_xr_ls = malloc(sizeof *g_xr_ls * (size_t)cap);
+    for (const char *s = text; g_xr_ls; ) {
+        if (g_xr_nls == cap) { int *t = realloc(g_xr_ls, sizeof *t * (size_t)(cap *= 2)); if (!t) break; g_xr_ls = t; }
+        g_xr_ls[g_xr_nls++] = (int)(s - text);
+        if (!(s = strchr(s, '\n'))) break;
+        s++;
+    }
+}
+internal void xr_lc(long off, int *line, int *col) {   // a place in the file: its line, its column
+    int lo = 0, hi = g_xr_nls - 1;
+    while (lo < hi) { int m = (lo + hi + 1) / 2; if (g_xr_ls[m] <= off) lo = m; else hi = m - 1; }
+    *line = lo;
+    const char *s = g_xr_text + (g_xr_nls ? g_xr_ls[lo] : 0), *e = g_xr_text + off;
+    int c = 0;
+    for (; s < e; s++) {
+        unsigned char b = (unsigned char)*s;
+        if (!g_xr_utf8 || (b & 0xC0) != 0x80) c += g_xr_utf8 && b >= 0xF0 ? 2 : 1;   // (a 4-byte character: two units)
+    }
+    *col = c;
+}
+internal const char *xr_word(const char *s, const char *w, size_t wl, const char *lim) {   // w whole from s on, before lim
+    for (const char *b = s; *s && s + wl <= lim; s++)
+        if (!strncmp(s, w, wl) && !xr_wc(s[wl]) && (s == b || !xr_wc(s[-1]))) return s;
+    return NULL;
+}
+// character i of the text a string's source makes (raw at its quote, or "a" "b" side by side in ( )): where it is
+// in the source - x_string's rules (an escape two characters for one, a verbatim string's "" one; the code in {braces}
+// as written)
+internal const char *xr_str_src(const char *s, long i) {
+    long o = 0;
+    for (;;) {
+        while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n' || *s == '(') s++;
+        if (*s == '@' && s[1] == '"') {
+            for (s += 2; *s && *s != '\n'; s++, o++) {
+                if (o == i) return s;
+                if (*s == '"') { if (s[1] != '"') break; s++; }
+            }
+        } else if (*s == '"' || *s == '\'') {
+            char q = *s;
+            int depth = 0;
+            for (s++; *s && *s != '\n'; s++, o++) {
+                if (o == i) return s;
+                if (depth) { if (*s == '{') depth++; else if (*s == '}') depth--; }
+                else if (*s == q) break;
+                else if (*s == '\\' && s[1]) s++;
+                else if (*s == '{') depth = 1;
+            }
+        } else return NULL;
+        if (*s != '"' && *s != '\'') return NULL;
+        s++;   // past its closing quote: the next string, side by side
+    }
+}
+internal long xr_off(const struct xr_ctx *c, long i) {   // a place in c's code: where it is in the file, -1 not known
+    while (c) {
+        if (!c->code || i < 0 || i > (long)c->n) return -1;
+        if (c->kind == XR_POS) return i < (long)c->n ? c->pos[i] : c->n ? c->pos[c->n - 1] + 1 : -1;
+        if (c->kind == XR_SUB) { i += c->off; c = c->up; continue; }
+        if (c->kind == XR_STR) {
+            const char *q = xr_str_src(c->raw, i);
+            if (!q || !c->up || !c->up->code) return -1;
+            i = (long)(q - c->up->code);
+            c = c->up;
+            continue;
+        }
+        if (i >= c->lo) return c->off + i;
+        size_t wl = 0;   // a text file's function's head as its key has it: a parameter's name found on the key's line
+        while (xr_wc(c->code[i + (long)wl])) wl++;
+        const char *f = wl && c->head ? xr_word(c->head, c->code + i, wl, g_xr_text + c->off + c->lo) : NULL;
+        return f ? (long)(f - g_xr_text) : -1;
+    }
+    return -1;
+}
+internal const struct xr_ctx *xr_ctx_of(const char *p) {   // the source p is in: the check's, or one it is inside (a
+    for (const struct xr_ctx *c = g_xrc; p && c; c = c->up)   // struct declared in the script, read in a placeholder)
+        if (c->code && p >= c->code && p <= c->code + c->n) return c;
+    return NULL;
+}
+internal int xr_at(const char *p, int *line, int *col) {   // a place in the code being checked: its line and column
+    const struct xr_ctx *c = xr_ctx_of(p);
+    if (!c || !g_xr_text) return 0;
+    long o = xr_off(c, (long)(p - c->code));
+    if (o < 0) return 0;
+    xr_lc(o, line, col);
+    return 1;
+}
+// where a declaration's name is: on its node's line after its start (let x, for x in, a parameter in its head, a
+// struct's name and fields) - a method's node starts at its ( and has it before
+internal const char *xr_name_in(const struct xnode *n, const char *name) {
+    const struct xr_ctx *c = n ? xr_ctx_of(n->at) : NULL;
+    if (!c) return NULL;
+    size_t wl = strlen(name);
+    const char *lim = n->at;
+    while (*lim && *lim != '\n') lim++;
+    const char *w = xr_word(n->at, name, wl, lim);
+    if (!w && n->at - c->code >= (long)wl && !strncmp(n->at - wl, name, wl)) w = n->at - wl;
+    return w;
+}
+struct xr_decl { const char *name, *path; int line, col; };   // a variable's declaration, by its name's text (the node's own)
+internal struct xr_decl *g_xr_decl;
+internal int g_xr_ndecl, g_xr_decl_cap;
+internal void xr_put(int line, int col, size_t len, char what, const char *name, int type, const char *dpath, int dline, int dcol, int decl) {
+    char t[80], b[MAX_PATH * 2 + 300];
+    if (type) xty_name(type, t, sizeof t); else t[0] = 0;
+    snprintf(b, sizeof b, "@@U\t%s\t%d\t%d\t%d\t%c\t%.80s\t%s\t%s\t%d\t%d\t%d", g_xr_path, line, col, (int)len, what, name, t,
+             dpath ? dpath : "", dline, dcol, decl);
+    g_xr_out(b);
+}
+internal void xr_decl(const char *name, const struct xnode *n, int type) {   // a variable declared (its name: the node's text)
+    int line, col;
+    const char *w = g_xr_out && !g_xr_busy ? xr_name_in(n, name) : NULL;
+    if (!w || !xr_at(w, &line, &col)) return;
+    if (g_xr_ndecl == g_xr_decl_cap) {
+        int c = g_xr_decl_cap ? g_xr_decl_cap * 2 : 256;
+        struct xr_decl *t = realloc(g_xr_decl, sizeof *t * (size_t)c);
+        if (!t) return;
+        g_xr_decl = t; g_xr_decl_cap = c;
+    }
+    g_xr_decl[g_xr_ndecl++] = (struct xr_decl){ name, g_xr_pathc, line, col };
+    xr_put(line, col, strlen(name), 'v', name, type, g_xr_pathc, line, col, 1);
+}
+internal const struct xr_decl *xr_decl_of(const struct xscope *s, const char *name, size_t len) {   // a variable's in scope
+    for (; s; s = s->up)
+        for (int i = 0; i < s->n; i++)
+            if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) {
+                for (int d = g_xr_ndecl - 1; d >= 0; d--) if (g_xr_decl[d].name == s->name[i]) return &g_xr_decl[d];
+                return NULL;
+            }
+    return NULL;
+}
+// a struct's member (what 'F' a field, 'M' a method) or the struct itself (name NULL): where it is declared
+internal int xr_struct_at(int t, const char *name, int what, int *line, int *col) {
+    const struct xnode *d = xst_is(t) ? g_xst[t - XT_STRUCT].decl : NULL;
+    const struct xnode *m = d && name ? xst_member(t, name, what, NULL) : d;
+    const char *w = m ? xr_name_in(m, name ? name : d->s) : NULL;
+    return w && xr_at(w, line, col);
+}
+internal void xr_members(int t) {   // the question's answer: t and its members
+    char b[300], ty[80];
+    snprintf(b, sizeof b, "@@T\t%s", t ? xty_name(t, ty, sizeof ty) : "");
+    g_xr_out(b);
+    int base = t & ~X_NULLABLE;
+    const struct x_kind *kd = base > 0 && base < XT_INT ? g_x_host.kind(base) : NULL;
+    for (int i = 0; kd && i < kd->n; i++) {
+        snprintf(b, sizeof b, "@@M\t%s\t%c\t%s\t%s", kd->m[i].name, kd->m[i].amin >= 0 ? 'm' : 'v', kd->m[i].result ? xty_name(kd->m[i].result, ty, sizeof ty) : "", kd->name);
+        g_xr_out(b);
+    }
+    const struct xnode *d = xst_is(base) ? g_xst[base - XT_STRUCT].decl : NULL;
+    for (int i = 0; d && i < d->n_items; i++) {
+        const struct xnode *m = d->items[i];
+        int mt = m->op == 'F' ? (int)m->n : m->k == XN_LAMBDA ? (int)m->n : 0;
+        snprintf(b, sizeof b, "@@M\t%s\t%c\t%s\t%s", m->s, m->op == 'M' ? 'm' : 'v', mt ? xty_name(mt, ty, sizeof ty) : "", d->s);
+        g_xr_out(b);
+    }
+    int vn = base == XT_VEC2 ? 2 : base == XT_VEC3 ? 3 : base == XT_VEC4 ? 4 : 0;
+    for (int i = 0; i < vn; i++) { snprintf(b, sizeof b, "@@M\t%c\tv\tfloat\t%s", "xyzw"[i], xty_name(base, ty, sizeof ty)); g_xr_out(b); }
+    if (base == XT_TRIG) { g_xr_out("@@M\ton\tv\tbool\ttrigger"); g_xr_out("@@M\tfired\tv\tint\ttrigger"); }
+    if (xt_is_hl(base)) {
+        static const char *const k[] = { "add", "insert", "remove_at", "clear", "index_of" };
+        for (int i = 0; i < 5; i++) { snprintf(b, sizeof b, "@@M\t%s\tm\t%s\tlist", k[i], i == 4 ? "int?" : ""); g_xr_out(b); }
+    }
+    const struct xctype *c = t & (X_LIST_OF | X_NULLABLE) ? NULL : xct_of(base);
+    for (int i = 0; c && c->kind == XCT_REC && i < c->n; i++) {
+        snprintf(b, sizeof b, "@@M\t%s\tv\t%s\trecord", c->name[i], c->t[i] ? xty_name(c->t[i], ty, sizeof ty) : "");
+        g_xr_out(b);
+    }
+}
+internal void xr_end(const char *p, int t) {   // what ends at p is a t: the server's question when it asks of there
+    int line, col;
+    if (g_xr_qline < 0 || g_xr_qdone || lstrcmpiA(g_xr_path, g_xr_qpath) || !xr_at(p, &line, &col)) return;
+    if (line != g_xr_qline || col != g_xr_qcol) return;
+    g_xr_qdone = 1;
+    xr_members(t);
+}
+// a member m of what is a t, at p: a member of a host's kind, a struct's field or method (call: a method)
+internal int xr_member_at(const char *p, const char *m, size_t mn, int t, int call) {
+    int line, col, dl, dc, b = t & ~X_NULLABLE;
+    char nm[48], full[96];
+    if (mn >= sizeof nm || (b & X_LIST_OF) || !xr_at(p, &line, &col)) return X_ANY;
+    lstrcpynA(nm, m, (int)mn + 1);
+    if (b > 0 && b < XT_INT) {
+        const struct x_kmember *km = x_kind_member(b, nm);
+        if (!km) return X_ANY;
+        snprintf(full, sizeof full, "%s.%s", x_kind_name(b), nm);
+        xr_put(line, col, mn, 'm', full, km->result, NULL, 0, 0, 0);
+        return km->result;
+    }
+    if (xst_is(b)) {
+        const struct xnode *f = xst_member(b, nm, call ? 'M' : 'F', NULL);
+        if (!f) return X_ANY;
+        snprintf(full, sizeof full, "%s.%s", g_xst[b - XT_STRUCT].name, nm);
+        int ok = xr_struct_at(b, nm, call ? 'M' : 'F', &dl, &dc), ft = (int)f->n;
+        xr_put(line, col, mn, 's', full, ft, ok ? g_xr_pathc : NULL, ok ? dl : 0, ok ? dc : 0, 0);
+        return f->op == 'F' ? ft : X_ANY;
+    }
+    if (b >= XT_INT) { int own = xt_own_member(b, nm); return own < 0 ? X_ANY : own; }   // v.x, t.on: the language's own
+    return X_ANY;
+}
+// a name as written (a path: a.b.c; call: its last part called) at p: its head - a variable, a struct, a function,
+// a name of the host's or of the files' tops - then each member
+internal void xr_path(struct xcheck *k, const struct xnode *n, const char *s, const char *p, const struct xscope *sc, int call) {
+    size_t len = strlen(s), hn = strcspn(s, ".");
+    int line, col, t = X_ANY, last = !s[hn], f;
+    char head[48];
+    if (hn >= sizeof head || !xr_at(p, &line, &col)) return;
+    lstrcpynA(head, s, (int)hn + 1);
+    if (xsc_find(sc, s, hn, NULL)) {   // a variable: its let
+        const struct xr_decl *d = xr_decl_of(sc, s, hn);
+        t = xsc_kind(sc, s, hn);
+        xr_put(line, col, hn, 'v', head, t, d ? d->path : NULL, d ? d->line : 0, d ? d->col : 0, 0);
+    } else if (k->script && last && call && (f = xst_find(head)) >= 0) {   // point(...): the struct
+        int dl, dc, ok = xr_struct_at(XT_STRUCT + f, NULL, 0, &dl, &dc);
+        xr_put(line, col, hn, 'S', head, XT_STRUCT + f, ok ? g_xr_pathc : NULL, ok ? dl : 0, ok ? dc : 0, 0);
+        return;
+    } else if (last && call) {   // a function of the language's, a script's or the host's (a command) - else a text file's
+        int own = x_fn_id(head, n->n_items < 8 ? n->n_items : 8) || x_script_fn(head) >= 0 || g_x_host.command(head);
+        xr_put(line, col, hn, own ? 'f' : 't', head, x_stype(k, n, sc), NULL, 0, 0, 0);
+        return;
+    } else if ((t = g_x_host.const_type(s)) != X_ANY) {   // epoch.middle, unit.x: a constant, whole
+        xr_put(line, col, len, 'f', s, t, NULL, 0, 0, 0);
+        xr_end(p + len, t);
+        return;
+    } else if (!k->script && x_field_known(head)) {   // a personality's field (let at a file's top)
+        t = x_stype(k, n, sc);
+        xr_put(line, col, hn, 't', head, last ? t : X_ANY, NULL, 0, 0, 0);
+        if (last) { xr_end(p + len, t); return; }
+        t = X_ANY;
+    } else if ((t = g_x_host.root_kind(head)) != 0 || (t = g_x_host.name_type(head)) != X_ANY ||
+               (k->script && (x_name_known(head) || !strcmp(head, "time") || !strcmp(head, "stop"))) ||
+               (!k->script && g_x_host.name_valid(head) && !x_var_data(head) && !x_var_data(s))) {   // the host's: them, game, opinion
+        xr_put(line, col, hn, 'f', head, t, NULL, 0, 0, 0);
+    } else {   // a name of the files' tops, a record's member (rec.key) whole: the server knows where they are
+        xr_put(line, col, len, 't', s, last ? x_stype(k, n, sc) : X_ANY, NULL, 0, 0, 0);
+        return;
+    }
+    for (size_t o = hn; s[o] == '.'; ) {
+        xr_end(p + o, t);
+        const char *m = s + o + 1;
+        size_t mn = strcspn(m, ".");
+        t = xr_member_at(p + (m - s), m, mn, t, call && !m[mn]);
+        o += 1 + mn;
+    }
+    if (!call) xr_end(p + len, t);
+}
+// the check is at node n: what it names recorded (the check's own state as it was: x_stype may note a mistake it
+// doesn't make here)
+internal void xr_node(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
+    char why[sizeof k->whybuf];
+    const char *w0 = k->why;
+    int l0 = k->line, line, col;
+    memcpy(why, k->whybuf, sizeof why);
+    g_xr_busy = 1;
+    switch (n->k) {
+    case XN_NAME: if (n->op != 'F') xr_path(k, n, n->s, n->at, sc, 0); break;
+    case XN_CALL: xr_path(k, n, n->s, n->at, sc, 1); xr_end(n->end, x_stype(k, n, sc)); break;
+    case XN_MEMBER: case XN_MCALL:
+        xr_member_at(n->at + 1, n->s, strlen(n->s), x_stype(k, n->a, sc), n->k == XN_MCALL);
+        xr_end(n->end, x_stype(k, n, sc));
+        break;
+    case XN_INDEX: xr_end(n->end, x_stype(k, n, sc)); break;
+    case XN_ASSIGN: {   // x = ...: its variable
+        const char *w = xr_name_in(n, n->s);
+        const struct xr_decl *d = xr_decl_of(sc, n->s, strlen(n->s));
+        if (w && xr_at(w, &line, &col)) xr_put(line, col, strlen(n->s), d || k->script ? 'v' : 't', n->s, xsc_kind(sc, n->s, strlen(n->s)), d ? d->path : NULL, d ? d->line : 0, d ? d->col : 0, 0);
+        break;
+    }
+    case XN_SETM: {   // a.b = ...: its member, after what it is of
+        const char *w = n->a && n->a->end ? n->a->end : NULL;
+        if (w && *w == '.') xr_member_at(w + 1, n->s, strlen(n->s), x_stype(k, n->a, sc), 0);
+        break;
+    }
+    case XN_STRUCT: {   // its name, its members: declared
+        int t = (int)n->n, dl, dc;
+        char full[96];
+        if (xr_struct_at(t, NULL, 0, &dl, &dc)) xr_put(dl, dc, strlen(n->s), 'S', n->s, t, g_xr_pathc, dl, dc, 1);
+        for (int i = 0; i < n->n_items; i++) {
+            const struct xnode *m = n->items[i];
+            snprintf(full, sizeof full, "%s.%s", n->s, m->s);
+            if (xr_struct_at(t, m->s, m->op, &dl, &dc)) xr_put(dl, dc, strlen(m->s), 's', full, m->op == 'F' ? (int)m->n : 0, g_xr_pathc, dl, dc, 1);
+        }
+        break;
+    }
+    default: break;
+    }
+    g_xr_busy = 0;
+    k->why = w0;
+    k->line = l0;
+    memcpy(k->whybuf, why, sizeof why);
+}
 internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its lets first
     if (!body || body->k != XN_BLOCK) return x_check(k, body, sc);
     if (k->script && !sc->up && !sc->blk)   // the script's top: its structs known from the start (a type, a method used above its struct)
@@ -2623,24 +2949,28 @@ internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xsc
         if (s->k != XN_LET) continue;
         if (!x_check_new_name(k, s, s->s, sc)) return 0;
         if (sc->n < 64) { sc->decl[sc->n] = s->op == 'r' ? 2 : 0; sc->name[sc->n++] = s->s; }
+        if (g_xr_out) xr_decl(s->s, s, 0);
     }
-    int keep = k->n_nn, top = k->script && !sc->up && !sc->blk;
+    // (the language server's record, g_xr_out: a statement with a mistake doesn't end the check - the names of the
+    // rest are recorded too; the result is still the mistake)
+    int keep = k->n_nn, top = k->script && !sc->up && !sc->blk, bad = 0;
     for (int i = 0; i < body->n_items; i++) {
         const struct xnode *s = body->items[i];
         // the script's declared functions and its structs' methods: their code after the rest of its top (below) - they
         // run when they are called, and by then every let of the top is a variable of a type known (score.add(1)
         // of a let further down); here only that the name is a function, for the calls of it
         if (top && s->k == XN_LET && s->op == 'D' && s->a && s->a->k == XN_LAMBDA) { xsc_pass(sc, s->s, XT_FN, s->a); continue; }
-        if (!(top && x_is_setup(s)) && !x_check(k, s, sc)) { k->n_nn = keep; return 0; }
+        if (!(top && x_is_setup(s)) && !x_check(k, s, sc)) { if (!g_xr_out) { k->n_nn = keep; return 0; } bad = 1; continue; }
         if (s->k == XN_IF && !s->b && x_leaves(s->a)) xn_facts(k, s->c, 0);   // if p.lord == null { return }: there below
     }
     k->n_nn = keep;
     for (int i = 0; top && i < body->n_items; i++) {
         const struct xnode *s = body->items[i];
-        if (s->k == XN_LET && s->op == 'D' && s->a && s->a->k == XN_LAMBDA && !x_check(k, s->a, sc)) return 0;
-        for (int j = 0; s->k == XN_STRUCT && j < s->n_items; j++) if (s->items[j]->op == 'M' && !x_check(k, s->items[j], sc)) return 0;
+        if (s->k == XN_LET && s->op == 'D' && s->a && s->a->k == XN_LAMBDA && !x_check(k, s->a, sc)) { if (!g_xr_out) return 0; bad = 1; }
+        for (int j = 0; s->k == XN_STRUCT && j < s->n_items; j++)
+            if (s->items[j]->op == 'M' && !x_check(k, s->items[j], sc)) { if (!g_xr_out) return 0; bad = 1; }
     }
-    return 1;
+    return !bad;
 }
 internal int x_check_block(struct xcheck *k, const struct xnode *blk, const struct xscope *sc) {   // an if's, a loop's
     struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 }, { 0 } };
@@ -2954,6 +3284,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
         else if (!f && xst_member(want, e->s, 'M', NULL)) snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: %s is a %s's method - its fields: %s", e->s, e->s, a, l);
         else if (!f) snprintf(k->whybuf, sizeof k->whybuf, "{ %s = ... }: a %s has no field %s - its fields: %s", e->s, a, e->s, l);
         else {
+            if (g_xr_out && g_xrc && !g_xr_busy) xr_member_at(e->at, e->s, strlen(e->s), want, 0);   // (the language server's record: the field)
             X_WANT(e->a, ft);
             if (!x_check(k, e->a, sc)) return 0;
             tv = x_stype(k, e->a, sc);
@@ -2978,12 +3309,17 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
 }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     if (!n) return 1;
+    if (g_xr_out && g_xrc && !g_xr_busy && n->at) xr_node(k, n, sc);   // (the language server's record)
     switch (n->k) {
     case XN_NUM: return 1;
     case XN_STR: {
         const char *why;
         g_x_check_line = k->script ? n->line : g_x_check_line;
-        if (!x_fills_ok(n->s, &why, k, sc)) return xc_fail(k, n, why);   // its placeholders see the names around it
+        struct xr_ctx xs = { XR_STR, n->s, strlen(n->s), NULL, 0, 0, n->at, NULL, NULL };   // (its placeholders: where they are)
+        if (g_xr_out && g_xrc) xr_push(&xs);
+        int ok = x_fills_ok(n->s, &why, k, sc);   // its placeholders see the names around it
+        if (g_xrc == &xs) g_xrc = xs.up;
+        if (!ok) return xc_fail(k, n, why);
         return 1;
     }
     case XN_NAME: {
@@ -3034,6 +3370,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                 }
             }
             xsc_add(&s, pi->s);
+            if (g_xr_out) xr_decl(pi->s, pi, ty);
             if (s.n) s.kind[s.n - 1] = (short)ty;
             if (s.n && pi->op == 'r') s.decl[s.n - 1] |= 2;   // a ref: a place
         }
@@ -3187,6 +3524,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (n->k == XN_FOR) {   // its name: a list's items' kind (for p in game.players: a player)
             if (!x_check_new_name(k, n, n->s, sc)) return 0;
             xsc_add(&b, n->s);
+            if (g_xr_out) xr_decl(n->s, n, 0);
             b.decl[0] |= 4;   // the loop's copy of an item
             int lk = n->b ? X_ANY : x_stype(k, n->a, sc);   // a range's: an int from ints, else a float
             if (xt_is_dict(lk)) return xc_fail(k, n, "for ... in a dict: a dict's entries have no order to go through - a list of its keys beside it does (keys.add(k) where one is new)");
@@ -5241,6 +5579,7 @@ internal int x_syntax_at(const char *src, const char **why, int ph) {
     c.found = 1;   // no players looked up
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
+    if (g_xrc && !g_xrc->code) { g_xrc->code = u->src; g_xrc->n = strlen(u->src); }   // (the language server's record: the tree's source)
     struct xcheck k = { &c, 0, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0, 1, 0 };
     struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
     xn_has(&k);
@@ -5323,15 +5662,21 @@ internal int x_fills_ok(const char *text, const char **why, struct xcheck *k, st
         }
         int expr = strpbrk(src, " <>=?\"'(+[!&|") != NULL;
         int name = !expr && n && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n && !isdigit((unsigned char)*src);
+        // (the language server's record: the placeholder's place in the string's text - x_check XN_STR, tl_value)
+        struct xr_ctx xp = { XR_SUB, NULL, 0, NULL, (long)(s + 1 - text), 0, NULL, NULL, NULL };
+        if (g_xrc && g_xrc->kind == XR_STR && g_xrc->code == text) xr_push(&xp);
         if ((expr || name) && k) {   // in an expression: the checks around it hold ("{lord}" in lord != null ? ...)
             const struct xunit *u = x_compiled(src);
-            if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
+            if (!u->ok) { *why = u->why ? u->why : "not an expression"; if (g_xrc == &xp) g_xrc = xp.up; return 0; }
+            if (g_xrc == &xp) { xp.code = u->src; xp.n = strlen(u->src); }
             g_x_in_ph++;   // (a text's code: a struct's fields are read there, none made, no method called)
             int ok = x_check(k, u->root, sc) && x_ph_ok(k, u->root, sc, src, why);
             g_x_in_ph--;
+            if (g_xrc == &xp) g_xrc = xp.up;
             if (!ok) { *why = k->why ? k->why : *why; return 0; }
         }
-        else if (expr || name) { if (!x_syntax_at(src, why, 1)) return 0; }
+        else if (expr || name) { int ok = x_syntax_at(src, why, 1); if (g_xrc == &xp) g_xrc = xp.up; if (!ok) return 0; }
+        else if (g_xrc == &xp) g_xrc = xp.up;
         s = close;
     }
     return 1;
@@ -5513,37 +5858,41 @@ internal void tl_value(struct tlex *l, struct tval *v, int rec) {
     tl_blank(l, 0);
     size_t cap = 256, o = 0;
     char *r = malloc(cap);
+    int *pos = g_xr_out && g_xr_text ? malloc(sizeof *pos * cap) : NULL;   // the language server's record: each character's place
     int depth = 0;
     for (;;) {
         char c = *l->s;
+        const char *cp = l->s;
         if (!c || (c == '\n' && !depth) || (rec && !depth && (c == ',' || c == '}'))) break;
         if (c == '\n' && tl_key_line(l->s + 1)) { l->line++; l->s++; break; }   // the next key: depth tells
         if (c == '\n' || c == '\r' || c == '\t') { if (c == '\n') l->line++; l->s++; c = ' '; }
         else if (x_comment(l->s)) { while (*l->s && *l->s != '\n') l->s++; continue; }
-        else if (c == '#') { tl_error(l, X_HASH_WHY); free(r); return; }
-        else if (c == ';') { tl_error(l, "; - a comment starts with //"); free(r); return; }
+        else if (c == '#') { tl_error(l, X_HASH_WHY); free(r); free(pos); return; }
+        else if (c == ';') { tl_error(l, "; - a comment starts with //"); free(r); free(pos); return; }
         else if (x_string_at(l->s)) {   // a string, copied as written
             const char *e, *why;
-            if (x_string(l->s, NULL, 0, &e, &why) < 0) { tl_error(l, why); free(r); return; }
+            if (x_string(l->s, NULL, 0, &e, &why) < 0) { tl_error(l, why); free(r); free(pos); return; }
             size_t len = (size_t)(e - l->s);
-            if (o + len + 2 >= cap) r = realloc(r, cap = (o + len) * 2 + 2);
+            if (o + len + 2 >= cap) { r = realloc(r, cap = (o + len) * 2 + 2); if (pos) pos = realloc(pos, sizeof *pos * cap); }
             memcpy(r + o, l->s, len);
+            for (size_t i = 0; pos && i < len; i++) pos[o + i] = (int)(l->s + i - g_xr_text);
             o += len;
             l->s = e;
             continue;
         } else {
             if (c == '(' || c == '[' || c == '{') depth++;
-            if ((c == ')' || c == ']' || c == '}') && --depth < 0) { tl_error(l, "a ) ] or } too many"); free(r); return; }
+            if ((c == ')' || c == ']' || c == '}') && --depth < 0) { tl_error(l, "a ) ] or } too many"); free(r); free(pos); return; }
             l->s++;
         }
         if (c == ' ' && (!o || r[o - 1] == ' ')) continue;
-        if (o + 2 >= cap) r = realloc(r, cap *= 2);
+        if (o + 2 >= cap) { r = realloc(r, cap *= 2); if (pos) pos = realloc(pos, sizeof *pos * cap); }
+        if (pos) pos[o] = (int)(cp - g_xr_text);
         r[o++] = c;
     }
     while (o && r[o - 1] == ' ') o--;
     r[o] = 0;
-    if (depth) { int cur = l->line; l->line = v->line; tl_error(l, "a ( [ or { without its end"); l->line = cur; free(r); return; }
-    if (!o) { tl_error(l, "a value missing"); free(r); return; }
+    if (depth) { int cur = l->line; l->line = v->line; tl_error(l, "a ( [ or { without its end"); l->line = cur; free(r); free(pos); return; }
+    if (!o) { tl_error(l, "a value missing"); free(r); free(pos); return; }
     v->src = r;
     const char *why;
     char *t = malloc(o + 1);
@@ -5558,7 +5907,15 @@ internal void tl_value(struct tlex *l, struct tval *v, int rec) {
     }
     // the syntax now (an expression, a string's placeholders): a mistake comes up when the file is read, not when the
     // line is said
-    if (v->kind == TV_EXPR ? !x_syntax(r, &why) : v->kind == TV_STRING && !x_fills_ok(v->text, &why, NULL, NULL)) {
+    struct xr_ctx xp = { XR_POS, NULL, 0, pos, 0, 0, NULL, NULL, NULL }, xs = { XR_STR, NULL, 0, NULL, 0, 0, r, NULL, NULL };
+    if (pos) {   // (the language server's record: the value's places in the file - a string's text from its source)
+        xr_push(&xp);
+        if (v->kind == TV_STRING) { xp.code = r; xp.n = o; xs.code = v->text; xs.n = strlen(v->text); xr_push(&xs); }
+    }
+    int bad = v->kind == TV_EXPR ? !x_syntax(r, &why) : v->kind == TV_STRING && !x_fills_ok(v->text, &why, NULL, NULL);
+    if (pos) g_xrc = xp.up;
+    free(pos);
+    if (bad) {
         int cur = l->line;
         l->line = v->line;
         tl_error(l, why);
@@ -5665,11 +6022,16 @@ internal void tl_body(struct tlex *l, const char *key, tfile_fn fn, void *arg, c
     memcpy(v.src + 1 + pn, " => ", 4);
     memcpy(v.src + 5 + pn, b, bn);
     v.src[5 + pn + bn] = 0;
-    const char *why;
+    const char *why, *head = b;
+    while (g_xr_text && head > g_xr_text && head[-1] != '\n') head--;
+    // (the language server's record: the body as written, its head the key's line)
+    struct xr_ctx xb = { XR_FILE, NULL, 0, NULL, (long)(b - g_xr_text) - (long)(pn + 4), (long)(pn + 4), NULL, head, NULL };
+    if (g_xr_out && g_xr_text) xr_push(&xb);
     g_x_check_file = file;
     g_x_check_line = line;
     int ok = x_syntax(v.src + 1, &why);
     g_x_check_file = NULL;
+    if (g_xrc == &xb) g_xrc = xb.up;
     if (!ok) {
         const struct xunit *u = x_compiled(v.src + 1);
         int cur = l->line;
@@ -5745,8 +6107,10 @@ internal void tl_let(struct tlex *l, tfile_fn fn, void *arg, const char *file) {
     tval_free(&v);
 }
 #define TL_DEPTH 8
-internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
+// (path: where file - its name in the messages - is; the language server's record says it, NULL the name is the path)
+internal void tfile_parse_at(const char *path, const char *file, const char *text, tfile_fn fn, void *arg) {
     struct tlex l = { text, file, 1, 0 };
+    xr_file(path ? path : file, text, 0);   // (the language server's record: the code page's text)
     char record[160] = "";   // the record being read (lines; a record in it: prompt.tools)
     int record_line[TL_DEPTH], depth = 0;   // where each open record starts; how many are open
     for (;;) {

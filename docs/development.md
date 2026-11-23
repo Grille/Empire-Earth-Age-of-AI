@@ -134,7 +134,8 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     the DLL's own rows and checks; the shipped ageofai.ini built in as the help)
   check/            ageofai_check.c: ageofai_check.exe, the .eeai files checked without the game (the DLL's code
                     compiled into a program: the checks the game runs at its start; the build runs it too); lsp.c
-                    ageofai_check --lsp, the language server: the same checks while an editor types
+                    ageofai_check --lsp, the language server: the same checks while an editor types (lsp_know.c
+                    completion and hover, lsp_refs.c definitions, uses and types from the check's record)
 config/           ageofai.ini and the personalities, shipped to players
 tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
                   scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/

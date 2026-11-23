@@ -491,7 +491,7 @@ internal int persona_parse(const char *file, struct persona *p) {
     if (dot) *dot = 0;
     for (int t = 0; t < T_N; t++) p->trait[t] = 50;
     for (int t = 0; t < LN_N; t++) p->lean[t] = 50;
-    tfile_parse(file, text, persona_key, p);
+    tfile_parse_at(path, file, text, persona_key, p);
     free(text);
     return 1;
 }

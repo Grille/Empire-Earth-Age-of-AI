@@ -108,6 +108,19 @@ internal int script_compile(const char *path, const char *text, struct xunit *u,
     static char msg[200];
     *code = NULL;
     *u = x_parse(text, 1);
+    if (!u->ok && g_xr_out) {   // the language server's record (a line half typed): each line that doesn't parse left out -
+        char *t = _strdup(text);   // blanked, the places stay - until the rest does; the mistake is the first one still
+        struct xunit first = *u;
+        for (int tries = 0; t && !u->ok && u->line > 0 && tries < 8; tries++) {
+            char *l = t;
+            for (int n = 1; n < u->line && l; n++) if ((l = strchr(l, '\n')) != NULL) l++;
+            if (!l) break;
+            for (; *l && *l != '\n'; l++) if (*l != '\r') *l = ' ';
+            *u = x_parse(t, 1);
+        }
+        if (u->ok) text = t;   // (kept: the tree points into it)
+        else { free(t); *u = first; }
+    }
     if (!u->ok) { *why = u->why ? u->why : "not a script (a statement that is none, or nested too deep)"; *line = u->line; return 0; }
     struct xctx c = { 0 };
     c.found = 1;
@@ -117,7 +130,10 @@ internal int script_compile(const char *path, const char *text, struct xunit *u,
     const char *base = strrchr(path, '\\') ? strrchr(path, '\\') + 1 : strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
     int own = !lstrcmpiA(base, "setup.eeai"), have;
     g_x_check_file = base; g_x_check_ph = NULL; g_x_check_par = NULL;
+    struct xr_ctx xf = { XR_FILE, text, strlen(text), NULL, 0, 0, NULL, NULL, NULL };   // (the language server's record: the
+    if (g_xr_out) { xr_file(path, text, 1); xr_push(&xf); }                            // tree points into the file, UTF-8)
     int ok = x_check(&k, u->root, &sc);
+    if (g_xrc == &xf) g_xrc = xf.up;
     g_x_check_file = f0; g_x_check_ph = ph0; g_x_check_par = par0;
     if (!ok) { lstrcpynA(msg, k.why ? k.why : "a mistake", sizeof msg); *why = msg; *line = k.line; return 0; }
     if (own && !setup_hooks(u, &have, why, line)) return 0;   // (the checker reads it so too)

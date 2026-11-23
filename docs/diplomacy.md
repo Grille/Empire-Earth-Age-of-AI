@@ -75,7 +75,8 @@ peace or alliances. With the mod:
   files - records, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
   error - and the checker's mistakes while typing (`ageofai_check --lsp`, dll/check/lsp.c: the open files'
   unsaved texts checked a moment after each change; completion and hover from the game's tables and the files' names:
-  dll/check/lsp_know.c; extension.js its client). `python scripts/build/pack_vscode.py`,
+  dll/check/lsp_know.c; definitions, uses and the types - a hover's, the members after a dot - from the checker's
+  record of each name it passes: dll/check/lsp_refs.c, expr.c "THE LANGUAGE SERVER'S RECORD"; extension.js its client). `python scripts/build/pack_vscode.py`,
   then `code --install-extension local/work/eeaimod-texts.vsix` and reload the window. The grammar takes the names from the DLL's sources (`scripts/build/gen_vscode_grammar.py`).
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.

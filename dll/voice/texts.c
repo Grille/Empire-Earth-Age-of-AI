@@ -69,7 +69,7 @@ internal void texts_file(void) {
     lstrcatA(path, "system.eeai");
     char *text = read_text_acp(path);
     if (!text) { x_error("mod/system.eeai: no such file - the mod says nothing"); g_texts_missing = 1; return; }
-    tfile_parse("mod/system.eeai", text, texts_key, NULL);
+    tfile_parse_at(path, "mod/system.eeai", text, texts_key, NULL);
     free(text);
     for (int i = 0; i < N_SYS; i++) if (!g_sys_base[i]) x_error("mod/system.eeai: no text for %s", k_sys[i].key);
 }
@@ -171,7 +171,7 @@ internal void words_key(void *arg, const char *sec, const char *key, struct tval
 internal void words_read_file(const char *path, const char *shown) {
     char *text = read_text_acp(path);
     if (!text) { x_error("%s: no such file - the mod's words on the game's screens are their keys", shown); return; }
-    tfile_parse(shown, text, words_key, NULL);
+    tfile_parse_at(path, shown, text, words_key, NULL);
     free(text);
     int own = 0;
     for (int i = 0; i < N_WORDS; i++) {

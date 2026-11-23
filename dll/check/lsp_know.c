@@ -165,14 +165,15 @@ internal void lsp_where(const char *text, int line, int ch, struct lsp_at *at) {
 }
 
 // THE NAMES a file defines at its top: name = data, name => worked out, name(a) => / { } a function, let a field
-struct lsp_name { char name[48]; int kind; char *doc; char detail[160]; };   // kind: LSP's CompletionItemKind
+// kind: LSP's CompletionItemKind; path, line, col: where it is (go to its definition: check/lsp_refs.c)
+struct lsp_name { char name[48]; int kind; char *doc; char detail[160]; char path[MAX_PATH]; int line, col; };
 internal struct lsp_name *g_lsp_names;
 internal int g_lsp_nnames, g_lsp_names_cap;
 internal void lsp_names_clear(void) {
     for (int i = 0; i < g_lsp_nnames; i++) free(g_lsp_names[i].doc);
     g_lsp_nnames = 0;
 }
-internal void lsp_names_of(const char *text, const char *file) {   // file: the name its docs give ("mod\computer.eeai")
+internal void lsp_names_of(const char *text, const char *file, const char *path) {   // file: the name its docs give ("mod\computer.eeai")
     struct lsp_scan s;
     memset(&s, 0, sizeof s);
     size_t len;
@@ -186,9 +187,10 @@ internal void lsp_names_of(const char *text, const char *file) {   // file: the 
         if (len >= 2 && l[0] == '/' && l[1] == '/') { if (comment_from < 0) comment_from = i; continue; }
         char name[48] = "", detail[160] = "";
         int kind = 0;
-        size_t k = 0, j = 0;
+        size_t k = 0, j = 0, at = 0;
         if (len > 4 && !strncmp(l, "let ", 4)) {
             for (j = 4; j < len && (l[j] == ' ' || l[j] == '\t'); j++) ;
+            at = j;
             while (j < len && lsp_wc(l[j]) && k < 47) name[k++] = l[j++];
             kind = 5;   // Field
             snprintf(detail, sizeof detail, "a field (each AI its own, saved) - %s", file);
@@ -196,8 +198,10 @@ internal void lsp_names_of(const char *text, const char *file) {   // file: the 
             while (j < len && lsp_wc(l[j]) && k < 47) name[k++] = l[j++];
             name[k] = 0;
             if (j < len && l[j] == '(') {
-                size_t e = j;
+                size_t e = j, a;
                 while (e < len && l[e] != ')') e++;
+                for (a = e + 1; a < len && (l[a] == ' ' || l[a] == '\t'); a++) ;
+                if (a >= len || (l[a] != '=' && l[a] != '{' && l[a] != ':')) { comment_from = -1; continue; }   // a call (a script's top)
                 kind = 3;   // Function
                 snprintf(detail, sizeof detail, "%s%.*s - %s", name, (int)(e < len ? e - j + 1 : e - j), l + j, file);
             } else {
@@ -223,6 +227,9 @@ internal void lsp_names_of(const char *text, const char *file) {   // file: the 
         struct lsp_name *nm = &g_lsp_names[g_lsp_nnames++];
         lstrcpyA(nm->name, name);
         lstrcpyA(nm->detail, detail);
+        lstrcpynA(nm->path, path, MAX_PATH);
+        nm->line = i;
+        nm->col = (int)at;   // (ASCII before it)
         nm->kind = kind;
         struct lsb d = { 0 };   // the comment above it, then the line itself
         for (int c = comment_from; c >= 0 && c < i; c++) {
@@ -246,7 +253,7 @@ internal void lsp_names_load(const char *path, const char *text) {
     lsp_names_clear();
     char scope[MAX_PATH];
     lsp_scope(path, scope);
-    lsp_names_of(text, "this file");
+    lsp_names_of(text, "this file", path);
     if (!lstrcmpiA(scope, path)) return;
     static const char *const layers[] = { "mod\\computer.eeai", "mod\\prompt.eeai", "mod\\system.eeai" };
     char p[MAX_PATH];
@@ -254,7 +261,7 @@ internal void lsp_names_load(const char *path, const char *text) {
         snprintf(p, sizeof p, "%s\\%s", scope, layers[i]);
         if (!lstrcmpiA(p, path)) continue;
         char *t = lsp_file_text(p);
-        if (t) { lsp_names_of(t, layers[i]); free(t); }
+        if (t) { lsp_names_of(t, layers[i], p); free(t); }
     }
     for (const char *inc = strstr(text, "include("); inc; inc = strstr(inc + 8, "include(")) {   // include("a.eeai", ...)
         const char *e = strchr(inc, ')');
@@ -266,7 +273,7 @@ internal void lsp_names_load(const char *path, const char *text) {
             for (char *c = f; *c; c++) if (*c == '/') *c = '\\';
             snprintf(p, sizeof p, "%s\\%s", scope, f);
             char *t = lsp_file_text(p);
-            if (t) { lsp_names_of(t, f); free(t); }
+            if (t) { lsp_names_of(t, f, p); free(t); }
             q = strchr(qe + 1, '"');
         }
     }
@@ -525,6 +532,8 @@ internal void lsp_values(struct lsp_items *it, const struct lsp_at *at, const ch
         }
     }
 }
+internal int lsp_typed_members(int d, int line, int ch, int script, struct lsp_items *it);   // (check/lsp_refs.c)
+internal int lsp_use_hover(int d, int line, int ch, struct lsb *h);
 // textDocument/completion: the items for the place - JSON's result
 internal void lsp_complete(int d, int line, int ch, struct lsb *out) {
     struct lsp_at at;
@@ -537,7 +546,11 @@ internal void lsp_complete(int d, int line, int ch, struct lsb *out) {
     if (at.kind != LW_NONE) lsp_names_load(g_lsp_doc[d].path, g_lsp_doc[d].text);
     if (at.kind == LW_KEY) lsp_keys(&it, g_lsp_doc[d].text, g_lsp_doc[d].path, at.rec);
     else if (at.kind == LW_TOP && !at.script) lsp_top(&it);
-    else if (at.kind == LW_MEMBER) lsp_members(&it, at.base);
+    else if (at.kind == LW_MEMBER) {   // by the type of what stands before the dot (check/lsp_refs.c) - in a text file
+        int guess = !at.script && (lsp_base_kind(at.base) || !strcmp(at.base, "epoch") || !strcmp(at.base, "color") ||   // only
+                    !strcmp(at.base, "resource") || !strcmp(at.base, "kind") || !strcmp(at.base, "word"));              // where
+        if (guess || !lsp_typed_members(d, line, ch, at.script, &it)) lsp_members(&it, at.base);                     // the name
+    }                                                                                                                // doesn't tell
     else if (at.kind == LW_VALUE || at.kind == LW_TOP) lsp_values(&it, &at, g_lsp_doc[d].path);
     lsb_str(out, "\"result\":{\"isIncomplete\":false,\"items\":[");
     lsb_str(out, it.b.s ? it.b.s : "");
@@ -594,6 +607,12 @@ internal void lsp_hover(int d, int line, int ch, struct lsb *out) {
             }
         for (int i = 0; i < g_lsp_nnames && !h.n; i++)
             if (!strcmp(g_lsp_names[i].name, word)) { snprintf(m, sizeof m, "**%s** - %s\n\n", word, g_lsp_names[i].detail); lsb_str(&h, m); lsb_str(&h, g_lsp_names[i].doc); }
+    }
+    if (!h.n || at.script) {   // what the check's record knows of it (check/lsp_refs.c): a variable, a struct, a type - in a
+        struct lsb rh = { 0 };   // script before the guesses above, but for the language's functions (their docs here)
+        int rk = lsp_use_hover(d, line, ch, &rh);
+        if (rk && (!h.n || (rk != 'f' && rk != 't'))) { free(h.s); h = rh; }
+        else free(rh.s);
     }
     if (!h.n) { lsb_str(out, "\"result\":null"); return; }
     lsb_str(out, "\"result\":{\"contents\":{\"kind\":\"markdown\",\"value\":");

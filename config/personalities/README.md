@@ -152,8 +152,12 @@ The VS Code extension in the mod's sources (`extensions/eeaimod-texts`) highligh
 situations and `epoch.` names - and shows the mistakes while you type: it starts `ageofai_check --lsp` (below; the
 one in a folder above the file, or the setting `eeai.checker`), which checks each open file a moment after the last
 change, unsaved, the way the game will read it - and offers what fits where you type (a record's keys with = or =>
-as each is written, a player's members after `them.`, the values, functions and names of the file and its layers),
-with what each is when you point at it (a situation's description and chance, a member's or name's doc). Any editor
+as each is written, after a dot the members of what stands before it by its type - `them.`, `game.players[1].`, a
+script's variable of a struct -, the values, functions and names of the file and its layers), with what each is when
+you point at it (a situation's description and chance, a member's or name's doc, a variable's type). F12 goes to
+where a name is defined - a name of `mod/computer.eeai` used in a personality there, a script's variable to its
+`let`, a struct's field to its line - and Shift+F12 lists its uses: a name of `mod/computer.eeai` in every
+personality that uses it (and doesn't define its own), a member like `them.soldiers` wherever it is read. Any editor
 that speaks the Language Server Protocol can start it the same way.
 
 **Without the game:** `ageofai_check.exe` (next to `Empire Earth.exe`; a download of its own on the release page)

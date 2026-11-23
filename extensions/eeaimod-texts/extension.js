@@ -1,6 +1,7 @@
 // The language server's client: ageofai_check --lsp (dll/check/lsp.c) started for the .eeai files, the open files and
 // their changes sent to it, its mistakes shown as they are typed (the Problems panel, the lines underlined), its
-// completion and hover asked at the cursor (keys, members, values, the file's names, with their docs). The
+// completion and hover asked at the cursor (keys, members, values, the file's names, with their docs and types), a
+// name's definition and its uses (F12, Shift+F12). The
 // Language Server Protocol by hand - a few messages, no packages: the extension stays files only (pack_vscode.py).
 // The checker: the setting eeai.checker, else ageofai_check.exe in a folder above the file (the game folder: a
 // personality in <game>\ageofai\personalities\, the mod's sources in <game>\_aimod\), else the workspace's
@@ -156,6 +157,25 @@ const hover = {
         return server.request('textDocument/hover', at(doc, pos)).then((r) => r && r.contents ? new vscode.Hover(new vscode.MarkdownString(r.contents.value)) : null);
     },
 };
+// go to the definition, find every use (check/lsp_refs.c: the check's record of the names)
+function location(l) {
+    const r = l.range;
+    return new vscode.Location(vscode.Uri.parse(l.uri), new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character));
+}
+const definition = {
+    provideDefinition(doc, pos) {
+        if (!server) return null;
+        return server.request('textDocument/definition', at(doc, pos)).then((r) => !r ? null : Array.isArray(r) ? r.map(location) : location(r));
+    },
+};
+const references = {
+    provideReferences(doc, pos, context) {
+        if (!server) return null;
+        const p = at(doc, pos);
+        p.context = { includeDeclaration: !context || context.includeDeclaration !== false };
+        return server.request('textDocument/references', p).then((r) => r ? r.map(location) : null);
+    },
+};
 
 function activate(context) {
     diags = vscode.languages.createDiagnosticCollection('eeai');
@@ -163,6 +183,8 @@ function activate(context) {
     context.subscriptions.push(diags, out,
         vscode.languages.registerCompletionItemProvider(selector, completion, '.'),
         vscode.languages.registerHoverProvider(selector, hover),
+        vscode.languages.registerDefinitionProvider(selector, definition),
+        vscode.languages.registerReferenceProvider(selector, references),
         vscode.workspace.onDidOpenTextDocument(opened),
         vscode.workspace.onDidChangeTextDocument((e) => {
             if (!server || !isEeai(e.document)) return;

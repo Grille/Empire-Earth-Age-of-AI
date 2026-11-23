@@ -8,8 +8,9 @@
 // Each check runs in a process of its own (LSP_CHECK: this program again, the texts on its stdin): the personality
 // folder's state is made to be read once (one game, one load) - a fresh process reads it as the game would, every time.
 // Stage 1 (the player 2026-11-22): the mistakes, by line. Stage 2: completion and hover (check/lsp_know.c: from the
-// game's tables and the files' names, answered by this process at once). Definitions, references and completion by
-// the values' types need the parser's columns and a query of the checker (stage 3).
+// game's tables and the files' names, answered by this process at once). Stage 3: definitions, references, the types
+// in the hover and the members by type after a dot (check/lsp_refs.c: a check's process asked for its record of the
+// names - expr.c THE LANGUAGE SERVER'S RECORD).
 #include <fcntl.h>
 #include <io.h>
 #define LSP_QUIET 300   // ms after the last change
@@ -152,6 +153,7 @@ internal void lsp_path_uri(const char *path, struct lsb *b) {   // as a JSON str
         unsigned char c = (unsigned char)*s;
         char e[4];
         if (c == '\\') lsb_put(b, "/", 1);
+        else if (s == path && s[1] == ':' && isalpha(c)) { char lc = (char)tolower(c); lsb_put(b, &lc, 1); }   // x: as the editor writes it
         else if (isalnum(c) || strchr("-._~/", c) || (c == ':' && s == path + 1)) lsb_put(b, s, 1);
         else { snprintf(e, sizeof e, "%%%02X", c); lsb_put(b, e, 3); }
     }
@@ -195,9 +197,10 @@ internal void lsp_mis_add(const char *path, int line, const char *what) {
     g_lsp_mis[g_lsp_nmis].line = line;
     g_lsp_mis[g_lsp_nmis++].what = _strdup(what);
 }
-// one check: this program again on scope, the open files' texts on its stdin - its output read, each line
-// "path.eeai:line: what" a mistake (in the code page's text: made UTF-8)
-internal void lsp_check(const char *scope) {
+// one check: this program again on scope, the open files' texts on its stdin - and a question (query: the record of
+// the names, expr.c THE LANGUAGE SERVER'S RECORD - "" all of it, "path<tab>line<tab>column" the type there too; NULL
+// none) - its output into *out
+internal void lsp_run(const char *scope, const char *query, struct lsb *out) {
     char self[MAX_PATH], cmd[MAX_PATH * 2 + 32];
     GetModuleFileNameA(NULL, self, MAX_PATH);
     snprintf(cmd, sizeof cmd, "\"%s\" " LSP_CHECK " \"%s\"", self, scope);
@@ -224,21 +227,32 @@ internal void lsp_check(const char *scope) {
         WriteFile(in_w, head, (DWORD)strlen(head), &w, NULL);
         for (size_t at = 0; at < g_lsp_doc[i].n; at += w) if (!WriteFile(in_w, g_lsp_doc[i].text + at, (DWORD)(g_lsp_doc[i].n - at), &w, NULL) || !w) break;
     }
+    if (query) {   // the question: a text of the path "?"
+        char head[64];
+        DWORD w;
+        snprintf(head, sizeof head, "?\n%u\n", (unsigned)strlen(query));
+        WriteFile(in_w, head, (DWORD)strlen(head), &w, NULL);
+        WriteFile(in_w, query, (DWORD)strlen(query), &w, NULL);
+    }
     CloseHandle(in_w);
-    struct lsb out = { 0 };
     char buf[4096];
     DWORD got;
-    while (ReadFile(out_r, buf, sizeof buf, &got, NULL) && got) lsb_put(&out, buf, got);
+    while (ReadFile(out_r, buf, sizeof buf, &got, NULL) && got) lsb_put(out, buf, got);
     CloseHandle(out_r);
     if (WaitForSingleObject(pi.hProcess, 10000) == WAIT_TIMEOUT) TerminateProcess(pi.hProcess, 1);
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+}
+// a check of scope for its mistakes: each line "path.eeai:line: what" one (in the code page's text: made UTF-8)
+internal void lsp_check(const char *scope) {
+    struct lsb out = { 0 };
+    lsp_run(scope, NULL, &out);
     for (char *l = out.s; l && *l; ) {
         char *e = strchr(l, '\n');
         if (e) *e = 0;
         size_t n = strlen(l);
         if (n && l[n - 1] == '\r') l[--n] = 0;
-        char *m = strstr(l, ".eeai:");
+        char *m = l[0] == '@' && l[1] == '@' ? NULL : strstr(l, ".eeai:");   // (@@: the record's)
         if (m && isdigit((unsigned char)m[6])) {
             m[5] = 0;
             int line = atoi(m + 6);
@@ -353,6 +367,7 @@ internal void lsp_reply(const char *id, const char *result) {   // id: its JSON 
     free(b.s);
 }
 #include "check/lsp_know.c"   // completion and hover
+#include "check/lsp_refs.c"   // definitions, references, types: the check's record
 internal int lsp_main(void) {
     _setmode(_fileno(stdout), _O_BINARY);
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
@@ -378,15 +393,20 @@ internal int lsp_main(void) {
         if (!method) ;   // a reply to the server: it asks nothing
         else if (!strcmp(method, "initialize") && id)
             lsp_reply(id, "\"result\":{\"capabilities\":{\"textDocumentSync\":{\"openClose\":true,\"change\":1,\"save\":{\"includeText\":false}},"
-                          "\"completionProvider\":{\"triggerCharacters\":[\".\"]},\"hoverProvider\":true},"
+                          "\"completionProvider\":{\"triggerCharacters\":[\".\"]},\"hoverProvider\":true,"
+                          "\"definitionProvider\":true,\"referencesProvider\":true},"
                           "\"serverInfo\":{\"name\":\"ageofai_check\"}}");
-        else if ((!strcmp(method, "textDocument/completion") || !strcmp(method, "textDocument/hover")) && id) {
+        else if ((!strcmp(method, "textDocument/completion") || !strcmp(method, "textDocument/hover") ||
+                  !strcmp(method, "textDocument/definition") || !strcmp(method, "textDocument/references")) && id) {
             int d = uri ? lsp_doc(uri) : -1;
             const char *pos = js_get(params, "position"), *pl = js_get(pos, "line"), *pc = js_get(pos, "character");
+            const char *incl = js_get(js_get(params, "context"), "includeDeclaration");
             struct lsb r = { 0 };
             if (d < 0 || !g_lsp_doc[d].text || !pl || !pc) lsb_str(&r, "\"result\":null");
-            else if (method[13] == 'c') lsp_complete(d, atoi(pl), atoi(pc), &r);   // textDocument/completion
-            else lsp_hover(d, atoi(pl), atoi(pc), &r);
+            else if (!strcmp(method, "textDocument/completion")) lsp_complete(d, atoi(pl), atoi(pc), &r);
+            else if (!strcmp(method, "textDocument/hover")) lsp_hover(d, atoi(pl), atoi(pc), &r);
+            else if (!strcmp(method, "textDocument/definition")) lsp_definition(d, atoi(pl), atoi(pc), &r);
+            else lsp_references(d, atoi(pl), atoi(pc), !incl || *incl != 'f', &r);
             lsp_reply(id, r.s);
             free(r.s);
         }
@@ -403,12 +423,12 @@ internal int lsp_main(void) {
                 lsp_uri_path(uri, g_lsp_doc[d].path, MAX_PATH);
                 g_lsp_doc[d].text = NULL;
             }
-            if (d >= 0 && text) { free(g_lsp_doc[d].text); g_lsp_doc[d].text = text; g_lsp_doc[d].n = n; text = NULL; pending = 1; changed = GetTickCount(); }
+            if (d >= 0 && text) { free(g_lsp_doc[d].text); g_lsp_doc[d].text = text; g_lsp_doc[d].n = n; text = NULL; pending = 1; changed = GetTickCount(); g_lsp_gen++; }
             free(text);
         } else if (!strcmp(method, "textDocument/didSave") && uri) { pending = 1; changed = GetTickCount() - LSP_QUIET; }
         else if (!strcmp(method, "textDocument/didClose") && uri) {
             int d = lsp_doc(uri);
-            if (d >= 0) { free(g_lsp_doc[d].text); g_lsp_doc[d] = g_lsp_doc[--g_lsp_ndoc]; pending = 1; changed = GetTickCount(); }
+            if (d >= 0) { free(g_lsp_doc[d].text); g_lsp_doc[d] = g_lsp_doc[--g_lsp_ndoc]; pending = 1; changed = GetTickCount(); g_lsp_gen++; }
         } else if (id) lsp_reply(id, "\"error\":{\"code\":-32601,\"message\":\"not known to ageofai_check\"}");
         free(method);
         free(uri);
@@ -426,8 +446,11 @@ internal void edit_text_set(const char *path, const char *text, size_t n) {   //
     g_edits[g_edits_n].text = t;
     g_edits[g_edits_n++].n = n;
 }
+internal void lsp_xr_out(const char *line) { fputs(line, stdout); fputc('\n', stdout); }   // a line of the record
 // the check's own process (LSP_CHECK scope): the editor's texts from stdin - each its path, its length, its bytes -
-// in place of the files, then scope checked as the command line would; its mistakes to stdout
+// in place of the files, then scope checked as the command line would; its mistakes to stdout. A text of the path
+// "?" is the server's question: the record of the names (expr.c THE LANGUAGE SERVER'S RECORD) to stdout too - its
+// text "path<tab>line<tab>column" asks for the type that ends there as well, "" for none
 internal void lsp_child_texts(void) {
     _setmode(_fileno(stdin), _O_BINARY);
     char path[MAX_PATH], num[32];
@@ -436,7 +459,17 @@ internal void lsp_child_texts(void) {
         size_t n = (size_t)strtoul(num, NULL, 10);
         char *t = malloc(n + 1);
         if (!t || fread(t, 1, n, stdin) != n) { free(t); break; }
-        edit_text_set(path, t, n);
+        t[n] = 0;
+        if (!strcmp(path, "?")) {
+            char *tab = strchr(t, '\t'), *tab2 = tab ? strchr(tab + 1, '\t') : NULL;
+            g_xr_out = lsp_xr_out;
+            if (tab2) {
+                *tab = 0;
+                if (!GetFullPathNameA(t, MAX_PATH, g_xr_qpath, NULL)) lstrcpynA(g_xr_qpath, t, MAX_PATH);
+                g_xr_qline = atoi(tab + 1);
+                g_xr_qcol = atoi(tab2 + 1);
+            }
+        } else edit_text_set(path, t, n);
         free(t);
     }
 }

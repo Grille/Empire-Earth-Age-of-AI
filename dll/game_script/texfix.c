@@ -10,7 +10,7 @@ internal void texfix_key(void *arg, const char *sec, const char *key, struct tva
 internal void texfix_read_file(const char *path, const char *shown) {
     char *text = read_text_acp(path);
     if (!text) return;
-    tfile_parse(shown, text, texfix_key, NULL);
+    tfile_parse_at(path, shown, text, texfix_key, NULL);
     free(text);
 }
 internal void texfix_read(void) {
