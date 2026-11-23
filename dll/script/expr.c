@@ -710,6 +710,8 @@ struct xnode {
     const char *end;             // where a primary ends in the source (a name, a call, an item, a member: the language
                                  // server's record - the type of what stands before a dot); NULL the rest
     struct xgen *gen;            // a generic function's lambda: its type parameters and copies (GENERICS); NULL the rest
+    const char *s0;              // a call of a generic function or method: its name as written - s its copy's, made so by
+                                 // each check anew (a tree of the cache is any script's with that text); NULL the rest
 };
 // STRUCTS AND REFS (a script's; docs/scripts.md "Structs", "Refs"). struct point { x: int  y: int = 5  add(v: int) { ... } }
 // at the script's top is a type of its own: point(), point(3), point(0, 1) make a value - its fields in order, those
@@ -933,7 +935,10 @@ internal int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, stru
 // Each call with types of its own makes a copy (x_parse_copy: the declaration parsed again from its source, each type
 // parameter's name the call's type - then an ordinary function, checked and compiled as written that way), the call
 // made one of the copy (its name nearest<unit>); the function as written is never compiled - the machine knows no
-// interface. A call inside a generic body, of types not known yet, is only held against the contract.
+// interface. A call inside a generic body, of types not known yet, is only held against the contract. A struct's
+// method the same way: add<T: ipoint>(value: T), add(value: ipoint) - its copies its struct's methods of their own
+// (add<cell>, xg_mcall). In an interface its own name is the type that has it (add(value: ipoint): the implementing
+// struct's own type), add<T: ipoint>(value: T) asks for a method that takes any ipoint (xg_fits).
 #define XG_MAX 4      // type parameters a function
 #define XG_COPIES 32  // copies a generic function
 struct xgen {
@@ -942,7 +947,9 @@ struct xgen {
     int iface[XG_MAX];
     int np;                      // its parameters' types as written ("#2" for an interface's), for the calls' types
     char ptype[8][64];
-    const char *src0, *at;       // where it is written: its source, its declaration's start (a copy is parsed from there)
+    char rtype[64];              // its result's type as written ("" none)
+    char sname[40];              // a method's: its struct's (or interface's) name - "" a function's
+    const char *src0, *at;       // where it is written: its source, its declaration's start (a method's: its name; a copy is parsed from there)
     int ncopy;
     struct { int bind[XG_MAX]; struct xnode *let; } copy[XG_COPIES];
 };
@@ -1675,6 +1682,49 @@ internal const char *xps_tparams(const char *s, char tn[XG_MAX][24], char tb[XG_
         return s + 1;
     }
 }
+// a declaration's type parameters (name, for the messages): tn / tb its <T: bound> as written (*ntp), each bound an
+// interface, each name no type's; then each parameter of an interface's type a type parameter of its own ("#i" - its
+// type in pt written so), but in an interface's own declaration (self its number, else -1) its own name: the type
+// that has it. Their types the parse's (g_xps_tp; a copy's: its call's, g_xg_bind), tt their bounds. 0: p->err
+internal int xps_gen_head(struct xps *p, const char *name, char tn[XG_MAX][24], char tb[XG_MAX][40], int *ntp, char pt[8][64], int npn, int self, int tt[XG_MAX]) {
+    for (int j = 0; j < *ntp; j++) {   // each bound an interface; each name no type's
+        int si = xst_find(tb[j]), dup = 0;
+        for (int i = 0; i < j; i++) dup |= !strcmp(tn[i], tn[j]);
+        p->err = 1;
+        if (si < 0 || !g_xst[si].iface) { static char w[160]; snprintf(w, sizeof w, "%s<%s: %s>: an interface's name after the : (interface %s { ... })", name, tn[j], tb[j], tb[j]); p->why = w; return 0; }
+        if (dup) { p->why = "a type parameter twice"; return 0; }
+        if (x_type_named(tn[j]) >= 0 || xst_find(tn[j]) >= 0) { p->why = "a type parameter's name: a type has it already - T, U ..."; return 0; }
+        p->err = 0;
+        tt[j] = XT_STRUCT + si;
+    }
+    for (int i = 0; i < npn; i++) {   // f(a: positioned): a parameter of an interface - a type parameter of its own ("#i")
+        int si = xps_iface_named(pt[i]);
+        if (si < 0 || si == self) continue;
+        if (*ntp == XG_MAX) { p->err = 1; p->why = "more than 4 type parameters"; return 0; }
+        int isref = pt[i][0] == '&', nul = pt[i][strlen(pt[i]) - 1] == '?';
+        snprintf(tn[*ntp], sizeof tn[0], "#%d", i);
+        tt[(*ntp)++] = XT_STRUCT + si;
+        snprintf(pt[i], sizeof pt[0], "%s#%d%s", isref ? "&" : "", i, nul ? "?" : "");
+    }
+    for (int j = 0; j < *ntp; j++) { lstrcpynA(g_xps_tp[j].name, tn[j], sizeof g_xps_tp[0].name); g_xps_tp[j].type = g_xg_bind ? g_xg_bind[j] : tt[j]; }
+    g_xps_ntp = *ntp;
+    return 1;
+}
+// a generic function's or method's record (GENERICS), for its calls' copies: at where its declaration starts (a
+// method's: its name), sname its struct's name ("" a function), ret its result's type as written
+internal struct xgen *xps_gen_new(struct xps *p, const char *at, const char *sname, int ntp, char tn[XG_MAX][24], const int *tt, int npn, char pt[8][64], const char *ret) {
+    struct xgen *g = calloc(1, sizeof *g);
+    if (!g) { p->err = 1; p->why = "no memory"; return NULL; }
+    g->n = ntp;
+    for (int j = 0; j < ntp; j++) { lstrcpynA(g->name[j], tn[j], sizeof g->name[0]); g->iface[j] = tt[j]; }
+    g->np = npn;
+    for (int i = 0; i < npn; i++) lstrcpynA(g->ptype[i], pt[i], sizeof g->ptype[0]);
+    lstrcpynA(g->rtype, ret, sizeof g->rtype);
+    lstrcpynA(g->sname, sname, sizeof g->sname);
+    g->src0 = p->src0;
+    g->at = at;
+    return g;
+}
 internal void xps_stmt(struct xps *p, struct xnode **out) {
     xps_space(p);
     const char *at = p->s;
@@ -1695,39 +1745,15 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
         const char *body = k && ntp >= 0 && !isdigit((unsigned char)name[0]) && *q == '(' && !x_word_reserved(name) ? xps_lambda_head(q, pn, pt, &npn, 1) : NULL;
         if (body) {
             int tt[XG_MAX];
-            for (int j = 0; j < ntp; j++) {   // each bound an interface; each name no type's
-                int si = xst_find(tb[j]), dup = 0;
-                for (int i = 0; i < j; i++) dup |= !strcmp(tn[i], tn[j]);
-                p->err = 1;
-                if (si < 0 || !g_xst[si].iface) { static char w[160]; snprintf(w, sizeof w, "%s<%s: %s>: an interface's name after the : (interface %s { ... })", name, tn[j], tb[j], tb[j]); p->why = w; return; }
-                if (dup) { p->why = "a type parameter twice"; return; }
-                if (x_type_named(tn[j]) >= 0 || xst_find(tn[j]) >= 0) { p->why = "a type parameter's name: a type has it already - T, U ..."; return; }
-                p->err = 0;
-                tt[j] = XT_STRUCT + si;
-            }
-            for (int i = 0; i < npn; i++) {   // f(a: positioned): a parameter of an interface - a type parameter of its own ("#i")
-                int si = xps_iface_named(pt[i]);
-                if (si < 0) continue;
-                if (ntp == XG_MAX) { p->err = 1; p->why = "a function of more than 4 type parameters"; return; }
-                int isref = pt[i][0] == '&', nul = pt[i][strlen(pt[i]) - 1] == '?';
-                snprintf(tn[ntp], sizeof tn[0], "#%d", i);
-                tt[ntp++] = XT_STRUCT + si;
-                snprintf(pt[i], sizeof pt[0], "%s#%d%s", isref ? "&" : "", i, nul ? "?" : "");
-            }
-            for (int j = 0; j < ntp; j++) { lstrcpynA(g_xps_tp[j].name, tn[j], sizeof g_xps_tp[0].name); g_xps_tp[j].type = g_xg_bind ? g_xg_bind[j] : tt[j]; }
-            g_xps_ntp = ntp;   // (a copy's: its call's types - x_parse_copy)
+            char ret[64];
+            lstrcpynA(ret, g_xps_ret, sizeof ret);
+            if (!xps_gen_head(p, name, tn, tb, &ntp, pt, npn, -1, tt)) return;   // (a copy's types: its call's - x_parse_copy)
             struct xnode *f = xps_lambda(p, q, pn, pt, npn, body, 2);
             g_xps_ntp = 0;
             if (!f) return;
             if (ntp && !g_xg_bind) {   // the function as written: generic - its copies are made by its calls
-                struct xgen *g = calloc(1, sizeof *g);
-                if (!g) { p->err = 1; p->why = "no memory"; return; }
-                g->n = ntp;
-                for (int j = 0; j < ntp; j++) { lstrcpynA(g->name[j], tn[j], sizeof g->name[0]); g->iface[j] = tt[j]; }
-                g->np = npn;
-                for (int i = 0; i < npn; i++) lstrcpynA(g->ptype[i], pt[i], sizeof g->ptype[0]);
-                g->src0 = p->src0;
-                g->at = at;
+                struct xgen *g = xps_gen_new(p, at, "", ntp, tn, tt, npn, pt, ret);
+                if (!g) return;
                 XPTR(p, f)->gen = g;
             }
             XPTR(p, f)->op = 'D';
@@ -1890,6 +1916,44 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
 // struct name { field: type [= default] ... method(a: int) { ... } ... } - after the word struct (STRUCTS AND REFS):
 // an XN_STRUCT, s its name, n its type; its members in items, one a line: a field an XN_NAME (op 'F': s, n its type, a
 // its default or NULL), a method its function (op 'M', s its name) with this, a ref of the struct, as its first parameter
+// a struct's or an interface's (iface) method after its name mn (written at ms) - p->s at its ( or its <: name(a: int)
+// { ... }, name(a: int) => value, an interface's name(a: int): type alone; generic (GENERICS) with <T: positioned> or a
+// parameter of an interface's type - its copies made by its calls (xg_mcall). Its function with this (a ref of the
+// struct sname, of type sty) first: an offset, NULL p->err
+internal struct xnode *xps_method(struct xps *p, const char *sname, int sty, const char *mn, const char *ms, int iface) {
+    char pn[8][24], pt[8][64], qn[8][24], qt[8][64], tn[XG_MAX][24], tb[XG_MAX][40], ret[64];
+    int npn, ntp = 0, tt[XG_MAX];
+    const char *q = p->s;
+    if (*q == '<' && (!(q = xps_tparams(q, tn, tb, &ntp)) || *q != '(')) {
+        p->err = 1;
+        p->why = iface ? "an interface's generic method: name<T: an interface>(a: T): type" : "a generic method: name<T: an interface>(a: T) { ... }";
+        return NULL;
+    }
+    const char *body = xps_lambda_head(q, pn, pt, &npn, iface ? 2 : 1);
+    if (!body || npn > 7) {
+        p->err = 1;
+        p->why = body ? "a method takes at most 7 parameters" : iface ? "an interface's method: its head alone - name(a: int): type, no code" : "a method: name(a: int) { ... } or name(a: int) => value";
+        return NULL;
+    }
+    for (int i = 0; i < npn; i++) {
+        if (iface && g_xps_def[i]) { p->err = 1; p->why = "an interface's method: no parameter's default (the struct's own method has it)"; return NULL; }
+        if (!strcmp(pn[i], "this")) { p->err = 1; p->why = "this is the method's own struct - no parameter's name"; return NULL; }
+    }
+    lstrcpynA(ret, g_xps_ret, sizeof ret);
+    if (!xps_gen_head(p, mn, tn, tb, &ntp, pt, npn, iface ? sty - XT_STRUCT : -1, tt)) return NULL;
+    lstrcpynA(qn[0], "this", sizeof qn[0]);
+    snprintf(qt[0], sizeof qt[0], "&%.30s", sname);   // (a struct's name: 30 letters at most)
+    for (int i = 0; i < npn; i++) { memcpy(qn[i + 1], pn[i], sizeof qn[0]); memcpy(qt[i + 1], pt[i], sizeof qt[0]); }
+    g_xps_sig = iface;
+    struct xnode *x = xps_lambda(p, q, qn, qt, npn + 1, body, 1);
+    g_xps_sig = 0;
+    g_xps_ntp = 0;
+    if (!x) return NULL;
+    XPTR(p, x)->op = 'M';
+    XPTR(p, x)->s = _strdup(mn);
+    if (ntp && !g_xg_bind && !(XPTR(p, x)->gen = xps_gen_new(p, ms, sname, ntp, tn, tt, npn, pt, ret))) return NULL;
+    return x;
+}
 // struct name { ... } - and interface name { ... } (iface: GENERICS - its methods without code, its fields without
 // defaults, its own name a type in it); struct name: a, b { ... } promises the interfaces a and b (its node's cs)
 internal void xps_struct_in(struct xps *p, struct xnode **out, const char *at, int iface) {
@@ -1921,34 +1985,8 @@ internal void xps_struct_in(struct xps *p, struct xnode **out, const char *at, i
             if (!strcmp(XPTR(p, (struct xnode *)it[i])->s, mn)) { p->err = 1; p->why = iface ? "an interface's member twice" : "a struct's member twice"; }
         if (p->err) break;
         struct xnode *x;
-        if (*p->s == '(') {   // a method: its function, this first
-            char pn[8][24], pt[8][64], qn[8][24], qt[8][64];
-            int npn;
-            const char *body = xps_lambda_head(p->s, pn, pt, &npn, iface ? 2 : 1);
-            if (!body || npn > 7) {
-                p->err = 1;
-                p->why = body ? "a method takes at most 7 parameters" : iface ? "an interface's method: its head alone - name(a: int): type, no code" : "a method: name(a: int) { ... } or name(a: int) => value";
-                break;
-            }
-            for (int i = 0; i < npn && !p->err; i++) {
-                if (iface && g_xps_def[i]) { p->err = 1; p->why = "an interface's method: no parameter's default (the struct's own method has it)"; }
-                if (!iface && xps_iface_named(pt[i]) >= 0) {
-                    p->err = 1;
-                    p->why = "a method's parameter of an interface (any type that has it) - not yet: a function's (f(a: positioned)); a method takes its own type (add(value: point))";
-                }
-            }
-            if (p->err) break;
-            lstrcpynA(qn[0], "this", sizeof qn[0]);
-            snprintf(qt[0], sizeof qt[0], "&%.30s", name);   // (a struct's name: 30 letters at most)
-            for (int i = 0; i < npn; i++) { memcpy(qn[i + 1], pn[i], sizeof qn[0]); memcpy(qt[i + 1], pt[i], sizeof qt[0]); }
-            for (int i = 0; i < npn && !p->err; i++) if (!strcmp(pn[i], "this")) { p->err = 1; p->why = "this is the method's own struct - no parameter's name"; }
-            if (p->err) break;
-            g_xps_sig = iface;
-            x = xps_lambda(p, p->s, qn, qt, npn + 1, body, 1);
-            g_xps_sig = 0;
-            if (!x) break;
-            XPTR(p, x)->op = 'M';
-            XPTR(p, x)->s = _strdup(mn);
+        if (*p->s == '(' || *p->s == '<') {   // a method: its function, this first
+            if (!(x = xps_method(p, name, ty, mn, ms, iface))) break;
         } else {   // a field: its type, its default
             xps_space(p);
             if (*p->s != ':') { p->err = 1; p->why = "a struct's field: name: type (int, float, text, a struct ...)"; break; }
@@ -2106,7 +2144,8 @@ internal struct xunit x_parse(const char *src, int prog) {
 }
 // A GENERIC FUNCTION'S COPY (GENERICS): its declaration parsed again from where it is written, each type parameter
 // the type in bind (in g's order) - a declared function's let of its own, its places the original's (its lines, the
-// language server's columns). NULL: it doesn't parse so (a type it can't take - told by its check then)
+// language server's columns); a method's: its function (op 'M'). NULL: it doesn't parse so (a type it can't take -
+// told by its check then)
 internal struct xnode *x_parse_copy(const struct xgen *g, const int *bind) {
     struct xps p;
     memset(&p, 0, sizeof p);
@@ -2115,7 +2154,9 @@ internal struct xnode *x_parse_copy(const struct xgen *g, const int *bind) {
     p.line = 1;
     struct xnode *root = NULL;
     g_xg_bind = bind;
-    xps_stmt(&p, &root);
+    char mn[40];
+    if (!g->sname[0]) xps_stmt(&p, &root);
+    else if (xps_name(&p, mn, 1)) root = xps_method(&p, g->sname, x_type_named(g->sname), mn, g->at, 0);
     g_xg_bind = NULL;
     g_x_type_why = NULL;
     if (p.err || !root) { free(p.mem); return NULL; }
@@ -2126,7 +2167,7 @@ internal struct xnode *x_parse_copy(const struct xgen *g, const int *bind) {
     struct xnode *r = x_relocate(&p, root, base);
     int bad = 0;
     x_depth_of(r, &bad);
-    return bad || r->k != XN_LET || r->op != 'D' ? NULL : r;
+    return bad || (g->sname[0] ? r->k != XN_LAMBDA || r->op != 'M' : r->k != XN_LET || r->op != 'D') ? NULL : r;
 }
 // the cache: an expression's text -> its tree (an expression is parsed once, however often it is worked out)
 #define XC_BUCKETS 4096
@@ -2356,6 +2397,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
 // path a.b.c (up to upto): its head's - a variable's from its let, the host's own (game) - and each member's: one its
 // kind hasn't, or a method without ( ), a mistake (-1, told in k). *known: its head is a variable or the host's
 internal const char *xty_name(int t, char *buf, int cap);
+internal const char *xan(const char *name);   // ("n" before a word that starts with a vowel: an int)
 // a member of the language's own types: a vector's x, y, z, w; a trigger's on, fired - its type, -1 none
 // THE CHECK'S STRUCTS (STRUCTS AND REFS): a type that is a struct (not a list of them, not one or null); its
 // declaration; a member of it by name - a field ('F': *idx its number among the fields) or a method ('M': among the methods)
@@ -2374,7 +2416,7 @@ internal void xst_list(int t, int what, char *out, int cap) {   // its fields' o
     int o = 0;
     out[0] = 0;
     for (int i = 0; d && i < d->n_items && o < cap - 30; i++)
-        if (d->items[i]->op == what) o += snprintf(out + o, (size_t)(cap - o), "%s%s", o ? ", " : "", d->items[i]->s);
+        if (d->items[i]->op == what && !strchr(d->items[i]->s, '<')) o += snprintf(out + o, (size_t)(cap - o), "%s%s", o ? ", " : "", d->items[i]->s);
     if (!o) lstrcpynA(out, "none", cap);
 }
 // a place's variable (a.b.c: a; l[2].x: l), "" none: a call's value, a list written out ...
@@ -2515,7 +2557,7 @@ internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s,
             if (own >= 0) { kind = own; at += 1 + sn; continue; }
             char t[40];
             if (xst_member(kind, m, 'M', NULL)) snprintf(k->whybuf, sizeof k->whybuf, "%.*s: %s is a method - %s(...)", (int)(at + 1 + sn), s, m, m);
-            else snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a %s has no %s", (int)(at + 1 + sn), s, xty_name(kind, t, sizeof t), m);
+            else snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a%s %s has no %s", (int)(at + 1 + sn), s, xan(xty_name(kind, t, sizeof t)), t, m);
             xc_fail(k, n, k->whybuf);
             return -1;
         }
@@ -2904,11 +2946,13 @@ internal int xr_at(const char *p, int *line, int *col) {   // a place in the cod
     return 1;
 }
 // where a declaration's name is: on its node's line after its start (let x, for x in, a parameter in its head, a
-// struct's name and fields) - a method's node starts at its ( and has it before
+// struct's name and fields) - a method's node starts at its ( and has it before (a generic one's: its <T: ...> between,
+// where its name is its record's)
 internal const char *xr_name_in(const struct xnode *n, const char *name) {
     const struct xr_ctx *c = n ? xr_ctx_of(n->at) : NULL;
     if (!c) return NULL;
     size_t wl = strlen(name);
+    if (n->k == XN_LAMBDA && n->gen && n->gen->sname[0] && !strncmp(n->gen->at, name, wl)) return n->gen->at;
     const char *lim = n->at;
     while (*lim && *lim != '\n') lim++;
     const char *w = xr_word(n->at, name, wl, lim);
@@ -2967,6 +3011,7 @@ internal void xr_members(int t) {   // the question's answer: t and its members
     const struct xnode *d = xst_is(base) ? g_xst[base - XT_STRUCT].decl : NULL;
     for (int i = 0; d && i < d->n_items; i++) {
         const struct xnode *m = d->items[i];
+        if (strchr(m->s, '<')) continue;   // (a generic method's copy: the method as written is listed)
         int mt = m->op == 'F' ? (int)m->n : m->k == XN_LAMBDA ? (int)m->n : 0;
         snprintf(b, sizeof b, "@@M\t%s\t%c\t%s\t%s", m->s, m->op == 'M' ? 'm' : 'v', mt ? xty_name(mt, ty, sizeof ty) : "", d->s);
         g_xr_out(b);
@@ -3094,6 +3139,7 @@ internal void xr_node(struct xcheck *k, const struct xnode *n, const struct xsco
         if (xr_struct_at(t, NULL, 0, &dl, &dc)) xr_put(dl, dc, strlen(n->s), 'S', n->s, t, g_xr_pathc, dl, dc, 1);
         for (int i = 0; i < n->n_items; i++) {
             const struct xnode *m = n->items[i];
+            if (strchr(m->s, '<')) continue;   // (a generic method's copy: the method as written is recorded)
             snprintf(full, sizeof full, "%s.%s", n->s, m->s);
             if (xr_struct_at(t, m->s, m->op, &dl, &dc)) xr_put(dl, dc, strlen(m->s), 's', full, m->op == 'F' ? (int)m->n : 0, g_xr_pathc, dl, dc, 1);
         }
@@ -3160,8 +3206,44 @@ internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xsc
             }
             if (!ok) { if (!g_xr_out) { g_xg_top = NULL; g_xg_topsc = NULL; return 0; } bad = 1; }
         }
-        for (int j = 0; s->k == XN_STRUCT && s->op != 'I' && j < s->n_items; j++)   // (an interface's methods have no code)
-            if (s->items[j]->op == 'M' && !x_check(k, s->items[j], sc)) { if (!g_xr_out) { g_xg_top = NULL; g_xg_topsc = NULL; return 0; } bad = 1; }
+    }
+    // the structs' methods (an interface's have no code): a generic one as written against its bounds, a copy (add<cell>)
+    // as its own - until a pass makes none new (a copy's calls may make more: of a struct checked before, a function's)
+    int done[XST_MAX] = { 0 };
+    for (int more = top, fdone = body->n_items; more; ) {
+        more = 0;
+        for (int i = 0; i < body->n_items; i++) {
+            const struct xnode *s = body->items[i];
+            if (i >= fdone && s->k == XN_LET && s->op == 'D' && s->a && s->a->k == XN_LAMBDA) {   // a function's copy a method's call made
+                int busy = g_xr_busy;
+                g_xr_busy = 1;
+                int ok = x_check(k, s->a, sc);
+                g_xr_busy = busy;
+                if (!ok) { char w[sizeof k->whybuf]; snprintf(w, sizeof w, "%s (in %s)", k->why ? k->why : "a mistake", s->s); lstrcpynA(k->whybuf, w, sizeof k->whybuf); k->why = k->whybuf; }
+                if (!ok) { if (!g_xr_out) { g_xg_top = NULL; g_xg_topsc = NULL; return 0; } bad = 1; }
+            }
+            int si = s->k == XN_STRUCT ? (int)s->n - XT_STRUCT : -1;
+            if (si < 0 || si >= XST_MAX || s->op == 'I') continue;
+            for (int j = done[si]; j < s->n_items; j++) {
+                const struct xnode *f = s->items[j];
+                if (f->op != 'M') continue;
+                int gen = f->gen != NULL, copy = strchr(f->s, '<') != NULL, busy = g_xr_busy;
+                g_xg_abstract += gen;
+                if (copy) g_xr_busy = 1;
+                int ok = x_check(k, f, sc);
+                g_xg_abstract -= gen;
+                g_xr_busy = busy;
+                if (!ok && copy) { char w[sizeof k->whybuf]; snprintf(w, sizeof w, "%s (in %s.%s)", k->why ? k->why : "a mistake", s->s, f->s); lstrcpynA(k->whybuf, w, sizeof k->whybuf); k->why = k->whybuf; }
+                if (!ok) { if (!g_xr_out) { g_xg_top = NULL; g_xg_topsc = NULL; return 0; } bad = 1; }
+            }
+            done[si] = s->n_items;
+        }
+        for (int i = 0; i < body->n_items && !more; i++) {
+            const struct xnode *s = body->items[i];
+            int si = s->k == XN_STRUCT ? (int)s->n - XT_STRUCT : -1;
+            more = (si >= 0 && si < XST_MAX && s->op != 'I' && done[si] < s->n_items) || (i >= fdone && s->k == XN_LET && s->op == 'D');
+        }
+        fdone = body->n_items;
     }
     if (top) {   // the copies among the declared functions: made before the rest of the top runs (as xps_stmts puts them)
         struct xnode **it = body->items;
@@ -3274,12 +3356,20 @@ internal int x_check_args(struct xcheck *k, const struct xnode *n, const struct 
             return xc_fail(k, n, k->whybuf);
         }
         if (pref ? !ta || ta == tp : xt_fits(tp, ta)) continue;
+        if (g_xg_abstract && xst_is(X_TBASE(tp)) && g_xst[X_TBASE(tp) - XT_STRUCT].iface && X_TBASE(ta) != X_TBASE(tp)) {   // (GENERICS: a T's method of the interface's own type)
+            const char *in = g_xst[X_TBASE(tp) - XT_STRUCT].name;
+            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its %s is of the type itself (an %s's: whatever has it) - not a%s %s; one that takes any: %s<T: %s>(%s: T) in the interface", name, pi->s,
+                     in, xan(xty_name(ta, b, sizeof b)), b, name, in, pi->s);
+            return xc_fail(k, n, k->whybuf);
+        }
         snprintf(k->whybuf, sizeof k->whybuf, pref ? "%s(...): its %s is the place of a%s %s - not of a%s %s%s" : "%s(...): its %s is a%s %s - a%s %s can't go in%s", name, pi->s,
                  xan(xty_name(tp, a, sizeof a)), a, xan(xty_name(ta, b, sizeof b)), b, pref ? "" : xt_hint(tp, ta));
         return xc_fail(k, n, k->whybuf);
     }
     return 1;
 }
+internal int xg_want(const struct xnode *fd, int i);   // (GENERICS, below)
+internal int xg_mcall(struct xcheck *k, struct xnode *n, int st, const struct xnode *m, const char *mname, const struct xscope *sc, const struct xnode **copy);
 // the type wanted of a call's argument number i (from 0), where the check knows the function: a struct's field
 // (point(...)), a declared function's or a let's parameter, a variable's of a function's type, a struct's method's
 internal int x_arg_want(struct xcheck *k, const struct xnode *n, int i, const struct xscope *sc) {
@@ -3293,12 +3383,7 @@ internal int x_arg_want(struct xcheck *k, const struct xnode *n, int i, const st
     if (!dot && v == 1) {
         const struct xnode *fd = xsc_fn(sc, name, strlen(name));
         const struct xctype *c = xct_of(xsc_kind(sc, name, strlen(name)));
-        if (fd && fd->gen && i < fd->n_items) {   // a generic function's parameter of a T: the argument tells the T (GENERICS)
-            int t = (int)fd->items[i]->n;
-            for (int depth = 0; depth < 4 && t && !xst_is(X_TBASE(t)); depth++) t = xt_is_dict(t & ~X_NULLABLE) ? xt_dict_val(t & ~X_NULLABLE) : xt_items(t & ~X_NULLABLE);
-            if (t && xst_is(X_TBASE(t)) && g_xst[X_TBASE(t) - XT_STRUCT].iface) return 0;
-        }
-        if (fd) return i < fd->n_items ? (int)fd->items[i]->n : 0;
+        if (fd) return xg_want(fd, i);   // (a generic function's parameter of a T: the argument tells the T - GENERICS)
         return c && c->kind == XCT_FN && i < c->n ? c->t[i] : 0;
     }
     if (dot && xsc_find(sc, name, strcspn(name, "."), NULL) == 1) {
@@ -3308,7 +3393,7 @@ internal int x_arg_want(struct xcheck *k, const struct xnode *n, int i, const st
         const struct xnode *m = r > 0 && xst_is(r) ? xst_member(r, dot + 1, 'M', NULL) : NULL;
         int id = r > 0 && xt_is_hl(r) ? xhm_id(dot + 1) : 0;
         if (id == XHM_ADD || id == XHM_INDEX_OF || (id == XHM_INSERT && i == 1)) return xt_hl_elem(r);
-        return m && i + 1 < m->n_items ? (int)m->items[i + 1]->n : 0;
+        return xg_want(m, i + 1);
     }
     return 0;
 }
@@ -3322,6 +3407,12 @@ internal int x_check_smethod(struct xcheck *k, const struct xnode *n, int st, co
         if (xst_member(st, mname, 'F', NULL)) snprintf(k->whybuf, sizeof k->whybuf, "%s(...): %s is a field - without ( )", mname, mname);
         else snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s has no method %s - its methods: %s", mname, xty_name(st, t, sizeof t), mname, l);
         return xc_fail(k, n, k->whybuf);
+    }
+    if (m->gen) {   // a generic method: of its copy for the arguments' types (GENERICS)
+        const struct xnode *c = NULL;
+        int r = xg_mcall(k, (struct xnode *)n, st, m, mname, sc, &c);
+        if (r != 1) return r == 2;
+        m = c;
     }
     if (!x_check_args(k, n, m, 1, mname, sc)) return 0;
     if (x_sets_this(m->a, st, 0)) {
@@ -3381,10 +3472,119 @@ internal int xst_holds(int t, int target, int depth) {   // a struct t that has 
 // script's names, no struct inside itself (a list of them or one or null ends it)
 // THE CHECK OF GENERICS (GENERICS above). An interface's own name in its members: the type that has it
 internal int xg_subst(int t, int iface, int u) { return X_TBASE(t) == iface && !(t & X_LIST_OF) ? u | (t & X_NULLABLE) : t; }
+// a type as written (t) of a generic function or method g: the type parameter it is (T, T?, ref T - *nul its ?), -1
+// another; xg_canon: written without spaces, each type parameter its number in map ($0 ...) - 0 it names none
+internal int xg_tp_of(const struct xgen *g, const char *t, int *nul) {
+    char b[64];
+    *nul = 0;
+    if (!g) return -1;
+    while (*t == '&' || *t == ' ') t++;
+    lstrcpynA(b, t, sizeof b);
+    size_t n = strlen(b);
+    while (n && b[n - 1] == ' ') b[--n] = 0;
+    if (n && b[n - 1] == '?') { *nul = 1; b[--n] = 0; }
+    for (int j = 0; j < g->n; j++) if (!strcmp(b, g->name[j])) return j;
+    return -1;
+}
+internal int xg_canon(const struct xgen *g, const char *t, const int *map, char *out, int cap) {
+    int o = 0, any = 0;
+    while (*t == '&') t++;
+    for (const char *q = t; *q && o < cap - 4; ) {
+        if (*q == ' ') { q++; continue; }
+        int hit = -1;
+        for (int j = 0; g && j < g->n && hit < 0; j++) {
+            size_t wl = strlen(g->name[j]);
+            if (!strncmp(q, g->name[j], wl) && (q == t || !(isalnum((unsigned char)q[-1]) || q[-1] == '_')) && !(isalnum((unsigned char)q[wl]) || q[wl] == '_')) hit = j;
+        }
+        if (hit < 0) { out[o++] = *q++; continue; }
+        o += snprintf(out + o, (size_t)(cap - o), "$%d", map ? map[hit] : hit);
+        q += strlen(g->name[hit]);
+        any = 1;
+    }
+    out[o] = 0;
+    return any;
+}
+internal int xg_fits(int u, int iface, char *why, int cap);
+// a struct's method f against an interface's m that are generic (either): what each takes and gives back the same
+// up to the type parameters' names - m's T one of f's, its bound one f's bound takes (f takes all m's caller may
+// hand it); f's T where m has a type of its own: one f's bound takes (f takes more). 0: *why (it starts "its ...")
+internal int xg_fits_gen(const struct xnode *m, const struct xnode *f, int iface, int u, char *why, int cap) {
+    const struct xgen *gm = m->gen, *gf = f->gen;
+    int map[XG_MAX], inv[XG_MAX], np = m->n_items - 1, nul, nul2;
+    char ta[60], tb[60], ca[80], cb[80];
+    for (int j = 0; j < XG_MAX; j++) map[j] = inv[j] = -1;
+    for (int j = 0; j < np; j++) {   // m's T as a parameter: f's must be one of its own there
+        int a = xg_tp_of(gm, gm ? gm->ptype[j] : "", &nul), b = xg_tp_of(gf, gf ? gf->ptype[j] : "", &nul2);
+        if (a < 0) continue;
+        if (b < 0) {
+            snprintf(why, (size_t)cap, "its %s takes a%s %s as argument %d - the interface's any %s (%s<T: %s>(...) takes any)", m->s,
+                     xan(xty_name((int)f->items[j + 1]->n, ta, sizeof ta)), ta, j + 1, g_xst[gm->iface[a] - XT_STRUCT].name, m->s, g_xst[gm->iface[a] - XT_STRUCT].name);
+            return 0;
+        }
+        if (nul != nul2 || (map[a] >= 0 && map[a] != b) || (inv[b] >= 0 && inv[b] != a)) {
+            snprintf(why, (size_t)cap, "its %s's argument %d isn't of the interface's type parameter as there", m->s, j + 1);
+            return 0;
+        }
+        map[a] = b; inv[b] = a;
+    }
+    for (int a = 0; gm && a < gm->n; a++) {   // each bound: f's takes what m's promises
+        if (map[a] < 0) continue;
+        char w[200];
+        if (!xg_fits(gm->iface[a], gf->iface[map[a]], w, sizeof w)) { const char *nb = g_xst[gf->iface[map[a]] - XT_STRUCT].name; snprintf(why, (size_t)cap, "its %s takes only a%s %s - the interface's any %s", m->s, xan(nb), nb, g_xst[gm->iface[a] - XT_STRUCT].name); return 0; }
+    }
+    for (int j = 0; j <= np; j++) {   // each parameter (then the result, j == np) as written, the type parameters by their numbers
+        const char *wm = j < np ? gm ? gm->ptype[j] : "" : gm ? gm->rtype : "", *wf = j < np ? gf ? gf->ptype[j] : "" : gf ? gf->rtype : "";
+        int am = xg_canon(gm, wm, NULL, ca, sizeof ca), af = xg_canon(gf, wf, inv, cb, sizeof cb);
+        if (j < np && (m->items[j + 1]->op == 'r') != (f->items[j + 1]->op == 'r')) { snprintf(why, (size_t)cap, "its %s's argument %d is %s ref - the interface's %s", m->s, j + 1, f->items[j + 1]->op == 'r' ? "a" : "no", m->items[j + 1]->op == 'r' ? "is" : "isn't"); return 0; }
+        if (am || af) {
+            int b = af && j < np ? xg_tp_of(gf, wf, &nul2) : -1;
+            if (!wm[0]) wm = xty_name(xg_subst(j < np ? (int)m->items[j + 1]->n : (int)m->n, iface, u), ta, sizeof ta);
+            if (!wf[0]) wf = xty_name(j < np ? (int)f->items[j + 1]->n : (int)f->n, tb, sizeof tb);
+            if (!am && b >= 0 && inv[b] < 0) {   // f's own T where m takes a type: one its bound takes
+                int want = xg_subst((int)m->items[j + 1]->n, iface, u);
+                char w[200];
+                if ((want & X_NULLABLE) && !nul2) { snprintf(why, (size_t)cap, "its %s takes no null as argument %d - the interface's a%s %s", m->s, j + 1, xan(xty_name(want, ta, sizeof ta)), ta); return 0; }
+                if (!xg_fits(want & ~X_NULLABLE, gf->iface[b], w, sizeof w)) { snprintf(why, (size_t)cap, "its %s's argument %d: %s", m->s, j + 1, w); return 0; }
+                continue;
+            }
+            if (am != af || strcmp(ca, cb)) {
+                if (j < np) snprintf(why, (size_t)cap, "its %s takes a%s %s as argument %d - the interface's a%s %s", m->s, xan(wf), wf, j + 1, xan(wm), wm);
+                else snprintf(why, (size_t)cap, "its %s gives a%s %s - the interface's a%s %s", m->s, xan(wf), wf, xan(wm), wm);
+                return 0;
+            }
+            continue;
+        }
+        if (j == np) {
+            int rt = xg_subst((int)m->n, iface, u);
+            if ((int)m->n && (int)f->n && !xt_fits(rt, (int)f->n)) {
+                snprintf(why, (size_t)cap, "its %s gives a%s %s, not a%s %s", m->s, xan(xty_name((int)f->n, ta, sizeof ta)), ta, xan(xty_name(rt, tb, sizeof tb)), tb);
+                return 0;
+            }
+            continue;
+        }
+        int wp = xg_subst((int)m->items[j + 1]->n, iface, u), hp = (int)f->items[j + 1]->n;
+        if (hp != wp) {
+            snprintf(why, (size_t)cap, "its %s takes a%s %s as argument %d, the interface's a%s %s", m->s, xan(xty_name(hp, ta, sizeof ta)), ta, j + 1, xan(xty_name(wp, tb, sizeof tb)), tb);
+            return 0;
+        }
+    }
+    return 1;
+}
 // u has iface's shape: each field (a member of the kind's, a struct's field, the language's own: v.x) readable, of a
 // type its field's takes; each method with as many arguments, a struct's of the very types (the interface's own
 // name: u), what it gives back one the interface's takes. 0: *why says what is missing
+internal int xg_fits_in(int u, int iface, char *why, int cap);
 internal int xg_fits(int u, int iface, char *why, int cap) {
+    static struct { int u, iface; } on[16];   // (the fits being checked: one asked again on the way holds - its answer is the outer one's)
+    static int non;
+    for (int i = 0; i < non; i++) if (on[i].u == u && on[i].iface == iface) return 1;
+    if (non == 16) return 1;
+    on[non].u = u; on[non].iface = iface; non++;
+    int r = xg_fits_in(u, iface, why, cap);
+    non--;
+    return r;
+}
+internal int xg_fits_in(int u, int iface, char *why, int cap) {
     const struct xnode *d = g_xst[iface - XT_STRUCT].decl;
     const char *ti = g_xst[iface - XT_STRUCT].name;
     char tu[60], ta[60], tb[60];
@@ -3411,6 +3611,7 @@ internal int xg_fits(int u, int iface, char *why, int cap) {
         if (u > 0 && u < XT_INT) {
             const struct x_kmember *km = x_kind_member(u, m->s);
             if (!km || km->amin < 0) { snprintf(why, (size_t)cap, "%s is no %s - it has no method %s", au, ti, m->s); return 0; }
+            if (m->gen) { snprintf(why, (size_t)cap, "%s is no %s - its %s takes no type of the caller's (the interface's is generic)", au, ti, m->s); return 0; }
             if (np < km->amin || np > km->amax) { snprintf(why, (size_t)cap, "%s is no %s - its %s takes %d to %d arguments, the interface's %d", au, ti, m->s, km->amin, km->amax, np); return 0; }
             if ((int)m->n && km->result && !xt_fits(rt, km->result)) {
                 snprintf(why, (size_t)cap, "%s is no %s - its %s gives a%s %s, not a%s %s", au, ti, m->s, xan(xty_name(km->result, ta, sizeof ta)), ta, xan(xty_name(rt, tb, sizeof tb)), tb);
@@ -3421,6 +3622,12 @@ internal int xg_fits(int u, int iface, char *why, int cap) {
         const struct xnode *f = xst_is(u) ? xst_member(u, m->s, 'M', NULL) : NULL;
         if (!f) { snprintf(why, (size_t)cap, "%s is no %s - it has no method %s", au, ti, m->s); return 0; }
         if (f->n_items - 1 != np) { snprintf(why, (size_t)cap, "%s is no %s - its %s takes %d argument%s, the interface's %d", au, ti, m->s, f->n_items - 1, f->n_items == 2 ? "" : "s", np); return 0; }
+        if (m->gen || f->gen) {   // (a generic method on either side)
+            char w[200];
+            if (xg_fits_gen(m, f, iface, u, w, sizeof w)) continue;
+            snprintf(why, (size_t)cap, "%s is no %s - %s", au, ti, w);
+            return 0;
+        }
         for (int j = 1; j <= np; j++) {
             int wp = xg_subst((int)m->items[j]->n, iface, u), hp = (int)f->items[j]->n;
             if (hp == wp && (m->items[j]->op == 'r') == (f->items[j]->op == 'r')) continue;
@@ -3492,30 +3699,43 @@ internal int xg_unify(const struct xgen *g, const char *t, int ta, int *bind, ch
 // against its bound; then its copy for them - made once, put at the script's top as if declared there - and the call
 // made one of the copy (n->s). 0 a mistake; 1 the call is the copy's now; 2 inside a generic function as written (its
 // types its bounds: only held against them - its own copies make theirs)
-internal int xg_call(struct xcheck *k, struct xnode *n, const struct xnode *gf, const struct xscope *sc) {
-    struct xgen *g = gf->gen;
-    int bind[XG_MAX] = { 0 };
-    char why[200], tn[60];
-    if (n->n_items > g->np) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", n->s, g->np, g->np == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
+// a call's (n, of g - name its name for the messages) type parameters' types from its arguments, each held against its
+// bound: 0 a mistake
+internal int xg_binds(struct xcheck *k, struct xnode *n, const struct xgen *g, const char *name, int *bind, const struct xscope *sc) {
+    char why[200];
+    if (n->n_items > g->np) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, g->np, g->np == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
     for (int i = 0; i < n->n_items; i++) {
         const struct xnode *a = n->items[i]->k == XN_REF ? n->items[i]->a : n->items[i];
         if (!xg_unify(g, g->ptype[i], x_stype(k, a, sc), bind, why, sizeof why)) {
-            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its argument %d - %s", n->s, i + 1, why);
+            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its argument %d - %s", name, i + 1, why);
             return xc_fail(k, n, k->whybuf);
         }
     }
     for (int j = 0; j < g->n; j++) {
         if (!bind[j]) {
             snprintf(k->whybuf, sizeof k->whybuf, "%s(...): %s isn't told by the arguments - an argument of it whose type is known (null tells none: a let with its type first)",
-                     n->s, g->name[j][0] == '#' ? "a parameter's type" : g->name[j]);
+                     name, g->name[j][0] == '#' ? "a parameter's type" : g->name[j]);
             return xc_fail(k, n, k->whybuf);
         }
-        if (!xg_fits(bind[j], g->iface[j], why, sizeof why)) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): %s", n->s, why); return xc_fail(k, n, k->whybuf); }
+        if (!xg_fits(bind[j], g->iface[j], why, sizeof why)) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): %s", name, why); return xc_fail(k, n, k->whybuf); }
         if (!g_xg_abstract && xst_is(bind[j]) && g_xst[bind[j] - XT_STRUCT].iface) {   // (a { ... } or [ ... ] typed by the interface)
-            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its types can't be told from a value written out - a let with its type first", n->s);
+            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its types can't be told from a value written out - a let with its type first", name);
             return xc_fail(k, n, k->whybuf);
         }
     }
+    return 1;
+}
+// a copy's name: name<unit>, f<point, unit>
+internal void xg_copy_name(const struct xgen *g, const char *name, const int *bind, char *nm, int cap) {
+    char tn[60];
+    int o = snprintf(nm, (size_t)cap, "%s<", name);
+    for (int j = 0; j < g->n && o < cap; j++) o += snprintf(nm + o, (size_t)(cap - o), "%s%s", j ? ", " : "", xty_name(bind[j], tn, sizeof tn));
+    if (o < cap) snprintf(nm + o, (size_t)(cap - o), ">");
+}
+internal int xg_call(struct xcheck *k, struct xnode *n, const struct xnode *gf, const struct xscope *sc) {
+    struct xgen *g = gf->gen;
+    int bind[XG_MAX] = { 0 };
+    if (!xg_binds(k, n, g, n->s, bind, sc)) return 0;
     if (g_xg_abstract) return 2;
     struct xnode *let = NULL;
     for (int c = 0; c < g->ncopy && !let; c++) if (!memcmp(g->copy[c].bind, bind, sizeof bind)) let = g->copy[c].let;
@@ -3525,9 +3745,8 @@ internal int xg_call(struct xcheck *k, struct xnode *n, const struct xnode *gf, 
         if (g_xg_topsc->n >= 64) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): more than 64 names at the script's top (each copy of a generic function one)", n->s); return xc_fail(k, n, k->whybuf); }
         if (!(let = x_parse_copy(g, bind))) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its copy for these types doesn't read", n->s); return xc_fail(k, n, k->whybuf); }
         char nm[160];   // its name: nearest<unit>, f<point, unit> - once at the top
-        int o = snprintf(nm, sizeof nm, "%s<", n->s);
-        for (int j = 0; j < g->n && o < (int)sizeof nm; j++) o += snprintf(nm + o, sizeof nm - (size_t)o, "%s%s", j ? ", " : "", xty_name(bind[j], tn, sizeof tn));
-        if (o < (int)sizeof nm) o += snprintf(nm + o, sizeof nm - (size_t)o, ">");
+        xg_copy_name(g, n->s, bind, nm, sizeof nm);
+        int o = (int)strlen(nm);
         for (int tries = 2; xsc_find(g_xg_topsc, nm, strlen(nm), NULL) && tries < 99 && o + 4 < (int)sizeof nm; tries++) snprintf(nm + o, sizeof nm - (size_t)o, "#%d", tries);
         let->s = _strdup(nm);
         struct xnode **it = realloc(g_xg_top->items, sizeof *it * (size_t)(g_xg_top->n_items + 1));
@@ -3539,8 +3758,55 @@ internal int xg_call(struct xcheck *k, struct xnode *n, const struct xnode *gf, 
         memcpy(g->copy[g->ncopy].bind, bind, sizeof bind);
         g->copy[g->ncopy++].let = let;
     }
+    if (!n->s0) n->s0 = n->s;
     n->s = let->s;
     return 1;
+}
+// a call of a struct's generic method m (n: a.b.name(...) or <value>.name(...), st its struct): its copy for the
+// arguments' types - a method of the struct of its own, made once (its name add<cell>; checked with the struct's
+// methods, x_check_body) - and the call made one of it (n->s). 0 a mistake; 1 *copy the copy's function; 2 inside a
+// generic function or method as written (only held against the bounds), or of an interface's method (a T's)
+internal int xg_mcall(struct xcheck *k, struct xnode *n, int st, const struct xnode *m, const char *mname, const struct xscope *sc, const struct xnode **copy) {
+    struct xgen *g = m->gen;
+    int bind[XG_MAX] = { 0 };
+    if (!xg_binds(k, n, g, mname, bind, sc)) return 0;
+    if (g_xg_abstract || g_xst[st - XT_STRUCT].iface) return 2;
+    struct xnode *c = NULL, *d = (struct xnode *)g_xst[st - XT_STRUCT].decl;
+    for (int i = 0; i < g->ncopy && !c; i++) if (!memcmp(g->copy[i].bind, bind, sizeof bind)) c = g->copy[i].let;
+    if (!c) {
+        char nm[160];
+        if (g->ncopy == XG_COPIES) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): more than %d copies - one for each call's types", mname, XG_COPIES); return xc_fail(k, n, k->whybuf); }
+        if (!(c = x_parse_copy(g, bind))) { snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its copy for these types doesn't read", mname); return xc_fail(k, n, k->whybuf); }
+        xg_copy_name(g, mname, bind, nm, sizeof nm);
+        struct xnode **it = realloc(d->items, sizeof *it * (size_t)(d->n_items + 1));
+        if (!it || !(c->s = _strdup(nm))) return xc_fail(k, n, "no memory");
+        d->items = it;
+        it[d->n_items++] = c;
+        memcpy(g->copy[g->ncopy].bind, bind, sizeof bind);
+        g->copy[g->ncopy++].let = c;
+    }
+    if (!n->s0) n->s0 = n->s;
+    if (n->k == XN_CALL) {   // a.b.add -> a.b.add<cell>
+        const char *dot = strrchr(n->s, '.');
+        size_t l = dot ? (size_t)(dot - n->s) + 1 : 0, cl = strlen(c->s);
+        char *w = malloc(l + cl + 1);
+        if (!w) return xc_fail(k, n, "no memory");
+        memcpy(w, n->s, l);
+        memcpy(w + l, c->s, cl + 1);
+        n->s = w;
+    } else n->s = c->s;
+    *copy = c;
+    return 1;
+}
+// the type a function's or a method's parameter i (from 0: fd's own items, a method's this first) wants of a list or
+// a { ... } written as its argument: its own - none (0) for a generic one's of a type parameter (GENERICS: the
+// argument tells the type)
+internal int xg_want(const struct xnode *fd, int i) {
+    if (!fd || i >= fd->n_items) return 0;
+    int t = (int)fd->items[i]->n;
+    if (!fd->gen) return t;
+    for (int depth = 0; depth < 4 && t && !xst_is(X_TBASE(t)); depth++) t = xt_is_dict(t & ~X_NULLABLE) ? xt_dict_val(t & ~X_NULLABLE) : xt_items(t & ~X_NULLABLE);
+    return t && xst_is(X_TBASE(t)) && g_xst[X_TBASE(t) - XT_STRUCT].iface ? 0 : (int)fd->items[i]->n;
 }
 internal int x_check_struct(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     int t = (int)n->n, nf = 0;
@@ -3698,6 +3964,7 @@ internal int x_check_rec(struct xcheck *k, const struct xnode *n, struct xscope 
 }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     if (!n) return 1;
+    if (n->s0) ((struct xnode *)n)->s = n->s0;   // (a generic's call: of the copy this check makes it - GENERICS)
     if (g_xr_out && g_xrc && !g_xr_busy && n->at) xr_node(k, n, sc);   // (the language server's record)
     switch (n->k) {
     case XN_NUM: return 1;
@@ -4067,7 +4334,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (k->script && n->k == XN_MCALL && (n->items[i]->k == XN_LIST || n->items[i]->k == XN_REC)) {   // a list or a { ... } written as a method's argument
                 int ta0 = x_stype(k, n->a, sc);
                 const struct xnode *m0 = xst_member(ta0, n->s, 'M', NULL);
-                g_x_want = m0 && i + 1 < m0->n_items ? (int)m0->items[i + 1]->n : 0;
+                g_x_want = xg_want(m0, i + 1);
                 if (xt_is_hl(ta0) && (xhm_id(n->s) == XHM_ADD || xhm_id(n->s) == XHM_INDEX_OF || (xhm_id(n->s) == XHM_INSERT && i == 1))) g_x_want = xt_hl_elem(ta0);
             }
             if (!x_check(k, n->items[i], sc)) return 0;
@@ -7201,7 +7468,7 @@ internal void xc_stmt(struct xcomp *cc, const struct xnode *s) {
         if (s->op == 'I') break;   // (an interface: no code - GENERICS)
         struct xstype *st = (int)s->n - XT_STRUCT >= 0 && (int)s->n - XT_STRUCT < cc->c->nst ? &cc->c->st[(int)s->n - XT_STRUCT] : NULL;
         for (int i = 0, j = 0; st && i < s->n_items; i++) {
-            if (s->items[i]->op != 'M') continue;
+            if (s->items[i]->op != 'M' || s->items[i]->gen) continue;   // (a generic one as written: its copies have the code)
             cc->line = s->items[i]->line;
             int fi = xc_function(cc, s->items[i]);
             if (j < st->nm) st->mfi[j++] = fi;
@@ -7336,12 +7603,12 @@ internal struct xcode *xc_compile(const struct xnode *root, const char *src, con
         const struct xnode *d = g_xst[i].decl;
         struct xstype *st = &k->st[i];
         st->name = d ? d->s : "";
-        for (int j = 0; d && j < d->n_items; j++) if (d->items[j]->op == 'F') st->nf++; else st->nm++;
+        for (int j = 0; d && j < d->n_items; j++) if (d->items[j]->op == 'F') st->nf++; else if (!d->items[j]->gen) st->nm++;
         st->fname = calloc((size_t)st->nf + 1, sizeof *st->fname);
         st->mname = calloc((size_t)st->nm + 1, sizeof *st->mname);
         st->mfi = calloc((size_t)st->nm + 1, sizeof *st->mfi);
         if (!st->fname || !st->mname || !st->mfi) { xcc_fail(cc, "no memory for the script's structs"); st->nf = st->nm = 0; continue; }
-        for (int j = 0, a = 0, b = 0; d && j < d->n_items; j++) if (d->items[j]->op == 'F') st->fname[a++] = d->items[j]->s; else st->mname[b++] = d->items[j]->s;
+        for (int j = 0, a = 0, b = 0; d && j < d->n_items; j++) if (d->items[j]->op == 'F') st->fname[a++] = d->items[j]->s; else if (!d->items[j]->gen) st->mname[b++] = d->items[j]->s;
         k->nst = i + 1;
     }
     xc_declare(cc, root);

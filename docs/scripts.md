@@ -316,9 +316,10 @@ Not there: inheritance, operators of its own (a vector has them), private fields
 
 ## Interfaces and generic functions
 
-An **interface** is a contract: the members a type must have. A **generic function** takes any type that has them -
-and each call with types of its own gets a copy of the function for them, as if it had been written with those
-types. Both exist only while the script is read: no value is ever of an interface, and what runs knows none.
+An **interface** is a contract: the members a type must have. A **generic function** - or a struct's **generic
+method** - takes any type that has them, and each call with types of its own gets a copy of it for them, as if it
+had been written with those types. They exist only while the script is read: no value is ever of an interface, and
+what runs knows none.
 
 ```
 interface positioned {
@@ -376,8 +377,38 @@ let d = far(camps[1], hq)                           // a camp and a unit: far<ca
   and compiled as if written with them (a mistake in it names the copy). A generic function calling another, or
   itself, calls the other's copy for its own types. At most 32 copies a function; each is a name at the script's top.
 - A generic function is called, never passed as a value (`let f = nearest`: a mistake - its types come from a call).
-- Not yet: a method of an interface's type (`add(value: ipoint)` in a struct - a method takes its own struct's
-  type), types written at the call (`nearest<unit>(...)`), generic structs, setting a field through an interface,
+
+**Generic methods.** A struct's method takes type parameters as a function does - `moved<T: ipoint>(by: T)`, or a
+parameter of an interface's type, `dist(to: positioned)` (a struct's name is never an interface's: there it can only
+mean any). Its body is checked once against the interfaces, each call gets a copy of its own (`grid.moved<cell>`),
+an ordinary method of the struct.
+
+```
+interface movable {
+    moved<T: ipoint>(by: T): movable    // asks for a moved that takes ANY ipoint
+}
+struct grid: ipoint, movable {
+    x: int
+    y: int
+    add(value: grid): grid => grid(this.x + value.x, this.y + value.y)      // ipoint's add: the type itself
+    moved<T: ipoint>(by: T): grid => grid(this.x + by.x, this.y + by.y)     // any ipoint: moved<point>, moved<cell>
+    dist(to: positioned): float => distance(vec(this.x, this.y), to.pos)    // the short form
+}
+step<M: movable, P: ipoint>(m: M, by: P): M => m.moved(by)   // through a T: each copy calls grid's copy
+
+let g = grid(1, 1).moved(point(2, 3)).moved(cell(10, 10))
+```
+
+- **In an interface its own name is the type itself; a type parameter is any.** `add(value: ipoint): ipoint` in
+  `ipoint` asks of a `grid` for an `add` that takes a `grid`; `moved<T: ipoint>(by: T)` in `movable` asks for one
+  that takes every ipoint (`<T: ipoint>` there: the interface, not the type itself).
+- **What fits**: a method may take more than its interface asks, never less. Where the interface asks for the type
+  itself, `add(value: grid)` fits and so does `add<T: ipoint>(value: T)` (it takes a grid too - it gives back what
+  the interface's gives, not a `T`). Where it asks for any ipoint, only a generic method fits, its bound one an
+  ipoint has (`moved(by: point)`: a grid is no movable - its moved takes a point, the interface's any ipoint).
+- Inside a generic body, a `T`'s method of the type itself takes only a `T` (`a.add(p)` with a point: its value is
+  of the type itself) - the interface that wants any says so with `<T: ...>`.
+- Not yet: types written at the call (`nearest<unit>(...)`), generic structs, setting a field through an interface,
   the personalities' texts (a script's only).
 
 ## Records, dicts and structs written out

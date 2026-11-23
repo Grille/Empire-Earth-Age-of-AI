@@ -78,3 +78,31 @@ let kept: list<tower> = []
 kept.add(tower(vec(4, 4), 7))
 let newest = last(kept, null)
 cmd("last {newest != null ? newest.hp : 0}")
+
+// generic methods: add(value: ipoint) in ipoint asks for the type itself; moved<T: ipoint> in movable for a method that
+// takes any ipoint - grid has both, a copy of moved for each type it is called with (moved<point>, moved<cell>)
+interface movable {
+    moved<T: ipoint>(by: T): movable
+}
+struct flag {
+    pos: vec2
+}
+struct grid: ipoint, movable {
+    x: int
+    y: int
+    add(value: grid): grid => grid(this.x + value.x, this.y + value.y)
+    moved<T: ipoint>(by: T): grid => grid(this.x + by.x, this.y + by.y)
+    // the short form: a parameter of an interface's type
+    dist(to: positioned): float => distance(vec(this.x, this.y), to.pos)
+    // one calling a generic function: each copy calls that one's copy for its types
+    closest<T: positioned>(all: seq<T>): T? => nearest(vec(this.x, this.y), all)
+}
+// through a T: the interface's generic method, each copy the struct's copy
+step<M: movable, P: ipoint>(m: M, by: P): M => m.moved(by)
+
+let g = grid(1, 1)
+let g2 = g.moved(point(2, 3)).moved(cell(10, 10))
+let g3 = step(g, cell(5, 5))
+let flags = [flag(vec(9, 9)), flag(vec(2, 2))]
+let fl = g.closest(flags)
+cmd("methods {g2.x} {g2.y} {g3.x} {g.dist(camps[2])} {fl != null ? fl.pos.x : 0} {sum([g2, g3], g).x}")
