@@ -93,6 +93,8 @@ internal struct {
     int nmat;
     ID3D11ShaderResourceView *srv[2][RG_MATERIALS];   // the ground's and the water's textures as last looked up, a reference held: all a frame under another writer has of them
     ID3D11ShaderResourceView *hgt[RG_MATERIALS];      // the ground's textures' heights (rgb_height), once each
+    void *msamp[2][RG_MATERIALS];                     // each material's sampler and stage-0 operations as its SetTexture set them (rg_draw_now)
+    int32_t mop[2][RG_MATERIALS][6];
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
     uint8_t *fow_was, *fow_now;
@@ -166,6 +168,7 @@ internal void rg_free(void) {
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
     for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.hgt[m]);
+    memset(g_rg.msamp, 0, sizeof g_rg.msamp);   // the cache's: not released
     g_rg.built = g_rg.nmat = 0;
     memset(g_rg_dirty, 0, sizeof g_rg_dirty);
     memset((void *)g_rg_gone, 0, sizeof g_rg_gone);
@@ -326,6 +329,13 @@ internal int rg_tile_tris(rg_tri *out, unsigned long x, unsigned long y, void *t
     }
     return nt;
 }
+// the height of the tile at x, y at the point px, py on it, as its two triangles (rg_tile_tris: split from (x, y) to
+// (x + 1, y + 1)) lie
+internal float rg_tile_z(unsigned long x, unsigned long y, float px, float py) {
+    float u = px - (float)x, v = py - (float)y;
+    float z00 = g_rg.z(g_rg.mesh, x, y), z01 = g_rg.z(g_rg.mesh, x, y + 1), z10 = g_rg.z(g_rg.mesh, x + 1, y), z11 = g_rg.z(g_rg.mesh, x + 1, y + 1);
+    return v >= u ? z00 + v * (z01 - z00) + u * (z11 - z01) : z00 + u * (z10 - z00) + v * (z11 - z10);
+}
 internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     const rg_space_edge *s = &k_rg_space[g_rg.water_info(g_rg.mesh, x, y) >> 1 & 15];
     if (s == k_rg_space) return 0;
@@ -341,7 +351,11 @@ internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     if (!face) return n;
     float px = (float)x + s->line[0], py = (float)y + s->line[1], qx = (float)x + s->line[2], qy = (float)y + s->line[3];
     unsigned long pi = (unsigned long)px, pj = (unsigned long)py, qi = (unsigned long)qx, qj = (unsigned long)qy;   // cut off, as the engine's _ftol
-    float pz = g_rg.z(g_rg.mesh, pi, pj) - 0.02f, qz = g_rg.tile(g_rg.mesh, qi, qj) ? g_rg.z(g_rg.mesh, qi, qj) - 0.05f : pz;
+    // The top of the face: the engine takes the height of the corner its point is cut off to (less 0.02 and 0.05), and on
+    // a slope the face's edge stood above or below the edge's texture laid on the tile's own corners - gaps into space
+    // and faces sticking up (the player, 2026-11-23: "the cliff where terrain goes into space doesnt connect to the
+    // terrain properly when there are elevation changes"). Here the height of that texture's triangles at the point
+    float pz = rg_tile_z(x, y, px, py) - 0.02f, qz = rg_tile_z(x, y, qx, qy) - 0.05f;
     float pb = pz - RG_CLIFF_DROP + k_rg_jag[pi % 16 * 16 + pj % 16] * 0.5f, qb = qz - RG_CLIFF_DROP + k_rg_jag[qi % 16 * 16 + qj % 16] * 0.5f;
     static const float u00[2] = { 0, 0 }, u10[2] = { 1, 0 }, u01[2] = { 0, 1 }, u11[2] = { 1, 1 };
     int a = 255 | 2 << 8;
@@ -856,6 +870,38 @@ internal float rg_water_blend(void) {
     }
     return a < 0 ? 0.0f : a > 1 ? 1.0f : (float)a;
 }
+// EACH TEXTURE ITS OWN STAGE (the player, 2026-11-23: "the terrain textures becomes nearest sampled instead of smooth
+// when space is added"). The display DLLs' SetTexture sets stage 0 from the texture's own fields - its colour and alpha
+// operations, addressing, filters (AoC's DX7Rasterizer::SetTexture 0x1000BF2D) - and the game's Draw binds each
+// material before its polygons. The ground here bound them all first and took the device's states once: the last
+// texture's for every one. The ground's textures share theirs, so it never showed until a space map's textures (their
+// own filters) came last. Now each material's states are kept as its bind leaves them and set with its draws - in a
+// frame during a step too (nothing is bound then: the last real frame's). Measured on Small Planets: 68 of the ground's
+// textures filter linearly (MAG and MIN LINEAR, MIP LINEAR), the 12 space textures by points (POINT, POINT) - the game
+// draws its cliffs into space blocky up close. Here a point filter is taken as linear: the faces as smooth as the ground.
+internal void *rd3_sampler_of(const DWORD *ts, int clamp);
+internal void rg_stage_take(const rd_device *d, int water, int m) {
+    if (m < 0 || m >= RG_MATERIALS) return;
+    DWORD ts[RD_TSS];
+    memcpy(ts, d->tss[0], sizeof ts);
+    if (ts[D3DTSS_MAGFILTER] == D3DTFG_POINT) ts[D3DTSS_MAGFILTER] = D3DTFG_LINEAR;
+    if (ts[D3DTSS_MINFILTER] == D3DTFN_POINT) ts[D3DTSS_MINFILTER] = D3DTFN_LINEAR;
+    if (ts[D3DTSS_MIPFILTER] == D3DTFP_POINT) ts[D3DTSS_MIPFILTER] = D3DTFP_LINEAR;
+    g_rg.msamp[water][m] = rd3_sampler_of(ts, 0);
+    int32_t *o = g_rg.mop[water][m];
+    o[0] = (int32_t)ts[D3DTSS_COLOROP]; o[1] = (int32_t)ts[D3DTSS_COLORARG1]; o[2] = (int32_t)ts[D3DTSS_COLORARG2];
+    o[3] = (int32_t)ts[D3DTSS_ALPHAOP]; o[4] = (int32_t)ts[D3DTSS_ALPHAARG1]; o[5] = (int32_t)ts[D3DTSS_ALPHAARG2];
+}
+internal void rg_stage_use(int water, int m) {
+    if (m < 0 || m >= RG_MATERIALS || !g_rg.msamp[water][m]) return;
+    g_rd3.samp = g_rg.msamp[water][m];
+    const int32_t *o = g_rg.mop[water][m];
+    if (memcmp(g_rd3.pc.op, o, 3 * sizeof *o) || memcmp(g_rd3.pc.aop, o + 3, 3 * sizeof *o)) {
+        memcpy(g_rd3.pc.op, o, 3 * sizeof *o);
+        memcpy(g_rd3.pc.aop, o + 3, 3 * sizeof *o);
+        g_rf.pc_new = 1;   // the next draw's constants a snapshot of their own
+    }
+}
 internal int rg_ready(void) { return g_rg.on && g_rg.lit && g_rg.api >= 0 && g_rd3.scene_view[15] == 1 && g_rd3.prep_dev && g_cam_now_ok && game_map(); }   // the units have drawn once: the projection, from the frame before
 // a target or depth buffer freed (render_frame.c rf_target_gone): the states kept with it are none until a frame draws
 // anew; how many of the two (the ground's, the water's) drew on it
@@ -949,6 +995,7 @@ internal void rg_draw_now(int water, int again) {
     for (int m = 0; m < nmat; m++) {
         if (!want[m]) continue;
         rg_bind_unlocked(i, water ? mesh_water_texture(g_rg.mesh, ((unsigned)m + wf) % wn) : g_rg.mat[m]);
+        rg_stage_take(d, water, m);
         rd_surface *t = d->tex[0];
         if (!t) continue;
         ID3D11ShaderResourceView *now = rd_gpu_texture(t, 0);
@@ -1018,6 +1065,7 @@ internal void rg_draw_now(int water, int again) {
         for (int r = 0; r < c->nr; r++) {
             if (!srv[c->r[r].m]) continue;
             g_rd3.srv = srv[c->r[r].m];
+            rg_stage_use(water, c->r[r].m);
             rf_record((UINT)c->r[r].first, (UINT)c->r[r].n, 0);
             if (g_rf.n) {
                 g_rf.cmd[g_rf.n - 1].gvb = c->vb;

@@ -1407,6 +1407,38 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
   (GE3DPoint::Save [0x837374], GETransformation::Save [0x837704], GE3DLine::Save [0x837738]), and
   EEComputerPlayer::vf6 0x42FD50 (52 KB) doesn't decompile - read it as machine code.
 
+### Space (AoC's planets; 2026-11-11 to 2026-11-23)
+
+What is known of AoC's space tiles, from its Low-Level Engine.dll (addresses there, 0x10000000 based), the display
+DLLs and the exe; the own renderer draws them from this (dll/engine/render_ground.c ART OF CONQUEST'S SPACE MAPS).
+- **The tile's byte** (the mesh's per-tile record +3, GetWaterInfo reads it whole): bit 0x80 space (SetIsSpace
+  0x1002D2A6, GetIsSpaceTile); bits 0-6 the water - bit 0 water, bits 1-4 the corners at a shore (GetIsWaterTile: any
+  of 0x7F). On a space map bits 1-4 hold the space edge's pattern instead. The mesh counts its space tiles
+  (+0x18F484, GetIsSpaceMap: any): the first space tile turns the whole map into a space map, the last one back.
+- **Space map vs water**: there SetIsWater (0x10012959) does nothing and ComputeShorelines (0x1002795F) clears a land
+  tile's byte to its space bit and gives a space tile the pattern of its non-space neighbours (the neighbour table at
+  0x10097B98: 8 neighbours, each a bit set). So the mesh forgets which tiles are water, and UpdateVisibleTerrain makes
+  no water at all. The simulation's water is the map's own all along (a tile whose lowest corner is under the level:
+  EEMap 0x5225FA hands SetIsWater exactly that) - ships can float on a planet's lake the game doesn't draw. The own
+  renderer draws it by that rule (rg_water_bits).
+- **Drawing** (UpdateVisibleTerrain 0x1002C299, AddTilePolys 0x1002BD08, AddCliffPolys 0x1002B8E8): a space tile is a
+  quad of no texture (alpha -1: nothing). One with a pattern (bits 1-4 >> 1, 1-15) lays a space texture on itself:
+  the table at 0x10097BF8, 16 records of 0x38 bytes - the texture (8 + n of the mesh's space textures), the four
+  corners' texture places, a face kind and a line across the tile. The face (kinds 1-6: texture x, y, 2x, 2x + 1, 2y
+  or 2y + 1, of 8) hangs from that line 8 down, its lower edge jagged by a 16 x 16 table at 0x100D9760 (times 0.5),
+  not on the map's left and right edges; its top at the height of the corner the line's points are cut down to (less
+  0.02 / 0.05) - on a slope off the tile's own surface (the own renderer: the surface's height there). A land corner
+  whose cell has a pattern tile among its 3 neighbours (0x10097F98) takes texture 12, at the tile's own places
+  (0 to 1 across it). No water, and the black round the map only behind it (the back edge and its two corners).
+- **The space textures**: SetSpaceCliffTextures, a vector at the mesh's +0x1955A4 (spec engine_display
+  of_mesh_space_cliffs): 0-7 faces, 8-11 edge patterns, 12 the land's edge. The display DLLs' Draw (DX7Rasterizer::
+  Draw) binds faces 1-8 of the material list first, then everything else; each SetTexture (0x1000BF2D) sets stage 0
+  from the texture's own fields - the space textures POINT filtered (the ground's LINEAR), blocky up close in the game.
+- **The original game's install** (not space, but AoC's other dependency): AoC's data search path, music folder and
+  "needs the original game" check come from the 2017 update's registry values - engine/data_order.c.
+- Not looked at: the editor's space painting (only its effect, SetIsSpace and ComputeShorelines, is above), what
+  places space on a random map (the Planets scripts' kWaterBorder), units and movement over space tiles.
+
 ## Scenario / save file format (.scn / .ees)
 
 The author's C# project EEScnEdit (GitHub; the library `EEScnLib/Headers`, `EEScnLib/Data`, the WinForms editor `EEScnEdit`) reads and writes every part of

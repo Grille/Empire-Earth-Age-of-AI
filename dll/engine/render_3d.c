@@ -642,6 +642,15 @@ internal int rd3_flat_picture(rd_device *d, rd_vb *vb, DWORD start, DWORD n) {
     }
     return 1;
 }
+// the sampler of a texture stage's states (ts: its D3DTSS_ values), one of the cache's. clamp: CLAMP addressing
+internal void *rd3_sampler_of(const DWORD *ts, int clamp) {
+    int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
+    uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
+    uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
+                  (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12 |
+                  (uint32_t)(g_fx.aniso & 31) << 20;
+    return rd3_cache(g_rd3.samps, &g_rd3.n_samp, 32, sk, rd3_mk_samp);
+}
 // the device's states into the shaders' constants and the states the batch is collected under; 0: nothing to draw
 // into. clamp: CLAMP addressing
 internal int rd3_prepare(rd_device *d, int clamp) {
@@ -680,12 +689,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     if (full || srv != g_rd3.srv) { rd3_flush(); g_rd3.srv = srv; }
     g_rd3.srv_of = tex ? (tex->top ? tex->top : tex) : NULL;
     g_rd3.srv_keyed = ckey;
-    int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
-    uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
-    uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
-                  (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12 |
-                  (uint32_t)(g_fx.aniso & 31) << 20;
-    o = rd3_cache(g_rd3.samps, &g_rd3.n_samp, 32, sk, rd3_mk_samp);
+    o = rd3_sampler_of(ts, clamp);
     if (full || o != g_rd3.samp) { rd3_flush(); g_rd3.samp = o; }
 
     // the vertex shader's constants - not when only a texture or its stage changed (most often, between two batches)
