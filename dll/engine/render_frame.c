@@ -1191,8 +1191,9 @@ internal void rf_replay(void) {
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
     for (int i = 0; i < g_rf.n; i++) if (g_rf.cmd[i].gvb) { ro_ground_map(x); break; }   // the overlay's picture before the ground reads it
-    int edges = rf_edges(x), oit = oit_on(), laste = -1, lastu = -1;
-    for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if ((edges && g_rf.cmd[i].soft) || (oit && g_rf.cmd[i].oit)) laste = i;
+    int edges = rf_edges(x), oit = oit_on(), laste = -1, lastu = -1, lasto = -1;
+    if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft && !(oit && g_rf.cmd[i].oit)) laste = i;
+    if (oit) for (int i = g_rf.n - 1; i >= 0 && lasto < 0; i--) if (g_rf.cmd[i].oit) lasto = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
     // the maps leave their constants in the edges' slot (b2): bound again at the next part asked for - until then the
     // mirrored picture and the list's batches before the first soft one read the light's matrix as their edp
@@ -1241,8 +1242,7 @@ internal void rf_replay(void) {
         if (i == laste) {
             rf_edges_part(x, RF_PART_EDGES);
             for (int j = 0; j <= laste; j++)
-                if (edges && g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
-            if (oit) oit_pass(x, laste, scene, &b, &first);   // (its batches as edges where it can't)
+                if (g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
             rf_edges_part(x, 0);
         }
         if (i == lastu && scene && rao_on()) {   // all that writes the depth drawn (render_ao.c), the water and the silhouettes yet to come
@@ -1255,6 +1255,11 @@ internal void rf_replay(void) {
             first = 1;
             b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
         }
+        // the weighted transparency's sums over the scene once all that writes the depth is drawn - the units', the trees'
+        // and the ambient occlusion: laid over at the soft edges' place the trees drawn after them covered the crystals
+        // in front of them, and the occlusion darkened them by the ground behind (the player, 2026-11-23: "it draw behind
+        // trees, also its noticably darker than it should be")
+        if (lasto >= 0 && i == (lastu > lasto ? lastu : lasto)) oit_pass(x, lasto, scene, &b, &first);   // (its batches as edges where it can't)
         if (i == lastu) rd3_silhouettes(x, &b, &first);
         if (i == lastw) {
             for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) { rf_water_part(x, rf_water_split(&g_rf.cmd[j], 0)); rf_draw(x, &g_rf.cmd[j], &b, &first); }

@@ -13,6 +13,8 @@
 // see-through part is hidden by what stands before it and covers what stands behind it.
 // Only those: with every soft edge in the sums (tried first) the trees came out darker and muddier - many layers of
 // nearly solid leaves averaged instead of the front one covering - and every unit was drawn once more for nothing.
+// All faces: the crystals' outer faces are wound the other way round, and front faces only by their winding (tried)
+// took them all away. The sums go over the scene after everything that writes the depth (render_frame.c rf_replay).
 // The batches: the units' (units, buildings, the map's objects), blended as the game's usual alpha (source alpha, one
 // less it), depth written, not drawn in pixels or at depth 0 (the health bars, the circles on the ground). The rest -
 // added glows, the water's split - as before.
