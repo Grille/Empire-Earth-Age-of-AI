@@ -965,13 +965,35 @@ internal HRESULT __stdcall rd_dd_qi(rd_dd *o, const GUID *iid, void **out) {
 }
 internal ULONG __stdcall rd_dd_addref(rd_dd *o) { return (ULONG)InterlockedIncrement(&o->refs); }
 internal ULONG __stdcall rd_dd_release(rd_dd *o) { LONG n = InterlockedDecrement(&o->refs); return n > 0 ? (ULONG)n : 0; }
+// No Direct3D 11 device (a driver without feature level 10.0, Wine without its 32-bit OpenGL, a phone's driver): the
+// own renderer has nothing else to draw with, and the game quits at its first surface - exit code 3, no word of why
+// (found under Wine, 2026-11-23). The player is told why and what to set instead, once; outside the renderer's lock,
+// as the box pumps the window's messages. A headless test has nobody to click it: the notice only.
+internal void rd_no_device(void) {
+    static LONG told;
+    if (InterlockedExchange(&told, 1)) return;
+    notice("no Direct3D 11", "the own renderer got no device (%s): the game closes - renderer = wrapper draws through DirectDraw", g_d3d.err);
+    if (g_autotest) return;
+    char msg[900];
+    snprintf(msg, sizeof msg,
+             "Empire Earth: Age of AI draws the game with its own renderer, on Direct3D 11, and this PC gave it no "
+             "Direct3D 11 device: %s.\n\n"
+             "The graphics driver doesn't offer Direct3D 11 (feature level 10.0 or above) to a 32-bit game - under Wine: "
+             "its Direct3D, on Linux the 32-bit OpenGL or Vulkan libraries, on Android the app's graphics driver.\n\n"
+             "To play anyway, let the game draw through DirectDraw: in ageofai_config.exe (Display) or in "
+             "ageofai\\ageofai.ini [display] set renderer = wrapper - or play fullscreen. A newer graphics driver may "
+             "also help.\n\nEmpire Earth will close now.", g_d3d.err);
+    MessageBoxA(NULL, msg, "Empire Earth: Age of AI - no Direct3D 11", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
+}
 internal HRESULT __stdcall rd_dd_create_surface(rd_dd *o, DDSURFACEDESC2 *d, rd_surface **out, IUnknown *outer) {
     (void)o; (void)outer;
     if (!d || !out) return DDERR_INVALIDPARAMS;
     InterlockedIncrement(&g_rd_churn);
     RD_LOCK();
-    HRESULT r = d3d_device() ? rd_create_surface(d, out) : DDERR_GENERIC;
+    int dev = d3d_device();
+    HRESULT r = dev ? rd_create_surface(d, out) : DDERR_GENERIC;
     RD_UNLOCK();
+    if (!dev) rd_no_device();
     return r;
 }
 // the display's modes, each in 32 and in 16 bits (DirectDraw emulates 16-bit modes the display no longer lists, and

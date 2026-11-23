@@ -56,8 +56,9 @@ internal void d3d_release(void) {
 }
 
 internal int d3d_fail(const char *what, HRESULT hr) {
-    snprintf(g_d3d.err, sizeof g_d3d.err, "%s failed (hr %08lx)", what, (unsigned long)hr);
-    if (g_log) { log_locked("# display: Direct3D present: %s - using GDI\n", g_d3d.err); }
+    if (hr) snprintf(g_d3d.err, sizeof g_d3d.err, "%s failed (hr %08lx)", what, (unsigned long)hr);
+    else snprintf(g_d3d.err, sizeof g_d3d.err, "%s failed", what);
+    if (g_log) { log_locked("# display: Direct3D present: %s - %s\n", g_d3d.err, g_rd_on ? "the own renderer has no device" : "using GDI"); }
     d3d_release();
     g_d3d.failed = 1;
     return 0;
