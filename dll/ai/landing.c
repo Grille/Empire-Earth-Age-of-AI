@@ -93,15 +93,18 @@ internal int ld_cits_for(int ships, int cap) {
 internal int ld_type_avail(ee_player *pl, int t);
 // the newest transport it can train: of the transport ships its tech record allows (an upgraded line's old type no
 // longer), the one of the highest tech - one per epoch in the game's data (raft, copper, bronze, imperial, atomic,
-// gargantua), a data mod's own included; 0: none
-internal int ld_transport_type(ee_player *pl) {
-    int best = 0, bt = 0;
+// gargantua), a data mod's own included; 0: none. By the sea's layer (forces.c SPACE AS A SEA): a space sea's the
+// space transports (class 33), the water's the ships (class 18) - the Space Transport is the newest of all
+internal int sea_is_space(unsigned oc);   // forces.c
+internal int ld_transport_type_sea(ee_player *pl, unsigned sea) {
+    int best = 0, bt = 0, want = sea_is_space(sea) ? CLS_SPACE_TRANSPORT : CLS_NAVAL_TRANSPORT;
     for (int t = 0; t < G_TYPES_N; t++) {
-        if (!is_transport(t) || !ld_type_avail(pl, t)) continue;
+        if (!is_transport(t) || unit_type_get_class_id(type_data(t)) != want || !ld_type_avail(pl, t)) continue;
         if (unit_type_get_tech(type_data(t)) > bt) { bt = unit_type_get_tech(type_data(t)); best = t; }
     }
     return best;
 }
+internal int ld_transport_type(ee_player *pl) { return ld_transport_type_sea(pl, 0); }   // the water's
 // AIR TRANSPORT (the player 2026-11-13: "expansion and landungs should also include (and prefer) air transport in later
 // ages"): the newest transport helicopter the player may train (the class: Helicopter Transport from the Atomic Age -
 // Modern, Pegasus after it; 75 gold and 75 iron against a ship's 250 wood, no dock, no sea to hold), 0: none yet

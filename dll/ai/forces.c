@@ -8,9 +8,18 @@
 // area at the tile (0x425F16), its +0x84 (kind 1: the ocean) or +0x86 (kind 2: the land continent). Reference save:
 // both AIs' towns, the player's base and outposts on land continent 2, the water at P3's docks ocean 1; a few areas
 // (the player's camp at 108,75) have neither - taken as passable.
+// SPACE AS A SEA (Art of Conquest; the player 2026-11-23: space is "just another sea layer"): on a map with space
+// tiles the sea at a space tile is its space region (the continent manager's kind 3) as SEA_SPACE + its id - so the
+// sea code (the territories' seas, the ferry and its shores, the crossing, the docks by their sea) takes a space region
+// for a sea like any. Water and space never join (no ship enters space, no spaceship water: docs/engine-notes.md
+// "Space"); a planet's land is land (kind 2) as an island's.
+#define SEA_SPACE 0x8000u
+internal int sea_is_space(unsigned oc) { return oc >= SEA_SPACE; }
 internal unsigned area_id(ivec2 p, int kind) {
     if (p.x < 0 || p.y < 0) return 0;
-    return map_area(p, kind);
+    unsigned a = map_area(p, kind);
+    if (kind == 1 && !a && map_has_space(game_map())) { unsigned s = map_area(p, 3); if (s) a = SEA_SPACE + s; }
+    return a;
 }
 internal unsigned cont_at(ivec2 p) { return area_id(p, 2); }
 internal int cont_ok(ivec2 p, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)

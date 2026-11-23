@@ -152,12 +152,14 @@ internal struct fy_want g_fy_miss;   // fy_start's last
 // minutes) though a transport could go. Both lands must touch the water the transport is on (a ship sails no other);
 // where they do, the shore is the nearest however far. Which lands touch which water: once per map (g_fy_touch).
 #define FY_TOUCH_L 512
-#define FY_TOUCH_O 64
+#define FY_TOUCH_O 64     // water seas; the space seas (forces.c SPACE AS A SEA: SEA_SPACE + their id) in as many slots after them
 // box: each land's extent (x0, y0, x1, y1) - fy_shore searches no farther than its farthest corner
-internal struct { ee_map *map; int size; uint8_t t[FY_TOUCH_L][FY_TOUCH_O / 8]; int16_t box[FY_TOUCH_L][4]; } g_fy_touch;
+internal struct { ee_map *map; int size; uint8_t t[FY_TOUCH_L][2 * FY_TOUCH_O / 8]; int16_t box[FY_TOUCH_L][4]; } g_fy_touch;
+internal unsigned fy_sea_slot(unsigned oc) { return oc < FY_TOUCH_O ? oc : oc >= SEA_SPACE && oc - SEA_SPACE < FY_TOUCH_O ? FY_TOUCH_O + (oc - SEA_SPACE) : 2 * FY_TOUCH_O; }
 internal int fy_touches(unsigned land, unsigned oc) {
     ee_map *map = game_map();
-    if (!map || land >= FY_TOUCH_L || oc >= FY_TOUCH_O) return 1;   // beyond the table: searched as before
+    unsigned os = fy_sea_slot(oc);
+    if (!map || land >= FY_TOUCH_L || os >= 2 * FY_TOUCH_O) return 1;   // beyond the table: searched as before
     int size = (int)map_get_size(map);
     if (g_fy_touch.map != map || g_fy_touch.size != size) {
         memset(&g_fy_touch, 0, sizeof g_fy_touch);
@@ -171,12 +173,12 @@ internal int fy_touches(unsigned land, unsigned oc) {
                 if (!b[2]) { b[0] = (int16_t)x; b[1] = (int16_t)y; b[2] = (int16_t)(x + 1); b[3] = (int16_t)(y + 1); }   // x1, y1 one past: 0 is none yet
                 else { if (x < b[0]) b[0] = (int16_t)x; if (x + 1 > b[2]) b[2] = (int16_t)(x + 1); b[3] = (int16_t)(y + 1); }
                 for (int k = 0; k < 4; k++) {
-                    unsigned o = area_id(iv2(x + nb[k][0], y + nb[k][1]), 1);
-                    if (o && o < FY_TOUCH_O) g_fy_touch.t[l][o / 8] |= (uint8_t)(1u << (o % 8));
+                    unsigned o = fy_sea_slot(area_id(iv2(x + nb[k][0], y + nb[k][1]), 1));
+                    if (o && o < 2 * FY_TOUCH_O) g_fy_touch.t[l][o / 8] |= (uint8_t)(1u << (o % 8));
                 }
             }
     }
-    return g_fy_touch.t[land][oc / 8] >> (oc % 8) & 1;
+    return g_fy_touch.t[land][os / 8] >> (os % 8) & 1;
 }
 // a new game or a load: the table is built again - the new map often takes the old one's address and size, and its
 // lands' and seas' ids are its own (the last game's bits under them: no trip between lands that touch the same sea)
@@ -193,7 +195,7 @@ internal int fy_shore(unsigned land, int oc, ivec2 p, ivec2 *o, ivec2 *w) {
     ee_map *map = game_map();
     int far_ = map ? (int)map_get_size(map) : FY_SHORE;
     if (far_ < FY_SHORE) far_ = FY_SHORE;
-    if (!map || land >= FY_TOUCH_L || oc >= FY_TOUCH_O) return ex_shore(land, oc, p, far_, o, w);   // beyond the table: searched as before
+    if (!map || land >= FY_TOUCH_L || fy_sea_slot((unsigned)oc) >= 2 * FY_TOUCH_O) return ex_shore(land, oc, p, far_, o, w);   // beyond the table: searched as before
     const int16_t *b = g_fy_touch.box[land];
     int r = 0, d[4] = { abs(p.x - b[0]), abs(p.x - (b[2] - 1)), abs(p.y - b[1]), abs(p.y - (b[3] - 1)) };
     for (int k = 0; k < 4; k++) if (d[k] > r) r = d[k];
@@ -518,9 +520,8 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
     if (wanted <= coming || slot < 0) return;
     void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
-    int tt = ld_transport_type(pl);
-    if (!um || !tt) return;
-    int req[4] = { tt, 1, 0, 0 };
+    if (!um) return;
+    int req[4] = { 0, 1, 0, 0 };
     unsigned sea = 0;
     // NOT WHERE IT CAN'T SERVE (the player 2026-11-20, "the ai is drowing in transports, something is very wrong" - his
     // P2 at minute 187 with 107 transports, 105 free, 293 trained; P3 116, 96 free, 174 trained: each where the game put
@@ -539,6 +540,12 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
                 if (fy_shore(wt[i].a, (int)seas[k], wt[i].from, &o, &w) && fy_shore(wt[i].b, (int)seas[k], wt[i].to, &o, &w) &&
                     fl_sea_docks(um, seas[k], &area, NULL, NULL) && area) { sea = seas[k]; req[3] = (int)area; }
         if (!sea && FERRY_THRIFT(idx)) { f->no_dock++; return; }
+        // SPACE AS A SEA (forces.c): with no dock of its on the trip's sea, where the game puts it only for a trip
+        // across water - a ship can't serve one over space, and a Space Transport comes from a Space Dock only
+        int water = 0;
+        for (int i = 0; !sea && i < nwt && !water; i++)
+            for (unsigned oc = 1; oc < FY_TOUCH_O && !water; oc++) water = fy_touches(wt[i].a, oc) && fy_touches(wt[i].b, oc);
+        if (!sea && !water) { f->no_dock++; return; }
         if (!sea) {
             int nfree = 0;
             for (struct grid_it it = grid_it_all(1); nfree < FY_FREE_MAX && grid_it_next(&it); )
@@ -546,6 +553,9 @@ internal void fy_order(ee_player *pl, unsigned idx, struct fy_st *f, int wanted,
             if (nfree >= FY_FREE_MAX) { f->no_dock++; return; }
         }
     }
+    int tt = ld_transport_type_sea(pl, sea);   // the sea's layer: a Space Transport for a space sea (landing.c)
+    if (!tt) return;
+    req[0] = tt;
     unsigned got = 0;
     g_priority_mil = 1; g_landing_order = 1; g_expand_econ = 1;   // paid as the expansion's (expand.c ex_ferry_ship)
     hook_train_units(um, req, (uintptr_t)&got);

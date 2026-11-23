@@ -288,7 +288,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             }
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
-                if (unit_type_get_id(td) == UT(B_DOCK) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);
+                if ((unit_type_get_id(td) == UT(B_DOCK) || unit_type_get_id(td) == UT(B_SPACE_DOCK)) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);   // a Space Dock a space sea's (forces.c SPACE AS A SEA)
                 float tr, ta;
                 if (s->ntw < FL_TW && defence_stats(u, &tr, &ta)) { s->tw[s->ntw] = iv2(x, y); s->twr[s->ntw++] = tr; }
                 if (s->nbl < FL_BLD) s->b[s->nbl++] = iv2(x, y);
@@ -864,8 +864,8 @@ internal int hb_lay(ee_player *pl, unsigned idx, ee_build_mgr *bm, int e, int ty
 // the land a dock at q would touch: the first land tile on the ring round its footprint (0: none) - can_place took a
 // spot in open water too, which no builder reaches (a dock laid 5 tiles off the shore was gone within half a minute),
 // until it asked for the game's shore (map.c dock_shore_ok, since 2026-11-19); here: which land
-internal unsigned fl_dock_land(ivec2 q) {
-    ee_unit_type *td = type_data(UT(B_DOCK));
+internal unsigned fl_dock_land_of(ivec2 q, int type) {
+    ee_unit_type *td = type_data(type);
     int sz = td ? unit_type_get_size(td) : 3;
     for (int ax = -1; ax <= sz; ax++)
         for (int ay = -1; ay <= sz; ay++) {
@@ -876,6 +876,7 @@ internal unsigned fl_dock_land(ivec2 q) {
         }
     return 0;
 }
+internal unsigned fl_dock_land(ivec2 q) { return fl_dock_land_of(q, UT(B_DOCK)); }
 internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
     g_hb[idx].t = now ? now : 1;
@@ -962,17 +963,19 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     }
     ivec2 shore;
     unsigned land = 0, sea = 0;
-    if (!ut_has(UT(B_DOCK)) || g_fs.nd >= HB_DOCKS || (GAME_AI(idx) && build_mgr_queued(bm, UT(B_DOCK))) ||   /* off: what its queue still lists nobody builds */ !can_build(pl, UT(B_DOCK))) return;
-    if (!tv_harbour_next(idx, dock_seas, nds, HB_CITS, &shore, &land, &sea) || raiders_near(pl, shore, 12)) return;
+    if (g_fs.nd >= HB_DOCKS || !tv_harbour_next(idx, dock_seas, nds, HB_CITS, &shore, &land, &sea) || raiders_near(pl, shore, 12)) return;
+    // a space sea's harbour is a Space Dock (forces.c SPACE AS A SEA: on land and space, as a dock on land and water)
+    int dtype = sea < (unsigned)g_ter.n && sea_is_space(area_id(g_ter.t[sea].c, 1)) ? UT(B_SPACE_DOCK) : UT(B_DOCK);
+    if (!ut_has(dtype) || (GAME_AI(idx) && build_mgr_queued(bm, dtype)) ||   /* off: what its queue still lists nobody builds */ !can_build(pl, dtype)) return;
     for (int r = 0; r <= 8; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = ivec2_add(shore, iv2(ax, ay));
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || !fl_dock_land(q)) continue;
-                if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, dtype, q) || !fl_dock_land_of(q, dtype)) continue;
+                if (!hb_lay(pl, idx, bm, e, dtype, q)) return;
                 g_hb[idx].docks++; g_hb[idx].laid_t = now ? now : 1;
                 if (g_hb[idx].nserved < HB_SERVED) { g_hb[idx].served[g_hb[idx].nserved].sea = sea; g_hb[idx].served[g_hb[idx].nserved].at = q; g_hb[idx].served[g_hb[idx].nserved++].t = now ? now : 1; }
-                if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a dock queued at %d,%d for the sea territory %u from the land territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, q.x, q.y, sea, land, shore.x, shore.y, g_fs.nd);
+                if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - a %s queued at %d,%d for the sea territory %u from the land territory %u (its shore by %d,%d; %d docks so far)\n", idx, now / 60000.0, dtype == UT(B_DOCK) ? "dock" : "Space Dock", q.x, q.y, sea, land, shore.x, shore.y, g_fs.nd);
                 return;
             }
 }
@@ -1508,22 +1511,25 @@ internal void tf_log(unsigned idx, int k, struct fleet *f, uint32_t now) {
 // boats came from whichever group of docks was the largest. *area: the region most of its finished docks on that
 // sea stand in; returns those docks' number.
 internal int fl_sea_docks(ee_unit_mgr *um, unsigned ocean, unsigned *area, unsigned *seas, int *nseas) {
-    uint8_t *q = ut_has(UT(B_DOCK)) ? unit_mgr_type_list(um, UT(B_DOCK)) : NULL;
     unsigned ar[16]; int cnt[16], na = 0, all = 0, best = 0;
     if (nseas) *nseas = 0;
-    for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 64; j++) {
-        ee_unit *b = deque_at(q, f + j);
-        if (!b || unit_get_hp(b) <= 0 || !cz_finished(b)) continue;
-        ivec2 p = unit_get_tile(b);
-        unsigned oc = area_id(p, 1), a = unit_region(b);
-        if (!oc) oc = ocean_near(p, 4, NULL);
-        if (!oc) continue;
-        if (seas && nseas) { int k = 0; while (k < *nseas && seas[k] != oc) k++; if (k == *nseas && k < 8) seas[(*nseas)++] = oc; }
-        if (oc != ocean || !a) continue;
-        int k = 0;
-        while (k < na && ar[k] != a) k++;
-        if (k == na) { if (na >= 16) continue; ar[na] = a; cnt[na++] = 0; }
-        cnt[k]++; all++;
+    for (int dt = 0; dt < 2; dt++) {   // its Docks, then its Space Docks - a space sea's (forces.c SPACE AS A SEA)
+        int type = dt ? UT(B_SPACE_DOCK) : UT(B_DOCK);
+        uint8_t *q = ut_has(type) ? unit_mgr_type_list(um, type) : NULL;
+        for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 64; j++) {
+            ee_unit *b = deque_at(q, f + j);
+            if (!b || unit_get_hp(b) <= 0 || !cz_finished(b)) continue;
+            ivec2 p = unit_get_tile(b);
+            unsigned oc = area_id(p, 1), a = unit_region(b);
+            if (!oc) oc = ocean_near(p, 4, NULL);
+            if (!oc) continue;
+            if (seas && nseas) { int k = 0; while (k < *nseas && seas[k] != oc) k++; if (k == *nseas && k < 8) seas[(*nseas)++] = oc; }
+            if (oc != ocean || !a) continue;
+            int k = 0;
+            while (k < na && ar[k] != a) k++;
+            if (k == na) { if (na >= 16) continue; ar[na] = a; cnt[na++] = 0; }
+            cnt[k]++; all++;
+        }
     }
     for (int k = 0; k < na; k++) if (cnt[k] > best) { best = cnt[k]; if (area) *area = ar[k]; }
     return all;

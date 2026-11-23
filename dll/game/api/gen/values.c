@@ -1302,6 +1302,7 @@ internal uint32_t call_cp_explore_all;
 internal uint32_t of_map_mesh;
 internal uint32_t of_map_corner_rows;
 internal uint32_t of_map_view_rows;
+internal uint32_t of_map_space_tiles;
 internal uint32_t of_map_default_terrain;
 internal uint32_t of_map_height_step;
 internal uint32_t of_map_tiles;

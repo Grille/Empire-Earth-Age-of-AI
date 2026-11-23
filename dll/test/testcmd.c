@@ -1074,7 +1074,8 @@ internal void cmd_continent(char *out, const char *args) {
         int pt[2] = { v[k], v[k + 1] };
         unsigned w = area_id(iv2(v[k], v[k + 1]), 1);
         uint8_t *o = area_at(pt);
-        REPLY("%d,%d: land %u ocean %u, area %p (vt %06x)", v[k], v[k + 1], cont_at(iv2(v[k], v[k + 1])), w, (void *)o,
+        REPLY("%d,%d: land %u ocean %u (the game's region by kind 1-4: %u %u %u %u), area %p (vt %06x)", v[k], v[k + 1], cont_at(iv2(v[k], v[k + 1])), w,
+              map_area(iv2(v[k], v[k + 1]), 1), map_area(iv2(v[k], v[k + 1]), 2), map_area(iv2(v[k], v[k + 1]), 3), map_area(iv2(v[k], v[k + 1]), 4), (void *)o,
               o ? *(unsigned *)o : 0);
         if (o) for (int q = 0x40; q < 0x90; q += 4) REPLY(" %x", FIELD(o, q, unsigned));
         REPLY("\n");

@@ -53,6 +53,11 @@ internal inline ee_corner_row **map_corner_rows_at(const ee_map *o) { return (ee
 internal inline void *map_get_view_rows(const ee_map *o) { return *(void **)((uint8_t *)o + of_map_view_rows); }
 internal inline void map_set_view_rows(ee_map *o, void *v) { *(void **)((uint8_t *)o + of_map_view_rows) = v; }
 internal inline void **map_view_rows_at(const ee_map *o) { return (void **)((uint8_t *)o + of_map_view_rows); }
+// AoC only: the mesh's count of its space tiles (the mesh at +0x1C, its +0x18F484; SetIsSpace counts it) - not 0:
+// a space map (the exe's world draw reads it so, 0x50E94A)
+internal inline int map_get_space_tiles(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_space_tiles); }
+internal inline void map_set_space_tiles(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_space_tiles) = v; }
+internal inline int *map_space_tiles_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_space_tiles); }
 // the map's default ground: its ee_terrain's index, what a tile without a texture of its own gets (0x51357B, the load 0x51241D)
 internal inline int map_get_default_terrain(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_default_terrain); }
 internal inline void map_set_default_terrain(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_default_terrain) = v; }
@@ -454,6 +459,7 @@ internal int spec_map_select(int build) {
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
+        of_map_space_tiles = NA;
         of_map_default_terrain = 0x181734;
         of_map_height_step = 0x1816D8;
         of_map_tiles = 0x1816D4;
@@ -557,7 +563,7 @@ internal int spec_map_select(int build) {
         data_map_terrain_current = 0x009128CB;
         fn_color_type = (color_type_fn)0x00513BE7;
         fn_terrain_at = (terrain_at_fn)0x004D5D21;
-        return 0;
+        return 1;
     case 1:   // aoc
         of_grid_cells = 0x4;
         of_grid_cell_size = 0x8;
@@ -570,6 +576,7 @@ internal int spec_map_select(int build) {
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
+        of_map_space_tiles = 0x18F4A0;
         of_map_default_terrain = 0x195650;
         of_map_height_step = 0x1955F4;
         of_map_tiles = 0x1955F0;
@@ -678,7 +685,7 @@ internal int spec_map_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "EEMap.space_tiles", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_map_check(void) {
     int bad = 0;

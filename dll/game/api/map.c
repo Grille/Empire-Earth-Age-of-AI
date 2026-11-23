@@ -104,6 +104,9 @@ internal inline unsigned mesh_register_color_set(void *mesh, uint32_t *slots, un
 internal inline unsigned short map_area(ivec2 p, int kind) {
     return fn_continent_mgr_region((void *)data_map_map_areas, &p.x, kind);   // &p.x: the game's int pos[2]
 }
+// a map with space tiles (Art of Conquest's planets: map_area kind 3 the space regions, 4 the planets - the 2017
+// update answers 0 for both and has no such tiles)
+internal inline int map_has_space(const ee_map *m) { return m && of_map_space_tiles != NA && *(int *)((uint8_t *)m + of_map_space_tiles) > 0; }
 // the map's area object at a tile (regions, continents)
 internal inline uint8_t *area_at(int *pt) { return fn_continent_mgr_area_at((void *)data_map_map_areas, pt); }
 // the number of the region a unit stands in (0: none) - what a training request's fourth value names to keep the

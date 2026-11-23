@@ -121,6 +121,7 @@ internal void ter_tiles(ee_map *map, struct ter_work *w) {
     int size = w->size;
     ee_unit_type *walker = type_data(UT(CITIZEN)), *ship = ter_ship_type();
     ee_tile **tiles = map_get_tiles(map);
+    int space = map_has_space(map);   // SPACE AS A SEA (ai/forces.c): a space tile (kind 12) is a sea's - its own territories (one beside water would join it: none seen on the Planets maps)
     int e1 = map_get_edge_sum(map), e2 = map_get_edge_sum_2(map), ed = map_get_edge_diff(map);
     for (int y = 0; y < size; y++)
         for (int x = 0; x < size; x++) {
@@ -130,6 +131,7 @@ internal void ter_tiles(ee_map *map, struct ter_work *w) {
             int kind = tile_get_kind(tile);
             if (unit_type_terrain_ok(walker, kind)) w->cls[i] = TER_LAND;
             else if (ship ? unit_type_terrain_ok(ship, kind) : kind == 1) w->cls[i] = TER_WATER;
+            else if (space && kind == 12) w->cls[i] = TER_WATER;
             else continue;
             for (void *node = tile_get_objects(tile); node; node = tilenode_get_next(node)) {
                 ee_unit *o = tilenode_get_object(node);

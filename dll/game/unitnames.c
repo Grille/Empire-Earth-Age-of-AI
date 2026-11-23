@@ -72,7 +72,7 @@ internal int unit_types_load(void) {
             (c == CLS_GATE ? UTR_GATE : 0) |
             (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && unit_type_get_range(td) >= 3.0f ? UTR_SIEGE : 0) |
             (c == CLS_LAND && (f == KIND_RAM || ((f == KIND_SIEGE || f == KIND_MACHINES) && unit_type_get_range(td) < 3.0f && unit_type_get_attack(td) > 0)) ? UTR_RAM : 0) | (c == CLS_LAND_CITIZEN && f == KIND_CITIZEN ? UTR_CITIZEN : 0) |
-            (c == CLS_NAVAL_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_NAVAL_CITIZEN ? UTR_FISHING_BOAT : 0));
+            (c == CLS_NAVAL_TRANSPORT || c == CLS_SPACE_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_NAVAL_CITIZEN ? UTR_FISHING_BOAT : 0));
     }
     if (g_log) {   // the roles' types by number: a data mod's new ones show here
         static const char *const rn[8] = { "towers", "walls", "gates", "siege", "rams", "citizens", "transports", "fishing boats" };

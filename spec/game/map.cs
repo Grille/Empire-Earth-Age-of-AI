@@ -55,6 +55,11 @@ unsafe struct EEMap
     [offset((ee)0x17B598, (aoc)0x18F49C), found(c)]
     void* view_rows;
 
+    /// AoC only: the mesh's count of its space tiles (the mesh at +0x1C, its +0x18F484; SetIsSpace counts it) - not 0:
+    /// a space map (the exe's world draw reads it so, 0x50E94A)
+    [offset((ee)none, (aoc)0x18F4A0), found(c)]
+    int32 space_tiles;
+
     /// the map's default ground: its ee_terrain's index, what a tile without a texture of its own gets (0x51357B, the load 0x51241D)
     [offset((ee)0x181734, (aoc)0x195650), found(c)]
     int32 default_terrain;
