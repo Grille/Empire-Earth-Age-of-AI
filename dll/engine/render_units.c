@@ -312,6 +312,7 @@ internal const char *const k_kt_reason[KT_REASONS] = { "moved by its sway", "of 
 typedef struct {
     ee_model *m; ee_material *mat; void *tex; D3DMATRIX w; int root; const float *va;
     uint32_t sig[4];   // what its model and material were when taken (kt_sig): held against them at each draw
+    in_corners cn[2];  // its box's corners in the world, by one frame's box and two frames' (render_instance.c in_draw)
 } kt_part;
 typedef struct {
     ee_dmg_model *g; ee_model *m; int anim; uint32_t frame, next; float scale, at[12];
@@ -323,6 +324,8 @@ typedef struct {
     uint32_t part, np;   // its parts in g_kt.part
     uint32_t follow;     // the tree drawn after it last (its number + 1; 0 none)
     float t[16];         // the root's transformation (its size on the screen is asked by it)
+    uint32_t lod, lod_view;   // its detail, and the viewport's state it was chosen in (kt_lod; 0 none)
+    float lod_bias;
 } kt_tree;
 internal struct {
     int force;   // the pipe's: 0 off, 1 on; -1: on
@@ -377,6 +380,7 @@ internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose
         kt_part *e = &g_kt.part[g_kt.nparts++];
         k->np++;
         e->m = m; e->mat = mat; e->tex = tex; e->w = *world; e->root = m == k->m; e->va = p->va;
+        e->cn[0].ok = e->cn[1].ok = 0;
         kt_sig(m, mat, e->sig);
         if (p->va) k->bent = 1;
         return;
@@ -459,6 +463,7 @@ internal void kt_gfx_loads(ee_dmg_model *g) {
 internal void kt_make(kt_tree *k, const in_rec *r0, float bias) {
     k->state = KT_NOT;
     k->part = g_kt.nparts; k->np = 0;
+    k->lod_view = 0;   // (taken again: a model loaded anew may have another size)
     g_kt.seen = g_kt.bad = 0;
     in_rec r = *r0;
     if (k->rec) {   // a record's: once, at its own fraction (its bent copy's vertices in r0)
@@ -486,6 +491,29 @@ internal void kt_make(kt_tree *k, const in_rec *r0, float bias) {
         if (g_kt.bad & 1 << i) { InterlockedIncrement(&g_kt.reason[i]); g_kt.nparts = k->part; k->np = 0; return; }
     k->state = KT_OK;
     InterlockedIncrement(k->rec ? &g_kt.rec_made : &g_kt.made);
+}
+// A kept tree's detail (in_lod: its size on the screen, GERasterizer::GetPixelSize) is made of its root model, its
+// transformation and size - the entry's, fixed - and the viewport: its camera (+0xF0), its projection, its width (+0x26c).
+// So it is kept with the entry while the viewport's bytes are the ones it was chosen in: held against them once a frame
+// (and when another viewport comes), each change a new state. Zoomed out over a 1024 map's forests the engine's answer for
+// 15 500 trees a frame was 4 % of the render thread (the player's planets, 2026-11-23).
+#define KT_VIEW_BYTES 0x270
+internal struct { const void *view; LONG frame; uint32_t state; uint8_t b[KT_VIEW_BYTES]; } g_ktv;
+internal uint32_t kt_view_state(const void *view) {
+    if (view == g_ktv.view && g_ktv.frame == g_rd_frames && g_ktv.state) return g_ktv.state;
+    if (view != g_ktv.view || !g_ktv.state || memcmp(view, g_ktv.b, KT_VIEW_BYTES)) {
+        memcpy(g_ktv.b, view, KT_VIEW_BYTES);
+        g_ktv.view = view;
+        if (!++g_ktv.state) g_ktv.state = 1;
+    }
+    g_ktv.frame = g_rd_frames;
+    return g_ktv.state;
+}
+internal uint32_t kt_lod(const in_ctx *c, kt_tree *k, ee_model *m, float scale) {
+    uint32_t v = kt_view_state(c->view);
+    if (k->lod_view == v && k->lod_bias == c->bias) return k->lod;
+    k->lod = in_lod(c, m, k->t, scale), k->lod_view = v, k->lod_bias = c->bias;
+    return k->lod;
 }
 // a tree's record drawn from its kept parts (as ut_draw, which it falls back to): 1 drawn, 0 the game's draw is to draw it
 internal int kt_draw(float *at, void *rec) {
@@ -528,12 +556,14 @@ internal int kt_draw(float *at, void *rec) {
     if (cs) g_in.cs_enter(cs);
     g_in.mode3d(ras, screen);
     in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
-    uint32_t lod = in_lod(&c, m, k->t, scale);
+    uint32_t lod = kt_lod(&c, k, m, scale);
     for (uint32_t i = 0; i < k->np; i++) {
-        const kt_part *e = &g_kt.part[k->part + i];
+        kt_part *e = &g_kt.part[k->part + i];
         uint32_t l = e->root ? lod : 0, tris = material_get_polygon_count(e->mat)[l];
+        g_in_corners = e->cn, g_in_corners_w = &e->w;
         if (tris) in_part(&c, e->m, e->mat, e->tex, &r.pose, &e->w, polygons_get_indices(model_get_polygons(e->m)[l]) + material_get_polygon_first(e->mat)[l] * 3, tris * 3);
     }
+    g_in_corners = NULL;
     if (cs) g_in.cs_leave(cs);
     InterlockedIncrement(&g_kt.drawn);
     return 1;

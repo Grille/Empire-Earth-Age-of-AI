@@ -189,6 +189,14 @@ internal void rd3_rigid_inverse(float *r, const float *m) {
 // consider disabling shadows for debris")
 internal int g_sh_decal;
 internal const float *g_mo_box;   // a blended draw's box, lo and hi (render_morph.c): its vertices aren't in the buffer
+internal const float *g_mo_corners;   // ... and its eight corners in the world, worked out before (a kept part's: render_instance.c)
+// a box's corner c (lo, hi: its sides) through the world matrix w, as the role's test takes them
+internal void rd3_box_corner(const D3DMATRIX *w, const float *lo, const float *hi, int c, float *q) {
+    float x = c & 1 ? hi[0] : lo[0], y = c & 2 ? hi[1] : lo[1], z = c & 4 ? hi[2] : lo[2];
+    q[0] = x * w->_11 + y * w->_21 + z * w->_31 + w->_41;
+    q[1] = x * w->_12 + y * w->_22 + z * w->_32 + w->_42;
+    q[2] = x * w->_13 + y * w->_23 + z * w->_33 + w->_43;
+}
 // THE LIGHT, the game's own: the frame's lighting (0x50130D, AoC its pair) keeps the direction - the sun's or the moon's -
 // and the colours for the hour in its globals, and the units' draw (0x504BA4) only hands them to the device. Read there
 // each frame; copied from a unit's draw, as it was, the ground had no light until a unit had been drawn (the player,
@@ -292,9 +300,9 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     }
     int out = 0x3F;   // the screen's sides every corner lies beyond (none: on the screen)
     for (int c = 0; c < 8; c++) {
-        float x = c & 1 ? hi[0] : lo[0], y = c & 2 ? hi[1] : lo[1], z = c & 4 ? hi[2] : lo[2];
-        float q[3] = { x * w->_11 + y * w->_21 + z * w->_31 + w->_41, x * w->_12 + y * w->_22 + z * w->_32 + w->_42,
-                       x * w->_13 + y * w->_23 + z * w->_33 + w->_43 };
+        float q[3];
+        if (g_mo_corners) memcpy(q, g_mo_corners + c * 3, sizeof q);
+        else rd3_box_corner(w, lo, hi, c, q);
         for (int a = 0; a < 3; a++) { if (q[a] < wl[a]) wl[a] = q[a]; if (q[a] > wh[a]) wh[a] = q[a]; }
         float cx = q[0] * vp[0] + q[1] * vp[4] + q[2] * vp[8] + vp[12], cy = q[0] * vp[1] + q[1] * vp[5] + q[2] * vp[9] + vp[13],
               cw = q[0] * vp[3] + q[1] * vp[7] + q[2] * vp[11] + vp[15];

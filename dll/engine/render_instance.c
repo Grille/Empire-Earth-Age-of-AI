@@ -456,6 +456,11 @@ internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose
 // opacity and world: cap_at the list's first triangle of a ship's filled bottom (in_cap_make), or IN_FILL - a ship's
 // own list, its bottom filled here
 #define IN_FILL 0xFFFFFFFFu
+// A kept part's box corners in the world (render_shadows.c's role test works them out for every draw): kept with the
+// part (render_units.c kt_part) by the box they were made of - its world doesn't change; set while its parts are drawn
+typedef struct { float box[6], q[24]; int ok; } in_corners;
+internal in_corners *g_in_corners;          // the part being drawn's (two: one frame's box, two frames')
+internal const D3DMATRIX *g_in_corners_w;   // ... its world
 internal void in_draw(const in_ctx *c, void *tex, vec3 col, float alpha, const D3DMATRIX *world, const float *pa, const float *pb, float frac,
                       uint32_t n, const WORD *idx, DWORD ni, DWORD cap_at) {
     rd_device *d = c->d;
@@ -479,8 +484,16 @@ internal void in_draw(const in_ctx *c, void *tex, vec3 col, float alpha, const D
         if (g_ic.nq && (d->tex[0] != g_ic.tex || d->rs[k_ic_rs[0]] != g_ic.rs[0] || d->rs[k_ic_rs[1]] != g_ic.rs[1] || d->rs[k_ic_rs[2]] != g_ic.rs[2]))
             in_cards_flush(d);
         g_mo_box = box;
+        if (g_in_corners && world == g_in_corners_w) {
+            in_corners *k = &g_in_corners[b != a];
+            if (!k->ok || memcmp(k->box, box, sizeof box)) {
+                for (int j = 0; j < 8; j++) rd3_box_corner(world, box, box + 3, j, k->q + j * 3);
+                memcpy(k->box, box, sizeof box), k->ok = 1;
+            }
+            g_mo_corners = k->q;
+        }
         rd3_shadow_classify(d, &none, 0, n);
-        g_mo_box = NULL;
+        g_mo_box = NULL, g_mo_corners = NULL;
         DWORD cn = ni;
         const WORD *ci = idx;
         if (cap_at == IN_FILL) {
