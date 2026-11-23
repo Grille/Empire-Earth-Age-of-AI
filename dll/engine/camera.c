@@ -358,6 +358,16 @@ internal void camera_zoom_at_mouse(float z) {
     // and the camera's step ends at once. The zoom keys keep their ride: their steps come with the game thread's polls.
     if (cam) camera_set_snap(cam, 1);
 }
+// The pipe's camera zoom: as a notch of the wheel without the point under the mouse - there at once, then the camera's own
+// move. Past the game's 1 the eye's distance is ours (camera_shape_write) and the camera takes it at its next move; the
+// pipe made none, so a test that didn't scroll never saw the zoom (2026-11-23: 40 asked, the picture still at 1)
+internal void camera_zoom_pipe(float z) {
+    ee_camera *cam = game_camera();
+    camera_zoom_set(z);
+    if (!cam) return;
+    camera_set_snap(cam, 1);
+    camera_pan(0.001f, 0);
+}
 // render_frame.c rf_camera_frame: the camera's transformation now (t: the ride's place in it), put right
 internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {
     float eye[3], d[3];
