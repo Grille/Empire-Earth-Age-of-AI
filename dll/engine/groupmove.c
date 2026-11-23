@@ -353,7 +353,7 @@ internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
 // step: the last it followed; pend (1-based, into g_ff_p): the first of the queued moves' marches it joins, each when it
 // sets out; home its spot at the goal
-struct ff_unit { uint32_t id; int g, pend; vec2 off, home, col; float w, cw, gap, prog; uint32_t ahead, prog_at; int rel, resent; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order, waited, merge, halt, close; uint32_t wait_at, jam_at; float wait_along, debt; };   // halt: held standing by the merge (ff_stand), debt: how far its place has moved on meanwhile   // jam_at: the step it was first held up (behind its point, asking its top speed, going slower), 0: not now   // waited: 1 a straggler the formation waits for (formation_wait), till it is within its catch-up of its point, -1 one it gave up on till then (wait_at, wait_along: the step it last gained on its point, and how far behind it was then)   // order: its place front to back, left to right in its formation; col: its place in the narrowed column (ff_off), w its width as laid out, cw its width in a column (ff_fill_column), ahead the first unit of the rank before its (0: the front rank) and gap the spacing to that rank, prog how far along the line it was at its last tick (ff_progress), at step prog_at; rel: let go to its spot as the column drained; out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
+struct ff_unit { uint32_t id; int g, pend; vec2 off, home, col; float w, cw, gap, prog; uint32_t ahead, prog_at; int rel, resent; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order, waited, merge, halt, close; uint32_t wait_at, jam_at; float wait_along, debt; vec2 drift; };   // drift: a ship's sideways speed into its place this step (ship_drift; 0: none)   // halt: held standing by the merge (ff_stand), debt: how far its place has moved on meanwhile   // jam_at: the step it was first held up (behind its point, asking its top speed, going slower), 0: not now   // waited: 1 a straggler the formation waits for (formation_wait), till it is within its catch-up of its point, -1 one it gave up on till then (wait_at, wait_along: the step it last gained on its point, and how far behind it was then)   // order: its place front to back, left to right in its formation; col: its place in the narrowed column (ff_off), w its width as laid out, cw its width in a column (ff_fill_column), ahead the first unit of the rank before its (0: the front rank) and gap the spacing to that rank, prog how far along the line it was at its last tick (ff_progress), at step prog_at; rel: let go to its spot as the column drained; out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal unsigned g_ff_in_place;    // re-forms in place: no march
 internal unsigned g_ff_wait_gave_up;   // stragglers the formation stopped waiting for (formation_wait): not gaining on their points
@@ -987,6 +987,11 @@ internal vec2 ff_point(const struct ff_group *gr, vec2 anchor, vec2 way, vec2 fa
 // the narrowest is less than FF_NARROW_AT of the formation's width it fills its rows anew, front to back and left to right in its order, as many abreast as
 // fit at its members' mean spacing; it widens again once that room is there along all of it. The jam it had made
 // at a gap crawled through: its units couldn't all fit, the formation waited for them
+#define FF_DRIFT_REACH 1.0f    // ship_drift: within this many of its lengths beside its place's line, fading out to twice that
+#define FF_DRIFT_MIN 0.05f     // tiles: nearer than this it is in its place
+#define FF_DRIFT_GAIN 0.5f     // of the distance, a second
+#define FF_DRIFT_TOP 0.25f     // of its top speed, at most
+#define FF_DRIFT_FACING 0.7f   // the cosine between its bow and the formation's way: turned further off it is no sideways step
 #define FF_NARROW_LOOK 6.0f    // tiles beyond its front
 #define FF_NARROW_AT ((float)g_set.formation_narrow)   // of the formation's width (formation_narrow, 40%)
 #define FF_WIDEN_AT (FF_NARROW_AT + (1 - FF_NARROW_AT) * 0.5f)   // 70% at 40%
@@ -2290,6 +2295,33 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // (two blocks sent to the point between them: the leader's block walks to the other), walks back to it - by the way
     // it stood waiting for a point that came at the leader's crawl, and the leader for the formation
     if (g_ff_watch && g_log && gr->cols) fprintf(g_log, "# ffcol %u %06x prog %.2f off %.2f %.2f lead %.2f merge %d d %.1f pt %.1f,%.1f at %.1f,%.1f ok %d conv %.1f anchor %.1f,%.1f%c", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, e->prog, off.x, off.y, lead, e->merge, merge_d, pt.x, pt.y, at.x, at.y, ok, gr->conv, anchor.x, anchor.y, 10);
+    // SHIP DRIFT (`ship_drift`; the player, 2026-11-23: "real ships don't have to turn for such small corrections and it
+    // would make the game feel way less clunky"): a ship heading the formation's way and no further beside its place's
+    // line than FF_DRIFT_REACH of its length moves sideways towards it as well - FF_DRIFT_GAIN of the distance a
+    // second, at most FF_DRIFT_TOP of its top speed, fading out to twice that reach (further off it steers there, as
+    // before), not onto a tile it may not enter - and it steers the formation's way from where it is, not at its place (where
+    // that way is clear: along a shore it steers at its place as before, no drift). The
+    // collision step adds the drift to the ship's push (collide.c)
+    e->drift = v2(0, 0);
+    if (gr->naval && g_set.ship_drift && ok) {
+        vec2 err = vec2_sub(base, v2(pos[0], pos[1])), beside = vec2_sub(err, vec2_scale(fd, vec2_dot(err, fd)));
+        vec3 bow = unit_get_facing(u);
+        float bl = vec2_len(beside), lim = FF_DRIFT_REACH * unit_get_size(u);
+        if (bl > FF_DRIFT_MIN && bl < 2 * lim && bow.x * fd.x + bow.y * fd.y > FF_DRIFT_FACING) {
+            float v = FF_DRIFT_GAIN * bl, fade = bl > lim ? (2 * lim - bl) / lim : 1, most = FF_DRIFT_TOP * unit_max_speed(u);
+            if (v > most) v = most;
+            v *= fade;
+            vec2 ld = vec2_scale(beside, 1.0f / bl), dest = vec2_add(v2(pos[0], pos[1]), vec2_scale(ld, bl < 1 ? bl : 1));
+            if (td && size > 0 && sr_alloc((uint32_t)(size * size))) {
+                st_stamp_step();
+                vec2 on = vec2_sub(at, vec2_scale(beside, fade));   // and steers the formation's way from where it is: the drift closes what is left
+                if (sr_pass(map, u, td, size, (int)floorf(dest.x), (int)floorf(dest.y)) && sr_pass(map, u, td, size, (int)floorf(on.x), (int)floorf(on.y)) && sr_clear(map, u, td, size, pos[0], pos[1], on.x, on.y)) {
+                    e->drift = vec2_scale(ld, v);
+                    at = on;
+                }
+            }
+        }
+    }
     vec2 to = vec2_sub(at, v2(pos[0], pos[1]));
     float tl = vec2_len(to);
     vec2 a = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : way;
@@ -2471,6 +2503,13 @@ internal float ff_speed_step(ee_unit *u, float s, float angle) {
     float v = unit_get_speed(u), acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
     if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x ff s %.3f ang %.2f want %.3f v %.3f along %.2f with %.3f acc %.3f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, angle, want, v, e->along, e->with, acc);
     return v < want ? (v + acc < want ? v + acc : want) : (v - acc > want ? v - acc : want);
+}
+// a ship's sideways drift into its place this step (collide.c): 1 and *v its speed, tiles a second - 0: none
+internal int ff_drift(ee_unit *u, vec2 *v) {
+    struct ff_unit *e = g_ff_on && g_set.ship_drift && u ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
+    if (!e || e->g < 0 || e->step == ~0u || ff_step() - e->step > 1 || (e->drift.x == 0 && e->drift.y == 0)) return 0;
+    *v = e->drift;
+    return 1;
 }
 // (and no land unit of a march goes on in a standing animation: one stood by ff_stand whose entry was given to a new
 // march, or that stood on in the game's second idle animation, glided - 4% of the moving steps of the player's centre

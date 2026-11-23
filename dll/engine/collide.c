@@ -259,6 +259,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
     return 1;
 }
 
+internal int ff_drift(ee_unit *u, vec2 *v);   // groupmove.c
 internal void __thiscall hook_collide(void *model, ee_unit *u) {
     int kind = model_kind(model);
     if (!u || !g_uc_on[kind]) { eepm_land_collide(model, u); return; }
@@ -285,6 +286,8 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
     g_uc_steps++;
     uc_rest_of(u)->n = 0;   // it moves: free to be pushed at rest again
     uc_separate(kind, u, 0);
+    vec2 drift;
+    if (kind != MODEL_LAND && ff_drift(u, &drift)) unit_set_push(u, vec2_add(unit_get_push(u), drift));   // ship_drift: sideways into its place in its fleet
     model_push(model, u);
 }
 
