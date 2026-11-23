@@ -642,7 +642,7 @@ typedef struct eeuifmgg_options eeuifmgg_options;
 typedef struct eeuifmgg_statistics eeuifmgg_statistics;
 typedef struct ee_main_group ee_main_group;
 typedef struct eeuifmg_status_bar eeuifmg_status_bar;
-typedef struct eeuifmg_status_button eeuifmg_status_button;
+typedef struct ee_status_button ee_status_button;
 typedef struct ee_main_form ee_main_form;
 typedef struct eeui_file_combo_box eeui_file_combo_box;
 typedef struct eeuipgs_line_graph eeuipgs_line_graph;

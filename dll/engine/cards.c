@@ -24,6 +24,10 @@ internal struct {
     int shown[CARDS_MAX];        // the number in it
     ee_font *font;
     unsigned long font_h;
+    ee_text *queue_text;         // the production buttons' numbers (one for all)
+    int queue_shown;
+    ee_font *queue_font;
+    unsigned long queue_font_h;
 } g_cards;
 
 // the local player's selection as the cards show it: the UI's copy (ui_group), which refresh reads - a new selection
@@ -77,6 +81,26 @@ internal void __thiscall cards_refresh(ee_icon_bar *bar) {
     g_cards.n = k;
 }
 
+// a number's left edge in a card or button at x, w wide: an eighth of a digit (about half the font's height wide) inside
+// its frame (3 pixels of a 50-pixel card, 0.06 of its width; the player, 2026-11-24: "give the number an 1/8 char
+// margin from the left")
+internal float cards_margin(float x, float w, unsigned long fh) { return x + w * 0.06f + (float)fh * 0.5f / 8.0f; }
+// the number t holds drawn at x, y in rect (bottom, left, right, top) for the control: white on a solid black shadow up
+// to 2 pixels down and right (the number at six offsets - one at 1 and 2 alone left a hairline; the player, 2026-11-23:
+// "with a black drop shadow"); GDI draws each at once
+internal void cards_number(ee_ui_form *form, void *control, ee_text *t, const float rect[4], float x, float y) {
+    static const float k_shadow[][2] = { { 2, 2 }, { 1, 2 }, { 2, 1 }, { 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } };
+    for (int pass = 0; pass < (int)(sizeof k_shadow / sizeof k_shadow[0]); pass++) {
+        float v = k_shadow[pass][0] || k_shadow[pass][1] ? 0.0f : 1.0f;
+        text_set_x(t, x + k_shadow[pass][0]);
+        text_set_y(t, y + k_shadow[pass][1]);
+        text_set_red(t, v);
+        text_set_green(t, v);
+        text_set_blue(t, v);
+        ui_form_draw_clipped_text(form, rect, t, control);
+    }
+}
+
 internal int __thiscall cards_draw_text(ee_icon_bar *bar) {
     int r = icon_bar_draw_text(bar);
     int k = g_cards.n;
@@ -105,22 +129,42 @@ internal int __thiscall cards_draw_text(ee_icon_bar *bar) {
         const float rect[4] = { top + ih, x, x + w, top };
         // the top left corner of the picture, under the health bar (draw_polygons draws the bar from 0.09 to 0.19 of the
         // control's height, the picture from 0.28; the player, 2026-11-23: "move the text into the top left with a black
-        // drop shadow"): a solid black shadow up to 2 pixels down and right (the number at six offsets - one at 1 and 2
-        // alone left a hairline), the white number on it (GDI draws at once)
-        static const float k_shadow[][2] = { { 2, 2 }, { 1, 2 }, { 2, 1 }, { 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } };
-        // from the left an eighth of a digit (about half the font's height wide) inside the card's frame (3 pixels of a
-        // 50-pixel card, 0.06 of its width; the player, 2026-11-24: "give the number an 1/8 char margin from the left")
-        float y = top + (icon_bar_get_screen_bottom(bar) - top) * 0.2f, x0 = x + iw * 0.06f + (float)fh * 0.5f / 8.0f;
-        for (int pass = 0; pass < (int)(sizeof k_shadow / sizeof k_shadow[0]); pass++) {
-            float v = k_shadow[pass][0] || k_shadow[pass][1] ? 0.0f : 1.0f;
-            text_set_x(t, x0 + k_shadow[pass][0]);
-            text_set_y(t, y + k_shadow[pass][1]);
-            text_set_red(t, v);
-            text_set_green(t, v);
-            text_set_blue(t, v);
-            ui_form_draw_clipped_text(form, rect, t, bar);
-        }
+        // drop shadow")
+        cards_number(form, bar, t, rect, cards_margin(x, iw, fh), top + (icon_bar_get_screen_bottom(bar) - top) * 0.2f);
     }
+    return r;
+}
+
+// THE QUEUE'S NUMBERS ([general] queue_numbers, default 1 - the player, 2026-11-24: "could you replace the queued units
+// number with the ones you used for unit cards?"): a production button (EEUIFMGStatusButton) draws the number of its
+// units queued (its queue_text, the game's font and place) in its draw_text; with the setting that draw is left out
+// (queue_shown off for the call) and the number drawn as the cards draw theirs: at the top left, an eighth of a digit
+// inside the frame, its height 0.4 of the button's, on the black drop shadow. One GEText for every button: GDI draws it
+// at once.
+internal int __thiscall cards_queue_text(ee_status_button *b) {
+    int n = status_button_get_queued(b);
+    if (!g_set.queue_numbers || !status_button_get_queue_shown(b) || n <= 0) return status_button_draw_text(b);
+    status_button_set_queue_shown(b, 0);
+    int r = status_button_draw_text(b);
+    status_button_set_queue_shown(b, 1);
+    ee_ui_form *form = status_button_get_form(b);
+    float left = status_button_get_left(b), top = status_button_get_top(b);
+    float w = status_button_get_right(b) - left, h = status_button_get_bottom(b) - top;
+    unsigned long fh = (unsigned long)(h * 0.4f);
+    if (fh < 10) fh = 10;
+    if (!form || w <= 0 || h <= 0) return r;
+    if (!g_cards.queue_font || g_cards.queue_font_h != fh) {
+        ee_font *f = ui_font_numbers(fh);
+        if (!f) return r;
+        g_cards.queue_font = f;
+        g_cards.queue_font_h = fh;
+        if (g_cards.queue_text) text_set_font(g_cards.queue_text, f);
+        g_cards.queue_shown = 0;
+    }
+    if (!g_cards.queue_text && !(g_cards.queue_text = text_new(g_cards.queue_font))) return r;
+    if (g_cards.queue_shown != n) { text_set_number(g_cards.queue_text, n); g_cards.queue_shown = n; }
+    const float rect[4] = { top + h, left, left + w, top };
+    cards_number(form, b, g_cards.queue_text, rect, cards_margin(left, w, fh), top + h * 0.06f);
     return r;
 }
 
@@ -159,5 +203,7 @@ internal void cards_install(void) {
         ok += patch_icon_bar_left_up(cards_left_up);
         ok += patch_icon_bar_right_up(cards_right_up);
     }
-    if (g_log) fprintf(g_log, "# selection: the cards by kind (selection_cards_by_kind=%d): hooks %d/4\n", g_set.selection_cards_by_kind, ok);
+    int q = patch_status_button_draw_text(cards_queue_text);
+    if (g_log) fprintf(g_log, "# selection: the cards by kind (selection_cards_by_kind=%d): hooks %d/4; the queue's numbers (queue_numbers=%d): %s\n",
+                       g_set.selection_cards_by_kind, ok, g_set.queue_numbers, q ? "hooked" : "FAILED");
 }

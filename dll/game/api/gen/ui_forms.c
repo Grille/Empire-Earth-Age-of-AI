@@ -1300,64 +1300,80 @@ typedef int (__thiscall *eeuifmg_status_bar_mouse_r_button_up_fn)(eeuifmg_status
 internal eeuifmg_status_bar_mouse_r_button_up_fn fn_eeuifmg_status_bar_mouse_r_button_up;
 internal inline int eeuifmg_status_bar_mouse_r_button_up(eeuifmg_status_bar *eeuifmg_status_bar) { return fn_eeuifmg_status_bar_mouse_r_button_up(eeuifmg_status_bar); }
 
-// class EEUIFMGStatusButton (eeuifmg_status_button)
-// control type 1000 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
+// class EEUIFMGStatusButton (ee_status_button)
+// control type 1000 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it. The bottom panel's buttons of
+// what the selection can make or research: a unit's, with the number of them queued on it
 // UIButton's, the base's
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
-internal inline uint32_t eeuifmg_status_button_get_mode_now(const eeuifmg_status_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
-internal inline void eeuifmg_status_button_set_mode_now(eeuifmg_status_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
-internal inline uint32_t *eeuifmg_status_button_mode_now_at(const eeuifmg_status_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline uint32_t status_button_get_mode_now(const ee_status_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void status_button_set_mode_now(ee_status_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *status_button_mode_now_at(const ee_status_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
-internal inline float eeuifmg_status_button_get_bottom(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
-internal inline void eeuifmg_status_button_set_bottom(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
-internal inline float *eeuifmg_status_button_bottom_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
-internal inline float eeuifmg_status_button_get_left(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
-internal inline void eeuifmg_status_button_set_left(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
-internal inline float *eeuifmg_status_button_left_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
-internal inline float eeuifmg_status_button_get_right(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
-internal inline void eeuifmg_status_button_set_right(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
-internal inline float *eeuifmg_status_button_right_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
-internal inline float eeuifmg_status_button_get_top(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
-internal inline void eeuifmg_status_button_set_top(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
-internal inline float *eeuifmg_status_button_top_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+internal inline float status_button_get_bottom(const ee_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void status_button_set_bottom(ee_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *status_button_bottom_at(const ee_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float status_button_get_left(const ee_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void status_button_set_left(ee_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *status_button_left_at(const ee_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float status_button_get_right(const ee_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void status_button_set_right(ee_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *status_button_right_at(const ee_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float status_button_get_top(const ee_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void status_button_set_top(ee_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *status_button_top_at(const ee_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // the form it is in (UIControl::CaptureKeyboard captures it there)
-internal inline ee_ui_form *eeuifmg_status_button_get_form(const eeuifmg_status_button *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
-internal inline void eeuifmg_status_button_set_form(eeuifmg_status_button *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
-internal inline ee_ui_form **eeuifmg_status_button_form_at(const eeuifmg_status_button *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline ee_ui_form *status_button_get_form(const ee_status_button *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void status_button_set_form(ee_status_button *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **status_button_form_at(const ee_status_button *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the number queued drawn on it (GEText, "this->mBuildQueue" in the constructor's assertion, 0x6571F7): copy_data
+// writes queued into it, draw_text draws it into the button's rectangle (UIControl.bottom ..) while queue_shown
+internal inline ee_text *status_button_get_queue_text(const ee_status_button *o) { return *(ee_text **)((uint8_t *)o + of_status_button_queue_text); }
+internal inline void status_button_set_queue_text(ee_status_button *o, ee_text *v) { *(ee_text **)((uint8_t *)o + of_status_button_queue_text) = v; }
+internal inline ee_text **status_button_queue_text_at(const ee_status_button *o) { return (ee_text **)((uint8_t *)o + of_status_button_queue_text); }
+// the number of its units queued (copy_data: shown when not 0, "%d")
+internal inline int status_button_get_queued(const ee_status_button *o) { return *(int *)((uint8_t *)o + of_status_button_queued); }
+internal inline void status_button_set_queued(ee_status_button *o, int v) { *(int *)((uint8_t *)o + of_status_button_queued) = v; }
+internal inline int *status_button_queued_at(const ee_status_button *o) { return (int *)((uint8_t *)o + of_status_button_queued); }
+// queue_text drawn (copy_data sets it with a number, draw_text reads it)
+internal inline uint8_t status_button_get_queue_shown(const ee_status_button *o) { return *(uint8_t *)((uint8_t *)o + of_status_button_queue_shown); }
+internal inline void status_button_set_queue_shown(ee_status_button *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_status_button_queue_shown) = v; }
+internal inline uint8_t *status_button_queue_shown_at(const ee_status_button *o) { return (uint8_t *)((uint8_t *)o + of_status_button_queue_shown); }
 // its constructor (3 arguments, not typed yet)
-typedef void *(__thiscall *eeuifmg_status_button_init_fn)(eeuifmg_status_button *, uint32_t, uint32_t, uint32_t);
-internal eeuifmg_status_button_init_fn fn_eeuifmg_status_button_init;
-internal inline void *eeuifmg_status_button_init(eeuifmg_status_button *eeuifmg_status_button, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_eeuifmg_status_button_init(eeuifmg_status_button, p1, p2, p3); }
-typedef void (__thiscall *eeuifmg_status_button_button_up_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_button_up_fn fn_eeuifmg_status_button_button_up;
-internal inline void eeuifmg_status_button_button_up(eeuifmg_status_button *eeuifmg_status_button) { fn_eeuifmg_status_button_button_up(eeuifmg_status_button); }
-typedef int (__thiscall *eeuifmg_status_button_copy_data_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_copy_data_fn fn_eeuifmg_status_button_copy_data;
-internal inline int eeuifmg_status_button_copy_data(eeuifmg_status_button *eeuifmg_status_button) { return fn_eeuifmg_status_button_copy_data(eeuifmg_status_button); }
-typedef int (__thiscall *eeuifmg_status_button_draw_polygons_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_draw_polygons_fn fn_eeuifmg_status_button_draw_polygons;
-internal inline int eeuifmg_status_button_draw_polygons(eeuifmg_status_button *eeuifmg_status_button) { return fn_eeuifmg_status_button_draw_polygons(eeuifmg_status_button); }
-typedef int (__thiscall *eeuifmg_status_button_draw_text_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_draw_text_fn fn_eeuifmg_status_button_draw_text;
-internal inline int eeuifmg_status_button_draw_text(eeuifmg_status_button *eeuifmg_status_button) { return fn_eeuifmg_status_button_draw_text(eeuifmg_status_button); }
-typedef uint8_t (__thiscall *eeuifmg_status_button_get_help_string_fn)(eeuifmg_status_button *, void *);
-internal eeuifmg_status_button_get_help_string_fn fn_eeuifmg_status_button_get_help_string;
-internal inline uint8_t eeuifmg_status_button_get_help_string(eeuifmg_status_button *eeuifmg_status_button, void *text) { return fn_eeuifmg_status_button_get_help_string(eeuifmg_status_button, text); }
-typedef int (__thiscall *eeuifmg_status_button_mouse_r_button_down_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_mouse_r_button_down_fn fn_eeuifmg_status_button_mouse_r_button_down;
-internal inline int eeuifmg_status_button_mouse_r_button_down(eeuifmg_status_button *eeuifmg_status_button) { return fn_eeuifmg_status_button_mouse_r_button_down(eeuifmg_status_button); }
-typedef int (__thiscall *eeuifmg_status_button_mouse_r_button_up_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_mouse_r_button_up_fn fn_eeuifmg_status_button_mouse_r_button_up;
-internal inline int eeuifmg_status_button_mouse_r_button_up(eeuifmg_status_button *eeuifmg_status_button) { return fn_eeuifmg_status_button_mouse_r_button_up(eeuifmg_status_button); }
-typedef void (__thiscall *eeuifmg_status_button_set_location_fn)(eeuifmg_status_button *, void *);
-internal eeuifmg_status_button_set_location_fn fn_eeuifmg_status_button_set_location;
-internal inline void eeuifmg_status_button_set_location(eeuifmg_status_button *eeuifmg_status_button, void *at) { fn_eeuifmg_status_button_set_location(eeuifmg_status_button, at); }
-typedef void (__thiscall *eeuifmg_status_button_tabbed_from_fn)(eeuifmg_status_button *);
-internal eeuifmg_status_button_tabbed_from_fn fn_eeuifmg_status_button_tabbed_from;
-internal inline void eeuifmg_status_button_tabbed_from(eeuifmg_status_button *eeuifmg_status_button) { fn_eeuifmg_status_button_tabbed_from(eeuifmg_status_button); }
+typedef void *(__thiscall *status_button_init_fn)(ee_status_button *, uint32_t, uint32_t, uint32_t);
+internal status_button_init_fn fn_status_button_init;
+internal inline void *status_button_init(ee_status_button *status_button, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_status_button_init(status_button, p1, p2, p3); }
+typedef void (__thiscall *status_button_button_up_fn)(ee_status_button *);
+internal status_button_button_up_fn fn_status_button_button_up;
+internal inline void status_button_button_up(ee_status_button *status_button) { fn_status_button_button_up(status_button); }
+typedef int (__thiscall *status_button_copy_data_fn)(ee_status_button *);
+internal status_button_copy_data_fn fn_status_button_copy_data;
+internal inline int status_button_copy_data(ee_status_button *status_button) { return fn_status_button_copy_data(status_button); }
+typedef int (__thiscall *status_button_draw_polygons_fn)(ee_status_button *);
+internal status_button_draw_polygons_fn fn_status_button_draw_polygons;
+internal inline int status_button_draw_polygons(ee_status_button *status_button) { return fn_status_button_draw_polygons(status_button); }
+// queue_text while queue_shown (UIForm::DrawClippedText into its rectangle), then UIButton's own
+typedef int (__thiscall *status_button_draw_text_fn)(ee_status_button *);
+internal status_button_draw_text_fn fn_status_button_draw_text;
+internal inline int status_button_draw_text(ee_status_button *status_button) { return fn_status_button_draw_text(status_button); }
+internal inline int patch_status_button_draw_text(status_button_draw_text_fn h) { return patch_vtable(vt_eeuifmg_status_button, (int)slot_ui_control_draw_text, (uintptr_t)fn_status_button_draw_text, (void *)h); }
+typedef uint8_t (__thiscall *status_button_get_help_string_fn)(ee_status_button *, void *);
+internal status_button_get_help_string_fn fn_status_button_get_help_string;
+internal inline uint8_t status_button_get_help_string(ee_status_button *status_button, void *text) { return fn_status_button_get_help_string(status_button, text); }
+typedef int (__thiscall *status_button_mouse_r_button_down_fn)(ee_status_button *);
+internal status_button_mouse_r_button_down_fn fn_status_button_mouse_r_button_down;
+internal inline int status_button_mouse_r_button_down(ee_status_button *status_button) { return fn_status_button_mouse_r_button_down(status_button); }
+typedef int (__thiscall *status_button_mouse_r_button_up_fn)(ee_status_button *);
+internal status_button_mouse_r_button_up_fn fn_status_button_mouse_r_button_up;
+internal inline int status_button_mouse_r_button_up(ee_status_button *status_button) { return fn_status_button_mouse_r_button_up(status_button); }
+typedef void (__thiscall *status_button_set_location_fn)(ee_status_button *, void *);
+internal status_button_set_location_fn fn_status_button_set_location;
+internal inline void status_button_set_location(ee_status_button *status_button, void *at) { fn_status_button_set_location(status_button, at); }
+typedef void (__thiscall *status_button_tabbed_from_fn)(ee_status_button *);
+internal status_button_tabbed_from_fn fn_status_button_tabbed_from;
+internal inline void status_button_tabbed_from(ee_status_button *status_button) { fn_status_button_tabbed_from(status_button); }
 
 // class EEUIFMainGame (ee_main_form)
 // form 11 "Scott Main Game Form": the game's screen (EEUIManager.create_form makes it with push 0x5E4 / AoC 0x5F4;
@@ -2293,16 +2309,19 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuifmg_status_bar_mouse_r_button_up = (eeuifmg_status_bar_mouse_r_button_up_fn)0x006530F4;
         vt_eeuifmg_status_button = 0x00834CF0;
         size_eeuifmg_status_button = 0x14C;
-        fn_eeuifmg_status_button_init = (eeuifmg_status_button_init_fn)0x00656FF9;
-        fn_eeuifmg_status_button_button_up = (eeuifmg_status_button_button_up_fn)0x006573D3;
-        fn_eeuifmg_status_button_copy_data = (eeuifmg_status_button_copy_data_fn)0x00657893;
-        fn_eeuifmg_status_button_draw_polygons = (eeuifmg_status_button_draw_polygons_fn)0x00657AB9;
-        fn_eeuifmg_status_button_draw_text = (eeuifmg_status_button_draw_text_fn)0x00657B7A;
-        fn_eeuifmg_status_button_get_help_string = (eeuifmg_status_button_get_help_string_fn)0x00657BA4;
-        fn_eeuifmg_status_button_mouse_r_button_down = (eeuifmg_status_button_mouse_r_button_down_fn)0x0065804C;
-        fn_eeuifmg_status_button_mouse_r_button_up = (eeuifmg_status_button_mouse_r_button_up_fn)0x0065806A;
-        fn_eeuifmg_status_button_set_location = (eeuifmg_status_button_set_location_fn)0x0065861E;
-        fn_eeuifmg_status_button_tabbed_from = (eeuifmg_status_button_tabbed_from_fn)0x0065867E;
+        of_status_button_queue_text = 0x128;
+        of_status_button_queued = 0x140;
+        of_status_button_queue_shown = 0x149;
+        fn_status_button_init = (status_button_init_fn)0x00656FF9;
+        fn_status_button_button_up = (status_button_button_up_fn)0x006573D3;
+        fn_status_button_copy_data = (status_button_copy_data_fn)0x00657893;
+        fn_status_button_draw_polygons = (status_button_draw_polygons_fn)0x00657AB9;
+        fn_status_button_draw_text = (status_button_draw_text_fn)0x00657B7A;
+        fn_status_button_get_help_string = (status_button_get_help_string_fn)0x00657BA4;
+        fn_status_button_mouse_r_button_down = (status_button_mouse_r_button_down_fn)0x0065804C;
+        fn_status_button_mouse_r_button_up = (status_button_mouse_r_button_up_fn)0x0065806A;
+        fn_status_button_set_location = (status_button_set_location_fn)0x0065861E;
+        fn_status_button_tabbed_from = (status_button_tabbed_from_fn)0x0065867E;
         vt_eeuif_main_game = 0x00834974;
         size_eeuif_main_game = 0x5E4;
         of_main_form_top_bar = 0x5D8;
@@ -2670,16 +2689,19 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuifmg_status_bar_mouse_r_button_up = (eeuifmg_status_bar_mouse_r_button_up_fn)0x00669BE6;
         vt_eeuifmg_status_button = 0x0084AD98;
         size_eeuifmg_status_button = 0x14C;
-        fn_eeuifmg_status_button_init = (eeuifmg_status_button_init_fn)0x0066DE97;
-        fn_eeuifmg_status_button_button_up = (eeuifmg_status_button_button_up_fn)0x0066E274;
-        fn_eeuifmg_status_button_copy_data = (eeuifmg_status_button_copy_data_fn)0x0066E734;
-        fn_eeuifmg_status_button_draw_polygons = (eeuifmg_status_button_draw_polygons_fn)0x0066EAF4;
-        fn_eeuifmg_status_button_draw_text = (eeuifmg_status_button_draw_text_fn)0x0066EBB5;
-        fn_eeuifmg_status_button_get_help_string = (eeuifmg_status_button_get_help_string_fn)0x0066EBDF;
-        fn_eeuifmg_status_button_mouse_r_button_down = (eeuifmg_status_button_mouse_r_button_down_fn)0x0066F186;
-        fn_eeuifmg_status_button_mouse_r_button_up = (eeuifmg_status_button_mouse_r_button_up_fn)0x0066F1A4;
-        fn_eeuifmg_status_button_set_location = (eeuifmg_status_button_set_location_fn)0x0066FB19;
-        fn_eeuifmg_status_button_tabbed_from = (eeuifmg_status_button_tabbed_from_fn)0x0066FB79;
+        of_status_button_queue_text = 0x128;
+        of_status_button_queued = 0x140;
+        of_status_button_queue_shown = 0x149;
+        fn_status_button_init = (status_button_init_fn)0x0066DE97;
+        fn_status_button_button_up = (status_button_button_up_fn)0x0066E274;
+        fn_status_button_copy_data = (status_button_copy_data_fn)0x0066E734;
+        fn_status_button_draw_polygons = (status_button_draw_polygons_fn)0x0066EAF4;
+        fn_status_button_draw_text = (status_button_draw_text_fn)0x0066EBB5;
+        fn_status_button_get_help_string = (status_button_get_help_string_fn)0x0066EBDF;
+        fn_status_button_mouse_r_button_down = (status_button_mouse_r_button_down_fn)0x0066F186;
+        fn_status_button_mouse_r_button_up = (status_button_mouse_r_button_up_fn)0x0066F1A4;
+        fn_status_button_set_location = (status_button_set_location_fn)0x0066FB19;
+        fn_status_button_tabbed_from = (status_button_tabbed_from_fn)0x0066FB79;
         vt_eeuif_main_game = 0x0084AA10;
         size_eeuif_main_game = 0x5F4;
         of_main_form_top_bar = 0x5E8;
@@ -3155,25 +3177,25 @@ internal int spec_ui_forms_check(void) {
     bad += spec_code((uintptr_t)fn_eeuifmg_status_bar_mouse_r_button_up, "EEUIFMGStatusBar.mouse_r_button_up");
     bad += spec_slot(vt_eeuifmg_status_bar, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_eeuifmg_status_bar_mouse_r_button_up, "EEUIFMGStatusBar.mouse_r_button_up [slot]");
     bad += spec_vtable(vt_eeuifmg_status_button, ".?AVEEUIFMGStatusButton@@", "EEUIFMGStatusButton [vtable]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_init, "EEUIFMGStatusButton.init");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_button_up, "EEUIFMGStatusButton.button_up");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_button_button_up, (uintptr_t)fn_eeuifmg_status_button_button_up, "EEUIFMGStatusButton.button_up [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_copy_data, "EEUIFMGStatusButton.copy_data");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_copy_data, (uintptr_t)fn_eeuifmg_status_button_copy_data, "EEUIFMGStatusButton.copy_data [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_draw_polygons, "EEUIFMGStatusButton.draw_polygons");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_draw_polygons, (uintptr_t)fn_eeuifmg_status_button_draw_polygons, "EEUIFMGStatusButton.draw_polygons [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_draw_text, "EEUIFMGStatusButton.draw_text");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_draw_text, (uintptr_t)fn_eeuifmg_status_button_draw_text, "EEUIFMGStatusButton.draw_text [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_get_help_string, "EEUIFMGStatusButton.get_help_string");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_get_help_string, (uintptr_t)fn_eeuifmg_status_button_get_help_string, "EEUIFMGStatusButton.get_help_string [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_mouse_r_button_down, "EEUIFMGStatusButton.mouse_r_button_down");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_eeuifmg_status_button_mouse_r_button_down, "EEUIFMGStatusButton.mouse_r_button_down [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_mouse_r_button_up, "EEUIFMGStatusButton.mouse_r_button_up");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_eeuifmg_status_button_mouse_r_button_up, "EEUIFMGStatusButton.mouse_r_button_up [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_set_location, "EEUIFMGStatusButton.set_location");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_set_location, (uintptr_t)fn_eeuifmg_status_button_set_location, "EEUIFMGStatusButton.set_location [slot]");
-    bad += spec_code((uintptr_t)fn_eeuifmg_status_button_tabbed_from, "EEUIFMGStatusButton.tabbed_from");
-    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_tabbed_from, (uintptr_t)fn_eeuifmg_status_button_tabbed_from, "EEUIFMGStatusButton.tabbed_from [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_init, "EEUIFMGStatusButton.init");
+    bad += spec_code((uintptr_t)fn_status_button_button_up, "EEUIFMGStatusButton.button_up");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_button_button_up, (uintptr_t)fn_status_button_button_up, "EEUIFMGStatusButton.button_up [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_copy_data, "EEUIFMGStatusButton.copy_data");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_copy_data, (uintptr_t)fn_status_button_copy_data, "EEUIFMGStatusButton.copy_data [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_draw_polygons, "EEUIFMGStatusButton.draw_polygons");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_draw_polygons, (uintptr_t)fn_status_button_draw_polygons, "EEUIFMGStatusButton.draw_polygons [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_draw_text, "EEUIFMGStatusButton.draw_text");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_draw_text, (uintptr_t)fn_status_button_draw_text, "EEUIFMGStatusButton.draw_text [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_get_help_string, "EEUIFMGStatusButton.get_help_string");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_get_help_string, (uintptr_t)fn_status_button_get_help_string, "EEUIFMGStatusButton.get_help_string [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_mouse_r_button_down, "EEUIFMGStatusButton.mouse_r_button_down");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_status_button_mouse_r_button_down, "EEUIFMGStatusButton.mouse_r_button_down [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_mouse_r_button_up, "EEUIFMGStatusButton.mouse_r_button_up");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_status_button_mouse_r_button_up, "EEUIFMGStatusButton.mouse_r_button_up [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_set_location, "EEUIFMGStatusButton.set_location");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_set_location, (uintptr_t)fn_status_button_set_location, "EEUIFMGStatusButton.set_location [slot]");
+    bad += spec_code((uintptr_t)fn_status_button_tabbed_from, "EEUIFMGStatusButton.tabbed_from");
+    bad += spec_slot(vt_eeuifmg_status_button, slot_ui_control_tabbed_from, (uintptr_t)fn_status_button_tabbed_from, "EEUIFMGStatusButton.tabbed_from [slot]");
     bad += spec_vtable(vt_eeuif_main_game, ".?AVEEUIFMainGame@@", "EEUIFMainGame [vtable]");
     bad += spec_code((uintptr_t)fn_main_form_init, "EEUIFMainGame.init");
     bad += spec_code((uintptr_t)fn_main_form_activate, "EEUIFMainGame.activate");

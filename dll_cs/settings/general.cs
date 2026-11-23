@@ -82,6 +82,9 @@ class general
         /// inside a transport or building stay a card each (a click lets that one out). 0 = the original (a card a unit:
         /// a click selects that unit, control-click its kind, a right click takes it out)
         bool selection_cards_by_kind = true;
+        /// The number of units queued on a production button drawn as the selection's cards draw theirs: at its top left,
+        /// sized to the button, on a black drop shadow. 0 = the game's
+        bool queue_numbers = true;
         /// Goal markers: a move order showed the circle at each unit's goal for only the first 15 units of the group (20 in
         /// the other lines and wedges). 1 = every unit's circle, 0 = the original
         bool goal_markers = true;

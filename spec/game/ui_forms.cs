@@ -883,10 +883,24 @@ unsafe struct EEUIFMGStatusBar
     extern int32 mouse_r_button_up();
 }
 
-/// control type 1000 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
-[@base(typeof(UIButton)), size((ee)0x14C, (aoc)0x14C), vtable((ee)0x00834CF0, (aoc)0x0084AD98)]
+/// control type 1000 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it. The bottom panel's buttons of
+/// what the selection can make or research: a unit's, with the number of them queued on it
+[@base(typeof(UIButton)), c_type("ee_status_button"), size((ee)0x14C, (aoc)0x14C), vtable((ee)0x00834CF0, (aoc)0x0084AD98)]
 unsafe struct EEUIFMGStatusButton
 {
+    /// the number queued drawn on it (GEText, "this->mBuildQueue" in the constructor's assertion, 0x6571F7): copy_data
+    /// writes queued into it, draw_text draws it into the button's rectangle (UIControl.bottom ..) while queue_shown
+    [offset(0x128), found(c)]
+    GEText* queue_text;
+
+    /// the number of its units queued (copy_data: shown when not 0, "%d")
+    [offset(0x140), found(c)]
+    int32 queued;
+
+    /// queue_text drawn (copy_data sets it with a number, draw_text reads it)
+    [offset(0x149), found(c)]
+    uint8 queue_shown;
+
     /// its constructor (3 arguments, not typed yet)
     [address((ee)0x00656FF9, (aoc)0x0066DE97)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3);
@@ -900,7 +914,9 @@ unsafe struct EEUIFMGStatusButton
     [address((ee)0x00657AB9, (aoc)0x0066EAF4), overrides(typeof(UIControl))]
     extern int32 draw_polygons();
 
+    /// queue_text while queue_shown (UIForm::DrawClippedText into its rectangle), then UIButton's own
     [address((ee)0x00657B7A, (aoc)0x0066EBB5), overrides(typeof(UIControl))]
+    [vtable_site("status_button_draw_text")]
     extern int32 draw_text();
 
     [address((ee)0x00657BA4, (aoc)0x0066EBDF), overrides(typeof(UIControl))]
