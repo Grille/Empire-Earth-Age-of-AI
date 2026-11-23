@@ -77,6 +77,11 @@ class general
         /// 1 = every unit found (what one selection message can't carry goes after it as messages that add to the
         /// selection, as a shift box does). 0 = the original 63
         bool big_selection = true;
+        /// The selection's cards at the bottom left: 1 = a card a kind of unit - the number of them on it, the health bar
+        /// their average; a left click selects that kind alone, a right click takes it out of the selection. The units
+        /// inside a transport or building stay a card each (a click lets that one out). 0 = the original (a card a unit:
+        /// a click selects that unit, control-click its kind, a right click takes it out)
+        bool selection_cards_by_kind = true;
         /// Goal markers: a move order showed the circle at each unit's goal for only the first 15 units of the group (20 in
         /// the other lines and wedges). 1 = every unit's circle, 0 = the original
         bool goal_markers = true;

@@ -216,12 +216,24 @@ internal inline int select_unit_msg_send(unsigned id) {
     return 1;
 }
 
+// a selection of the units ids sent from this PC, as the unit cards' control-click sends one (EEMSelectTheseUnits: the
+// constructor copies them from a runtime-library vector - here one over ids); 0 not sent
+internal inline int select_these_send(const uint32_t *ids, unsigned n) {
+    ee_server *net = game_server();
+    ee_select_these_msg *m = net ? (ee_select_these_msg *)game_new(size_eem_select_these_units) : NULL;
+    if (!m) return 0;
+    const uint32_t *vec[4] = { NULL, ids, ids + n, ids + n };
+    select_these_msg_construct(m, (void *)vec);
+    server_send_all(net, m);
+    return 1;
+}
+
 // a message that changes nothing of the game: a selection (a click's, a box's, shift's, control's, the deselect), a chat line, the
 // speed - the only ones godview lets through from the UI (godmode.c god_srv_send)
 internal inline int msg_changes_nothing(const ee_msg *m) {
     uintptr_t vt = *(const uintptr_t *)m;
     return vt == vt_eem_select_unit || vt == vt_eem_select_units || vt == vt_eem_add_units_to_selected_group ||
-           vt == vt_eem_add_and_remove_units_from_selected_group || vt == vt_eem_unselect_all_units ||
+           vt == vt_eem_add_and_remove_units_from_selected_group || vt == vt_eem_unselect_all_units || vt == vt_eem_select_these_units ||
            vt == data_messages_vt_ingame_chat ||
            vt == data_messages_vt_game_speed;
 }

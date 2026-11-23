@@ -713,14 +713,40 @@ unsafe struct DX7Surface
     uint8 dc_out;
 }
 
-[c_type("ee_text")]
+/// a text the engine draws (GEText, 0x50 bytes: game_new, then the constructor with its font - engine_display's
+/// iat_text_new; the attributes' numbers, 0x65105F). UIForm::DrawClippedText draws it at its corner, clipped
+[c_type("ee_text"), size(0x50)]
 unsafe struct GEText
 {
-    [offset(0x34), found(c)]
-    char8* @string;
+    /// its top left corner on the screen (the attributes' numbers put it a little into their control, 0x6510B3)
+    [offset(0x0), found(c)]
+    float32 x;
+
+    [offset(0x4), found(c)]
+    float32 y;
+
+    /// its colour, red, green, blue (0..1; the attributes' numbers set them from their constructor's argument, 0x651082)
+    [offset(0x14), found(c)]
+    float32 red;
+
+    [offset(0x18), found(c)]
+    float32 green;
+
+    [offset(0x1C), found(c)]
+    float32 blue;
+
+    /// its text (a UWideString: its characters at +4): set it, then ComputeTextExtent (the attributes' numbers,
+    /// 0x65115F)
+    [offset(0x30), found(c)]
+    wstring @string;
 
     [offset(0x44), found(c)]
     GEFont* font;
+
+    /// drawn without a background (GEText::SetIsTransparent; the attributes' numbers set it, 0x651076): 0 its
+    /// rectangle filled behind it (GDI's OPAQUE - textlog's bkmode 2)
+    [offset(0x4C), found(c)]
+    uint8 transparent;
 }
 
 /// a model as the engine loaded it from its .cem (GEModel, Low-Level Engine.dll: a unit's EEUnit.model), the same
@@ -1666,6 +1692,16 @@ static unsafe class engine_display
     [import_slot("Low-Level Engine.dll", "??4UWideString@@QAEAAV0@ABV0@@Z")]
     [address((ee)0x008231D0, (aoc)0x008371CC)]
     static block iat_wstring_assign;
+
+    /// GEText's constructor (thiscall(text, font), on game_new(size_text)) and ComputeTextExtent (after its string
+    /// is set): the attributes' numbers, 0x65105F and 0x65116A
+    [import_slot("Low-Level Engine.dll", "??0GEText@@QAE@PAVGEFont@@@Z")]
+    [address((ee)0x008237B4, (aoc)0x0083778C)]
+    static block iat_text_new;
+
+    [import_slot("Low-Level Engine.dll", "?ComputeTextExtent@GEText@@AAEXXZ")]
+    [address((ee)0x008237AC, (aoc)0x00837784)]
+    static block iat_text_compute_extent;
 
     [import_slot("Low-Level Engine.dll", "?Apply@GETransformation@@QBEXABVGEVector@@AAV2@@Z")]
     [address((ee)0x008233FC, (aoc)0x00837394)]

@@ -421,13 +421,95 @@ unsafe struct EEUICSelectUnits
     extern int32 update_keyboard();
 }
 
-/// control type 1014 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
-[@base(typeof(UIControl)), size((ee)0x144, (aoc)0x144), vtable((ee)0x0083401C, (aoc)0x0084A0C8)]
+/// control type 1014 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it. The selection's cards at the
+/// bottom left of the game's screen: a card a selected unit - its icon, its health bar under it -, or a card a unit
+/// inside the one selected (a transport's, a building's). Left click: that unit alone (control: all of its type,
+/// shift: a drag over cards that adds them; inside: it is let out), right click: that unit out of the selection
+[@base(typeof(UIControl)), c_type("ee_icon_bar"), size((ee)0x144, (aoc)0x144), vtable((ee)0x0083401C, (aoc)0x0084A0C8)]
 unsafe struct EEUICUnitIconBar
 {
+    /// the control's place on the screen, as its draw_polygons draws the cards: their top, the first's left edge (the
+    /// next ones to its right); bottom - top its height (draw_polygons 0x643CBB, AoC 0x65A36B)
+    [offset(0x28), found(c)]
+    float32 screen_bottom;
+
+    [offset(0x2C), found(c)]
+    float32 screen_left;
+
+    [offset(0x34), found(c)]
+    float32 screen_top;
+
+    /// the cards as refresh makes them: an icon each (the unit's EEUnitStats +0x64, a graphic - no reference held), a
+    /// pointer per card; copy_data copies them into the drawn cards' textures (+0xB0) every frame
+    [offset(0xA4), found(c)]
+    void** icons_begin;
+
+    [offset(0xA8), found(c)]
+    void** icons_end;
+
+    /// the cards drawn: their textures, one a card (copy_data's, from icons)
+    [offset(0xB4), found(c)]
+    void** drawn_begin;
+
+    [offset(0xB8), found(c)]
+    void** drawn_end;
+
+    /// the cards' health as refresh makes it, a float a card: hp / the type's hp (0..1; the inside's clamped, a
+    /// sliver 0); copy_data copies it into the drawn health (+0x100)
+    [offset(0xF4), found(c)]
+    float32* health_begin;
+
+    [offset(0xF8), found(c)]
+    float32* health_end;
+
+    /// a card's icon, its place in the card: bottom, left, right, top (the icon's width right - left, its height
+    /// bottom - top; draw_polygons)
+    [offset(0x120), found(c)]
+    float32 icon_bottom;
+
+    [offset(0x124), found(c)]
+    float32 icon_left;
+
+    [offset(0x128), found(c)]
+    float32 icon_right;
+
+    [offset(0x12C), found(c)]
+    float32 icon_top;
+
+    /// the cards' step as refresh sets it: a card's left edge to the next is the icon's width times it, + 1 - 1 while
+    /// the cards fit, less when they don't (they overlap then); copy_data copies it into drawn_step
+    [offset(0x138), found(c)]
+    float32 step;
+
+    [offset(0x13C), found(c)]
+    float32 drawn_step;
+
+    /// the cards are the units inside the one selected unit (refresh sets it; a click lets one out)
+    [offset(0x140), found(c)]
+    uint8 inside;
+
+    /// a shift-drag over the cards going on (mouse_l_button_up sets it, mouse_move sends its units as a selection when
+    /// shift is let go)
+    [offset(0x141), found(c)]
+    uint8 shift_drag;
+
     /// its constructor (3 arguments, not typed yet)
     [address((ee)0x006438CF, (aoc)0x00659F7F)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3);
+
+    /// the cards made again from the local player's selected group: a card a unit (in the group's order), or a card
+    /// a unit inside when one unit with units inside is selected (inside), and step for their number (at most 35
+    /// drawn) - the main group's update (0x6504EB, a jump) and the status box's (0x6518A8) call it
+    [address((ee)0x00644844, (aoc)0x0065B010)]
+    extern void refresh();
+
+    /// the unit of a card: the selected group's card'th, the card'th inside when inside; 0 none (card 100: none)
+    [address((ee)0x006442A4, (aoc)0x0065A954)]
+    extern EEUnit* unit_at(uint32 card);
+
+    /// the card under the mouse, 100 none
+    [address((ee)0x00644332, (aoc)0x0065A9E2)]
+    extern uint32 card_at_mouse();
 
     [address((ee)0x00643BA8, (aoc)0x0065A258), overrides(typeof(UIControl))]
     extern int32 copy_data();
@@ -435,10 +517,16 @@ unsafe struct EEUICUnitIconBar
     [address((ee)0x00643C7F, (aoc)0x0065A32F), overrides(typeof(UIControl))]
     extern int32 draw_polygons();
 
+    /// UIControl's own (the slot holds the jump to the engine's): the cards draw no text
+    [address((ee)0x00683FBE, (aoc)0x0069DA18), overrides(typeof(UIControl))]
+    [vtable_site("icon_bar_draw_text")]
+    extern int32 draw_text();
+
     [address((ee)0x0065E84A, (aoc)0x0065AE3B), overrides(typeof(UIControl))]
     extern int32 mouse_l_button_down();
 
     [address((ee)0x006443EB, (aoc)0x0065AA9B), overrides(typeof(UIControl))]
+    [vtable_site("icon_bar_left_up")]
     extern int32 mouse_l_button_up();
 
     [address((ee)0x006447D9, (aoc)0x0065AFA5), overrides(typeof(UIControl))]
@@ -448,6 +536,7 @@ unsafe struct EEUICUnitIconBar
     extern int32 mouse_r_button_down();
 
     [address((ee)0x006446E0, (aoc)0x0065AE44), overrides(typeof(UIControl))]
+    [vtable_site("icon_bar_right_up")]
     extern int32 mouse_r_button_up();
 
     [address((ee)0x0056278E, (aoc)0x005720C6), overrides(typeof(UIControl))]

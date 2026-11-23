@@ -620,12 +620,36 @@ internal inline void surface_set_dc_out(ee_surface *o, uint8_t v) { *(uint8_t *)
 internal inline uint8_t *surface_dc_out_at(const ee_surface *o) { return (uint8_t *)((uint8_t *)o + of_surface_dc_out); }
 
 // class GEText (ee_text)
-internal inline char *text_get_string(const ee_text *o) { return *(char **)((uint8_t *)o + of_text_string); }
-internal inline void text_set_string(ee_text *o, char *v) { *(char **)((uint8_t *)o + of_text_string) = v; }
-internal inline char **text_string_at(const ee_text *o) { return (char **)((uint8_t *)o + of_text_string); }
+// a text the engine draws (GEText, 0x50 bytes: game_new, then the constructor with its font - engine_display's
+// iat_text_new; the attributes' numbers, 0x65105F). UIForm::DrawClippedText draws it at its corner, clipped
+// its top left corner on the screen (the attributes' numbers put it a little into their control, 0x6510B3)
+internal inline float text_get_x(const ee_text *o) { return *(float *)((uint8_t *)o + of_text_x); }
+internal inline void text_set_x(ee_text *o, float v) { *(float *)((uint8_t *)o + of_text_x) = v; }
+internal inline float *text_x_at(const ee_text *o) { return (float *)((uint8_t *)o + of_text_x); }
+internal inline float text_get_y(const ee_text *o) { return *(float *)((uint8_t *)o + of_text_y); }
+internal inline void text_set_y(ee_text *o, float v) { *(float *)((uint8_t *)o + of_text_y) = v; }
+internal inline float *text_y_at(const ee_text *o) { return (float *)((uint8_t *)o + of_text_y); }
+// its colour, red, green, blue (0..1; the attributes' numbers set them from their constructor's argument, 0x651082)
+internal inline float text_get_red(const ee_text *o) { return *(float *)((uint8_t *)o + of_text_red); }
+internal inline void text_set_red(ee_text *o, float v) { *(float *)((uint8_t *)o + of_text_red) = v; }
+internal inline float *text_red_at(const ee_text *o) { return (float *)((uint8_t *)o + of_text_red); }
+internal inline float text_get_green(const ee_text *o) { return *(float *)((uint8_t *)o + of_text_green); }
+internal inline void text_set_green(ee_text *o, float v) { *(float *)((uint8_t *)o + of_text_green) = v; }
+internal inline float *text_green_at(const ee_text *o) { return (float *)((uint8_t *)o + of_text_green); }
+internal inline float text_get_blue(const ee_text *o) { return *(float *)((uint8_t *)o + of_text_blue); }
+internal inline void text_set_blue(ee_text *o, float v) { *(float *)((uint8_t *)o + of_text_blue) = v; }
+internal inline float *text_blue_at(const ee_text *o) { return (float *)((uint8_t *)o + of_text_blue); }
+// its text (a UWideString: its characters at +4): set it, then ComputeTextExtent (the attributes' numbers,
+// 0x65115F)
+internal inline uint8_t *text_string_at(const ee_text *o) { return (uint8_t *)o + of_text_string; }
 internal inline ee_font *text_get_font(const ee_text *o) { return *(ee_font **)((uint8_t *)o + of_text_font); }
 internal inline void text_set_font(ee_text *o, ee_font *v) { *(ee_font **)((uint8_t *)o + of_text_font) = v; }
 internal inline ee_font **text_font_at(const ee_text *o) { return (ee_font **)((uint8_t *)o + of_text_font); }
+// drawn without a background (GEText::SetIsTransparent; the attributes' numbers set it, 0x651076): 0 its
+// rectangle filled behind it (GDI's OPAQUE - textlog's bkmode 2)
+internal inline uint8_t text_get_transparent(const ee_text *o) { return *(uint8_t *)((uint8_t *)o + of_text_transparent); }
+internal inline void text_set_transparent(ee_text *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_text_transparent) = v; }
+internal inline uint8_t *text_transparent_at(const ee_text *o) { return (uint8_t *)((uint8_t *)o + of_text_transparent); }
 
 // class GEModel (ee_model)
 // a model as the engine loaded it from its .cem (GEModel, Low-Level Engine.dll: a unit's EEUnit.model), the same
@@ -1199,6 +1223,10 @@ internal inline uint8_t *engine_display_rtti_gate_class_at(void) { return (uint8
 // the exe's import slots of UWideString::operator=, GETransformation::Apply (a GEVector), UMArcCos and
 // GETransformation::Scale (x, y, z)
 internal inline uint8_t *engine_display_iat_wstring_assign_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_wstring_assign; }
+// GEText's constructor (thiscall(text, font), on game_new(size_text)) and ComputeTextExtent (after its string
+// is set): the attributes' numbers, 0x65105F and 0x65116A
+internal inline uint8_t *engine_display_iat_text_new_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_text_new; }
+internal inline uint8_t *engine_display_iat_text_compute_extent_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_text_compute_extent; }
 internal inline uint8_t *engine_display_iat_transform_apply_vector_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_apply_vector; }
 internal inline uint8_t *engine_display_iat_arc_cos_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_arc_cos; }
 internal inline uint8_t *engine_display_iat_transform_scale_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_scale; }
@@ -1541,8 +1569,15 @@ internal int spec_engine_display_select(int build) {
         of_surface_dds = 0x48;
         of_surface_dc = 0x54;
         of_surface_dc_out = 0x5D;
-        of_text_string = 0x34;
+        size_ge_text = 0x50;
+        of_text_x = 0x0;
+        of_text_y = 0x4;
+        of_text_red = 0x14;
+        of_text_green = 0x18;
+        of_text_blue = 0x1C;
+        of_text_string = 0x30;
         of_text_font = 0x44;
+        of_text_transparent = 0x4C;
         of_model_center = 0xC8;
         of_model_radii = 0x124;
         of_model_transform = 0x88;
@@ -1756,6 +1791,8 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_slot_group_contains = 3;
         value_engine_display_producing_none = 100000;
         data_engine_display_iat_wstring_assign = 0x008231D0;
+        data_engine_display_iat_text_new = 0x008237B4;
+        data_engine_display_iat_text_compute_extent = 0x008237AC;
         data_engine_display_iat_transform_apply_vector = 0x008233FC;
         data_engine_display_iat_arc_cos = 0x008237E4;
         data_engine_display_iat_transform_scale = 0x008237DC;
@@ -1994,8 +2031,15 @@ internal int spec_engine_display_select(int build) {
         of_surface_dds = 0x48;
         of_surface_dc = 0x54;
         of_surface_dc_out = 0x5D;
-        of_text_string = 0x34;
+        size_ge_text = 0x50;
+        of_text_x = 0x0;
+        of_text_y = 0x4;
+        of_text_red = 0x14;
+        of_text_green = 0x18;
+        of_text_blue = 0x1C;
+        of_text_string = 0x30;
         of_text_font = 0x44;
+        of_text_transparent = 0x4C;
         of_model_center = 0xC8;
         of_model_radii = 0x124;
         of_model_transform = 0x88;
@@ -2209,6 +2253,8 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_slot_group_contains = 3;
         value_engine_display_producing_none = 100000;
         data_engine_display_iat_wstring_assign = 0x008371CC;
+        data_engine_display_iat_text_new = 0x0083778C;
+        data_engine_display_iat_text_compute_extent = 0x00837784;
         data_engine_display_iat_transform_apply_vector = 0x00837394;
         data_engine_display_iat_arc_cos = 0x00837754;
         data_engine_display_iat_transform_scale = 0x008377B4;
@@ -2457,6 +2503,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_rtti_unit_class, "engine_display.rtti_unit_class");
     bad += spec_data(data_engine_display_rtti_gate_class, "engine_display.rtti_gate_class");
     bad += spec_data(data_engine_display_iat_wstring_assign, "engine_display.iat_wstring_assign");
+    bad += spec_data(data_engine_display_iat_text_new, "engine_display.iat_text_new");
+    bad += spec_data(data_engine_display_iat_text_compute_extent, "engine_display.iat_text_compute_extent");
     bad += spec_data(data_engine_display_iat_transform_apply_vector, "engine_display.iat_transform_apply_vector");
     bad += spec_data(data_engine_display_iat_arc_cos, "engine_display.iat_arc_cos");
     bad += spec_data(data_engine_display_iat_transform_scale, "engine_display.iat_transform_scale");

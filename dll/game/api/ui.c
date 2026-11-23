@@ -179,6 +179,26 @@ internal inline void ui_check_box_label_yellow(ui_check_box *box) {
 internal inline void ui_form_add_control(ee_ui_form *form, ee_ui_control *c, unsigned long group) {
     ((void (__thiscall *)(ee_ui_form *, ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_form_add_control)(form, c, group);
 }
+// a font of the interface's table: of the kind id (the portrait's 0x36, the main group's numbers' 0x1C - 0x64AB3B), the
+// closest to height pixels (UIFontTable::CreateClosestFont; the table keeps it)
+internal inline ee_font *ui_font(unsigned long id, unsigned long height) {
+    return ((ee_font *(__cdecl *)(unsigned long, unsigned long))*(void **)data_ui_imports_iat_font_table_create_closest_font)(id, height);
+}
+internal inline ee_font *ui_font_numbers(unsigned long height) { return ui_font(value_ui_font_numbers, height); }
+// UIForm::DrawClippedText: the text drawn at its corner (text_get_x, _y), clipped to rect (bottom, left, right, top), for
+// the control - in its draw_text (the attributes' numbers, 0x651215)
+internal inline void ui_form_draw_clipped_text(ee_ui_form *form, const float rect[4], ee_text *text, void *control) {
+    ((long (__thiscall *)(ee_ui_form *, const float *, ee_text *, void *))*(void **)data_ui_imports_iat_form_draw_clipped_text)(form, rect, text, control);
+}
+// THE UNIT CARDS (engine/cards.c): their refresh sent to hook at its start (push ebp; mov ebp, esp; sub esp, 0x28 - both
+// builds), *orig the original; 0 code not as expected
+internal inline int patch_icon_bar_refresh(icon_bar_refresh_fn hook, icon_bar_refresh_fn *orig) {
+    static const uint8_t pro[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x28 };
+    void *o = NULL;
+    if (!fn_icon_bar_refresh || !patch_entry((uintptr_t)fn_icon_bar_refresh, pro, 6, (void *)hook, &o)) return 0;
+    *orig = (icon_bar_refresh_fn)o;
+    return 1;
+}
 internal inline void editor_units_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_units); }
 internal inline void editor_elevation_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_elevation); }
 internal inline void editor_terrain_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_terrain); }

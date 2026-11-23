@@ -975,6 +975,11 @@ static unsafe class ui
     [value(36)]
     static uint32 edit_box_slots;
 
+    /// the font kind of the main group's numbers: UIFontTable::CreateClosestFont's first argument there (0x64AB39,
+    /// AoC 0x66107D); the unit cards' numbers take it too (engine/cards.c)
+    [value(0x1C)]
+    static uint32 font_numbers;
+
     /// UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
     [import_slot("Low-Level Engine.dll", "?AddHotKey@UIForm@@QAEXKKKKPAVUIEvent@@000K_N@Z")]
     [address((ee)0x00824048, (aoc)0x00837BE0)]

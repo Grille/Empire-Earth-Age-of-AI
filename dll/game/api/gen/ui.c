@@ -756,6 +756,8 @@ internal inline void *ui_get_font_edit(void) { return *(void **)(uint8_t *)(uint
 internal inline void ui_set_font_edit(void *v) { *(void **)(uint8_t *)(uintptr_t)data_ui_font_edit = v; }
 internal inline void **ui_font_edit_at(void) { return (void **)(uint8_t *)(uintptr_t)data_ui_font_edit; }
 // UIEditBox's vtable (the exe's): its slots, 0..35
+// the font kind of the main group's numbers: UIFontTable::CreateClosestFont's first argument there (0x64AB39,
+// AoC 0x66107D); the unit cards' numbers take it too (engine/cards.c)
 // UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
 internal inline uint8_t *ui_iat_uiform_add_hotkey_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uiform_add_hotkey; }
 // the UI manager's current form
@@ -1008,6 +1010,7 @@ internal int spec_ui_select(int build) {
         data_ui_font_label = 0x009197B8;
         data_ui_font_edit = 0x009197B4;
         value_ui_edit_box_slots = 36;
+        value_ui_font_numbers = 28;
         data_ui_iat_uiform_add_hotkey = 0x00824048;
         data_ui_iat_uim_form = 0x00823D60;
         data_ui_site_scroll_timer = 0x004050C2;
@@ -1263,6 +1266,7 @@ internal int spec_ui_select(int build) {
         data_ui_font_label = 0x00931934;
         data_ui_font_edit = 0x00931930;
         value_ui_edit_box_slots = 36;
+        value_ui_font_numbers = 28;
         data_ui_iat_uiform_add_hotkey = 0x00837BE0;
         data_ui_iat_uim_form = 0x00837B44;
         data_ui_site_scroll_timer = 0x00404734;

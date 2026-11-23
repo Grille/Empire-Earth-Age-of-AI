@@ -183,6 +183,11 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   at most 63 units - with a large army only a part. Now every unit found: one message carries about 240, the rest
   goes after it as the messages a shift box sends (they add to the selection). The messages keep the game's own
   format and kinds, so they should stay compatible in multiplayer.
+- `[general] selection_cards_by_kind=1` (default): the selection's cards at the bottom left were a card a unit,
+  squeezed together until unreadable with a large selection. Now a card a kind of unit, with the number of them on it
+  and their average health as its bar; a left click keeps that kind alone selected, a right click takes it out (the
+  game's own selection message, the one its control-click sends). The units inside a selected transport or building
+  stay a card each (a click lets that one out). `0` = the original.
 - `[general] transport_split=1` (default): units right-clicked onto a transport - a ship, a helicopter or a land
   transport (cargo truck, staff car, siege tower, Trojan Horse), mixed too, or a fortress. With transports of more
   than one type selected the game's command broke (it tried to load the clicked transport into another one, and

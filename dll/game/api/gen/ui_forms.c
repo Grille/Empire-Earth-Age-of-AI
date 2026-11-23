@@ -602,66 +602,155 @@ typedef int (__thiscall *eeuic_select_units_update_keyboard_fn)(eeuic_select_uni
 internal eeuic_select_units_update_keyboard_fn fn_eeuic_select_units_update_keyboard;
 internal inline int eeuic_select_units_update_keyboard(eeuic_select_units *eeuic_select_units) { return fn_eeuic_select_units_update_keyboard(eeuic_select_units); }
 
-// class EEUICUnitIconBar (eeuic_unit_icon_bar)
-// control type 1014 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
+// class EEUICUnitIconBar (ee_icon_bar)
+// control type 1014 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it. The selection's cards at the
+// bottom left of the game's screen: a card a selected unit - its icon, its health bar under it -, or a card a unit
+// inside the one selected (a transport's, a building's). Left click: that unit alone (control: all of its type,
+// shift: a drag over cards that adds them; inside: it is let out), right click: that unit out of the selection
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
-internal inline uint32_t eeuic_unit_icon_bar_get_mode_now(const eeuic_unit_icon_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
-internal inline void eeuic_unit_icon_bar_set_mode_now(eeuic_unit_icon_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
-internal inline uint32_t *eeuic_unit_icon_bar_mode_now_at(const eeuic_unit_icon_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline uint32_t icon_bar_get_mode_now(const ee_icon_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
+internal inline void icon_bar_set_mode_now(ee_icon_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now) = v; }
+internal inline uint32_t *icon_bar_mode_now_at(const ee_icon_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
-internal inline float eeuic_unit_icon_bar_get_bottom(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
-internal inline void eeuic_unit_icon_bar_set_bottom(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
-internal inline float *eeuic_unit_icon_bar_bottom_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
-internal inline float eeuic_unit_icon_bar_get_left(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
-internal inline void eeuic_unit_icon_bar_set_left(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
-internal inline float *eeuic_unit_icon_bar_left_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
-internal inline float eeuic_unit_icon_bar_get_right(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
-internal inline void eeuic_unit_icon_bar_set_right(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
-internal inline float *eeuic_unit_icon_bar_right_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
-internal inline float eeuic_unit_icon_bar_get_top(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
-internal inline void eeuic_unit_icon_bar_set_top(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
-internal inline float *eeuic_unit_icon_bar_top_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+internal inline float icon_bar_get_bottom(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void icon_bar_set_bottom(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *icon_bar_bottom_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float icon_bar_get_left(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void icon_bar_set_left(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *icon_bar_left_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float icon_bar_get_right(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void icon_bar_set_right(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *icon_bar_right_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float icon_bar_get_top(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void icon_bar_set_top(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *icon_bar_top_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // the form it is in (UIControl::CaptureKeyboard captures it there)
-internal inline ee_ui_form *eeuic_unit_icon_bar_get_form(const eeuic_unit_icon_bar *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
-internal inline void eeuic_unit_icon_bar_set_form(eeuic_unit_icon_bar *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
-internal inline ee_ui_form **eeuic_unit_icon_bar_form_at(const eeuic_unit_icon_bar *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline ee_ui_form *icon_bar_get_form(const ee_icon_bar *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void icon_bar_set_form(ee_icon_bar *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **icon_bar_form_at(const ee_icon_bar *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the control's place on the screen, as its draw_polygons draws the cards: their top, the first's left edge (the
+// next ones to its right); bottom - top its height (draw_polygons 0x643CBB, AoC 0x65A36B)
+internal inline float icon_bar_get_screen_bottom(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_screen_bottom); }
+internal inline void icon_bar_set_screen_bottom(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_screen_bottom) = v; }
+internal inline float *icon_bar_screen_bottom_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_screen_bottom); }
+internal inline float icon_bar_get_screen_left(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_screen_left); }
+internal inline void icon_bar_set_screen_left(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_screen_left) = v; }
+internal inline float *icon_bar_screen_left_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_screen_left); }
+internal inline float icon_bar_get_screen_top(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_screen_top); }
+internal inline void icon_bar_set_screen_top(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_screen_top) = v; }
+internal inline float *icon_bar_screen_top_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_screen_top); }
+// the cards as refresh makes them: an icon each (the unit's EEUnitStats +0x64, a graphic - no reference held), a
+// pointer per card; copy_data copies them into the drawn cards' textures (+0xB0) every frame
+internal inline void **icon_bar_get_icons_begin(const ee_icon_bar *o) { return *(void ***)((uint8_t *)o + of_icon_bar_icons_begin); }
+internal inline void icon_bar_set_icons_begin(ee_icon_bar *o, void **v) { *(void ***)((uint8_t *)o + of_icon_bar_icons_begin) = v; }
+internal inline void ***icon_bar_icons_begin_at(const ee_icon_bar *o) { return (void ***)((uint8_t *)o + of_icon_bar_icons_begin); }
+internal inline void **icon_bar_get_icons_end(const ee_icon_bar *o) { return *(void ***)((uint8_t *)o + of_icon_bar_icons_end); }
+internal inline void icon_bar_set_icons_end(ee_icon_bar *o, void **v) { *(void ***)((uint8_t *)o + of_icon_bar_icons_end) = v; }
+internal inline void ***icon_bar_icons_end_at(const ee_icon_bar *o) { return (void ***)((uint8_t *)o + of_icon_bar_icons_end); }
+// the cards drawn: their textures, one a card (copy_data's, from icons)
+internal inline void **icon_bar_get_drawn_begin(const ee_icon_bar *o) { return *(void ***)((uint8_t *)o + of_icon_bar_drawn_begin); }
+internal inline void icon_bar_set_drawn_begin(ee_icon_bar *o, void **v) { *(void ***)((uint8_t *)o + of_icon_bar_drawn_begin) = v; }
+internal inline void ***icon_bar_drawn_begin_at(const ee_icon_bar *o) { return (void ***)((uint8_t *)o + of_icon_bar_drawn_begin); }
+internal inline void **icon_bar_get_drawn_end(const ee_icon_bar *o) { return *(void ***)((uint8_t *)o + of_icon_bar_drawn_end); }
+internal inline void icon_bar_set_drawn_end(ee_icon_bar *o, void **v) { *(void ***)((uint8_t *)o + of_icon_bar_drawn_end) = v; }
+internal inline void ***icon_bar_drawn_end_at(const ee_icon_bar *o) { return (void ***)((uint8_t *)o + of_icon_bar_drawn_end); }
+// the cards' health as refresh makes it, a float a card: hp / the type's hp (0..1; the inside's clamped, a
+// sliver 0); copy_data copies it into the drawn health (+0x100)
+internal inline float *icon_bar_get_health_begin(const ee_icon_bar *o) { return *(float **)((uint8_t *)o + of_icon_bar_health_begin); }
+internal inline void icon_bar_set_health_begin(ee_icon_bar *o, float *v) { *(float **)((uint8_t *)o + of_icon_bar_health_begin) = v; }
+internal inline float **icon_bar_health_begin_at(const ee_icon_bar *o) { return (float **)((uint8_t *)o + of_icon_bar_health_begin); }
+internal inline float *icon_bar_get_health_end(const ee_icon_bar *o) { return *(float **)((uint8_t *)o + of_icon_bar_health_end); }
+internal inline void icon_bar_set_health_end(ee_icon_bar *o, float *v) { *(float **)((uint8_t *)o + of_icon_bar_health_end) = v; }
+internal inline float **icon_bar_health_end_at(const ee_icon_bar *o) { return (float **)((uint8_t *)o + of_icon_bar_health_end); }
+// a card's icon, its place in the card: bottom, left, right, top (the icon's width right - left, its height
+// bottom - top; draw_polygons)
+internal inline float icon_bar_get_icon_bottom(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_icon_bottom); }
+internal inline void icon_bar_set_icon_bottom(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_icon_bottom) = v; }
+internal inline float *icon_bar_icon_bottom_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_icon_bottom); }
+internal inline float icon_bar_get_icon_left(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_icon_left); }
+internal inline void icon_bar_set_icon_left(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_icon_left) = v; }
+internal inline float *icon_bar_icon_left_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_icon_left); }
+internal inline float icon_bar_get_icon_right(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_icon_right); }
+internal inline void icon_bar_set_icon_right(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_icon_right) = v; }
+internal inline float *icon_bar_icon_right_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_icon_right); }
+internal inline float icon_bar_get_icon_top(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_icon_top); }
+internal inline void icon_bar_set_icon_top(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_icon_top) = v; }
+internal inline float *icon_bar_icon_top_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_icon_top); }
+// the cards' step as refresh sets it: a card's left edge to the next is the icon's width times it, + 1 - 1 while
+// the cards fit, less when they don't (they overlap then); copy_data copies it into drawn_step
+internal inline float icon_bar_get_step(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_step); }
+internal inline void icon_bar_set_step(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_step) = v; }
+internal inline float *icon_bar_step_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_step); }
+internal inline float icon_bar_get_drawn_step(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_drawn_step); }
+internal inline void icon_bar_set_drawn_step(ee_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_icon_bar_drawn_step) = v; }
+internal inline float *icon_bar_drawn_step_at(const ee_icon_bar *o) { return (float *)((uint8_t *)o + of_icon_bar_drawn_step); }
+// the cards are the units inside the one selected unit (refresh sets it; a click lets one out)
+internal inline uint8_t icon_bar_get_inside(const ee_icon_bar *o) { return *(uint8_t *)((uint8_t *)o + of_icon_bar_inside); }
+internal inline void icon_bar_set_inside(ee_icon_bar *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_icon_bar_inside) = v; }
+internal inline uint8_t *icon_bar_inside_at(const ee_icon_bar *o) { return (uint8_t *)((uint8_t *)o + of_icon_bar_inside); }
+// a shift-drag over the cards going on (mouse_l_button_up sets it, mouse_move sends its units as a selection when
+// shift is let go)
+internal inline uint8_t icon_bar_get_shift_drag(const ee_icon_bar *o) { return *(uint8_t *)((uint8_t *)o + of_icon_bar_shift_drag); }
+internal inline void icon_bar_set_shift_drag(ee_icon_bar *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_icon_bar_shift_drag) = v; }
+internal inline uint8_t *icon_bar_shift_drag_at(const ee_icon_bar *o) { return (uint8_t *)((uint8_t *)o + of_icon_bar_shift_drag); }
 // its constructor (3 arguments, not typed yet)
-typedef void *(__thiscall *eeuic_unit_icon_bar_init_fn)(eeuic_unit_icon_bar *, uint32_t, uint32_t, uint32_t);
-internal eeuic_unit_icon_bar_init_fn fn_eeuic_unit_icon_bar_init;
-internal inline void *eeuic_unit_icon_bar_init(eeuic_unit_icon_bar *eeuic_unit_icon_bar, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_eeuic_unit_icon_bar_init(eeuic_unit_icon_bar, p1, p2, p3); }
-typedef int (__thiscall *eeuic_unit_icon_bar_copy_data_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_copy_data_fn fn_eeuic_unit_icon_bar_copy_data;
-internal inline int eeuic_unit_icon_bar_copy_data(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_copy_data(eeuic_unit_icon_bar); }
-typedef int (__thiscall *eeuic_unit_icon_bar_draw_polygons_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_draw_polygons_fn fn_eeuic_unit_icon_bar_draw_polygons;
-internal inline int eeuic_unit_icon_bar_draw_polygons(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_draw_polygons(eeuic_unit_icon_bar); }
-typedef int (__thiscall *eeuic_unit_icon_bar_mouse_l_button_down_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_mouse_l_button_down_fn fn_eeuic_unit_icon_bar_mouse_l_button_down;
-internal inline int eeuic_unit_icon_bar_mouse_l_button_down(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_mouse_l_button_down(eeuic_unit_icon_bar); }
-typedef int (__thiscall *eeuic_unit_icon_bar_mouse_l_button_up_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_mouse_l_button_up_fn fn_eeuic_unit_icon_bar_mouse_l_button_up;
-internal inline int eeuic_unit_icon_bar_mouse_l_button_up(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_mouse_l_button_up(eeuic_unit_icon_bar); }
-typedef int (__thiscall *eeuic_unit_icon_bar_mouse_move_fn)(eeuic_unit_icon_bar *, void *);
-internal eeuic_unit_icon_bar_mouse_move_fn fn_eeuic_unit_icon_bar_mouse_move;
-internal inline int eeuic_unit_icon_bar_mouse_move(eeuic_unit_icon_bar *eeuic_unit_icon_bar, void *at) { return fn_eeuic_unit_icon_bar_mouse_move(eeuic_unit_icon_bar, at); }
-typedef int (__thiscall *eeuic_unit_icon_bar_mouse_r_button_down_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_mouse_r_button_down_fn fn_eeuic_unit_icon_bar_mouse_r_button_down;
-internal inline int eeuic_unit_icon_bar_mouse_r_button_down(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_mouse_r_button_down(eeuic_unit_icon_bar); }
-typedef int (__thiscall *eeuic_unit_icon_bar_mouse_r_button_up_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_mouse_r_button_up_fn fn_eeuic_unit_icon_bar_mouse_r_button_up;
-internal inline int eeuic_unit_icon_bar_mouse_r_button_up(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_mouse_r_button_up(eeuic_unit_icon_bar); }
-typedef void (__thiscall *eeuic_unit_icon_bar_tabbed_to_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_tabbed_to_fn fn_eeuic_unit_icon_bar_tabbed_to;
-internal inline void eeuic_unit_icon_bar_tabbed_to(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { fn_eeuic_unit_icon_bar_tabbed_to(eeuic_unit_icon_bar); }
-typedef void (__thiscall *eeuic_unit_icon_bar_tabbed_from_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_tabbed_from_fn fn_eeuic_unit_icon_bar_tabbed_from;
-internal inline void eeuic_unit_icon_bar_tabbed_from(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { fn_eeuic_unit_icon_bar_tabbed_from(eeuic_unit_icon_bar); }
-typedef int (__thiscall *eeuic_unit_icon_bar_update_keyboard_fn)(eeuic_unit_icon_bar *);
-internal eeuic_unit_icon_bar_update_keyboard_fn fn_eeuic_unit_icon_bar_update_keyboard;
-internal inline int eeuic_unit_icon_bar_update_keyboard(eeuic_unit_icon_bar *eeuic_unit_icon_bar) { return fn_eeuic_unit_icon_bar_update_keyboard(eeuic_unit_icon_bar); }
+typedef void *(__thiscall *icon_bar_init_fn)(ee_icon_bar *, uint32_t, uint32_t, uint32_t);
+internal icon_bar_init_fn fn_icon_bar_init;
+internal inline void *icon_bar_init(ee_icon_bar *icon_bar, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_icon_bar_init(icon_bar, p1, p2, p3); }
+// the cards made again from the local player's selected group: a card a unit (in the group's order), or a card
+// a unit inside when one unit with units inside is selected (inside), and step for their number (at most 35
+// drawn) - the main group's update (0x6504EB, a jump) and the status box's (0x6518A8) call it
+typedef void (__thiscall *icon_bar_refresh_fn)(ee_icon_bar *);
+internal icon_bar_refresh_fn fn_icon_bar_refresh;
+internal inline void icon_bar_refresh(ee_icon_bar *icon_bar) { fn_icon_bar_refresh(icon_bar); }
+// the unit of a card: the selected group's card'th, the card'th inside when inside; 0 none (card 100: none)
+typedef ee_unit *(__thiscall *icon_bar_unit_at_fn)(ee_icon_bar *, uint32_t);
+internal icon_bar_unit_at_fn fn_icon_bar_unit_at;
+internal inline ee_unit *icon_bar_unit_at(ee_icon_bar *icon_bar, uint32_t card) { return fn_icon_bar_unit_at(icon_bar, card); }
+// the card under the mouse, 100 none
+typedef uint32_t (__thiscall *icon_bar_card_at_mouse_fn)(ee_icon_bar *);
+internal icon_bar_card_at_mouse_fn fn_icon_bar_card_at_mouse;
+internal inline uint32_t icon_bar_card_at_mouse(ee_icon_bar *icon_bar) { return fn_icon_bar_card_at_mouse(icon_bar); }
+typedef int (__thiscall *icon_bar_copy_data_fn)(ee_icon_bar *);
+internal icon_bar_copy_data_fn fn_icon_bar_copy_data;
+internal inline int icon_bar_copy_data(ee_icon_bar *icon_bar) { return fn_icon_bar_copy_data(icon_bar); }
+typedef int (__thiscall *icon_bar_draw_polygons_fn)(ee_icon_bar *);
+internal icon_bar_draw_polygons_fn fn_icon_bar_draw_polygons;
+internal inline int icon_bar_draw_polygons(ee_icon_bar *icon_bar) { return fn_icon_bar_draw_polygons(icon_bar); }
+// UIControl's own (the slot holds the jump to the engine's): the cards draw no text
+typedef int (__thiscall *icon_bar_draw_text_fn)(ee_icon_bar *);
+internal icon_bar_draw_text_fn fn_icon_bar_draw_text;
+internal inline int icon_bar_draw_text(ee_icon_bar *icon_bar) { return fn_icon_bar_draw_text(icon_bar); }
+internal inline int patch_icon_bar_draw_text(icon_bar_draw_text_fn h) { return patch_vtable(vt_eeuic_unit_icon_bar, (int)slot_ui_control_draw_text, (uintptr_t)fn_icon_bar_draw_text, (void *)h); }
+typedef int (__thiscall *icon_bar_mouse_l_button_down_fn)(ee_icon_bar *);
+internal icon_bar_mouse_l_button_down_fn fn_icon_bar_mouse_l_button_down;
+internal inline int icon_bar_mouse_l_button_down(ee_icon_bar *icon_bar) { return fn_icon_bar_mouse_l_button_down(icon_bar); }
+typedef int (__thiscall *icon_bar_mouse_l_button_up_fn)(ee_icon_bar *);
+internal icon_bar_mouse_l_button_up_fn fn_icon_bar_mouse_l_button_up;
+internal inline int icon_bar_mouse_l_button_up(ee_icon_bar *icon_bar) { return fn_icon_bar_mouse_l_button_up(icon_bar); }
+internal inline int patch_icon_bar_left_up(icon_bar_mouse_l_button_up_fn h) { return patch_vtable(vt_eeuic_unit_icon_bar, (int)slot_ui_control_mouse_l_button_up, (uintptr_t)fn_icon_bar_mouse_l_button_up, (void *)h); }
+typedef int (__thiscall *icon_bar_mouse_move_fn)(ee_icon_bar *, void *);
+internal icon_bar_mouse_move_fn fn_icon_bar_mouse_move;
+internal inline int icon_bar_mouse_move(ee_icon_bar *icon_bar, void *at) { return fn_icon_bar_mouse_move(icon_bar, at); }
+typedef int (__thiscall *icon_bar_mouse_r_button_down_fn)(ee_icon_bar *);
+internal icon_bar_mouse_r_button_down_fn fn_icon_bar_mouse_r_button_down;
+internal inline int icon_bar_mouse_r_button_down(ee_icon_bar *icon_bar) { return fn_icon_bar_mouse_r_button_down(icon_bar); }
+typedef int (__thiscall *icon_bar_mouse_r_button_up_fn)(ee_icon_bar *);
+internal icon_bar_mouse_r_button_up_fn fn_icon_bar_mouse_r_button_up;
+internal inline int icon_bar_mouse_r_button_up(ee_icon_bar *icon_bar) { return fn_icon_bar_mouse_r_button_up(icon_bar); }
+internal inline int patch_icon_bar_right_up(icon_bar_mouse_r_button_up_fn h) { return patch_vtable(vt_eeuic_unit_icon_bar, (int)slot_ui_control_mouse_r_button_up, (uintptr_t)fn_icon_bar_mouse_r_button_up, (void *)h); }
+typedef void (__thiscall *icon_bar_tabbed_to_fn)(ee_icon_bar *);
+internal icon_bar_tabbed_to_fn fn_icon_bar_tabbed_to;
+internal inline void icon_bar_tabbed_to(ee_icon_bar *icon_bar) { fn_icon_bar_tabbed_to(icon_bar); }
+typedef void (__thiscall *icon_bar_tabbed_from_fn)(ee_icon_bar *);
+internal icon_bar_tabbed_from_fn fn_icon_bar_tabbed_from;
+internal inline void icon_bar_tabbed_from(ee_icon_bar *icon_bar) { fn_icon_bar_tabbed_from(icon_bar); }
+typedef int (__thiscall *icon_bar_update_keyboard_fn)(ee_icon_bar *);
+internal icon_bar_update_keyboard_fn fn_icon_bar_update_keyboard;
+internal inline int icon_bar_update_keyboard(ee_icon_bar *icon_bar) { return fn_icon_bar_update_keyboard(icon_bar); }
 
 // class EEUICWonNetGamesBox (eeuic_won_net_games_box)
 // control type 1019 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
@@ -2057,17 +2146,38 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuic_select_units_update_keyboard = (eeuic_select_units_update_keyboard_fn)0x004D84A2;
         vt_eeuic_unit_icon_bar = 0x0083401C;
         size_eeuic_unit_icon_bar = 0x144;
-        fn_eeuic_unit_icon_bar_init = (eeuic_unit_icon_bar_init_fn)0x006438CF;
-        fn_eeuic_unit_icon_bar_copy_data = (eeuic_unit_icon_bar_copy_data_fn)0x00643BA8;
-        fn_eeuic_unit_icon_bar_draw_polygons = (eeuic_unit_icon_bar_draw_polygons_fn)0x00643C7F;
-        fn_eeuic_unit_icon_bar_mouse_l_button_down = (eeuic_unit_icon_bar_mouse_l_button_down_fn)0x0065E84A;
-        fn_eeuic_unit_icon_bar_mouse_l_button_up = (eeuic_unit_icon_bar_mouse_l_button_up_fn)0x006443EB;
-        fn_eeuic_unit_icon_bar_mouse_move = (eeuic_unit_icon_bar_mouse_move_fn)0x006447D9;
-        fn_eeuic_unit_icon_bar_mouse_r_button_down = (eeuic_unit_icon_bar_mouse_r_button_down_fn)0x0065E84A;
-        fn_eeuic_unit_icon_bar_mouse_r_button_up = (eeuic_unit_icon_bar_mouse_r_button_up_fn)0x006446E0;
-        fn_eeuic_unit_icon_bar_tabbed_to = (eeuic_unit_icon_bar_tabbed_to_fn)0x0056278E;
-        fn_eeuic_unit_icon_bar_tabbed_from = (eeuic_unit_icon_bar_tabbed_from_fn)0x0056278E;
-        fn_eeuic_unit_icon_bar_update_keyboard = (eeuic_unit_icon_bar_update_keyboard_fn)0x004D84A2;
+        of_icon_bar_screen_bottom = 0x28;
+        of_icon_bar_screen_left = 0x2C;
+        of_icon_bar_screen_top = 0x34;
+        of_icon_bar_icons_begin = 0xA4;
+        of_icon_bar_icons_end = 0xA8;
+        of_icon_bar_drawn_begin = 0xB4;
+        of_icon_bar_drawn_end = 0xB8;
+        of_icon_bar_health_begin = 0xF4;
+        of_icon_bar_health_end = 0xF8;
+        of_icon_bar_icon_bottom = 0x120;
+        of_icon_bar_icon_left = 0x124;
+        of_icon_bar_icon_right = 0x128;
+        of_icon_bar_icon_top = 0x12C;
+        of_icon_bar_step = 0x138;
+        of_icon_bar_drawn_step = 0x13C;
+        of_icon_bar_inside = 0x140;
+        of_icon_bar_shift_drag = 0x141;
+        fn_icon_bar_init = (icon_bar_init_fn)0x006438CF;
+        fn_icon_bar_refresh = (icon_bar_refresh_fn)0x00644844;
+        fn_icon_bar_unit_at = (icon_bar_unit_at_fn)0x006442A4;
+        fn_icon_bar_card_at_mouse = (icon_bar_card_at_mouse_fn)0x00644332;
+        fn_icon_bar_copy_data = (icon_bar_copy_data_fn)0x00643BA8;
+        fn_icon_bar_draw_polygons = (icon_bar_draw_polygons_fn)0x00643C7F;
+        fn_icon_bar_draw_text = (icon_bar_draw_text_fn)0x00683FBE;
+        fn_icon_bar_mouse_l_button_down = (icon_bar_mouse_l_button_down_fn)0x0065E84A;
+        fn_icon_bar_mouse_l_button_up = (icon_bar_mouse_l_button_up_fn)0x006443EB;
+        fn_icon_bar_mouse_move = (icon_bar_mouse_move_fn)0x006447D9;
+        fn_icon_bar_mouse_r_button_down = (icon_bar_mouse_r_button_down_fn)0x0065E84A;
+        fn_icon_bar_mouse_r_button_up = (icon_bar_mouse_r_button_up_fn)0x006446E0;
+        fn_icon_bar_tabbed_to = (icon_bar_tabbed_to_fn)0x0056278E;
+        fn_icon_bar_tabbed_from = (icon_bar_tabbed_from_fn)0x0056278E;
+        fn_icon_bar_update_keyboard = (icon_bar_update_keyboard_fn)0x004D84A2;
         vt_eeuic_won_net_games_box = 0x008340A8;
         size_eeuic_won_net_games_box = 0x19C;
         fn_eeuic_won_net_games_box_init = (eeuic_won_net_games_box_init_fn)0x00644C13;
@@ -2413,17 +2523,38 @@ internal int spec_ui_forms_select(int build) {
         fn_eeuic_select_units_update_keyboard = (eeuic_select_units_update_keyboard_fn)0x005AD67E;
         vt_eeuic_unit_icon_bar = 0x0084A0C8;
         size_eeuic_unit_icon_bar = 0x144;
-        fn_eeuic_unit_icon_bar_init = (eeuic_unit_icon_bar_init_fn)0x00659F7F;
-        fn_eeuic_unit_icon_bar_copy_data = (eeuic_unit_icon_bar_copy_data_fn)0x0065A258;
-        fn_eeuic_unit_icon_bar_draw_polygons = (eeuic_unit_icon_bar_draw_polygons_fn)0x0065A32F;
-        fn_eeuic_unit_icon_bar_mouse_l_button_down = (eeuic_unit_icon_bar_mouse_l_button_down_fn)0x0065AE3B;
-        fn_eeuic_unit_icon_bar_mouse_l_button_up = (eeuic_unit_icon_bar_mouse_l_button_up_fn)0x0065AA9B;
-        fn_eeuic_unit_icon_bar_mouse_move = (eeuic_unit_icon_bar_mouse_move_fn)0x0065AFA5;
-        fn_eeuic_unit_icon_bar_mouse_r_button_down = (eeuic_unit_icon_bar_mouse_r_button_down_fn)0x0065AE3B;
-        fn_eeuic_unit_icon_bar_mouse_r_button_up = (eeuic_unit_icon_bar_mouse_r_button_up_fn)0x0065AE44;
-        fn_eeuic_unit_icon_bar_tabbed_to = (eeuic_unit_icon_bar_tabbed_to_fn)0x005720C6;
-        fn_eeuic_unit_icon_bar_tabbed_from = (eeuic_unit_icon_bar_tabbed_from_fn)0x005720C6;
-        fn_eeuic_unit_icon_bar_update_keyboard = (eeuic_unit_icon_bar_update_keyboard_fn)0x005AD67E;
+        of_icon_bar_screen_bottom = 0x28;
+        of_icon_bar_screen_left = 0x2C;
+        of_icon_bar_screen_top = 0x34;
+        of_icon_bar_icons_begin = 0xA4;
+        of_icon_bar_icons_end = 0xA8;
+        of_icon_bar_drawn_begin = 0xB4;
+        of_icon_bar_drawn_end = 0xB8;
+        of_icon_bar_health_begin = 0xF4;
+        of_icon_bar_health_end = 0xF8;
+        of_icon_bar_icon_bottom = 0x120;
+        of_icon_bar_icon_left = 0x124;
+        of_icon_bar_icon_right = 0x128;
+        of_icon_bar_icon_top = 0x12C;
+        of_icon_bar_step = 0x138;
+        of_icon_bar_drawn_step = 0x13C;
+        of_icon_bar_inside = 0x140;
+        of_icon_bar_shift_drag = 0x141;
+        fn_icon_bar_init = (icon_bar_init_fn)0x00659F7F;
+        fn_icon_bar_refresh = (icon_bar_refresh_fn)0x0065B010;
+        fn_icon_bar_unit_at = (icon_bar_unit_at_fn)0x0065A954;
+        fn_icon_bar_card_at_mouse = (icon_bar_card_at_mouse_fn)0x0065A9E2;
+        fn_icon_bar_copy_data = (icon_bar_copy_data_fn)0x0065A258;
+        fn_icon_bar_draw_polygons = (icon_bar_draw_polygons_fn)0x0065A32F;
+        fn_icon_bar_draw_text = (icon_bar_draw_text_fn)0x0069DA18;
+        fn_icon_bar_mouse_l_button_down = (icon_bar_mouse_l_button_down_fn)0x0065AE3B;
+        fn_icon_bar_mouse_l_button_up = (icon_bar_mouse_l_button_up_fn)0x0065AA9B;
+        fn_icon_bar_mouse_move = (icon_bar_mouse_move_fn)0x0065AFA5;
+        fn_icon_bar_mouse_r_button_down = (icon_bar_mouse_r_button_down_fn)0x0065AE3B;
+        fn_icon_bar_mouse_r_button_up = (icon_bar_mouse_r_button_up_fn)0x0065AE44;
+        fn_icon_bar_tabbed_to = (icon_bar_tabbed_to_fn)0x005720C6;
+        fn_icon_bar_tabbed_from = (icon_bar_tabbed_from_fn)0x005720C6;
+        fn_icon_bar_update_keyboard = (icon_bar_update_keyboard_fn)0x005AD67E;
         vt_eeuic_won_net_games_box = 0x0084A154;
         size_eeuic_won_net_games_box = 0x19C;
         fn_eeuic_won_net_games_box_init = (eeuic_won_net_games_box_init_fn)0x0065B2CE;
@@ -2836,27 +2967,32 @@ internal int spec_ui_forms_check(void) {
     bad += spec_code((uintptr_t)fn_eeuic_select_units_update_keyboard, "EEUICSelectUnits.update_keyboard");
     bad += spec_slot(vt_eeuic_select_units, slot_ui_control_update_keyboard, (uintptr_t)fn_eeuic_select_units_update_keyboard, "EEUICSelectUnits.update_keyboard [slot]");
     bad += spec_vtable(vt_eeuic_unit_icon_bar, ".?AVEEUICUnitIconBar@@", "EEUICUnitIconBar [vtable]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_init, "EEUICUnitIconBar.init");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_copy_data, "EEUICUnitIconBar.copy_data");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_copy_data, (uintptr_t)fn_eeuic_unit_icon_bar_copy_data, "EEUICUnitIconBar.copy_data [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_draw_polygons, "EEUICUnitIconBar.draw_polygons");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_draw_polygons, (uintptr_t)fn_eeuic_unit_icon_bar_draw_polygons, "EEUICUnitIconBar.draw_polygons [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_mouse_l_button_down, "EEUICUnitIconBar.mouse_l_button_down");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_l_button_down, (uintptr_t)fn_eeuic_unit_icon_bar_mouse_l_button_down, "EEUICUnitIconBar.mouse_l_button_down [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_mouse_l_button_up, "EEUICUnitIconBar.mouse_l_button_up");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_l_button_up, (uintptr_t)fn_eeuic_unit_icon_bar_mouse_l_button_up, "EEUICUnitIconBar.mouse_l_button_up [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_mouse_move, "EEUICUnitIconBar.mouse_move");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_move, (uintptr_t)fn_eeuic_unit_icon_bar_mouse_move, "EEUICUnitIconBar.mouse_move [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_mouse_r_button_down, "EEUICUnitIconBar.mouse_r_button_down");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_eeuic_unit_icon_bar_mouse_r_button_down, "EEUICUnitIconBar.mouse_r_button_down [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_mouse_r_button_up, "EEUICUnitIconBar.mouse_r_button_up");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_eeuic_unit_icon_bar_mouse_r_button_up, "EEUICUnitIconBar.mouse_r_button_up [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_tabbed_to, "EEUICUnitIconBar.tabbed_to");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_tabbed_to, (uintptr_t)fn_eeuic_unit_icon_bar_tabbed_to, "EEUICUnitIconBar.tabbed_to [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_tabbed_from, "EEUICUnitIconBar.tabbed_from");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_tabbed_from, (uintptr_t)fn_eeuic_unit_icon_bar_tabbed_from, "EEUICUnitIconBar.tabbed_from [slot]");
-    bad += spec_code((uintptr_t)fn_eeuic_unit_icon_bar_update_keyboard, "EEUICUnitIconBar.update_keyboard");
-    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_update_keyboard, (uintptr_t)fn_eeuic_unit_icon_bar_update_keyboard, "EEUICUnitIconBar.update_keyboard [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_init, "EEUICUnitIconBar.init");
+    bad += spec_code((uintptr_t)fn_icon_bar_refresh, "EEUICUnitIconBar.refresh");
+    bad += spec_code((uintptr_t)fn_icon_bar_unit_at, "EEUICUnitIconBar.unit_at");
+    bad += spec_code((uintptr_t)fn_icon_bar_card_at_mouse, "EEUICUnitIconBar.card_at_mouse");
+    bad += spec_code((uintptr_t)fn_icon_bar_copy_data, "EEUICUnitIconBar.copy_data");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_copy_data, (uintptr_t)fn_icon_bar_copy_data, "EEUICUnitIconBar.copy_data [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_draw_polygons, "EEUICUnitIconBar.draw_polygons");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_draw_polygons, (uintptr_t)fn_icon_bar_draw_polygons, "EEUICUnitIconBar.draw_polygons [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_draw_text, "EEUICUnitIconBar.draw_text");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_draw_text, (uintptr_t)fn_icon_bar_draw_text, "EEUICUnitIconBar.draw_text [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_mouse_l_button_down, "EEUICUnitIconBar.mouse_l_button_down");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_l_button_down, (uintptr_t)fn_icon_bar_mouse_l_button_down, "EEUICUnitIconBar.mouse_l_button_down [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_mouse_l_button_up, "EEUICUnitIconBar.mouse_l_button_up");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_l_button_up, (uintptr_t)fn_icon_bar_mouse_l_button_up, "EEUICUnitIconBar.mouse_l_button_up [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_mouse_move, "EEUICUnitIconBar.mouse_move");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_move, (uintptr_t)fn_icon_bar_mouse_move, "EEUICUnitIconBar.mouse_move [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_mouse_r_button_down, "EEUICUnitIconBar.mouse_r_button_down");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_icon_bar_mouse_r_button_down, "EEUICUnitIconBar.mouse_r_button_down [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_mouse_r_button_up, "EEUICUnitIconBar.mouse_r_button_up");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_icon_bar_mouse_r_button_up, "EEUICUnitIconBar.mouse_r_button_up [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_tabbed_to, "EEUICUnitIconBar.tabbed_to");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_tabbed_to, (uintptr_t)fn_icon_bar_tabbed_to, "EEUICUnitIconBar.tabbed_to [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_tabbed_from, "EEUICUnitIconBar.tabbed_from");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_tabbed_from, (uintptr_t)fn_icon_bar_tabbed_from, "EEUICUnitIconBar.tabbed_from [slot]");
+    bad += spec_code((uintptr_t)fn_icon_bar_update_keyboard, "EEUICUnitIconBar.update_keyboard");
+    bad += spec_slot(vt_eeuic_unit_icon_bar, slot_ui_control_update_keyboard, (uintptr_t)fn_icon_bar_update_keyboard, "EEUICUnitIconBar.update_keyboard [slot]");
     bad += spec_vtable(vt_eeuic_won_net_games_box, ".?AVEEUICWonNetGamesBox@@", "EEUICWonNetGamesBox [vtable]");
     bad += spec_code((uintptr_t)fn_eeuic_won_net_games_box_init, "EEUICWonNetGamesBox.init");
     bad += spec_code((uintptr_t)fn_eeuic_won_net_games_box_copy_data, "EEUICWonNetGamesBox.copy_data");

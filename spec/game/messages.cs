@@ -345,6 +345,18 @@ unsafe struct EEMSelectUnit
     extern void construct(uint32 id);
 }
 
+/// a selection of the units of a list of ids (EEMSelectTheseUnits, kind 0x96, 0x20 bytes): the unit cards' (EEUICUnitIconBar)
+/// control-click makes it of the selected units of the card's type (0x64449D), their shift-drag of the cards dragged
+/// over (0x64480D), and sends it; the sender's selection becomes those units
+[@base(typeof(EEMessage)), c_type("ee_select_these_msg"), size(0x20), vtable((ee)0x0082943C, (aoc)0x0083E18C)]
+unsafe struct EEMSelectTheseUnits
+{
+    /// thiscall(msg, ids): the whole message - EEMessage's fields (kind 0x96), its vtable, the ids copied from the
+    /// vector ids (a runtime-library vector: its first id at +4, the end at +8)
+    [address((ee)0x00644BA5, (aoc)0x0065ADCD)]
+    extern void construct(void* ids);
+}
+
 /// the move message (EEMPathTo)
 [@base(typeof(EEMessage)), c_type("ee_path_msg"), vtable((ee)0x00824D84, (aoc)0x00838D5C)]
 unsafe struct EEMPathTo

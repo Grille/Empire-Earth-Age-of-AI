@@ -141,7 +141,7 @@ internal long __thiscall hook_fc_text_rect(void *ras, void *text, void *rect, vo
     void *bmp = text_bitmap_for(ras, text, surf);
     if (g_textlog > 0 && g_log && text) {
         ee_font *f = text_get_font(text);
-        const char *str = text_get_string(text);
+        const char *str = wstring_text(text_string_at(text));
         uint32_t *c = (uint32_t *)((uint8_t *)text + 0x14);
         int ok = str && mem_readable(str, 1);
         uint32_t h = tl_hash(&f, sizeof f, 2166136261u);

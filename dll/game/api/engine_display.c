@@ -413,6 +413,21 @@ internal inline void transform_apply_vector(const void *t, const float *v, float
 }
 internal inline long double arc_cos(float x) { return (*(arc_cos_fn *)data_engine_display_iat_arc_cos)(x); }
 internal inline void transform_scale(void *t, float x, float y, float z) { (*(transform_scale_fn *)data_engine_display_iat_transform_scale)(t, x, y, z); }
+// a text of the engine in the font (GEText, white, without a background - as the attributes' numbers; NULL without
+// memory) and a number written into it - its extent worked out after, as the attributes' numbers do
+typedef void (__thiscall *text_new_fn)(ee_text *t, ee_font *font);
+typedef void (__thiscall *text_compute_extent_fn)(ee_text *t);
+internal inline ee_text *text_new(ee_font *font) {
+    ee_text *t = (ee_text *)game_new(size_ge_text);
+    if (!t) return NULL;
+    (*(text_new_fn *)data_engine_display_iat_text_new)(t, font);
+    text_set_transparent(t, 1);
+    return t;
+}
+internal inline void text_set_number(ee_text *t, int n) {
+    wstring_format(text_string_at(t), "%d", n);
+    (*(text_compute_extent_fn *)data_engine_display_iat_text_compute_extent)(t);
+}
 internal inline void *gate_class_of(ee_unit_type *t) {
     return rt_dynamic_cast(t, 0, (void *)(uintptr_t)data_engine_display_rtti_unit_class, (void *)(uintptr_t)data_engine_display_rtti_gate_class, 0);
 }

@@ -597,6 +597,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/sound.c"
 #include "engine/stat_graphs.c"
 #include "engine/select.c"
+#include "engine/cards.c"
 #include "engine/shiproute.c"
 #include "engine/turns.c"
 #include "engine/collide.c"
@@ -914,6 +915,7 @@ internal void install(HMODULE self) {
     sound_install();
     stat_graphs_install();
     select_install();
+    cards_install();
     godmode_install();
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     collide_install();

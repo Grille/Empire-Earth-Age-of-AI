@@ -907,6 +907,54 @@ typedef void (__thiscall *select_unit_msg_construct_fn)(ee_select_unit_msg *, ui
 internal select_unit_msg_construct_fn fn_select_unit_msg_construct;
 internal inline void select_unit_msg_construct(ee_select_unit_msg *select_unit_msg, uint32_t id) { fn_select_unit_msg_construct(select_unit_msg, id); }
 
+// class EEMSelectTheseUnits (ee_select_these_msg)
+// a selection of the units of a list of ids (EEMSelectTheseUnits, kind 0x96, 0x20 bytes): the unit cards' (EEUICUnitIconBar)
+// control-click makes it of the selected units of the card's type (0x64449D), their shift-drag of the cards dragged
+// over (0x64480D), and sends it; the sender's selection becomes those units
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t select_these_msg_get_ref_count(const ee_select_these_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void select_these_msg_set_ref_count(ee_select_these_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *select_these_msg_ref_count_at(const ee_select_these_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t select_these_msg_get_kind(const ee_select_these_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void select_these_msg_set_kind(ee_select_these_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *select_these_msg_kind_at(const ee_select_these_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t select_these_msg_get_for_slot(const ee_select_these_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void select_these_msg_set_for_slot(ee_select_these_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *select_these_msg_for_slot_at(const ee_select_these_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t select_these_msg_get_from(const ee_select_these_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void select_these_msg_set_from(ee_select_these_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *select_these_msg_from_at(const ee_select_these_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t select_these_msg_get_header_flags(const ee_select_these_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void select_these_msg_set_header_flags(ee_select_these_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *select_these_msg_header_flags_at(const ee_select_these_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t select_these_msg_get_spare(const ee_select_these_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void select_these_msg_set_spare(ee_select_these_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *select_these_msg_spare_at(const ee_select_these_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t select_these_msg_get_sendable_when_out(const ee_select_these_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void select_these_msg_set_sendable_when_out(ee_select_these_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *select_these_msg_sendable_when_out_at(const ee_select_these_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// thiscall(msg, ids): the whole message - EEMessage's fields (kind 0x96), its vtable, the ids copied from the
+// vector ids (a runtime-library vector: its first id at +4, the end at +8)
+typedef void (__thiscall *select_these_msg_construct_fn)(ee_select_these_msg *, void *);
+internal select_these_msg_construct_fn fn_select_these_msg_construct;
+internal inline void select_these_msg_construct(ee_select_these_msg *select_these_msg, void *ids) { fn_select_these_msg_construct(select_these_msg, ids); }
+
 // class EEMPathTo (ee_path_msg)
 // the move message (EEMPathTo)
 // EEMessage's, the base's
@@ -1423,6 +1471,9 @@ internal int spec_messages_select(int build) {
         size_eem_select_unit = 0x14;
         of_select_unit_msg_id = 0x10;
         fn_select_unit_msg_construct = (select_unit_msg_construct_fn)0x00404C1F;
+        vt_eem_select_these_units = 0x0082943C;
+        size_eem_select_these_units = 0x20;
+        fn_select_these_msg_construct = (select_these_msg_construct_fn)0x00644BA5;
         vt_eem_path_to = 0x00824D84;
         of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
@@ -1560,6 +1611,9 @@ internal int spec_messages_select(int build) {
         size_eem_select_unit = 0x14;
         of_select_unit_msg_id = 0x10;
         fn_select_unit_msg_construct = (select_unit_msg_construct_fn)0x004032FF;
+        vt_eem_select_these_units = 0x0083E18C;
+        size_eem_select_these_units = 0x20;
+        fn_select_these_msg_construct = (select_these_msg_construct_fn)0x0065ADCD;
         vt_eem_path_to = 0x00838D5C;
         of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
@@ -1668,6 +1722,8 @@ internal int spec_messages_check(void) {
     bad += spec_slot(vt_eem_return_to_base, slot_msg_execute, (uintptr_t)fn_rebase_msg_execute, "EEMReturnToBase.execute [slot]");
     bad += spec_vtable(vt_eem_select_unit, ".?AVEEMSelectUnit@@", "EEMSelectUnit [vtable]");
     bad += spec_code((uintptr_t)fn_select_unit_msg_construct, "EEMSelectUnit.construct");
+    bad += spec_vtable(vt_eem_select_these_units, ".?AVEEMSelectTheseUnits@@", "EEMSelectTheseUnits [vtable]");
+    bad += spec_code((uintptr_t)fn_select_these_msg_construct, "EEMSelectTheseUnits.construct");
     bad += spec_vtable(vt_eem_path_to, ".?AVEEMPathTo@@", "EEMPathTo [vtable]");
     bad += spec_code((uintptr_t)fn_path_msg_execute, "EEMPathTo.execute");
     bad += spec_slot(vt_eem_path_to, slot_msg_execute, (uintptr_t)fn_path_msg_execute, "EEMPathTo.execute [slot]");
