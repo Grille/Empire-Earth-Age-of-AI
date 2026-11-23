@@ -1333,10 +1333,20 @@ internal inline ee_ui_form **status_button_form_at(const ee_status_button *o) { 
 internal inline ee_text *status_button_get_queue_text(const ee_status_button *o) { return *(ee_text **)((uint8_t *)o + of_status_button_queue_text); }
 internal inline void status_button_set_queue_text(ee_status_button *o, ee_text *v) { *(ee_text **)((uint8_t *)o + of_status_button_queue_text) = v; }
 internal inline ee_text **status_button_queue_text_at(const ee_status_button *o) { return (ee_text **)((uint8_t *)o + of_status_button_queue_text); }
-// the number of its units queued (copy_data: shown when not 0, "%d")
+// the tech it makes (a unit's: copy_data looks it up in the local player's tech tree, the main group's count
+// 0x65241C adds a building's queued entries of it - EEComplexUnit.queue, producing hold the same ids)
+internal inline int status_button_get_tech(const ee_status_button *o) { return *(int *)((uint8_t *)o + of_status_button_tech); }
+internal inline void status_button_set_tech(ee_status_button *o, int v) { *(int *)((uint8_t *)o + of_status_button_tech) = v; }
+internal inline int *status_button_tech_at(const ee_status_button *o) { return (int *)((uint8_t *)o + of_status_button_tech); }
+// the number of its units queued, the one in the making not counted (the main group's count 0x65241C: the
+// selected building's queue entries of tech; copy_data: shown when not 0, "%d")
 internal inline int status_button_get_queued(const ee_status_button *o) { return *(int *)((uint8_t *)o + of_status_button_queued); }
 internal inline void status_button_set_queued(ee_status_button *o, int v) { *(int *)((uint8_t *)o + of_status_button_queued) = v; }
 internal inline int *status_button_queued_at(const ee_status_button *o) { return (int *)((uint8_t *)o + of_status_button_queued); }
+// no tech: copy_data looks none up and the main group's count passes it by
+internal inline uint8_t status_button_get_no_tech(const ee_status_button *o) { return *(uint8_t *)((uint8_t *)o + of_status_button_no_tech); }
+internal inline void status_button_set_no_tech(ee_status_button *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_status_button_no_tech) = v; }
+internal inline uint8_t *status_button_no_tech_at(const ee_status_button *o) { return (uint8_t *)((uint8_t *)o + of_status_button_no_tech); }
 // queue_text drawn (copy_data sets it with a number, draw_text reads it)
 internal inline uint8_t status_button_get_queue_shown(const ee_status_button *o) { return *(uint8_t *)((uint8_t *)o + of_status_button_queue_shown); }
 internal inline void status_button_set_queue_shown(ee_status_button *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_status_button_queue_shown) = v; }
@@ -2310,7 +2320,9 @@ internal int spec_ui_forms_select(int build) {
         vt_eeuifmg_status_button = 0x00834CF0;
         size_eeuifmg_status_button = 0x14C;
         of_status_button_queue_text = 0x128;
+        of_status_button_tech = 0x12C;
         of_status_button_queued = 0x140;
+        of_status_button_no_tech = 0x148;
         of_status_button_queue_shown = 0x149;
         fn_status_button_init = (status_button_init_fn)0x00656FF9;
         fn_status_button_button_up = (status_button_button_up_fn)0x006573D3;
@@ -2690,7 +2702,9 @@ internal int spec_ui_forms_select(int build) {
         vt_eeuifmg_status_button = 0x0084AD98;
         size_eeuifmg_status_button = 0x14C;
         of_status_button_queue_text = 0x128;
+        of_status_button_tech = 0x12C;
         of_status_button_queued = 0x140;
+        of_status_button_no_tech = 0x148;
         of_status_button_queue_shown = 0x149;
         fn_status_button_init = (status_button_init_fn)0x0066DE97;
         fn_status_button_button_up = (status_button_button_up_fn)0x0066E274;

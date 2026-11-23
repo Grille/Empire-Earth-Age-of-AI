@@ -893,9 +893,19 @@ unsafe struct EEUIFMGStatusButton
     [offset(0x128), found(c)]
     GEText* queue_text;
 
-    /// the number of its units queued (copy_data: shown when not 0, "%d")
+    /// the tech it makes (a unit's: copy_data looks it up in the local player's tech tree, the main group's count
+    /// 0x65241C adds a building's queued entries of it - EEComplexUnit.queue, producing hold the same ids)
+    [offset(0x12C), found(c)]
+    int32 tech;
+
+    /// the number of its units queued, the one in the making not counted (the main group's count 0x65241C: the
+    /// selected building's queue entries of tech; copy_data: shown when not 0, "%d")
     [offset(0x140), found(c)]
     int32 queued;
+
+    /// no tech: copy_data looks none up and the main group's count passes it by
+    [offset(0x148), found(c)]
+    uint8 no_tech;
 
     /// queue_text drawn (copy_data sets it with a number, draw_text reads it)
     [offset(0x149), found(c)]

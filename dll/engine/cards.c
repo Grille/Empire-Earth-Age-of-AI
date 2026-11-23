@@ -25,7 +25,7 @@ internal struct {
     ee_font *font;
     unsigned long font_h;
     ee_text *queue_text;         // the production buttons' numbers (one for all)
-    int queue_shown;
+    int queue_shown;             // the number in it, -1 none yet
     ee_font *queue_font;
     unsigned long queue_font_h;
 } g_cards;
@@ -140,13 +140,26 @@ internal int __thiscall cards_draw_text(ee_icon_bar *bar) {
 // units queued (its queue_text, the game's font and place) in its draw_text; with the setting that draw is left out
 // (queue_shown off for the call) and the number drawn as the cards draw theirs: at the top left, an eighth of a digit
 // inside the frame, its height 0.4 of the button's, on the black drop shadow. One GEText for every button: GDI draws it
-// at once.
+// at once. The game's number leaves out the unit in the making, and showed nothing for it alone: a 0 then (the player,
+// 2026-11-24: "could you also display a 0 for what in production right now?") - a selected building of the local
+// player's making the button's tech.
+internal int cards_making(int tech) {
+    void *grp = cards_group();
+    ee_player *me = game_players()[local_player_index()];
+    for (unsigned i = 0, n = grp ? group_count(grp) : 0; i < n && i < 256; i++) {
+        ee_unit *u = group_get(grp, i);
+        if (u && unit_get_owner(u) == me && unit_get_producing(u) == tech) return 1;
+    }
+    return 0;
+}
 internal int __thiscall cards_queue_text(ee_status_button *b) {
-    int n = status_button_get_queued(b);
-    if (!g_set.queue_numbers || !status_button_get_queue_shown(b) || n <= 0) return status_button_draw_text(b);
+    int n = status_button_get_queued(b), shown = status_button_get_queue_shown(b);
+    if (!g_set.queue_numbers || status_button_get_no_tech(b)) return status_button_draw_text(b);
+    if (n <= 0 && !cards_making(status_button_get_tech(b))) return status_button_draw_text(b);
+    if (n < 0) n = 0;
     status_button_set_queue_shown(b, 0);
     int r = status_button_draw_text(b);
-    status_button_set_queue_shown(b, 1);
+    status_button_set_queue_shown(b, (uint8_t)shown);
     ee_ui_form *form = status_button_get_form(b);
     float left = status_button_get_left(b), top = status_button_get_top(b);
     float w = status_button_get_right(b) - left, h = status_button_get_bottom(b) - top;
@@ -159,9 +172,12 @@ internal int __thiscall cards_queue_text(ee_status_button *b) {
         g_cards.queue_font = f;
         g_cards.queue_font_h = fh;
         if (g_cards.queue_text) text_set_font(g_cards.queue_text, f);
-        g_cards.queue_shown = 0;
+        g_cards.queue_shown = -1;
     }
-    if (!g_cards.queue_text && !(g_cards.queue_text = text_new(g_cards.queue_font))) return r;
+    if (!g_cards.queue_text) {
+        if (!(g_cards.queue_text = text_new(g_cards.queue_font))) return r;
+        g_cards.queue_shown = -1;
+    }
     if (g_cards.queue_shown != n) { text_set_number(g_cards.queue_text, n); g_cards.queue_shown = n; }
     const float rect[4] = { top + h, left, left + w, top };
     cards_number(form, b, g_cards.queue_text, rect, cards_margin(left, w, fh), top + h * 0.06f);
