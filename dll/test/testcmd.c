@@ -155,9 +155,9 @@ internal void cmd_tinfo(char *out, const char *args) {
         args += n;
         ee_unit_type *td = type_data(t);
         if (!td) { REPLY("%d: none\n", t); continue; }
-        REPLY("%d: family %d hp %d attack %d range %.1f can %d\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
+        REPLY("%d: family %d hp %d attack %d range %.1f can %d (%s)\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
               unit_type_get_attack(td), unit_type_get_range(td),
-              can_build(pl, t));
+              can_build(pl, t), unit_type_get_name(td) ? unit_type_get_name(td) : "?");
     }
 }
 

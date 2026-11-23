@@ -317,6 +317,11 @@ static unsafe class game
     [address((ee)0x009418A0, (aoc)0x009636AC)]
     static block types;
 
+    /// the slots of types the game's own walks of it go through (EE 0x4B7... `< 0x300`, AoC 0x4C1... `< 0x367`: the same
+    /// loop; AoC's table ends at 0x964498, the next data) - Art of Conquest has 871, its new types from 768 on
+    [value((ee)0x00000300, (aoc)0x00000367)]
+    static uint32 types_count;
+
     [address((ee)0x009197A0, (aoc)0x0093191C)]
     static block ui_manager;
 

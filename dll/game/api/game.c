@@ -22,6 +22,7 @@ internal inline unsigned game_player_count(void) { return *(unsigned *)data_game
 internal inline unsigned local_player_index(void) { return *(unsigned *)data_game_local_player; }   // the player on this PC
 internal inline uintptr_t local_player_index_at(void) { return data_game_local_player; }       // its address (aim.c's thunk)
 internal inline ee_unit_type **type_table(void) { return (ee_unit_type **)data_game_types; }              // [type] its data (world.c type_data)
+internal inline int type_table_count(void) { return (int)value_game_types_count; }   // its slots: 0x300, AoC 0x367 (world.c G_TYPES_N)
 // the tech data's tables: an epoch's tech lists (0x10 each), the tech effects (0x44 each)
 internal inline ee_epoch_techs *epoch_tech_list(int e) { return (ee_epoch_techs *)((uint8_t *)data_game_epoch_techs + e * 0x10); }
 internal inline ee_effect *tech_effect(int id) { return (ee_effect *)((uint8_t *)data_game_effects + id * 0x44); }

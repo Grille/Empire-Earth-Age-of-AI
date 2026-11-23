@@ -34,7 +34,7 @@ internal struct mt_st {
     unsigned picks, kept, nowait, navy_cut, waited;   // metal_plan, since the last line
     int navy_freed;
     unsigned by_n[MT_NB]; int by_gi[MT_NB];   // its units killed (diplo.c, autotest) by the killer's line: how many, their gold + iron
-    int by_type[768];                         // the same gold + iron by the killer's type
+    int by_type[G_TYPES_N];                         // the same gold + iron by the killer's type
     uint32_t calm_since;            // NAVY: the sea calm since
 } g_mt[16];
 internal void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
@@ -109,7 +109,7 @@ internal void mt_death(ee_unit *dead) {
     mt_cost_add(pl, unit_type_get_id(unit_get_type_data(dead)), 1, c);
     struct mt_st *m = &g_mt[(unsigned)player_get_index(pl) & 15];
     m->by_n[b]++; m->by_gi[b] += c[5] + c[6];
-    if (etd && unit_type_get_id(etd) >= 0 && unit_type_get_id(etd) < 768) m->by_type[unit_type_get_id(etd)] += c[5] + c[6];
+    if (etd && unit_type_get_id(etd) >= 0 && unit_type_get_id(etd) < G_TYPES_N) m->by_type[unit_type_get_id(etd)] += c[5] + c[6];
 }
 // econ.c train_budget: the budget saves for a refused unit
 internal void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->save_refused++; m->save_last = game_time(); if (!m->save_last) m->save_last = 1; }
@@ -158,7 +158,7 @@ internal struct mt_val {
     int n, type[MT_CAND]; float val[MT_CAND];   // trainable land soldiers, their value (per one, before the price)
     int foe;                                    // enemy soldiers in the mix (0: the mirror)
 } g_mv[16];
-internal uint16_t g_mt_own[16][768];   // own land soldiers by type (VALUE's share), with the values
+internal uint16_t g_mt_own[16][G_TYPES_N];   // own land soldiers by type (VALUE's share), with the values
 internal int g_mt_army[16];
 
 internal float mt_dps(ee_unit_type *atd, ee_unit_stats *ast, int api, ee_unit_type *ttd, ee_unit_stats *tst, int tpi) {
@@ -246,7 +246,7 @@ internal float mt_value_of(ee_player *pl, unsigned idx, int t, const int *stock,
     struct mt_val *v = &g_mv[idx];
     for (int i = 0; i < v->n; i++)
         if (v->type[i] == t) {
-            float share = g_mt_army[idx] > 10 && t < 768 ? (float)g_mt_own[idx][t] / (float)g_mt_army[idx] : 0;
+            float share = g_mt_army[idx] > 10 && t < G_TYPES_N ? (float)g_mt_own[idx][t] / (float)g_mt_army[idx] : 0;
             return v->val[i] / (1.0f + share) / mt_price(pl, idx, t, stock, reserve);
         }
     return 0;
@@ -363,7 +363,7 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
     fprintf(g_log, " | killed %d/%d/%d/%d/%d | by", killed[2], killed[3], killed[4], killed[5], killed[6]);
     for (int b = 0; b < MT_NB; b++) if (m->by_n[b]) fprintf(g_log, " %s=%u:%d", k_mb[b], m->by_n[b], m->by_gi[b]);
     fprintf(g_log, " | by type");
-    for (int t = 0; t < 768; t++) if (m->by_type[t] >= 200) fprintf(g_log, " %d:%d", t, m->by_type[t]);
+    for (int t = 0; t < G_TYPES_N; t++) if (m->by_type[t] >= 200) fprintf(g_log, " %d:%d", t, m->by_type[t]);
     fputc('\n', g_log);
     LeaveCriticalSection(&g_lock);
     m->samples = m->saving = m->save_refused = 0;
@@ -391,7 +391,7 @@ internal void mt_tick(ee_player *pl, uint32_t now) {
                 for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
                     if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
                     int t = unit_type_get_id(it.td);
-                    if (t >= 0 && t < 768 && land_soldier(t)) { g_mt_own[idx][t]++; g_mt_army[idx]++; }
+                    if (t >= 0 && t < G_TYPES_N && land_soldier(t)) { g_mt_own[idx][t]++; g_mt_army[idx]++; }
                 }
             }
         }

@@ -1,8 +1,10 @@
-// Unit type (object) data 0x9418A0[type]: 0x300 slots (the game's own loops end at 0x9424A0; type ids 0..723 are
-// used, the slots after them are empty), past the table other data. Every read goes through here: NULL outside
-// the table and for an empty slot.
-#define G_TYPES_N 0x300
-internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < G_TYPES_N ? type_table()[t] : NULL; }
+// Unit type (object) data 0x9418A0[type]: 0x300 slots in the 2017 update (the game's own loops end at 0x9424A0; type
+// ids 0..723 are used, the slots after them are empty), 0x367 in Art of Conquest (its new types from 768 on - the
+// space units among them: until 2026-11-23 the mod read 0x300 there and knew none of them); past the table other data
+// (AoC's ends at 0x964498, a float of the display's). Every read goes through here: NULL outside the build's table
+// (type_table_count) and for an empty slot. G_TYPES_N: the arrays by type, room for the larger of the two.
+#define G_TYPES_N 0x380
+internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < type_table_count() ? type_table()[t] : NULL; }
 // MAY IT BUILD ONE (the player 2026-11-19, a campaign: "the ai places some buildings even if its not allowed to"): the
 // game's own question as the player's build click asks it (player_can_have of the type's tech, as can_build does) but
 // for the cost - a scenario's disabled building, an epoch not reached, no unit of its that builds it, a type's

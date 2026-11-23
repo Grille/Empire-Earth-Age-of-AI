@@ -151,7 +151,7 @@ internal struct ap_st {
     unsigned added[7], fill, bld, mixed;   // since the last # mil line
     int last_type;
 } g_ap[16];
-internal uint8_t g_apo[16][768];   // types owned or wished (ap_owned)
+internal uint8_t g_apo[16][G_TYPES_N];   // types owned or wished (ap_owned)
 internal uint32_t g_apo_t[16];
 internal struct { int id[48], n; } g_apu[16];   // line upgrades scheduled (UPGRADE)
 internal void ap_new_game(void) { memset(g_ap, 0, sizeof g_ap); memset(g_apo_t, 0, sizeof g_apo_t); memset(g_apu, 0, sizeof g_apu); }
@@ -559,7 +559,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
     memset(g_apo[idx], 0, sizeof g_apo[idx]);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         int t = unit_type_get_id(it.td);
-        if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
+        if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && t >= 0 && t < G_TYPES_N) g_apo[idx][t] = 1;
     }
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     for (int i = 0; um && i < 14; i++) {
@@ -570,7 +570,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
             unsigned off = first + k, blk = off >> 8;
             if (mapsz && blk >= mapsz) blk -= mapsz;
             int *e = (int *)((uint8_t *)map[blk] + (off & 255) * 16);
-            if (e && e[0] >= 0 && e[0] < 768 && e[1] > 0) g_apo[idx][e[0]] = 1;
+            if (e && e[0] >= 0 && e[0] < G_TYPES_N && e[1] > 0) g_apo[idx][e[0]] = 1;
         }
     }
 }
@@ -587,7 +587,7 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used
         if (effect_get_kind(ef) != 0x13) continue;
         if (!n++) ap_owned(pl, idx);
         int a = effect_get_type(ef), b = effect_get_new_type(ef);
-        if ((a >= 0 && a < 768 && g_apo[idx][a]) || (b >= 0 && b < 768 && g_apo[idx][b])) *used = 1;
+        if ((a >= 0 && a < G_TYPES_N && g_apo[idx][a]) || (b >= 0 && b < G_TYPES_N && g_apo[idx][b])) *used = 1;
     }
     return n;
 }

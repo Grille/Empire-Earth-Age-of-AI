@@ -170,6 +170,8 @@ internal inline uint8_t *game_improvements_allowed_at(void) { return (uint8_t *)
 internal inline uint8_t *game_tech_setup_flag_at(void) { return (uint8_t *)(uintptr_t)data_game_tech_setup_flag; }
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
+// the slots of types the game's own walks of it go through (EE 0x4B7... `< 0x300`, AoC 0x4C1... `< 0x367`: the same
+// loop; AoC's table ends at 0x964498, the next data) - Art of Conquest has 871, its new types from 768 on
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
 // UIManager::GetFormByID's import slot - thiscall([game.ui_manager], uint32 id): the screen of that id (0x1A the
 // game setup screen, the lobby; 0xC the main menu)
@@ -390,6 +392,7 @@ internal int spec_game_select(int build) {
         data_game_tech_setup_flag = 0x00918E98;
         data_game_teams_locked = 0x00918E9F;
         data_game_types = 0x009418A0;
+        value_game_types_count = 768;
         data_game_ui_manager = 0x009197A0;
         data_game_iat_form_by_id = 0x00823B4C;
         data_game_ui = 0x0091977C;
@@ -523,6 +526,7 @@ internal int spec_game_select(int build) {
         data_game_tech_setup_flag = 0x009318D8;
         data_game_teams_locked = 0x009318DF;
         data_game_types = 0x009636AC;
+        value_game_types_count = 871;
         data_game_ui_manager = 0x0093191C;
         data_game_iat_form_by_id = 0x00837AE0;
         data_game_ui = 0x009318F8;
