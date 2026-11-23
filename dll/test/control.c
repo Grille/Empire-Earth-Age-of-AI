@@ -85,6 +85,7 @@ internal void cmd_basemap(char *out, const char *args);
 internal void cmd_ringmap(char *out, const char *args);   // defence.c: the ground round a base for a picture
 internal void cmd_defence(char *out, const char *args);
 internal void cmd_tinfo(char *out, const char *args);
+internal void cmd_placemap(char *out, const char *args);   // testcmd.c: where a building of a type could stand round a spot
 internal void cmd_navy(char *out, const char *args);
 internal void cmd_chat(char *out, const char *args);
 internal void cmd_say(char *out, const char *args);
@@ -543,6 +544,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "ringmap")) cmd_ringmap(out, args);
     else if (!strcmp(verb, "defence")) cmd_defence(out, args);
     else if (!strcmp(verb, "tinfo")) cmd_tinfo(out, args);
+    else if (!strcmp(verb, "placemap")) cmd_placemap(out, args);
     else if (!strcmp(verb, "navy")) cmd_navy(out, args);
     else if (!strcmp(verb, "chat")) cmd_chat(out, args);
     else if (!strcmp(verb, "say")) cmd_say(out, args);

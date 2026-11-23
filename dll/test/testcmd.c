@@ -155,9 +155,46 @@ internal void cmd_tinfo(char *out, const char *args) {
         args += n;
         ee_unit_type *td = type_data(t);
         if (!td) { REPLY("%d: none\n", t); continue; }
-        REPLY("%d: family %d hp %d attack %d range %.1f can %d resource %d (%s)\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
-              unit_type_get_attack(td), unit_type_get_range(td),
+        REPLY("%d: family %d hp %d attack %d range %.1f size %d can %d resource %d (%s)\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
+              unit_type_get_attack(td), unit_type_get_range(td), unit_type_get_size(td),
               can_build(pl, t), unit_type_get_resource_type(td), unit_type_get_name(td) ? unit_type_get_name(td) : "?");
+    }
+}
+
+// placemap P T x y [r]: the ground r tiles round x,y (at most 30) for a building of type T of player P, a character a
+// tile, x down and y right as basemap: + its footprint could start there (ai/defence.c can_place, the game's test), B a
+// building, r a resource (tree, crystal, mine, bush), u a unit, ~ water or space, . land it can't start on
+internal void cmd_placemap(char *out, const char *args) {
+    int p = 0, t = 0, x = 0, y = 0, r = 12;
+    if (sscanf(args, "%d %d %d %d %d", &p, &t, &x, &y, &r) < 4) { REPLY("error: placemap P T x y [r]\n"); return; }
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    ee_map *map = game_map();
+    if (!pl || !map || !type_data(t)) { REPLY("error: no player, map or type\n"); return; }
+    if (r < 1) r = 1;
+    if (r > 30) r = 30;
+    int n = (int)map_get_size(map);
+    REPLY("P%d type %d (size %d) round %d,%d (x down, y right)\n", p, t, unit_type_get_size(type_data(t)), x, y);
+    for (int ax = x - r; ax <= x + r; ax++) {
+        for (int ay = y - r; ay <= y + r; ay++) {
+            char c = ' ';
+            if (ax >= 0 && ay >= 0 && ax < n && ay < n) {
+                ee_tile *tile = map_get_tiles(map)[ay * n + ax];
+                int kind = tile ? tile_get_kind(tile) : -1;
+                char o = 0;
+                for (void *node = tile ? tile_get_objects(tile) : NULL; node && o != 'B'; node = tilenode_get_next(node)) {
+                    ee_unit *u = tilenode_get_object(node);
+                    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+                    int cls = td ? unit_type_get_class_id(td) : -1;
+                    if (cls == CLS_BUILDING || cls == CLS_FORTRESS || cls == CLS_GATE || cls == CLS_NAVAL_BUILDING || cls == CLS_SPACE_BUILDING) o = 'B';
+                    else if (cls == CLS_RESOURCE) o = 'r';
+                    else if (td && !o && cls != CLS_AMBIENT && cls != CLS_PROJECTILE) o = 'u';
+                }
+                c = can_place(pl, t, iv2(ax, ay)) ? '+' : o ? o : kind == 1 || kind == 12 ? '~' : '.';
+                if (ax == x && ay == y) c = c == '+' ? '@' : '*';
+            }
+            REPLY("%c", c);
+        }
+        REPLY("\n");
     }
 }
 
@@ -565,7 +602,7 @@ internal void cmd_canbuild(char *out, const char *args) {
 // count P: all units and buildings of player P by type (type: count)
 internal void cmd_count(char *out, const char *args) {
     int p = atoi(args);
-    static int n[0x300];
+    static int n[G_TYPES_N];   // every slot of the build's types table (AoC 0x367)
     memset(n, 0, sizeof n);
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
@@ -576,10 +613,10 @@ internal void cmd_count(char *out, const char *args) {
         ee_player *owner = unit_get_owner(u);
         if (!td || !owner || player_get_index(owner) != p) continue;
         int t = unit_type_get_id(td);
-        if (t >= 0 && t < 0x300) n[t]++;
+        if (t >= 0 && t < G_TYPES_N) n[t]++;
     }
     REPLY("P%d:", p);
-    for (int t = 0; t < 0x300; t++) if (n[t]) REPLY(" %d:%d", t, n[t]);
+    for (int t = 0; t < G_TYPES_N; t++) if (n[t]) REPLY(" %d:%d", t, n[t]);
     REPLY("\n");
 }
 
