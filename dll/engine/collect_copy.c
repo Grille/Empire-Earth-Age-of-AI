@@ -75,6 +75,9 @@ typedef struct {
     uint32_t n_dopps, dopps_cap;
     uint32_t *pool;       // the objects' lists: part values, the two lists' pairs, the units inside's bars
     uint32_t n_pool, pool_cap;
+    uint32_t *ne;         // by row of the region: the x (from x0) of its tiles with objects or doppelgangers, rising
+    uint32_t *ne_row;     // ... row r's from ne_row[r] to ne_row[r + 1] (h + 1 of them)
+    uint32_t n_ne, ne_cap, ne_row_cap;
     int ok;               // the arrays held everything
 } uc_copy;
 
@@ -395,6 +398,12 @@ internal void cp_dopp(uc_dopp *o, ee_doppelganger *d, ee_player *pl, ee_map *map
         o->open = !tile_has_tree(uc_tile(map, x - 1, y - 1)) || !tile_has_tree(uc_tile(map, x + 1, y + 1));
 }
 
+// A tile's sight for a player as the game's tests read it (ee_unit_vis explored and seen_by: EE 0x404A8A / 0x44E46E, AoC
+// 0x4042E2 / 0x449B21, the same code): the low byte of the tile's sight count in the player's slot - explored above 0,
+// seen 2 or more -, either with the player's explore all. Read here: zoomed out over a 1024 map the copy called the game
+// two or three times for each of half a million tiles (the player's planets, 2026-11-23)
+internal inline int cp_explored(const ee_tile *t, const ee_player *pl) { return (uint8_t)tile_get_sight(t)[player_get_index(pl)] != 0 || player_get_explore_all(pl); }
+internal inline int cp_seen(const ee_tile *t, const ee_player *pl) { return (uint8_t)tile_get_sight(t)[player_get_index(pl)] >= 2 || player_get_explore_all(pl); }
 // the copy of the region [x0, x1] x [y0, y1] for player pl; 0 when out of memory
 internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int x1, int y1, int made_by) {
     int mode = show_hidden_mode(), free_cam = god_see_all();
@@ -403,26 +412,26 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
     c->at = c->dt = 0;
     c->clock = physics_get_time_ms(game_physics());
     if (g_cp_smooth && made_by == 1) cp_pose_turn(c->objs_cap);
-    c->n_objs = c->n_seq = c->n_dopps = c->n_pool = 0;
+    c->n_objs = c->n_seq = c->n_dopps = c->n_pool = c->n_ne = 0;
     c->ok = 1;
     uint32_t nt = (uint32_t)(c->w * c->h);
     if (c->w <= 0 || c->h <= 0 || !cp_grow((void **)&c->tiles, &c->tiles_cap, nt, sizeof *c->tiles) ||
-        !cp_seen_grow(c->objs_cap > 2048 ? c->objs_cap : 2048))
+        !cp_grow((void **)&c->ne_row, &c->ne_row_cap, (uint32_t)c->h + 1, 4) || !cp_seen_grow(c->objs_cap > 2048 ? c->objs_cap : 2048))
         return c->ok = 0;
     if (++g_cp_gen == 0) { memset(g_cp_seen, 0, (size_t)g_cp_seen_cap * sizeof *g_cp_seen); g_cp_gen = 1; }
     ee_player *me = game_players()[local_player_index()];
-    for (int y = y0; y <= y1 && c->ok; y++)
+    for (int y = y0; y <= y1 && c->ok; y++) {
+        c->ne_row[y - y0] = c->n_ne;
         for (int x = x0; x <= x1 && c->ok; x++) {
             uc_ctile *ct = &c->tiles[(uint32_t)((y - y0) * c->w + (x - x0))];
             ee_tile *t = uc_tile(map, x, y);
-            ee_unit_vis *v = (ee_unit_vis *)t;
             memset(ct, 0, sizeof *ct);
             ct->t = t;
             ct->obj_at = c->n_seq, ct->dopp_at = c->n_dopps;
             if (!t) continue;
-            ct->explored = unit_vis_explored(v, pl) != 0;
-            ct->seen = unit_vis_seen_by(v, pl) != 0;
-            ct->seen_me = pl == me ? ct->seen : unit_vis_seen_by(v, me) != 0;
+            ct->explored = (uint8_t)cp_explored(t, pl);
+            ct->seen = (uint8_t)cp_seen(t, pl);
+            ct->seen_me = pl == me ? ct->seen : (uint8_t)cp_seen(t, me);
             if (ct->explored || free_cam)
                 for (void *node = tile_get_objects(t); node && c->ok; node = tile_node_get_next(node)) {
                     // an object made of parts (a ship and its sails ...): from its first part on
@@ -445,16 +454,35 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
                         o = unit_get_physics(o) ? unit_get_chained(unit_get_physics(o)) : NULL;
                     } while (o);
                 }
-            if (ct->seen || free_cam) continue;
-            for (uint32_t i = 0; i < unit_vis_doppelganger_count(v) && c->ok; i++) {
-                ee_doppelganger *d = tile_get_doppelgangers(t)[i];
-                if (doppelganger_get_player(d) != pl) continue;
-                if (!cp_grow((void **)&c->dopps, &c->dopps_cap, c->n_dopps + 1, sizeof *c->dopps)) { c->ok = 0; break; }
-                cp_dopp(&c->dopps[c->n_dopps++], d, pl, map, x, y);
-                ct->n_dopp++;
+            if (!(ct->seen || free_cam)) {
+                // (GetNumDoppelgangers, 0x404C70 / AoC 0x40431C: none without the vector, else its length)
+                ee_doppelganger **ds = tile_get_doppelgangers(t);
+                uint32_t nd = ds ? (uint32_t)(tile_get_doppelgangers_end(t) - ds) : 0;
+                for (uint32_t i = 0; i < nd && c->ok; i++) {
+                    ee_doppelganger *d = ds[i];
+                    if (doppelganger_get_player(d) != pl) continue;
+                    if (!cp_grow((void **)&c->dopps, &c->dopps_cap, c->n_dopps + 1, sizeof *c->dopps)) { c->ok = 0; break; }
+                    cp_dopp(&c->dopps[c->n_dopps++], d, pl, map, x, y);
+                    ct->n_dopp++;
+                }
+            }
+            if ((ct->n_obj || ct->n_dopp) && c->ok) {
+                if (!cp_grow((void **)&c->ne, &c->ne_cap, c->n_ne + 1, 4)) { c->ok = 0; break; }
+                c->ne[c->n_ne++] = (uint32_t)(x - x0);
             }
         }
+    }
+    if (c->ok) c->ne_row[c->h] = c->n_ne;
     return c->ok;
+}
+// the first of row r's tiles with something on them at x0 or after (from the region's x0), by halves; ne_row[r + 1]: none
+internal uint32_t cp_ne_from(const uc_copy *c, int r, uint32_t x0) {
+    uint32_t lo = c->ne_row[r], hi = c->ne_row[r + 1];
+    while (lo < hi) {
+        uint32_t m = lo + (hi - lo) / 2;
+        if (c->ne[m] < x0) lo = m + 1; else hi = m;
+    }
+    return lo;
 }
 
 // THE THREE COPIES: the newest (g_cp_new), the one the frame reads (g_cp_read) and one for the next - made by the

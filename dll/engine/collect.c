@@ -1633,7 +1633,12 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
         if (y < c->y0 || y >= c->y0 + c->h) continue;   // (a frame during a step: its rows clipped to the copy, above)
         if (x0 < c->x0) x0 = c->x0;
         if (x1 > c->x0 + c->w - 1) x1 = c->x0 + c->w - 1;
-        for (long x = x0; x <= x1; x++) {
+        if (x0 > x1) continue;
+        // only the row's tiles with objects or doppelgangers (the copy's list): an empty tile adds nothing, and zoomed out
+        // over a 1024 map the walk went over half a million of them (the player's planets, 2026-11-23)
+        int cr = (int)(y - c->y0);
+        for (uint32_t q = cp_ne_from(c, cr, (uint32_t)(x0 - c->x0)), qe = c->ne_row[cr + 1]; q < qe && (long)c->ne[q] <= x1 - c->x0; q++) {
+            long x = c->x0 + (long)c->ne[q];
             uc_ctile *ct = &c->tiles[(uint32_t)((y - c->y0) * c->w + (x - c->x0))];
             if (!ct->t || (!ct->explored && !free_cam)) continue;
             for (uint32_t k = 0; k < ct->n_obj; k++) {
