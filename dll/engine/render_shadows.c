@@ -77,6 +77,7 @@ internal struct {
     float *bmax;
     float glow;              // the map's lowest ground (-50 before a map's is known): no caster below it
     int bw;
+    uint32_t bgen;           // counts bmax's changes (shr_hook_rows' range tables)
     int off_frame, last_off; // the casting draws wholly off the screen (the frame's so far, the last map's)
     // the sun the map is drawn from: the light's, never lower than sun_low degrees over the horizon (the day's cycle's
     // evening: shadows of many tiles, the player's screenshot of 2026-11-05); sun_lit its true height (the shadows' colour)
@@ -499,6 +500,7 @@ internal void shadow_hills(void) {
                 g_sh.bmax[b] = fmaxf(g_sh.bmax[b], h);
                 g_sh.bmax[bw * bw + b] = fminf(g_sh.bmax[bw * bw + b], h);
             }
+        g_sh.bgen++;
         if (glow < 1e29f) g_sh.glow = glow;
         for (int j = 0; j < n; j++)
             for (int i = 0; i < n; i++) {
@@ -569,6 +571,7 @@ internal void shadow_hills_patch(const ee_map *map, int x0, int y0, int x1, int 
             g_sh.bmax[b] = fmaxf(g_sh.bmax[b], h);
             g_sh.bmax[bw * bw + b] = fminf(g_sh.bmax[bw * bw + b], h);
         }
+    g_sh.bgen++;
     for (int ty = 0; ty < ch - 1; ty++)
         for (int tx = 0; tx < cw - 1; tx++) {
             const float *k = corner + ty * cw + tx;
@@ -946,6 +949,46 @@ internal void shr_add(ee_tile **tiles, unsigned w, int y, int a, int b) {
     }
 }
 
+// The ground's highest and lowest over a run of blocks in a block row, at once: sparse tables of bmax's two halves (level
+// j the extreme of 2^j blocks from each), made anew when bmax changes (g_sh.bgen). Zoomed out over a 1024 map the reach's
+// search below took each row's blocks for every half tile of it - hundreds of rows, 48 steps, 60 blocks: 8 % of the render
+// thread (the player's planets, 2026-11-23). The extreme of a set is the same however it is gathered.
+internal struct { float *t; int bw, levels, fail; uint32_t gen; const float *src; } g_shrq;
+internal int shrq_ready(void) {
+    int bw = g_sh.bw;
+    if (g_shrq.t && g_shrq.bw == bw && g_shrq.gen == g_sh.bgen && g_shrq.src == g_sh.bmax) return 1;
+    if (g_shrq.fail || bw <= 0) return 0;
+    int levels = 1;
+    while ((1 << levels) <= bw) levels++;
+    if (!g_shrq.t || g_shrq.bw != bw) {
+        free(g_shrq.t);
+        g_shrq.t = malloc((size_t)2 * levels * bw * bw * sizeof(float));
+        if (!g_shrq.t) { g_shrq.fail = 1; return 0; }
+    }
+    g_shrq.bw = bw, g_shrq.levels = levels, g_shrq.gen = g_sh.bgen, g_shrq.src = g_sh.bmax;
+    for (int m = 0; m < 2; m++) {   // m 0 the highest, 1 the lowest
+        float *t = g_shrq.t + (size_t)m * levels * bw * bw;
+        memcpy(t, g_sh.bmax + (size_t)m * bw * bw, (size_t)bw * bw * sizeof(float));
+        for (int j = 1; j < levels; j++)
+            for (int by = 0; by < bw; by++) {
+                const float *a = t + ((size_t)(j - 1) * bw + by) * bw;
+                float *o = t + ((size_t)j * bw + by) * bw;
+                for (int x = 0; x + (1 << j) <= bw; x++) o[x] = m ? fminf(a[x], a[x + (1 << (j - 1))]) : fmaxf(a[x], a[x + (1 << (j - 1))]);
+            }
+    }
+    return 1;
+}
+// the highest (m 0) or lowest (1) of block row by's blocks lo .. hi (within the row, lo <= hi)
+internal float shrq(int m, int by, int lo, int hi) {
+    int bw = g_shrq.bw, j = 31 - __builtin_clz((unsigned)(hi - lo + 1));
+    const float *t = g_shrq.t + (size_t)m * g_shrq.levels * bw * bw + ((size_t)j * bw + by) * bw;
+    float a = t[lo], b = t[hi - (1 << j) + 1];
+    return m ? fminf(a, b) : fmaxf(a, b);
+}
+// The rows asked again for the same view (the collection and the passes ask more than once a frame, a paused or still
+// camera every frame): the last answer, as long as what it was made of is the same - the game's rows, the sun, the
+// tallest caster, the ground's blocks
+internal struct { int ok, n, own; unsigned long rows; ee_map *map; LONG starts; float sun[3], tall, screen_low, rise, reach; uint32_t bgen; } g_shrm;
 internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     unsigned long n = vr_rows(mesh);
     g_shr.n = g_shr.own = 0;
@@ -954,7 +997,22 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     const float *f = g_sh.sun;
     float h = sqrtf(f[0] * f[0] + f[1] * f[1]);
     unsigned w = map ? map_get_size(map) : 0;
-    if (!g_shr.on || g_shr.off || !g_sh.on || !draw_list_moved() || !w || w > SHR_MAP || n > SHR_ROWS / 4 || h < 0.01f || f[2] > -0.01f) return n;
+    if (!g_shr.on || g_shr.off || !g_sh.on || !draw_list_moved() || !w || w > SHR_MAP || n > SHR_ROWS / 4 || h < 0.01f || f[2] > -0.01f) {
+        g_shrm.ok = 0;
+        return n;
+    }
+    int same = g_shrm.ok && g_shrm.rows == n && g_shrm.map == map && g_shrm.starts == g_game_starts && g_shrm.bgen == g_sh.bgen && g_shrm.tall == g_sh.tall
+               && g_shrm.sun[0] == f[0] && g_shrm.sun[1] == f[1] && g_shrm.sun[2] == f[2];
+    for (unsigned long i = 0; i < n && same; i++) {
+        long y, x0, x1;
+        vr_row(mesh, i, &y, &x0, &x1);
+        same = g_shr.y[i] == y && g_shr.x0[i] == x0 && g_shr.x1[i] == x1;
+    }
+    if (same) {
+        g_shr.n = g_shrm.n, g_shr.own = g_shrm.own;
+        g_sh.screen_low = g_shrm.screen_low, g_shr.rise = g_shrm.rise, g_shr.reach = g_shrm.reach;
+        return (unsigned long)g_shr.n;
+    }
     ee_tile **tiles = map_get_tiles(map);
     for (unsigned y = 0; y < w; y++) { g_shr.lo[y] = g_shr.olo[y] = INT_MAX; g_shr.hi[y] = g_shr.ohi[y] = INT_MIN; }
     // the game's rows, as it would have had them
@@ -973,12 +1031,19 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     float slope = -f[2] / h, dx = -f[0] / h, dy = -f[1] / h, reach = fminf(g_sh.tall / slope, SHR_REACH);
     g_shr.rise = 0;
     if (g_sh.bmax && g_sh.hmap == map && g_sh.bw == ((int)w + SH_BLOCK - 1) / SH_BLOCK) {
-        int bw = g_sh.bw;
+        int bw = g_sh.bw, q = shrq_ready();
         const float *bmin = g_sh.bmax + bw * bw;
         float low = 1e30f;
         for (unsigned long i = 0; i < n; i++) {
             int by = (int)g_shr.y[i] / SH_BLOCK;
             if (by < 0 || by >= bw) continue;
+            if (q) {
+                int lo = (int)g_shr.x0[i] / SH_BLOCK, hi = (int)g_shr.x1[i] / SH_BLOCK;
+                if (lo < 0) lo = 0;
+                if (hi > bw - 1) hi = bw - 1;
+                if (lo <= hi) low = fminf(low, shrq(1, by, lo, hi));
+                continue;
+            }
             for (int bx = (int)g_shr.x0[i] / SH_BLOCK; bx <= (int)g_shr.x1[i] / SH_BLOCK && bx < bw; bx++)
                 if (bx >= 0) low = fminf(low, bmin[by * bw + bx]);
         }
@@ -990,6 +1055,11 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
                 int by = (int)floorf((float)g_shr.y[i] + dy * k) / SH_BLOCK;
                 if (by < 0 || by >= bw) continue;
                 int b0 = (int)floorf((float)g_shr.x0[i] + dx * k) / SH_BLOCK, b1 = (int)ceilf((float)g_shr.x1[i] + dx * k) / SH_BLOCK;
+                if (q) {
+                    int lo = b0 < 0 ? 0 : b0, hi = b1 < bw - 1 ? b1 : bw - 1;
+                    if (lo <= hi) high = fmaxf(high, shrq(0, by, lo, hi));
+                    continue;
+                }
                 for (int bx = b0 < 0 ? 0 : b0; bx <= b1 && bx < bw; bx++) high = fmaxf(high, g_sh.bmax[by * bw + bx]);
             }
             if (high + g_sh.tall - low >= (k - 1) * slope) { reach = k; g_shr.rise = fmaxf(g_shr.rise, high - low); }
@@ -1018,6 +1088,9 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     g_shr.reach = reach;
     g_shr.last_own = g_shr.own;
     g_shr.last_extra = g_shr.n - g_shr.own;
+    g_shrm.ok = 1, g_shrm.n = g_shr.n, g_shrm.own = g_shr.own, g_shrm.rows = n, g_shrm.map = map, g_shrm.starts = g_game_starts, g_shrm.bgen = g_sh.bgen;
+    g_shrm.tall = g_sh.tall, g_shrm.sun[0] = f[0], g_shrm.sun[1] = f[1], g_shrm.sun[2] = f[2];
+    g_shrm.screen_low = g_sh.screen_low, g_shrm.rise = g_shr.rise, g_shrm.reach = g_shr.reach;
     return (unsigned long)g_shr.n;
 }
 internal void __thiscall shr_hook_row(const void *mesh, unsigned long i, long *y, long *x0, long *x1) {
