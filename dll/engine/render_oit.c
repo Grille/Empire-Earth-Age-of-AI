@@ -113,6 +113,9 @@ internal int oit_scene(const rf_cmd *c, const rf_cmd *f) {   // (the rectangle: 
         && c->vport.Width == f->vport.Width && c->vport.Height == f->vport.Height;
 }
 internal void oit_pass(ID3D11DeviceContext *x, int last, const rf_cmd *f, rf_cmd *b, int *first) {
+    int any = 0;   // (the soft edges' place comes in every frame with units: no sums cleared and laid over for nothing)
+    for (int j = 0; j <= last && !any; j++) any = g_rf.cmd[j].oit;
+    if (!any) return;
     int ok = f && f->dsv && f->rtv && oit_ready(f->dsv);
     rf_edges_part(x, RF_PART_M_SEE);
     for (int j = 0; j <= last; j++) {
