@@ -375,6 +375,7 @@ internal int unit_types_load(void);   // unitnames.c
 internal void crash_box_again(void);   // engine/crash_box.c
 internal void day_night_new_game(int mode);   // engine/day_night.c
 internal void game_ai_new_game(int mode, int loading);   // ai/econ.c: the game's computer player in a scenario
+internal void civ_powers_new_game(int mode, int loading);   // engine/civ_powers.c: AoC's civilization powers in a skirmish
 internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, void *p2) {
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
@@ -484,9 +485,11 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     defence_new_game();
     counter_fire_new_game();
     sites_new_game();
+    civ_powers_new_game(mode, 1);   // civ_powers.c: the same - a saved game's from its file
     game_ai_new_game(mode, 1);   // econ.c: the game's computer player in a scenario (game_ai_scenarios) - a save's from its file:
     if (mode == 2) { persist_load(name); takeover_loaded(); }   // a saved game: the mod's state from its .ageofai file
     game_ai_new_game(mode, 0);
+    civ_powers_new_game(mode, 0);
     char r = game_state_start(state, setup, p2);
     day_night_new_game(setup_get_mode(setup));   // a random map's light at its first step (a test's random map: mode 0 now)
     // counted again once the new world is there: the render thread can draw the old one between the load's steps and
@@ -576,6 +579,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/spoils.c"
 #include "test/takeover.c"   // `handover`: the human player's empire to a new computer player
 #include "ai/ai_overlay.c"   // the AI's tactical map (the overlay's layer "ai")
+#include "engine/civ_powers.c"   // AoC's civilization powers off in skirmishes ([general] skirmish_civ_powers) - its flag is saved
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"
@@ -694,6 +698,7 @@ internal int cp_update_own(ee_player *pl, uint32_t now) {
 // is reached (the player 2026-11-20: "exploring is very slow, with much idle time")
 internal void ai_step_end(void) {
     uint32_t now = game_time();
+    civ_powers_step();   // engine/civ_powers.c: the powers out of the players' civilizations, once they are there
     for (unsigned i = 1; i < game_player_count() && i < 16; i++) {
         ee_player *pl = game_players()[i];
         if (!pl || is_out(pl) || GAME_AI(i)) continue;
@@ -928,6 +933,7 @@ internal void install(HMODULE self) {
     queue_refund_install();
     lob_install();
     data_order_install();
+    civ_powers_install();
     g_step_end_also = ai_step_end;   // before walls_install: it hooks the step's end for it too
     walls_install();
     editor_search_install();

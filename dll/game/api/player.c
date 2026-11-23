@@ -112,6 +112,25 @@ internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
 // a kill counted in the statistics (diplo.c - a thunk)
 internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(data_player_call_kill_stat, (uintptr_t)fn_player_stats_add, (void *)thunk); }
+// ART OF CONQUEST'S CIVILIZATION POWERS (engine/civ_powers.c): has_civ_power and apply_civ_attribute sent to the hooks
+// at their starts (push ebp; mov ebp, esp; push ecx; mov eax, [ebp + 8] - and sub esp, 0xC), the originals through
+// *has_orig / *apply_orig. 0: a build without them, or code not as expected
+internal inline int patch_civ_powers(has_civ_power_fn has, has_civ_power_fn *has_orig, apply_civ_attribute_fn apply, apply_civ_attribute_fn *apply_orig) {
+    static const uint8_t ph[7] = { 0x55, 0x8B, 0xEC, 0x51, 0x8B, 0x45, 0x08 }, pa[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C };
+    void *oh = NULL, *oa = NULL;
+    if (value_player_of_player_civ_attributes == NA || !fn_has_civ_power || !fn_apply_civ_attribute) return 0;
+    if (memcmp((const void *)fn_has_civ_power, ph, sizeof ph) || memcmp((const void *)fn_apply_civ_attribute, pa, sizeof pa)) return 0;
+    if (!patch_entry((uintptr_t)fn_has_civ_power, ph, 7, (void *)has, &oh)) return 0;
+    *has_orig = (has_civ_power_fn)oh;
+    if (!patch_entry((uintptr_t)fn_apply_civ_attribute, pa, 6, (void *)apply, &oa)) return 0;
+    *apply_orig = (apply_civ_attribute_fn)oa;
+    return 1;
+}
+// the player's civilization's attributes, (level << 6) | id: [0] the first, [1] past the last (a vector's); NULL in a
+// build without them
+internal inline uint16_t **player_civ_attributes(ee_player *pl) {
+    return value_player_of_player_civ_attributes == NA ? NULL : (uint16_t **)((uint8_t *)pl + value_player_of_player_civ_attributes + 4);
+}
 // the memory of a computer player (EEComputerPlayer's size), for player_construct (test/takeover.c)
 internal inline ee_player *computer_player_alloc(void) { return (ee_player *)game_new(size_ee_computer_player); }
 // the computer players' turns made anew from the players (after a player is added: test/takeover.c)

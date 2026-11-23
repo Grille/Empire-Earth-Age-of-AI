@@ -29,6 +29,7 @@ internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_no_citizens_since), B(g_bud), B(g_talk_last), B(g_talk_any), B(g_offer_ignored), B(g_lord_since),
     B(g_kills), B(g_kills_min), B(g_kills_min_t), B(g_attack_sent), B(g_hist), B(g_offer_vs), B(g_hlog), B(g_hum),
     B(g_scen_game),   // econ.c: a scenario's game (game_ai_scenarios) - the save's own flags don't tell
+    B(g_cp_off),   // engine/civ_powers.c: a game without AoC's civilization powers (skirmish_civ_powers)
     B(g_nv_acc),   // navy.c: the navy account (the map kind is found again)
     B(g_intel),   // intel.c: what each AI remembers (honest_vision) - unit pointers dropped on load, buildings matched again
     B(g_armies),  // armies.c: the force - its members and whether it is out (the game saves only their ai_held); pointers found again by id

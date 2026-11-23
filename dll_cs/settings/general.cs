@@ -38,6 +38,13 @@ class general
         /// same setting: a PC with a lower one starts the game at the default of 50
         [range(0, 100000), game("the population limit's most", "1200", 1200)]
         int population_limit_max = 4000;
+        /// Civilization powers in skirmishes (The Art of Conquest): there each civilization has a power of its own on
+        /// top of its bonuses - Flaming Arrows, Slavery, Crusaders, Cloaking ... (a special unit or building, or an
+        /// effect), a custom civilization the one it picked. 0 = random-map games are played without them, every
+        /// civilization with its bonuses alone; scenarios and campaigns keep theirs, a saved game what it began with.
+        /// In multiplayer every player needs the same setting. 1 = on (original)
+        [title("Civilization powers in skirmishes"), target(aoc)]
+        bool skirmish_civ_powers = true;
     }
 
     class Combat

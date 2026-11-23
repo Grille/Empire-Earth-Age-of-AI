@@ -1294,9 +1294,27 @@ internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uin
 // EEComputerPlayer's vtable: player_pay (econ.c's hook; AoC as before)
 // EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; highest_human_epoch's test)
 // EEPlayer: int thiscall(player, 0), the unit limit (game_limit)
+// AoC's: the player's civilization's attributes - an object whose vector of shorts, (level << 6) | id, begins at
+// its +4 and ends at +8: ids 1-37 the civilization bonuses, 38-60 the civilization powers (db\dbcivpowers.dat:
+// Flaming Arrows 38 ... Just In Time Manufacturing 60; has_civ_power reads them, apply_civ_attribute applies one).
+// EEPlayer::vf8 0x5690CA (lea ecx, [esi + 0x468]; the game's start applies them all, 0x52C916); a civilization
+// file's load 0x6806E7 buys them one by one (0x52C847: pushed here, then applied)
 
 // static class player_functions
 // the game's functions player.c wraps, by the names the C side gives them
+// AoC's: thiscall char(civ_powers 0x92A310, player, power) - the player's civilization has that power (38-60):
+// one of its attributes (of_player_civ_attributes) has that id; asked at some 45 places in the game (Slavery, Crusaders,
+// Adaptation's steal on a conversion ...) - the AoC decompilation's FUN_00683248
+typedef char (__thiscall *has_civ_power_fn)(void *, void *, int);
+internal has_civ_power_fn fn_has_civ_power;
+internal inline char has_civ_power(void *powers, void *player, int power) { return fn_has_civ_power(powers, player, power); }
+// AoC's: thiscall char(0x92F660's table, attribute, player id) - one attribute ((level << 6) | id) applied to the
+// player's unit types; a civilization power's (38-60, 0x681ED3 -> 0x6832A3) grants its tech (dbcivpowers +0x74:
+// Crusaders 1049 ...) and does its own; 1 applied. Every way an attribute takes effect goes through it: the
+// game's start (0x52C916), a civilization file's load (0x52C847), Adaptation's steal (0x64E9BB)
+typedef char (__thiscall *apply_civ_attribute_fn)(void *, int, int);
+internal apply_civ_attribute_fn fn_apply_civ_attribute;
+internal inline char apply_civ_attribute(void *table, int attribute, int player_id) { return fn_apply_civ_attribute(table, attribute, player_id); }
 // thiscall([player.ai_turns]): its list made anew from the players with a computer part (+0x9B4), the time shared
 // among them - the world's setup 0x52EA9A after the players are made
 typedef void (__thiscall *ai_turns_rebuild_fn)(void *);
@@ -1658,6 +1676,9 @@ internal int spec_player_select(int build) {
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
+        value_player_of_player_civ_attributes = NA;
+        fn_has_civ_power = (has_civ_power_fn)0;
+        fn_apply_civ_attribute = (apply_civ_attribute_fn)0;
         fn_ai_turns_rebuild = (ai_turns_rebuild_fn)0x0042F30A;
         fn_dropoff_check = (dropoff_check_fn)0x0048B367;
         call_dropoff_check = 0x0060FE16;
@@ -1671,7 +1692,7 @@ internal int spec_player_select(int build) {
         fn_play_local = (play_local_fn)0x0053BB1D;
         calls_selection_sound[0] = 0x00554924;
         calls_selection_sound[1] = 0x005546E7;
-        return 2;
+        return 5;
     case 1:   // aoc
         of_player_list_begin = 0x18;
         of_player_list_end = 0x1C;
@@ -1986,6 +2007,9 @@ internal int spec_player_select(int build) {
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
+        value_player_of_player_civ_attributes = 1128;
+        fn_has_civ_power = (has_civ_power_fn)0x00683248;
+        fn_apply_civ_attribute = (apply_civ_attribute_fn)0x00681E4D;
         fn_ai_turns_rebuild = (ai_turns_rebuild_fn)0x0042CD0E;
         fn_dropoff_check = (dropoff_check_fn)0x0048FD38;
         call_dropoff_check = 0x00622667;
@@ -2004,7 +2028,7 @@ internal int spec_player_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "EEComputerPlayer.space_docks_max EEComputerPlayer.space_docks_units_each", "EEPlayer.refund_tech" };
+internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "EEComputerPlayer.space_docks_max EEComputerPlayer.space_docks_units_each player.of_player_civ_attributes player_functions.has_civ_power player_functions.apply_civ_attribute", "EEPlayer.refund_tech" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_player_check(void) {
     int bad = 0;
@@ -2062,6 +2086,8 @@ internal int spec_player_check(void) {
     bad += spec_data(data_player_ai_turns, "player.ai_turns");
     bad += spec_code(data_player_panel_is_human_ret, "player.panel_is_human_ret");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
+    bad += spec_code((uintptr_t)fn_has_civ_power, "player_functions.has_civ_power");
+    bad += spec_code((uintptr_t)fn_apply_civ_attribute, "player_functions.apply_civ_attribute");
     bad += spec_code((uintptr_t)fn_ai_turns_rebuild, "player_functions.ai_turns_rebuild");
     bad += spec_code((uintptr_t)fn_dropoff_check, "player_functions.dropoff_check");
     bad += spec_call(call_dropoff_check, (uintptr_t)fn_dropoff_check, "player_functions.dropoff_check [call_site dropoff_check]");

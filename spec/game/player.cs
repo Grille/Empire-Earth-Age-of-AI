@@ -1318,12 +1318,33 @@ static unsafe class player
     [value(31)]
     static uint32 slot_unit_limit;
 
+    /// AoC's: the player's civilization's attributes - an object whose vector of shorts, (level << 6) | id, begins at
+    /// its +4 and ends at +8: ids 1-37 the civilization bonuses, 38-60 the civilization powers (db\dbcivpowers.dat:
+    /// Flaming Arrows 38 ... Just In Time Manufacturing 60; has_civ_power reads them, apply_civ_attribute applies one).
+    /// EEPlayer::vf8 0x5690CA (lea ecx, [esi + 0x468]; the game's start applies them all, 0x52C916); a civilization
+    /// file's load 0x6806E7 buys them one by one (0x52C847: pushed here, then applied)
+    [value((ee)none, (aoc)0x468)]
+    static uint32 of_player_civ_attributes;
+
 }
 
 /// the game's functions player.c wraps, by the names the C side gives them
 [c_prefix("")]
 static unsafe class player_functions
 {
+    /// AoC's: thiscall char(civ_powers 0x92A310, player, power) - the player's civilization has that power (38-60):
+    /// one of its attributes (of_player_civ_attributes) has that id; asked at some 45 places in the game (Slavery, Crusaders,
+    /// Adaptation's steal on a conversion ...) - the AoC decompilation's FUN_00683248
+    [address((ee)none, (aoc)0x00683248), thiscall]
+    static extern char8 has_civ_power(void* powers, void* player, int32 power);
+
+    /// AoC's: thiscall char(0x92F660's table, attribute, player id) - one attribute ((level << 6) | id) applied to the
+    /// player's unit types; a civilization power's (38-60, 0x681ED3 -> 0x6832A3) grants its tech (dbcivpowers +0x74:
+    /// Crusaders 1049 ...) and does its own; 1 applied. Every way an attribute takes effect goes through it: the
+    /// game's start (0x52C916), a civilization file's load (0x52C847), Adaptation's steal (0x64E9BB)
+    [address((ee)none, (aoc)0x00681E4D), thiscall]
+    static extern char8 apply_civ_attribute(void* table, int32 attribute, int32 player_id);
+
     /// thiscall([player.ai_turns]): its list made anew from the players with a computer part (+0x9B4), the time shared
     /// among them - the world's setup 0x52EA9A after the players are made
     [address((ee)0x0042F30A, (aoc)0x0042CD0E), thiscall]

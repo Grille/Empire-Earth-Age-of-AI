@@ -1453,6 +1453,24 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
 - Not looked at: the editor's space painting (only its effect, SetIsSpace and ComputeShorelines, is above), what
   places space on a random map (the Planets scripts' kWaterBorder), units and movement over space tiles.
 
+### Civilization powers (AoC; 2026-11-23)
+
+- **What they are**: db\dbcivpowers.dat, 23 records of 0x98 bytes - a name (100 bytes), then ints: an index (1-26),
+  the power's id (+0x68: 38-60, Flaming Arrows ... Just In Time Manufacturing), a float (its strength: 0.25, 0.1 ...),
+  a type, the tech it grants (+0x74: Crusaders 1049, Emissaries 1041 ...; -1 none), ... a chance (+0x7C: Flaming
+  Arrows' 50 %), an effect (+0x94). EECivPowersManager (0x92A310) is only the table (0x683124 reads it; by id
+  0x6831D0, its record 0x683235).
+- **How a civilization has one**: a civilization is a list of attributes, shorts (level << 6) | id (0x681DC7 splits
+  them) - ids 1-37 the 2017 update's bonuses, 38-60 the powers. The player's copy: player + 0x468, a vector at +4 / +8
+  (spec player.of_player_civ_attributes). dbpremadecivs.dat names the 23 premade civilizations; a custom one picks.
+- **How it takes effect**: applied - 0x681E4D (spec apply_civ_attribute: one attribute to the player's unit types;
+  a power's 0x681ED3 -> 0x6832A3 grants its tech, and does its own for some: 0x2C, 0x26, 0x27, 0x28, 0x29, 0x2F,
+  0x31, 0x32, 0x3A) from a civilization file's load (0x6806E7 -> 0x52C847 each), the start's pass (EEPlayer::vf8
+  0x5690CA -> 0x52C916), a re-application (0x569990 -> 0x52C898) and Adaptation's steal on a conversion (0x64E7DA);
+  and asked - 0x683248 (spec has_civ_power: thiscall on the table, (player, id)), some 45 call sites. A new game's
+  players get their civilizations over its first steps, after the game's start returns.
+- The mod's switch: engine/civ_powers.c ([general] skirmish_civ_powers).
+
 ## Scenario / save file format (.scn / .ees)
 
 The author's C# project EEScnEdit (GitHub; the library `EEScnLib/Headers`, `EEScnLib/Data`, the WinForms editor `EEScnEdit`) reads and writes every part of
