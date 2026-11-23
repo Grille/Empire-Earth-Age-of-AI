@@ -175,7 +175,7 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     v->pl = pl; v->t = now ? now : 1; v->n = 0; v->foe = 0;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!tt) return;
-    for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
+    for (int t = 0; t < G_TYPES_N && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
         ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(type_data(t)));
         int c = 0;

@@ -210,7 +210,7 @@ internal void so_types(void) {
     void *p1 = game_players()[1], *ai = game_players()[g_so.ai];
     int best[SR_N] = { 0 };
     for (int r = 0; r < SR_N; r++) g_so.types[r] = 0;
-    for (int t = 1; t < 724; t++) {
+    for (int t = 1; t < G_TYPES_N; t++) {
         ee_unit_type *td = type_data(t);
         if (!td || unit_type_get_id(td) != t || !so_warship(td) || t == UT(X09_AGINCOURT_BATTLESHIP) || t == UT(X07_GOLDEN_HIND)) continue;
         int r = so_role(td), tech = unit_type_get_tech(td);

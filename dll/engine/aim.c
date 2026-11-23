@@ -490,7 +490,7 @@ internal void cmd_aim(char *out, const char *args) {
                   g_mst[mv].n - g_mst[mv].close - g_mst[mv].gone, g_mst[mv].speed / g_mst[mv].n);
     if (strstr(args, "types")) {   // unit types that fire missiles
         REPLY("missile types:");
-        for (int ty = 0; ty < 0x300; ty++) {
+        for (int ty = 0; ty < G_TYPES_N; ty++) {
             ee_unit_type *td = type_data(ty); ee_unit_type *pc = td ? unit_type_get_projectile(td) : NULL;
             if (pc && is_missile_class(pc)) REPLY(" %d", ty);
         }

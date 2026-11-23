@@ -160,7 +160,7 @@ internal void cmd_handover(char *out, const char *args) {
             }
         }
     }
-    for (int t = 0; t < 768; t++)
+    for (int t = 0; t < type_table_count(); t++)   // the game's own per-type tables: its count (AoC 0x367)
         for (int a = 0; a < 16; a++) {
             int want = player_improvement_level(h, t, a), guard = 0;
             while (want > 1 && player_improvement_level(p, t, a) > 0 && player_improvement_level(p, t, a) < want && guard++ < 16) { player_apply_improvement(p, t, a, 0); imps++; }

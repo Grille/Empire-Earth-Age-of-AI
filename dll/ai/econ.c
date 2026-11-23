@@ -2210,7 +2210,7 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
     if (!tt) return 0;
     if (g_cand[idx].pl != pl || now < g_cand[idx].t || now - g_cand[idx].t > 30000) {
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
-        for (int t = 0; t < 724; t++) {   // type ids end at 723 (local/games/ee/data/db/converteroutput.log); the table ends there
+        for (int t = 0; t < G_TYPES_N; t++) {   // every slot of the build's table (world.c G_TYPES_N: AoC's types from 768 on too)
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
             ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(type_data(t)));
             if (!tech || !tech_get_researched(tech)) continue;

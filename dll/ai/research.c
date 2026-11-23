@@ -95,7 +95,7 @@ internal int rs_line(unsigned idx, ee_tech_data *d, const short *cnt, int *units
         if (effect_get_kind(ef) != 0x13) continue;
         int ab[2] = { effect_get_type(ef), effect_get_new_type(ef) };
         for (int j = 0; j < 2; j++) {
-            ee_unit_type *td = ab[j] >= 0 && ab[j] < 768 ? type_data(ab[j]) : NULL;
+            ee_unit_type *td = type_data(ab[j]);
             if (!td) continue;
             int k2 = unit_type_get_family(td) == KIND_HERO ? 3 : is_wall(ab[j]) || is_tower_type(ab[j]) ? 2 : 1;
             if (k2 > kind) kind = k2;
@@ -159,7 +159,7 @@ internal int rs_improvements(ee_player *pl, unsigned idx, ee_tech_tree *tt, cons
     ee_game_data *gd = game_data();
     int cap = gd ? game_data_get_improvement_points(gd) : 0;
     if (!IMPROVE(idx) || !*game_improvements_allowed_at() || cap <= 0) return nc;
-    for (int t = 0; t < 768 && nc < RS_CAND; t++) {
+    for (int t = 0; t < G_TYPES_N && nc < RS_CAND; t++) {
         if (cnt[t] < RS_FIELDED) continue;
         ee_unit_type *td = type_data(t);
         ee_upgrade_table *tab = td ? unit_type_get_upgrades(td) : NULL;
@@ -197,7 +197,7 @@ internal int rs_cmp(const void *a, const void *b) {
 internal void research_tick(ee_player *pl, uint32_t now) {
     static struct rs_bld bl[RS_BLD];
     static struct rs_cand cand[RS_CAND];
-    static short cnt[768];
+    static short cnt[G_TYPES_N];   // every slot of the types table (AoC's from 768 on too)
     static uint8_t held[RS_IDS / 8 + 1];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct rsr_st *z = &g_rsr[idx];
@@ -221,7 +221,7 @@ internal void research_tick(ee_player *pl, uint32_t now) {
         ee_unit_type *td = unit_get_type_data(u);
         if (!td || unit_get_hp(u) <= 0) continue;
         int t = unit_type_get_id(td), fam = unit_type_get_class_id(td);
-        if (t >= 0 && t < 768 && cnt[t] < 0x7FFF) cnt[t]++;
+        if (t >= 0 && t < G_TYPES_N && cnt[t] < 0x7FFF) cnt[t]++;
         ncit += is_citizen_type(t);
         if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(t)) continue;
         ee_unit *st = unit_get_physics(u);

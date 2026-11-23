@@ -56,7 +56,7 @@ internal void eco_soldier_costs(ee_player *pl) {   // once a game: the land sold
     g_eco_costs_logged = 1;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# soldier costs: type F/W/S/G/I:");
-    for (int t = 0; t < 724; t++) {
+    for (int t = 0; t < G_TYPES_N; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
         fprintf(g_log, " %d %d/%d/%d/%d/%d", t, unit_cost(pl, t, 2), unit_cost(pl, t, 3), unit_cost(pl, t, 4), unit_cost(pl, t, 5), unit_cost(pl, t, 6));
     }

@@ -265,11 +265,11 @@ internal void cmd_stats(char *out, const char *args) {
         return;
     }
     if (!strncmp(args, "types", 5)) {   // types P [from to]: the player's stats of every type
-        int p = 1, lo = 0, hi = 0x300;
+        int p = 1, lo = 0, hi = type_table_count();
         sscanf(args + 5, "%d %d %d", &p, &lo, &hi);
         ee_player *pl = st_player(p);
         if (!pl) { REPLY("error: stats types P [from to]\n"); return; }
-        for (int t = lo; t < hi && t < 0x300; t++) {
+        for (int t = lo; t < hi && t < type_table_count(); t++) {
             ee_unit_type *td = type_data(t); ee_unit_stats *st = st_rec(pl, t);
             if (!td || !st || unit_stats_get_attack(st) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d%s: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
@@ -284,7 +284,7 @@ internal void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "vs", 2)) {   // vs P T Q U: one T of P against one U of Q, both ways
         int p, t, q, u;
         if (sscanf(args + 2, "%d %d %d %d", &p, &t, &q, &u) != 4 || !st_player(p) || !st_player(q) ||
-            t < 0 || t >= 0x300 || u < 0 || u >= 0x300) { REPLY("error: stats vs P T Q U\n"); return; }
+            t < 0 || t >= type_table_count() || u < 0 || u >= type_table_count()) { REPLY("error: stats vs P T Q U\n"); return; }
         ee_unit_type *atd = type_data(t); ee_unit_type *btd = type_data(u); ee_unit_stats *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
         if (!atd || !btd) { REPLY("error: no type\n"); return; }
         for (int side = 0; side < 2; side++) {
@@ -405,7 +405,7 @@ internal void cmd_stats(char *out, const char *args) {
     }
     if (!strncmp(args, "garrison", 8)) {   // garrison: every type with a garrison capacity (type +0x550), its family
         int o = snprintf(out, 4096, "ok: types with a garrison capacity (type family capacity):");
-        for (int t = 0; t < 724 && o < 3900; t++) {   // type ids end at 723
+        for (int t = 0; t < G_TYPES_N && o < 3900; t++) {
             ee_unit_type *td = type_data(t);
             if (!td || unit_type_get_id(td) != t || unit_type_get_garrison_capacity(td) <= 0) continue;
             o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, unit_type_get_class_id(td), unit_type_get_garrison_capacity(td));

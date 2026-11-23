@@ -1305,8 +1305,8 @@ internal ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, un
 // called off - as when half the fleet is lost and the beach still holds 70% of its need. The missing warships' and
 // transports' cost is held back from every other order meanwhile (landing_reserve): P2 failed every warship for gold
 // and iron and every transport for wood while its army orders took them.
-// the warship of its epoch that does the most to the beach's tower: type ids end at 723 (the table has 0x300 slots,
-// past it other data: type_data). Available: the type's tech record's own test (its vf1, the first check of
+// the warship of its epoch that does the most to the beach's tower: every slot of the types table (world.c G_TYPES_N,
+// type_data NULL past the build's own count). Available: the type's tech record's own test (its vf1, the first check of
 // EEPlayer::vf21 behind 0x555710 - without the price and the population room). Before, tech +4 was taken for it:
 // set for the old line's type an upgrade replaced (251, never trainable again - the fleets were planned on it and
 // built of whatever else it could train: 255 and 254, factor 0.4 against a tower, 185 with 11 attack) and not set for
@@ -1338,7 +1338,7 @@ internal float ld_war_value(ee_player *pl, ee_unit_type *td, ee_unit_type *tw, e
 internal int ld_war_type(ee_player *pl, ee_player *target, ee_unit_type *tw, int now_only, float *bvp) {
     int best = 0;
     float bv = 0;
-    for (int t = 1; t < 724; t++) {
+    for (int t = 1; t < G_TYPES_N; t++) {
         ee_unit_type *td = type_data(t);
         if (!td || unit_type_get_id(td) != t || unit_type_get_class_id(td) != CLS_NAVAL || is_transport(t) || is_fishing_boat(t) || unit_type_get_attack(td) <= 0) continue;
         if (!ld_type_avail(pl, t)) continue;

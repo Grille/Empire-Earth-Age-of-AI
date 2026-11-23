@@ -217,7 +217,7 @@ internal int ap_training_pays(ee_player *pl, unsigned idx) {
 internal int ap_no_aa(int t) { ee_unit_type *td = type_data(t); return td && unit_type_get_family(td) != KIND_LAND_AA; }
 internal int ap_idle_type(ee_player *pl, const int *vis) {
     int best = 0;
-    for (int t = 0; t < 724; t++) {
+    for (int t = 0; t < G_TYPES_N; t++) {
         if (!land_soldier(t) || !ap_no_aa(t) || soldier_score(t) <= 0 || (best && soldier_score(t) <= soldier_score(best)) || !can_build(pl, t)) continue;
         int pays = 1, paid = 0;
         for (int r = 2; r < 7; r++) { int c = unit_cost(pl, t, r); paid |= c > 0; if (vis[r] < c) pays = 0; }
@@ -226,7 +226,7 @@ internal int ap_idle_type(ee_player *pl, const int *vis) {
     // nothing it pays (the citizens' orders take the food as it comes in): the cheapest all the same - the order is
     // refused and saved for (econ.c train_budget), which is what gets the army its turn
     int cheap = 0, cc = 0;
-    for (int t = 0; !best && t < 724; t++) {
+    for (int t = 0; !best && t < G_TYPES_N; t++) {
         if (!land_soldier(t) || !ap_no_aa(t) || soldier_score(t) <= 0 || !can_build(pl, t)) continue;
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
@@ -474,7 +474,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         // pays AP_MORE_UNITS of, among the kinds that are busy.
         if (off && now - a->look >= 30000) {
             int bs = 0, mt = 0;
-            for (int t = 0; t < 724; t++) {
+            for (int t = 0; t < G_TYPES_N; t++) {
                 if (!land_soldier(t) || soldier_score(t) <= bs || !can_build(pl, t) || !ap_pays_more(pl, idx, t)) continue;
                 int pb = ap_producer(pl, t), k = 0;
                 while (k < 5 && g_ut[k_ap_land[k]] != pb) k++;

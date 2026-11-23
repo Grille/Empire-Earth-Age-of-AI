@@ -395,7 +395,7 @@ internal void cmd_cast(char *out, const char *args) {
 
 internal void cmd_spawn(char *out, const char *args) {
     int p, type, x, y, n = 1, off = 0;
-    if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {
+    if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || !type_data(type) || n < 1 || n > 100) {
         REPLY("error: usage: spawn <player> <type> <x> <y> [count]\n");
         return;
     }
@@ -532,7 +532,7 @@ internal void cmd_airraid(char *out, const char *args) {
 internal void cmd_spawnline(char *out, const char *args) {
     int p, type, x0, y0, x1, y1, step = 1;
     if (sscanf(args, "%d %d %d %d %d %d %d", &p, &type, &x0, &y0, &x1, &y1, &step) < 6 || p < 0 || p > 15 || type < 0 ||
-        type >= 0x300 || step < 1) {
+        !type_data(type) || step < 1) {
         REPLY("error: usage: spawnline <player> <type> <x0> <y0> <x1> <y1> [step]\n");
         return;
     }
@@ -580,7 +580,7 @@ internal void cmd_bqadd(char *out, const char *args) {
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int e = pl ? current_epoch(pl) : -1;
-    if (!bm || e < 0 || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no AI player %d or type %d\n", p, t); return; }
+    if (!bm || e < 0 || t < 0 || !type_data(t)) { REPLY("error: no AI player %d or type %d\n", p, t); return; }
     int entry[3] = { t, x, y };
     build_mgr_queue_add(bm, e, entry);
     REPLY("ok: P%d type %d at %d,%d queued (epoch %d)\n", p, t, x, y, e);
@@ -685,7 +685,7 @@ internal void cmd_found(char *out, const char *args) {
     int p, t, x, y;
     if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }
     ee_player *pl = player_at(p);   // diplo.c: any player, human or AI
-    if (!pl || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    if (!pl || t < 0 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
     ee_map *map = game_map();   // off the map the foundation's placement (0x62EF8A) crashed
     int n = map ? (int)map_get_size(map) : 0;
     if (x < 0 || y < 0 || x >= n || y >= n) { REPLY("error: %d,%d is off the map (%d tiles)\n", x, y, n); return; }
@@ -704,7 +704,7 @@ internal void cmd_wall(char *out, const char *args) {
     if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &a[0], &a[1], &b[0], &b[1]) < 6) { REPLY("error: usage: wall P T x0 y0 x1 y1\n"); return; }
     ee_player *pl = player_at(p);
     void *cm = pl ? player_get_civ_mgr(pl) : NULL, *wm = cm ? civ_mgr_get_wall_mgr(cm) : NULL;
-    if (!wm || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no AI player %d or type %d\n", p, t); return; }
+    if (!wm || t < 0 || !type_data(t)) { REPLY("error: no AI player %d or type %d\n", p, t); return; }
     build_wall(wm, a, b, t);
     REPLY("ok: P%d wall %d from %d,%d to %d,%d ordered\n", p, t, a[0], a[1], b[0], b[1]);
 }
@@ -765,7 +765,7 @@ internal void cmd_wallplace(char *out, const char *args) {
     int p, t, x0, y0, x1, y1, editor = 0;
     if (sscanf(args, "%d %d %d %d %d %d %d", &p, &t, &x0, &y0, &x1, &y1, &editor) < 6) { REPLY("error: usage: wallplace P T x0 y0 x1 y1 [editor]\n"); return; }
     ee_player *pl = player_at(p);
-    if (!pl || t < 0 || t >= 724 || !type_data(t) || !game_map()) { REPLY("error: no player %d, type %d or map\n", p, t); return; }
+    if (!pl || t < 0 || !type_data(t) || !game_map()) { REPLY("error: no player %d, type %d or map\n", p, t); return; }
     void *unused[4] = { NULL };
     wall_place((float)x0 + 0.5f, (float)y0 + 0.5f, (float)x1 + 0.5f, (float)y1 + 0.5f, type_data(t), pl, 0, editor, (ee_tile_vec *)unused);
     REPLY("ok: P%d wall %d laid from %d,%d to %d,%d\n", p, t, x0, y0, x1, y1);
@@ -777,7 +777,7 @@ internal void cmd_gate(char *out, const char *args) {
     int p, t, tile[2], dir;
     if (sscanf(args, "%d %d %d %d %d", &p, &t, &tile[0], &tile[1], &dir) < 5) { REPLY("error: usage: gate P T x y dir\n"); return; }
     ee_player *pl = player_at(p);
-    if (!pl || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    if (!pl || t < 0 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
     if (!gate_fits(pl, tile[0], tile[1], dir)) { REPLY("error: no five finished wall pieces of P%d at %d,%d along %d\n", p, tile[0], tile[1], dir); return; }
     build_gate(tile, p, unit_type_get_tech(type_data(t)), dir);
     REPLY("ok: P%d gate %d at %d,%d along %d\n", p, t, tile[0], tile[1], dir);
