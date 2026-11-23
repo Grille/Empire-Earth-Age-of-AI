@@ -1005,6 +1005,8 @@ internal uint32_t data_game_site_editor_view;
 internal uint32_t data_game_fullscreen;
 internal uint32_t data_game_game_data;
 internal uint32_t data_game_file_path;
+internal uint32_t data_game_original_volume;
+internal uint32_t data_game_original_directory;
 internal uint32_t data_game_game_mode;
 internal uint32_t data_game_game_res_h;
 internal uint32_t data_game_game_res_w;

@@ -81,3 +81,38 @@ internal void fs_spec_free(void *spec) {
     dtor_fn dtor = (dtor_fn)fs_export("??1FSFileSpec@@UAE@XZ");
     if (dtor) dtor(spec);
 }
+
+// a directory (a whole path ending in \) and an archive file (a whole path) added to the end of path, as the game's
+// start adds its roots (AoC 0x53FE97: FSArchive's SetArchive, then AddArchive, which copies it and opens the copy;
+// AddDirectory) - the parts added (each 1); an FSArchive is 0x6C bytes on the game's stack, given room here
+internal int fs_path_add(void *path, const char *dir, const char *archive) {
+    typedef void *(__thiscall *ctor_fn)(void *);
+    typedef void (__thiscall *dtor_fn)(void *);
+    typedef long (__thiscall *set_fn)(void *, const void *);
+    typedef void (__thiscall *add_fn)(void *, const void *, uint8_t);   // the bool: at the end (0: in front)
+    ctor_fn arc_ctor = (ctor_fn)fs_export("??0FSArchive@@QAE@XZ");
+    dtor_fn arc_dtor = (dtor_fn)fs_export("??1FSArchive@@UAE@XZ");
+    set_fn set_arc = (set_fn)fs_export("?SetArchive@FSArchive@@QAEJABVFSFileSpec@@@Z");
+    add_fn add_dir = (add_fn)fs_export("?AddDirectory@FSPath@@QAEXABVFSFileSpec@@_N@Z");
+    add_fn add_arc = (add_fn)fs_export("?AddArchive@FSPath@@QAEXABVFSArchive@@_N@Z");
+    if (!path || !arc_ctor || !arc_dtor || !set_arc || !add_dir || !add_arc) return 0;
+    int n = 0;
+    uint8_t spec[0x100] = { 0 };
+    if (archive && fs_spec_init(spec, archive)) {
+        __attribute__((aligned(8))) uint8_t arc[0x200] = { 0 };
+        arc_ctor(arc);
+        if (!set_arc(arc, spec)) { add_arc(path, arc, 1); n++; }
+        arc_dtor(arc);
+        fs_spec_free(spec);
+    }
+    if (dir && fs_spec_init(spec, dir)) {
+        add_dir(path, spec, 1);
+        n++;
+        fs_spec_free(spec);
+    }
+    return n;
+}
+// AoC: the 2017 update's install as AoC's settings hold it (UStrings, game.cs original_volume and original_directory);
+// NULL in the 2017 update itself
+internal inline void *original_volume(void) { return (void *)(uintptr_t)data_game_original_volume; }
+internal inline void *original_directory(void) { return (void *)(uintptr_t)data_game_original_directory; }

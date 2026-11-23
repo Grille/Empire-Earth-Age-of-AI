@@ -134,6 +134,17 @@ static unsafe class game
     [address((ee)0x0091978C, (aoc)0x00931908)]
     static block file_path;
 
+    /// AoC's: the 2017 update's install as its settings' read (0x5328DD, the settings object 0x930308 +0x4CC, +0x4DC)
+    /// has it - UStrings (the text at +4), upper-cased: HKCU\Software\SSSI\Empire Earth "Installed From Volume" ("D:")
+    /// and "Installed From Directory" ("\GAMES\...\EMPIRE EARTH\"). Read before the data files' search path is set up
+    /// (its second root: 0x53FFAD the archive, 0x54007C the directory), the music's folder (0x5436C9) and the check for
+    /// the original game (0x540F7D: an empty directory - a message box and the end)
+    [address((ee)none, (aoc)0x009307D4)]
+    static block original_volume;
+
+    [address((ee)none, (aoc)0x009307E4)]
+    static block original_directory;
+
     /// the AIs' difficulty as the hit tables' choice reads it (EEToHitTable.attack_bonus, its only reader): 0 easy, 1
     /// medium, 2 hard - a random map's test game on easy 0, on hard 2 (2026-11-19, the pipe's peek)
     [address((ee)0x00918808, (aoc)0x00931248)]

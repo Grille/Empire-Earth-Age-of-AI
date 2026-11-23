@@ -73,6 +73,13 @@ internal inline uint8_t *game_game_data_at(void) { return (uint8_t *)(uintptr_t)
 // folder (the registry's) - a directory Data\ and an archive Data\data.ssa each, FindFile looking in every
 // directory before any archive
 internal inline uint8_t *game_file_path_at(void) { return (uint8_t *)(uintptr_t)data_game_file_path; }
+// AoC's: the 2017 update's install as its settings' read (0x5328DD, the settings object 0x930308 +0x4CC, +0x4DC)
+// has it - UStrings (the text at +4), upper-cased: HKCU\Software\SSSI\Empire Earth "Installed From Volume" ("D:")
+// and "Installed From Directory" ("\GAMES\...\EMPIRE EARTH\"). Read before the data files' search path is set up
+// (its second root: 0x53FFAD the archive, 0x54007C the directory), the music's folder (0x5436C9) and the check for
+// the original game (0x540F7D: an empty directory - a message box and the end)
+internal inline uint8_t *game_original_volume_at(void) { return (uint8_t *)(uintptr_t)data_game_original_volume; }
+internal inline uint8_t *game_original_directory_at(void) { return (uint8_t *)(uintptr_t)data_game_original_directory; }
 // the AIs' difficulty as the hit tables' choice reads it (EEToHitTable.attack_bonus, its only reader): 0 easy, 1
 // medium, 2 hard - a random map's test game on easy 0, on hard 2 (2026-11-19, the pipe's peek)
 internal inline uint8_t *game_game_mode_at(void) { return (uint8_t *)(uintptr_t)data_game_game_mode; }
@@ -339,6 +346,8 @@ internal int spec_game_select(int build) {
         data_game_fullscreen = 0x0091945A;
         data_game_game_data = 0x00917BB8;
         data_game_file_path = 0x0091978C;
+        data_game_original_volume = 0;
+        data_game_original_directory = 0;
         data_game_game_mode = 0x00918808;
         data_game_game_res_h = 0x009193F8;
         data_game_game_res_w = 0x009193FC;
@@ -432,7 +441,7 @@ internal int spec_game_select(int build) {
         slot_fs_file_get_length = 45;
         slot_fs_file_get_position = 48;
         slot_fs_file_set_position = 52;
-        return 0;
+        return 2;
     case 1:   // aoc
         data_game_local_player_switch = 0x0053C5AD;
         data_game_call_damage_points = 0x0050232D;
@@ -470,6 +479,8 @@ internal int spec_game_select(int build) {
         data_game_fullscreen = 0x009308DB;
         data_game_game_data = 0x0092FCA8;
         data_game_file_path = 0x00931908;
+        data_game_original_volume = 0x009307D4;
+        data_game_original_directory = 0x009307E4;
         data_game_game_mode = 0x00931248;
         data_game_game_res_h = 0x00930878;
         data_game_game_res_w = 0x0093087C;
@@ -568,7 +579,7 @@ internal int spec_game_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_game_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_game_missing[ADDR_BUILDS] = { "game.original_volume game.original_directory", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_game_check(void) {
     int bad = 0;
@@ -607,6 +618,8 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_fullscreen, "game.fullscreen");
     bad += spec_data(data_game_game_data, "game.game_data");
     bad += spec_data(data_game_file_path, "game.file_path");
+    bad += spec_data(data_game_original_volume, "game.original_volume");
+    bad += spec_data(data_game_original_directory, "game.original_directory");
     bad += spec_data(data_game_game_mode, "game.game_mode");
     bad += spec_data(data_game_game_res_h, "game.game_res_h");
     bad += spec_data(data_game_game_res_w, "game.game_res_w");

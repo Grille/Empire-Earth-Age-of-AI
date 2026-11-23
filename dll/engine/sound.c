@@ -214,8 +214,9 @@ internal void mix_rate_loaded(uintptr_t base) {
 // Verification failure (theResult == keseOK)", a breakpoint in Low-Level Engine's ESVerify). AoC plays the music of the
 // original game's install, the folder made of its registry values (engine_sound.call_set_music_folder), and stops when
 // SetMusicFolder finds nothing there: that PC's registry still named the folder the game had been installed to before
-// it was moved. So when the game's folder fails, the music of AoC's own (it ships Data\Music) or of the original game
-// beside it, the 2017 update's of its own; the game's assertion only when none has any.
+// it was moved. engine/data_order.c finds that game's folder again beside AoC's and sets the values to it before this
+// runs; when it can't, the music of AoC's own (it ships Data\Music) or of the original game beside it, the 2017
+// update's of its own - the game's assertion only when none has any.
 internal int32_t __thiscall hook_set_music_folder(void *conductor, const void *folder) {
     int32_t r = set_music_folder(conductor, folder);
     if (!r || !g_game_dir[0]) return r;
