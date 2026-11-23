@@ -654,6 +654,11 @@ internal int rg_black_side(rb_vertex *v, int n, const float *p, const float *q, 
     n = rg_black_tri(v, n, p1, q1, q2);
     return rg_black_tri(v, n, p1, q2, p2);
 }
+internal int rg_black_wall(rb_vertex *v, int n, const float *p, const float *q) {
+    float p1[3] = { p[0], p[1], p[2] - RG_CLIFF_DROP }, q1[3] = { q[0], q[1], q[2] - RG_CLIFF_DROP };
+    n = rg_black_tri(v, n, p, q, q1);
+    return rg_black_tri(v, n, p, q1, p1);
+}
 internal void rg_skirt_build(void) {
     static const float dirs[4][2] = { { 1, -1 }, { 1, 1 }, { -1, 1 }, { -1, -1 } };   // the game's back, right, front, left
     size_t cap = (size_t)g_rg.size * 4 * 4 * 6 + 4 * 3 * 6;
@@ -670,7 +675,18 @@ internal void rg_skirt_build(void) {
     for (int y = 0; y < g_rg.size; y++) for (int x = 0; x < g_rg.size; x++) {
         if (!g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y)) continue;
         RG_POINT(a, x, y); RG_POINT(b, x, y + 1); RG_POINT(c, x + 1, y); RG_POINT(d, x + 1, y + 1);
-        if (g_rg.space) { if (g_rg.bottom(g_rg.mesh, x, y)) RG_SIDE(a, d, 0); }   // a space map: behind it alone, as the game's
+        // A space map: no black beyond its edge, the stars under and round it - its side along the game's bottom edges (the
+        // front) went 1000 tiles out at the level, everything below the map black from a camera far back (the player,
+        // 2026-11-23: "in space mode the top and the sides are rendered as space, while the bottom bounds are just black").
+        // Land at the edge hangs a black wall the faces' drop down, the edge of the sheet it would be otherwise
+        if (g_rg.space) {
+            if (g_rg.water_info(g_rg.mesh, (unsigned long)x, (unsigned long)y) & RG_SPACE) continue;
+            if (g_rg.right(g_rg.mesh, x, y) || g_rg.left(g_rg.mesh, x, y)) n = rg_black_wall(v, n, b, c);
+            else {
+                if (g_rg.top(g_rg.mesh, x, y)) n = rg_black_wall(v, n, a, d);
+                if (g_rg.bottom(g_rg.mesh, x, y)) n = rg_black_wall(v, n, a, d);
+            }
+        }
         else if (g_rg.right(g_rg.mesh, x, y)) RG_SIDE(b, c, 1);
         else if (g_rg.left(g_rg.mesh, x, y)) RG_SIDE(b, c, 3);
         else {
@@ -682,7 +698,7 @@ internal void rg_skirt_build(void) {
     #undef RG_SIDE
     #undef RG_POINT
     if (have) for (int c = 0; c < 4; c++) {   // +x lies between back and right, +y right and front, -x front and left, -y left and back
-        if (g_rg.space && c != 0 && c != 3) continue;
+        if (g_rg.space) break;
         const float *from = dirs[c], *to = dirs[(c + 1) % 4];
         float a1[3], b1[3], a2[3], b2[3];
         rg_out(a1, corner[c], from[0], from[1], RG_SKIRT_NEAR); rg_out(b1, corner[c], to[0], to[1], RG_SKIRT_NEAR);

@@ -1433,8 +1433,11 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   own, level and out into space, and in the hills' shadows the space lies as deep as the faces drop. A land corner whose cell has a
   pattern tile among its 3 neighbours (0x10097F98) takes texture 12, at the tile's own places (0 to 1 across it) -
   the engine asks for bits 1-4 alone, and a lake's shore keeps those after the map turns into a space map (below):
-  the own renderer asks for the space bit too. No water, and the black round the map only behind it (the back edge
-  and its two corners).
+  the own renderer asks for the space bit too. No water, and the black round the map only along its bottom edges and
+  their two corners - the front, out to the horizon at the level: from a camera far back everything under the map
+  black (the own renderer: none, the stars all round; land at the map's edge a black wall the faces' drop down).
+  The stars are a box round the map (0x5126CE, textures\stars; drawn at 0x5133xx through DrawSky): 10000 tiles out,
+  its top 5000 up, its bottom 4500 down (the corners' heights at 0x841AB8).
 - **Editing**: SetIsSpace (0x1002D2A6) sets or clears the bit, counts it and runs ComputeShorelines on the 3 x 3
   round the tile alone - the first space tile turns the whole map into a space map, but every other tile keeps its
   byte: the lakes' shores their bits 1-4 until something computes them again.
