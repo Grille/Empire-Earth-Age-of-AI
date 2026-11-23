@@ -918,6 +918,15 @@ class ai_base
         /// unstarted fields 52.9 -> 4.3 an AI, citizens at the end 110 -> 117, wood income +9%)
         [advanced]
         bool farm_builders_paid = true;
+        /// Building on a small land as on scarce ground (the player 2026-11-23: "on larger maps it doesnt matter, there is
+        /// always more space, but on some its a genuine resource the ai shouldnt waste"): on a land of 2500 open tiles or
+        /// fewer (a planet, an islet) a building goes where it closes off least - of the first spots from its centre out,
+        /// the one beside the most of what can't be walked (buildings, the land's edge, trees, cliffs) - and never onto a
+        /// place round a granary that could still hold a field. Larger lands as before. 0 = off (default: level so far -
+        /// AoC Small Planets, Space Age, 5 games each 40 min: fields 23.5 -> 23.7, soldiers 59.8 -> 60.7, citizens 119 ->
+        /// 119; the planets' wood, not their ground, ran out first)
+        [advanced]
+        bool compact_build = false;
         /// Resting soldiers on open ground (the game's computer player off): a territory's soldiers at rest stand in a patch
         /// of open ground looked for up to 40 tiles off in that territory - room for them all, else a smaller patch,
         /// closer packed - instead of at the station's point itself when nothing fits within 18 tiles (in a built-up town:

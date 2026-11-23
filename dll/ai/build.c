@@ -212,17 +212,57 @@ internal int bd_pays(ee_player *pl, int type, const int *com) {
     for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - com[r] < c) return 0; }
     return 1;
 }
+// SCARCE GROUND ([ai_base] compact_build; the player 2026-11-23: "on larger maps it doesnt matter, there is always more
+// space, but one some its a genuine resource the ai shouldnt waste"): on a land of BD_SMALL_LAND open tiles or fewer
+// (territory.c's areas of its territories: an AoC planet some 600, an islet) bd_spot takes of its first BD_COMPACT_N
+// spots from the nearest ring out the one whose ring of tiles round the footprint has the most that can't be walked -
+// buildings, the land's edge, trees, cliffs, a mine - the nearest of equals: the open ground stays in one piece, where
+// a granary's 6 x 6 of fields still fits. Nor onto a place round a granary of its that could still take a field (a
+// Farm the mod lays there, the game's Robotic Farms in the Space Age). Before, the nearest spot: houses, Hospitals and
+// towers dotted over a planet's middle.
+#define BD_SMALL_LAND 2500
+#define BD_COMPACT_N 16
+internal struct { ivec2 g[BD_GRANARIES + 8]; int n; } g_bd_gr[16];   // build_tick: its finished granaries
+internal int bd_small_land(ivec2 p) {
+    unsigned land = area_id(p, 2);
+    int open = 0;
+    if (!land) return 0;
+    for (int r = 0; r < g_ter.n && open <= BD_SMALL_LAND; r++) if (!g_ter.t[r].water && area_id(g_ter.t[r].c, 2) == land) open += g_ter.t[r].area;
+    return open <= BD_SMALL_LAND;
+}
+internal int bd_hug(ee_map *map, int size, ivec2 q, int s) {   // the ring round the footprint q .. q + s - 1: its tiles not to be walked
+    int n = 0;
+    for (int ty = q.y - 1; ty <= q.y + s; ty++)
+        for (int tx = q.x - 1; tx <= q.x + s; tx++)
+            if ((tx < q.x || ty < q.y || tx >= q.x + s || ty >= q.y + s) && !rm_tile_ok(map, size, tx, ty)) n++;
+    return n;
+}
+internal int bd_on_field_place(unsigned idx, ivec2 q, int s) {   // the footprint over a place round one of its granaries (a field there already: can_place says no)
+    for (int k = 0; k < g_bd_gr[idx].n; k++)
+        for (int fx = -2; fx <= 2; fx += 2)
+            for (int fy = -2; fy <= 2; fy += 2) {
+                int x0 = g_bd_gr[idx].g[k].x + fx, y0 = g_bd_gr[idx].g[k].y + fy;
+                if ((fx || fy) && q.x < x0 + 2 && x0 < q.x + s && q.y < y0 + 2 && y0 < q.y + s) return 1;
+            }
+    return 0;
+}
 // a spot for a building of `type` r0..r1 tiles from p, nearest first: placeable, on land that is not being lost
 internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int r1, ivec2 *out) {
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0, sz = type_data(type) ? unit_type_get_size(type_data(type)) : 1;
+    int compact = g_set_ai[1].compact_build && map && !is_field_type(type) && bd_small_land(p), found = 0, best = -1;   // SCARCE GROUND
+    if (sz < 1) sz = 1;
     for (int r = r0; r <= r1; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 ivec2 q = iv2(p.x + ax, p.y + ay);
-                if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, type, q) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
-                *out = q;
-                return 1;
+                if ((abs(ax) != r && abs(ay) != r) || (compact && bd_on_field_place(idx, q, sz)) || !can_place_open(pl, type, q) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                if (!compact) { *out = q; return 1; }
+                int h = bd_hug(map, size, q, sz);
+                if (h > best) { best = h; *out = q; }
+                if (++found >= BD_COMPACT_N) return 1;
             }
-    return 0;
+    return found > 0;
 }
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static ee_unit *freec[384], *built[192], *builder[192], *openb[96], *openw[256], *idlec[384];   // builder: built[]'s citizen   // idlec: citizens with no order (HOLDING THE GROUND - freec has gatherers only)
@@ -304,6 +344,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (!done && st && no < 96) openb[no++] = u;
     }
     b->open = no; b->lost_ground = lost_ground;
+    g_bd_gr[idx].n = ngran; memcpy(g_bd_gr[idx].g, gran, (size_t)ngran * sizeof gran[0]);   // SCARCE GROUND: the places round them
     int sends = 0, pile = no - open_fields;   // the unfinished that are no fields (a row of new fields is no pile)
     // FARMS PAID FIRST ([ai_base] farm_builders_paid; the player 2026-11-23: "lots of p3 citezens where bogged down trying
     // to build up a farm witout having the wood. the ai should only send citecens to build a farm once it has the needed
