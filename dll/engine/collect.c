@@ -1122,7 +1122,7 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
     float *pos = (float *)draw_small_record_pos_at(rec);
     pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + o->x);
     pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + o->y);
-    pos[2] = uc_mesh_z(map_mesh_at(map), pos[0], pos[1]);
+    pos[2] = uc_tree_z(map_mesh_at(map), map_get_size(map), o->x, o->y, pos[0], pos[1]);
     __attribute__((aligned(8))) float t[16];
     transform_orient(t, info->yaw, 0.0f, 0.0f);
     transform_set_position(t, pos[0], pos[1], pos[2]);
@@ -1298,7 +1298,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
     float *pos = (float *)draw_small_record_pos_at(rec);
     pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + x);
     pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + y);
-    pos[2] = uc_mesh_z(map_mesh_at(map), pos[0], pos[1]);
+    pos[2] = uc_tree_z(map_mesh_at(map), map_get_size(map), x, y, pos[0], pos[1]);
     transform_orient(t, info->yaw, 0.0f, 0.0f);
     t[3] = pos[0], t[7] = pos[1], t[11] = pos[2];
     t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
