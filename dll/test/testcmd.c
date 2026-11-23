@@ -162,8 +162,10 @@ internal void cmd_tinfo(char *out, const char *args) {
 }
 
 // placemap P T x y [r]: the ground r tiles round x,y (at most 30) for a building of type T of player P, a character a
-// tile, x down and y right as basemap: + its footprint could start there (ai/defence.c can_place, the game's test), B a
-// building, r a resource (tree, crystal, mine, bush), u a unit, ~ water or space, . land it can't start on
+// tile, x down and y right as basemap: + the mod would lay it there (ai/defence.c can_place_open), g the game's test
+// says yes but it would move a neighbour's ground (THE GROUND UNDER THE NEIGHBOURS), a ... but it would shut a way in
+// (packing.c NO SHUT-IN PLACES), B a building, r a resource (tree, crystal, mine, bush), u a unit, ~ water or space,
+// . land it can't start on
 internal void cmd_placemap(char *out, const char *args) {
     int p = 0, t = 0, x = 0, y = 0, r = 12;
     if (sscanf(args, "%d %d %d %d %d", &p, &t, &x, &y, &r) < 4) { REPLY("error: placemap P T x y [r]\n"); return; }
@@ -189,7 +191,8 @@ internal void cmd_placemap(char *out, const char *args) {
                     else if (cls == CLS_RESOURCE) o = 'r';
                     else if (td && !o && cls != CLS_AMBIENT && cls != CLS_PROJECTILE) o = 'u';
                 }
-                c = can_place(pl, t, iv2(ax, ay)) ? '+' : o ? o : kind == 1 || kind == 12 ? '~' : '.';
+                int sz = unit_type_get_size(type_data(t)), cp = can_place(pl, t, iv2(ax, ay));
+                c = cp && can_place_open(pl, t, iv2(ax, ay)) ? '+' : cp ? (!ground_unlevelled(t) && !ground_keeps(ax, ay, sz < 1 ? 1 : sz) ? 'g' : 'a') : o ? o : kind == 1 || kind == 12 ? '~' : '.';
                 if (ax == x && ay == y) c = c == '+' ? '@' : '*';
             }
             REPLY("%c", c);
