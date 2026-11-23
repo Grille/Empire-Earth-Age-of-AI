@@ -312,8 +312,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // builder with 28 wood in the bank, and HOLDING THE GROUND sent its idle citizens to the nearest unfinished
     // building, a field: on Plains (seed 3, 50 min) 20-45 citizen-minutes an AI stood at unstarted fields, up to 23 at
     // one. Now a field not started gets its builder only while the wood in stock pays it after those not started that
-    // have one, a field has one builder at most whoever sent them (the others let go: unit_halt, work.c gives them
-    // work), one not started whose wood is not there is let go too, and HOLDING THE GROUND sends nobody to a field.
+    // have one, a field has one builder at most whoever sent them (the others let go: a move to where it stands, so it
+    // is idle there at once and work.c gives it work - not a halt, which in the middle of a fight crashed the game's
+    // land movement, defence.c NO CHASE), one not started whose wood is not there is let go too, and HOLDING THE
+    // GROUND sends nobody to a field.
     int fwood = player_get_stock(pl, 3), fcost = unit_cost(pl, UT(B_FARM), 3);
     if (fcost < 1) fcost = 1;
     int farm_paid = g_set_ai[1].farm_builders_paid;
@@ -328,7 +330,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (!go) { kept = 1; if (pass) fwood -= fcost; continue; }
                 if (pc_held(builder[k])) continue;   // the player's (THE PLAYER'S ORDERS FIRST)
                 cl_end(builder[k], CLW_HOLD);
-                unit_halt(builder[k]);
+                if (!unit_goal(builder[k], goal_move((float)unit_get_x(builder[k]) + 0.5f, (float)unit_get_y(builder[k]) + 0.5f), 0, 0x1F40)) continue;
                 if (kept) b->farm_extra++; else b->farm_nowood++;
                 built[k] = NULL;
             }
