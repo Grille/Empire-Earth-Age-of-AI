@@ -358,6 +358,27 @@ internal int rg_space_out(const void *mesh, unsigned long x, unsigned long y, co
     *nx = ox; *ny = oy;
     return 1;
 }
+// the normal at a face's end ex, ey: its own (nx, ny) and those of the faces of the tiles round it that end there too
+// (within 0.2: along a straight edge the table's lines step by a tenth from tile to tile),
+// together (each a tile's whole face, so a corner's turn is shared out over the two faces either side of it)
+internal void rg_space_end(unsigned long x, unsigned long y, float ex, float ey, float nx, float ny, float *e) {
+    float sx = nx, sy = ny;
+    for (int j = -1; j <= 1; j++)
+        for (int i = -1; i <= 1; i++) {
+            long tx = (long)x + i, ty = (long)y + j;
+            if ((!i && !j) || tx < 0 || ty < 0 || !g_rg.tile(g_rg.mesh, (unsigned long)tx, (unsigned long)ty)) continue;
+            unsigned info = g_rg.water_info(g_rg.mesh, (unsigned long)tx, (unsigned long)ty);
+            if (!(info & RG_SPACE)) continue;
+            const rg_space_edge *o = &k_rg_space[info >> 1 & 15];
+            float ox, oy;
+            if (!o->face || !rg_space_out(g_rg.mesh, (unsigned long)tx, (unsigned long)ty, o, &ox, &oy)) continue;
+            for (int k = 0; k < 4; k += 2)
+                if (fabsf((float)tx + o->line[k] - ex) < 0.2f && fabsf((float)ty + o->line[k + 1] - ey) < 0.2f) { sx += ox; sy += oy; break; }
+        }
+    float l = sqrtf(sx * sx + sy * sy);
+    if (l < 1e-3f) { e[0] = nx; e[1] = ny; return; }   // faces back to back: its own
+    e[0] = sx / l; e[1] = sy / l;
+}
 internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     const rg_space_edge *s = &k_rg_space[g_rg.water_info(g_rg.mesh, x, y) >> 1 & 15];
     if (s == k_rg_space) return 0;
@@ -393,10 +414,16 @@ internal int rg_space_quad(rg_tri *out, unsigned long x, unsigned long y) {
     // the ground on top, as bright turned from the sun as toward it - the player, 2026-11-23: "the space cliffs dont throw
     // shadows, wich can look a bit weired"). The vertex shader tells a face by it (render_3d.c ground: a space piece whose
     // normal lies level): its light by it, and the hills' shadows taken a little out in front of it, at its own height
-    float nx, ny;
-    if (rg_space_out(g_rg.mesh, x, y, s, &nx, &ny))
-        for (int t = n; t < n + 2; t++)
-            for (int c = 0; c < 3; c++) { float *f = (float *)out[t].v[c].fvf; f[3] = nx; f[4] = ny; f[5] = 0; }
+    // - at each end the faces meeting there together (rg_space_end): one normal a face, the light changed at once where the
+    // edge turns, a hard seam down each corner (the player, the same day: "is it possible to make the edges less harsh?")
+    float nx, ny, en[2][2];
+    if (rg_space_out(g_rg.mesh, x, y, s, &nx, &ny)) {
+        rg_space_end(x, y, px, py, nx, ny, en[0]);
+        rg_space_end(x, y, qx, qy, nx, ny, en[1]);
+        static const uint8_t at_q[2][3] = { { 0, 1, 0 }, { 0, 1, 1 } };   // the vertices at Q (else P)
+        for (int t = 0; t < 2; t++)
+            for (int c = 0; c < 3; c++) { float *f = (float *)out[n + t].v[c].fvf, *e = en[at_q[t][c]]; f[3] = e[0]; f[4] = e[1]; f[5] = 0; }
+    }
     return n + 2;
 }
 // a land corner (D B A C) whose cell has a space tile at the edge beside it (the engine's table at 0x10097F98): texture 12, no set.
