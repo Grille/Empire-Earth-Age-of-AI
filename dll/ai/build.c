@@ -533,8 +533,17 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // Settlement it never laid
     int pick = 0;
     ivec2 at = iv2(0, 0);
-    if (!placed && !ap_save && current_epoch(pl) >= FARM_EPOCH && ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) && bd_pays(pl, UT(B_GRANARY), com) && !open_gran && !open_fields && !fields_due &&
+    // THE GRANARY OF ITS LINE: the Granary, or the Improved Granary once that is the one it may build - in Art of
+    // Conquest's Space Age the plain one is no longer to be had (Small Planets 2026-11-23: no granary, no field, every
+    // AI with 30-60 citizens idle and none on food from minute 25)
+    int gtype = ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) ? UT(B_GRANARY) : ut_has(UT(B_GRANARY_IMPROVED)) && can_build(pl, UT(B_GRANARY_IMPROVED)) ? UT(B_GRANARY_IMPROVED) : 0;
+    if (!placed && !ap_save && current_epoch(pl) >= FARM_EPOCH && gtype && bd_pays(pl, gtype, com) && !open_gran && !open_fields && !fields_due &&
         ngran < BD_GRANARIES && (!ngran || g_wk[idx].food_short > 0) && !wait[0] && bd_gran_first(b, idx, ngran >= BD_GRAN_PLAIN ? gran_room : 0, now)) {   // A GRANARY: by its centre in the best territory
+        // ROOM AS THERE IS: a place for 6 of its 8 fields first; with none while it has no granary at all (a planet of 20
+        // x 20 tiles round its town - Small Planets: 1283 looks without a spot by minute 30, food from the bushes only,
+        // then none) the one with the most room, 2 fields at least - fewer fields are food, no granary is none
+        int broom = 1;
+        ivec2 bq = iv2(0, 0);
         for (int pass = 1; pass <= 3 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++) {
                 if (centre[c].cost != pass) continue;
@@ -543,14 +552,16 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                         for (int ay = -r; ay <= r && !type; ay++) {
                             ivec2 q = iv2(centre[c].p.x + ax, centre[c].p.y + ay);
                             int room = 0;
-                            if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, UT(B_GRANARY), q) || raiders_near(pl, q, 12) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                            if ((abs(ax) != r && abs(ay) != r) || !can_place_open(pl, gtype, q) || raiders_near(pl, q, 12) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
                             for (int fx = -2; fx <= 2; fx += 2)
                                 for (int fy = -2; fy <= 2; fy += 2)
                                     if ((fx || fy) && can_place(pl, UT(B_FARM), iv2(q.x + fx, q.y + fy))) room++;
+                            if (room > broom && pass == 1) { broom = room; bq = q; }   // ROOM AS THERE IS: in its best territories
                             if (room < 6) continue;
-                            type = UT(B_GRANARY); at = q; what = "a granary for the fields";
+                            type = gtype; at = q; what = "a granary for the fields";
                         }
             }
+        if (!type && broom >= 2 && !ngran) { type = gtype; at = bq; what = "a granary for the fields there is room for"; }
         if (!type) b->no_spot++;
     }
     g_rs_want[idx] = 0;
@@ -952,7 +963,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else ok = hook_place(bm, type, at.x, at.y);
         if (!ok) b->refused++;
         else {
-            int k = type == UT(B_GRANARY) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : pr_kind(type) >= 0 ? 4 : type == UT(B_AIRPORT) ? 5 : 2;
+            int k = type == UT(B_GRANARY) || type == UT(B_GRANARY_IMPROVED) ? 0 : type == UT(B_SETTLEMENT) ? 1 : type == rb[0] || type == rb[1] || type == rb[2] ? 3 : pr_kind(type) >= 0 ? 4 : type == UT(B_AIRPORT) ? 5 : 2;
             if (type == UT(B_HOUSE)) b->houses++;
             else if (k == 0) b->granaries++; else if (k == 1) b->settlements++; else if (k == 3) b->research++; else if (k == 4) { b->production++; g_pr[idx].type = 0; if (type == g_pr_more[idx]) g_pr_more[idx] = 0; } else if (k == 2) b->towers++;
             if (type != UT(B_HOUSE)) { b->laid_t[k] = now ? now : 1; b->laid_type[k] = type; }
