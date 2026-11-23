@@ -192,7 +192,7 @@ internal void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, con
     void *cm = resource_mgr_get_owner(rm);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int queued = 0, nq = 0;
-    for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
+    for (int e = 0; bm && e <= current_epoch(pl) && e < epoch_lists() && nq < 3; e++)
         for (unsigned i = 0; nq < 3; i++) {
             int *ent = bq_entry(bm, e, i);
             if (!ent) break;

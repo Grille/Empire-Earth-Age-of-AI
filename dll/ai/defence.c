@@ -1372,7 +1372,7 @@ internal int sf_walls(ee_player *pl, unsigned idx, struct sfort *f, void *wm, co
 internal int sf_build(ee_player *pl, unsigned idx, struct sfort *f, ee_build_mgr *bm, void *wm, const int *stock, uint32_t now) {
     int ttype = tower_newest(pl), e = current_epoch(pl);
     if (f->towers < 4) {   // the corner towers
-        if (!ttype || tower_queued(bm) || stock[4] < unit_cost(pl, ttype, 4) + 100 || e < 0 || e >= 14) {
+        if (!ttype || tower_queued(bm) || stock[4] < unit_cost(pl, ttype, 4) + 100 || e < 0 || e >= epoch_lists()) {
             static uint32_t logged[16];
             if (g_log && (!logged[idx] || now - logged[idx] >= 120000)) {
                 logged[idx] = now ? now : 1;
@@ -3325,7 +3325,7 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
         g_sg[idx].d[k].has_h = bh >= 0;
         if (bh >= 0) { g_sg[idx].d[k].hosp = a.h[bh]; nhosp++; }
         if (had && bh < 0) for (int q = 0; q < g_sg[idx].ng; q++) if (g_sg[idx].g[q].dock == k) g_sg[idx].g[q].dock = -1;   // gone: posted anew
-        if (bh >= 0 || !bm || e < 0 || e >= 14 || !ut_has(UT(B_HOSPITAL)) || !can_build(pl, UT(B_HOSPITAL)) || bq_has(bm, UT(B_HOSPITAL)) ||
+        if (bh >= 0 || !bm || e < 0 || e >= epoch_lists() || !ut_has(UT(B_HOSPITAL)) || !can_build(pl, UT(B_HOSPITAL)) || bq_has(bm, UT(B_HOSPITAL)) ||
             (g_sg[idx].hq_t && now - g_sg[idx].hq_t < 60000)) continue;
         ivec2 d = g_sg[idx].d[k].p, best = iv2(-1, -1);
         int bs = 0x7FFFFFFF;

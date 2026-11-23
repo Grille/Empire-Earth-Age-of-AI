@@ -1405,7 +1405,7 @@ internal int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
     uint8_t *dq = build_mgr_queue_at(bm, e);
     unsigned first = deque_front(dq), n = deque_count(dq), msz = deque_map_size(dq);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
-    if (e < 0 || e >= 14 || i >= n || !map || !msz || first >= msz * 0x155 || n > msz * 0x155) return NULL;
+    if (e < 0 || e >= epoch_lists() || i >= n || !map || !msz || first >= msz * 0x155 || n > msz * 0x155) return NULL;
     unsigned idx = first + i, blk = idx / 0x155;
     if (blk >= msz) blk -= msz;
     return map[blk] ? (int *)(map[blk] + (idx % 0x155) * 12) : NULL;

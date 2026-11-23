@@ -322,6 +322,12 @@ static unsafe class game
     [value((ee)0x00000300, (aoc)0x00000367)]
     static uint32 types_count;
 
+    /// the epochs a computer player's per-epoch lists hold (its build, research and unit managers': one an epoch) - 14 in
+    /// the 2017 update (the Prehistoric to the Nano Age), 15 in Art of Conquest (its Space Age; the save stream's 0.234+,
+    /// docs/engine-notes.md) - the epoch an AI is in indexes them
+    [value((ee)0x0000000E, (aoc)0x0000000F)]
+    static uint32 epoch_lists;
+
     [address((ee)0x009197A0, (aoc)0x0093191C)]
     static block ui_manager;
 

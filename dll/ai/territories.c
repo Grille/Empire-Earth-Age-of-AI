@@ -556,7 +556,7 @@ internal void tv_border_towers(ee_player *pl, unsigned idx, uint32_t now) {
     // the mod's placement as build.c's are (its builders come to the foundation), one going up at a time - before, one
     // entry was queued, never built, and its being queued (tower_queued) stopped every other for the rest of the game
     int own = !GAME_AI(idx), open_ = 0;
-    if (!bm || !ttype || e < 0 || e >= 14 || stock[4] < need_s || (!sink && stock[3] < need_w) || (!own && tower_queued(bm))) { g_bw[idx].why[0]++; return; }
+    if (!bm || !ttype || e < 0 || e >= epoch_lists() || stock[4] < need_s || (!sink && stock[3] < need_w) || (!own && tower_queued(bm))) { g_bw[idx].why[0]++; return; }
     g_bw[idx].ntw = 0;   // its towers (and other defences) as they stand
     for (ee_unit *u = player_get_units(pl); u && g_bw[idx].ntw < BW_TOWERS; u = unit_get_next(u)) {
         float rng, att;

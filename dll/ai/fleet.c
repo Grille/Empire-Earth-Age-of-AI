@@ -882,7 +882,7 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int e = current_epoch(pl);
-    if (!bm || e < 0 || e >= 14) return;
+    if (!bm || e < 0 || e >= epoch_lists()) return;
     if (!GAME_AI(idx) && g_hb[idx].laid_t && now >= g_hb[idx].laid_t && now - g_hb[idx].laid_t < HB_LAID) return;   // the last one first: the builder is on its way, nothing queued tells of it
     unsigned dock_seas[32];   // the sea territory each of its docks stands on ...
     int nds = 0;
@@ -1035,7 +1035,7 @@ internal void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint3
     if (tower_queued(bm)) return;
     int ttype = tower_newest(pl);
     int e = current_epoch(pl);
-    if (!ttype || e < 0 || e >= 14) return;
+    if (!ttype || e < 0 || e >= epoch_lists()) return;
     int bk = 0;
     float bd = -1;
     for (int k = 0; k < g_fs.nd; k++) {

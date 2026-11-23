@@ -172,6 +172,9 @@ internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
 // the slots of types the game's own walks of it go through (EE 0x4B7... `< 0x300`, AoC 0x4C1... `< 0x367`: the same
 // loop; AoC's table ends at 0x964498, the next data) - Art of Conquest has 871, its new types from 768 on
+// the epochs a computer player's per-epoch lists hold (its build, research and unit managers': one an epoch) - 14 in
+// the 2017 update (the Prehistoric to the Nano Age), 15 in Art of Conquest (its Space Age; the save stream's 0.234+,
+// docs/engine-notes.md) - the epoch an AI is in indexes them
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
 // UIManager::GetFormByID's import slot - thiscall([game.ui_manager], uint32 id): the screen of that id (0x1A the
 // game setup screen, the lobby; 0xC the main menu)
@@ -393,6 +396,7 @@ internal int spec_game_select(int build) {
         data_game_teams_locked = 0x00918E9F;
         data_game_types = 0x009418A0;
         value_game_types_count = 768;
+        value_game_epoch_lists = 14;
         data_game_ui_manager = 0x009197A0;
         data_game_iat_form_by_id = 0x00823B4C;
         data_game_ui = 0x0091977C;
@@ -527,6 +531,7 @@ internal int spec_game_select(int build) {
         data_game_teams_locked = 0x009318DF;
         data_game_types = 0x009636AC;
         value_game_types_count = 871;
+        value_game_epoch_lists = 15;
         data_game_ui_manager = 0x0093191C;
         data_game_iat_form_by_id = 0x00837AE0;
         data_game_ui = 0x009318F8;

@@ -1021,7 +1021,7 @@ internal int workforce(ee_player *pl) {
 
 internal ee_tech_data *epoch_tech(ee_player *pl, int e) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    if (!tt || e > 13 || e > end_epoch()) return NULL;
+    if (!tt || e >= epoch_lists() || e > end_epoch()) return NULL;   // AoC: 15 epochs, its Space Age 14
     return tt_epoch_get_tech_data(tech_tree_epoch_rec_at(tt, e));
 }
 internal int epoch_cost(ee_player *pl, int e, int r) {
@@ -1052,7 +1052,7 @@ internal int requirements_missing(ee_player *pl) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!tt) return 0;
     int next = tech_tree_get_epoch(tt) + 1;
-    if (next > 13 || next > end_epoch()) return 0;
+    if (next >= epoch_lists() || next > end_epoch()) return 0;
     ee_tt_epoch *rec = tech_tree_epoch_rec_at(tt, next);
     return tt_epoch_get_needed(rec) - tt_epoch_get_done(rec);
 }
@@ -1451,7 +1451,7 @@ internal void econ_targets(ee_resource_mgr *rm) {
         void *cm = resource_mgr_get_owner(rm);
         ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
         int queued = 0, nq = 0;
-        for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
+        for (int e = 0; bm && e <= current_epoch(pl) && e < epoch_lists() && nq < 3; e++)
             for (unsigned i = 0; nq < 3; i++) {
                 int *ent = bq_entry(bm, e, i);
                 if (!ent) break;
@@ -2076,7 +2076,7 @@ internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     if (!tt || !cm) return;
     int ep = tech_tree_get_epoch(tt), next = ep + 1;
-    if (next > 13 || next > end_epoch() || !epoch_tech(pl, next)) return;
+    if (next >= epoch_lists() || next > end_epoch() || !epoch_tech(pl, next)) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }   // following too: its FINITE FOOD
     if (follow_held(pl)) return;
     int remaining = (int)(civ_mgr_get_timer(cm, 0) - game_time());

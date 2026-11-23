@@ -1050,6 +1050,7 @@ internal uint32_t data_game_tech_setup_flag;
 internal uint32_t data_game_teams_locked;
 internal uint32_t data_game_types;
 internal uint32_t value_game_types_count;
+internal uint32_t value_game_epoch_lists;
 internal uint32_t data_game_ui_manager;
 internal uint32_t data_game_iat_form_by_id;
 internal uint32_t data_game_ui;

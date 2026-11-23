@@ -318,7 +318,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     if (g_bk[pi].build_t && now >= g_bk[pi].build_t && now - g_bk[pi].build_t < (g_shelter_urgent[pi] || g_bk_more[pi] > 1 ? 15000u : 60000u)) return;   // under fire, or the reserve wants several: a look every 15 s
     g_bk[pi].build_t = now ? now : 1;
     int e = current_epoch(pl);
-    if (e < 2 || e >= 14) return;
+    if (e < 2 || e >= epoch_lists()) return;
     for (int k = 0; k < g_bk[pi].nall; k++) {   // unfinished: builders
         ee_unit *bs = unit_get_physics(g_bk[pi].all[k]);
         if (!bs || !unit_get_finished(bs)) {

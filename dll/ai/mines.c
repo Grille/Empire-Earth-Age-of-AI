@@ -152,7 +152,7 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     ee_build_mgr *bm = settle_free(pl, 1, NULL);
     if (!bm) return;
     int e = current_epoch(pl);
-    if (e < 0 || e >= 14) return;
+    if (e < 0 || e >= epoch_lists()) return;
     for (int r = 3; r <= 6; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
@@ -222,7 +222,7 @@ internal void wood_drops(ee_player *pl, unsigned idx, uint32_t now) {
     ee_civ_mgr *cm2 = player_get_civ_mgr(pl);
     ee_build_mgr *any = cm2 ? civ_mgr_get_build_mgr(cm2) : NULL;
     int e = current_epoch(pl);
-    if (!any || e < 0 || e >= 14) return;
+    if (!any || e < 0 || e >= epoch_lists()) return;
     static uint32_t told[16];   // why not: every 5 minutes
     const char *why = NULL;
     ee_build_mgr *bm = NULL;
