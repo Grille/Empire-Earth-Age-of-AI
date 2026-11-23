@@ -905,6 +905,13 @@ class ai_base
         /// they know, and finish their own buildings there, enemy soldiers near or not. 0 = off
         [advanced]
         bool hold_ground = true;
+        /// Farms paid first (the game's computer player off): a field not started yet - it takes its wood when its building
+        /// starts, its builder stands at it till the wood is there - gets a builder only while the wood in stock pays for
+        /// it, and a field has one builder at most; those beyond (or at a field the wood doesn't pay) are let go to other
+        /// work. 0 = off; on since 2026-11-23 by the player's call (Plains, 3 AIs, 50 min, 5 games: citizen-minutes at
+        /// unstarted fields 52.9 -> 4.3 an AI, citizens at the end 110 -> 117, wood income +9%)
+        [advanced]
+        bool farm_builders_paid = true;
         /// Resting soldiers on open ground (the game's computer player off): a territory's soldiers at rest stand in a patch
         /// of open ground looked for up to 40 tiles off in that territory - room for them all, else a smaller patch,
         /// closer packed - instead of at the station's point itself when nothing fits within 18 tiles (in a built-up town:

@@ -141,6 +141,7 @@ internal struct bd_st {
     uint32_t t, log_t, laid_t[6];   // laid_t: the last granary, Settlement, tower, research building, production building, Airport laid (BD_WAIT)
     int laid_type[6];               // ... and its type
     unsigned sent, fields, granaries, settlements, towers, research, production, refused, no_spot, walls, across;   // walls: builders sent to unfinished wall pieces
+    unsigned farm_wait, farm_nowood, farm_extra;   // FARMS PAID FIRST: builders not sent for want of the wood, let go for it, let go as a field's second
     int open, lost_ground, mines, mines_drop, mines_guard;   // the last look: unfinished buildings, those of them LEFT ON LOST GROUND; mines in reach, those with a drop site, with a defence
 } g_bd[16];
 // a herd's living grown animals (A HERD'S SETTLEMENT: more than HERDS KEPT leaves, one to hunt)
@@ -224,7 +225,7 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
     return 0;
 }
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
-    static ee_unit *freec[384], *built[192], *openb[96], *openw[256], *idlec[384];   // idlec: citizens with no order (HOLDING THE GROUND - freec has gatherers only)
+    static ee_unit *freec[384], *built[192], *builder[192], *openb[96], *openw[256], *idlec[384];   // builder: built[]'s citizen   // idlec: citizens with no order (HOLDING THE GROUND - freec has gatherers only)
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
     static struct { ivec2 p; int cost, town; } centre[256];
     static ivec2 dsite[BD_DSITES];   // every Settlement, Town Center and Capitol of its, going up too: a mine's drop site (below)
@@ -260,7 +261,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         int t = unit_type_get_id(td), fam = unit_type_get_class_id(td);
         if (is_citizen_type(t)) {
             ee_goal *g = unit_get_goal(u);
-            if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@")) { if (nbuilt < 192) built[nbuilt++] = goal_get_building(g); }
+            if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@")) { if (nbuilt < 192) { builder[nbuilt] = u; built[nbuilt++] = goal_get_building(g); } }
             else if (nf < 384 && citizen_free(u, 0) && (!g || !strcmp(rtti_name(g), "EEUGGather@@")) && cl_may(u, CLP_ROUTINE, CLW_BUILD)) freec[nf++] = u;
             else if (!g && nidle < 384 && citizen_free(u, 1) && cl_may(u, CLP_HOLD, CLW_HOLD)) idlec[nidle++] = u;   // ORDERS BY PRIORITY (claims.c): none another holds
             continue;
@@ -304,6 +305,34 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     }
     b->open = no; b->lost_ground = lost_ground;
     int sends = 0, pile = no - open_fields;   // the unfinished that are no fields (a row of new fields is no pile)
+    // FARMS PAID FIRST ([ai_base] farm_builders_paid; the player 2026-11-23: "lots of p3 citezens where bogged down trying
+    // to build up a farm witout having the wood. the ai should only send citecens to build a farm once it has the needed
+    // wood, and not more than 1 per farm lot"). A field takes its wood when its building starts - laid it has 1 hit
+    // point, and its builder stands at it until the wood is there. A granary's 8 came as foundations at once, each got a
+    // builder with 28 wood in the bank, and HOLDING THE GROUND sent its idle citizens to the nearest unfinished
+    // building, a field: on Plains (seed 3, 50 min) 20-45 citizen-minutes an AI stood at unstarted fields, up to 23 at
+    // one. Now a field not started gets its builder only while the wood in stock pays it after those not started that
+    // have one, a field has one builder at most whoever sent them (the others let go: unit_halt, work.c gives them
+    // work), one not started whose wood is not there is let go too, and HOLDING THE GROUND sends nobody to a field.
+    int fwood = player_get_stock(pl, 3), fcost = unit_cost(pl, UT(B_FARM), 3);
+    if (fcost < 1) fcost = 1;
+    int farm_paid = g_set_ai[1].farm_builders_paid;
+    for (int pass = 0; farm_paid && pass < 2; pass++)   // the started first (their wood is paid), then those not started, in order
+        for (int i = 0; i < no; i++) {
+            if (unit_type_get_id(unit_get_type_data(openb[i])) != UT(B_FARM) || (unit_get_hp(openb[i]) > 1) != !pass) continue;
+            ee_unit *site = field_site(openb[i]);
+            int kept = 0;
+            for (int k = 0; k < nbuilt; k++) {
+                if (built[k] != site && built[k] != openb[i]) continue;
+                int go = kept || (pass && fwood < fcost);
+                if (!go) { kept = 1; if (pass) fwood -= fcost; continue; }
+                if (pc_held(builder[k])) continue;   // the player's (THE PLAYER'S ORDERS FIRST)
+                cl_end(builder[k], CLW_HOLD);
+                unit_halt(builder[k]);
+                if (kept) b->farm_extra++; else b->farm_nowood++;
+                built[k] = NULL;
+            }
+        }
     g_bd_wait[idx].n = 0; g_bd_wait[idx].t = now ? now : 1;
     for (int i = 0; i < no && sends < (pile >= BD_PILE ? 2 * BD_SENDS : BD_SENDS) && nf; i++) {   // BUILDERS
         ee_unit *site = field_site(openb[i]);
@@ -315,7 +344,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int k = 0; k < nbuilt; k++) has += built[k] == site || built[k] == openb[i];
         ivec2 p = unit_get_tile(openb[i]);
         has = has >= (unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM) ? 1 : pile >= 2 * BD_PILE ? 3 : pile >= BD_PILE ? 2 : 1);
+        int field = unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM);
         if (has || raiders_known(pl, p, 8) || tv_unsafe(idx, p.x, p.y) || wk_danger(idx, p)) continue;   // remembered raiders too: the site may lie in the fog
+        int unpaid = farm_paid && field && unit_get_hp(openb[i]) <= 1;   // FARMS PAID FIRST
+        if (unpaid && fwood < fcost) { b->farm_wait++; continue; }
         unsigned land = area_id(p, 2);
         for (int k = 0; k < nf; k++) {
             ivec2 q = unit_get_tile(freec[k]);
@@ -333,6 +365,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (bk < 0 || path_raided(pl, unit_get_x(freec[bk]), unit_get_y(freec[bk]), p.x, p.y) || !bd_send(pl, freec[bk], openb[i])) continue;
         freec[bk] = freec[--nf];
         sends++; b->sent++;
+        if (unpaid) fwood -= fcost;
     }
     // HOLDING THE GROUND ([ai_base] hold_ground; the player 2026-11-19, his game: "both player landed and build
     // settlments, p2 managed to build a tower first, the citezens of p3 just gave up instead of continuing building their
@@ -408,6 +441,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 for (int i = 0; i < no; i++) {
                     ivec2 p = unit_get_tile(openb[i]);
                     int d = ivec2_dist2(p, m);
+                    if (farm_paid && unit_type_get_id(unit_get_type_data(openb[i])) == UT(B_FARM)) continue;   // FARMS PAID FIRST: no field
                     if (d < bd && area_id(p, 2) == land && !wk_danger(idx, p)) { bd = d; job = openb[i]; }
                 }
             }
@@ -930,9 +964,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (g_log && (!b->log_t || now - b->log_t >= 60000)) {
         b->log_t = now ? now : 1;
         log_locked("# build: P%u at %.1f min: %d granaries, %d fields (%d going up, %d places still without one), %d unfinished buildings (%d left on lost ground) | mines in reach %d, with a drop site %d, with a defence %d | "
-                   "so far %u builders sent, %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
+                   "so far %u builders sent (fields: %u waited for the wood, %u let go for it, %u let go as a second), %u fields, %u granaries, %u Settlements, %u towers, %u research and %u production buildings laid, %u not laid, %u without a spot | wall pieces going up %d, builders sent to them %u | "
                    "claims %u, the last look: %s (territories nobody holds %d, quiet %d, beside a guarded one %d, safe %d) | Settlements by a herd %u, by trees across the water %u (the last look: %d territories on a land with no drop site of its, %d with a tree, %d out of danger; %u found no spot), fishing docks %u, laid across the water %u\n",
-                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->lost_ground, b->mines, b->mines_drop, b->mines_guard, b->sent, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
+                   idx, now / 60000.0, ngran, nfld, open_fields, fields_due, no, b->lost_ground, b->mines, b->mines_drop, b->mines_guard, b->sent, b->farm_wait, b->farm_nowood, b->farm_extra, b->fields, b->granaries, b->settlements, b->towers, b->research, b->production, b->refused, b->no_spot, nw, b->walls,
                    b->claims, b->claim_why ? b->claim_why : "-", b->claim_n[0], b->claim_n[1], b->claim_n[2], b->claim_n[3], b->herds, b->forests, b->forest_n[0], b->forest_n[1], b->forest_n[2], b->forest_nospot, b->fdocks, b->across);
     }
 }
