@@ -8,7 +8,8 @@
 // Space Carrier's Space Fighter (class 34: the airplane's movement over land, water and space) - and they refuel
 // aboard it (the type's refuel_at: 2 the carriers', 4 the Space Carrier's; an Airport's planes 1). A carrier with room
 // left (unit room) takes a plane trained at it; aboard, a plane is off the map (x < 0, its holder the carrier).
-// The navy's mix buys them (navy.c NR_CARR: one for every NV_CARRIER_PER warships of the other roles); here, every
+// The navy's mix buys them (navy.c NR_CARR: one for every NV_CARRIER_PER warships of the other roles, and only once
+// the carriers there are full - THE DECKS' ROOM below); here, every
 // CA_EVERY:
 //   BEHIND THE FLEET - each carrier follows the main group of its sea's warships (the ship with the most others within
 //                      CA_GROUP_R, their middle), CA_BEHIND tiles back towards the nearest own dock of that sea, on
@@ -50,7 +51,7 @@ internal struct ca_st {
     int planes, aboard, room;
     struct { int id, hp, fl; ivec2 at; const char *goal; } last[CA_PLANES]; int nlast; unsigned lost_logged;   // PLANES LOST (tests): the last look's
 } g_ca[16];
-internal void carriers_new_game(void) { memset(g_ca, 0, sizeof g_ca); }
+internal void carriers_new_game(void) { memset(g_ca, 0, sizeof g_ca); memset(g_nv_carr_free, 0, sizeof g_nv_carr_free); }
 internal int ca_plane(ee_unit_type *td) {   // a carrier's plane: refuels aboard a carrier (2) or a Space Carrier (4)
     int c = td ? unit_type_get_class_id(td) : -1, r = td ? unit_type_get_refuel_at(td) : 0;
     return (c == CLS_AIRPLANE || c == CLS_PLANET_SPACESHIP) && (r == 2 || r == 4) && unit_type_get_attack(td) > 0;
@@ -165,6 +166,7 @@ internal void carriers_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32
     static int base[CA_PLANES];
     struct ca_st *s = &g_ca[idx & 15];
     if (now < s->t) memset(s, 0, sizeof *s);
+    if (!CARRIERS(idx) || !g_fs.ncv) memset(g_nv_carr_free[idx & 15], 0, sizeof g_nv_carr_free[0]);   // no carrier: the first may be bought
     if (!CARRIERS(idx) || !g_fs.ncv || (s->t && now - s->t < CA_EVERY)) return;
     s->t = now ? now : 1;
     // BEHIND THE FLEET
@@ -188,7 +190,20 @@ internal void carriers_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32
         aboard += unit_get_x(u) < 0;
         planes[np++] = u;
     }
-    for (int k = 0; k < g_fs.ncv; k++) if (unit_get_hp(g_fs.cv[k]) > 0 && unit_get_room(g_fs.cv[k]) > 0) room += unit_get_room(g_fs.cv[k]);
+    // THE DECKS' ROOM (navy.c ONLY ONCE THE DECKS ARE FULL): a carrier's room counts only the planes aboard - less its
+    // planes in the air (based on it: ca_base), as the Space Fighters circling it; by layer for the mix
+    static int cfree[16];
+    memset(cfree, 0, sizeof cfree);
+    for (int k = 0; k < g_fs.ncv; k++) cfree[k] = unit_get_hp(g_fs.cv[k]) > 0 ? unit_get_room(g_fs.cv[k]) : 0;
+    for (int i = 0; i < np; i++) if (base[i] >= 0 && unit_get_x(planes[i]) >= 0) cfree[base[i]]--;
+    int *lf = g_nv_carr_free[idx & 15];
+    lf[0] = lf[1] = lf[2] = 0;
+    for (int k = 0; k < g_fs.ncv; k++) {
+        if (cfree[k] <= 0) { cfree[k] = 0; continue; }
+        room += cfree[k];
+        lf[0] += cfree[k];
+        lf[nv_space(unit_type_get_class_id(unit_get_type_data(g_fs.cv[k]))) ? 2 : 1] += cfree[k];
+    }
     s->planes = np; s->aboard = aboard; s->room = room;
     if (g_log && g_autotest) {   // PLANES LOST (tests): one at the last look and not now - where, its hit points, flight left, goal, the nearest enemy that can hit it
         for (int k = 0; k < s->nlast && s->lost_logged < 60; k++) {
@@ -219,7 +234,7 @@ internal void carriers_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32
         ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
         for (int k = 0; um && k < g_fs.ncv; k++) {   // the first carrier with room's plane: the game queues it at a carrier with room
             ee_unit *c = g_fs.cv[k];
-            if (unit_get_hp(c) <= 0 || unit_get_room(c) <= 0) continue;
+            if (unit_get_hp(c) <= 0 || cfree[k] <= 0) continue;
             int w = nv_wing(pl, unit_type_get_id(unit_get_type_data(c)));
             if (!w) { s->nowing++; continue; }
             s->last_wing = w;
@@ -238,7 +253,7 @@ internal void carriers_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32
             ee_unit_type *wtd = type_data(w);
             for (int j = k; !got && wtd && j < g_fs.ncv; j++) {
                 ee_unit *cj = g_fs.cv[j];
-                if (unit_get_hp(cj) <= 0 || unit_get_room(cj) <= 0 || nv_wing(pl, unit_type_get_id(unit_get_type_data(cj))) != w) continue;
+                if (unit_get_hp(cj) <= 0 || cfree[j] <= 0 || nv_wing(pl, unit_type_get_id(unit_get_type_data(cj))) != w) continue;
                 int pays = 1, acc = 0, before[7], spent[7] = { 0 }, any = 0;
                 for (int r = 2; r < 7; r++) { pays &= stock[r] - g_bd_com[idx][r] >= unit_cost(pl, w, r); before[r] = stock[r]; if (r != 2 && r != 4) acc += unit_cost(pl, w, r); }
                 if (!pays || (navy_share(idx) > 0 && navy_account(idx, 3) < acc)) { s->poor++; break; }

@@ -600,6 +600,11 @@ internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA", "M", "C
 // of the mix while a plane it makes can be trained (nv_wing), at most one for every NV_CARRIER_PER other warships
 #define NV_CARRIER_W 0.75f
 #define NV_CARRIER_PER 6
+// ONLY ONCE THE DECKS ARE FULL (the player 2026-11-24: "carriers on themselves are useless, the ai only should order
+// more carriers if the current ones are filled up, a bunch of half empty ones are a waste of resources"): the room
+// left on the own carriers by layer (1 water, 2 space) - carriers.c ca_free: the deck's room less its planes in the
+// air (the room counts only those aboard: a Space Carrier with 6 planes, 3 aboard, had room 12); [0] both; 0 none
+internal int g_nv_carr_free[16][3];
 // the plane a carrier of type ct makes that this player may train now, the strongest (attack x hit points); 0 none.
 // The data's: a plane whose tech names ct among its makers (the Aircraft Carriers' F-14, Corsair, Avenger, Dauntless,
 // Zero; the Space Carrier's Space Fighter)
@@ -788,9 +793,13 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
     int others = 0;
     for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
     for (int r = 1; r < NR_N; r++) if (r != NR_MSUB) others += have[r];
-    // THE CARRIERS: one for every NV_CARRIER_PER warships of the other roles, from NV_CARRIER_PER of them; in space the
-    // corvettes are the fleet's anti-air (x1.25 against the fighters' category): more of them for the enemy aircraft
-    if (!CARRIERS(idx) || have[NR_CARR] >= (others - have[NR_CARR]) / NV_CARRIER_PER) w[NR_CARR] = 0;
+    // THE CARRIERS: one for every NV_CARRIER_PER warships of the other roles, from NV_CARRIER_PER of them, and only once
+    // the carriers afloat on this layer are full and none is paid and not afloat yet (ONLY ONCE THE DECKS ARE FULL);
+    // in space the corvettes are the fleet's anti-air (x1.25 against the fighters' category): more of them for the
+    // enemy aircraft
+    int carr_paid = 0;
+    for (int q = 0; q < 8; q++) carr_paid |= pk->ring_role[q] == NR_CARR && pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000;
+    if (!CARRIERS(idx) || have[NR_CARR] >= (others - have[NR_CARR]) / NV_CARRIER_PER || carr_paid || g_nv_carr_free[idx & 15][g_nv_layer == 1 || g_nv_layer == 2 ? g_nv_layer : 0] > 0) w[NR_CARR] = 0;
     if (g_nv_layer == 2 && CARRIERS(idx)) w[NR_FRIG] += 0.25f * (float)(pk->air < 8 ? pk->air : 8);
     if (!g_set_ai[1].missile_subs || (sv_type(idx, SV_NAVY) != best[NR_MSUB] && have[NR_MSUB] >= (others >= 2 * NV_MSUB_FLEET ? 2 : others >= NV_MSUB_FLEET ? 1 : 0) * NV_MSUB_GROUP)) w[NR_MSUB] = 0;   // [ai_base] missile_subs; one saved for stays wanted (THE SAVINGS: a ship sunk dropped a saving at 97%)
 }
