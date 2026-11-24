@@ -1516,6 +1516,7 @@ internal uint32_t value_movement_slot_pm_naval_step;
 internal uint32_t data_movement_vt_pm_hover;
 internal uint32_t data_movement_vt_pm_land;
 internal uint32_t data_movement_vt_pm_naval;
+internal uint32_t data_movement_vt_pm_spaceship;
 internal uint32_t data_movement_vt_pm_submerged;
 
 // patching.cs

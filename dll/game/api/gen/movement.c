@@ -53,6 +53,10 @@ internal inline uint8_t *movement_vt_pm_hover_at(void) { return (uint8_t *)(uint
 internal inline uint8_t *movement_vt_pm_land_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_land; }
 // EEPMNaval, the ships' movement
 internal inline uint8_t *movement_vt_pm_naval_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_naval; }
+// EEPMSpaceship, Art of Conquest's spaceships' movement: a model of its own beside the ships' - the speed step,
+// the speed decision and the collision thunk are EEPhysicsModel's as in EEPMNaval's vtable; its slot 7 (0x55E718)
+// is its own: EEPhysicsModel's turn_towards while the unit's physics_order is 5, else the turn step (slot 8) alone
+internal inline uint8_t *movement_vt_pm_spaceship_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_spaceship; }
 // EEPMSubmergedNaval, the submarines' movement
 internal inline uint8_t *movement_vt_pm_submerged_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_submerged; }
 
@@ -85,9 +89,10 @@ internal int spec_movement_select(int build) {
         data_movement_vt_pm_hover = 0x0082CE8C;
         data_movement_vt_pm_land = 0x0082CFB0;
         data_movement_vt_pm_naval = 0x0082CE30;
+        data_movement_vt_pm_spaceship = 0;
         data_movement_vt_pm_submerged = 0x0082CDD4;
         fn_eepm_land_collide = (physics_model_collide_fn)0x0054CABF;
-        return 0;
+        return 1;
     case 1:   // aoc
         vt_ee_physics_model = 0x00842848;
         fn_physics_model_speed_decide = (physics_model_speed_decide_fn)0x00554CB2;
@@ -106,6 +111,7 @@ internal int spec_movement_select(int build) {
         data_movement_vt_pm_hover = 0x008426B8;
         data_movement_vt_pm_land = 0x008427E8;
         data_movement_vt_pm_naval = 0x00842658;
+        data_movement_vt_pm_spaceship = 0x008423A8;
         data_movement_vt_pm_submerged = 0x008425F8;
         fn_eepm_land_collide = (physics_model_collide_fn)0x0055BE0E;
         return 0;
@@ -113,7 +119,7 @@ internal int spec_movement_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_movement_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_movement_missing[ADDR_BUILDS] = { "movement.vt_pm_spaceship", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_movement_check(void) {
     int bad = 0;
@@ -128,6 +134,7 @@ internal int spec_movement_check(void) {
     bad += spec_data(data_movement_vt_pm_hover, "movement.vt_pm_hover");
     bad += spec_data(data_movement_vt_pm_land, "movement.vt_pm_land");
     bad += spec_data(data_movement_vt_pm_naval, "movement.vt_pm_naval");
+    bad += spec_data(data_movement_vt_pm_spaceship, "movement.vt_pm_spaceship");
     bad += spec_data(data_movement_vt_pm_submerged, "movement.vt_pm_submerged");
     bad += spec_code((uintptr_t)fn_eepm_land_collide, "EEPMLand.collide");
     return bad;

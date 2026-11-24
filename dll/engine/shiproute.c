@@ -55,7 +55,7 @@
 internal int g_sr_on, g_sr_log, g_lr_on, g_lr_widen;
 internal unsigned g_lr_corners, g_lr_widened;   // land_widen: corners looked at, moved
 internal double g_lr_room0, g_lr_room1;         // their room before and after (tiles, summed)
-internal int g_sr_ship;                 // this search's unit is a ship (the water test, the shore)
+internal int g_sr_ship;                 // this search's unit is a ship (1: the water test, the shore) or a spaceship (2: the shore)
 internal unsigned g_lr_routes;           // land searches made, and their time (ms): all, the longest
 internal double g_lr_ms, g_lr_ms_max;
 internal float g_sr_radius;             // this search's ship: its hull radius in tiles
@@ -113,9 +113,11 @@ internal unsigned g_sr_joined, g_sr_join_missed;   // requests answered from a k
 
 internal float ff_lead_area(ee_unit *u);   // groupmove.c
 internal int ff_lead_need(ee_unit *u, int set);
+#define SR_KIND_SPACE 12   // the tile kind of Art of Conquest's space (docs/engine-notes.md "Space")
 internal int sr_is_ship(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);
-    return td && unit_type_terrain_ok(td, 1) && !unit_type_terrain_ok(td, 0);
+    if (!td || unit_type_terrain_ok(td, 0)) return 0;
+    return unit_type_terrain_ok(td, 1) ? 1 : unit_type_terrain_ok(td, SR_KIND_SPACE) ? 2 : 0;   // 1 water; 2 Art of Conquest's space: its spaceships are routed, steered and kept apart as ships
 }
 
 internal int sr_is_land(ee_unit *u) {
@@ -168,7 +170,7 @@ internal int sr_pass_tile(ee_map *map, ee_unit *u, ee_unit_type *td, int size, i
     ee_tile *tile = map_get_tiles(map)[i];
     if (!tile || !unit_type_terrain_ok(td, tile_get_kind(tile))) return 0;
     int sea = tile_get_sea_class(tile), mode = unit_get_sea_mode(u);   // the naval movement's own test (its route search's sea modifier)
-    if (g_sr_ship && ((sea < 0 && mode != 0) || (sea > 0 && mode == 3))) return 0;
+    if (g_sr_ship == 1 && ((sea < 0 && mode != 0) || (sea > 0 && mode == 3))) return 0;   // the water's depth: not a spaceship's (space has no shallows - a capital ship's start had no tile to go to by this test)
     for (void *node = tile_get_objects(tile); node; node = tilenode_get_next(node)) {
         ee_unit *o = tilenode_get_object(node);   // units that move are left to the movement (they won't be there)
         ee_unit_stats *st = o && o != u ? unit_get_stats(o) : NULL;
@@ -1148,6 +1150,14 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
     physics_model_turn_towards(model, u, pos, to, left, rate, heading, facing);
 }
 
+// a spaceship's turn (Art of Conquest's EEPMSpaceship, slot 7): the game's own turns towards the point only while the
+// unit's physics order is 5 and takes the turn step alone otherwise - steered as a ship in the first case, the game's in
+// the other
+internal void __thiscall hook_space_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
+    if (u && unit_get_physics_order(u) == 5) hook_ship_turn_towards(model, u, pos, target, left, rate, heading, facing);
+    else g_space_turn(model, u, pos, target, left, rate, heading, facing);
+}
+
 // the speed step at a leg's end that is passed through: given the way on to the next order's target, it neither
 // brakes for the stop nor caps the speed at the distance left; a ship of a formation's march at its speed there
 internal float __thiscall hook_ship_speed_step(void *model, ee_unit *u, float dist, float angle) {
@@ -1226,6 +1236,8 @@ internal void shiproute_install(const char *autotest_ini) {
     int follow = g_set.formations && g_set.formation_follow;   // formation_follow steers ships and sets their speed there too
     int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) : 0;
     st += g_st_on || follow ? patch_ship_turn_towards(hook_ship_turn_towards) + patch_ship_speed_step(hook_ship_speed_step) : 0;
+    int sp = g_st_on || follow ? patch_spaceship(g_st_on ? hook_ship_speed : NULL, hook_ship_speed_step, hook_space_turn_towards, NULL) : 0;
+    if (g_log && has_spaceships()) fprintf(g_log, "# shipturns: the spaceships' model as the ships' (hooks %d/%d)%c", sp, g_st_on ? 3 : 2, 10);
     if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s) land_turns=%d (hooks %d/2)\n", g_st_on, !g_st_on && !follow ? "-" : st == (g_st_on ? 6 : 4) ? "ok" : "FAILED", g_lt_on, lt);
     g_sr_on = g_set.ship_routes;
     if (autotest_ini) g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);

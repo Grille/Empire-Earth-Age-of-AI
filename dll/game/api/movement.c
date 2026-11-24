@@ -59,7 +59,27 @@ internal inline void model_push(void *model, ee_unit *u) { ((void (__thiscall *)
 enum { MODEL_SHIPS = 1, MODEL_SUBS, MODEL_LAND };
 internal inline int model_kind(const void *model) {
     uintptr_t vt = model ? *(const uintptr_t *)model : 0;
+    if (vt && vt == data_movement_vt_pm_spaceship) return MODEL_SHIPS;   // Art of Conquest's spaceships: ships of another sea
     return vt == data_movement_vt_pm_naval ? MODEL_SHIPS : vt == data_movement_vt_pm_submerged ? MODEL_SUBS : vt == data_movement_vt_pm_land || vt == data_movement_vt_pm_hover ? MODEL_LAND : 0;
+}
+// ART OF CONQUEST'S SPACESHIPS (EEPMSpaceship; the player, 2026-11-24: "spaceships use the base game movement, they
+// should simply reuse the navy systems we already built"): the ships' hooks in its vtable too - the speed step, the
+// speed decision and the collision hold the functions the ships' hold; the turn (slot 7) is its own, kept in
+// g_space_turn for the hook to call where it doesn't steer. 4 when all are in, 0 in a build without the model
+internal turn_towards_hook g_space_turn;
+internal inline int has_spaceships(void) { return data_movement_vt_pm_spaceship != 0; }   // this build has the model
+internal inline int patch_spaceship(speed_decide_hook decide, speed_step_hook step, turn_towards_hook turn, collide_hook collide) {
+    uintptr_t vt = data_movement_vt_pm_spaceship;
+    if (!vt) return 0;
+    int n = 0;
+    if (decide) n += patch_vtable(vt, value_movement_slot_pm_speed_decide, (uintptr_t)fn_physics_model_speed_decide, (void *)decide);
+    if (step) n += patch_vtable(vt, value_movement_slot_pm_speed_step, (uintptr_t)fn_physics_model_speed_step, (void *)step);
+    if (turn) {
+        uintptr_t own = ((uintptr_t *)vt)[value_movement_slot_pm_turn_towards];
+        if (patch_vtable(vt, value_movement_slot_pm_turn_towards, own, (void *)turn)) { g_space_turn = (turn_towards_hook)own; n++; }
+    }
+    if (collide) n += patch_vtable(vt, (int)slot_physics_model_collide, (uintptr_t)fn_eepm_land_collide, (void *)collide);
+    return n;
 }
 internal inline int patch_collide(int kind, collide_hook h) {   // a kind's models
     if (kind == MODEL_SHIPS) return patch_vtable(data_movement_vt_pm_naval, (int)slot_physics_model_collide, (uintptr_t)fn_eepm_land_collide, (void *)h);

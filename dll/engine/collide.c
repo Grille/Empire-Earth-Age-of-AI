@@ -306,6 +306,7 @@ internal void collide_install(void) {
     g_uc_slide = g_set.collide_slide && g_set.ship_collide;
     int n[4] = { 0 };
     for (int k = MODEL_SHIPS; k <= MODEL_LAND; k++) n[k] = g_uc_on[k] ? patch_collide(k, hook_collide) : 0;
+    if (g_uc_on[MODEL_SHIPS] && has_spaceships() && !patch_spaceship(NULL, NULL, NULL, hook_collide) && g_log) fprintf(g_log, "# collide: the spaceships' hook FAILED%c", 10);   // Art of Conquest's spaceships: as ships
     if (g_log) fprintf(g_log, "# collide: ship_collide=%d land_collide=%d collide_slide=%d (hooks: ships %d, submarines %d, land %d/2)\n", g_set.ship_collide, g_set.land_collide, g_uc_slide,
                        n[MODEL_SHIPS], n[MODEL_SUBS], n[MODEL_LAND]);
 }

@@ -76,6 +76,12 @@ static unsafe class movement
     [address((ee)0x0082CE30, (aoc)0x00842658)]
     static vftable vt_pm_naval;
 
+    /// EEPMSpaceship, Art of Conquest's spaceships' movement: a model of its own beside the ships' - the speed step,
+    /// the speed decision and the collision thunk are EEPhysicsModel's as in EEPMNaval's vtable; its slot 7 (0x55E718)
+    /// is its own: EEPhysicsModel's turn_towards while the unit's physics_order is 5, else the turn step (slot 8) alone
+    [address((ee)none, (aoc)0x008423A8)]
+    static vftable vt_pm_spaceship;
+
     /// EEPMSubmergedNaval, the submarines' movement
     [address((ee)0x0082CDD4, (aoc)0x008425F8)]
     static vftable vt_pm_submerged;
