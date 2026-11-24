@@ -213,7 +213,7 @@ internal const char k_rd3_shader[] =
     // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light;
     // a space map's edge and faces (w 2: rg_space_quad) none, gt.a -1 - its texture's own alpha is the edge's shape; a face (its
     // normal level: rg_space_quad) -2, lit by its own normal, fo the way it looks (the hills' shadows taken out in front of it)
-    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo, out uint gm, out float3 gnn) { gm = i.w >> 4; gnn = i.n; i.w &= 15; int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
+    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo, out uint gm, out float3 gnn) { gm = i.w >> 2; gnn = i.n; i.w &= 3; int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
     " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); fo = i.w > 1 && abs(i.n.z) < 0.5 ? i.n.xy : float2(0, 0); gt = i.w > 1 ? float4(0, 0, 0, any(fo != 0) ? -2 : -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
@@ -323,7 +323,7 @@ internal const char k_rd3_shader[] =
     // its own - so the game's light as a whole, the fog of war and the shadows stay theirs; between 0.6 and 1.5 of it (a
     // low sun on a slope facing it multiplied a texel's light several times). Over the level only (under it the game's
     // own colours, as the borders')
-    " [branch] if (gnd.x == 1 && grl.x > 0 && i.gm > 0 && i.gt.a >= 0) { uint rm = i.gm - 1; float3 n0 = normalize(i.gnn);"
+    " [branch] if (gnd.x == 1 && grl.x > 0 && (i.gm & 2047) > 0 && i.gt.a >= 0) { uint rm = (i.gm & 2047) - 1; float3 n0 = normalize(i.gnn);"
     "  float2 sl = gnm.SampleGrad(ghw, float3(i.t, rm), gdx, gdy) * (0.25 * grl.x * grl.y * gmn[rm]);"
     "  float3 tx = normalize(float3(1, 0, 0) - n0 * n0.x), n1 = normalize(n0 - sl.x * tx - sl.y * cross(n0, tx)), l0 = gla.rgb, l1 = gla.rgb;"
     "  for (int kl = 0; kl < (int)gla.w; kl++) { l0 += glc[kl].rgb * max(0, dot(n0, gld[kl].xyz)); l1 += glc[kl].rgb * max(0, dot(n1, gld[kl].xyz)); }"
@@ -333,8 +333,10 @@ internal const char k_rd3_shader[] =
     // height here, noise mixed in - (share x e^(4 height))^p, p the sharper the less soft. The layer covers what was drawn
     // before it in the tile (the lower addresses: the table's order) by its weight against theirs; the first, the base, whole.
     // A tile without the table (a space map's edge corner) as before: the layer's own heights over its fade
-    " [branch] if (gk > 0 && i.gt.a >= 0 && i.gm > 0) { uint own = i.gm - 1; int2 q = int2(floor(i.gw.xy)); uint4 tq = gtq.Load(int3(q, 0));"
-    "  if (tq.x == 0) { if (c.a > 0 && c.a < 1) { float gh = lerp(ght.SampleGrad(ghw, float3(i.t, own), gdx, gdy), gbz(i.gw.xy, 0), gbl.z);"
+    // the tile's textures by their sets' first ones (render_ground.c rg_canon: a set's textures over its blocks of tiles
+    // broke the borders at the blocks' edges): gm's bits 0-10 the texture's material + 1, 11-21 its set's first's
+    " [branch] if (gk > 0 && i.gt.a >= 0 && (i.gm >> 11) > 0) { uint own = (i.gm >> 11) - 1; int2 q = int2(floor(i.gw.xy)); uint4 tq = gtq.Load(int3(q, 0));"
+    "  if (tq.x == 0) { if (c.a > 0 && c.a < 1) { float gh = lerp(ght.SampleGrad(ghw, float3(i.t, (i.gm & 2047) - 1), gdx, gdy), gbz(i.gw.xy, 0), gbl.z);"
     "   c.a = lerp(c.a, saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y), gk); } }"
     "  else { uint4 M = (tq & 2047) - 1, R = (tq >> 11) & 3; uint orank = 4;"
     "   [unroll] for (int kb = 0; kb < 4; kb++) if (M[kb] == own) orank = R[kb];"

@@ -96,6 +96,7 @@ internal struct {
     ID3D11ShaderResourceView *srv[2][RG_MATERIALS];   // the ground's and the water's textures as last looked up, a reference held: all a frame under another writer has of them
     uint8_t hmade[RG_MATERIALS];   // the ground's textures' heights are in the borders' array (rgb_height), once each
     float inv_n[RG_MATERIALS];     // a texture's share a tile (1 / the tiles its set repeats it over): its place at a point of the map
+    int16_t canon[RG_MATERIALS];   // its set's first texture's material + 1 (rg_canon; 0 not known)
     int inv_dirty;
     ID3D11Texture2D *tq;           // THE BORDERS' TABLE: a tile's four corners' textures (rg_quad), the map's size across
     ID3D11ShaderResourceView *tq_srv;
@@ -176,6 +177,7 @@ internal void rg_free(void) {
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
     memset(g_rg.hmade, 0, sizeof g_rg.hmade);
+    memset(g_rg.canon, 0, sizeof g_rg.canon);
     D3D_RELEASE(g_rg.tq_srv);
     D3D_RELEASE(g_rg.tq);
     memset(g_rg.msamp, 0, sizeof g_rg.msamp);   // the cache's: not released
@@ -238,7 +240,7 @@ internal void rg_vertex_at(rb_vertex *o, float x, float y, float z, unsigned lon
     memcpy(f + 3, g_rg.normal(g_rg.mesh, gx, gy), 12);
     *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, gx, gy), a & 255);
     f[7] = uv[0]; f[8] = uv[1];
-    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour); 2: a space piece, as it is; bits 4 on its material + 1 (rg_quad)
+    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour); 2: a space piece, as it is; bits 2-12 its material + 1, 13-23 its set's first's (rg_quad)
 }
 internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const float *uv, int a) {
     rg_vertex_at(o, (float)x, (float)y, g_rg.z(g_rg.mesh, x, y), x, y, uv, a);
@@ -257,6 +259,20 @@ internal int rg_material(void *tex) {
     if (g_rg.nmat >= RG_MATERIALS) return -1;
     g_rg.mat[g_rg.nmat] = tex;
     return last = g_rg.nmat++;
+}
+// THE SET'S FIRST: a terrain's set is several textures, each over a block of tiles (GETextureSet::GetTexture: by x and y
+// over the tiles a texture covers), and the textures of a tile's corners are the set's for the tile. Two tiles across a
+// block's edge took their border's heights and noise from two textures, and the border broke there in a straight line
+// (the player, 2026-11-24: "ground blending can still have very noticable seams"). The borders go by the set's first
+// texture: its heights, repeating over the whole map, and its noise; what each tile shows and its relief stay its own.
+// m the texture's material; -1 none
+internal int rg_canon(void *set, int m) {
+    if (m < 0 || !set) return m;
+    void *first = g_rg.tex(set, 0, 0);
+    int c = first ? rg_material(first) : m;
+    if (c < 0) c = m;
+    g_rg.canon[m] = (int16_t)(c + 1);   // its heights made with the textures drawn (rg_draw_now)
+    return c;
 }
 // the texture of a cell for the quad at x, y: the quad's own for a cell outside the map or of the same set
 internal void *rg_cell(long cx, long cy, unsigned long x, unsigned long y, unsigned long own, void *own_tex, void **set) {
@@ -502,7 +518,8 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     if (g_rg.tqc) {
         uint16_t *q = g_rg.tqc[(y - (unsigned long)g_rg.tq_y0) * RG_CHUNK + (x - (unsigned long)g_rg.tq_x0)];
         int cm[4], ok = 1;
-        for (int k = 0; k < 4; k++) { cm[k] = rg_material(t[k]); ok = ok && cm[k] >= 0 && sets[k]; }
+        int am[4];
+        for (int k = 0; k < 4; k++) { am[k] = rg_material(t[k]); cm[k] = rg_canon(sets[k], am[k]); ok = ok && cm[k] >= 0 && sets[k]; }
         for (int k = 0; k < 4 && ok; k++) {
             int rank = 0;
             for (int j = 0; j < 4; j++) {
@@ -513,7 +530,7 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
             float uv[2];
             g_rg.uv(sets[k], 1, 1, uv);   // (1 mod n) / n
             float inv = uv[0] > 0 ? uv[0] : 1.0f;
-            if (g_rg.inv_n[cm[k]] != inv) { g_rg.inv_n[cm[k]] = inv; g_rg.inv_dirty = 1; }
+            if (g_rg.inv_n[cm[k]] != inv || g_rg.inv_n[am[k]] != inv) { g_rg.inv_n[cm[k]] = g_rg.inv_n[am[k]] = inv; g_rg.inv_dirty = 1; }
             q[k] = (uint16_t)((cm[k] + 1) | rank << 11);
         }
         if (!ok) memset(q, 0, sizeof g_rg.tqc[0]);
@@ -538,8 +555,10 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
             a[0] = 0; a[1] = 1; b[0] = 0; b[1] = 0; c[0] = 1; c[1] = 1; e[0] = 1; e[1] = 0;
         }
         // a corner's alpha: the whole base; a layer where the corner's cell has its texture. Bit 8: the cell has it (a point has one cell, so one texture and one colour)
-        // Bits 12 on: the texture's material + 1 (the borders' shader finds it among the corners' in the table)
-        int mb = (rg_material(tex) + 1) << 12;
+        // Bits 10-20: the texture's material + 1 (its relief), bits 21-31 its set's first's (the borders' shader finds it
+        // among the corners' in the table)
+        int tm = rg_material(tex);
+        int mb = (int)((uint32_t)(tm + 1) << 10 | (uint32_t)(rg_canon(set, tm) + 1) << 21);
         int aa = (k < 0 || t[2] == tex ? 255 : 0) | (t[2] == tex) << 8 | mb, ab = (k < 0 || t[1] == tex ? 255 : 0) | (t[1] == tex) << 8 | mb;
         int ac = (k < 0 || t[3] == tex ? 255 : 0) | (t[3] == tex) << 8 | mb, ad = (k < 0 || t[0] == tex ? 255 : 0) | (t[0] == tex) << 8 | mb;
         int layer = k < 0 ? 0 : 1;
@@ -1291,7 +1310,11 @@ internal void rg_draw_now(int water, int again) {
     }
     int nmat = again == 2 ? 0 : water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
-    if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
+    if (!water) {
+        want[0] = 1;   // the black round the map: any texture, its colour is 0
+        for (int m = 0; m < nmat; m++)   // the borders' heights of the drawn textures' sets' first ones (rg_canon)
+            if (want[m] && g_rg.canon[m] > 0 && g_rg.canon[m] <= nmat) want[g_rg.canon[m] - 1] = 1;
+    }
     unsigned wg = water ? mesh_water_groups(g_rg.mesh) : 0;   // the water's groups: each one's next frame is the next one's texture
     if (wg > RG_MATERIALS) wg = RG_MATERIALS;
     float wblend = wg > 1 ? rg_water_blend() : 0.0f;
