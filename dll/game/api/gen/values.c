@@ -3749,6 +3749,8 @@ internal uint32_t slot_unit_type_is_land_building;
 internal uint32_t vt_eeuc_missile;
 internal uint32_t vt_eeuc_projectile;
 internal uint32_t slot_unit_type_down;
+internal uint32_t vt_eeuc_basic_priest;
+internal uint32_t slot_unit_type_can_convert;
 internal uint32_t vt_ee_unit_class_upgrade;
 internal uint32_t of_unit_stats_levels;
 internal uint32_t of_unit_stats_points;

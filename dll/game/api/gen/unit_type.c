@@ -400,6 +400,23 @@ internal unit_type_down_fn fn_eeuc_projectile_down;
 internal inline char eeuc_projectile_down(ee_unit_type *unit_type, ee_unit *projectile) { return fn_eeuc_projectile_down(unit_type, projectile); }
 internal inline int patch_proj_down(unit_type_down_fn h) { return patch_vtable(vt_eeuc_projectile, (int)slot_unit_type_down, (uintptr_t)fn_eeuc_projectile_down, (void *)h); }
 
+// class EEUCBasicPriest (ee_unit_type)
+// a priest's type data (EEUCBasicPriest; EEUCLandPriest, EEUCHelicopterPriest and EEUCNavalPriest derive from it and
+// keep its can_convert)
+// vf55, a slot of its own (EEUnitClass has 55): whether priest may convert target now, thiscall(priest's class,
+// priest, target, &immune) - ret 0xC. Not its own player's, one it is at war with, the priest's conversion above 0,
+// the target alive and of a type that can be converted (stats +0x88 below 1), the to-hit table's entry for the
+// pair, a priest only with the stats' +0x15F and a building only with +0x15E (the techs that allow them), the
+// priest's power at least the conversion's cost (0x5FFEEA), and the target not in a University's area: its area
+// effect of kind 4 (EEAEConversionImmunity; *immune 1 then) unless either type has +0x622 set. The game asks it
+// in the player's cursor (0x64F...), the units' own targeting (0x5DDC8C) and the answer to an attacker (the
+// scripts' AttackerIsLegalConversionTarget) - not when a conversion goal is given or completes (0x6000C6), so a
+// goal given directly converts in a University's area. AoC made it a plain function: priest_can_convert
+typedef char (__thiscall *unit_type_can_convert_fn)(ee_unit_type *, ee_unit *, ee_unit *, char *);
+internal inline char unit_type_can_convert(ee_unit_type *unit_type, ee_unit *priest, ee_unit *target, char *immune) { return ((unit_type_can_convert_fn)(*(void ***)unit_type)[slot_unit_type_can_convert])(unit_type, priest, target, immune); }
+internal unit_type_can_convert_fn fn_eeuc_basic_priest_can_convert;
+internal inline char eeuc_basic_priest_can_convert(ee_unit_type *unit_type, ee_unit *priest, ee_unit *target, char *immune) { return fn_eeuc_basic_priest_can_convert(unit_type, priest, target, immune); }
+
 // class EEUnitClassUpgrade (ee_unit_stats)
 // a unit type's per-player values, a unit's +0x34 (range, attack ...): EEUnitClassUpgrade, the type data's values
 // with the player's improvements - the per-type upgrades bought at a building (attack, hit points, range, speed, the
@@ -585,6 +602,12 @@ internal inline ee_to_hit_table *unit_type_bonus_table_at(void) { return (ee_to_
 // EEUnitClass: thiscall(type data, unit), as the game's goal assignment
 // EEUCTransport: char thiscall(type data, transport, unit) - its family against the unit type's board flags
 // (0x609095; AoC put a stub at 60)
+// AoC's EEUCBasicPriest.can_convert, a plain function there: cdecl(priest, target, &immune), the same tests and
+// a few of its own (a priest of class 0x1E only within its range); called where the 2017 update calls the
+// slot (the cursor 0x665E89, the answer to an attacker EEUCBasicPriest::vf40, eight callers)
+typedef char (__cdecl *unit_type_priest_can_convert_fn)(ee_unit *, ee_unit *, char *);
+internal unit_type_priest_can_convert_fn fn_unit_type_priest_can_convert;
+internal inline char unit_type_priest_can_convert(ee_unit *priest, ee_unit *target, char *immune) { return fn_unit_type_priest_can_convert(priest, target, immune); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_type_select(int build) {
@@ -676,6 +699,9 @@ internal int spec_unit_type_select(int build) {
         vt_eeuc_projectile = 0x00833060;
         slot_unit_type_down = 55;
         fn_eeuc_projectile_down = (unit_type_down_fn)0x006078F9;
+        vt_eeuc_basic_priest = 0x0083177C;
+        slot_unit_type_can_convert = 55;
+        fn_eeuc_basic_priest_can_convert = (unit_type_can_convert_fn)0x00600381;
         vt_ee_unit_class_upgrade = 0x00833A60;
         of_unit_stats_levels = 0x8;
         of_unit_stats_points = 0x48;
@@ -717,7 +743,8 @@ internal int spec_unit_type_select(int build) {
         data_unit_type_bonus_table = 0x00917DE0;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 60;
-        return 0;
+        fn_unit_type_priest_can_convert = (unit_type_priest_can_convert_fn)0;
+        return 1;
     case 1:   // aoc
         of_unit_type_vtable = 0x0;
         of_unit_type_name = 0x1C;
@@ -805,6 +832,9 @@ internal int spec_unit_type_select(int build) {
         vt_eeuc_projectile = 0x00848ED0;
         slot_unit_type_down = 56;
         fn_eeuc_projectile_down = (unit_type_down_fn)0x00619143;
+        vt_eeuc_basic_priest = 0x00847144;
+        slot_unit_type_can_convert = NA;
+        fn_eeuc_basic_priest_can_convert = (unit_type_can_convert_fn)0;
         vt_ee_unit_class_upgrade = 0x00849AD8;
         of_unit_stats_levels = 0x8;
         of_unit_stats_points = 0x48;
@@ -846,12 +876,13 @@ internal int spec_unit_type_select(int build) {
         data_unit_type_bonus_table = 0x009318E8;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 61;
-        return 1;
+        fn_unit_type_priest_can_convert = (unit_type_priest_can_convert_fn)0x0060DA86;
+        return 3;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "", "EEUnitClass.has_power" };
+internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "unit_type.priest_can_convert", "EEUnitClass.has_power EEUCBasicPriest.can_convert [slot] EEUCBasicPriest.can_convert" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_type_check(void) {
     int bad = 0;
@@ -866,6 +897,9 @@ internal int spec_unit_type_check(void) {
     bad += spec_vtable(vt_eeuc_projectile, ".?AVEEUCProjectile@@", "EEUCProjectile [vtable]");
     bad += spec_code((uintptr_t)fn_eeuc_projectile_down, "EEUCProjectile.down");
     bad += spec_slot(vt_eeuc_projectile, slot_unit_type_down, (uintptr_t)fn_eeuc_projectile_down, "EEUCProjectile.down [slot]");
+    bad += spec_vtable(vt_eeuc_basic_priest, ".?AVEEUCBasicPriest@@", "EEUCBasicPriest [vtable]");
+    bad += spec_code((uintptr_t)fn_eeuc_basic_priest_can_convert, "EEUCBasicPriest.can_convert");
+    bad += spec_slot(vt_eeuc_basic_priest, slot_unit_type_can_convert, (uintptr_t)fn_eeuc_basic_priest_can_convert, "EEUCBasicPriest.can_convert [slot]");
     bad += spec_vtable(vt_ee_unit_class_upgrade, ".?AVEEUnitClassUpgrade@@", "EEUnitClassUpgrade [vtable]");
     bad += spec_code((uintptr_t)fn_ee_unit_class_upgrade_copy_levels_to, "EEUnitClassUpgrade.copy_levels_to");
     bad += spec_slot(vt_ee_unit_class_upgrade, slot_unit_stats_copy_levels_to, (uintptr_t)fn_ee_unit_class_upgrade_copy_levels_to, "EEUnitClassUpgrade.copy_levels_to [slot]");
@@ -879,5 +913,6 @@ internal int spec_unit_type_check(void) {
     bad += spec_vtable(vt_eeuc_upgrade_table, ".?AVEEUCUpgradeTable@@", "EEUCUpgradeTable [vtable]");
     bad += spec_data(data_unit_type_upgrade_tables, "unit_type.upgrade_tables");
     bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
+    bad += spec_code((uintptr_t)fn_unit_type_priest_can_convert, "unit_type.priest_can_convert");
     return bad;
 }

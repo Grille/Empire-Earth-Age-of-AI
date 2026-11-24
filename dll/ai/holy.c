@@ -71,7 +71,7 @@ internal struct hl_st {
     uint32_t t, log_t, train_t;
     struct { int id; ivec2 strike; uint32_t strike_t; } p[HL_UNITS]; int np;   // prophets on a strike: its target, since
     struct { int id; uint32_t t; int pw; } ord[2 * HL_UNITS]; int nord;   // its last cast or conversion order, when, its power then (A GIVEN ORDER)
-    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused, gifts, defends, aways;
+    unsigned casts[HLP_N], strikes, converts, trained_p, trained_c, towers, refused, gifts, defends, aways, universities;
     int last_pro, last_pri; uint32_t lost[2][HL_LOSSES]; unsigned nlost[2];   // THE LOST: the last count of each, when each was lost (a ring)
 } g_hl[16];
 // A GIVEN ORDER: a cast or a conversion walks first - the unit's goal is a move meanwhile (the cast goal's own walk into
@@ -574,10 +574,16 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
         int hurt = (float)unit_get_hp(u) < HL_HURT * (float)unit_type_get_hp(unit_get_type_data(u));
         int foes = raiders_near(pl, p, HL_ALONE + 1);
         if (hurt && foes) { hl_walk(u, home); continue; }
+        int un = 0;   // a target gone into a University's area: let go (the game's conversion never asks again)
+        if (tg && unit_get_hp(tg) > 0 && unit_get_owner(tg) != pl && !priest_can_convert(u, tg, &un) && un) {
+            h->universities++;
+            if (!hl_walk(u, home)) as_order(u, goal_move((float)p.x + 0.5f, (float)p.y + 0.5f));   // by home already: it stops
+            continue;
+        }
         if (tg && unit_get_hp(tg) > 0 && unit_get_owner(tg) != pl && raiders_near(pl, unit_get_tile(tg), HL_ALONE) <= 1) continue;   // converting
         if (hl_ordered(h, u, now)) continue;   // A GIVEN ORDER: on its way
         ee_unit *best = NULL;
-        int bs = 0;
+        int bs = 0, uni = 0;
         for (struct grid_it it = grid_it_box(p.x, p.y, HL_PRIEST_LOOK, 1); grid_it_next(&it); ) {
             ee_player *o = unit_get_owner(it.u);
             int t = unit_type_get_id(it.td), cit = is_citizen_type(t);
@@ -586,9 +592,14 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
             ivec2 q = unit_get_tile(it.u);
             int d = ivec2_dist2(q, p);
             if (d > HL_PRIEST_LOOK * HL_PRIEST_LOOK || raiders_near(pl, q, HL_ALONE) > (cit ? 0 : 1) || wk_danger(idx, q)) continue;
-            int sc = 100000 - d + (cit ? 50000 : 0);
-            if (!best || sc > bs) { best = it.u; bs = sc; }
+            int sc = 100000 - d + (cit ? 50000 : 0), refused_uni = 0;
+            if (best && sc <= bs) continue;
+            // the game's own test of the conversion (attack.c NO CONVERSION THE GAME REFUSES): one in a University's
+            // area, or with the priest's power short, isn't picked - the priest goes on to the next or back
+            if (!priest_can_convert(u, it.u, &refused_uni)) { uni |= refused_uni; continue; }
+            best = it.u; bs = sc;
         }
+        h->universities += uni;
         if (best) {
             ee_goal *ga = goal_attack(u, best);
             if (ga && unit_goal(u, ga, 0, 0x1F40)) { h->converts++; hl_order_note(h, u, now); }
@@ -599,7 +610,7 @@ internal void holy_tick(ee_player *pl, uint32_t now) {
     }
     if (g_log && g_autotest && (!h->log_t || now - h->log_t >= 60000)) {
         h->log_t = now ? now : 1;
-        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u parting gifts, %u at home, %u refused by the power's check, %u conversions ordered, lost in 10 minutes %d prophets %d priests | earthquake costs %d\n",
-                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->gifts, h->defends, h->refused, h->converts, hl_lost(h, 0, now), hl_lost(h, 1, now), hl_cost(pl, HLP_QUAKE));
+        log_locked("# holy: P%u at %.1f min: %d prophets, %d priests, Temple %d | so far trained %u prophets and %u priests, casts quake %u fire %u volcano %u plague %u hurricane %u malaria %u, %u strikes, %u at towers, %u parting gifts, %u at home, %u refused by the power's check, %u conversions ordered, %u searches passed over a University's protection, lost in 10 minutes %d prophets %d priests | earthquake costs %d\n",
+                   idx, now / 60000.0, npro, npri, temple, h->trained_p, h->trained_c, h->casts[0], h->casts[1], h->casts[2], h->casts[3], h->casts[4], h->casts[5], h->strikes, h->towers, h->gifts, h->defends, h->refused, h->converts, h->universities, hl_lost(h, 0, now), hl_lost(h, 1, now), hl_cost(pl, HLP_QUAKE));
     }
 }

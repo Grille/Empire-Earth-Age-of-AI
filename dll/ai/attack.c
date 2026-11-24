@@ -683,7 +683,16 @@ internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
 // attacker's weapon cannot hit by the game's own table (attack_bonus 0: ground soldiers at aircraft, fighters at ground
 // units, anti-air at a howitzer). A priest's or prophet's "attack" converts: for them an enemy player's unit only.
 // "# no impossible orders:" names the first callers refused.
+// NO CONVERSION THE GAME REFUSES (the player 2026-11-24, a player's report: "the ai's priests converted units in the
+// influence area of his universities"): the game tests a conversion (priest_can_convert: a University's protection,
+// the techs for priests and buildings, the priest's power ...) only before its own orders, never when the goal is
+// given or the unit changes hands - a priest's order of the mod's goes through that test too
 internal unsigned g_ga_refused;
+internal int ga_converts(ee_unit *u) {   // a priest's: its attack a conversion by the game's test (a prophet's casts are calamity goals)
+    ee_unit_type *td = unit_get_type_data(u);
+    int c = td ? unit_type_get_class_id(td) : -1;
+    return (c == CLS_LAND_PRIEST || c == CLS_HELICOPTER_PRIEST || c == CLS_BUILDING_PRIEST) && unit_type_get_id(td) != UT(PROPHET);
+}
 internal int ga_possible(ee_unit *u, ee_unit *target) {
     if (!u || !target) return 0;
     ee_player *uo = unit_get_owner(u), *to = unit_get_owner(target);
@@ -693,7 +702,7 @@ internal int ga_possible(ee_unit *u, ee_unit *target) {
     if (player_get_index(to) <= 0) {   // nature's: a land animal, by one on foot
         if (holy || (af != CLS_LAND && af != CLS_LAND_CITIZEN && af != CLS_LAND_MILITARY_HERO) || tf == CLS_SEA_ANIMAL || tf == CLS_AIR_ANIMAL) return 0;
     } else if (!is_enemy(uo, to)) return 0;
-    if (holy) return 1;
+    if (holy) return !ga_converts(u) || priest_can_convert(u, target, NULL);
     return attack_bonus(atd, ttd, player_get_index(uo), player_get_index(to)) > 0.0f;
 }
 internal ee_goal *goal_attack(ee_unit *u, ee_unit *target) {

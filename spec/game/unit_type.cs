@@ -402,6 +402,24 @@ unsafe struct EEUCProjectile
     extern char8 down(EEUnit* projectile);
 }
 
+/// a priest's type data (EEUCBasicPriest; EEUCLandPriest, EEUCHelicopterPriest and EEUCNavalPriest derive from it and
+/// keep its can_convert)
+[@base(typeof(EEUnitClass)), c_type("ee_unit_type"), vtable((ee)0x0083177C, (aoc)0x00847144)]
+unsafe struct EEUCBasicPriest
+{
+    /// vf55, a slot of its own (EEUnitClass has 55): whether priest may convert target now, thiscall(priest's class,
+    /// priest, target, &immune) - ret 0xC. Not its own player's, one it is at war with, the priest's conversion above 0,
+    /// the target alive and of a type that can be converted (stats +0x88 below 1), the to-hit table's entry for the
+    /// pair, a priest only with the stats' +0x15F and a building only with +0x15E (the techs that allow them), the
+    /// priest's power at least the conversion's cost (0x5FFEEA), and the target not in a University's area: its area
+    /// effect of kind 4 (EEAEConversionImmunity; *immune 1 then) unless either type has +0x622 set. The game asks it
+    /// in the player's cursor (0x64F...), the units' own targeting (0x5DDC8C) and the answer to an attacker (the
+    /// scripts' AttackerIsLegalConversionTarget) - not when a conversion goal is given or completes (0x6000C6), so a
+    /// goal given directly converts in a University's area. AoC made it a plain function: priest_can_convert
+    [slot((ee)55, (aoc)none), address((ee)0x00600381, (aoc)none)]
+    extern char8 can_convert(EEUnit* priest, EEUnit* target, char8* immune);
+}
+
 /// a unit type's per-player values, a unit's +0x34 (range, attack ...): EEUnitClassUpgrade, the type data's values
 /// with the player's improvements - the per-type upgrades bought at a building (attack, hit points, range, speed, the
 /// armours ...; not the tech tree's). Made by 0x627765(type) (AoC 0x63B6AE); +0x4 holds an EEUnitClassImprovement
@@ -675,4 +693,10 @@ static unsafe class unit_type
     /// (0x609095; AoC put a stub at 60)
     [value((ee)60, (aoc)61)]
     static uint32 slot_type_can_carry;
+
+    /// AoC's EEUCBasicPriest.can_convert, a plain function there: cdecl(priest, target, &immune), the same tests and
+    /// a few of its own (a priest of class 0x1E only within its range); called where the 2017 update calls the
+    /// slot (the cursor 0x665E89, the answer to an attacker EEUCBasicPriest::vf40, eight callers)
+    [address((ee)none, (aoc)0x0060DA86), cdecl]
+    static extern char8 priest_can_convert(EEUnit* priest, EEUnit* target, char8* immune);
 }

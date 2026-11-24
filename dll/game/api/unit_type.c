@@ -35,4 +35,16 @@ internal inline int is_missile_class(const void *pc) { return *(const uintptr_t 
 internal inline char unit_type_can_carry(ee_unit_type *td, ee_unit *transport, ee_unit *u) {
     return ((char (__thiscall *)(void *, void *, void *))(*(void ***)td)[value_unit_type_slot_type_can_carry])(td, transport, u);
 }
+// may the priest convert target now: the game's own test (EEUCBasicPriest.can_convert - at war, a type that can be
+// converted, the techs a priest or a building needs, the priest's power, no University's protection), which the
+// game asks only before its own orders; *university 1 when a University's protection refused it. The 2017 update's is
+// the priest classes' slot (all of them keep the base's: called directly), AoC's a plain function; 1 in a build
+// without either
+internal inline int priest_can_convert(ee_unit *priest, ee_unit *target, int *university) {
+    char im = 0;
+    int ok = fn_eeuc_basic_priest_can_convert ? eeuc_basic_priest_can_convert(unit_get_type_data(priest), priest, target, &im) != 0
+           : fn_unit_type_priest_can_convert ? unit_type_priest_can_convert(priest, target, &im) != 0 : 1;
+    if (university) *university = im != 0;
+    return ok;
+}
 internal inline void unit_type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[value_unit_type_slot_type_assign])(td, u); }
