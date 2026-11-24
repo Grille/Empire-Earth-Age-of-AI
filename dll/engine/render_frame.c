@@ -29,7 +29,6 @@ typedef struct {
     UINT inst, inst_at;  // instances of one list (render_instance.c): how many, where their entries start; 0: a plain draw
     ID3D11ShaderResourceView *wsrv;   // ... their entries' buffer: a chunk's of kept trees (render_tree_chunks.c); NULL the ring's
     ID3D11Buffer *gvb;   // the ground's own vertices (render_ground.c): drawn from them, no indices
-    ID3D11ShaderResourceView *ghs;   // and its texture's heights (rgb_height); NULL: its borders as the game's
     ID3D11ShaderResourceView *gwn;   // the water's: its animation's next frame (render_ground.c rg_water_blend); NULL none
 } rf_cmd;
 internal struct {
@@ -84,7 +83,6 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->sil = g_ro_cur == RO_UNITS && g_rd3.depth_soft ? g_rd3.sil : 0;
     c->at = at; c->n = n; c->base = base;
     c->gvb = NULL;
-    c->ghs = NULL;
     c->gwn = NULL;
     c->wsrv = NULL;
     c->inst = c->inst_at = 0;

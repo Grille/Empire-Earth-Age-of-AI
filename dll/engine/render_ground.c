@@ -92,7 +92,13 @@ internal struct {
     void *mat[RG_MATERIALS];
     int nmat;
     ID3D11ShaderResourceView *srv[2][RG_MATERIALS];   // the ground's and the water's textures as last looked up, a reference held: all a frame under another writer has of them
-    ID3D11ShaderResourceView *hgt[RG_MATERIALS];      // the ground's textures' heights (rgb_height), once each
+    uint8_t hmade[RG_MATERIALS];   // the ground's textures' heights are in the borders' array (rgb_height), once each
+    float inv_n[RG_MATERIALS];     // a texture's share a tile (1 / the tiles its set repeats it over): its place at a point of the map
+    int inv_dirty;
+    ID3D11Texture2D *tq;           // THE BORDERS' TABLE: a tile's four corners' textures (rg_quad), the map's size across
+    ID3D11ShaderResourceView *tq_srv;
+    uint16_t (*tqc)[4];            // ... the chunk's being made, from its first tile
+    int tq_x0, tq_y0;
     void *msamp[2][RG_MATERIALS];                     // each material's sampler and stage-0 operations as its SetTexture set them (rg_draw_now)
     int32_t mop[2][RG_MATERIALS][6];
     ID3D11Texture2D *fow;
@@ -167,7 +173,9 @@ internal void rg_free(void) {
     free(g_rg.fow_was); free(g_rg.fow_now);
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
-    for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.hgt[m]);
+    memset(g_rg.hmade, 0, sizeof g_rg.hmade);
+    D3D_RELEASE(g_rg.tq_srv);
+    D3D_RELEASE(g_rg.tq);
     memset(g_rg.msamp, 0, sizeof g_rg.msamp);   // the cache's: not released
     g_rg.built = g_rg.nmat = 0;
     memset(g_rg_dirty, 0, sizeof g_rg_dirty);
@@ -228,7 +236,7 @@ internal void rg_vertex_at(rb_vertex *o, float x, float y, float z, unsigned lon
     memcpy(f + 3, g_rg.normal(g_rg.mesh, gx, gy), 12);
     *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, gx, gy), a & 255);
     f[7] = uv[0]; f[8] = uv[1];
-    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour); 2: a space piece, as it is
+    o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour); 2: a space piece, as it is; bits 4 on its material + 1 (rg_quad)
 }
 internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const float *uv, int a) {
     rg_vertex_at(o, (float)x, (float)y, g_rg.z(g_rg.mesh, x, y), x, y, uv, a);
@@ -487,6 +495,27 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     if (g_rg.space) rg_space_corners(t, sets, x, y);
     int base = 0;
     for (int i = 1; i < 4; i++) if ((uintptr_t)t[i] < (uintptr_t)t[base]) base = i;
+    // the borders' table (rg_chunk_build): each corner's material and its texture's place among the quad's by address -
+    // the order they are drawn in; none (0) where a corner has no set (a space map's edge): its border by its own heights
+    if (g_rg.tqc) {
+        uint16_t *q = g_rg.tqc[(y - (unsigned long)g_rg.tq_y0) * RG_CHUNK + (x - (unsigned long)g_rg.tq_x0)];
+        int cm[4], ok = 1;
+        for (int k = 0; k < 4; k++) { cm[k] = rg_material(t[k]); ok = ok && cm[k] >= 0 && sets[k]; }
+        for (int k = 0; k < 4 && ok; k++) {
+            int rank = 0;
+            for (int j = 0; j < 4; j++) {
+                int seen = 0;
+                for (int i = 0; i < j; i++) seen |= t[i] == t[j];
+                rank += !seen && (uintptr_t)t[j] < (uintptr_t)t[k];
+            }
+            float uv[2];
+            g_rg.uv(sets[k], 1, 1, uv);   // (1 mod n) / n
+            float inv = uv[0] > 0 ? uv[0] : 1.0f;
+            if (g_rg.inv_n[cm[k]] != inv) { g_rg.inv_n[cm[k]] = inv; g_rg.inv_dirty = 1; }
+            q[k] = (uint16_t)((cm[k] + 1) | rank << 11);
+        }
+        if (!ok) memset(q, 0, sizeof g_rg.tqc[0]);
+    }
     int left = g_rg.left(g_rg.mesh, (long)x, (long)y), right = g_rg.right(g_rg.mesh, (long)x, (long)y);
     int topq = g_rg.top(g_rg.mesh, (long)x, (long)y), bottom = g_rg.bottom(g_rg.mesh, (long)x, (long)y);
     int n = 0;
@@ -507,8 +536,10 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
             a[0] = 0; a[1] = 1; b[0] = 0; b[1] = 0; c[0] = 1; c[1] = 1; e[0] = 1; e[1] = 0;
         }
         // a corner's alpha: the whole base; a layer where the corner's cell has its texture. Bit 8: the cell has it (a point has one cell, so one texture and one colour)
-        int aa = (k < 0 || t[2] == tex ? 255 : 0) | (t[2] == tex) << 8, ab = (k < 0 || t[1] == tex ? 255 : 0) | (t[1] == tex) << 8;
-        int ac = (k < 0 || t[3] == tex ? 255 : 0) | (t[3] == tex) << 8, ad = (k < 0 || t[0] == tex ? 255 : 0) | (t[0] == tex) << 8;
+        // Bits 12 on: the texture's material + 1 (the borders' shader finds it among the corners' in the table)
+        int mb = (rg_material(tex) + 1) << 12;
+        int aa = (k < 0 || t[2] == tex ? 255 : 0) | (t[2] == tex) << 8 | mb, ab = (k < 0 || t[1] == tex ? 255 : 0) | (t[1] == tex) << 8 | mb;
+        int ac = (k < 0 || t[3] == tex ? 255 : 0) | (t[3] == tex) << 8 | mb, ad = (k < 0 || t[0] == tex ? 255 : 0) | (t[0] == tex) << 8 | mb;
         int layer = k < 0 ? 0 : 1;
         #define RG_V(i, X, Y, UV, AL) rg_vertex(&out[n].v[i], X, Y, UV, AL)
         #define RG_TRI(X0, Y0, U0, A0, X1, Y1, U1_, A1, X2, Y2, U2, A2) do { out[n].tex = tex; out[n].layer = layer; \
@@ -622,12 +653,20 @@ internal void rg_part_make(rg_part *c, rg_tri *tris, int n, int water) {
 internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
     rg_chunk *c = &g_rg.c[cy * g_rg.across + cx];
     unsigned groups = mesh_water_groups(g_rg.mesh);
+    static uint16_t tq[RG_CHUNK * RG_CHUNK][4];
     for (int w = 0; w < 2; w++) {
         int n = 0;
+        if (!w && g_rg.tq) { memset(tq, 0, sizeof tq); g_rg.tqc = tq; g_rg.tq_x0 = cx * RG_CHUNK; g_rg.tq_y0 = cy * RG_CHUNK; }
         for (int y = cy * RG_CHUNK; y < (cy + 1) * RG_CHUNK && y < g_rg.size; y++)
             for (int x = cx * RG_CHUNK; x < (cx + 1) * RG_CHUNK && x < g_rg.size; x++)
                 if (g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y))
                     n += w ? rg_water_quad(c, tris + n, (unsigned long)x, (unsigned long)y, groups) : rg_quad(tris + n, (unsigned long)x, (unsigned long)y);
+        if (g_rg.tqc) {
+            D3D11_BOX b = { (UINT)g_rg.tq_x0, (UINT)g_rg.tq_y0, 0, (UINT)(g_rg.tq_x0 + RG_CHUNK < g_rg.size ? g_rg.tq_x0 + RG_CHUNK : g_rg.size),
+                            (UINT)(g_rg.tq_y0 + RG_CHUNK < g_rg.size ? g_rg.tq_y0 + RG_CHUNK : g_rg.size), 1 };
+            ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rg.tq, 0, &b, tq, sizeof tq[0] * RG_CHUNK, 0);
+            g_rg.tqc = NULL;
+        }
         rg_part_make(&c->p[w], tris, n, w);
     }
 }
@@ -779,6 +818,9 @@ internal int rg_build(void) {
     g_rg.c = calloc((size_t)g_rg.across * (size_t)g_rg.across, sizeof *g_rg.c);
     rg_tri *tris = malloc(sizeof *tris * (size_t)RG_CHUNK * RG_CHUNK * 2 * RG_LAYERS);
     if (!g_rg.c || !tris) { free(tris); rg_free(); return 0; }
+    D3D11_TEXTURE2D_DESC qd = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R16G16B16A16_UINT, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+    if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &qd, NULL, &g_rg.tq)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.tq, NULL, &g_rg.tq_srv)))
+        D3D_RELEASE(g_rg.tq);   // the borders each by its own heights
     LONGLONG t0 = rd_qpc();
     g_rg.wcol = rg_bytes(g_rg.water_colour(g_rg.mesh, 0, 0), 0);
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) rg_chunk_build(cx, cy, tris);
@@ -846,18 +888,73 @@ internal void rg_fow(void) {
 // last, and noise over the map bends the border away from the grid (the textures repeat, their heights alone would follow
 // it). A texture's height is the brightness of its texels, a little blurred so that it comes in clumps, and ranked: the share
 // of the texture's texels darker than this one. So at any fade that share of every texture shows, bright sand and dark rock
-// alike, and a texture of little contrast has the whole range too. Each pass sees only its own texture, not what it covers.
+// alike, and a texture of little contrast has the whole range too.
+// All of a tile's textures are weighed together (the player, 2026-11-24, of a border of three: "is whos heightmap is used
+// for blending randomly decided and not a mix of both?"): each by its share of the corners at the point and its own height
+// there, and a layer covers what was drawn before it in the tile as much as it weighs against that. Each layer had gone by
+// its own heights alone, over whatever lay under it: the order is the textures' addresses, so it changed from tile to tile
+// where three met - the border took one texture's shape in one tile and another's in the next (straight seams along the
+// grid), and two layers fading out over a third showed the third between them. Now a point's colour depends on its
+// textures and their weights only, not on which is drawn first, so tiles meet. The table (g_rg.tq) gives a tile's four
+// corners' materials and their order, the heights of all materials lie in one array, a slice each.
+#define RGB_SIDE 256    // a slice's texels across: every texture's heights resampled to it
+#define RGB_LEVELS 9    // its mip levels, down to 1 x 1
 internal struct {
     int force, fail;     // the pipe's on / off (-1: the setting); no height could be made
     float soft, noise, scale;   // the pipe's (< 0: the settings')
     LONG made;
     LONGLONG qpc;
+    ID3D11Texture2D *arr;              // the heights, a slice each material
+    ID3D11ShaderResourceView *arr_srv;
+    int cap;                           // its slices
+    ID3D11Buffer *inv;                 // g_rg.inv_n for the shader
+    ID3D11ShaderResourceView *inv_srv;
+    ID3D11SamplerState *samp;          // the heights read repeating, at any place of the map
 } g_rgb = { .force = -1, .soft = -1, .noise = -1, .scale = 1.3f };
+// the array, the materials' shares and the sampler, made once; 0: they can't be (the borders off)
+internal int rgb_ready(void) {
+    if (g_rgb.samp) return 1;
+    D3D11_BUFFER_DESC bd = { RG_MATERIALS * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, 0 };
+    D3D11_SHADER_RESOURCE_VIEW_DESC vd = { .Format = DXGI_FORMAT_R32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_BUFFER };
+    vd.Buffer.FirstElement = 0;
+    vd.Buffer.NumElements = RG_MATERIALS;
+    D3D11_SAMPLER_DESC sd = { D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP,
+                              0, 1, D3D11_COMPARISON_NEVER, { 0, 0, 0, 0 }, 0, D3D11_FLOAT32_MAX };
+    if (g_rgb.inv || (SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rgb.inv))
+                      && SUCCEEDED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rgb.inv, &vd, &g_rgb.inv_srv))))
+        if (SUCCEEDED(ID3D11Device_CreateSamplerState(g_d3d.dev, &sd, &g_rgb.samp))) { g_rg.inv_dirty = 1; return 1; }
+    g_rgb.fail = 1;
+    log_locked("# ground: the borders' buffers could not be made: its borders as the game's\n");
+    return 0;
+}
+// room for material m's slice: the array grows, what it held copied over
+internal int rgb_slice(int m) {
+    if (m < g_rgb.cap) return 1;
+    int cap = g_rgb.cap ? g_rgb.cap : 16;
+    while (cap <= m) cap *= 2;
+    if (cap > RG_MATERIALS) cap = RG_MATERIALS;
+    D3D11_TEXTURE2D_DESC td = { RGB_SIDE, RGB_SIDE, RGB_LEVELS, (UINT)cap, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+    ID3D11Texture2D *a = NULL;
+    ID3D11ShaderResourceView *v = NULL;
+    if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &a)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)a, NULL, &v))) {
+        D3D_RELEASE(a);
+        return 0;
+    }
+    for (int s = 0; s < g_rgb.cap; s++)
+        for (int l = 0; l < RGB_LEVELS; l++)
+            ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)a, (UINT)(s * RGB_LEVELS + l), 0, 0, 0, (ID3D11Resource *)g_rgb.arr, (UINT)(s * RGB_LEVELS + l), NULL);
+    D3D_RELEASE(g_rgb.arr_srv);
+    D3D_RELEASE(g_rgb.arr);
+    g_rgb.arr = a;
+    g_rgb.arr_srv = v;
+    g_rgb.cap = cap;
+    return 1;
+}
 internal int rgb_on(void) { return !g_rgb.fail && (g_rgb.force < 0 ? g_set.ground_blend : g_rgb.force); }
 internal float rgb_soft(void) { float v = g_rgb.soft >= 0 ? g_rgb.soft : (float)g_set.ground_blend_soft; return v < 0.02f ? 0.02f : v; }
 internal float rgb_noise(void) { return g_rgb.noise >= 0 ? g_rgb.noise : (float)g_set.ground_blend_noise; }
-// a texture's heights, with their mip levels; NULL: they can't be made
-internal ID3D11ShaderResourceView *rgb_height(rd_surface *t) {
+// a texture's heights into material mat's slice, with their mip levels; 0: they can't be made
+internal int rgb_height(rd_surface *t, int mat) {
     LONGLONG t0 = rd_qpc();
     if (t->top) t = t->top;
     uint8_t *m = rd_mem(t);
@@ -865,10 +962,10 @@ internal ID3D11ShaderResourceView *rgb_height(rd_surface *t) {
     size_t n = (size_t)w * h;
     uint32_t *px = malloc(n * 4);
     uint16_t *a = malloc(n * 2), *b = malloc(n * 2);
-    uint8_t *o = malloc(n * 3 + 64);
-    ID3D11Texture2D *tex = NULL;
-    ID3D11ShaderResourceView *srv = NULL;
-    if (m && w > 0 && h > 0 && px && a && b && o) {
+    uint8_t *r = malloc((size_t)RGB_SIDE * RGB_SIDE);
+    uint8_t *o = malloc((size_t)RGB_SIDE * RGB_SIDE * 2);
+    int made = 0;
+    if (m && w > 0 && h > 0 && px && a && b && r && o && rgb_slice(mat)) {
         for (int y = 0; y < h; y++) rf_to_bgra(t->fmt, m + (size_t)y * t->desc.lPitch, px + (size_t)y * w, w, 0, 0);
         for (size_t i = 0; i < n; i++) a[i] = (uint16_t)((((px[i] >> 16) & 255) * 77 + ((px[i] >> 8) & 255) * 150 + (px[i] & 255) * 29));
         for (int pass = 0; pass < 2; pass++) {   // twice three texels each way, over the texture's edges: it repeats
@@ -883,30 +980,33 @@ internal ID3D11ShaderResourceView *rgb_height(rd_surface *t) {
         static uint8_t rank[4096];
         uint32_t below = 0;
         for (int k = 0; k < 4096; k++) { rank[k] = (uint8_t)((below + count[k] / 2) * 255ull / n); below += count[k]; }
-        for (size_t i = 0; i < n; i++) o[i] = rank[a[i] >> 4];
-        D3D11_SUBRESOURCE_DATA sd[16];
-        int lv = 0, mw = w, mh = h;
-        uint8_t *p = o;
-        for (;;) {
-            sd[lv].pSysMem = p; sd[lv].SysMemPitch = (UINT)mw; sd[lv].SysMemSlicePitch = 0;
-            lv++;
-            if ((mw == 1 && mh == 1) || lv == 16) break;
-            int nw = mw > 1 ? mw / 2 : 1, nh = mh > 1 ? mh / 2 : 1;
-            uint8_t *q = p + (size_t)mw * mh;
-            for (int y = 0; y < nh; y++) for (int x = 0; x < nw; x++) {
-                int x0 = x * mw / nw, y0 = y * mh / nh, x1 = x0 + 1 < mw ? x0 + 1 : x0, y1 = y0 + 1 < mh ? y0 + 1 : y0;
-                q[y * nw + x] = (uint8_t)((p[y0 * mw + x0] + p[y0 * mw + x1] + p[y1 * mw + x0] + p[y1 * mw + x1] + 2) / 4);
-            }
-            p = q; mw = nw; mh = nh;
+        for (size_t i = 0; i < n; i++) b[i] = rank[a[i] >> 4];
+        // to the slice's size, between the texels round (the texture repeats: so does this)
+        for (int y = 0; y < RGB_SIDE; y++) for (int x = 0; x < RGB_SIDE; x++) {
+            float fx = ((float)x + 0.5f) * (float)w / RGB_SIDE - 0.5f, fy = ((float)y + 0.5f) * (float)h / RGB_SIDE - 0.5f;
+            int x0 = (int)floorf(fx), y0 = (int)floorf(fy);
+            float ax = fx - (float)x0, ay = fy - (float)y0;
+            int xa = (x0 % w + w) % w, xb = (xa + 1) % w, ya = (y0 % h + h) % h, yb = (ya + 1) % h;
+            float v = ((float)b[ya * w + xa] * (1 - ax) + (float)b[ya * w + xb] * ax) * (1 - ay) + ((float)b[yb * w + xa] * (1 - ax) + (float)b[yb * w + xb] * ax) * ay;
+            r[y * RGB_SIDE + x] = (uint8_t)(v + 0.5f);
         }
-        D3D11_TEXTURE2D_DESC td = { (UINT)w, (UINT)h, (UINT)lv, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_IMMUTABLE, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
-        if (SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, sd, &tex))) ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)tex, NULL, &srv);
-        D3D_RELEASE(tex);
+        int mw = RGB_SIDE;
+        uint8_t *p = r;
+        for (int lv = 0; lv < RGB_LEVELS; lv++) {
+            ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rgb.arr, (UINT)(mat * RGB_LEVELS + lv), NULL, p, (UINT)mw, 0);
+            if (mw == 1) break;
+            int nw = mw / 2;
+            uint8_t *q = p == r ? o : p + (size_t)mw * mw;
+            for (int y = 0; y < nw; y++) for (int x = 0; x < nw; x++)
+                q[y * nw + x] = (uint8_t)((p[2 * y * mw + 2 * x] + p[2 * y * mw + 2 * x + 1] + p[(2 * y + 1) * mw + 2 * x] + p[(2 * y + 1) * mw + 2 * x + 1] + 2) / 4);
+            p = q; mw = nw;
+        }
+        made = 1;
     }
-    free(px); free(a); free(b); free(o);
-    if (srv) { g_rgb.made++; g_rgb.qpc += rd_qpc() - t0; }
+    free(px); free(a); free(b); free(r); free(o);
+    if (made) { g_rgb.made++; g_rgb.qpc += rd_qpc() - t0; }
     else { g_rgb.fail = 1; log_locked("# ground: a texture's heights could not be made (%d x %d): its borders as the game's\n", w, h); }
-    return srv;
+    return made;
 }
 // the pipe: picture gb on | off, gbsoft <0.02..1>, gbnoise <0..1>, gbscale <per tile>
 internal int rgb_pipe(char *out, const char *mode, const char *arg) {
@@ -1122,7 +1222,11 @@ internal void rg_draw_now(int water, int again) {
             D3D_RELEASE(srv[m]);
             srv[m] = now;
         }
-        if (!water && rgb_on() && !g_rg.hgt[m]) g_rg.hgt[m] = rgb_height(t);
+        if (!water && rgb_on() && rgb_ready() && !g_rg.hmade[m]) g_rg.hmade[m] = (uint8_t)rgb_height(t, m);
+    }
+    if (!water && g_rg.inv_dirty && g_rgb.inv) {
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rgb.inv, 0, NULL, g_rg.inv_n, 0, 0);
+        g_rg.inv_dirty = 0;
     }
     // a frame during a step: the game has set no 3D states for it (its draw doesn't run): those of the last frame that did
     if (again) {
@@ -1186,7 +1290,6 @@ internal void rg_draw_now(int water, int again) {
             rf_record((UINT)c->r[r].first, (UINT)c->r[r].n, 0);
             if (g_rf.n) {
                 g_rf.cmd[g_rf.n - 1].gvb = c->vb;
-                if (blend) g_rf.cmd[g_rf.n - 1].ghs = g_rg.hgt[c->r[r].m];
                 if (wblend > 0 && (unsigned)c->r[r].m < wg) {   // none bound (a frame during a step binds nothing): the frame itself, no blend
                     ID3D11ShaderResourceView *nx = srv[((unsigned)c->r[r].m + 1) % wg];
                     g_rf.cmd[g_rf.n - 1].gwn = nx ? nx : srv[c->r[r].m];
@@ -1215,9 +1318,12 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
     ID3D11DeviceContext_VSSetShaderResources(x, 7, 1, &g_rg.fow_srv);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 3, 1, c->ro == RO_WATER ? &g_rg.cbw : &g_rg.cb);
-    ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &c->ghs);
+    ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &g_rgb.arr_srv);
     ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &c->gwn);
     ID3D11DeviceContext_PSSetShaderResources(x, 15, 1, &g_rg_ov_srv);
+    ID3D11ShaderResourceView *bt[2] = { g_rg.tq_srv, g_rgb.inv_srv }, *nbt[2] = { NULL, NULL };
+    ID3D11DeviceContext_PSSetShaderResources(x, 18, 2, bt);
+    ID3D11DeviceContext_PSSetSamplers(x, 3, 1, &g_rgb.samp);
     ID3D11DeviceContext_Draw(x, c->n, c->at);
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &st, &off);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 3, 1, &none);
@@ -1226,6 +1332,7 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &nos);
     ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &nos);
     ID3D11DeviceContext_PSSetShaderResources(x, 15, 1, &nos);
+    ID3D11DeviceContext_PSSetShaderResources(x, 18, 2, nbt);
 }
 internal int g_rw_fx_only;   // a frame during a step: the water's draw for its effects alone (render_3d.c rd_hook_ro_water)
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {

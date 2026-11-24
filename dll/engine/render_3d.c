@@ -175,7 +175,8 @@ internal const char k_rd3_shader[] =
     " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; float4 cau; float4 cat; };\n"
     "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gov; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
-    "Texture2D<float> ght : register(t13);\n"   // this texture's heights (render_ground.c rgb_height)
+    "Texture2DArray<float> ght : register(t13);\n"   // the ground's textures' heights, a slice each material (render_ground.c rgb_height)
+    "Texture2D<uint4> gtq : register(t18); Buffer<float> gmn : register(t19); SamplerState ghw : register(s3);\n"   // a tile's corners' materials, a material's share a tile (render_ground.c rg_quad); repeating
     "Texture2D gom : register(t15);\n"   // the overlay's picture of the ground (premultiplied; render_ground.c, gov: its tiles' origin, its share a tile)
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges); y: by the material's alpha too (render_oit.c)
@@ -189,7 +190,7 @@ internal const char k_rd3_shader[] =
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
     " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float3 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6;"
-    " nointerpolation float3 cf : TEXCOORD7; };\n"
+    " nointerpolation float3 cf : TEXCOORD7; nointerpolation uint gm : TEXCOORD8; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -211,11 +212,11 @@ internal const char k_rd3_shader[] =
     // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light;
     // a space map's edge and faces (w 2: rg_space_quad) none, gt.a -1 - its texture's own alpha is the edge's shape; a face (its
     // normal level: rg_space_quad) -2, lit by its own normal, fo the way it looks (the hills' shadows taken out in front of it)
-    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo) { int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
+    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo, out uint gm) { gm = i.w >> 4; i.w &= 15; int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
     " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); fo = i.w > 1 && abs(i.n.z) < 0.5 ? i.n.xy : float2(0, 0); gt = i.w > 1 ? float4(0, 0, 0, any(fo != 0) ? -2 : -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; float2 fo = 0; if (gnd.x > 0) ground(i, o.gt, o.gl, fo); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; o.gm = 0; float2 fo = 0; if (gnd.x > 0) ground(i, o.gt, o.gl, fo, o.gm); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
@@ -254,6 +255,8 @@ internal const char k_rd3_shader[] =
     "float gbh(float2 p) { float3 q = frac(p.xyx * 0.1031); q += dot(q, q.yzx + 33.33); return frac((q.x + q.y) * q.z); }\n"
     "float gbn(float2 p) { float2 a = floor(p), f = p - a; f = f * f * (3 - 2 * f);"
     " return lerp(lerp(gbh(a), gbh(a + float2(1, 0)), f.x), lerp(gbh(a + float2(0, 1)), gbh(a + float2(1, 1)), f.x), f.y); }\n"
+    // ... a texture's own (k: its material + 1; 0 the noise of a border by one texture's heights), two scales
+    "float gbz(float2 p, float k) { p = p * gbl.w + k * float2(7.13, 3.71); return saturate((gbn(p) * 0.65 + gbn(p * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5); }\n"
     // the caustics' waves (render_water.c): eight running within 0.66 of a radian of the wind's way (x here), from 2.45 to
     // 0.43 of the pattern's units long, each as curved as the others (its height 1 / k^2), each as fast as deep water's
     // waves of its length (sqrt k) - longer ones faster, all downwind. kx, ky, sqrt k, phase
@@ -297,7 +300,7 @@ internal const char k_rd3_shader[] =
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " if (i.cf.x > 0.5) x.a = 1;"
     " if (gnd.x > 1.5 && gbl.y > 0 && op.w) x = lerp(x, wnx.Sample(s, i.t), gbl.y);"
-    " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy);"
+    " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy), pdx = ddx(i.gw.xy), pdy = ddy(i.gw.xy);"
     // each texture of the ground in the colour of its own corners: a near-white sand tinted yellow by the map's colours came
     // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
     // Under the level the game's own blending and colours (the seabed's depth is painted in them, and a ragged border showed
@@ -314,10 +317,25 @@ internal const char k_rd3_shader[] =
     "  sea.x * (1 - exp(-(sea.z - i.w.z) * sea.y)));"
     " if (op.x != 1) { c.rgb = top(op.x, arg(op.y, x, d), arg(op.z, x, d)).rgb;"
     "  if (aop.x != 1) c.a = top(aop.x, arg(aop.y, x, d), arg(aop.z, x, d)).a; }"
-    // a layer of the ground, in its fade between two corners: its high texels first. 0 stays 0 and 1 stays 1 whatever the
-    // height, so that neighbouring tiles still meet
-    " [branch] if (gk > 0 && c.a > 0 && c.a < 1 && i.gt.a >= 0) { float gn = saturate((gbn(i.gw.xy * gbl.w) * 0.65 + gbn(i.gw.xy * gbl.w * 2.7 + 17) * 0.35 - 0.5) * 1.6 + 0.5);"
-    "  float gh = lerp(ght.SampleGrad(s, i.t, gdx, gdy), gn, gbl.z); c.a = lerp(c.a, saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y), gk); }"
+    // a layer of the ground (render_ground.c THE GROUND'S BORDERS): the tile's textures weighed together, each by its share
+    // of the corners here (bilinear: along a tile's edge only its two ends count, so that neighbouring tiles meet) and its
+    // height here, noise mixed in - (share x e^(4 height))^p, p the sharper the less soft. The layer covers what was drawn
+    // before it in the tile (the lower addresses: the table's order) by its weight against theirs; the first, the base, whole.
+    // A tile without the table (a space map's edge corner) as before: the layer's own heights over its fade
+    " [branch] if (gk > 0 && i.gt.a >= 0 && i.gm > 0) { uint own = i.gm - 1; int2 q = int2(floor(i.gw.xy)); uint4 tq = gtq.Load(int3(q, 0));"
+    "  if (tq.x == 0) { if (c.a > 0 && c.a < 1) { float gh = lerp(ght.SampleGrad(ghw, float3(i.t, own), gdx, gdy), gbz(i.gw.xy, 0), gbl.z);"
+    "   c.a = lerp(c.a, saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y), gk); } }"
+    "  else { uint4 M = (tq & 2047) - 1, R = (tq >> 11) & 3; uint orank = 4;"
+    "   [unroll] for (int kb = 0; kb < 4; kb++) if (M[kb] == own) orank = R[kb];"
+    "   [branch] if (orank > 0 && orank < 4) {"   // the base (every pixel of the ground) stays whole without the rest
+    "   float2 f = saturate(i.gw.xy - q); float4 cw = float4(f.x * f.y, (1 - f.x) * f.y, (1 - f.x) * (1 - f.y), f.x * (1 - f.y)); float4 L; float mx = -1e30;"   // D B A C
+    "   [unroll] for (int ka = 0; ka < 4; ka++) { float gw = dot(cw, (float4)(M == M[ka])), gn = gmn[M[ka]]; float2 gu = i.gw.xy * gn;"
+    "    float gh = lerp(ght.SampleGrad(ghw, float3(gu, M[ka]), pdx * gn, pdy * gn), gbz(i.gw.xy, M[ka] + 1), gbl.z);"
+    "    L[ka] = gw > 0 ? log(gw) + 4 * gh : -1e30; mx = max(mx, L[ka]); }"
+    "   float gp = 1.5 * (1 + gbl.y) / gbl.y, mine = 0, below = 0;"
+    "   [unroll] for (int kc = 0; kc < 4; kc++) { bool first = true; [unroll] for (int kd = 0; kd < kc; kd++) first = first && M[kd] != M[kc];"
+    "    float W = first && L[kc] > -1e29 ? exp(gp * (L[kc] - mx)) : 0; if (M[kc] == own) mine += W; else if (R[kc] < orank) below += W; }"
+    "   c.a = lerp(c.a, mine / max(mine + below, 1e-6), gk); } } }"
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
