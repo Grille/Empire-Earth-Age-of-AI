@@ -342,6 +342,8 @@ internal struct {
     LONG changed;                        // ... for a part's model or material no longer the one taken (kt_hold)
 } g_kt = { .force = -1 };
 internal int kt_on(void) { return g_kt.force < 0 ? 1 : g_kt.force; }
+internal kt_tree *g_tc_kt;    // render_tree_chunks.c: the kept tree being taken into a chunk, and its detail
+internal uint32_t g_tc_lod;
 // A part's model and material as they are: their vtables, the material's vertices. The parts hold them without a
 // reference; freed, the memory goes to other objects (the player's game, 2026-11-22: "my game is hanging" - a kept
 // building's part's material was a citizen's gather order, EEUGGather, its "vertex count" a pointer, and
@@ -557,6 +559,7 @@ internal int kt_draw(float *at, void *rec) {
     g_in.mode3d(ras, screen);
     in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
     uint32_t lod = kt_lod(&c, k, m, scale);
+    if (g_tc_taking) g_tc_cap = 1, g_tc_took = 1, g_tc_kt = k, g_tc_lod = lod;   // its parts into the chunk being made (render_tree_chunks.c)
     for (uint32_t i = 0; i < k->np; i++) {
         kt_part *e = &g_kt.part[k->part + i];
         uint32_t l = e->root ? lod : 0, tris = material_get_polygon_count(e->mat)[l];
@@ -564,6 +567,7 @@ internal int kt_draw(float *at, void *rec) {
         if (tris) in_part(&c, e->m, e->mat, e->tex, &r.pose, &e->w, polygons_get_indices(model_get_polygons(e->m)[l]) + material_get_polygon_first(e->mat)[l] * 3, tris * 3);
     }
     g_in_corners = NULL;
+    g_tc_cap = 0;
     if (cs) g_in.cs_leave(cs);
     InterlockedIncrement(&g_kt.drawn);
     return 1;
@@ -1341,12 +1345,15 @@ internal int ut_record(ee_ro_units *ro, float *at, void *rec) {
 // of their own, the walk's first such tree, and are drawn after it under its lights; the list's others after the normal
 // anchor.
 #define TL_MAX 32768
+#define TL_NO_SWAY 0xFFFF
 #define TL_GFX 256
 internal struct {
     int force;              // the pipe's: 0 off, 1 on; -1: on
     int on;                 // this walk lists trees here
     uint8_t *rec;           // the records (DRAW_SMALL_REC each)
     uint32_t *key, *order;  // each's sort key; the draw's order
+    uint16_t *swq;          // each's place in the sway's circle (its id's: render_tree_chunks.c), TL_NO_SWAY none
+    uint32_t clock;         // the sway's clock the walk filled them with
     uint32_t n;
     const void *anchor[2];  // the trees in the game's list the list is drawn after: a normal one's, a remembered one's
     int want[2];            // the walk's next such tree it can take is to be the anchor
@@ -1374,9 +1381,11 @@ internal void tl_clear(void) {
 // the list's trees of an anchor drawn after it (render_silhouette.c's tree hook): the sort map's order by key - few
 // keys, each's trees in the order listed
 internal inline int tl_of(uint32_t i, int fog) { return (draw_small_record_get_flag(g_tl.rec + (size_t)i * DRAW_SMALL_REC) != 0) == fog; }
+internal int tc_draw(ee_ro_units *ro, float *at, int fog);   // render_tree_chunks.c: 1 drawn there
 internal void tl_after(ee_ro_units *ro, float *at, const void *rec) {
     int fog = rec == g_tl.anchor[0] ? 0 : rec == g_tl.anchor[1] ? 1 : -1;
     if (fog < 0 || !g_tl.n) return;
+    if (tc_draw(ro, at, fog)) return;
     uint32_t keys[TL_GFX], at_k[TL_GFX], nk = 0, m = 0;
     for (uint32_t i = 0; i < g_tl.n; i++) {
         if (!tl_of(i, fog)) continue;
@@ -1422,11 +1431,13 @@ internal int tl_pipe(char *out, const char *arg) {
 // the pipe: picture draw [game | own | check]
 internal int um_pipe(char *out, const char *arg);   // collect_maps.c
 internal int pd_pipe(char *out, const char *arg);   // render_effects.c
+internal int tc_pipe(char *out, const char *arg);   // render_tree_chunks.c
 internal int ud_pipe(char *out, const char *mode, const char *arg) {
     if (!strcmp(mode, "maps")) return um_pipe(out, arg);
     if (!strcmp(mode, "pieces")) return pd_pipe(out, arg);
     if (!strcmp(mode, "kept")) return kt_pipe(out, arg);
     if (!strcmp(mode, "trees")) return tl_pipe(out, arg);
+    if (!strcmp(mode, "tchunks")) return tc_pipe(out, arg);
     if (strcmp(mode, "draw")) return 0;
     if (!strcmp(arg, "game") || !strcmp(arg, "own") || !strcmp(arg, "check")) {
         g_ud.force = arg[0] == 'g' ? 0 : arg[0] == 'o' ? 1 : 2;

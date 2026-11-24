@@ -156,10 +156,14 @@ typedef struct { float m[16], diff[4], amb[4], emi[4], mo[4]; } rb_world;
 // the fraction; 18 bits, all set: the instance's) and the vertex in the run - the vertex buffer isn't read for it (the
 // input assembler's read past the buffer gives zeros). Bit 30: a triangle of a ship's filled bottom (render_instance.c
 // in_cap_make) - morph says so, and the pixel shader takes its first vertex's texel whole for all of it (cf)
+// A fraction below 0 is a kept tree's (render_tree_chunks.c): -(1 + its place in the sway's circle), its sway the table's
+// at that place and the clock's (swc.x)
 #define RD3_MORPH_HLSL \
     "Buffer<float4> mp : register(t5);\n" \
+    "cbuffer sw : register(b6) { float4 swt[90]; uint4 swc; };\n" \
     "uint morph(inout I i, uint id) { if (id < 0x80000000) return 0; uint s = (id >> 12) & 0x3FFFF, k = id & 0xFFF; if (s == 0x3FFFF) s = i.inst;" \
     " float4 m = wt.Load(s * 8 + 7); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
+    " if (m.z < 0) { uint q = ((uint)(-m.z) - 1 + swc.x) % 360; m.z = swt[q >> 2][q & 3]; }" \
     " float4 a0 = mp.Load(a), a1 = mp.Load(a + 1), b0 = mp.Load(b), b1 = mp.Load(b + 1);" \
     " i.p = lerp(a0.xyz, b0.xyz, m.z); i.n = lerp(float3(a0.w, a1.xy), float3(b0.w, b1.xy), m.z); i.t = a1.zw;" \
     " i.c = float4(1, 1, 1, 1); i.w = s; return (id >> 30) & 1; }\n"
@@ -966,6 +970,7 @@ internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, f
 
 #include "render_instance.c"  // the units drawn as instances ([display] unit_instancing)
 #include "render_units.c"     // the units' record draw, the mod's own (with unit_instancing)
+#include "render_tree_chunks.c"   // the trees kept on the graphics card by chunk (with the trees' own list)
 #include "render_effects.c"   // the flying pieces' draw, the mod's own (with unit_instancing)
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
 #include "render_record.c"    // the pipe's record: frames one after another, to find a flicker

@@ -1542,11 +1542,22 @@ internal void tl_begin(void) {
         g_tl.rec = malloc((size_t)TL_MAX * DRAW_SMALL_REC);
         g_tl.key = malloc(TL_MAX * sizeof *g_tl.key);
         g_tl.order = malloc(TL_MAX * sizeof *g_tl.order);
-        if (!g_tl.rec || !g_tl.key || !g_tl.order) { free(g_tl.rec); free(g_tl.key); free(g_tl.order); g_tl.rec = NULL; return; }
+        g_tl.swq = malloc(TL_MAX * sizeof *g_tl.swq);
+        if (!g_tl.rec || !g_tl.key || !g_tl.order || !g_tl.swq) {
+            free(g_tl.rec); free(g_tl.key); free(g_tl.order); free(g_tl.swq); g_tl.rec = NULL; g_tl.swq = NULL;
+            return;
+        }
     }
+    g_tl.clock = tree_consts_now().clock;
     g_tl.on = 1;
     g_tl.want[0] = g_tl.want[1] = 1;
     g_tl.walks++;
+}
+// a listed tree's place in the sway's circle (render_tree_chunks.c): its id's 8 a degree, as the fills take it (the sway
+// is the clock's and this); TL_NO_SWAY for a tree of one frame (its record's two frames the same)
+internal uint16_t tl_sway_place(const uint8_t *rec, int32_t id) {
+    if (draw_small_record_get_frame(rec) == draw_small_record_get_next_frame(rec)) return TL_NO_SWAY;
+    return (uint16_t)((uint32_t)id * 8 % 360);
 }
 // a tree of the walk's tile ct for the list: 1 listed, 0 not drawn (as uc_drawn tests a tree with every model let
 // through: the tile in the player's sight, a scale), -1 the game's list's as before, -2 that and the anchor. Of one tile
@@ -1569,6 +1580,7 @@ internal int tl_tree(uc_obj *o, const uc_ctile *ct, uc_info *info, int during) {
     memset(rec, 0, DRAW_SMALL_REC);
     draw_small_record_set_opacity(rec, op);
     uc_fill_tree(o, rec, NULL, info, 2);
+    g_tl.swq[g_tl.n] = tl_sway_place(rec, o->serial);
     g_tl.key[g_tl.n++] = graphics_anim_key(o->gfx, 0);
     g_tl.listed++;
     return 1;
@@ -1589,6 +1601,7 @@ internal int tl_dopp(const uc_dopp *p, uint8_t *small, uint32_t *sn, uint32_t sm
     memset(rec, 0, DRAW_SMALL_REC);
     uint32_t n = g_tl.n;
     if (!uc_fill_dopp_tree(p, rec, &n, NULL, TL_MAX, x, y, info, 2)) return 1;
+    g_tl.swq[g_tl.n] = tl_sway_place(rec, p->serial);
     g_tl.key[g_tl.n] = graphics_anim_key(p->gfx, 0);
     g_tl.n = n;
     g_tl.listed++, g_tl.fogged++;

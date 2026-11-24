@@ -66,6 +66,7 @@ internal int in_init(void) {
     g_in.ready = 1;
     return 1;
 }
+internal LONG g_in_resets;   // the pool started over (render_tree_chunks.c: a chunk's lists are its places)
 // the list's place in the pool, put there if new (or its memory holds another now); NULL when it can't be
 internal const in_list *in_list_of(const WORD *idx, uint32_t ni, uint32_t cap_at) {
     uint32_t h = (uint32_t)(((uintptr_t)idx >> 1) * 2654435761u ^ ni * 40503u) & (IN_SLOTS - 1);
@@ -84,6 +85,7 @@ internal const in_list *in_list_of(const WORD *idx, uint32_t ni, uint32_t cap_at
         memset(g_in.list, 0, sizeof g_in.list);
         g_in.used = 0;
         g_in.n = 0;
+        g_in_resets++;
         return in_list_of(idx, ni, cap_at);
     }
     if (!r->src) g_in.n++;
@@ -112,9 +114,16 @@ internal in_group *in_group_of(const in_list *l) {
         if (g->src == l->src && g->n == l->n) return g;
     }
 }
+// A kept tree's parts taken into a chunk instead of the batch (render_tree_chunks.c): while g_tc_cap, kt_draw's parts go
+// there (and their cards: in_card_queue) - not those of a queue of cards being drawn meanwhile (g_ic.flushing)
+internal int g_tc_cap;
+internal int g_tc_taking, g_tc_took;   // a chunk being made (kt_draw sets g_tc_cap round its parts); its tree went in whole
+internal void tc_take(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni, DWORD cap_at);
 // a part into the batch (rd3_prepare bound its states): its entry - the matrix, the material, the runs - to its list
 // (cap_at: the first index of a ship's filled bottom, ni none)
+internal int in_cards_flushing(void);
 internal void in_append(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni, DWORD cap_at) {
+    if (g_tc_cap && !in_cards_flushing()) { tc_take(d, a, b, f, idx, ni, cap_at); return; }
     const in_list *l = in_list_of(idx, ni, cap_at);   // (may draw the list so far)
     if (!l) return;
     sil_batch();
@@ -174,6 +183,8 @@ internal struct {
     in_card card[IN_CARDS];
     in_card_q q[RB_WORLDS];
 } g_ic;
+internal int in_cards_flushing(void) { return g_ic.flushing; }
+internal void tc_card_take(rd_device *d, in_card *a, in_card *b, float frac, float size, const float *at, const WORD *idx, DWORD ni);
 internal int in_card_axes(const rd_device *d, float *axes) {
     float ax = d->view._11, ay = d->view._21, al = sqrtf(ax * ax + ay * ay), sx = g_sh.sun[1], sy = -g_sh.sun[0], sl = sqrtf(sx * sx + sy * sy);
     if (al < 1e-4f || sl < 1e-4f) return 0;
@@ -271,15 +282,19 @@ internal void in_card_queue(rd_device *d, const float *pa, const float *pb, floa
     float r[9] = { w->_11 / size, w->_21 / size, w->_31 / size, w->_12 / size, w->_22 / size, w->_32 / size, w->_13 / size, w->_23 / size, w->_33 / size };
     in_card *a = in_card_of(pa, n, idx, ni, r, axes), *b = pb == pa ? a : in_card_of(pb, n, idx, ni, r, axes);
     if (!a || !b) return;
-    if (g_ic.nq >= RB_WORLDS) in_cards_flush(d);
-    in_card_q *e = &g_ic.q[g_ic.nq++];
-    e->a = a; e->b = b; e->frac = frac; e->size = size; e->idx = idx; e->ni = ni;
-    e->at[0] = d->world._41; e->at[1] = d->world._42; e->at[2] = d->world._43;
-    g_ic.tex = d->tex[0];
-    for (int k = 0; k < 3; k++) g_ic.rs[k] = d->rs[k_ic_rs[k]];
-    g_ic.d = d;
+    float at[3] = { d->world._41, d->world._42, d->world._43 };
+    if (g_tc_cap) tc_card_take(d, a, b, frac, size, at, idx, ni);   // a kept tree's into its chunk
+    else {
+        if (g_ic.nq >= RB_WORLDS) in_cards_flush(d);
+        in_card_q *e = &g_ic.q[g_ic.nq++];
+        e->a = a; e->b = b; e->frac = frac; e->size = size; e->idx = idx; e->ni = ni;
+        e->at[0] = at[0]; e->at[1] = at[1]; e->at[2] = at[2];
+        g_ic.tex = d->tex[0];
+        for (int k = 0; k < 3; k++) g_ic.rs[k] = d->rs[k_ic_rs[k]];
+        g_ic.d = d;
+    }
     for (int k = 0; k < 2; k++) {
-        float lo = fminf(a->lo[k], b->lo[k]) * size + e->at[k], hi = fmaxf(a->hi[k], b->hi[k]) * size + e->at[k];
+        float lo = fminf(a->lo[k], b->lo[k]) * size + at[k], hi = fmaxf(a->hi[k], b->hi[k]) * size + at[k];
         if (lo < g_sh.lo[k]) g_sh.lo[k] = lo;
         if (hi > g_sh.hi[k]) g_sh.hi[k] = hi;
     }
@@ -494,6 +509,12 @@ internal void in_draw(const in_ctx *c, void *tex, vec3 col, float alpha, const D
         }
         rd3_shadow_classify(d, &none, 0, n);
         g_mo_box = NULL, g_mo_corners = NULL;
+        // a kept tree taken into a chunk is drawn wherever the camera goes (render_tree_chunks.c): off the screen as on it,
+        // the graphics card clipping it - so its role doesn't change with the camera
+        if (g_tc_cap && (d->sh_role == SH_AWAY || d->sh_role == SH_GONE)) {
+            d->sh_role = d->sh_role == SH_AWAY ? SH_CAST : SH_TREE;
+            d->changed |= RD_CH_VC;
+        }
         DWORD cn = ni;
         const WORD *ci = idx;
         if (cap_at == IN_FILL) {
@@ -522,7 +543,8 @@ internal void in_part(const in_ctx *c, ee_model *m, ee_material *mat, void *tex,
     ee_vertices **fr = model_get_vertices(m);
     float frac = p->frac;
     const float *pa = (p->va ? p->va : (const float *)vertices_get_data(fr[p->frame])) + first * 8;
-    const float *pb = frac != 0 ? (const float *)vertices_get_data(fr[p->next]) + first * 8 : pa;
+    // (a kept tree taken into a chunk: both frames whatever its sway now - the chunk's sway is the clock's, later)
+    const float *pb = frac != 0 || g_tc_cap ? (const float *)vertices_get_data(fr[p->next]) + first * 8 : pa;
     in_draw(c, tex, material_get_colour(mat), p->alpha * material_get_alpha(mat), world, pa, pb, frac, n, idx, ni, IN_FILL);
 }
 // a x b (GETransformation::Apply: 4 x 4 by row, the place in the fourth column, the last row b's)

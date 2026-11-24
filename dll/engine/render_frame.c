@@ -27,6 +27,7 @@ typedef struct {
     UINT at, n;      // the indices in the upload buffer
     INT base;        // the vertices' (in vertices)
     UINT inst, inst_at;  // instances of one list (render_instance.c): how many, where their entries start; 0: a plain draw
+    ID3D11ShaderResourceView *wsrv;   // ... their entries' buffer: a chunk's of kept trees (render_tree_chunks.c); NULL the ring's
     ID3D11Buffer *gvb;   // the ground's own vertices (render_ground.c): drawn from them, no indices
     ID3D11ShaderResourceView *ghs;   // and its texture's heights (rgb_height); NULL: its borders as the game's
     ID3D11ShaderResourceView *gwn;   // the water's: its animation's next frame (render_ground.c rg_water_blend); NULL none
@@ -85,16 +86,26 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->gvb = NULL;
     c->ghs = NULL;
     c->gwn = NULL;
+    c->wsrv = NULL;
     c->inst = c->inst_at = 0;
 }
 // a list's draws of one triangles' list (render_instance.c): at, n its place in the pool, inst_at where its entries start
-internal void rf_record_inst(UINT at, UINT n, UINT inst, UINT inst_at) {
+// (in w: a chunk's buffer of kept trees' entries; NULL the ring's)
+internal void rf_record_inst_w(UINT at, UINT n, UINT inst, UINT inst_at, ID3D11ShaderResourceView *w) {
     int k = g_rf.n;
     rf_record(at, n, 0);
-    if (g_rf.n > k) { g_rf.cmd[k].inst = inst; g_rf.cmd[k].inst_at = inst_at; }
+    if (g_rf.n > k) { g_rf.cmd[k].inst = inst; g_rf.cmd[k].inst_at = inst_at; g_rf.cmd[k].wsrv = w; }
 }
+internal void rf_record_inst(UINT at, UINT n, UINT inst, UINT inst_at) { rf_record_inst_w(at, n, inst, inst_at, NULL); }
+// the entries' buffer bound to the vertex shader (t1) by whoever bound it last (rf_bind, the shadows' maps): the batch's own
+// set where it differs
+internal ID3D11ShaderResourceView *g_rf_wbound;
+// the trees' sway by their place in the clock's circle (render_tree_chunks.c, the shader's b6); NULL none made
+internal ID3D11Buffer *g_tc_swb;
 // the batch's draw call (its index buffer the ring's, or the instances' pool)
 internal void rf_call(ID3D11DeviceContext *x, const rf_cmd *c) {
+    ID3D11ShaderResourceView *w = c->wsrv ? c->wsrv : g_rd3.wsrv;
+    if (w != g_rf_wbound) { ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &w); g_rf_wbound = w; }
     if (c->inst) {
         if (!g_in_pool) { ID3D11DeviceContext_IASetIndexBuffer(x, g_in_ib, DXGI_FORMAT_R32_UINT, 0); g_in_pool = 1; }
         ID3D11DeviceContext_DrawIndexedInstanced(x, c->n, c->inst, c->at, 0, c->inst_at);
@@ -1037,7 +1048,9 @@ internal void rf_bind(ID3D11DeviceContext *x) {
     ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_rd3.vcb);
     ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &g_rd3.wsrv);
+    g_rf_wbound = g_rd3.wsrv;
     ID3D11DeviceContext_VSSetShaderResources(x, 5, 1, &g_mo_srv);   // the animation's pool (render_morph.c)
+    if (g_tc_swb) ID3D11DeviceContext_VSSetConstantBuffers(x, 6, 1, &g_tc_swb);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
     UINT stride = sizeof(rb_vertex), off = 0;
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);

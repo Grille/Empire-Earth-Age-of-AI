@@ -812,7 +812,9 @@ internal void rd3_shadow_frame(void) {
     ID3D11DeviceContext_VSSetShader(x, g_sh.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, g_sh.ps, NULL, 0);
     ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &g_rd3.wsrv);
+    g_rf_wbound = g_rd3.wsrv;
     ID3D11DeviceContext_VSSetShaderResources(x, 5, 1, &g_mo_srv);
+    if (g_tc_swb) ID3D11DeviceContext_VSSetConstantBuffers(x, 6, 1, &g_tc_swb);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 2, 1, &g_sh.cb);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &g_sh.cb);
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_sh.samp);
