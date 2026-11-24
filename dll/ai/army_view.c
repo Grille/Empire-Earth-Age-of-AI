@@ -448,29 +448,38 @@ internal float avx_air_expected(ee_player *pl, unsigned idx, uint32_t now) {
         ee_player *op = player_at(o);
         if (!op || !is_enemy(pl, op)) continue;
         memset(n, 0, sizeof n);
-        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); if (td && av_field_of(td) == AVF_AIR) all += g_avx[idx][o][t]; }
-        avx_counters(idx, o, AVF_LAND | AVF_SEA | AVF_AIR, AVF_AIR, n);
-        for (int t = 0; t < G_TYPES_N; t++) all += n[t];
+        avx_counters(idx, o, AVF_LAND | AVF_SEA | AVF_AIR, AVF_LAND | AVF_SEA | AVF_AIR, n);   // THE AIRCRAFT AMONG ITS COUNTERS (aa_threat_expected)
+        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); if (td && av_field_of(td) == AVF_AIR) all += g_avx[idx][o][t] + n[t]; }
     }
     return all;
 }
 
 // the air threat it expects, in fighters' worth (defence.c STRONG ANTI-AIR, aa_weight): the aircraft each enemy fields as
-// it expects them and the aircraft among that enemy's counters to what it saw of the AI's; *port: an enemy airport in its
-// memory
-internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port) {
+// it expects them and the aircraft among that enemy's counters to what it saw of the AI's (*counters: that part); *port:
+// an enemy airport in its memory.
+// THE AIRCRAFT AMONG ITS COUNTERS: the counters as the enemy would train them - each class the strongest type of it in
+// any field - and of those the aircraft. Asked for aircraft alone (avx_counters' out), every class with an aircraft in
+// it came out as that aircraft, half the enemy's whole army by the vote: 4 AIs with 5 aircraft between them expected
+// 70-85 fighters' worth of each other from minute 45 (Small Islands from epoch 12, 2026-11-24), and at minute 60 an
+// AI stood at 43 AA buildings and 29 AA units against a main force of 7 - each one's AA units and ships raising what
+// the others expected of it.
+internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port, float *counters) {
     static float n[G_TYPES_N];
     idx &= 15;
     av_enemy_build(pl, now);
-    float all = 0;
+    float all = 0, cn = 0;
     for (int o = 1; o < 16; o++) {
         ee_player *op = player_at(o);
         if (!op || !is_enemy(pl, op)) continue;
         memset(n, 0, sizeof n);
-        for (int t = 0; t < G_TYPES_N; t++) { ee_unit_type *td = type_data(t); if (td && av_field_of(td) == AVF_AIR) n[t] = g_avx[idx][o][t]; }
-        avx_counters(idx, o, AVF_LAND | AVF_SEA | AVF_AIR, AVF_AIR, n);
-        for (int t = 0; t < G_TYPES_N; t++) if (n[t] > 0) all += n[t] * aa_weight(type_data(t));
+        avx_counters(idx, o, AVF_LAND | AVF_SEA | AVF_AIR, AVF_LAND | AVF_SEA | AVF_AIR, n);
+        for (int t = 0; t < G_TYPES_N; t++) {
+            ee_unit_type *td = type_data(t);
+            if (!td || av_field_of(td) != AVF_AIR) continue;
+            all += g_avx[idx][o][t] * aa_weight(td); cn += n[t] * aa_weight(td);
+        }
     }
+    if (counters) *counters = cn;
     struct intel *in = &g_intel[idx];
     *port = 0;
     for (int k = 0; k < in->n && !*port; k++) {
@@ -478,7 +487,7 @@ internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int
         ee_player *o = r->kind == 0 && r->type == UT(B_AIRPORT) ? player_at(r->owner) : NULL;
         *port = o && is_enemy(pl, o);
     }
-    return all;
+    return all + cn;
 }
 // the summary as a line: what it is, then its damage a second at each family of the enemy's it sees, the most first
 internal void av_line(const struct av_sum *s, uint64_t kinds, char *o, int cap) {

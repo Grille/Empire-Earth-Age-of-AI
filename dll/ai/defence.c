@@ -26,6 +26,7 @@ internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
 internal int g_aa_exp = 0, g_v_aa_exp = -1;                 // [ai_base] aa_expected, [autotest] v_aa_expected (ANTI-AIR, BY THE AIR FORCE IT EXPECTS)
 internal int g_aa_strong = 0, g_v_aa_strong = -1;           // [ai_base] aa_strong, [autotest] v_aa_strong (ANTI-AIR, STRONG)
+internal int g_v_aa_bound = -1;                             // [autotest] v_aa_bound (STRONG: WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
@@ -2635,6 +2636,7 @@ internal void defence_install(const char *autotest_ini) {
     g_aa_ahead = g_set_ai[1].aa_ahead;
     g_aa_exp = g_set_ai[1].aa_expected;
     g_aa_strong = g_set_ai[1].aa_strong;
+    if (autotest_ini) g_v_aa_bound = ini_int("autotest", "v_aa_bound", -1, autotest_ini);   // WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS
     g_aa_ahead_b = g_set_ai[1].aa_ahead_buildings;
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
@@ -2755,7 +2757,18 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
 #define AAS_FOUND_MS 300000u
 #define AAS_FOUNDS 32
 #define AA_STRONG(idx) PV(idx, g_v_aa_strong, g_aa_strong)
-internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port);   // army_view.c
+// WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS ([autotest] v_aa_bound = 0: without, for the variant players): the air force
+// expected of its enemies counts up to AAS_EXPECT times the most it has seen at once (near its towns, anywhere; before
+// any, the floor). The expectation alone ran away: it counts every aircraft seen in the last 10 minutes, the ones shot
+// down out of sight among them, fading over 20 more, and half of each enemy's whole army by the counter vote - 4 AIs
+// that trained 24 aircraft between them in an hour and never had more than 5 at once expected 70-85 fighters' worth of
+// each other from minute 45 (Small Islands from epoch 12, 2026-11-24): at minute 60 an AI stood at 43 AA buildings and
+// 29 AA units against a main force of 7, more than half its gold in AA Missile Towers, their builders sent out and
+// back every 10 s (attack.c citizens_safety: 45% of all its citizens sent back) - and each one's AA units and ships
+// raised what the others expected of it.
+#define AAS_EXPECT 2.0f
+#define AA_BOUND(idx) PV(idx, g_v_aa_bound, 1)
+internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port, float *counters);   // army_view.c
 internal struct { float w_near, w_all; uint32_t near_t, all_t, block_t, train_t, log_t, prod_t, pf_t, pf_b_t; unsigned prods; ee_unit *pf_u; int pf_id; struct { ee_unit *u; int id; uint32_t t, b_t; } fnd[AAS_FOUNDS]; int nf; unsigned blocks, queued, trained, done, gave_up; } g_aas[16];
 // the newest type of family fam the game offers pl now (the strongest of those: hit points x attack); 0 none
 internal int aa_type_of(ee_player *pl, int fam, int land_unit) {
@@ -2824,14 +2837,15 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
     if (a->wair >= z->w_near || now - z->near_t > AAS_KEEP) { z->w_near = a->wair; z->near_t = now ? now : 1; }
     if (a->wall >= z->w_all || now - z->all_t > AAS_KEEP) { z->w_all = a->wall; z->all_t = now ? now : 1; }
     int port = 0, ahead = 0;
-    float ex = aa_threat_expected(pl, idx, now, &port);
+    float ex_cn = 0, ex = aa_threat_expected(pl, idx, now, &port, &ex_cn);
     for (int q = 1; q < 16 && !ahead; q++) {
         void *o = st_player(q);
         ahead = o && o != pl && is_enemy(pl, o) && current_epoch(o) + 1 >= 10;
     }
-    float threat = z->w_near > z->w_all ? z->w_near : z->w_all;
-    if (ex > threat) threat = ex;
+    float threat = z->w_near > z->w_all ? z->w_near : z->w_all, ex_all = ex;
     float least = port ? AAS_FLOOR_PORT : ahead ? AAS_FLOOR : 0.0f;
+    if (AA_BOUND(idx) && ex > AAS_EXPECT * (threat > least ? threat : least)) ex = AAS_EXPECT * (threat > least ? threat : least);   // WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS
+    if (ex > threat) threat = ex;
     if (least > threat) threat = least;
     // ahead of any aircraft seen, half of it (the player 2026-11-20: "its a bit to agresive, half of the aa would probably
     // be more than enough for normal games" - Continental from World War I, 45 min, 6 games: 5.2 AA buildings and 9.3 AA
@@ -2982,8 +2996,8 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
     }
     if (g_log && g_autotest && (!z->log_t || now - z->log_t >= 60000)) {
         z->log_t = now ? now : 1;
-        fprintf(g_log, "# anti-air: P%u at %.1f min strong: threat %.1f (seen near its towns %.1f, anywhere %.1f, expected %.1f, floor %.0f%s), places covered %d of %d (blocks of %d), AA buildings %d, AA units %d of %d (type %d, made in %d: %d of them); blocks %u (%u foundations: done %u, going up %d, given up %u), units trained %u, makers asked for %u\n",
-                idx, now / 60000.0, threat, z->w_near, z->w_all, ex, least, port ? ", an enemy airport known" : "", covered, sites, block, a->have_b, a->have_u, want_u, ut, prod, prod_have,
+        fprintf(g_log, "# anti-air: P%u at %.1f min strong: threat %.1f (seen near its towns %.1f, anywhere %.1f, expected %.1f - unbounded %.1f, %.1f of that the aircraft among its enemies' counters -, floor %.0f%s), places covered %d of %d (blocks of %d), AA buildings %d, AA units %d of %d (type %d, made in %d: %d of them); blocks %u (%u foundations: done %u, going up %d, given up %u), units trained %u, makers asked for %u\n",
+                idx, now / 60000.0, threat, z->w_near, z->w_all, ex, ex_all, ex_cn, least, port ? ", an enemy airport known" : "", covered, sites, block, a->have_b, a->have_u, want_u, ut, prod, prod_have,
                 z->blocks, z->queued, z->done, going, z->gave_up, z->trained, z->prods);
         // where the game's own build lists hold that building (one list per epoch; queued() looks through all 14)
         for (int e2 = 0; bm && prod && !prod_have && e2 < 14; e2++)

@@ -1115,7 +1115,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
 internal ee_goal *goal_move(float x, float y);
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
-internal struct { unsigned sent, held, by_ship, by_land, by_both, by_other, way; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens); by_*: the sent back's raiders
+internal struct { unsigned sent, held, by_ship, by_land, by_both, by_other, way, why[2][5]; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens); by_*: the sent back's raiders
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
 internal unsigned g_repair_walking[16], g_repair_unsafe[16];   // ... at buildings a citizen walks to already, by an unsafe way
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
@@ -1257,6 +1257,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
             ee_unit *site = build ? goal_get_building(goal) : goal_get_site(goal);
             ivec2 d;
             if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
+            int cause = -1;   // THE CAUSE: 2 the way, 3 hurt there, 4 the site's danger (the way from its drop site); else raiders at the site, seen or remembered
             int raided = !(!build && r >= 5) && raiders_known(pl, unit_get_tile(site), build ? 8 : 6);   // GOLD AND IRON STAY: its miners go for hits only (below)
             if (raided && (build ? build_held(pl, unit_get_tile(site)) || bd_hold_site(pl, site) : raid_held(pl, unit_get_tile(site)))) { held++; continue; }   // its soldiers and towers there win (a builder's: not losing, defence.c)
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
@@ -1268,14 +1269,15 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                 int near_r = raiders_near(pl, at, 8), ahead = way_raided(pl, at.x, at.y, sp.x, sp.y, 24);
                 if (ivec2_dist2(at, sp) <= 64 || !(near_r || ahead)) continue;
                 if (near_r && build_held(pl, at) && (!ahead || build_held(pl, sp))) { held++; continue; }   // its soldiers around it (BUILDERS UNDER COVER)
-                raided = 1;
+                raided = 1; cause = 2;
                 g_cit_stats[idx].way++;
             }
             if (!build && !raided && hurt_danger(pl, unit_get_x(site), unit_get_y(site), r)) {   // hurt there
                 if (raid_held(pl, unit_get_tile(site))) { held++; continue; }
-                raided = 1;
+                raided = 1; cause = 3;
             }
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
+            if (!raided) cause = 4;
             if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
             if (raided && abs(d.x - unit_get_x(site)) <= 3 && abs(d.y - unit_get_y(site)) <= 3) continue;   // at home already
             if (!cl_take(u, CLP_TASK, CLW_SAFETY, CL_CIT_T) || !unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) continue;   // ORDERS BY PRIORITY: not the militia's
@@ -1287,6 +1289,7 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
                 else if (seen_kinds == 1) g_cit_stats[idx].by_land++;
                 else if (seen_kinds == 3) g_cit_stats[idx].by_both++;
                 else g_cit_stats[idx].by_other++;
+                g_cit_stats[idx].why[build][cause >= 0 ? cause : seen_kinds ? 0 : 1]++;   // THE CAUSE (the log)
             }
             int st = unit_type_get_id(unit_get_type_data(site)), j = 0;
             while (j < 4 && kinds[j][1] && kinds[j][0] != st) j++;
@@ -1340,10 +1343,11 @@ internal void citizens_safety(ee_resource_mgr *rm, int game) {   // before the c
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u; sent back for ships only %u, land units only %u, both %u, neither in sight %u; builders sent back from the way %u)\n",
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u; sent back for ships only %u, land units only %u, both %u, neither in sight %u; builders sent back from the way %u) | THE CAUSE, gatherers / builders: raiders in sight at the site %u / %u, remembered there %u / %u, on the way - / %u, citizens hurt there %u / -, the way from the drop site or a site refused %u / -\n",
                 idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx],
                 g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held, g_bw_out[idx],
-                g_cit_stats[idx].by_ship, g_cit_stats[idx].by_land, g_cit_stats[idx].by_both, g_cit_stats[idx].by_other, g_cit_stats[idx].way);
+                g_cit_stats[idx].by_ship, g_cit_stats[idx].by_land, g_cit_stats[idx].by_both, g_cit_stats[idx].by_other, g_cit_stats[idx].way,
+                g_cit_stats[idx].why[0][0], g_cit_stats[idx].why[1][0], g_cit_stats[idx].why[0][1], g_cit_stats[idx].why[1][1], g_cit_stats[idx].why[1][2], g_cit_stats[idx].why[0][3], g_cit_stats[idx].why[0][4]);
     }
 }
 
