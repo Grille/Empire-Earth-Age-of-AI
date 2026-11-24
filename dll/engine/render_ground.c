@@ -832,7 +832,7 @@ internal int rg_build(void) {
     if (!g_rg.fow_was || !g_rg.fow_now || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rg.fow))
         || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.fow, NULL, &g_rg.fow_srv))) { rg_free(); return 0; }
     if (!g_rg.cb) {
-        D3D11_BUFFER_DESC bd = { 80 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { 84 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         if (FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cb)) || FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rg.cbw))) { rg_free(); return 0; }
     }
     g_rg.fow_was[(size_t)g_rg.size * g_rg.size] = 1;   // differs: the first frame sends it
@@ -899,18 +899,22 @@ internal void rg_fow(void) {
 // corners' materials and their order, the heights of all materials lie in one array, a slice each.
 #define RGB_SIDE 256    // a slice's texels across: every texture's heights resampled to it
 #define RGB_LEVELS 9    // its mip levels, down to 1 x 1
+#define RGB_RELIEF 0.1f // the relief at 100%: a texture's detail from dark to bright this many tiles high (the shader's grl.x)
 internal struct {
     int force, fail;     // the pipe's on / off (-1: the setting); no height could be made
     float soft, noise, scale;   // the pipe's (< 0: the settings')
     LONG made;
     LONGLONG qpc;
+    float relief;                      // the pipe's (< 0: the setting's)
     ID3D11Texture2D *arr;              // the heights, a slice each material
     ID3D11ShaderResourceView *arr_srv;
-    int cap;                           // its slices
+    ID3D11Texture2D *nrm;              // THE RELIEF (ground_relief): the slopes, a slice each material
+    ID3D11ShaderResourceView *nrm_srv;
+    int cap;                           // their slices
     ID3D11Buffer *inv;                 // g_rg.inv_n for the shader
     ID3D11ShaderResourceView *inv_srv;
     ID3D11SamplerState *samp;          // the heights read repeating, at any place of the map
-} g_rgb = { .force = -1, .soft = -1, .noise = -1, .scale = 1.3f };
+} g_rgb = { .force = -1, .soft = -1, .noise = -1, .scale = 1.3f, .relief = -1 };
 // the array, the materials' shares and the sampler, made once; 0: they can't be (the borders off)
 internal int rgb_ready(void) {
     if (g_rgb.samp) return 1;
@@ -927,13 +931,9 @@ internal int rgb_ready(void) {
     log_locked("# ground: the borders' buffers could not be made: its borders as the game's\n");
     return 0;
 }
-// room for material m's slice: the array grows, what it held copied over
-internal int rgb_slice(int m) {
-    if (m < g_rgb.cap) return 1;
-    int cap = g_rgb.cap ? g_rgb.cap : 16;
-    while (cap <= m) cap *= 2;
-    if (cap > RG_MATERIALS) cap = RG_MATERIALS;
-    D3D11_TEXTURE2D_DESC td = { RGB_SIDE, RGB_SIDE, RGB_LEVELS, (UINT)cap, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+// an array of cap slices of this format, what *arr held copied over; 0: it can't be made
+internal int rgb_grow(ID3D11Texture2D **arr, ID3D11ShaderResourceView **srv, DXGI_FORMAT f, int cap) {
+    D3D11_TEXTURE2D_DESC td = { RGB_SIDE, RGB_SIDE, RGB_LEVELS, (UINT)cap, f, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
     ID3D11Texture2D *a = NULL;
     ID3D11ShaderResourceView *v = NULL;
     if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &a)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)a, NULL, &v))) {
@@ -942,17 +942,95 @@ internal int rgb_slice(int m) {
     }
     for (int s = 0; s < g_rgb.cap; s++)
         for (int l = 0; l < RGB_LEVELS; l++)
-            ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)a, (UINT)(s * RGB_LEVELS + l), 0, 0, 0, (ID3D11Resource *)g_rgb.arr, (UINT)(s * RGB_LEVELS + l), NULL);
-    D3D_RELEASE(g_rgb.arr_srv);
-    D3D_RELEASE(g_rgb.arr);
-    g_rgb.arr = a;
-    g_rgb.arr_srv = v;
+            ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)a, (UINT)(s * RGB_LEVELS + l), 0, 0, 0, (ID3D11Resource *)*arr, (UINT)(s * RGB_LEVELS + l), NULL);
+    D3D_RELEASE(*srv);
+    D3D_RELEASE(*arr);
+    *arr = a;
+    *srv = v;
+    return 1;
+}
+// room for material m's slices: the arrays grow
+internal int rgb_slice(int m) {
+    if (m < g_rgb.cap) return 1;
+    int cap = g_rgb.cap ? g_rgb.cap : 16;
+    while (cap <= m) cap *= 2;
+    if (cap > RG_MATERIALS) cap = RG_MATERIALS;
+    if (!rgb_grow(&g_rgb.arr, &g_rgb.arr_srv, DXGI_FORMAT_R8_UNORM, cap) || !rgb_grow(&g_rgb.nrm, &g_rgb.nrm_srv, DXGI_FORMAT_R16G16_SNORM, cap)) return 0;
     g_rgb.cap = cap;
     return 1;
 }
 internal int rgb_on(void) { return !g_rgb.fail && (g_rgb.force < 0 ? g_set.ground_blend : g_rgb.force); }
 internal float rgb_soft(void) { float v = g_rgb.soft >= 0 ? g_rgb.soft : (float)g_set.ground_blend_soft; return v < 0.02f ? 0.02f : v; }
 internal float rgb_noise(void) { return g_rgb.noise >= 0 ? g_rgb.noise : (float)g_set.ground_blend_noise; }
+internal float rgb_relief(void) { return g_rgb.relief >= 0 ? g_rgb.relief : (float)g_set.ground_relief; }
+// the textures' heights and slopes are wanted: for the borders or the relief
+internal int rgb_wanted(void) { return !g_rgb.fail && (rgb_on() || rgb_relief() > 0); }
+// box blur of a w x h field round, r texels each way, along x then y (it repeats: so does this); t a field's room
+internal void rgb_box(float *f, float *t, int w, int h, int r) {
+    for (int y = 0; y < h; y++) {
+        float s = 0;
+        for (int k = -r; k <= r; k++) s += f[y * w + (k % w + w) % w];
+        for (int x = 0; x < w; x++) {
+            t[y * w + x] = s / (float)(2 * r + 1);
+            s += f[y * w + (x + r + 1) % w] - f[y * w + ((x - r) % w + w) % w];
+        }
+    }
+    for (int x = 0; x < w; x++) {
+        float s = 0;
+        for (int k = -r; k <= r; k++) s += t[((k % h + h) % h) * w + x];
+        for (int y = 0; y < h; y++) {
+            f[y * w + x] = s / (float)(2 * r + 1);
+            s += t[((y + r + 1) % h) * w + x] - t[(((y - r) % h + h) % h) * w + x];
+        }
+    }
+}
+// THE RELIEF: a texture's slopes into material mat's slice. Its detail is its brightness less what a wide blur keeps (its
+// patches of colour: a dark patch of grass is no hollow), blurred against texel noise, resampled to the slice; a
+// slope per texel of the slice along u and v (x and y of the map), times 4 into the format's -1..1. The shader turns it
+// into one per tile by the texture's repeat (render_3d.c, grl)
+internal void rgb_slopes(const uint32_t *px, int w, int h, int mat) {
+    size_t n = (size_t)w * h;
+    float *f = malloc(n * sizeof *f), *lo = malloc(n * sizeof *f), *t = malloc(n * sizeof *f);
+    float *r = malloc((size_t)RGB_SIDE * RGB_SIDE * sizeof *r);
+    int16_t *o = malloc((size_t)RGB_SIDE * RGB_SIDE * 4), *q = malloc((size_t)RGB_SIDE * RGB_SIDE * 2);
+    if (f && lo && t && r && o && q) {
+        for (size_t i = 0; i < n; i++)
+            lo[i] = f[i] = (float)(((px[i] >> 16) & 255) * 77 + ((px[i] >> 8) & 255) * 150 + (px[i] & 255) * 29) / (255.0f * 256.0f);
+        int wr = (w > h ? w : h) / 16;
+        rgb_box(lo, t, w, h, wr < 2 ? 2 : wr);
+        for (size_t i = 0; i < n; i++) f[i] -= lo[i];
+        rgb_box(f, t, w, h, 2);   // twice: about a bell 1.6 texels wide - a texel's noise on grass caught the evening sun as sparks
+        rgb_box(f, t, w, h, 2);
+        for (int y = 0; y < RGB_SIDE; y++) for (int x = 0; x < RGB_SIDE; x++) {
+            float fx = ((float)x + 0.5f) * (float)w / RGB_SIDE - 0.5f, fy = ((float)y + 0.5f) * (float)h / RGB_SIDE - 0.5f;
+            int x0 = (int)floorf(fx), y0 = (int)floorf(fy);
+            float ax = fx - (float)x0, ay = fy - (float)y0;
+            int xa = (x0 % w + w) % w, xb = (xa + 1) % w, ya = (y0 % h + h) % h, yb = (ya + 1) % h;
+            r[y * RGB_SIDE + x] = (f[ya * w + xa] * (1 - ax) + f[ya * w + xb] * ax) * (1 - ay) + (f[yb * w + xa] * (1 - ax) + f[yb * w + xb] * ax) * ay;
+        }
+        for (int y = 0; y < RGB_SIDE; y++) for (int x = 0; x < RGB_SIDE; x++) {
+            float gx = (r[y * RGB_SIDE + (x + 1) % RGB_SIDE] - r[y * RGB_SIDE + (x + RGB_SIDE - 1) % RGB_SIDE]) * 0.5f;
+            float gy = (r[((y + 1) % RGB_SIDE) * RGB_SIDE + x] - r[((y + RGB_SIDE - 1) % RGB_SIDE) * RGB_SIDE + x]) * 0.5f;
+            gx = gx * 4 < -1 ? -1 : gx * 4 > 1 ? 1 : gx * 4;
+            gy = gy * 4 < -1 ? -1 : gy * 4 > 1 ? 1 : gy * 4;
+            o[(y * RGB_SIDE + x) * 2] = (int16_t)lrintf(gx * 32767.0f);
+            o[(y * RGB_SIDE + x) * 2 + 1] = (int16_t)lrintf(gy * 32767.0f);
+        }
+        int mw = RGB_SIDE;
+        int16_t *p = o;
+        for (int lv = 0; lv < RGB_LEVELS; lv++) {
+            ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rgb.nrm, (UINT)(mat * RGB_LEVELS + lv), NULL, p, (UINT)mw * 4, 0);
+            if (mw == 1) break;
+            int nw = mw / 2;
+            int16_t *d = p == o ? q : p + (size_t)mw * mw * 2;
+            for (int y = 0; y < nw; y++) for (int x = 0; x < nw; x++) for (int c = 0; c < 2; c++)
+                d[(y * nw + x) * 2 + c] = (int16_t)((p[(2 * y * mw + 2 * x) * 2 + c] + p[(2 * y * mw + 2 * x + 1) * 2 + c] + p[((2 * y + 1) * mw + 2 * x) * 2 + c]
+                                                    + p[((2 * y + 1) * mw + 2 * x + 1) * 2 + c]) / 4);
+            p = d; mw = nw;
+        }
+    }
+    free(f); free(lo); free(t); free(r); free(o); free(q);
+}
 // a texture's heights into material mat's slice, with their mip levels; 0: they can't be made
 internal int rgb_height(rd_surface *t, int mat) {
     LONGLONG t0 = rd_qpc();
@@ -1001,6 +1079,7 @@ internal int rgb_height(rd_surface *t, int mat) {
                 q[y * nw + x] = (uint8_t)((p[2 * y * mw + 2 * x] + p[2 * y * mw + 2 * x + 1] + p[(2 * y + 1) * mw + 2 * x] + p[(2 * y + 1) * mw + 2 * x + 1] + 2) / 4);
             p = q; mw = nw;
         }
+        rgb_slopes(px, w, h, mat);
         made = 1;
     }
     free(px); free(a); free(b); free(r); free(o);
@@ -1008,8 +1087,15 @@ internal int rgb_height(rd_surface *t, int mat) {
     else { g_rgb.fail = 1; log_locked("# ground: a texture's heights could not be made (%d x %d): its borders as the game's\n", w, h); }
     return made;
 }
-// the pipe: picture gb on | off, gbsoft <0.02..1>, gbnoise <0..1>, gbscale <per tile>
+// the pipe: picture gb on | off, gbsoft <0.02..1>, gbnoise <0..1>, gbscale <per tile>, relief <0..4> (1 is 100%)
 internal int rgb_pipe(char *out, const char *mode, const char *arg) {
+    if (!strcmp(mode, "relief")) {
+        float e = (float)atof(arg);
+        if (arg[0] && (e < 0 || e > 4)) { REPLY("error: usage: picture relief <0..4>, 1 is 100%%\n"); return 1; }
+        if (arg[0]) g_rgb.relief = e;
+        REPLY("the ground's relief %.0f%%\n", (double)rgb_relief() * 100.0);
+        return 1;
+    }
     if (!strcmp(mode, "gb")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rgb.force = arg[1] == 'n';
         else if (arg[0]) { REPLY("error: usage: picture gb on | off\n"); return 1; }
@@ -1222,7 +1308,7 @@ internal void rg_draw_now(int water, int again) {
             D3D_RELEASE(srv[m]);
             srv[m] = now;
         }
-        if (!water && rgb_on() && rgb_ready() && !g_rg.hmade[m]) g_rg.hmade[m] = (uint8_t)rgb_height(t, m);
+        if (!water && rgb_wanted() && rgb_ready() && !g_rg.hmade[m]) g_rg.hmade[m] = (uint8_t)rgb_height(t, m);
     }
     if (!water && g_rg.inv_dirty && g_rgb.inv) {
         ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rgb.inv, 0, NULL, g_rg.inv_n, 0, 0);
@@ -1266,9 +1352,11 @@ internal void rg_draw_now(int water, int again) {
     // the wobble's strength: the surface's, the seabed's - none with [display] seabed_wobble off (the player, 2026-11-10:
     // "add an option to disable the terrain wobble underwater that tries to fake refraction")
     float wstr = g_rw_still ? 0.0f : ws[1];   // the surface's movement (the pipe's water still: none)
-    float cb[80] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? wstr : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
+    float cb[84] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? wstr : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
+    // the relief (grl): a full brightness's height in tiles (RGB_RELIEF at 100%), the slices' texels across
+    if (!water && rgb_wanted() && g_rgb.nrm_srv) { cb[80] = rgb_relief() * RGB_RELIEF; cb[81] = RGB_SIDE; }
     if (water) cb[73] = wblend;   // the water's: its frames' blend (gbl.y; its borders' gbl.x stays 0)
     if (g_rg.ov_on) {   // the overlay's picture (gov): the map's place -> its texture's
         cb[76] = g_rg.ov[0]; cb[77] = g_rg.ov[1];
@@ -1321,8 +1409,8 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &g_rgb.arr_srv);
     ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &c->gwn);
     ID3D11DeviceContext_PSSetShaderResources(x, 15, 1, &g_rg_ov_srv);
-    ID3D11ShaderResourceView *bt[2] = { g_rg.tq_srv, g_rgb.inv_srv }, *nbt[2] = { NULL, NULL };
-    ID3D11DeviceContext_PSSetShaderResources(x, 18, 2, bt);
+    ID3D11ShaderResourceView *bt[3] = { g_rg.tq_srv, g_rgb.inv_srv, g_rgb.nrm_srv }, *nbt[3] = { NULL, NULL, NULL };
+    ID3D11DeviceContext_PSSetShaderResources(x, 18, 3, bt);
     ID3D11DeviceContext_PSSetSamplers(x, 3, 1, &g_rgb.samp);
     ID3D11DeviceContext_Draw(x, c->n, c->at);
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &st, &off);
@@ -1332,7 +1420,7 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShaderResources(x, 13, 1, &nos);
     ID3D11DeviceContext_PSSetShaderResources(x, 14, 1, &nos);
     ID3D11DeviceContext_PSSetShaderResources(x, 15, 1, &nos);
-    ID3D11DeviceContext_PSSetShaderResources(x, 18, 2, nbt);
+    ID3D11DeviceContext_PSSetShaderResources(x, 18, 3, nbt);
 }
 internal int g_rw_fx_only;   // a frame during a step: the water's draw for its effects alone (render_3d.c rd_hook_ro_water)
 internal int rg_hook(int i, int water, void *ras, void *mesh, unsigned screen, int flag) {

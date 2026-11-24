@@ -351,6 +351,11 @@ class display
         /// 1 is 100%):
         [advanced, range(0.02, 1)]
         share ground_blend_soft = 0.5;
+        /// The own renderer only: the ground's textures in relief under the sun - their fine detail taken as heights
+        /// (brighter higher), so that cracks, ripples and stones catch the light from where the sun stands, and follow
+        /// it through the day; 0% off, 100% a modest relief (the control pipe: picture relief <n>, 1 is 100%):
+        [advanced, range(0, 4)]
+        share ground_relief = 0;
         /// The own renderer only: the ground is made this much wider and taller than the screen (100% = twice its
         /// size), so that a frame drawn during a step after a scroll or a zoom out still has ground at the edges
         /// (0% = the screen's, as the game had it; limited by the game's 101-tile region; the control pipe: picture
