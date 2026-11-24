@@ -492,6 +492,12 @@ internal int fy_push_transit(unsigned idx, int k) {   // stations.c ACROSS: push
     for (int i = 0; i < FY_TRIPS; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 3 && t->push == k) n += t->npass - fy_trip_cits(t); }
     return n;
 }
+// stations.c SCOUTS WITH THE FERRY: the territories its scouts are under way to with a trip (kind 4: to the pick-up, aboard)
+internal int fy_scouts_out(unsigned idx, short *ter, int max) {
+    int n = 0;
+    for (int i = 0; i < FY_TRIPS && n < max; i++) { const struct fy_trip *t = &g_fy[idx & 15].t[i]; if (t->phase && t->kind == 4 && t->npass > 0) ter[n++] = (short)t->push_ter; }
+    return n;
+}
 internal int fy_push_trips(unsigned idx, int k) {
     int n = 0;
     for (int i = 0; i < FY_TRIPS; i++) n += g_fy[idx & 15].t[i].phase && g_fy[idx & 15].t[i].kind == 3 && g_fy[idx & 15].t[i].push == k;

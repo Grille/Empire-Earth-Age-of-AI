@@ -149,6 +149,7 @@ internal struct { ee_unit *u; int id; unsigned from, to; ivec2 at; int ter; uint
 struct sn_unit;
 internal void sn_rejoin(unsigned idx, struct sn_unit *m);
 internal int fy_push_transit(unsigned idx, int k);   // ferry.c: push k's soldiers the ferry has taken (to the shore, aboard)
+internal int fy_scouts_out(unsigned idx, short *ter, int max);   // ferry.c: the territories its scouts are under way to with a trip
 internal struct sn_st {
     uint32_t t, log_t, scout_off, step_t;   // scout_off: no scouts before then; step_t: THE NEXT GOAL AT ONCE
     int n;
@@ -1508,6 +1509,16 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
     // STATIONS: the shares in soldiers
     int np[SNP_N] = { 0, 0, 0 }, scouts = 0, wsum = 0;
     for (int i = 0; i < nn; i++) { if (z->m[i].scout) scouts += z->m[i].scout == 1; else np[z->m[i].pool]++; }   // escorts (scout 2) are neither
+    // SCOUTS WITH THE FERRY: a scout the ferry has (to its pick-up, aboard) or has put off and the look has not found
+    // again is on no tile and in no list here - still a scout, its territory taken. Uncounted, every look took the next
+    // soldier of the main force as the scout for the same territory across the water, a transport each: 13 one-scout
+    // trips an AI an hour, 27% of all its trips (Small Islands from epoch 12, 2026-11-24; three within 70 s to one
+    // point - one sunk, one put off under fire, one given up at the pick-up - with the main force at 0)
+    short fsc[24];
+    int nfsc = fy_scouts_out(idx, fsc, 16);
+    for (int j = 0; j < SN_JOIN && nfsc < 24; j++)
+        if (g_sn_join[idx & 15][j].t && g_sn_join[idx & 15][j].scout && now >= g_sn_join[idx & 15][j].t && now - g_sn_join[idx & 15][j].t < 120000) fsc[nfsc++] = g_sn_join[idx & 15][j].ter;
+    scouts += nfsc;
     // TEMPLE FIRST (the player 2026-11-16, agreeing to it: an enemy Temple's protection keeps its prophets' powers off
     // everything in its reach): with prophets of its own a push goes at the Temple in the territory first
     int pro = holy_prophets(idx) > 0;
@@ -2019,6 +2030,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                     if (!du || (land && (area_id(g_ter.t[r].c, 2) == land) != !pass) || (pass && !EXPAND_ACROSS(idx))) continue;
                     int taken = 0, d = ivec2_dist2(g_ter.t[r].c, p) / (du == 2 ? 4 : 1);
                     for (int j = 0; j < nn; j++) taken |= j != i && z->m[j].scout == 1 && z->m[j].ter == r;
+                    for (int j = 0; j < nfsc; j++) taken |= fsc[j] == r;   // SCOUTS WITH THE FERRY
                     if (!taken && (b < 0 || d < bd)) { b = r; bd = d; }
                 }
             if (b < 0 || !player_ai_toggle(pl, SM_AIT_EXPLORE)) {   // none left (or the scenario's Explore off): the main force's again
@@ -2440,10 +2452,10 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
         int rh = 0, rf = 0;   // THE RESERVE: soldiers inside its Fortresses
         for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
-        log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
+        log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (%d of them with the ferry; territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
                    "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
                    "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u scouts' goals inside their territory, %u set at enemy walls, %u siege at enemy gates, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",
-                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
+                   idx, now / 60000.0, np[SNP_MAIN], np[SNP_SIEGE], np[SNP_AA], scouts, nfsc, unseen, z->due, pushing, z->pushes, z->won, z->lost, rh, rf, z->res_in, z->res_out, z->res_room, z->res_claim, g_bk_more[idx],
                    z->moved, z->orders, z->groups, z->grouped, z->formed, z->scouted, z->looks, z->demos, z->gates, z->stale, buf);
         log_locked("# stations: P%u at %.1f min: rest spots so far (rest_open_ground %d): %u with room for all, %u closer packed, %u with none (the station's point itself)\n",
                    idx, now / 60000.0, g_set_ai[1].rest_open_ground, g_sn_rest[idx][0], g_sn_rest[idx][1], g_sn_rest[idx][2]);
