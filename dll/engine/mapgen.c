@@ -35,11 +35,63 @@ internal int __cdecl hook_random_map_types_load(void *path) {
     return r;
 }
 
+// THE BIOMES (the player 2026-11-24: "should we maybe adapt a system like minecraft? both a temperature and moisture
+// layer over the map which decide what biome can generate. hot and dry is desert, moist and hot tropical"). Two layers
+// over the map: the temperature - cold in the far north, hot in the near south, pushed about by noise, colder on
+// hills - and the moisture - a noise of its own, wetter near water (the sea's and the rivers': 7 tiles in). Each in
+// three bands, a tile's biome the pair: what its ground looks like, which trees grow how densely, which animals live
+// there, how likely a mine, a forage patch or a herd is. So the biomes are not fair to each other, on purpose (he:
+// "competitive players are probably happy with the basegame maps. this might lean more in a 4x flavour of the game,
+// casual play with ai or online trying to build up their nations"): a desert has gold and stone and next to no wood,
+// the tropics food and wood and few mines. A start still gets what a game can't begin without - its mines, two forage
+// patches, a herd and one forest of timber (in a biome without timber trees a grove of the nearest kind that has).
+#define MG_BIOMES 9
+#define MG_MAPLE "tree_01_maple", "tree_02_maple", "tree_04_maple", "tree_30_maple"
+#define MG_MIXED "tree_07_spruce", "tree_09_spruce", "tree_10_spruce", "tree_11_spruce", "tree_01_maple", "tree_04_maple"
+#define MG_FIRS "tree_31_winter_spruce_1", "tree_32_winter_spruce_2", "tree_33_winter_spruce_3", "tree_34_winter_spruce_4", "tree_35_winter_spruce_5", "tree_36_winter_spruce_6"
+#define MG_PALMS "tree_21_palm", "tree_22_palm", "tree_23_palm", "tree_26_palm", "tree_28_palm", "tree_29_palm"
+#define MG_DEAD "tree_05_spruce_dead", "tree_06_spruce_dead", "tree_14_spruce_dead"
+#define MG_CACTI "tree_15_cactus", "tree_16_cactus"
+enum { MG_RICH_GOLD, MG_RICH_IRON, MG_RICH_STONE, MG_RICH_FORAGE, MG_RICH_HERD };
+internal const struct mg_biome {
+    const char *name;
+    const char *land[5];         // its ground textures (db\dbterrain.dat's names) and their shares of 100, the first the plain one
+    uint8_t share[5];
+    const char *beach, *res, *wood;   // under water up to a step deep, under a mine, under trees
+    const char *trees[6];        // what grows there
+    const char *grove[6];        // a start's own forest where those are no timber
+    int16_t forest_tiles;        // land tiles to a forest
+    uint8_t size_lo, size_hi;    // a forest's tiles
+    const char *animals[4];
+    uint8_t rich[5];             // of 100 mines (gold, iron, stone), forage patches and herds drawn for a place there, how many are laid
+} k_mg_biome[MG_BIOMES] = {
+    // cold: dry, middling, wet
+    { "ice desert", { "Snow", "Ice", "Snow - Dirt Patches", "Snow", "Snow" }, { 45, 25, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
+      { MG_DEAD }, { MG_FIRS }, 1500, 6, 14, { "res_walrus", "res_goat" }, { 60, 100, 100, 10, 30 } },
+    { "tundra", { "Snow", "Snow - Grass Patches", "Snow - Tufts", "Snow", "Snow" }, { 40, 30, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
+      { MG_FIRS }, { NULL }, 650, 18, 36, { "res_deer", "res_goat", "res_walrus" }, { 60, 100, 80, 30, 60 } },
+    { "taiga", { "Snow - Tufts", "Snow", "Snow - Grass Patches", "Snow", "Snow" }, { 40, 30, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
+      { MG_FIRS }, { NULL }, 200, 36, 60, { "res_deer", "res_goat" }, { 50, 90, 60, 50, 80 } },
+    // mild
+    { "steppe", { "Grass - Sparse", "Dry Leaves", "Grass - Patches", "Grass", "Grass - Sparse" }, { 40, 20, 25, 10, 5 }, "Beach", "Sand - Medium", "Dry Leaves",
+      { MG_DEAD }, { MG_MAPLE }, 1200, 8, 20, { "res_horse", "res_goat", "res_ostrich" }, { 80, 80, 80, 50, 80 } },
+    { "grassland", { "Grass", "Grass - Tufts", "Grass - Tall", "Grass - Patches", "Grass" }, { 60, 10, 6, 8, 16 }, "Beach", "Sand - Medium", "Grass - Sparse",
+      { MG_MAPLE }, { NULL }, 420, 26, 50, { "res_deer", "res_horse", "res_goat" }, { 70, 70, 70, 100, 100 } },
+    { "woodland", { "Grass", "Grass - Tall", "Grass - Tufts", "Grass - Overgrown", "Grass" }, { 40, 22, 15, 18, 5 }, "Beach", "Sand - Medium", "Grass - Sparse",
+      { MG_MIXED }, { NULL }, 170, 40, 60, { "res_deer", "res_goat" }, { 50, 60, 50, 100, 90 } },
+    // hot
+    { "desert", { "Sand - Fine", "Sand - Medium", "Desert", "Sand - Cracked", "Dark Cracked Mud" }, { 35, 25, 20, 12, 8 }, "Desert", "Pebbles - Small", "Sand - Coarse",
+      { MG_CACTI }, { MG_PALMS }, 1300, 5, 12, { "res_ostrich", "res_goat" }, { 100, 60, 100, 15, 20 } },
+    { "savanna", { "Grass - Patches", "Grass - Sparse", "Sand - Medium", "Grass", "Grass - Patches" }, { 40, 30, 15, 10, 5 }, "Beach", "Pebbles - Small", "Grass - Sparse",
+      { MG_PALMS }, { NULL }, 800, 10, 24, { "res_giraffe", "res_elephant", "res_ostrich", "res_horse" }, { 90, 60, 70, 60, 100 } },
+    { "tropics", { "Grass - Overgrown", "Grass - Tall", "Grass", "Grass - Tufts", "Grass - Overgrown" }, { 40, 25, 20, 10, 5 }, "Beach", "Sand - Medium", "Grass - Tall",
+      { MG_PALMS }, { NULL }, 160, 40, 60, { "res_elephant", "res_hippopotamus", "res_giraffe" }, { 50, 40, 40, 100, 90 } },
+};
+
 // THE GENERATOR'S STATE. Tiles x, y (0 .. n - 1), corners 0 .. n: the map is the diamond of them the game made (a tile
 // there has its ee_tile). Across the diamond run u = x - y and v = x + y - n, each from -n / 2 to n / 2: the screen's
 // two ways - v from left to right, u from the near edge to the far one. The continents lie apart along v, left and
-// right, and stretch along u; the climates change along u: winter in the far north, desert in the near south.
-enum { MG_GRASS, MG_WINTER, MG_DESERT, MG_CLIMATES };
+// right, and stretch along u; the far end is the north.
 enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_KINDS };
 #define MG_PLAYERS 16
 #define MG_SPOTS 1024
@@ -51,14 +103,16 @@ struct mg {
     float *f;                 // [corner] how far inside the land (tiles; below 0: that far out in the water)
     float *h;                 // [corner] its height in height steps (below 0: under the water)
     uint8_t *used;            // [tile] taken: a start's yard, a river's bank, a mine, a tree
-    uint8_t *clim;            // [tile] its climate
+    uint8_t *clim;            // [tile] its biome (k_mg_biome)
+    uint8_t *marsh;           // [tile] 1: wet ground at the water's edge
     float half;               // n / 2: u and v reach that far
     int np;                   // the players that play
     int sx[MG_PLAYERS], sy[MG_PLAYERS];   // their starts (a tile corner: the Capitol's middle)
     struct { int x, y; } spot[MG_SPOTS];  // the mines', forests' and herds' places: kept apart from each other
     int nspot;
-    int tex_land[MG_CLIMATES][5], tex_beach[MG_CLIMATES], tex_res[MG_CLIMATES], tex_wood[MG_CLIMATES], tex_deep;
-    int made[MG_KINDS], rivers, land, water, cliffs;
+    int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_deep, tex_marsh;
+    int tree[MG_BIOMES][6], ntree[MG_BIOMES], grove[MG_BIOMES][6], ngrove[MG_BIOMES], animal[MG_BIOMES][4], nanimal[MG_BIOMES];   // the biomes' types the data has
+    int made[MG_KINDS], rivers, land, water, cliffs, forests, types_missing, biome_tiles[MG_BIOMES];
 };
 internal uint32_t mg_next(struct mg *g) {
     uint32_t x = g->rng;
@@ -203,55 +257,106 @@ internal int mg_river(struct mg *g) {
     }
     return 1;
 }
-// THE CLIMATES: along u - winter at the far end, desert at the near one, grassland between, the borders pushed about by noise
-internal void mg_climates(struct mg *g) {
-    for (int y = 0; y < g->n; y++)
-        for (int x = 0; x < g->n; x++) {
-            float t = (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 0.7f;
-            g->clim[y * g->n + x] = (uint8_t)(t < -0.3f ? MG_WINTER : t > 0.3f ? MG_DESERT : MG_GRASS);
+internal int mg_type(const char *ident) { return unit_type_named(ident, (int)strlen(ident)); }
+// a tile's biome from the two layers. The distance to water first (tiles, 4 ways, the sea's and the rivers'), from every
+// water tile outwards
+internal void mg_biomes(struct mg *g) {
+    int n = g->n, *queue = malloc((size_t)(n * n) * sizeof *queue), head = 0, tail = 0;
+    uint8_t *wd = calloc((size_t)(n * n), 1);
+    if (!queue || !wd) { free(queue); free(wd); memset(g->clim, 4, (size_t)(n * n)); return; }   // no memory: grassland all over
+    memset(wd, 255, (size_t)(n * n));
+    for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++) {
+            float lo, hi;
+            if (mg_tile_span(g, x, y, &lo, &hi) && lo < 0) { wd[y * n + x] = 0; queue[tail++] = y * n + x; }
         }
-}
-// THE TEXTURES, by their names in the game's data (db\dbterrain.dat; the scripts' own, Common Terrain Painting.rmv,
-// which spells them without the blanks): a climate's five
-// for its land, picked by a noise value in the shares its script gives them; its beach for water up to a step deep,
-// Underwater below; one under mines, one under trees. A name the data hasn't got: the map's default ground.
-internal void mg_textures_load(struct mg *g) {
-    static const char *const land[MG_CLIMATES][5] = {
-        { "Grass", "Grass - Tufts", "Grass - Tall", "Grass - Patches", "Grass" },
-        { "Snow", "Snow - Grass Patches", "Snow - Tufts", "Ice", "Snow" },
-        { "Sand - Fine", "Sand - Medium", "Desert", "Grass - Patches", "Sand - Cracked" } };
-    static const char *const beach[MG_CLIMATES] = { "Beach", "Ice", "Desert" };
-    static const char *const res[MG_CLIMATES] = { "Sand - Medium", "Snow - Dirt Patches", "Pebbles - Small" };
-    static const char *const wood[MG_CLIMATES] = { "Grass - Sparse", "Snow - Tufts", "Grass - Sparse" };
-    int def = map_get_default_terrain(g->map), missing = 0;
-#define MG_TEX(to, name) do { int t_ = terrain_named(name); if (t_ < 0) { missing++; t_ = def; } (to) = t_; } while (0)
-    for (int c = 0; c < MG_CLIMATES; c++) {
-        for (int k = 0; k < 5; k++) MG_TEX(g->tex_land[c][k], land[c][k]);
-        MG_TEX(g->tex_beach[c], beach[c]);
-        MG_TEX(g->tex_res[c], res[c]);
-        MG_TEX(g->tex_wood[c], wood[c]);
+    while (head < tail) {
+        int i = queue[head++], x = i % n, y = i / n;
+        static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+        for (int s = 0; s < 4 && wd[i] < 8; s++) {
+            int nx = x + side[s][0], ny = y + side[s][1];
+            if (!mg_tile(g, nx, ny) || wd[ny * n + nx] != 255) continue;
+            wd[ny * n + nx] = (uint8_t)(wd[i] + 1);
+            queue[tail++] = ny * n + nx;
+        }
     }
-    MG_TEX(g->tex_deep, "Underwater");
+    for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++) {
+            float lo = 0, hi = 0;
+            mg_tile_span(g, x, y, &lo, &hi);
+            float temp = (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f - fmaxf(0, hi - 2.0f) * 0.2f;
+            float by_water = 1 - (float)(wd[y * n + x] < 7 ? wd[y * n + x] : 7) / 7.0f;
+            float wet = 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f + 0.22f * by_water;
+            int b = (temp < -0.3f ? 0 : temp > 0.3f ? 2 : 1) * 3 + (wet < 0.4f ? 0 : wet > 0.6f ? 2 : 1);
+            g->clim[y * n + x] = (uint8_t)b;
+            g->marsh[y * n + x] = wd[y * n + x] <= 2 && wet > 0.6f && temp >= -0.3f;   // wet, not frozen, by the water
+        }
+    free(queue); free(wd);
+}
+// THE TEXTURES, by their names in the game's data (db\dbterrain.dat; the scripts, Common Terrain Painting.rmv, spell
+// them without the blanks): a biome's five for its land, picked by a noise value in their shares; its beach for water
+// up to a step deep, Underwater below; one under mines, one under trees; Marsh at the water's edge of the wet biomes.
+// A texture gives its tiles their kind (ee_terrain.kind: what may stand and walk there - the land textures have kinds
+// of their own, Grass 0). A name the data hasn't got, or a land texture whose kind is water's or a cliff's: the
+// biome's plain one, Grass for that - told in the log.
+internal void mg_textures_load(struct mg *g) {
+    int grass = terrain_named("Grass"), def = grass >= 0 ? grass : map_get_default_terrain(g->map), bad = 0;
+    char names[400] = "";
+#define MG_TEX(to, name, land) do { \
+        int t_ = terrain_named(name); \
+        if (t_ < 0 || ((land) && !terrain_is_land(terrain_at((uint32_t)t_)))) { \
+            if (!strstr(names, name) && strlen(names) + strlen(name) + 3 < sizeof names) { strcat(names, names[0] ? ", " : ""); strcat(names, name); } \
+            bad++; t_ = -1; \
+        } \
+        (to) = t_; } while (0)
+    for (int b = 0; b < MG_BIOMES; b++) {
+        const struct mg_biome *k = &k_mg_biome[b];
+        for (int i = 0; i < 5; i++) {
+            MG_TEX(g->tex_land[b][i], k->land[i], 1);
+            if (g->tex_land[b][i] < 0) g->tex_land[b][i] = i && g->tex_land[b][0] >= 0 ? g->tex_land[b][0] : def;
+        }
+        MG_TEX(g->tex_beach[b], k->beach, 0);
+        MG_TEX(g->tex_res[b], k->res, 1);
+        MG_TEX(g->tex_wood[b], k->wood, 1);
+        if (g->tex_beach[b] < 0) g->tex_beach[b] = def;
+        if (g->tex_res[b] < 0) g->tex_res[b] = g->tex_land[b][0];
+        if (g->tex_wood[b] < 0) g->tex_wood[b] = g->tex_land[b][0];
+        for (int i = 0; i < 6; i++) {
+            int t = k->trees[i] ? mg_type(k->trees[i]) : -1, v = k->grove[i] ? mg_type(k->grove[i]) : -1;
+            if (t >= 0 && type_data(t)) g->tree[b][g->ntree[b]++] = t;
+            if (v >= 0 && type_data(v)) g->grove[b][g->ngrove[b]++] = v;
+            g->types_missing += (k->trees[i] && (t < 0 || !type_data(t))) + (k->grove[i] && (v < 0 || !type_data(v)));
+        }
+        for (int i = 0; i < 4; i++) {
+            int t = k->animals[i] ? mg_type(k->animals[i]) : -1;
+            if (t >= 0 && type_data(t)) g->animal[b][g->nanimal[b]++] = t;
+            g->types_missing += k->animals[i] && (t < 0 || !type_data(t));
+        }
+    }
+    MG_TEX(g->tex_deep, "Underwater", 0);
+    MG_TEX(g->tex_marsh, "Marsh", 1);
+    if (g->tex_deep < 0) g->tex_deep = def;
 #undef MG_TEX
-    if (missing) notice("mapgen", "%d of the ground textures the map type \"%s\" names are not in the game's data - the default ground instead", missing, MG_NAME);
+    if (g_log && (bad || g->types_missing))
+        log_locked("# mapgen: %d ground textures not used (not in the data, or a water's or a cliff's kind of tile): %s; %d tree and animal types not in the data\n",
+                   bad, names, g->types_missing);
 }
 internal void mg_textures(struct mg *g) {
-    // the shares of a climate's five textures, of 100 (the first the plain one)
-    static const uint8_t share[MG_CLIMATES][5] = { { 66, 7, 3, 6, 18 }, { 50, 7, 18, 6, 19 }, { 33, 26, 17, 9, 15 } };
     for (int y = 0; y < g->n; y++)
         for (int x = 0; x < g->n; x++) {
             float lo, hi;
             if (!mg_tile_span(g, x, y, &lo, &hi)) continue;
-            int c = g->clim[y * g->n + x], tex;
+            int b = g->clim[y * g->n + x], tex;
             if (lo < 0) {
-                tex = lo > -1.0f ? g->tex_beach[c] : g->tex_deep;
+                tex = lo > -1.0f ? g->tex_beach[b] : g->tex_deep;
                 g->water++;
             } else {
                 int p = (int)(mg_fbm((float)x * 0.11f + 300, (float)y * 0.11f + 700, g->seed + 30) * 160.0f - 30.0f), k = 0;   // 0 .. 100, evened out
                 p = p < 0 ? 0 : p > 99 ? 99 : p;
-                while (k < 4 && p >= share[c][k]) p -= share[c][k++];
-                tex = g->tex_land[c][k];
+                while (k < 4 && p >= k_mg_biome[b].share[k]) p -= k_mg_biome[b].share[k++];
+                tex = g->marsh[y * g->n + x] && g->tex_marsh >= 0 ? g->tex_marsh : g->tex_land[b][k];
                 g->land++;
+                g->biome_tiles[b]++;
             }
             map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)tex);
         }
@@ -263,7 +368,6 @@ internal int mg_free(const struct mg *g, int x, int y) {
     float lo, hi;
     return mg_tile_span(g, x, y, &lo, &hi) && !g->used[y * g->n + x] && lo >= 0.3f && hi - lo < 0.8f && !tile_is_cliff(mg_tile(g, x, y));
 }
-internal int mg_type(const char *ident) { return unit_type_named(ident, (int)strlen(ident)); }
 internal ee_unit *mg_object(struct mg *g, int type, int x, int y, float angle, int kind) {
     ee_unit_type *t = type >= 0 ? type_data(type) : NULL;
     ee_unit *u = t ? unit_type_create_on(t, g->world, x, y, g->map, angle) : NULL;
@@ -300,12 +404,12 @@ internal int mg_anywhere(struct mg *g, int away, int apart, int *ox, int *oy) {
     }
     return 0;
 }
-// a mine or a forage patch: the object, its tile and the four beside it the climate's ground for one
+// a mine or a forage patch: the object, its tile and the four beside it the biome's ground for one
 internal void mg_mine(struct mg *g, int kind, int x, int y) {
     static const char *const ident[4] = { "res_gold_mine", "res_iron", "res_stone_mine", "res_forage_bush" };
     static const int8_t side[5][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
     if (!mg_object(g, mg_type(ident[kind]), x, y, 0, kind)) return;
-    int c = g->clim[y * g->n + x], tex = kind == MG_FORAGE ? g->tex_wood[c] : g->tex_res[c];
+    int b = g->clim[y * g->n + x], tex = kind == MG_FORAGE ? g->tex_wood[b] : g->tex_res[b];
     for (int k = 0; k < 5; k++) {
         int tx = x + side[k][0], ty = y + side[k][1];
         if (!mg_free(g, tx, ty)) continue;
@@ -314,17 +418,15 @@ internal void mg_mine(struct mg *g, int kind, int x, int y) {
     }
     mg_spot_add(g, x, y);
 }
-// a forest: 28 - 60 free tiles grown from a seed tile, a neighbour of a tile it has at a time; a tree on 9 in 10 of
-// them, of the seed's climate (a grassland forest of maples or of spruces), the climate's forest floor under all
-internal void mg_forest(struct mg *g, int x, int y) {
-    static const char *const trees[4][6] = {
-        { "tree_01_maple", "tree_02_maple", "tree_04_maple", "tree_30_maple", NULL, NULL },
-        { "tree_07_spruce", "tree_09_spruce", "tree_10_spruce", "tree_11_spruce", NULL, NULL },
-        { "tree_31_winter_spruce_1", "tree_32_winter_spruce_2", "tree_33_winter_spruce_3", "tree_34_winter_spruce_4", "tree_35_winter_spruce_5", "tree_36_winter_spruce_6" },
-        { "tree_21_palm", "tree_22_palm", "tree_23_palm", "tree_26_palm", NULL, NULL } };
+// a forest: free tiles grown from a seed tile, a neighbour of a tile it has at a time - as many as the seed's biome
+// says; a tree of the biome's on 9 in 10 of them, its forest floor under all. grove: a start's own - the biome's
+// timber trees where its own are none, 28 - 50 tiles
+internal void mg_forest(struct mg *g, int x, int y, int grove) {
     static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-    int c = g->clim[y * g->n + x], set = c == MG_WINTER ? 2 : c == MG_DESERT ? 3 : mg_int(g, 0, 1), kinds = trees[set][4] ? 6 : 4;
-    int want = mg_int(g, 28, 60), n = 1, tx[60], ty[60];
+    int b = g->clim[y * g->n + x], other = grove && g->ngrove[b], kinds = other ? g->ngrove[b] : g->ntree[b];
+    const int *trees = other ? g->grove[b] : g->tree[b];
+    if (!kinds) return;
+    int want = grove ? mg_int(g, 28, 50) : mg_int(g, k_mg_biome[b].size_lo, k_mg_biome[b].size_hi), n = 1, tx[60], ty[60];
     tx[0] = x; ty[0] = y;
     g->used[y * g->n + x] = 1;
     for (int t = 0; n < want && t < want * 8; t++) {
@@ -334,26 +436,29 @@ internal void mg_forest(struct mg *g, int x, int y) {
         tx[n] = nx; ty[n] = ny; n++;
     }
     for (int i = 0; i < n; i++) {
-        map_reset_tile(g->map, (uint32_t)tx[i], (uint32_t)ty[i], (uint32_t)g->tex_wood[c]);
-        if (mg_int(g, 0, 9)) mg_object(g, mg_type(trees[set][mg_int(g, 0, kinds - 1)]), tx[i], ty[i], mg_rnd(g) * 6.2831853f, MG_TREE);
+        map_reset_tile(g->map, (uint32_t)tx[i], (uint32_t)ty[i], (uint32_t)g->tex_wood[b]);
+        if (mg_int(g, 0, 9)) mg_object(g, trees[mg_int(g, 0, kinds - 1)], tx[i], ty[i], mg_rnd(g) * 6.2831853f, MG_TREE);
     }
+    g->forests++;
     mg_spot_add(g, x, y);
 }
-// a herd: 3 - 6 animals of one kind of the climate on free tiles within 2 of a spot (they walk: the tiles stay free)
+// a herd: 3 - 6 animals of one kind of the biome on free tiles within 2 of a spot (they walk: the tiles stay free)
 internal void mg_herd(struct mg *g, int x, int y) {
-    static const char *const animals[MG_CLIMATES][5] = {
-        { "res_deer", "res_goat", "res_horse", "res_elephant", "res_giraffe" },
-        { "res_deer", "res_goat", "res_walrus", "res_deer", "res_goat" },
-        { "res_giraffe", "res_elephant", "res_ostrich", "res_goat", "res_horse" } };
-    int type = mg_type(animals[g->clim[y * g->n + x]][mg_int(g, 0, 4)]), want = mg_int(g, 3, 6);
+    int b = g->clim[y * g->n + x];
+    if (!g->nanimal[b]) return;
+    int type = g->animal[b][mg_int(g, 0, g->nanimal[b] - 1)], want = mg_int(g, 3, 6);
     for (int t = 0, n = 0; n < want && t < 30; t++) {
         int ax = x + mg_int(g, -2, 2), ay = y + mg_int(g, -2, 2);
         if (mg_free(g, ax, ay) && mg_object(g, type, ax, ay, mg_rnd(g) * 6.2831853f, MG_ANIMAL)) n++;
     }
     mg_spot_add(g, x, y);
 }
-// each player's own round its start (2 forage patches, 2 gold, 2 iron, 2 stone, 3 forests, a herd - the mines far
-// enough out to want a Settlement), then the land's: by its size, away from the starts
+internal int mg_rich(struct mg *g, int x, int y, int what) { return mg_int(g, 0, 99) < k_mg_biome[g->clim[y * g->n + x]].rich[what]; }
+// each start's own - 2 forage patches, 2 gold, 2 iron and 2 stone mines (far enough out to want a Settlement), a grove
+// of timber and a herd whatever its biome, two more forests as the biome gives them -, then the land's: places drawn
+// by its size, away from the starts, each laid as the biome there gives it. (With one forage patch where the biome
+// gave no second, a tundra start stood at 23 people after 38 minutes, the others at 91 - 168: the first epoch has no
+// farms, its food is forage, game and fish.)
 internal void mg_objects(struct mg *g) {
     static const struct { int8_t kind, n, lo, hi; } own[4] = { { MG_FORAGE, 2, 8, 11 }, { MG_GOLD, 2, 13, 16 }, { MG_IRON, 2, 14, 18 }, { MG_STONE, 2, 15, 20 } };
     int x, y;
@@ -362,17 +467,18 @@ internal void mg_objects(struct mg *g) {
             for (int j = 0; j < own[k].n; j++)
                 if (mg_ring(g, g->sx[i], g->sy[i], own[k].lo, own[k].hi, 5, &x, &y)) mg_mine(g, own[k].kind, x, y);
         for (int j = 0; j < 3; j++)
-            if (mg_ring(g, g->sx[i], g->sy[i], 10, 15, 6, &x, &y)) mg_forest(g, x, y);
+            if (mg_ring(g, g->sx[i], g->sy[i], 10, 15, 6, &x, &y) && (!j || mg_int(g, 0, 99) < 42000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles))
+                mg_forest(g, x, y, !j);
         if (mg_ring(g, g->sx[i], g->sy[i], 11, 16, 6, &x, &y)) mg_herd(g, x, y);
     }
-    static const struct { int8_t kind; int16_t tiles; } wild[4] = { { MG_GOLD, 800 }, { MG_IRON, 800 }, { MG_STONE, 1300 }, { MG_FORAGE, 1500 } };
+    static const struct { int8_t kind; int16_t tiles; } wild[4] = { { MG_GOLD, 650 }, { MG_IRON, 650 }, { MG_STONE, 1000 }, { MG_FORAGE, 1100 } };
     for (int k = 0; k < 4; k++)
         for (int j = g->land / wild[k].tiles; j > 0; j--)
-            if (mg_anywhere(g, 22, 9, &x, &y)) mg_mine(g, wild[k].kind, x, y);
-    for (int j = g->land / 380; j > 0; j--)
-        if (mg_anywhere(g, 16, 7, &x, &y)) mg_forest(g, x, y);
-    for (int j = g->land / 1200; j > 0; j--)
-        if (mg_anywhere(g, 18, 8, &x, &y)) mg_herd(g, x, y);
+            if (mg_anywhere(g, 22, 9, &x, &y) && mg_rich(g, x, y, wild[k].kind)) mg_mine(g, wild[k].kind, x, y);
+    for (int j = g->land / 150; j > 0; j--)
+        if (mg_anywhere(g, 16, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
+    for (int j = g->land / 900; j > 0; j--)
+        if (mg_anywhere(g, 18, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
     // fish: in water a step deep at least, 2 - 7 tiles off a shore, 5 tiles apart - 5 a player and one per 1500 tiles of the map
     int fish = mg_type("res_fish"), first = g->nspot;
     for (int j = 5 * g->np + g->n * g->n / 1500, t = 0; j > 0 && t < 20000; t++) {
@@ -414,9 +520,10 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         g->h = calloc((size_t)(g->m * g->m), sizeof *g->h);
         g->used = calloc((size_t)(n * n), 1);
         g->clim = calloc((size_t)(n * n), 1);
+        g->marsh = calloc((size_t)(n * n), 1);
         z = calloc((size_t)(g->m * g->m), sizeof *z);
     }
-    if (!g || !g->f || !g->h || !g->used || !g->clim || !z || g->np < 1 || !g->world) {
+    if (!g || !g->f || !g->h || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
         notice("mapgen", "the map type \"%s\" could not be made (%d players, %d tiles a side) - an empty map instead", MG_NAME, count - 1, n);
         start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
         return 0;
@@ -431,7 +538,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         z[i] = g->h[i] * step;
     }
     map_ground_set(map, z);
-    mg_climates(g);
+    mg_biomes(g);
     mg_textures_load(g);
     mg_textures(g);
     map_cliff_pass(map, 0, (uint32_t)n, 0, n);
@@ -454,11 +561,15 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d rivers, %d players (%d start units) at",
                 MG_NAME, seed, n, g->land, g->water, g->cliffs, g->rivers, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
-        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d animals %d; the view from %.1f %.1f; the map's flags %u\n", g->made[MG_GOLD],
-                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->made[MG_ANIMAL], (double)start[0], (double)start[1], map_get_flags(map));
+        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
+                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], (double)start[0], (double)start[1]);
+        for (int b = 0; b < MG_BIOMES; b++) fprintf(g_log, " %s %d", k_mg_biome[b].name, g->biome_tiles[b]);
+        fprintf(g_log, "; the starts in:");
+        for (int i = 0; i < g->np; i++) fprintf(g_log, " %s", k_mg_biome[g->clim[g->sy[i] * n + g->sx[i]]].name);
+        fprintf(g_log, "\n");
         LeaveCriticalSection(&g_lock);
     }
-    free(z); free(g->f); free(g->h); free(g->used); free(g->clim); free(g);
+    free(z); free(g->f); free(g->h); free(g->used); free(g->clim); free(g->marsh); free(g);
     return 0;
 }
 internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int human, void *name, uint32_t seed, ee_map *map, float *start) {

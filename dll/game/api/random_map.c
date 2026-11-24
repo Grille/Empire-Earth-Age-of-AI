@@ -67,3 +67,8 @@ internal int terrain_named(const char *name) {
     }
     return -1;
 }
+// a texture whose tiles are land to stand and build on: its kind neither water's nor a cliff's
+internal int terrain_is_land(const ee_terrain *t) {
+    int k = terrain_get_kind(t);
+    return k != (int)value_map_kind_water && k != (int)value_map_kind_water_other && k != (int)value_map_kind_cliff;
+}

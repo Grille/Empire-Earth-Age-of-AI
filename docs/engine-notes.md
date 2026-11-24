@@ -740,6 +740,20 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   start units (0x66B921: the type's vf15 at a point, set_built (1, 0, 0), paid_for) and the resources (0x66F0D5: vf14
   for the world player, the texture under them) - until every start position stands on land. Out: where this PC's
   view begins. Nothing after the call asks for the generator again.
+- **The mod's biomes** (the player 2026-11-24: temperature and moisture layers as in Minecraft, "hot and dry is
+  desert, moist and hot tropical"; unfair starts are fine - "a 4x flavour of the game, casual play with ai or online
+  trying to build up their nations"). Temperature: cold in the far north to hot in the near south, a noise on it,
+  colder on hills. Moisture: a noise of its own, wetter within 7 tiles of water (the sea's and the rivers'). Three
+  bands each, nine biomes (mapgen.c k_mg_biome): ice desert, tundra, taiga; steppe, grassland, woodland; desert,
+  savanna, tropics - each its five ground textures and their shares, its beach, the ground under mines and trees,
+  its trees (dead trees and cacti where no timber grows), a forest's size and how much land there is to one (160
+  tiles in the tropics, 1500 in the ice desert), its animals, and of 100 mines, forage patches and herds drawn for a
+  place there how many are laid (a desert: gold and stone 100, forage 15; the tropics: forage 100, iron and stone
+  40). Marsh on wet, unfrozen ground within 2 tiles of water. A texture gives its tiles their kind (ee_terrain.kind,
+  Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
+  start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
+  forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
+  five AIs of that map at 78 - 146, a medium map's three at 104 - 159.
 - **A map's flags** (EEMap.flags, the script's MapCharacteristics): 0 Continental, 1 the island types (IslandMap),
   2 Plains (WaterlessMap) - read after the game's own maker in test games.
 - **The ground textures' names** are db\dbterrain.dat's ("Grass - Tufts", "Sand - Medium", "Snow - Dirt Patches",
@@ -750,11 +764,10 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   to the list after the game's own, their maps made by the mod instead of 0x66D402 - no .rmv, no plug-in
   (dll/engine/mapgen.c). The first, flat with a Capitol each, proved the way in. **Two Continents** ("Zwei
   Kontinente", language.eeai): two landmasses left and right of a sea channel, the players by turns on them (more
-  than two share); snow in the north, grassland, desert in the south, each with its textures, trees and animals;
-  rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
+  than two share); biomes (below); rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
   the land stays one piece; each start levelled, with forage, gold, iron, stone, three forests and a herd round it,
   more of each over the land by its size, fish off the shores. Its steps: land (two ellipses, the shore by noise),
-  heights, starts, rivers, the ground into the map (map_ground_set), climates, textures, the game's cliff pass, the
+  heights, starts, rivers, the ground into the map (map_ground_set), biomes, textures, the game's cliff pass, the
   world's objects, the start units. Every number comes from the seed alone, without sine or cosine: the same map on
   every PC. Checked 2026-11-24: all six sizes with 2 - 8 players start (84 to 440 tiles a side; a tiny map has no
   room for a river), the same seed twice gives the same map, a 60 minute game of three AIs (population 161 - 230,
