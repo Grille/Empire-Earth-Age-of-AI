@@ -5,6 +5,16 @@ it. Each key's own explanation is in [config/ageofai.ini](../config/ageofai.ini)
 page says what was wrong and what the fix does. A setting marked "in multiplayer every PC needs the same setting"
 changes the simulation: in a lockstep game different values make the PCs' games drift apart ([installing.md](installing.md#multiplayer)).
 
+## Game setup
+
+- `[general] map_sizes=1` (default): the game's map sizes ended at Gigantic (220; a map's square is twice that a
+  side, 440 tiles). The game setup's list, the multiplayer lobby's and the scenario editor's random map go on with
+  Enormous (300), Colossal (400) and Titanic (500: 1000 tiles a side). The game's two numbers that come from a map's
+  width and stopped at Gigantic - the map script's size (`IsGiganticMap`; a wider map had none) and the pathing's
+  sectors (a wider map got Large's 15 tiles) - give a wider map Gigantic's. The mod's own map types fill the new
+  sizes as any other; the game's own play Gigantic's script for now: its resources and neutral areas, unscaled, over
+  the wider map. In multiplayer every PC needs the same setting (engine/map_sizes.c).
+
 ## Window and picture
 
 - `[display] display_mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the

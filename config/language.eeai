@@ -225,3 +225,17 @@ map_two_continents = {
     en = "Two Continents",
     de = "Zwei Kontinente",
 }
+
+// THE MAP SIZES past Gigantic in the game's lists of sizes (map_sizes.c)
+map_size_enormous = {
+    en = "Enormous",
+    de = "Enorm",
+}
+map_size_colossal = {
+    en = "Colossal",
+    de = "Kolossal",
+}
+map_size_titanic = {
+    en = "Titanic",
+    de = "Titanisch",
+}

@@ -33,24 +33,13 @@ internal int g_tc_mode;                     // the cliff pass running now: how
 internal int g_tc_mute;                     // the mesh's corner colours are left alone for now
 internal mesh_set_color_set_fn g_tc_set_color;
 internal mesh_set_water_color_set_fn g_tc_set_water;
-internal resource_string_fn g_tc_string;
 internal unsigned g_tc_kept_load, g_tc_kept_paint, g_tc_filled, g_tc_flat;
 
 // the terrain panel's list being filled: the cliffs are in it, under the right names
 internal const struct { const char *name; int text; } k_tc_names[] = {
     { "Cliffwinter /", 22019 }, { "CliffRock \\", TC_NAME }, { "CliffRock /", TC_NAME + 1 },
 };
-internal const char *const k_tc_own[] = { "cliff_rock_1", "cliff_rock_2" };   // the words (language.eeai)
-internal int __thiscall hook_tc_string(void *res, int id, void *s) {
-    if (id >= TC_NAME && id < TC_NAME + (int)(sizeof k_tc_own / sizeof *k_tc_own)) {
-        __attribute__((aligned(8))) uint8_t w[32];
-        wstring_init_text(w, word(k_tc_own[id - TC_NAME]));
-        wstring_copy(s, w);
-        wstring_free(w);
-        return 0;
-    }
-    return g_tc_string(res, id, s);
-}
+internal const char *const k_tc_own[] = { "cliff_rock_1", "cliff_rock_2" };   // the words (language.eeai), TC_NAME on (game_strings.c)
 internal void tc_list_cliffs(int on) {
     for (uint32_t i = 0; i < 256; i++) {
         ee_terrain *t = terrain_at(i);
@@ -266,7 +255,7 @@ internal void tc_cmd_ground(char *out, const char *args) {
 // how many of its hooks went in, of TC_HOOKS
 #define TC_HOOKS 15
 internal int terrain_cliffs_install(void) {
-    return patch_resource_string(hook_tc_string, &g_tc_string) + patch_mesh_set_color_set(hook_tc_set_color, &g_tc_set_color) + patch_mesh_set_water_color_set(hook_tc_set_water, &g_tc_set_water) +
+    return (game_string_add(TC_NAME, k_tc_own[0]) & game_string_add(TC_NAME + 1, k_tc_own[1])) + patch_mesh_set_color_set(hook_tc_set_color, &g_tc_set_color) + patch_mesh_set_water_color_set(hook_tc_set_water, &g_tc_set_water) +
            patch_map_cliff_pass_load(hook_tc_pass_load) + patch_map_cliff_pass_paint(hook_tc_pass_paint) +
            patch_map_cliff_pass_elevation(hook_tc_pass_elevation) + patch_map_set_texture_load(hook_tc_load_texture, NULL) +
            patch_map_set_texture_cliff(hook_tc_cliff_texture) + patch_map_cliff_remove(hook_tc_remove) +

@@ -159,6 +159,15 @@ unsafe struct EEPathManager
 /// path's data of the game, places in its code and numbers
 static unsafe class path
 {
+    /// the imm32 of cmp eax, 0xDC / jg in the map's sectors made at a game's start (0x42434F, by the map's edge_diff:
+    /// up to 42 7-tile sectors, 58 10, 75 12, 105 15, 160 19, 220 21; the auto-waypoints left before the next leg
+    /// [0x917DC8] 8 .. 18 with them) - a wider map falls back to 15-tile sectors (Large's)
+    [address((ee)0x00424462, (aoc)0x00420C5B)]
+    static code site_sectors_gigantic;
+
+    /// the widest map of its own sector size: Gigantic's edge_diff
+    [value(0xDC)]
+    static uint32 gigantic_width;
 }
 
 /// the game's functions path.c wraps, by the names the C side gives them

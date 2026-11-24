@@ -1,6 +1,15 @@
 /// the game setup
 unsafe struct ee_setup
 {
+    /// thiscall(setup, w, h): the new map's two sides from map_scale - 42, 58, 75, 105, 160, 220 (Tiny .. Gigantic;
+    /// the map a diamond in a square of w + h tiles a side), 0 for any other scale. Its three calls: the game start of
+    /// a random map (before the map is made), the editor's random map (EESEACreateRandomMap.run) and random_map_create
+    [address((ee)0x00524E1F, (aoc)0x0052FB70)]
+    [call_site("map_dims", (ee)0x005266BF, (aoc)0x00531432)]
+    [call_site("map_dims", (ee)0x00596505, (aoc)0x005A67C1)]
+    [call_site("map_dims", (ee)0x0066D41A, (aoc)0x00686572)]
+    extern void map_dims(int32* w, int32* h);
+
     /// the campaign: game_start 0x525BBA builds "Campaigns\" + it; the setup copy 0x524B8F copies it
     [offset(0x380), found(c)]
     wstring campaign;
@@ -84,6 +93,30 @@ static unsafe class setup
     /// it connects
     [address((ee)0x00918EAC, (aoc)0x0093030C)]
     static ee_setup lobby_source;
+
+    /// the map sizes the game knows (map_scale 0 .. 5); their names the language file's strings from map_scale_text on
+    [value(6)]
+    static uint32 map_scales;
+
+    [value(0x7404)]
+    static uint32 map_scale_text;
+
+    /// the imm8 of the setup copy's (0x524B8F) cmp eax, 6 / jae: a map_scale of map_scales or more becomes 1 (Small)
+    [address((ee)0x00524CBD, (aoc)0x0052FA0E)]
+    static code site_scale_limit;
+
+    /// the imm8 of push 6 in the scenario editor's map panel (EEUIFSEMap 0x59198C): its list of map sizes made that long
+    [address((ee)0x00592BAB, (aoc)0x005A2E05)]
+    static code site_editor_scales;
+
+    /// the imm8 of cmp [ebp + 8], 6 / jb ending the loop after it, each a size's name (map_scale_text + i)
+    [address((ee)0x00592BEA, (aoc)0x005A2E44)]
+    static code site_editor_scales_end;
+
+    /// the imm32 of cmp [ebp + 8], 0x7409 / jbe ending the setup screen's loop of the size list's names (0x5CE77D:
+    /// map_scale_text up to the last size's)
+    [address((ee)0x005CE87B, (aoc)0x005DF58A)]
+    static code site_setup_scales_end;
 }
 
 [c_prefix("")]

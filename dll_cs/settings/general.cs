@@ -45,6 +45,12 @@ class general
         /// In multiplayer every player needs the same setting. 1 = on (original)
         [title("Civilization powers in skirmishes"), target(aoc)]
         bool skirmish_civ_powers = true;
+        /// Map sizes past Gigantic: the game setup's, the multiplayer lobby's and the scenario editor's lists of map sizes
+        /// go on with Enormous (300), Colossal (400) and Titanic (500) - Gigantic is 220, a map of 500 is 1000 tiles a
+        /// side (Gigantic's 440). The mod's own map types fill them as any size; the game's own types play them with
+        /// Gigantic's script for now (its resources and neutral land over the wider map). In multiplayer every player
+        /// needs the same setting. 0 = the game's six sizes (original)
+        bool map_sizes = true;
     }
 
     class Combat

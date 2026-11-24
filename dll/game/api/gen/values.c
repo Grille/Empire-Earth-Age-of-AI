@@ -1556,6 +1556,8 @@ internal uint32_t of_active_group_retired;
 internal uint32_t of_active_group_queued;
 internal uint32_t of_active_group_together;
 internal uint32_t vt_ee_path_manager;
+internal uint32_t data_path_site_sectors_gigantic;
+internal uint32_t value_path_gigantic_width;
 
 // player.cs
 internal uint32_t of_player_list_begin;
@@ -1841,6 +1843,7 @@ internal uint32_t of_map_type_name;
 internal uint32_t of_map_type_title;
 internal uint32_t of_map_type_generator;
 internal uint32_t data_random_map_types;
+internal uint32_t data_random_map_site_script_gigantic;
 internal uint32_t calls_random_map_create[2];
 internal uint32_t call_random_map_types_load;
 
@@ -2001,6 +2004,7 @@ internal uint32_t value_scenario_lists_sm_class_group;
 internal uint32_t value_scenario_lists_sm_class_rps;
 
 // setup.cs
+internal uint32_t calls_map_dims[3];
 internal uint32_t of_setup_campaign;
 internal uint32_t of_setup_campaign_scenario;
 internal uint32_t of_setup_map_name;
@@ -2018,6 +2022,12 @@ internal uint32_t of_setup_0x3fc;
 internal uint32_t of_setup_flags;
 internal uint32_t data_setup_lobby;
 internal uint32_t data_setup_lobby_source;
+internal uint32_t value_setup_map_scales;
+internal uint32_t value_setup_map_scale_text;
+internal uint32_t data_setup_site_scale_limit;
+internal uint32_t data_setup_site_editor_scales;
+internal uint32_t data_setup_site_editor_scales_end;
+internal uint32_t data_setup_site_setup_scales_end;
 internal uint32_t of_setup_slot_type;
 internal uint32_t of_setup_slot_0x4;
 internal uint32_t of_setup_slot_name;

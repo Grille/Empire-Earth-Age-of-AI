@@ -27,6 +27,12 @@ static unsafe class random_map
     /// read it by index (0x66D5BC its count, 0x66D650 an element, 0x66D5D7 an element's title)
     [address((ee)0x00943520, (aoc)0x00965570)]
     static block types;
+
+    /// the imm32 of cmp eax, 0xDC / ja in the script's reading (0x66DC35): the map's edge_diff gives the script its
+    /// size (EERandomMap +0x254, 0 Tiny .. 5 Gigantic: IsTinyMap .. IsGiganticMap), a wider map none (an assert, the
+    /// field left as it was)
+    [address((ee)0x0066DDA5, (aoc)0x00686EFD)]
+    static code site_script_gigantic;
 }
 
 [c_prefix("")]

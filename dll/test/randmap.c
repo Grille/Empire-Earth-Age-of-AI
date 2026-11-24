@@ -4,13 +4,13 @@
 //     +4 = 3, +8 UString name, +0x20 slot index, +0x24 colour, +0x28 team (0 = none), +0x2C starting
 //     citizens, +0x34 flags (human 0x75010001, computer 0x77010000).
 //   +0x3A8 UString map script name ("Continental"), +0x3D8 mode (0 random map), +0x3DC map size (0 Tiny, 1 Small,
-//   2 Medium, 3 Large, 4 Huge, 5 Gigantic - the setup copy 0x524B.. clamps it below 6, default 1; 0x524E1F turns it into
+//   2 Medium, 3 Large, 4 Huge, 5 Gigantic (6 - 8 the mod's: engine/map_sizes.c) - the setup copy 0x524B.. clamps it below 6, default 1; 0x524E1F turns it into
 //   42/58/75/105/160/220 and the map script's IsLargeMap etc. pick "<map> Large.rmv"), +0x3E0 start epoch (14 = random),
 //   +0x3E4 end epoch (13 = Nano), +0x3E8 the game variant (the registry's Game Variant, checked against the list at 0x8CF52C - NOT the map size: until
 //   2026-10-20 map_size wrote it and every test map was Small), +0x3F0 unit limit, +0x3F4 wonders for victory, +0x3F8
 //   difficulty (1 medium), +0x400 option bytes.
 //   Map seed: world (0x91977C) +0x54.
-// Ini keys: random_map=<script name>, map_scale (tiny|small|medium|large|huge|gigantic or 0..5, default small - the
+// Ini keys: random_map=<script name>, map_scale (tiny|small|medium|large|huge|gigantic|enormous|colossal|titanic or 0..8, default small - the
 //   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, end_epoch (default 13), seed, teams=ffa|pairs,
 //   citizens, unit_limit (shared by all players, the idle human too; default pop_per_player (300) x the players - the
 //   player 2026-10-27: 200-400 a player is what to expect, some go to 1000, under 100 is rare; until then 500, a cap of
@@ -36,7 +36,7 @@ internal struct {
     int reveal;                // the setup's reveal map (+0x403: every player starts with the map explored; fog stays)
     int humans;                // the idle humans, players 1 .. humans (a multiplayer test's every PC's, alike on each)
 } g_rm = { "", 0, 1, 3, 0, 13, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1, 1, 1 };
-internal const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
+internal const char *const k_rm_scale[9] = { "tiny", "small", "medium", "large", "huge", "gigantic", "enormous", "colossal", "titanic" };
 
 internal int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
     char v[16];
@@ -56,8 +56,8 @@ internal void randmap_load(const char *ini) {
     char sc[16];
     GetPrivateProfileStringA("autotest", "map_scale", "", sc, sizeof sc, ini);
     g_rm.scale = 1;
-    for (int k = 0; k < 6; k++) if (!lstrcmpiA(sc, k_rm_scale[k])) g_rm.scale = k;
-    if (sc[0] >= '0' && sc[0] <= '5' && !sc[1]) g_rm.scale = sc[0] - '0';
+    for (int k = 0; k < 9; k++) if (!lstrcmpiA(sc, k_rm_scale[k])) g_rm.scale = k;
+    if (sc[0] >= '0' && sc[0] <= '8' && !sc[1]) g_rm.scale = sc[0] - '0';
     g_rm.reveal = ini_int("autotest", "reveal_map", 1, ini) != 0;
     g_rm.ais = ini_int("autotest", "ai_count", 3, ini);
     if (g_rm.ais < 1) g_rm.ais = 1;

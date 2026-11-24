@@ -3,6 +3,13 @@
 
 // class ee_setup (ee_setup)
 // the game setup
+// thiscall(setup, w, h): the new map's two sides from map_scale - 42, 58, 75, 105, 160, 220 (Tiny .. Gigantic;
+// the map a diamond in a square of w + h tiles a side), 0 for any other scale. Its three calls: the game start of
+// a random map (before the map is made), the editor's random map (EESEACreateRandomMap.run) and random_map_create
+typedef void (__thiscall *setup_map_dims_fn)(ee_setup *, int *, int *);
+internal setup_map_dims_fn fn_setup_map_dims;
+internal inline void setup_map_dims(ee_setup *setup, int *w, int *h) { fn_setup_map_dims(setup, w, h); }
+internal inline int patch_map_dims(setup_map_dims_fn h, int *of) { return patch_calls(calls_map_dims, 3, (uintptr_t)fn_setup_map_dims, (void *)h, of); }
 // the campaign: game_start 0x525BBA builds "Campaigns\" + it; the setup copy 0x524B8F copies it
 internal inline uint8_t *setup_campaign_at(const ee_setup *o) { return (uint8_t *)o + of_setup_campaign; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
@@ -75,6 +82,16 @@ internal inline ee_setup *setup_lobby_at(void) { return (ee_setup *)(uint8_t *)(
 // the setup a lobby starts from: the host / join action (EEAJoinOrHostAGame) copies it into lobby (0x524B8F) before
 // it connects
 internal inline ee_setup *setup_lobby_source_at(void) { return (ee_setup *)(uint8_t *)(uintptr_t)data_setup_lobby_source; }
+// the map sizes the game knows (map_scale 0 .. 5); their names the language file's strings from map_scale_text on
+// the imm8 of the setup copy's (0x524B8F) cmp eax, 6 / jae: a map_scale of map_scales or more becomes 1 (Small)
+internal inline uint8_t *setup_site_scale_limit_at(void) { return (uint8_t *)(uintptr_t)data_setup_site_scale_limit; }
+// the imm8 of push 6 in the scenario editor's map panel (EEUIFSEMap 0x59198C): its list of map sizes made that long
+internal inline uint8_t *setup_site_editor_scales_at(void) { return (uint8_t *)(uintptr_t)data_setup_site_editor_scales; }
+// the imm8 of cmp [ebp + 8], 6 / jb ending the loop after it, each a size's name (map_scale_text + i)
+internal inline uint8_t *setup_site_editor_scales_end_at(void) { return (uint8_t *)(uintptr_t)data_setup_site_editor_scales_end; }
+// the imm32 of cmp [ebp + 8], 0x7409 / jbe ending the setup screen's loop of the size list's names (0x5CE77D:
+// map_scale_text up to the last size's)
+internal inline uint8_t *setup_site_setup_scales_end_at(void) { return (uint8_t *)(uintptr_t)data_setup_site_setup_scales_end; }
 
 // static class setup_functions
 // EEUIELEStart::vf1, the game setup screen's Start button - stdcall(UIForm* form, p2; ecx unused): checks the
@@ -133,6 +150,10 @@ internal inline uint8_t *setup_slot_size_at(const ee_setup_slot *o) { return (ui
 internal int spec_setup_select(int build) {
     switch (build) {
     case 0:   // ee
+        fn_setup_map_dims = (setup_map_dims_fn)0x00524E1F;
+        calls_map_dims[0] = 0x005266BF;
+        calls_map_dims[1] = 0x00596505;
+        calls_map_dims[2] = 0x0066D41A;
         of_setup_campaign = 0x380;
         of_setup_campaign_scenario = 0x394;
         of_setup_map_name = 0x3A8;
@@ -150,6 +171,12 @@ internal int spec_setup_select(int build) {
         of_setup_flags = 0x400;
         data_setup_lobby = 0x0091881C;
         data_setup_lobby_source = 0x00918EAC;
+        value_setup_map_scales = 6;
+        value_setup_map_scale_text = 29700;
+        data_setup_site_scale_limit = 0x00524CBD;
+        data_setup_site_editor_scales = 0x00592BAB;
+        data_setup_site_editor_scales_end = 0x00592BEA;
+        data_setup_site_setup_scales_end = 0x005CE87B;
         fn_lobby_start = (lobby_start_fn)0x005C9B91;
         of_setup_slot_type = 0x0;
         of_setup_slot_0x4 = 0x4;
@@ -164,6 +191,10 @@ internal int spec_setup_select(int build) {
         of_setup_slot_size = 0x38;
         return 0;
     case 1:   // aoc
+        fn_setup_map_dims = (setup_map_dims_fn)0x0052FB70;
+        calls_map_dims[0] = 0x00531432;
+        calls_map_dims[1] = 0x005A67C1;
+        calls_map_dims[2] = 0x00686572;
         of_setup_campaign = 0x380;
         of_setup_campaign_scenario = 0x394;
         of_setup_map_name = 0x3A8;
@@ -181,6 +212,12 @@ internal int spec_setup_select(int build) {
         of_setup_flags = 0x400;
         data_setup_lobby = 0x0093125C;
         data_setup_lobby_source = 0x0093030C;
+        value_setup_map_scales = 6;
+        value_setup_map_scale_text = 29700;
+        data_setup_site_scale_limit = 0x0052FA0E;
+        data_setup_site_editor_scales = 0x005A2E05;
+        data_setup_site_editor_scales_end = 0x005A2E44;
+        data_setup_site_setup_scales_end = 0x005DF58A;
         fn_lobby_start = (lobby_start_fn)0x005DA6B3;
         of_setup_slot_type = 0x0;
         of_setup_slot_0x4 = 0x4;
@@ -202,8 +239,16 @@ internal const char *const k_spec_setup_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_setup_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_setup_map_dims, "ee_setup.map_dims");
+    bad += spec_call(calls_map_dims[0], (uintptr_t)fn_setup_map_dims, "ee_setup.map_dims [call_site map_dims 0]");
+    bad += spec_call(calls_map_dims[1], (uintptr_t)fn_setup_map_dims, "ee_setup.map_dims [call_site map_dims 1]");
+    bad += spec_call(calls_map_dims[2], (uintptr_t)fn_setup_map_dims, "ee_setup.map_dims [call_site map_dims 2]");
     bad += spec_data(data_setup_lobby, "setup.lobby");
     bad += spec_data(data_setup_lobby_source, "setup.lobby_source");
+    bad += spec_code(data_setup_site_scale_limit, "setup.site_scale_limit");
+    bad += spec_code(data_setup_site_editor_scales, "setup.site_editor_scales");
+    bad += spec_code(data_setup_site_editor_scales_end, "setup.site_editor_scales_end");
+    bad += spec_code(data_setup_site_setup_scales_end, "setup.site_setup_scales_end");
     bad += spec_code((uintptr_t)fn_lobby_start, "setup_functions.lobby_start");
     return bad;
 }

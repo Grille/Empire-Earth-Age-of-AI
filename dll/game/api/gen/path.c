@@ -149,6 +149,11 @@ internal inline void path_mgr_request(ee_path_mgr *path_mgr, ee_unit *u, int *fr
 
 // static class path
 // path's data of the game, places in its code and numbers
+// the imm32 of cmp eax, 0xDC / jg in the map's sectors made at a game's start (0x42434F, by the map's edge_diff:
+// up to 42 7-tile sectors, 58 10, 75 12, 105 15, 160 19, 220 21; the auto-waypoints left before the next leg
+// [0x917DC8] 8 .. 18 with them) - a wider map falls back to 15-tile sectors (Large's)
+internal inline uint8_t *path_site_sectors_gigantic_at(void) { return (uint8_t *)(uintptr_t)data_path_site_sectors_gigantic; }
+// the widest map of its own sector size: Gigantic's edge_diff
 
 // static class path_functions
 // the game's functions path.c wraps, by the names the C side gives them
@@ -191,6 +196,8 @@ internal int spec_path_select(int build) {
         fn_active_group_speeds = (active_group_speeds_fn)0x005DCE49;
         vt_ee_path_manager = 0x00827C44;
         fn_path_mgr_request = (path_mgr_request_fn)0x004A1AFF;
+        data_path_site_sectors_gigantic = 0x00424462;
+        value_path_gigantic_width = 220;
         return 0;
     case 1:   // aoc
         of_unit_list_units = 0x4;
@@ -227,6 +234,8 @@ internal int spec_path_select(int build) {
         fn_active_group_speeds = (active_group_speeds_fn)0x005ED692;
         vt_ee_path_manager = 0x0083C438;
         fn_path_mgr_request = (path_mgr_request_fn)0x004A6E88;
+        data_path_site_sectors_gigantic = 0x00420C5B;
+        value_path_gigantic_width = 220;
         return 0;
     }
     return 0;
@@ -244,5 +253,6 @@ internal int spec_path_check(void) {
     bad += spec_slot(vt_ee_active_group, slot_group_speeds, (uintptr_t)fn_active_group_speeds, "EEActiveGroup.speeds [slot]");
     bad += spec_vtable(vt_ee_path_manager, ".?AVEEPathManager@@", "EEPathManager [vtable]");
     bad += spec_code((uintptr_t)fn_path_mgr_request, "EEPathManager.request");
+    bad += spec_code(data_path_site_sectors_gigantic, "path.site_sectors_gigantic");
     return bad;
 }

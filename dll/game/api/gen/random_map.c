@@ -20,6 +20,10 @@ internal inline uint8_t *map_type_generator_at(const ee_map_type *o) { return (u
 // +8), filled once at the game's start and sorted by name; the setup screens' lists, the editor's and the lobby's
 // read it by index (0x66D5BC its count, 0x66D650 an element, 0x66D5D7 an element's title)
 internal inline uint8_t *random_map_types_at(void) { return (uint8_t *)(uintptr_t)data_random_map_types; }
+// the imm32 of cmp eax, 0xDC / ja in the script's reading (0x66DC35): the map's edge_diff gives the script its
+// size (EERandomMap +0x254, 0 Tiny .. 5 Gigantic: IsTinyMap .. IsGiganticMap), a wider map none (an assert, the
+// field left as it was)
+internal inline uint8_t *random_map_site_script_gigantic_at(void) { return (uint8_t *)(uintptr_t)data_random_map_site_script_gigantic; }
 
 // static class random_map_functions
 // a random map made into a new, empty map (EERandomMap::CreateRandomMap's caller, "Playable random map created
@@ -54,6 +58,7 @@ internal int spec_random_map_select(int build) {
         of_map_type_title = 0x14;
         of_map_type_generator = 0x28;
         data_random_map_types = 0x00943520;
+        data_random_map_site_script_gigantic = 0x0066DDA5;
         fn_random_map_create = (random_map_create_fn)0x0066D402;
         calls_random_map_create[0] = 0x005268C6;
         calls_random_map_create[1] = 0x005966EF;
@@ -67,6 +72,7 @@ internal int spec_random_map_select(int build) {
         of_map_type_title = 0x14;
         of_map_type_generator = 0x28;
         data_random_map_types = 0x00965570;
+        data_random_map_site_script_gigantic = 0x00686EFD;
         fn_random_map_create = (random_map_create_fn)0x0068655A;
         calls_random_map_create[0] = 0x00531639;
         calls_random_map_create[1] = 0x005A69AB;
@@ -83,6 +89,7 @@ internal const char *const k_spec_random_map_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_random_map_check(void) {
     int bad = 0;
     bad += spec_data(data_random_map_types, "random_map.types");
+    bad += spec_code(data_random_map_site_script_gigantic, "random_map.site_script_gigantic");
     bad += spec_code((uintptr_t)fn_random_map_create, "random_map_functions.random_map_create");
     bad += spec_call(calls_random_map_create[0], (uintptr_t)fn_random_map_create, "random_map_functions.random_map_create [call_site random_map_create 0]");
     bad += spec_call(calls_random_map_create[1], (uintptr_t)fn_random_map_create, "random_map_functions.random_map_create [call_site random_map_create 1]");
