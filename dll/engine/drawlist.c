@@ -111,9 +111,9 @@ internal int __thiscall hook_acquire(ee_dmg_model *g) {
         g_ts_leave(cs);
         if (!users) kt_gfx_loads(g);   // (before: none drawn from the old models while the new ones load)
         int r = g_acquire(g);
-        if (!users) kt_gfx_loads(g);   // (and after: none taken from a load half done)
+        if (slot >= 0) ws_gfx_loaded(g, t, pl);
+        if (!users) kt_gfx_loads(g);   // (and after, a wall's skirts too: none taken from a load half done)
         if (slot >= 0) {
-            ws_gfx_loaded(g, t, pl);
             g_ts_enter(cs);
             g_aq_busy[slot] = NULL;
             g_ts_leave(cs);

@@ -340,6 +340,7 @@ internal struct {
     LONG rec_drawn, rec_made, rec_not;   // the records'
     LONG reloads;                        // entries taken again for their graphics' new load (kt_gfx_loads)
     LONG changed;                        // ... for a part's model or material no longer the one taken (kt_hold)
+    LONG reshaped;                       // ... of them walls whose mesh walls.c remade in place (no notice)
 } g_kt = { .force = -1 };
 internal int kt_on(void) { return g_kt.force < 0 ? 1 : g_kt.force; }
 internal kt_tree *g_tc_kt;    // render_tree_chunks.c: the kept tree being taken into a chunk, and its detail
@@ -363,6 +364,10 @@ internal int kt_hold(kt_tree *k, const ee_unit_type *ty) {
         if (!memcmp(s, e->sig, sizeof s)) continue;
         k->state = KT_NEW;
         InterlockedIncrement(&g_kt.changed);
+        // a wall's model and material still what they were, their vertices more: walls.c's joins remade its mesh in
+        // place - expected, taken again quietly (247 notices of Bronze walls in the player's game, 2026-11-24); a
+        // freed one is another object by then, its vtable another (the hang's: a gather order)
+        if (s[0] == e->sig[0] && s[1] == e->sig[1] && bl_noted_wall(k->m)) { InterlockedIncrement(&g_kt.reshaped); return 0; }
         notice("a kept building or tree's model was freed under the drawing",
                "%s %s's part %u of %u (model %p vtable %08x, was %08x; material %p vtable %08x vertices %u, was %08x %u) - taken again (render_units.c kt_hold)",
                k->rec ? "a record" : "a tree", ty && unit_type_get_name(ty) ? unit_type_get_name(ty) : "?", i, k->np, (void *)e->m, s[0],
@@ -1301,8 +1306,8 @@ internal int kt_pipe(char *out, const char *arg) {
     REPLY("the trees kept: %s; %lu in the table (%ld made, started over %ld times), drawn kept %ld (found by the guess %ld), by the walk %ld (",
           kt_on() ? "on" : "off", (unsigned long)g_kt.n, (long)g_kt.made, (long)g_kt.starts_over, (long)g_kt.drawn, (long)g_kt.guessed, (long)g_kt.walked);
     for (int i = 0; i < KT_REASONS; i++) REPLY("%s%s %ld", i ? ", " : "", k_kt_reason[i], (long)g_kt.reason[i]);
-    REPLY("); records drawn kept %ld (made %ld), not to be kept %ld; taken again for their graphics' new load %ld, for a part changed under them %ld\n",
-          (long)g_kt.rec_drawn, (long)g_kt.rec_made, (long)g_kt.rec_not, (long)g_kt.reloads, (long)g_kt.changed);
+    REPLY("); records drawn kept %ld (made %ld), not to be kept %ld; taken again for their graphics' new load %ld, for a part changed under them %ld (walls remade in place %ld)\n",
+          (long)g_kt.rec_drawn, (long)g_kt.rec_made, (long)g_kt.rec_not, (long)g_kt.reloads, (long)g_kt.changed, (long)g_kt.reshaped);
     return 1;
 }
 // render_silhouette.c's hook of the game's tree draw: 1 when it is drawn here
