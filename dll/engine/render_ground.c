@@ -1122,7 +1122,7 @@ internal int rgb_pipe(char *out, const char *mode, const char *arg) {
     } else if (!strcmp(mode, "gbsoft") || !strcmp(mode, "gbnoise") || !strcmp(mode, "gbscale")) {
         float e = (float)atof(arg);
         if (!arg[0] || e < 0 || e > 16) { REPLY("error: usage: picture %s <0..16>\n", mode); return 1; }
-        *(mode[3] == 'o' ? &g_rgb.soft : mode[2] == 'n' ? &g_rgb.noise : &g_rgb.scale) = e;
+        *(!strcmp(mode, "gbsoft") ? &g_rgb.soft : !strcmp(mode, "gbnoise") ? &g_rgb.noise : &g_rgb.scale) = e;
     } else return 0;
     REPLY("the ground's borders %s, %ld textures' heights made in %.1f ms, soft %.2f, noise %.2f at %.2f a tile\n", rgb_on() ? "on" : "off", (long)g_rgb.made,
           (double)g_rgb.qpc / (double)rd_qpc_ms(1), (double)rgb_soft(), (double)rgb_noise(), (double)g_rgb.scale);
