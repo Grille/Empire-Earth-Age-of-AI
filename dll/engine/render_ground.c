@@ -83,6 +83,8 @@ internal struct {
     int space;   // the map was made as Art of Conquest's space map (rg_space_quad)
     int ov_on;   // the overlay's picture this frame: its tiles from (ov[0], ov[1]), ov[2] x ov[3] pixels, ov_ppt a tile
     float ov[4], ov_ppt;
+    float vis_t[4];   // the visible chunks' tiles this frame: x0, y0, x1, y1 (ends out), as of frame vis_at
+    LONG vis_at;
     rg_states st[2];
     int size, across;
     ee_map *map;
@@ -1267,6 +1269,11 @@ internal void rg_draw_now(int water, int again) {
                 if (cy > y1) y1 = cy;
             }
         g_rg.ov_on = 0;
+        if (x1 >= 0) {   // the overlay's shapes outside them are left out (render_overlay.c ro_cull)
+            g_rg.vis_t[0] = (float)(x0 * RG_CHUNK); g_rg.vis_t[1] = (float)(y0 * RG_CHUNK);
+            g_rg.vis_t[2] = (float)((x1 + 1) * RG_CHUNK); g_rg.vis_t[3] = (float)((y1 + 1) * RG_CHUNK);
+            g_rg.vis_at = g_rd_frames;
+        }
         if (g_ov.on && !g_ov.flat && x1 >= 0) {
             int tx0 = x0 * RG_CHUNK, ty0 = y0 * RG_CHUNK, tx1 = (x1 + 1) * RG_CHUNK, ty1 = (y1 + 1) * RG_CHUNK;
             if (tx1 > g_rg.size) tx1 = g_rg.size;

@@ -37,6 +37,11 @@ internal struct {
     int font_state;   // 0 not made yet, 1 made, -1 failed
     ID3D11ShaderResourceView *font;
     uint8_t adv[256];
+    // THE VIEW'S PART (the player, 2026-11-24: 50 fps zoomed in over a 1024 map with the ai and territory_borders layers
+    // on - 26 000 shapes, 600 000 vertices a frame, each four tiles' heights: 70% of the render thread): the map's shapes
+    // only where the ground's visible chunks are this frame (render_ground.c vis_t), the screen's only near the screen
+    int cull;
+    float cx0, cy0, cx1, cy1;
 } g_ro;
 
 internal int ro_init(void) {
@@ -103,7 +108,20 @@ internal void ro_vtx(float x, float y, uint32_t argb, float u, float v) {
     ro_vertex *o = &g_ro.v[g_ro.n++];
     o->x = x; o->y = y; o->z = ro_height(x, y); o->argb = argb; o->u = u; o->v = v;
 }
+// the box x0..x1, y0..y1 (tiles) lies wholly outside the view's part
+internal int ro_out(float x0, float y0, float x1, float y1) {
+    return g_ro.cull && (x1 < g_ro.cx0 || x0 > g_ro.cx1 || y1 < g_ro.cy0 || y0 > g_ro.cy1);
+}
+// the view's part for this frame's map shapes: the ground's visible chunks when it drew them this frame, and a chunk round
+// them - a chunk of an Art of Conquest map's space alone has no ground of its own to be found visible by
+internal void ro_cull_set(void) {
+    g_ro.cull = g_rg.vis_at == g_rd_frames && g_rg.vis_t[2] > g_rg.vis_t[0];
+    g_ro.cx0 = g_rg.vis_t[0] - RG_CHUNK; g_ro.cy0 = g_rg.vis_t[1] - RG_CHUNK;
+    g_ro.cx1 = g_rg.vis_t[2] + RG_CHUNK; g_ro.cy1 = g_rg.vis_t[3] + RG_CHUNK;
+}
 internal void ro_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t argb) {
+    if (ro_out(fminf(fminf(x0, x1), fminf(x2, x3)), fminf(fminf(y0, y1), fminf(y2, y3)), fmaxf(fmaxf(x0, x1), fmaxf(x2, x3)), fmaxf(fmaxf(y0, y1), fmaxf(y2, y3))))
+        return;
     if (!ro_room(6)) return;
     float px[4] = { x0, x1, x2, x3 }, py[4] = { y0, y1, y2, y3 };
     static const int order[6] = { 0, 1, 2, 0, 2, 3 };
@@ -297,9 +315,11 @@ internal void ro_sedge(int shape, float cx, float cy, float r, float w, uint32_t
         ro_squad(x[i], y[i], x[j], y[j], xi[j], yi[j], xi[i], yi[i], argb);
     }
 }
+// a point in the view's pixels further than m off the screen
+internal int ro_off_screen(float px, float py, float m) { return px < -m || py < -m || px > g_ro.sw + m || py > g_ro.sh + m; }
 internal void ro_mark(const float *vp, const ov_shape *s) {
     float px, py;
-    if (!ro_project(vp, s->a[0], s->a[1], &px, &py)) return;
+    if (!ro_project(vp, s->a[0], s->a[1], &px, &py) || ro_off_screen(px, py, s->a[2] + 8)) return;
     int shape = s->sub & 0x7F;
     float r = s->a[2] * 0.5f;
     uint32_t edge = (s->argb & 0xFF000000u) | 0x101010;
@@ -314,6 +334,7 @@ internal void ro_mark(const float *vp, const ov_shape *s) {
 internal void ro_arrow(const float *vp, const ov_shape *s) {
     float ax, ay, bx, by;
     if (!ro_project(vp, s->a[0], s->a[1], &ax, &ay) || !ro_project(vp, s->a[2], s->a[3], &bx, &by)) return;
+    if ((ax < 0 && bx < 0) || (ay < 0 && by < 0) || (ax > g_ro.sw && bx > g_ro.sw) || (ay > g_ro.sh && by > g_ro.sh)) return;   // both ends off one side
     float dx = bx - ax, dy = by - ay, len = sqrtf(dx * dx + dy * dy), w = s->width > 0 ? s->width : 2.0f, head = w * 3.0f + 6.0f;
     if (len < head) return;
     dx /= len; dy /= len;
@@ -349,6 +370,7 @@ internal void ro_text(const float *vp, const ov_shape *s) {
     float w = 0;
     for (const uint8_t *p = (const uint8_t *)s->t; *p; p++) w += (float)g_ro.adv[*p];
     float x = floorf(px - w * 0.5f), y = floorf(row >= 0 ? py + 16.0f + (float)(row * RO_LINE_H) : py - 16.0f + (float)(row * RO_LINE_H));
+    if (x + w + 8 < 0 || x - 8 > g_ro.sw || y + RO_LINE_H + 2 < 0 || y - 2 > g_ro.sh) return;   // the plate wholly off the screen
     uint32_t edge = s->argb & 0xFF000000u;
     // a dark plate under the line, then its edge a pixel off eight ways, then the text
     ro_squad(x - 4, y - 1, x + w + 4, y - 1, x + w + 4, y + RO_LINE_H - 1, x - 4, y + RO_LINE_H - 1, 0x70000000);
@@ -432,8 +454,13 @@ internal void ro_camera_vp(float *out) {
 // the shapes on the map into g_ro.v: lines, circles, tiles (plain), then the rings (with the game's texture); *plain the
 // end of the first
 internal void ro_map_shapes(const float *vp, int n, ID3D11ShaderResourceView *ring, int *plain) {
+    ro_cull_set();
     for (int i = 0; i < n; i++) {
         const ov_shape *s = &g_ro.shapes[i];
+        float m = s->width;   // the shape's box, out of the view's part: none of it
+        if (s->kind == OV_LINE && ro_out(fminf(s->a[0], s->a[2]) - m, fminf(s->a[1], s->a[3]) - m, fmaxf(s->a[0], s->a[2]) + m, fmaxf(s->a[1], s->a[3]) + m)) continue;
+        if ((s->kind == OV_CIRCLE || s->kind == OV_RING) && ro_out(s->a[0] - s->a[2] - m, s->a[1] - s->a[2] - m, s->a[0] + s->a[2] + m, s->a[1] + s->a[2] + m)) continue;
+        if (s->kind == OV_TILE && ro_out(s->a[0], s->a[1], s->a[0] + s->a[2], s->a[1] + 1)) continue;
         if (s->kind == OV_LINE && s->sub) {   // dashed (overlay_line_dashed): a dash in the middle of each tile of the grid it runs along
             float dx = s->a[2] - s->a[0], dy = s->a[3] - s->a[1], h = (float)(s->sub & 15) / 32.0f;
             int along_x = fabsf(dx) >= fabsf(dy);
@@ -462,8 +489,12 @@ internal void ro_map_shapes(const float *vp, int n, ID3D11ShaderResourceView *ri
     }
     *plain = g_ro.n;
     if (ring)
-        for (int i = 0; i < n; i++)
-            if (g_ro.shapes[i].kind == OV_RING) ro_ring(vp, g_ro.shapes[i].a[0], g_ro.shapes[i].a[1], g_ro.shapes[i].a[2], g_ro.shapes[i].argb);
+        for (int i = 0; i < n; i++) {
+            const ov_shape *s = &g_ro.shapes[i];
+            float h = s->a[2] / RO_RING_MID;
+            if (s->kind == OV_RING && !ro_out(s->a[0] - h, s->a[1] - h, s->a[0] + h, s->a[1] + h)) ro_ring(vp, s->a[0], s->a[1], s->a[2], s->argb);
+        }
+    g_ro.cull = 0;
 }
 // the vertex buffer as large as the room grew; the vertices into it (0: failed)
 internal int ro_upload(ID3D11DeviceContext *x) {
