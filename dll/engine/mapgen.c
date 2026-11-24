@@ -101,17 +101,19 @@ struct mg {
     uint32_t rng, seed;
     float *f;                 // [corner] how far inside the land (tiles; below 0: that far out in the water)
     float *h;                 // [corner] its height in height steps (below 0: under the water)
+    float *mt;                // [corner] the mountains' height there (steps, before its terraces; 0: none)
     uint8_t *used;            // [tile] taken: a start's yard, a river's bank, a mine, a tree
     uint8_t *clim;            // [tile] its biome (k_mg_biome)
-    uint8_t *marsh;           // [tile] 1: a river's or a pond's water where it doesn't freeze
+    uint8_t *marsh;           // [tile] water: 2 the sea's, 1 a river's or a pond's all under water and not frozen (marsh), 0 other inland water
     float half;               // n / 2: u and v reach that far
     int np;                   // the players that play
     int sx[MG_PLAYERS], sy[MG_PLAYERS];   // their starts (a tile corner: the Capitol's middle)
     struct { int x, y; } spot[MG_SPOTS];  // the mines', forests' and herds' places: kept apart from each other
     int nspot;
-    int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_deep, tex_marsh;
+    int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_shore[MG_BIOMES], tex_deep, tex_marsh, tex_rock, tex_pebbles;
     int tree[MG_BIOMES][6], ntree[MG_BIOMES], grove[MG_BIOMES][6], ngrove[MG_BIOMES], animal[MG_BIOMES][4], nanimal[MG_BIOMES];   // the biomes' types the data has
-    int made[MG_KINDS], rivers, land, water, cliffs, forests, types_missing, biome_tiles[MG_BIOMES];
+    struct { int x, y; } spring[16];      // the rivers' springs: apart from each other
+    int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
 };
 internal uint32_t mg_next(struct mg *g) {
     uint32_t x = g->rng;
@@ -172,20 +174,79 @@ internal void mg_land(struct mg *g) {
             g->f[y * g->m + x] = fminf(best, fminf(edge, channel)) * 0.7071f;
         }
 }
-// THE HEIGHTS: the shore rises 0.3 steps a tile to the plain at 1 step, the sea falls as gently to 5 steps down; hills
-// of up to 3.5 steps inland, from a second noise. (A tile whose corners differ by 1.5 steps is a cliff: slopes stay
-// under that but where hills are steepest.)
+// THE COAST, its kind at a corner from a noise along it (the player 2026-11-24: "make the ocean beaches more dynamic,
+// some wide beaches, (maybe with a cliff behind) some just rocky coasts"): beach 0 .. 1 a wide, flat beach of `width`
+// tiles, bluff 0 .. 1 a cliff behind it; rocky 0 .. 1 the land up out of deep water at once; all 0: the plain shore.
+internal void mg_coast(const struct mg *g, int x, int y, float *beach, float *width, float *bluff, float *rocky) {
+    float c = mg_fbm((float)x * 0.022f + 800, (float)y * 0.022f + 130, g->seed + 50), c2 = mg_noise((float)x * 0.03f + 60, (float)y * 0.03f + 900, g->seed + 51);
+    *beach = mg_step(0.56f, 0.64f, c);
+    *width = 2 + 4 * mg_step(0.60f, 0.75f, c);
+    *bluff = *beach * mg_step(0.5f, 0.6f, c2);
+    *rocky = 1 - mg_step(0.36f, 0.44f, c);
+}
+// a bluff: 1.8 steps up within a tile from `at` tiles inside the land (a cliff: a tile whose corners differ by 1.5
+// steps is one), down again to the plain 3 .. 12 tiles behind
+internal float mg_bluff(float f, float at) { return 1.8f * mg_step(at, at + 0.8f, f) * (1 - mg_step(at + 3, at + 12, f)); }
+internal float mg_start_dist(const struct mg *g, float x, float y);
+// A MOUNTAIN RANGE (the player 2026-11-24: "cliffs, mountain ranges, rivers flowing from the mountains, increased
+// chance for mine in mountains"): a line from a point well inside the land of the continent asked for (10 tiles, 24
+// from any start), a tile a step, turned a little at random each step, n/6 .. n/3 tiles long or until it comes within
+// 7 tiles of the shore or 20 of a start (shorter than n/12: none); the mountain up to 5 steps high along it, lower
+// towards its ends, falling to the plain 8 - 13 tiles to either side. tight 0 .. 3: a small map's - the starts 3 and
+// 2 tiles nearer for each.
+#define MG_PEAK 5.0f
+#define MG_TERRACE 2.5f
+internal int mg_range(struct mg *g, int continent, int tight) {
+    float px[128], py[128];
+    int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), want = mg_int(g, g->n / 6, g->n / 3), len = 0;
+    if ((x0 + y0 > g->n) != continent || mg_f(g, x0, y0) < 10 || mg_start_dist(g, (float)x0, (float)y0) < (float)(24 - 3 * tight)) return 0;
+    float x = (float)x0, y = (float)y0, dx = mg_rnd(g) - 0.5f, dy = mg_rnd(g) - 0.5f, dl = sqrtf(dx * dx + dy * dy);
+    if (dl < 0.01f) { dx = 1; dy = 0; dl = 1; }
+    dx /= dl; dy /= dl;
+    for (want = want > 127 ? 127 : want; len < want; len++) {
+        px[len] = x; py[len] = y;
+        float turn = (mg_rnd(g) - 0.5f) * 0.5f, nx = dx - dy * turn, ny = dy + dx * turn, nl = sqrtf(nx * nx + ny * ny);
+        nx /= nl; ny /= nl;
+        if (mg_f(g, (int)floorf(x + nx + 0.5f), (int)floorf(y + ny + 0.5f)) < 7 || mg_start_dist(g, x + nx, y + ny) < (float)(20 - 2 * tight)) break;
+        dx = nx; dy = ny; x += nx; y += ny;
+    }
+    if (len < g->n / 12) return 0;
+    for (int i = 0; i < len; i++) {
+        float wide = 8 + 5 * mg_noise(px[i] * 0.08f, py[i] * 0.08f, g->seed + 60), top = MG_PEAK * (0.35f + 0.65f * mg_step(0, 6, (float)(i < len - 1 - i ? i : len - 1 - i)));
+        for (int cy = (int)py[i] - 14; cy <= (int)py[i] + 14; cy++)
+            for (int cx = (int)px[i] - 14; cx <= (int)px[i] + 14; cx++) {
+                if (!mg_corner(g, cx, cy)) continue;
+                float ex = (float)cx - px[i], ey = (float)cy - py[i], v = top * (1 - mg_step(1.5f, wide, sqrtf(ex * ex + ey * ey)));
+                if (v > g->mt[cy * g->m + cx]) g->mt[cy * g->m + cx] = v;
+            }
+    }
+    return 1;
+}
+// THE HEIGHTS. The plain shore rises 0.3 steps a tile to the plain at 1 step, the sea falls as gently to 5 steps
+// down; a wide beach lies nearly flat for its width (0.08 a tile, the sea before it shallow twice as far), a rocky
+// coast and a beach's bluff are cliffs. Hills of up to 3.5 steps inland, from a second noise. The mountains (the
+// ranges before: g->mt) keep 5 tiles off the shore and 12 off the starts; their sides are two terraces of 2.5 steps
+// with a cliff before each (in 6 parts of 10, by a noise) or a slope to walk up (the rest: the passes).
 internal void mg_heights(struct mg *g) {
     for (int y = 0; y <= g->n; y++)
         for (int x = 0; x <= g->n; x++) {
-            float f = g->f[y * g->m + x], hn = mg_fbm((float)x * 0.035f + 17, (float)y * 0.035f + 5, g->seed + 10);
-            g->h[y * g->m + x] = f < 0 ? fmaxf(f * 0.3f, -5.0f)
-                                       : fminf(f * 0.3f, 1.0f) + fmaxf(0, hn - 0.56f) / 0.44f * 3.5f * mg_step(5, 14, f);
+            float f = g->f[y * g->m + x], hn = mg_fbm((float)x * 0.035f + 17, (float)y * 0.035f + 5, g->seed + 10), beach, width, bluff, rocky;
+            mg_coast(g, x, y, &beach, &width, &bluff, &rocky);
+            if (f < 0) { g->h[y * g->m + x] = fmaxf(f * (0.3f - 0.15f * beach + 1.0f * rocky), -5.0f); continue; }
+            float base = fminf(f * 0.3f, 1.0f), flat = fminf(f * 0.08f, base);
+            float h = base + (flat - base) * beach * (1 - mg_step(width, width + 3, f)) + bluff * mg_bluff(f, width) + rocky * mg_bluff(f, 0);
+            h += fmaxf(0, hn - 0.56f) / 0.44f * 3.5f * mg_step(5, 14, f);
+            float m = g->mt[y * g->m + x] * mg_step(5, 10, f) * mg_step(12, 16, mg_start_dist(g, (float)x, (float)y));
+            float q = mg_step(0.35f, 0.5f, mg_noise((float)x * 0.07f + 11, (float)y * 0.07f + 3, g->seed + 62));
+            float level = floorf(m / MG_TERRACE), t = (level + mg_step(0.75f, 1.0f, m / MG_TERRACE - level)) * MG_TERRACE;
+            g->mt[y * g->m + x] = m;
+            g->h[y * g->m + x] = h + m + (t - m) * q;
         }
 }
 // THE STARTS: the players by turns on the two continents, a continent's own spread along its length; a start less
-// than 10 tiles inside the land moved to the nearest corner within 12 tiles that is (none: the one farthest inside),
-// the ground round it levelled to the plain (whole within 7 tiles, fading to 11), its yard (7 tiles) kept free
+// than 10 tiles inside the land moved to the nearest corner within 12 tiles that is (none: the one farthest inside).
+// Then (mg_yards, once the heights are there - the mountains keep off the starts) the ground round it levelled to the
+// plain (whole within 7 tiles, fading to 11), its yard (7 tiles) kept free
 internal void mg_starts(struct mg *g) {
     int count[2] = { g->np - g->np / 2, g->np / 2 };
     for (int i = 0; i < g->np; i++) {
@@ -199,6 +260,11 @@ internal void mg_starts(struct mg *g) {
                 if (mg_f(g, x, y) >= 10 ? d < nearest : nearest == 1 << 30 && mg_f(g, x, y) > mg_f(g, bx, by)) { bx = x; by = y; if (mg_f(g, x, y) >= 10) nearest = d; }
             }
         g->sx[i] = bx; g->sy[i] = by;
+    }
+}
+internal void mg_yards(struct mg *g) {
+    for (int i = 0; i < g->np; i++) {
+        int bx = g->sx[i], by = g->sy[i];
         for (int y = by - 11; y <= by + 11; y++)
             for (int x = bx - 11; x <= bx + 11; x++) {
                 if (!mg_corner(g, x, y)) continue;
@@ -221,16 +287,20 @@ internal float mg_start_dist(const struct mg *g, float x, float y) {   // to the
 // tiles of a start, finds no sea in 250 steps or winds more than twice the straight way is not dug. Dug: the bed 0.8
 // steps under the water along its way, the banks rising 0.6 a tile from it (no cliffs: water 2 - 3 tiles wide), a
 // small pond at the spring; its banks (3 tiles) kept free. It ends inland at its spring: the land stays one piece,
-// units walk round it.
-internal int mg_river(struct mg *g) {
+// units walk round it. mountain: one from the mountains (the player 2026-11-24: "rivers flowing from the mountains") -
+// its spring at a range's foot; no river's way goes over a mountain, no spring is within 20 tiles of another.
+internal int mg_river(struct mg *g, int mountain) {
     float px[256], py[256];
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), len = 0;
     if (mg_f(g, x0, y0) < 8 || mg_start_dist(g, (float)x0, (float)y0) < 13) return 0;
+    if (g->mt[y0 * g->m + x0] > 1.5f || (mountain && g->mt[y0 * g->m + x0] < 0.2f) || g->rivers >= 16) return 0;
+    for (int i = 0; i < g->rivers; i++)
+        if ((g->spring[i].x - x0) * (g->spring[i].x - x0) + (g->spring[i].y - y0) * (g->spring[i].y - y0) < 20 * 20) return 0;
     float x = (float)x0, y = (float)y0, dx = 0, dy = 0;
     for (; len < 250; len++) {
         int ix = (int)floorf(x + 0.5f), iy = (int)floorf(y + 0.5f);
         float f = mg_f(g, ix, iy);
-        if (f < -90 || mg_start_dist(g, x, y) < 11) return 0;
+        if (f < -90 || mg_start_dist(g, x, y) < 11 || g->mt[iy * g->m + ix] > 1.8f) return 0;
         px[len] = x; py[len] = y;
         if (f < -1.5f) break;
         // down the land's slope, mixed with the way so far and a random push across it
@@ -244,6 +314,7 @@ internal int mg_river(struct mg *g) {
     }
     float wx = px[len < 250 ? len : 0] - px[0], wy = py[len < 250 ? len : 0] - py[0];
     if (len >= 250 || len < 12 || (float)len > 2 * sqrtf(wx * wx + wy * wy)) return 0;
+    g->spring[g->rivers].x = x0; g->spring[g->rivers].y = y0;
     for (int i = 0; i <= len; i++) {
         float pond = i < 2 ? 1.0f : 0;
         for (int cy = (int)py[i] - 7; cy <= (int)py[i] + 8; cy++)
@@ -279,8 +350,8 @@ internal void mg_biomes(struct mg *g) {
             queue[tail++] = ny * n + nx;
         }
     }
-    // the sea: the water joined to the water round the land, through tiles that were water before the rivers were
-    // dug (f under 0) - a river's and a pond's water is not reached (its mouth is: sand there)
+    // the sea: the water joined to the water round the land through tiles with a corner that was water before the
+    // rivers were dug (f under 0) - a river's and a pond's water is not reached, its mouth is
     uint8_t *sea = g->marsh;
     head = tail = 0;
     for (int i = 0; i < n * n; i++)
@@ -290,7 +361,8 @@ internal void mg_biomes(struct mg *g) {
         static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
         for (int s = 0; s < 4; s++) {
             int nx = x + side[s][0], ny = y + side[s][1], j = ny * n + nx;
-            if (!mg_tile(g, nx, ny) || wd[j] || sea[j] || mg_f(g, nx, ny) >= 0) continue;
+            if (!mg_tile(g, nx, ny) || wd[j] || sea[j]) continue;
+            if (fminf(fminf(mg_f(g, nx, ny), mg_f(g, nx + 1, ny)), fminf(mg_f(g, nx, ny + 1), mg_f(g, nx + 1, ny + 1))) >= 0) continue;
             sea[j] = 2;
             queue[tail++] = j;
         }
@@ -304,16 +376,19 @@ internal void mg_biomes(struct mg *g) {
             float wet = 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f + 0.22f * by_water;
             int b = (temp < -0.3f ? 0 : temp > 0.3f ? 2 : 1) * 3 + (wet < 0.4f ? 0 : wet > 0.6f ? 2 : 1);
             g->clim[y * n + x] = (uint8_t)b;
-            g->marsh[y * n + x] = !wd[y * n + x] && sea[y * n + x] != 2 && temp >= -0.3f;   // inland water, not frozen
+            if (sea[y * n + x] != 2) g->marsh[y * n + x] = !wd[y * n + x] && hi < 0 && temp >= -0.3f;   // inland, all under water, not frozen
         }
     free(queue); free(wd);
 }
 // THE TEXTURES, by their names in the game's data (db\dbterrain.dat; the scripts, Common Terrain Painting.rmv, spell
 // them without the blanks): a biome's five for its land, picked by a noise value in their shares; its beach for water
-// up to a step deep, Underwater below; one under mines, one under trees; Marsh instead of
-// the beach under the rivers' and ponds' water where it isn't frozen (the player 2026-11-24, of the first maps'
-// marsh on the land by all water: "dont use the marshland like that, but instead of sand used for inland rivers and
-// lakes could look quite good, just not as an extra border around the beach").
+// up to a step deep, Underwater below; one under mines, one under trees. Marsh is the rivers' and ponds'
+// bed where they don't freeze (the player 2026-11-24, of the first maps' marsh on the land by all water: "dont use
+// the marshland like that, but instead of sand used for inland rivers and lakes could look quite good, just not as an
+// extra border around the beach"; then: "only use marshland underwater ... use biome appropriate texture for river
+// shores") - on tiles all under water, a tile the water's edge runs through has the biome's ground. A wide beach has
+// its sand on the land too, a rocky coast pebbles, a mountain rock where it isn't snowed on (up there it is colder:
+// mg_biomes); cliffs get theirs from the game's cliff pass.
 // A texture gives its tiles their kind (ee_terrain.kind: what may stand and walk there - the land textures have kinds
 // of their own, Grass 0). A name the data hasn't got, or a land texture whose kind is water's or a cliff's: the
 // biome's plain one, Grass for that - told in the log.
@@ -336,6 +411,7 @@ internal void mg_textures_load(struct mg *g) {
         MG_TEX(g->tex_beach[b], k->beach, 0);
         MG_TEX(g->tex_res[b], k->res, 1);
         MG_TEX(g->tex_wood[b], k->wood, 1);
+        g->tex_shore[b] = g->tex_beach[b] >= 0 && terrain_is_land(terrain_at((uint32_t)g->tex_beach[b])) ? g->tex_beach[b] : -1;
         if (g->tex_beach[b] < 0) g->tex_beach[b] = def;
         if (g->tex_res[b] < 0) g->tex_res[b] = g->tex_land[b][0];
         if (g->tex_wood[b] < 0) g->tex_wood[b] = g->tex_land[b][0];
@@ -352,7 +428,10 @@ internal void mg_textures_load(struct mg *g) {
         }
     }
     MG_TEX(g->tex_deep, "Underwater", 0);
-    MG_TEX(g->tex_marsh, "Marsh", 1);
+    MG_TEX(g->tex_marsh, "Marsh", 0);
+    MG_TEX(g->tex_rock, "Rock1", 1);
+    MG_TEX(g->tex_pebbles, "Pebbles - Small", 1);
+    if (g->tex_rock < 0) g->tex_rock = g->tex_pebbles;
     if (g->tex_deep < 0) g->tex_deep = def;
 #undef MG_TEX
     if (g_log && (bad || g->types_missing))
@@ -362,29 +441,38 @@ internal void mg_textures_load(struct mg *g) {
 internal void mg_textures(struct mg *g) {
     for (int y = 0; y < g->n; y++)
         for (int x = 0; x < g->n; x++) {
-            float lo, hi;
+            float lo, hi, beach, width, bluff, rocky, f = mg_f(g, x, y);
             if (!mg_tile_span(g, x, y, &lo, &hi)) continue;
-            int b = g->clim[y * g->n + x], tex;
+            int b = g->clim[y * g->n + x], sort = g->marsh[y * g->n + x];
+            int p = (int)(mg_fbm((float)x * 0.11f + 300, (float)y * 0.11f + 700, g->seed + 30) * 160.0f - 30.0f), k = 0;   // 0 .. 100, evened out
+            p = p < 0 ? 0 : p > 99 ? 99 : p;
+            while (k < 4 && p >= k_mg_biome[b].share[k]) p -= k_mg_biome[b].share[k++];
+            int tex = g->tex_land[b][k];
+            mg_coast(g, x, y, &beach, &width, &bluff, &rocky);
             if (lo < 0) {
-                tex = g->marsh[y * g->n + x] && g->tex_marsh >= 0 ? g->tex_marsh : lo > -1.0f ? g->tex_beach[b] : g->tex_deep;
+                // the sea's: beach, deep; a river's: marsh all under water, its shore the biome's ground, frozen its ice
+                if (sort == 2) tex = lo > -1.0f ? g->tex_beach[b] : g->tex_deep;
+                else if (sort == 1 && g->tex_marsh >= 0) tex = g->tex_marsh;
+                else if (hi < 0) tex = g->tex_beach[b];
                 g->water++;
             } else {
-                int p = (int)(mg_fbm((float)x * 0.11f + 300, (float)y * 0.11f + 700, g->seed + 30) * 160.0f - 30.0f), k = 0;   // 0 .. 100, evened out
-                p = p < 0 ? 0 : p > 99 ? 99 : p;
-                while (k < 4 && p >= k_mg_biome[b].share[k]) p -= k_mg_biome[b].share[k++];
-                tex = g->tex_land[b][k];
+                // a wide beach's sand on the land, a rocky coast's pebbles, the mountains' rock where it isn't snowed on
+                if (beach > 0.5f && f < width && g->tex_shore[b] >= 0) tex = g->tex_shore[b];
+                else if (rocky > 0.5f && f < 2.5f && b >= 3 && g->tex_pebbles >= 0) tex = g->tex_pebbles;
+                else if (g->mt[y * g->m + x] > 1.5f && b >= 3 && g->tex_rock >= 0) tex = g->tex_rock;
                 g->land++;
                 g->biome_tiles[b]++;
+                g->mountain += g->mt[y * g->m + x] > 1.5f;
             }
             map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)tex);
         }
 }
 
 // THE WORLD'S OBJECTS. A tile is free for one when it is land of the plain (its corners 0.3 steps up at least and
-// within 0.8 of each other), no cliff and not taken.
+// within 0.8 of each other), no cliff, not taken and not up a mountain (below its first terrace: what the plain reaches).
 internal int mg_free(const struct mg *g, int x, int y) {
     float lo, hi;
-    return mg_tile_span(g, x, y, &lo, &hi) && !g->used[y * g->n + x] && lo >= 0.3f && hi - lo < 0.8f && !tile_is_cliff(mg_tile(g, x, y));
+    return mg_tile_span(g, x, y, &lo, &hi) && !g->used[y * g->n + x] && lo >= 0.3f && hi - lo < 0.8f && g->mt[y * g->m + x] < 1.4f && !tile_is_cliff(mg_tile(g, x, y));
 }
 internal ee_unit *mg_object(struct mg *g, int type, int x, int y, float angle, int kind) {
     ee_unit_type *t = type >= 0 ? type_data(type) : NULL;
@@ -497,6 +585,19 @@ internal void mg_objects(struct mg *g) {
         if (mg_anywhere(g, 16, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
     for (int j = g->land / 900; j > 0; j--)
         if (mg_anywhere(g, 18, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
+    // the mountains' own (the player 2026-11-24: "increased chance for mine in mountains"): a gold, iron or stone
+    // mine by turns per 90 tiles of the ranges' feet (the ground before their first terrace), whatever the biome
+    int foot = 0, turn = 0;
+    for (int ty = 0; ty < g->n; ty++)
+        for (int tx = 0; tx < g->n; tx++) foot += g->mt[ty * g->m + tx] > 0.3f && g->mt[ty * g->m + tx] < 1.4f;
+    for (int j = foot / 90, t = 0; j > 0 && t < 40000; t++) {
+        static const int8_t kinds[3] = { MG_GOLD, MG_IRON, MG_STONE };
+        x = mg_int(g, 0, g->n - 1); y = mg_int(g, 0, g->n - 1);
+        if (g->mt[y * g->m + x] < 0.3f || !mg_free(g, x, y) || !mg_spot_far(g, x, y, 7)) continue;
+        mg_mine(g, kinds[turn++ % 3], x, y);
+        g->mountain_mines++;
+        j--;
+    }
     // fish: in water a step deep at least, 2 - 7 tiles off a shore, 5 tiles apart - 5 a player and one per 1500 tiles of the map
     int fish = mg_type("res_fish"), first = g->nspot;
     for (int j = 5 * g->np + g->n * g->n / 1500, t = 0; j > 0 && t < 20000; t++) {
@@ -536,20 +637,23 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         g->np = count - 1 > MG_PLAYERS ? MG_PLAYERS : count - 1;
         g->f = calloc((size_t)(g->m * g->m), sizeof *g->f);
         g->h = calloc((size_t)(g->m * g->m), sizeof *g->h);
+        g->mt = calloc((size_t)(g->m * g->m), sizeof *g->mt);
         g->used = calloc((size_t)(n * n), 1);
         g->clim = calloc((size_t)(n * n), 1);
         g->marsh = calloc((size_t)(n * n), 1);
         z = calloc((size_t)(g->m * g->m), sizeof *z);
     }
-    if (!g || !g->f || !g->h || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
+    if (!g || !g->f || !g->h || !g->mt || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
         notice("mapgen", "the map type \"%s\" could not be made (%d players, %d tiles a side) - an empty map instead", MG_NAME, count - 1, n);
         start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
         return 0;
     }
     mg_land(g);
-    mg_heights(g);
     mg_starts(g);
-    for (int want = 2 + n / 60, t = 0; g->rivers < want && t < 4000; t++) g->rivers += mg_river(g);
+    for (int want = 2 + n / 100, t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1, t / 10000);
+    mg_heights(g);
+    mg_yards(g);
+    for (int want = 2 + n / 60, t = 0; g->rivers < want && t < 6000; t++) g->rivers += mg_river(g, t < 3000);   // from the mountains while such are found
     float step = map_get_height_step(map);
     for (int i = 0; i < g->m * g->m; i++) {
         if (g->h[i] > -0.05f && g->h[i] < 0) g->h[i] = 0;   // no film of water
@@ -576,8 +680,8 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     start[2] = ground_at(map, start[0], start[1]);
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d rivers, %d players (%d start units) at",
-                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->rivers, g->np, units);
+        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d rivers, %d players (%d start units) at",
+                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->rivers, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
         fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
                 g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], (double)start[0], (double)start[1]);
@@ -587,7 +691,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "\n");
         LeaveCriticalSection(&g_lock);
     }
-    free(z); free(g->f); free(g->h); free(g->used); free(g->clim); free(g->marsh); free(g);
+    free(z); free(g->f); free(g->h); free(g->mt); free(g->used); free(g->clim); free(g->marsh); free(g);
     return 0;
 }
 internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int human, void *name, uint32_t seed, ee_map *map, float *start) {
