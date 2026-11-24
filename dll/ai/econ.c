@@ -2188,6 +2188,9 @@ internal int substitutable(int type) {
     if (!td || unit_type_get_id(td) != type) return 0;
     int fam = unit_type_get_class_id(td);
     if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN) return 0;
+    // ... nor a spaceship (AoC: the space fleet's - its Capital Ship orders the stock couldn't pay were trained as land
+    // soldiers out of the navy's money, 200 wood and 200 iron an order: Small Planets 2026-11-24, 50 of 160 orders)
+    if (fam == CLS_SPACESHIP || fam == CLS_SPACE_BUILDING || fam == CLS_SPACE_TRANSPORT || fam == CLS_PLANET_SPACESHIP) return 0;
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN)) return 0;
     return 1;
 }

@@ -190,7 +190,7 @@ internal float fl_range(ee_unit *u, ee_unit_type *td) {
 // a unit whose weapon hits battleships x3+ (catapults, cannons, artillery ...) or reaches 7+ tiles, and hits ships
 internal float fl_danger_r(ee_unit *u, ee_unit_type *td) {
     int fam = unit_type_get_class_id(td), t = unit_type_get_id(td), kind = unit_type_get_weapon(td);
-    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN || fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) return 0;   // afloat, aircraft
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN || fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT || nv_space(fam) || fam == CLS_PLANET_SPACESHIP) return 0;   // afloat, aircraft, in space
     if (unit_type_get_attack(td) <= 0 || (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0)) return 0;
     if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
         float r, a;
@@ -991,14 +991,15 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
 #define FL_DOCK_LAID 90000
 internal struct { uint32_t t, laid_t; unsigned have, busy, laid; } g_fdk[16];
 internal void fl_busy_docks(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now) {
-    if (GAME_AI(idx) || !ut_has(UT(B_DOCK))) return;
+    int dtype = sea_is_space((unsigned)f->ocean) ? UT(B_SPACE_DOCK) : UT(B_DOCK);   // SPACE FLEETS: a space sea's are Space Docks
+    if (GAME_AI(idx) || !ut_has(dtype)) return;
     if (now < g_fdk[idx].t) memset(&g_fdk[idx], 0, sizeof g_fdk[idx]);   // a new game
     void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!um || !bm) return;
     int h = 0, b = 0;
-    am_bld(um, UT(B_DOCK), &h, &b);
+    am_bld(um, dtype, &h, &b);
     g_fdk[idx].have += (unsigned)h; g_fdk[idx].busy += (unsigned)b;
     if (!g_fdk[idx].t) g_fdk[idx].t = now ? now : 1;
     if (now - g_fdk[idx].t < FL_DOCK_LOOK) return;
@@ -1009,19 +1010,19 @@ internal void fl_busy_docks(ee_player *pl, unsigned idx, struct fleet *f, uint32
     for (int r = 3; r < 7 && want; r++) if (r != 4) price += unit_cost(pl, want, r);
     if (!have || busy * 10 < have * 7 || g_nv_target[idx] - g_nv_own[idx].war <= 0 || !want || navy_account(idx, 3) < price ||
         g_fs.nd >= FL_DOCK_MAX || g_nv_own[idx].docks_built < g_nv_own[idx].docks ||
-        (g_fdk[idx].laid_t && now >= g_fdk[idx].laid_t && now - g_fdk[idx].laid_t < FL_DOCK_LAID) || !can_build(pl, UT(B_DOCK))) return;
+        (g_fdk[idx].laid_t && now >= g_fdk[idx].laid_t && now - g_fdk[idx].laid_t < FL_DOCK_LAID) || !can_build(pl, dtype)) return;
     int e = current_epoch(pl);
     for (int pass = 0; pass < 2; pass++)   // a dock on the fleet's sea first
         for (int k = 0; k < g_fs.nd && k < 16; k++) {
             ivec2 dk = g_fs.dk[k];
-            unsigned land = fl_dock_land(dk);   // ... on the same land as that dock, its edge on it
+            unsigned land = fl_dock_land_of(dk, dtype);   // ... on the same land as that dock, its edge on it
             if ((pass == 0 && (int)ocean_near(dk, 4, NULL) != f->ocean) || !land || raiders_near(pl, dk, 10)) continue;
             for (int r = 3; r <= 10; r++)
                 for (int ax = -r; ax <= r; ax++)
                     for (int ay = -r; ay <= r; ay++) {
                         ivec2 q = ivec2_add(dk, iv2(ax, ay));
-                        if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, UT(B_DOCK), q) || fl_dock_land(q) != land) continue;
-                        if (!hb_lay(pl, idx, bm, e, UT(B_DOCK), q)) return;
+                        if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, dtype, q) || fl_dock_land_of(q, dtype) != land) continue;
+                        if (!hb_lay(pl, idx, bm, e, dtype, q)) return;
                         g_fdk[idx].laid++; g_fdk[idx].laid_t = now ? now : 1;
                         if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks busy %u/%u, %d warships missing - one more dock laid at %d,%d by the dock %d,%d (%d docks, %u laid so far)\n",
                                            idx, now / 60000.0, busy, have, g_nv_target[idx] - g_nv_own[idx].war, q.x, q.y, dk.x, dk.y, g_fs.nd, g_fdk[idx].laid);
@@ -1546,7 +1547,9 @@ internal void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t no
     if (t <= 0 || m->shelter || g_nv_own[idx].war + recent >= t || !g_nv_own[idx].docks_built || bk_room(pl) <= 0) return;
     void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    g_nv_layer = sea_is_space((unsigned)m->ocean) ? 2 : 1;   // SPACE FLEETS (navy.c): the types its sea's docks train
     int type = um ? navy_fleet_type(pl, idx) : 0;
+    g_nv_layer = 0;
     if (!type) return;
     int *stock = player_stock_at(pl), before[7];
     memcpy(before, stock, sizeof before);
@@ -1555,6 +1558,12 @@ internal void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t no
     int req[4] = { type, 1, 0, (int)area };
     unsigned got = 0;
     hook_train_units(um, req, (uintptr_t)&got);
+    // ONLY WHAT WAS PAID: the game's count says yes to an order no producer queued (econ.c THE COUNTER'S LEAK) - a
+    // space fleet's Capital Ships (500 gold, 500 iron) at 20-200 gold were "trained" every 10 s, none made, the next
+    // order held back for them and nothing saved (AoC Small Planets 2026-11-24: 155 orders, 20 ships afloat)
+    int paid = 0, price = 0;
+    for (int r = 2; r < 7; r++) { paid |= before[r] > stock[r]; price += unit_cost(pl, type, r); }
+    if (got && !paid && price > 0) got = 0;
     navy_pick_done(pl, idx, type, type, before, stock, !got);
     if (got) { m->built++; m->bring_t[m->bring_i] = now ? now : 1; m->bring_i = (m->bring_i + 1) & 7; }
     else m->build_refused++;
@@ -1610,6 +1619,23 @@ internal void fl_need_build(ee_player *pl, unsigned idx, struct fleet *f, uint32
     else if (f->need && now - f->need_t > 600000) f->need = 0;
     fl_build(pl, idx, f, now);
 }
+// A SPACE DOCK WHOLLY ON LAND (map.c space_dock_ok: laid before the mod knew the rule, 2026-11-24): it launches nothing
+// and its queue takes paid orders for good - taken down (the game's AI deletes alike), HARBOURS lays another
+internal void fl_bad_space_docks(ee_player *pl, unsigned idx) {
+    void *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    uint8_t *q = um && ut_has(UT(B_SPACE_DOCK)) ? unit_mgr_type_list(um, UT(B_SPACE_DOCK)) : NULL;
+    ee_map *map = game_map();
+    ee_unit_type *td = type_data(UT(B_SPACE_DOCK));
+    int s = td && unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 2;
+    for (unsigned j = 0, fr = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; map && j < c && j < 64; j++) {
+        ee_unit *b = deque_at(q, fr + j);
+        if (!b || unit_get_hp(b) <= 0 || unit_get_x(b) < 0 || space_dock_ok(map, unit_get_x(b), unit_get_y(b), s)) continue;
+        notice("a Space Dock wholly on land", "P%u's at %d,%d launches nothing (laid without the game's footprint rule) - taken down; ai/fleet.c", idx, unit_get_x(b), unit_get_y(b));
+        unit_destroy(b, 1, 0, 0);
+        return;   // the queue's list changed: the next look
+    }
+}
 internal void fleet_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct fleet *f = &g_fl[idx];
@@ -1617,6 +1643,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     if (!fleet_on(idx)) { if (f->n) fl_armies(idx, f, 0, now); f->n = 0; f->need = 0; return; }
     if (f->last && now - f->last < 2000) return;
     f->last = now ? now : 1;
+    if (!GAME_AI(idx)) fl_bad_space_docks(pl, idx);
     fl_scan(pl, idx);
     if (SEA_FLEET(idx)) {   // THE SEAS: its sea the one whose waters want the most warships - changed only while none of its warships is afloat on the present one, or that one wants none
         unsigned bo = 0;

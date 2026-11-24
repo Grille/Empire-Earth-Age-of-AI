@@ -189,6 +189,24 @@ internal inline int dock_shore_ok(const ee_map *map, int x, int y, int s) {
         }
     return land >= (int)value_map_dock_shore_min;
 }
+// THE SPACE DOCK'S FOOTPRINT, the game's own (0x63D1F1, the player's preview of a Space Dock - docs/engine-notes.md
+// "The Space Dock"): its tiles part land, part space - 3 land and 1 space or 1 and 3, never 2 and 2. The AI's placement
+// test (can_place_game) leaves it out, and a Space Dock wholly on land keeps the default facing (its making, EEUCBuilding
+// vf30 0x60F17F, turns it to its space tile through 0x63D008 only when there is one): it never launched what it made,
+// its queue grew with paid orders (AoC Small Planets 2026-11-24: P2's and P3's only docks, a Space Transport making
+// for 35 minutes, 8 warships waiting behind it; the player's game: "the ai dosnt buy warships at all")
+internal inline int space_dock_ok(const ee_map *map, int x, int y, int s) {
+    int n = (int)map_get_size(map), space = 0, all = 0;
+    ee_tile *const *tiles = map_get_tiles(map);
+    for (int ty = y; ty < y + s; ty++)
+        for (int tx = x; tx < x + s; tx++) {
+            const ee_tile *t = tx >= 0 && ty >= 0 && tx < n && ty < n ? tiles[ty * n + tx] : NULL;
+            if (!t) return 0;
+            all++;
+            space += tile_get_kind(t) == (int)value_map_kind_aoc_12;
+        }
+    return space > 0 && space < all && 2 * space != all;
+}
 // a tile's texture (its byte 2 in the view table), -1 off the map
 internal inline int map_tile_texture(const ee_map *map, int x, int y) {
     if (y < 0 || (unsigned)y >= map_get_size(map)) return -1;

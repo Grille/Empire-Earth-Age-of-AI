@@ -206,7 +206,7 @@ internal int sq_enemies(int oc, ivec2 p, int r, unsigned char *sel) {
 internal int sq_on_land(ee_unit *t) {
     ee_unit_type *td = t ? unit_get_type_data(t) : NULL;
     int c = td ? unit_type_get_class_id(td) : -1;
-    return td && c != CLS_NAVAL && c != CLS_SUBMERGED_NAVAL && c != CLS_NAVAL_TRANSPORT && c != CLS_NAVAL_CITIZEN && c != CLS_AIRPLANE &&
+    return td && c != CLS_NAVAL && c != CLS_SUBMERGED_NAVAL && c != CLS_NAVAL_TRANSPORT && c != CLS_NAVAL_CITIZEN && c != CLS_AIRPLANE && !nv_space(c) && c != CLS_PLANET_SPACESHIP &&
            c != CLS_HELICOPTER && c != CLS_HELICOPTER_TRANSPORT && c != CLS_HELICOPTER_PRIEST && c != CLS_SEA_ANIMAL && c != CLS_AIR_ANIMAL;
 }
 // THE SHORE: the defences that reach the water off p (towers, land units that threaten ships, seen within their reach +

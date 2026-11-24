@@ -9,14 +9,20 @@
 
 // The type families (+0x4B4, diplo.c kill_kind): 4 ships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats.
 // Transports and fishing boats also by their type ids (landing.c), in case a family differs.
+// SPACE FLEETS (Art of Conquest; the player 2026-11-23: space "just another sea layer", its doctrine the navy's; his
+// game 2026-11-24: "the ai dosnt buy warships at all, only transporters" - a planets map, 5 Space Docks, 16 Space
+// Transports, the navy knowing water ships only): the spaceships (class 31: Space Corvette, Capital Ship, Yamato) are
+// warships, the Space Carrier (class 32) a carrier, the Space Transport a transport (landing.c) - each on its layer:
+// a water sea's docks train ships, a space sea's Space Docks spaceships (forces.c SPACE AS A SEA).
+internal int nv_space(int fam) { return fam == CLS_SPACESHIP || fam == CLS_SPACE_BUILDING || fam == CLS_SPACE_TRANSPORT; }
 enum { NV_NONE, NV_WAR, NV_SUB, NV_CARRIER, NV_TRANSPORT, NV_FISH };
 internal int navy_kind(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
     if (fam == CLS_NAVAL_CITIZEN || is_fishing_boat(t)) return NV_FISH;
     if (fam == CLS_NAVAL_TRANSPORT || is_transport(t)) return NV_TRANSPORT;
     if (fam == CLS_SUBMERGED_NAVAL) return NV_SUB;
-    if (fam == CLS_NAVAL_BUILDING) return NV_CARRIER;
-    if (fam == CLS_NAVAL) return unit_type_get_attack(td) > 0 ? NV_WAR : NV_NONE;
+    if (fam == CLS_NAVAL_BUILDING || fam == CLS_SPACE_BUILDING) return NV_CARRIER;
+    if (fam == CLS_NAVAL || fam == CLS_SPACESHIP) return unit_type_get_attack(td) > 0 ? NV_WAR : NV_NONE;
     return NV_NONE;
 }
 
@@ -506,7 +512,7 @@ internal void navy_count(void) {
         if (!o || unit_get_hp(it.u) <= 0) continue;
         int pi = player_get_index(o);
         if (pi <= 0 || pi >= 16) continue;
-        if (unit_type_get_id(it.td) == UT(B_DOCK)) {
+        if (unit_type_get_id(it.td) == UT(B_DOCK) || unit_type_get_id(it.td) == UT(B_SPACE_DOCK)) {   // SPACE FLEETS: a Space Dock too
             ee_unit *st = unit_get_physics(it.u);
             g_nv_own[pi].docks++;
             g_nv_own[pi].docks_built += st && unit_get_finished(st);
@@ -575,6 +581,14 @@ internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA", "M" };
 #define NV_C_LINE 21    // battleships
 #define NV_C_GALLEY 47  // galleys, galleons, catapult ships
 #define NV_C_BLDG 3     // buildings (the missile subs' target, with the towers 37)
+// SPACE FLEETS: AoC's space target categories - the Capital Ship's, Carrier's, Transport's and Yamato's (the line), the
+// Space Fighter's (as the galleys and submarines: what the corvettes hunt) and the Corvette's (the frigates); the game's
+// table: a Capital Ship hits Corvettes x1.5, a Corvette fighters x1.25, a fighter Capital Ships x1.6
+#define NV_S_LINE 56
+#define NV_S_FIGHTER 57
+#define NV_S_FRIG 58
+internal int g_nv_layer;   // fl_build: the mix's types of one layer - 1 water ships, 2 spaceships (0: either)
+internal int nv_layer_ok(int t) { ee_unit_type *td = type_data(t); return !g_nv_layer || (td && (nv_space(unit_type_get_class_id(td)) ? 2 : 1) == g_nv_layer); }
 #define NV_MSUB_GROUP 2
 #define NV_MSUB_FLEET 6
 internal int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out yet; the table and the type data are fixed)
@@ -607,6 +621,11 @@ internal int nv_role(ee_unit_type *td) {
     if (t < 0 || t >= G_TYPES_N) return NR_NONE;
     if (g_nv_role[t]) return g_nv_role[t] - 1;
     int r = NR_NONE, fam = unit_type_get_class_id(td), kind = unit_type_get_weapon(td), cat = unit_type_get_family(td);
+    // A SCENARIO'S SHIP: the data names its campaign and scenario objects "x ..." - AoC's "x Capital Ship Yamato" (828)
+    // passed the tech record's test, scored best of the line and was ordered 33 times in a game with none trained (no
+    // Space Dock makes it; Small Planets 2026-11-24)
+    const char *nm = unit_type_get_name(td);
+    if (nm && nm[0] == 'x' && nm[1] == ' ') { g_nv_role[t] = (int8_t)(NR_NONE + 1); return NR_NONE; }
     // ships only by their target family (the Naval Mine 386 is CLS_NAVAL, family 22, 1350 attack and 1 hit point);
     // not the hero ships Golden Hind and Agincourt (x07_golden_hind, x09_agincourt_battleship: tech 9035 - no dock trains them)
     int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
@@ -617,7 +636,8 @@ internal int nv_role(ee_unit_type *td) {
         else if (nv_f(kind, NV_C_LINE) >= 3.0f) r = NR_ANTI;
         else if (cat == NV_C_LINE) r = NR_LINE;
         else r = NR_FRIG;
-    }
+    } else if (fam == CLS_SPACESHIP && unit_type_get_attack(td) > 0 && (cat == NV_S_LINE || cat == NV_S_FRIG))   // SPACE FLEETS
+        r = nv_f(kind, NV_S_LINE) >= 3.0f ? NR_ANTI : cat == NV_S_LINE ? NR_LINE : NR_FRIG;
     g_nv_role[t] = (int8_t)(r + 1);
     return r;
 }
@@ -625,6 +645,10 @@ internal float nv_score(ee_player *pl, int t, int role) {   // in its role: fact
     ee_unit_type *td = type_data(t);
     int kind = unit_type_get_weapon(td), cost = 0;
     for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
+    if (td && nv_space(unit_type_get_class_id(td))) {   // SPACE FLEETS: against the space categories
+        float g = role == NR_LINE ? nv_f(kind, NV_S_FRIG) : role == NR_FRIG ? nv_f(kind, NV_S_FIGHTER) : nv_f(kind, NV_S_LINE);
+        return cost <= 0 || g <= 0 ? 0 : g * (float)unit_type_get_attack(td) * 1000.0f / (float)(unit_type_get_reload(td) + 2000) * (float)unit_type_get_hp(td) / ((float)cost * (float)cost);
+    }
     float f = role == NR_LINE ? nv_f(kind, NV_C_FRIG) : role == NR_AA ? nv_air_f(kind) : role == NR_MSUB ? nv_f(kind, NV_C_BLDG) : role != NR_FRIG ? nv_f(kind, NV_C_LINE) :
               nv_f(kind, NV_C_GALLEY) > nv_f(kind, NV_C_SUB) ? nv_f(kind, NV_C_GALLEY) : nv_f(kind, NV_C_SUB);
     if (cost <= 0 || f <= 0) return 0;
@@ -661,10 +685,10 @@ internal void nv_seen_one(struct nv_pick *pk, ee_unit_type *td, int x, int y) {
     if (!td) return;
     int fam = unit_type_get_class_id(td);
     if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) { pk->air++; return; }
-    if (fam == CLS_NAVAL_BUILDING) { pk->carriers++; return; }
+    if (fam == CLS_NAVAL_BUILDING || fam == CLS_SPACE_BUILDING) { pk->carriers++; return; }
     int r = nv_role(td);
     if (r != NR_NONE) { pk->e[r]++; return; }
-    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_CITIZEN || unit_type_get_attack(td) <= 0 || x < 0) return;
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_CITIZEN || nv_space(fam) || unit_type_get_attack(td) <= 0 || x < 0) return;
     if (nv_f(unit_type_get_weapon(td), NV_C_LINE) >= 3.0f && nv_near_sea(x, y)) pk->coast++;   // hits battleships x3+ from the coast
 }
 // the enemy seen: intel's memory (10 minutes; buildings until looked at again) - or, with the game's view, every
@@ -700,7 +724,7 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
     float bs[NR_N] = { 0 };
     memset(best, 0, NR_N * sizeof *best);
     for (int k = 0; k < pk->nc; k++) {
-        int t = pk->ctype[k], r = pk->crole[k], skip = t == pk->skip_type && now < pk->skip_until;
+        int t = pk->ctype[k], r = pk->crole[k], skip = (t == pk->skip_type && now < pk->skip_until) || !nv_layer_ok(t);   // SPACE FLEETS: its sea's layer
         for (int b = 0; b < 4; b++) skip |= t == pk->bad_type[b] && now < pk->bad_until[b];
         float s = skip ? 0 : nv_score(pl, t, r);
         if (s > bs[r]) { bs[r] = s; best[r] = t; }
@@ -778,7 +802,7 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
     int nc = 0;
     for (int k = 0; k < pk->nc; k++) {   // the mix's candidates but those it waits out (refused, not trained)
         if (pk->crole[k] == NR_MSUB) continue;   // missile subs only by the mix (the need's estimate rated a Trident against warships it can't hit)
-        int t = pk->ctype[k], skip = t == pk->skip_type && now < pk->skip_until;
+        int t = pk->ctype[k], skip = (t == pk->skip_type && now < pk->skip_until) || !nv_layer_ok(t);
         for (int b = 0; b < 4; b++) skip |= t == pk->bad_type[b] && now < pk->bad_until[b];
         if (!skip) cand[nc++] = t;
     }
@@ -794,7 +818,7 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
 internal int navy_fleet_type(ee_player *pl, unsigned idx) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     nv_cands(pl, pk, game_time());
-    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA && pk->crole[k] != NR_MSUB) return navy_pick(pl, idx, pk->ctype[k]);
+    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA && pk->crole[k] != NR_MSUB && nv_layer_ok(pk->ctype[k])) return navy_pick(pl, idx, pk->ctype[k]);
     return 0;
 }
 // after the order: counts, the wait for a refused type, a type the game can't train

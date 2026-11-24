@@ -80,6 +80,7 @@ internal int can_place(ee_player *pl, int type, ivec2 p) {
     // a Dock or a Navy Yard: the shore the player's preview asks for (the player 2026-11-19: docks laid with too little
     // land beside them - "there has to be some check by the game"; map.c dock_shore_ok)
     if ((type == UT(B_DOCK) || type == UT(B_NAVY_YARD)) && !dock_shore_ok(map, p.x, p.y, sz)) return 0;
+    if (type == UT(B_SPACE_DOCK) && !space_dock_ok(map, p.x, p.y, sz)) return 0;   // part land, part space (map.c)
     ivec2 q[6];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
