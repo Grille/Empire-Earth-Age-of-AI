@@ -763,8 +763,11 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   temperature a step above 2): the snow line is at some 6 steps in the mild middle, none in the hot south. The
   cliffs by the game's cliff pass, which lays the textures of the map's one cliff type (EEMap.cliff_type, its place
   in db\dbcliffterrain.dat: DefaultCliff, WinterCliff, RockyCliff): run a row's run of tiles at a time with the type
-  set for it (map_cliffs_run) - winter's in the cold biomes, the red rock in the hot biomes' mountains, the default
-  else. Rock (Rock1) on a mountain's walkable ground above 3 steps. Rivers first from springs at the ranges' feet; a
+  set for it (map_cliffs_run). A range has one cliff type for the whole mountain (the player: "try to stick to a
+  single cliff type" - winter's on top of the default looked patched): the winter's, but where its middle is in the
+  hot south - the default's there, and no snow on it; the other cliffs (coasts) the winter's in the cold biomes,
+  the default else. A mountain's walkable ground is its biome's (a rock texture beside the cliffs looked wrong to
+  him). Rivers first from springs at the ranges' feet; a
   mine (gold, iron, stone by turns) per 90 tiles of those feet whatever the biome; nothing is placed higher up a
   mountain than its lowest 1.4 steps. Small and tiny maps have no room for a range between shore and starts. A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every

@@ -101,7 +101,9 @@ struct mg {
     uint32_t rng, seed;
     float *f;                 // [corner] how far inside the land (tiles; below 0: that far out in the water)
     float *h;                 // [corner] its height in height steps (below 0: under the water)
-    float *mt;                // [corner] the mountains' height there (steps, before its terraces; 0: none)
+    float *mt;                // [corner] the mountains' height there (steps; 0: none)
+    uint8_t *range;           // [corner] which range's that is, from 1 (0: none)
+    int8_t range_cliffs[16];  // a range's cliff type (CLIFFS_*): one for the whole mountain
     uint8_t *used;            // [tile] taken: a start's yard, a river's bank, a mine, a tree
     uint8_t *clim;            // [tile] its biome (k_mg_biome)
     uint8_t *marsh;           // [tile] water: 2 the sea's, 1 a river's or a pond's all under water and not frozen (marsh), 0 other inland water
@@ -110,7 +112,7 @@ struct mg {
     int sx[MG_PLAYERS], sy[MG_PLAYERS];   // their starts (a tile corner: the Capitol's middle)
     struct { int x, y; } spot[MG_SPOTS];  // the mines', forests' and herds' places: kept apart from each other
     int nspot;
-    int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_shore[MG_BIOMES], tex_deep, tex_marsh, tex_rock, tex_pebbles;
+    int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_shore[MG_BIOMES], tex_deep, tex_marsh, tex_pebbles;
     int tree[MG_BIOMES][6], ntree[MG_BIOMES], grove[MG_BIOMES][6], ngrove[MG_BIOMES], animal[MG_BIOMES][4], nanimal[MG_BIOMES];   // the biomes' types the data has
     struct { int x, y; } spring[16];      // the rivers' springs: apart from each other
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
@@ -188,6 +190,11 @@ internal void mg_coast(const struct mg *g, int x, int y, float *beach, float *wi
 // steps is one), down again to the plain 3 .. 12 tiles behind
 internal float mg_bluff(float f, float at) { return 1.8f * mg_step(at, at + 0.8f, f) * (1 - mg_step(at + 3, at + 12, f)); }
 internal float mg_start_dist(const struct mg *g, float x, float y);
+// the temperature at a place before its height: cold (under -0.3) in the far north, hot (over 0.3) in the near south,
+// pushed about by a noise
+internal float mg_temp(const struct mg *g, int x, int y) {
+    return (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f;
+}
 // A MOUNTAIN RANGE (the player 2026-11-24: "cliffs, mountain ranges, rivers flowing from the mountains, increased
 // chance for mine in mountains"; then, of the first ones - 5 steps high, in terraces -: "the mountains inland still
 // need some work, they should also be a lot higher to justify the snow"): a line from a point well inside the land of
@@ -196,7 +203,10 @@ internal float mg_start_dist(const struct mg *g, float x, float y);
 // mountain along it: a crest up to 14 steps high - peaks of half to the whole of that by a noise along the line,
 // lower towards its ends -, falling to the plain 10 - 15 tiles to either side, steeply by the crest (cliffs) and
 // gently at its foot (to walk and build on); a pass every 30 - 45 tiles of the line, the crest down to a fifth there:
-// a saddle to walk over. tight 0 .. 3: a small map's - the starts 3 and 2 tiles nearer for each.
+// a saddle to walk over. tight 0 .. 3: a small map's - the starts 3 and 2 tiles nearer for each. A range has one
+// cliff type, by the temperature at its middle (the player 2026-11-24, of mountains with the cold biomes' cliffs on
+// top and the default below: "try to stick to a single cliff type"): the winter's but in the hot south, where it is
+// the default's and the mountain bare of snow.
 #define MG_PEAK 14.0f
 internal int mg_range(struct mg *g, int continent, int tight) {
     float px[128], py[128];
@@ -212,7 +222,7 @@ internal int mg_range(struct mg *g, int continent, int tight) {
         if (mg_f(g, (int)floorf(x + nx + 0.5f), (int)floorf(y + ny + 0.5f)) < 7 || mg_start_dist(g, x + nx, y + ny) < (float)(20 - 2 * tight)) break;
         dx = nx; dy = ny; x += nx; y += ny;
     }
-    if (len < g->n / 12) return 0;
+    if (len < g->n / 12 || g->ranges >= 15) return 0;
     int pass[6], npass = 0;
     for (int at = mg_int(g, 10, 18); at < len - 8 && npass < 6; at += mg_int(g, 30, 45)) pass[npass++] = at;
     for (int i = 0; i < len; i++) {
@@ -226,9 +236,10 @@ internal int mg_range(struct mg *g, int continent, int tight) {
                 if (!mg_corner(g, cx, cy)) continue;
                 float ex = (float)cx - px[i], ey = (float)cy - py[i], s = 1 - sqrtf(ex * ex + ey * ey) / wide;
                 float v = s > 0 ? top * s * s * sqrtf(sqrtf(s)) : 0;   // (1 - d / wide) ^ 2.25: a sharp crest, a flat foot
-                if (v > g->mt[cy * g->m + cx]) g->mt[cy * g->m + cx] = v;
+                if (v > g->mt[cy * g->m + cx]) { g->mt[cy * g->m + cx] = v; g->range[cy * g->m + cx] = (uint8_t)(g->ranges + 1); }
             }
     }
+    g->range_cliffs[g->ranges] = mg_temp(g, (int)px[len / 2], (int)py[len / 2]) > 0.3f ? CLIFFS_DEFAULT : CLIFFS_WINTER;
     return 1;
 }
 // THE HEIGHTS. The plain shore rises 0.3 steps a tile to the plain at 1 step, the sea falls as gently to 5 steps
@@ -379,7 +390,8 @@ internal void mg_biomes(struct mg *g) {
         for (int x = 0; x < n; x++) {
             float lo = 0, hi = 0;
             mg_tile_span(g, x, y, &lo, &hi);
-            float temp = (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f - fmaxf(0, hi - 2.0f) * 0.07f;
+            int bare = g->range[y * g->m + x] && g->range_cliffs[g->range[y * g->m + x] - 1] != CLIFFS_WINTER;   // a hot range: no snow up there
+            float temp = mg_temp(g, x, y) - (bare ? 0 : fmaxf(0, hi - 2.0f) * 0.07f);
             float by_water = 1 - (float)(wd[y * n + x] < 7 ? wd[y * n + x] : 7) / 7.0f;
             float wet = 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f + 0.22f * by_water;
             int b = (temp < -0.3f ? 0 : temp > 0.3f ? 2 : 1) * 3 + (wet < 0.4f ? 0 : wet > 0.6f ? 2 : 1);
@@ -395,8 +407,9 @@ internal void mg_biomes(struct mg *g) {
 // the marshland like that, but instead of sand used for inland rivers and lakes could look quite good, just not as an
 // extra border around the beach"; then: "only use marshland underwater ... use biome appropriate texture for river
 // shores") - on tiles all under water, a tile the water's edge runs through has the biome's ground. A wide beach has
-// its sand on the land too, a rocky coast pebbles, a mountain rock where it isn't snowed on (up there it is colder:
-// mg_biomes); cliffs get theirs from the game's cliff pass.
+// its sand on the land too, a rocky coast pebbles; a mountain's walkable ground is its biome's (up there it is
+// colder: mg_biomes - a rock texture of its own beside the cliffs "comes off weird", the player 2026-11-24); cliffs
+// get theirs from the game's cliff pass.
 // A texture gives its tiles their kind (ee_terrain.kind: what may stand and walk there - the land textures have kinds
 // of their own, Grass 0). A name the data hasn't got, or a land texture whose kind is water's or a cliff's: the
 // biome's plain one, Grass for that - told in the log.
@@ -437,9 +450,7 @@ internal void mg_textures_load(struct mg *g) {
     }
     MG_TEX(g->tex_deep, "Underwater", 0);
     MG_TEX(g->tex_marsh, "Marsh", 0);
-    MG_TEX(g->tex_rock, "Rock1", 1);
     MG_TEX(g->tex_pebbles, "Pebbles - Small", 1);
-    if (g->tex_rock < 0) g->tex_rock = g->tex_pebbles;
     if (g->tex_deep < 0) g->tex_deep = def;
 #undef MG_TEX
     if (g_log && (bad || g->types_missing))
@@ -464,10 +475,9 @@ internal void mg_textures(struct mg *g) {
                 else if (hi < 0) tex = g->tex_beach[b];
                 g->water++;
             } else {
-                // a wide beach's sand on the land, a rocky coast's pebbles, the mountains' rock where it isn't snowed on
+                // a wide beach's sand on the land, a rocky coast's pebbles
                 if (beach > 0.5f && f < width && g->tex_shore[b] >= 0) tex = g->tex_shore[b];
                 else if (rocky > 0.5f && f < 2.5f && b >= 3 && g->tex_pebbles >= 0) tex = g->tex_pebbles;
-                else if (g->mt[y * g->m + x] > 3.0f && b >= 3 && g->tex_rock >= 0) tex = g->tex_rock;
                 g->land++;
                 g->biome_tiles[b]++;
                 g->mountain += g->mt[y * g->m + x] > 2.0f;
@@ -646,12 +656,13 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         g->f = calloc((size_t)(g->m * g->m), sizeof *g->f);
         g->h = calloc((size_t)(g->m * g->m), sizeof *g->h);
         g->mt = calloc((size_t)(g->m * g->m), sizeof *g->mt);
+        g->range = calloc((size_t)(g->m * g->m), 1);
         g->used = calloc((size_t)(n * n), 1);
         g->clim = calloc((size_t)(n * n), 1);
         g->marsh = calloc((size_t)(n * n), 1);
         z = calloc((size_t)(g->m * g->m), sizeof *z);
     }
-    if (!g || !g->f || !g->h || !g->mt || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
+    if (!g || !g->f || !g->h || !g->mt || !g->range || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
         notice("mapgen", "the map type \"%s\" could not be made (%d players, %d tiles a side) - an empty map instead", MG_NAME, count - 1, n);
         start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
         return 0;
@@ -671,11 +682,12 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     mg_biomes(g);
     mg_textures_load(g);
     mg_textures(g);
-    // the cliffs, a row's runs of one type at a time: snowed on in the cold biomes (a mountain's top: the height makes
-    // it cold), the red rock in the hot biomes' mountains, the data's default else
+    // the cliffs, a row's runs of one type at a time: a mountain's all of its range's type, the others (the coasts')
+    // the winter's in the cold biomes and the data's default else
     for (int y = 0; y < n; y++)
         for (int x = 0, x0 = 0, type = -1; x <= n; x++) {
-            int t = x == n ? -1 : g->clim[y * n + x] < 3 ? CLIFFS_WINTER : g->clim[y * n + x] >= 6 && g->mt[y * g->m + x] > 0.5f ? CLIFFS_ROCKY : CLIFFS_DEFAULT;
+            int r = x < n && g->mt[y * g->m + x] > 0.3f ? g->range[y * g->m + x] : 0;
+            int t = x == n ? -1 : r ? g->range_cliffs[r - 1] : g->clim[y * n + x] < 3 ? CLIFFS_WINTER : CLIFFS_DEFAULT;
             if (t == type) continue;
             if (type >= 0) map_cliffs_run(map, x0, x, y, type);
             x0 = x; type = t;
@@ -707,7 +719,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "\n");
         LeaveCriticalSection(&g_lock);
     }
-    free(z); free(g->f); free(g->h); free(g->mt); free(g->used); free(g->clim); free(g->marsh); free(g);
+    free(z); free(g->f); free(g->h); free(g->mt); free(g->range); free(g->used); free(g->clim); free(g->marsh); free(g);
     return 0;
 }
 internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int human, void *name, uint32_t seed, ee_map *map, float *start) {
