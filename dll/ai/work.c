@@ -767,7 +767,7 @@ internal void work_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         uint8_t *dq = type_list(um, field_type(fk));
         for (unsigned k = 0, first = dq ? deque_front(dq) : 0, cnt = dq ? deque_count(dq) : 0; k < cnt && nb < WK_BUSHES; k++) {
             ee_unit *f = deque_at(dq, first + k), *st = f ? unit_get_physics(f) : NULL;
-            if (!st || unit_get_hp(f) <= 0 || !unit_get_finished(st) || unit_get_x(f) < 0) continue;
+            if (!st || unit_get_hp(f) <= 0 || !unit_get_finished(st) || unit_get_x(f) < 0 || !field_farmed(field_type(fk))) continue;   // a Robotic Farm farms itself (roles.c)
             unsigned tr = ter_near(unit_get_x(f), unit_get_y(f));
             int c = wk_cost(s, tr);
             if (!c || raiders_near(pl, unit_get_tile(f), 6) || wk_danger(idx, unit_get_tile(f))) continue;

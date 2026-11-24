@@ -264,6 +264,13 @@ internal int bd_spot(ee_player *pl, unsigned idx, int type, ivec2 p, int r0, int
             }
     return found > 0;
 }
+// THE FIELD LINE's type to lay: the newest the game offers this player now - in Art of Conquest's Space Age the Robotic
+// Farm, which farms itself (the player 2026-11-24: Farms were laid where the game no longer let him order one -
+// lay_foundation skips the build menu's test); 0: none
+internal int bd_field_type(ee_player *pl) {
+    for (int k = UT_FIELDS_N - 1; k >= 0; k--) { int t = field_type(k); if (ut_has(t) && prio_buildable(pl, t)) return t; }
+    return 0;
+}
 internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     static ee_unit *freec[384], *built[192], *builder[192], *openb[96], *openw[256], *idlec[384];   // builder: built[]'s citizen   // idlec: citizens with no order (HOLDING THE GROUND - freec has gatherers only)
     static ivec2 fld[512], gran[BD_GRANARIES + 8], def[512];
@@ -533,7 +540,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     for (int k = 0; k < 3; k++) if (b->laid_type[3] == rb[k]) shown[3] = have_rb[k];
     for (int k = 0; k < 6; k++)
         if (wait[k] && !shown[k] && b->laid_type[k] > 0) for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, b->laid_type[k], r);
-    for (int r = 2; r < 7 && ut_has(UT(B_FARM)); r++) com[r] += open_fields * unit_cost(pl, UT(B_FARM), r);
+    int fty = bd_field_type(pl);   // the field it lays (THE FIELD LINE); the room for one: a Farm's footprint (the line's are alike)
+    for (int r = 2; r < 7 && fty; r++) com[r] += open_fields * unit_cost(pl, fty, r);
     memcpy(g_bd_com[idx], com, sizeof com);
     // AN AIRPORT SAVED FOR (below): asked for and not paid - nothing but fields, research and production buildings is laid
     // meanwhile, BD_AP_SAVE at a stretch and then as long not (from the World War an AI's wood stood between 9 and 369 for
@@ -546,18 +554,18 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         ap_save = now - b->ap_save_t < BD_AP_SAVE;
     }
     int placed = 0;
-    if (ut_has(UT(B_FARM)))   // FIELDS
+    if (fty)   // FIELDS
         for (int g = 0; g < ngran && placed < 2 && open_fields < 4; g++)
             for (int fx = -2; fx <= 2 && placed < 2 && open_fields < 4; fx += 2)
                 for (int fy = -2; fy <= 2 && placed < 2 && open_fields < 4; fy += 2) {
                     ivec2 q = iv2(gran[g].x + fx, gran[g].y + fy);
                     int there = !fx && !fy;
                     for (int k = 0; k < nfld && !there; k++) there = fld[k].x == q.x && fld[k].y == q.y;
-                    if (there || !can_place(pl, UT(B_FARM), q) || !bd_pays(pl, UT(B_FARM), com) || raiders_near(pl, q, 8) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
-                    if (!lay_foundation(pl, UT(B_FARM), q.x, q.y)) continue;
+                    if (there || !can_place(pl, fty, q) || !bd_pays(pl, fty, com) || raiders_near(pl, q, 8) || tv_unsafe(idx, q.x, q.y) || wk_danger(idx, q)) continue;
+                    if (!lay_foundation(pl, fty, q.x, q.y)) continue;
                     if (nfld < 512) fld[nfld++] = q;
                     placed++; open_fields++; b->fields++;
-                    for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, UT(B_FARM), r);
+                    for (int r = 2; r < 7; r++) com[r] += unit_cost(pl, fty, r);
                 }
     int fields_due = 0;   // places round its granaries still without a field that could hold one
     for (int g = 0; g < ngran; g++)

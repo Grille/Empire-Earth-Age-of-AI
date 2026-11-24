@@ -10,6 +10,10 @@ internal int is_tower_type(int t) { return ut_role(t, UTR_TOWER) || t == UT(B_TA
 internal int is_citizen_type(int type) { return ut_role(type, UTR_CITIZEN); }
 internal int is_transport(int t) { return ut_role(t, UTR_TRANSPORT); }   // a transport ship (its class)
 internal int is_fishing_boat(int t) { return ut_role(t, UTR_FISHING_BOAT); }
+// THE FIELD LINE: a field a farmer works - its type has food to gather (the Farm). Art of Conquest's Robotic Farm has
+// none: the game pays its food on a timer once it is finished (its building update, type 826: 2 food each period
+// of the type), a farmer there has nothing to do and an empty one is no idle field (the player 2026-11-24)
+internal int field_farmed(int t) { ee_unit_type *td = type_data(t); return is_field_type(t) && td && unit_type_get_resource_type(td) != 0; }
 // a soldier: of an army family, no siege weapon, ram or citizen
 internal int is_soldier(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td), type = unit_type_get_id(td);

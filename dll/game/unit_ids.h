@@ -83,9 +83,10 @@ internal int ut_in(int t, const enum ut_name *set, int n) {   // t one of the na
 #define UT_IN(t, ...) ut_in((t), (const enum ut_name[]){ __VA_ARGS__ }, (int)(sizeof (const enum ut_name[]){ __VA_ARGS__ } / sizeof(enum ut_name)))
 internal int is_field_type(int t) { return UT_IN(t, UT_FIELDS); }   // THE FIELD LINE
 internal int field_type(int k) { static const enum ut_name f[UT_FIELDS_N] = { UT_FIELDS }; return k >= 0 && k < UT_FIELDS_N ? g_ut[f[k]] : UT_NONE; }   // its k-th (k < UT_FIELDS_N; UT_NONE: not in the data)
-internal int field_count(void *um) {   // the unit manager's fields of the line, going up too
+internal int field_farmed(int t);   // roles.c: a farmer works it (not the Robotic Farm)
+internal int field_count(void *um) {   // the unit manager's fields of the line a farmer works, going up too
     int n = 0;
-    for (int k = 0; k < UT_FIELDS_N; k++) { uint8_t *q = type_list(um, field_type(k)); n += q ? (int)deque_count(q) : 0; }
+    for (int k = 0; k < UT_FIELDS_N; k++) { uint8_t *q = field_farmed(field_type(k)) ? type_list(um, field_type(k)) : NULL; n += q ? (int)deque_count(q) : 0; }
     return n;
 }
 

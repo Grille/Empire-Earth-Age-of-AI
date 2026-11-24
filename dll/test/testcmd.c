@@ -158,9 +158,9 @@ internal void cmd_tinfo(char *out, const char *args) {
         ee_unit_type *td = type_data(t);
         if (!td) { REPLY("%d: none\n", t); continue; }
         int k = unit_type_get_weapon(td);   // hit factors: its weapon against ships (9 frigates, 21 battleships) and space (56 capital ships, 57 fighters, 58 corvettes)
-        REPLY("%d: family %d hp %d attack %d range %.1f size %d can %d resource %d hit category %d weapon %d vs 9/21 %.2f/%.2f vs 56/57/58 %.2f/%.2f/%.2f (%s)\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
+        REPLY("%d: family %d hp %d attack %d range %.1f size %d can %d offered %d resource %d hit category %d weapon %d vs 9/21 %.2f/%.2f vs 56/57/58 %.2f/%.2f/%.2f (%s)\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
               unit_type_get_attack(td), unit_type_get_range(td), unit_type_get_size(td),
-              can_build(pl, t), unit_type_get_resource_type(td), unit_type_get_family(td), k, nv_f(k, NV_C_FRIG), nv_f(k, NV_C_LINE),
+              can_build(pl, t), prio_buildable(pl, t), unit_type_get_resource_type(td), unit_type_get_family(td), k, nv_f(k, NV_C_FRIG), nv_f(k, NV_C_LINE),
               nv_f(k, NV_S_LINE), nv_f(k, NV_S_FIGHTER), nv_f(k, NV_S_FRIG), unit_type_get_name(td) ? unit_type_get_name(td) : "?");
     }
 }

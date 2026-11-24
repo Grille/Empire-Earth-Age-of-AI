@@ -56,7 +56,10 @@ internal void cg_track(unsigned idx, ee_unit *u, uint32_t now) {   // a producti
     int *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u);
     cg_note(idx, u, unit_get_producing(u) || (qb && qe > qb), now);
 }
-internal void cg_track_field(unsigned idx, ee_unit *u, uint32_t now) { cg_note(idx, u, site_gatherers(u) > 0, now); }   // a field: a farmer on it
+internal void cg_track_field(unsigned idx, ee_unit *u, uint32_t now) {   // a field: a farmer on it, a Robotic Farm always (roles.c field_farmed)
+    ee_unit_type *td = unit_get_type_data(u);
+    cg_note(idx, u, (td && !field_farmed(unit_type_get_id(td))) || site_gatherers(u) > 0, now);
+}
 internal int cg_idle(unsigned idx, ee_unit *u, uint32_t now) {
     struct cg_st *c = &g_cg[idx];
     uint32_t sn = (uint32_t)unit_get_serial(u);
