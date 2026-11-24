@@ -14,9 +14,13 @@
 //     it); none within XP_SPREAD of another explorer's goal, none under an enemy tower it has seen (work.c wk_danger),
 //     none where one gave up lately (not reached in XP_GIVE_UP: a cliff, a wall) for XP_FORGET.
 //   THE FOOD SEARCH - while citizens wanted on food find no site (work.c food_short), that many more of its free
-//     citizens - the idle first, then the woodcutters - explore from their nearest drop site, XP_HOME_R tiles out at
-//     most: in the Prehistoric age with no food worked at all as many as there are (the player's own start), else
-//     XP_CIT_MAX. A look with every food citizen placed gives half of them back to work.
+//     citizens - the idle first, then the woodcutters - explore from their nearest drop site, within XP_HOME_R tiles
+//     first, then anywhere on their land: in the Prehistoric age with no food worked at all as many as there are (the
+//     player's own start), else XP_CIT_MAX. A look with every food citizen placed gives half of those out XP_FOOD_MIN
+//     back to work; one back with nothing left to go to on its land (all explored, or the dark beyond reach: under a
+//     tower, given up) holds the search for XP_FORGET (until 2026-11-24 the search stopped at XP_HOME_R, and each
+//     explorer with nothing left inside it was sent back to stand idle - and taken again at the next look: food further
+//     out was never found).
 //   THE BASE SCOUT - from XP_DOG_CITS citizens on (before that the food search explores: the scout's 50 food is a
 //     citizen's), while unexplored land lies within XP_SCOUT_R of a town of its, one Canine Scout (the player's
 //     "scouting dog": 50 food at a Town Center or Capitol, 0.8 fast against a citizen's 0.5, sight 4 against 3) is
@@ -47,14 +51,16 @@
 #define XP_UNITS 32
 #define XP_BAD 16
 #define XP_CAND 24
+#define XP_ROUNDS 16
+#define XP_FOOD_MIN 60000
 #define XP_STALE 300000   // a part of a territory looked at this long ago is looked at again (xp_stale)
-struct xp_unit { ee_unit *u; int id; uint8_t kind; ivec2 goal, base; uint32_t since; };   // kind 1 the food search, 2 the base scout (a citizen), 3 a Canine Scout (base: its town); since: its goal since then
+struct xp_unit { ee_unit *u; int id; uint8_t kind; ivec2 goal, base; uint32_t since, taken; };   // kind 1 the food search, 2 the base scout (a citizen), 3 a Canine Scout (base: its town); since: its goal since then; taken: an explorer since then
 internal struct xp_st {
     ee_map *map; int size, n, dark; uint16_t *left; int scan;   // dark: cells with tiles unexplored
-    uint32_t t, log_t, dog_t, dog_ok, step_t;   // step_t: THE NEXT GOAL AT ONCE's last step   // dog_t: a Canine Scout ordered then, dog_ok: one paid then (in training: XP_DOG_WAIT before the next)
+    uint32_t t, log_t, dog_t, dog_ok, step_t, food_done;   // step_t: THE NEXT GOAL AT ONCE's last step   // dog_t: a Canine Scout ordered then, dog_ok: one paid then (in training: XP_DOG_WAIT before the next)   // food_done: THE FOOD SEARCH's last explorer back with its land explored
     int nu; struct xp_unit u[XP_UNITS];
     int nbad; ivec2 bad[XP_BAD]; uint32_t bad_t[XP_BAD];
-    unsigned sent, back, gave_up, goals, scouts, dog_asks, dogs, steps;
+    unsigned sent, back, gave_up, goals, scouts, dog_asks, dogs, steps, food_holds;
 } g_xp[16];
 internal uint8_t g_xp_ter[16][PR_T];   // the territories with cells it hasn't all explored (xp_count)
 
@@ -134,35 +140,42 @@ internal int xp_goal(unsigned idx, ee_player *pl, ivec2 p, ivec2 base, int rmax,
     for (int k = 0; k < e->nu; k++) if (e->u[k].u != self && e->u[k].goal.x >= 0) avoid[na++] = e->u[k].goal;
     for (int k = 0; k < e->nbad; k++) if (now >= e->bad_t[k] && now - e->bad_t[k] < XP_FORGET) avoid[na++] = e->bad[k];
     struct { int c; float s; } cand[XP_CAND];
-    int nc = 0;
-    float rr = rmax > 0 ? (float)(rmax + XP_CELL) : 0;
-    for (int c = 0; c < e->n * e->n; c++) {
-        if (!e->left[c]) continue;
-        ivec2 cc = iv2(c % e->n * XP_CELL + XP_CELL / 2, c / e->n * XP_CELL + XP_CELL / 2);
-        float db = sqrtf((float)ivec2_dist2(cc, base)), s = db + 0.5f * sqrtf((float)ivec2_dist2(cc, p));
-        if (rmax > 0 && db > rr) continue;
-        if (ter >= 0 && ter_near(cc.x, cc.y) != (unsigned)ter && ter_near(cc.x - XP_CELL / 2, cc.y - XP_CELL / 2) != (unsigned)ter &&
-            ter_near(cc.x + XP_CELL / 2 - 1, cc.y + XP_CELL / 2 - 1) != (unsigned)ter) continue;
-        if (nc == XP_CAND && s >= cand[nc - 1].s) continue;
-        int j = nc < XP_CAND ? nc++ : nc - 1;
-        while (j > 0 && cand[j - 1].s > s) { cand[j] = cand[j - 1]; j--; }
-        cand[j].c = c; cand[j].s = s;
-    }
-    for (int i = 0; i < nc; i++) {
-        int x0 = cand[i].c % e->n * XP_CELL, y0 = cand[i].c / e->n * XP_CELL, best = -1, bd = 0;
-        for (int y = y0 - 1; y <= y0 + XP_CELL; y++)   // the cell and the ring round it: a dark cell's edge lies in its neighbour
-            for (int x = x0 - 1; x <= x0 + XP_CELL; x++) {
-                if (!xp_edge(tiles, e->size, pi, x, y)) continue;
-                ivec2 q = iv2(x, y);
-                if (area_id(q, 2) != land || (rmax > 0 && ivec2_dist2(q, base) > rmax * rmax)) continue;
-                if (ter >= 0 && ter_near(x, y) != (unsigned)ter) continue;
-                int close = 0;
-                for (int a = 0; a < na && !close; a++) close = ivec2_dist2(q, avoid[a]) < XP_SPREAD * XP_SPREAD;
-                if (close || wk_danger(idx, q)) continue;
-                int d = ivec2_dist2(q, p);
-                if (best < 0 || d < bd) { best = y * e->size + x; bd = d; }
-            }
-        if (best >= 0) { *out = iv2(best % e->size, best / e->size); return 1; }
+    float rr = rmax > 0 ? (float)(rmax + XP_CELL) : 0, past = -1.0f;
+    // the dark cells nearest first, XP_CAND at a time: none of them with an edge to go to (water, another land, avoided,
+    // under a tower), the next XP_CAND further out - XP_ROUNDS times (until 2026-11-24 the nearest XP_CAND alone: on a
+    // big map they lay over the sea, and land further out was never a goal)
+    for (int round = 0; round < XP_ROUNDS; round++) {
+        int nc = 0;
+        for (int c = 0; c < e->n * e->n; c++) {
+            if (!e->left[c]) continue;
+            ivec2 cc = iv2(c % e->n * XP_CELL + XP_CELL / 2, c / e->n * XP_CELL + XP_CELL / 2);
+            float db = sqrtf((float)ivec2_dist2(cc, base)), s = db + 0.5f * sqrtf((float)ivec2_dist2(cc, p));
+            if ((rmax > 0 && db > rr) || s <= past) continue;
+            if (ter >= 0 && ter_near(cc.x, cc.y) != (unsigned)ter && ter_near(cc.x - XP_CELL / 2, cc.y - XP_CELL / 2) != (unsigned)ter &&
+                ter_near(cc.x + XP_CELL / 2 - 1, cc.y + XP_CELL / 2 - 1) != (unsigned)ter) continue;
+            if (nc == XP_CAND && s >= cand[nc - 1].s) continue;
+            int j = nc < XP_CAND ? nc++ : nc - 1;
+            while (j > 0 && cand[j - 1].s > s) { cand[j] = cand[j - 1]; j--; }
+            cand[j].c = c; cand[j].s = s;
+        }
+        for (int i = 0; i < nc; i++) {
+            int x0 = cand[i].c % e->n * XP_CELL, y0 = cand[i].c / e->n * XP_CELL, best = -1, bd = 0;
+            for (int y = y0 - 1; y <= y0 + XP_CELL; y++)   // the cell and the ring round it: a dark cell's edge lies in its neighbour
+                for (int x = x0 - 1; x <= x0 + XP_CELL; x++) {
+                    if (!xp_edge(tiles, e->size, pi, x, y)) continue;
+                    ivec2 q = iv2(x, y);
+                    if (area_id(q, 2) != land || (rmax > 0 && ivec2_dist2(q, base) > rmax * rmax)) continue;
+                    if (ter >= 0 && ter_near(x, y) != (unsigned)ter) continue;
+                    int close = 0;
+                    for (int a = 0; a < na && !close; a++) close = ivec2_dist2(q, avoid[a]) < XP_SPREAD * XP_SPREAD;
+                    if (close || wk_danger(idx, q)) continue;
+                    int d = ivec2_dist2(q, p);
+                    if (best < 0 || d < bd) { best = y * e->size + x; bd = d; }
+                }
+            if (best >= 0) { *out = iv2(best % e->size, best / e->size); return 1; }
+        }
+        if (nc < XP_CAND) return 0;   // every dark cell in reach looked at
+        past = cand[nc - 1].s;
     }
     return 0;
 }
@@ -211,7 +224,9 @@ internal ivec2 xp_base(unsigned pi, ivec2 p) {
 internal int xp_send(unsigned idx, ee_player *pl, struct xp_unit *m, uint32_t now) {
     ivec2 p = unit_get_tile(m->u), g;
     ivec2 base = m->kind >= 2 ? m->base : xp_base(idx & 15, p);
-    if (!xp_goal(idx, pl, p, base, m->kind == 1 ? XP_HOME_R : m->kind == 2 ? XP_SCOUT_R : 0, -1, m->u, &g)) return 0;
+    // THE FOOD SEARCH WIDENS: within XP_HOME_R of its drop site first, then anywhere on its land
+    if (!xp_goal(idx, pl, p, base, m->kind == 1 ? XP_HOME_R : m->kind == 2 ? XP_SCOUT_R : 0, -1, m->u, &g) &&
+        (m->kind != 1 || !xp_goal(idx, pl, p, base, 0, -1, m->u, &g))) return 0;
     if (!unit_goal(m->u, goal_move((float)g.x + 0.5f, (float)g.y + 0.5f), 0, 0x1F40)) return 0;
     m->goal = g; m->since = now ? now : 1;
     g_xp[idx & 15].goals++;
@@ -241,7 +256,7 @@ internal int xp_take(unsigned idx, ee_player *pl, int kind, ivec2 at, ivec2 base
         if (!best) continue;
         struct xp_unit *m = &e->u[e->nu];
         memset(m, 0, sizeof *m);
-        m->u = best; m->id = (int)unit_get_serial(best); m->kind = (uint8_t)kind; m->goal = iv2(-1, -1); m->base = base;
+        m->u = best; m->id = (int)unit_get_serial(best); m->kind = (uint8_t)kind; m->goal = iv2(-1, -1); m->base = base; m->taken = now ? now : 1;
         if (!xp_send(idx, pl, m, now)) return 0;   // nothing to explore for it: it stays at work
         cl_take(best, CLP_ROUTINE, CLW_EXPLORE, XP_CLAIM_T);
         e->nu++;
@@ -279,7 +294,8 @@ internal void xp_goals(ee_player *pl, unsigned idx, uint32_t now) {
         m->goal = iv2(-1, -1);
         if (xp_send(idx, pl, m, now)) continue;
         m->since = now ? now : 1;
-        if (m->kind < 3) { e->back += m->kind == 1; xp_release(e, k, 1); }   // nothing left for it: back to work (a Canine Scout waits)
+        if (m->kind == 1) { e->back++; e->food_done = now ? now : 1; }   // nothing left to go to on its land: THE FOOD SEARCH holds
+        if (m->kind < 3) xp_release(e, k, 1);   // nothing left for it: back to work (a Canine Scout waits)
     }
 }
 
@@ -325,13 +341,21 @@ internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     for (int k = 0; k < e->nu; k++) nfood += e->u[k].kind == 1;
     if (w->t && e->dark) {
         int all = current_epoch(pl) == 0 && w->have[2] == 0, cap = all ? XP_UNITS - 2 : XP_CIT_MAX;
-        if (w->food_short > 0 && nfood < cap) {
+        // THE FOOD SEARCH HOLDS: an explorer of it came back with nothing left to go to - none taken for XP_FORGET,
+        // the time a goal it gave up is avoided (the player 2026-11-24: with no food on the map citizens were sent off
+        // and called back to stand idle every look, 670 times in a game)
+        int hold = e->food_done && now >= e->food_done && now - e->food_done < XP_FORGET;
+        if (w->food_short > 0 && nfood < cap && hold) e->food_holds++;
+        else if (w->food_short > 0 && nfood < cap) {
             int want = w->food_short < cap - nfood ? w->food_short : cap - nfood;
             ivec2 at = g_drops[idx].n ? g_drops[idx].d[0].p : iv2(0, 0);
             for (; want > 0 && xp_take(idx, pl, 1, at, at, now); want--) { nfood++; e->sent++; }
         } else if (w->food_short <= 0 && nfood > 0) {   // every food citizen placed: half of them back to work
+            // THE TASK KEPT: one out less than XP_FOOD_MIN goes on - the shortage comes and goes with citizens starting
+            // and finishing a building, and each time it was naught half of them came back to be sent again at the
+            // next (Continental from the first epoch: 106 sent and 106 back in 24 minutes)
             for (int k = e->nu - 1, give = (nfood + 1) / 2; k >= 0 && give > 0; k--)
-                if (e->u[k].kind == 1) { xp_release(e, k, 1); give--; e->back++; }
+                if (e->u[k].kind == 1 && (!e->u[k].taken || now < e->u[k].taken || now - e->u[k].taken >= XP_FOOD_MIN)) { xp_release(e, k, 1); give--; e->back++; }
         }
     }
     // THE BASE SCOUT: its Canine Scouts (each one a scout, round its nearest town); none and unexplored land within
@@ -392,7 +416,7 @@ internal void explore_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                 if (!t || !area_id(iv2(x, y), 2)) continue;
                 land++; land_dark += !xp_known(t, idx);
             }
-        log_locked("# explore: P%u at %.1f min: land tiles unexplored %d of %d, cells %d of %d | the food search %d citizens out (food short %d), %u sent, %u back | Canine Scouts %d (%u so far, orders refused %u) | a citizen as the base scout %d (%u so far) | %u goals, %u given up, %u steps\n",
-                   idx, now / 60000.0, land_dark, land, e->dark, e->n * e->n, nfood, w->food_short, e->sent, e->back, dogs, e->dogs, e->dog_asks, scouts, e->scouts, e->goals, e->gave_up, e->steps);
+        log_locked("# explore: P%u at %.1f min: land tiles unexplored %d of %d, cells %d of %d | the food search %d citizens out (food short %d), %u sent, %u back, %u looks held (nothing left to go to) | Canine Scouts %d (%u so far, orders refused %u) | a citizen as the base scout %d (%u so far) | %u goals, %u given up, %u steps\n",
+                   idx, now / 60000.0, land_dark, land, e->dark, e->n * e->n, nfood, w->food_short, e->sent, e->back, e->food_holds, dogs, e->dogs, e->dog_asks, scouts, e->scouts, e->goals, e->gave_up, e->steps);
     }
 }
