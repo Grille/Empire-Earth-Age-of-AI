@@ -62,6 +62,12 @@ internal inline int *map_space_tiles_at(const ee_map *o) { return (int *)((uint8
 internal inline int map_get_default_terrain(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_default_terrain); }
 internal inline void map_set_default_terrain(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_default_terrain) = v; }
 internal inline int *map_default_terrain_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_default_terrain); }
+// the map's cliff type: its place in db\dbcliffterrain.dat (enum cliff_type; a new map's 0) - what the cliff pass
+// (0x512FB0, AoC 0x51D5E8) reads for the textures it lays: the type's record's range of ee_terrain indices
+// (+0x14 .. +0x18 of it, from the table 0x8D1FC0, AoC 0x8E86C0)
+internal inline int map_get_cliff_type(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_cliff_type); }
+internal inline void map_set_cliff_type(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_cliff_type) = v; }
+internal inline int *map_cliff_type_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_cliff_type); }
 // a step of the ground's height, the same on every map (0.408, 1 / sqrt 6): 0x512FB0, its pair AoC 0x51D5E8
 internal inline float map_get_height_step(const ee_map *o) { return *(float *)((uint8_t *)o + of_map_height_step); }
 internal inline void map_set_height_step(ee_map *o, float v) { *(float *)((uint8_t *)o + of_map_height_step) = v; }
@@ -434,8 +440,12 @@ internal inline uint8_t *map_color_types_at(void) { return (uint8_t *)(uintptr_t
 // draw; a camera move, an edit of the ground clear it (10 writers). Cleared, a changed colour shows at the next frame
 internal inline uint8_t *map_terrain_current_at(void) { return (uint8_t *)(uintptr_t)data_map_terrain_current; }
 
-// static class map_functions
+// class cliff_type (enum cliff_type)
 // the game's functions map.c wraps, by the names the C side gives them
+// EEMap.cliff_type: db\dbcliffterrain.dat's records in their order (the same three in both games' data) -
+// DefaultCliff (the textures Cliff), WinterCliff (Cliffwinter), RockyCliff (CliffRock)
+
+// static class map_functions
 // a colour type by its id (map.color_types; NULL past the end)
 typedef ee_color_type *(__cdecl *color_type_fn)(uint32_t);
 internal color_type_fn fn_color_type;
@@ -462,6 +472,7 @@ internal int spec_map_select(int build) {
         of_map_view_rows = 0x17B598;
         of_map_space_tiles = NA;
         of_map_default_terrain = 0x181734;
+        of_map_cliff_type = 0x181740;
         of_map_height_step = 0x1816D8;
         of_map_tiles = 0x1816D4;
         of_map_edge_sum = 0x1816EC;
@@ -579,6 +590,7 @@ internal int spec_map_select(int build) {
         of_map_view_rows = 0x18F49C;
         of_map_space_tiles = 0x18F4A0;
         of_map_default_terrain = 0x195650;
+        of_map_cliff_type = 0x19565C;
         of_map_height_step = 0x1955F4;
         of_map_tiles = 0x1955F0;
         of_map_edge_sum = 0x195608;

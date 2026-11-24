@@ -756,12 +756,17 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   cliff behind) some just rocky coasts"): a wide beach nearly flat for 2 - 6 tiles with its sand on the land, some
   with a bluff of 1.8 steps behind; a rocky coast 1.8 steps up out of deep water at once (cliffs: a tile whose
   corners differ by 1.5 steps - the game's cliff pass gives them their texture and no way through); else the plain
-  shore. Mountain ranges (mg_range): 2 + n/100 lines laid by turns on the continents, n/6 .. n/3 tiles long, 5 steps
-  high, 8 - 13 tiles to either side, off the shore and the starts; their sides two terraces of 2.5 steps, a cliff
-  before each in 6 parts of 10 and a slope to walk up in the rest; rock where the biome isn't a cold one (the
-  height makes it colder: snow on top). Rivers first from springs at the ranges' feet; a mine (gold, iron, stone by
-  turns) per 90 tiles of those feet whatever the biome; nothing is placed above the first terrace (it may be out of
-  reach). Small and tiny maps have no room for a range between shore and starts. A texture gives its tiles their kind (ee_terrain.kind,
+  shore. Mountain ranges (mg_range): 2 + n/100 lines laid by turns on the continents, n/6 .. n/3 tiles long,
+  off the shore and the starts; a crest up to 14 steps high (the player: "a lot higher to justify the snow" - the
+  first ones had 5, in terraces), peaks along it, steep by the crest (cliffs) and gentle at its foot, 10 - 15 tiles
+  to either side, a pass (a saddle to walk over) every 30 - 45 tiles. The height makes it colder (0.07 of the
+  temperature a step above 2): the snow line is at some 6 steps in the mild middle, none in the hot south. The
+  cliffs by the game's cliff pass, which lays the textures of the map's one cliff type (EEMap.cliff_type, its place
+  in db\dbcliffterrain.dat: DefaultCliff, WinterCliff, RockyCliff): run a row's run of tiles at a time with the type
+  set for it (map_cliffs_run) - winter's in the cold biomes, the red rock in the hot biomes' mountains, the default
+  else. Rock (Rock1) on a mountain's walkable ground above 3 steps. Rivers first from springs at the ranges' feet; a
+  mine (gold, iron, stone by turns) per 90 tiles of those feet whatever the biome; nothing is placed higher up a
+  mountain than its lowest 1.4 steps. Small and tiny maps have no room for a range between shore and starts. A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the

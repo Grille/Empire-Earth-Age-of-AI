@@ -64,6 +64,12 @@ unsafe struct EEMap
     [offset((ee)0x181734, (aoc)0x195650), found(c)]
     int32 default_terrain;
 
+    /// the map's cliff type: its place in db\dbcliffterrain.dat (enum cliff_type; a new map's 0) - what the cliff pass
+    /// (0x512FB0, AoC 0x51D5E8) reads for the textures it lays: the type's record's range of ee_terrain indices
+    /// (+0x14 .. +0x18 of it, from the table 0x8D1FC0, AoC 0x8E86C0)
+    [offset((ee)0x181740, (aoc)0x19565C), found(c)]
+    int32 cliff_type;
+
     /// a step of the ground's height, the same on every map (0.408, 1 / sqrt 6): 0x512FB0, its pair AoC 0x51D5E8
     [offset((ee)0x1816D8, (aoc)0x1955F4), found(c)]
     float32 height_step;
@@ -517,6 +523,11 @@ static unsafe class map
 }
 
 /// the game's functions map.c wraps, by the names the C side gives them
+/// EEMap.cliff_type: db\dbcliffterrain.dat's records in their order (the same three in both games' data) -
+/// DefaultCliff (the textures Cliff), WinterCliff (Cliffwinter), RockyCliff (CliffRock)
+[c_prefix("CLIFFS")]
+enum cliff_type : int32 { @default, winter, rocky }
+
 [c_prefix("")]
 static unsafe class map_functions
 {

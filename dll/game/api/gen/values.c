@@ -1313,6 +1313,7 @@ internal uint32_t of_map_corner_rows;
 internal uint32_t of_map_view_rows;
 internal uint32_t of_map_space_tiles;
 internal uint32_t of_map_default_terrain;
+internal uint32_t of_map_cliff_type;
 internal uint32_t of_map_height_step;
 internal uint32_t of_map_tiles;
 internal uint32_t of_map_edge_sum;

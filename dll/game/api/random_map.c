@@ -59,6 +59,16 @@ internal void map_ground_set(ee_map *map, const float *h) {
         for (int x = 0; x < n; x++)
             if (tiles[y * n + x]) mesh_compute_shorelines(mesh, (unsigned long)x, (unsigned long)y);
 }
+// THE CLIFFS of a run of a row's tiles (x_lo .. x_hi - 1 of row y), of one of the data's cliff types (CLIFFS_*): the
+// game's cliff pass over them with the map's cliff type set to it for the call - the pass knows one type a map, a map
+// of the mod's has snowed-on cliffs in the cold and rock in the mountains. Rows from 0 up, a row's runs from the left:
+// the pass textures a steep tile's block towards the lower x and y.
+internal void map_cliffs_run(ee_map *map, int x_lo, int x_hi, int y, int type) {
+    int was = map_get_cliff_type(map);
+    map_set_cliff_type(map, type);
+    map_cliff_pass(map, (uint32_t)x_lo, (uint32_t)x_hi, y, y + 1);
+    map_set_cliff_type(map, was);
+}
 // a ground texture's index by its name in the data ("Grass", "Underwater"), -1: none
 internal int terrain_named(const char *name) {
     for (uint32_t i = 0; i < 256; i++) {

@@ -189,13 +189,15 @@ internal void mg_coast(const struct mg *g, int x, int y, float *beach, float *wi
 internal float mg_bluff(float f, float at) { return 1.8f * mg_step(at, at + 0.8f, f) * (1 - mg_step(at + 3, at + 12, f)); }
 internal float mg_start_dist(const struct mg *g, float x, float y);
 // A MOUNTAIN RANGE (the player 2026-11-24: "cliffs, mountain ranges, rivers flowing from the mountains, increased
-// chance for mine in mountains"): a line from a point well inside the land of the continent asked for (10 tiles, 24
-// from any start), a tile a step, turned a little at random each step, n/6 .. n/3 tiles long or until it comes within
-// 7 tiles of the shore or 20 of a start (shorter than n/12: none); the mountain up to 5 steps high along it, lower
-// towards its ends, falling to the plain 8 - 13 tiles to either side. tight 0 .. 3: a small map's - the starts 3 and
-// 2 tiles nearer for each.
-#define MG_PEAK 5.0f
-#define MG_TERRACE 2.5f
+// chance for mine in mountains"; then, of the first ones - 5 steps high, in terraces -: "the mountains inland still
+// need some work, they should also be a lot higher to justify the snow"): a line from a point well inside the land of
+// the continent asked for (10 tiles, 24 from any start), a tile a step, turned a little at random each step, n/6 ..
+// n/3 tiles long or until it comes within 7 tiles of the shore or 20 of a start (shorter than n/12: none). The
+// mountain along it: a crest up to 14 steps high - peaks of half to the whole of that by a noise along the line,
+// lower towards its ends -, falling to the plain 10 - 15 tiles to either side, steeply by the crest (cliffs) and
+// gently at its foot (to walk and build on); a pass every 30 - 45 tiles of the line, the crest down to a fifth there:
+// a saddle to walk over. tight 0 .. 3: a small map's - the starts 3 and 2 tiles nearer for each.
+#define MG_PEAK 14.0f
 internal int mg_range(struct mg *g, int continent, int tight) {
     float px[128], py[128];
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), want = mg_int(g, g->n / 6, g->n / 3), len = 0;
@@ -211,12 +213,19 @@ internal int mg_range(struct mg *g, int continent, int tight) {
         dx = nx; dy = ny; x += nx; y += ny;
     }
     if (len < g->n / 12) return 0;
+    int pass[6], npass = 0;
+    for (int at = mg_int(g, 10, 18); at < len - 8 && npass < 6; at += mg_int(g, 30, 45)) pass[npass++] = at;
     for (int i = 0; i < len; i++) {
-        float wide = 8 + 5 * mg_noise(px[i] * 0.08f, py[i] * 0.08f, g->seed + 60), top = MG_PEAK * (0.35f + 0.65f * mg_step(0, 6, (float)(i < len - 1 - i ? i : len - 1 - i)));
-        for (int cy = (int)py[i] - 14; cy <= (int)py[i] + 14; cy++)
-            for (int cx = (int)px[i] - 14; cx <= (int)px[i] + 14; cx++) {
+        float end = (float)(i < len - 1 - i ? i : len - 1 - i), gap = 99;
+        for (int k = 0; k < npass; k++) gap = fminf(gap, fabsf((float)(i - pass[k])));
+        float wide = 10 + 5 * mg_noise(px[i] * 0.08f, py[i] * 0.08f, g->seed + 60);
+        float top = MG_PEAK * (0.4f + 0.6f * mg_step(0, 5, end)) * (0.5f + 0.5f * mg_noise((float)i * 0.2f, (float)g->ranges * 7.3f, g->seed + 63))
+                    * (0.2f + 0.8f * mg_step(1, 5, gap));
+        for (int cy = (int)py[i] - 16; cy <= (int)py[i] + 16; cy++)
+            for (int cx = (int)px[i] - 16; cx <= (int)px[i] + 16; cx++) {
                 if (!mg_corner(g, cx, cy)) continue;
-                float ex = (float)cx - px[i], ey = (float)cy - py[i], v = top * (1 - mg_step(1.5f, wide, sqrtf(ex * ex + ey * ey)));
+                float ex = (float)cx - px[i], ey = (float)cy - py[i], s = 1 - sqrtf(ex * ex + ey * ey) / wide;
+                float v = s > 0 ? top * s * s * sqrtf(sqrtf(s)) : 0;   // (1 - d / wide) ^ 2.25: a sharp crest, a flat foot
                 if (v > g->mt[cy * g->m + cx]) g->mt[cy * g->m + cx] = v;
             }
     }
@@ -225,8 +234,8 @@ internal int mg_range(struct mg *g, int continent, int tight) {
 // THE HEIGHTS. The plain shore rises 0.3 steps a tile to the plain at 1 step, the sea falls as gently to 5 steps
 // down; a wide beach lies nearly flat for its width (0.08 a tile, the sea before it shallow twice as far), a rocky
 // coast and a beach's bluff are cliffs. Hills of up to 3.5 steps inland, from a second noise. The mountains (the
-// ranges before: g->mt) keep 5 tiles off the shore and 12 off the starts; their sides are two terraces of 2.5 steps
-// with a cliff before each (in 6 parts of 10, by a noise) or a slope to walk up (the rest: the passes).
+// ranges before: g->mt) keep 5 tiles off the shore and 12 off the starts, a noise makes their sides rugged (0.75 ..
+// 1.25 of their height).
 internal void mg_heights(struct mg *g) {
     for (int y = 0; y <= g->n; y++)
         for (int x = 0; x <= g->n; x++) {
@@ -237,10 +246,9 @@ internal void mg_heights(struct mg *g) {
             float h = base + (flat - base) * beach * (1 - mg_step(width, width + 3, f)) + bluff * mg_bluff(f, width) + rocky * mg_bluff(f, 0);
             h += fmaxf(0, hn - 0.56f) / 0.44f * 3.5f * mg_step(5, 14, f);
             float m = g->mt[y * g->m + x] * mg_step(5, 10, f) * mg_step(12, 16, mg_start_dist(g, (float)x, (float)y));
-            float q = mg_step(0.35f, 0.5f, mg_noise((float)x * 0.07f + 11, (float)y * 0.07f + 3, g->seed + 62));
-            float level = floorf(m / MG_TERRACE), t = (level + mg_step(0.75f, 1.0f, m / MG_TERRACE - level)) * MG_TERRACE;
+            m *= 0.75f + 0.5f * mg_fbm((float)x * 0.2f + 31, (float)y * 0.2f + 9, g->seed + 62);
             g->mt[y * g->m + x] = m;
-            g->h[y * g->m + x] = h + m + (t - m) * q;
+            g->h[y * g->m + x] = h + m;
         }
 }
 // THE STARTS: the players by turns on the two continents, a continent's own spread along its length; a start less
@@ -371,7 +379,7 @@ internal void mg_biomes(struct mg *g) {
         for (int x = 0; x < n; x++) {
             float lo = 0, hi = 0;
             mg_tile_span(g, x, y, &lo, &hi);
-            float temp = (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f - fmaxf(0, hi - 2.0f) * 0.2f;
+            float temp = (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f - fmaxf(0, hi - 2.0f) * 0.07f;
             float by_water = 1 - (float)(wd[y * n + x] < 7 ? wd[y * n + x] : 7) / 7.0f;
             float wet = 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f + 0.22f * by_water;
             int b = (temp < -0.3f ? 0 : temp > 0.3f ? 2 : 1) * 3 + (wet < 0.4f ? 0 : wet > 0.6f ? 2 : 1);
@@ -459,17 +467,17 @@ internal void mg_textures(struct mg *g) {
                 // a wide beach's sand on the land, a rocky coast's pebbles, the mountains' rock where it isn't snowed on
                 if (beach > 0.5f && f < width && g->tex_shore[b] >= 0) tex = g->tex_shore[b];
                 else if (rocky > 0.5f && f < 2.5f && b >= 3 && g->tex_pebbles >= 0) tex = g->tex_pebbles;
-                else if (g->mt[y * g->m + x] > 1.5f && b >= 3 && g->tex_rock >= 0) tex = g->tex_rock;
+                else if (g->mt[y * g->m + x] > 3.0f && b >= 3 && g->tex_rock >= 0) tex = g->tex_rock;
                 g->land++;
                 g->biome_tiles[b]++;
-                g->mountain += g->mt[y * g->m + x] > 1.5f;
+                g->mountain += g->mt[y * g->m + x] > 2.0f;
             }
             map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)tex);
         }
 }
 
 // THE WORLD'S OBJECTS. A tile is free for one when it is land of the plain (its corners 0.3 steps up at least and
-// within 0.8 of each other), no cliff, not taken and not up a mountain (below its first terrace: what the plain reaches).
+// within 0.8 of each other), no cliff, not taken and not up a mountain (its foot only: what the plain reaches).
 internal int mg_free(const struct mg *g, int x, int y) {
     float lo, hi;
     return mg_tile_span(g, x, y, &lo, &hi) && !g->used[y * g->n + x] && lo >= 0.3f && hi - lo < 0.8f && g->mt[y * g->m + x] < 1.4f && !tile_is_cliff(mg_tile(g, x, y));
@@ -586,7 +594,7 @@ internal void mg_objects(struct mg *g) {
     for (int j = g->land / 900; j > 0; j--)
         if (mg_anywhere(g, 18, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
     // the mountains' own (the player 2026-11-24: "increased chance for mine in mountains"): a gold, iron or stone
-    // mine by turns per 90 tiles of the ranges' feet (the ground before their first terrace), whatever the biome
+    // mine by turns per 90 tiles of the ranges' feet (their lowest 1.4 steps), whatever the biome
     int foot = 0, turn = 0;
     for (int ty = 0; ty < g->n; ty++)
         for (int tx = 0; tx < g->n; tx++) foot += g->mt[ty * g->m + tx] > 0.3f && g->mt[ty * g->m + tx] < 1.4f;
@@ -663,7 +671,15 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     mg_biomes(g);
     mg_textures_load(g);
     mg_textures(g);
-    map_cliff_pass(map, 0, (uint32_t)n, 0, n);
+    // the cliffs, a row's runs of one type at a time: snowed on in the cold biomes (a mountain's top: the height makes
+    // it cold), the red rock in the hot biomes' mountains, the data's default else
+    for (int y = 0; y < n; y++)
+        for (int x = 0, x0 = 0, type = -1; x <= n; x++) {
+            int t = x == n ? -1 : g->clim[y * n + x] < 3 ? CLIFFS_WINTER : g->clim[y * n + x] >= 6 && g->mt[y * g->m + x] > 0.5f ? CLIFFS_ROCKY : CLIFFS_DEFAULT;
+            if (t == type) continue;
+            if (type >= 0) map_cliffs_run(map, x0, x, y, type);
+            x0 = x; type = t;
+        }
     for (int i = 0; i < n * n; i++) g->cliffs += map_get_tiles(map)[i] && tile_is_cliff(map_get_tiles(map)[i]);
     map_set_flags(map, 1);   // as the game's island maps have it (Continental 0, the island types 1, Plains 2): the players are apart by water
     mg_objects(g);

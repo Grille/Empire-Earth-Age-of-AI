@@ -8,6 +8,11 @@ enum formation_kind : int32_t {
     FORMATION_DEEP_WEDGE, FORMATION_SHALLOW_WEDGE, FORMATION_INWARD_CIRCLE, FORMATION_OUTWARD_CIRCLE
 };
 
+// the game's functions map.c wraps, by the names the C side gives them
+// EEMap.cliff_type: db\dbcliffterrain.dat's records in their order (the same three in both games' data) -
+// DefaultCliff (the textures Cliff), WinterCliff (Cliffwinter), RockyCliff (CliffRock)
+enum cliff_type : int32_t { CLIFFS_DEFAULT, CLIFFS_WINTER, CLIFFS_ROCKY };
+
 // an effect's category (29321) and each category's actions (scen_effect_get_kind)
 enum sm_category : int32_t { SM_CAT_OBJECT = 1, SM_CAT_PLAYER, SM_CAT_TRIGGER, SM_CAT_MEDIA, SM_CAT_GAME, SM_CAT_AI };
 
