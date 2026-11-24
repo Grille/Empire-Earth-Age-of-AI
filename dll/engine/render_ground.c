@@ -96,11 +96,10 @@ internal struct {
     ID3D11ShaderResourceView *srv[2][RG_MATERIALS];   // the ground's and the water's textures as last looked up, a reference held: all a frame under another writer has of them
     uint8_t hmade[RG_MATERIALS];   // the ground's textures' heights are in the borders' array (rgb_height), once each
     float inv_n[RG_MATERIALS];     // a texture's share a tile (1 / the tiles its set repeats it over): its place at a point of the map
-    int16_t canon[RG_MATERIALS];   // its set's first texture's material + 1 (rg_canon; 0 not known)
     int inv_dirty;
-    ID3D11Texture2D *tq;           // THE BORDERS' TABLE: a tile's four corners' textures (rg_quad), the map's size across
+    ID3D11Texture2D *tq;           // THE BORDERS' TABLE: a tile's four corners' textures (rg_quad; R32G32B32A32_UINT), the map's size across
     ID3D11ShaderResourceView *tq_srv;
-    uint16_t (*tqc)[4];            // ... the chunk's being made, from its first tile
+    uint32_t (*tqc)[4];            // ... the chunk's being made, from its first tile
     int tq_x0, tq_y0;
     void *msamp[2][RG_MATERIALS];                     // each material's sampler and stage-0 operations as its SetTexture set them (rg_draw_now)
     int32_t mop[2][RG_MATERIALS][6];
@@ -177,7 +176,6 @@ internal void rg_free(void) {
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
     memset(g_rg.hmade, 0, sizeof g_rg.hmade);
-    memset(g_rg.canon, 0, sizeof g_rg.canon);
     D3D_RELEASE(g_rg.tq_srv);
     D3D_RELEASE(g_rg.tq);
     memset(g_rg.msamp, 0, sizeof g_rg.msamp);   // the cache's: not released
@@ -263,16 +261,16 @@ internal int rg_material(void *tex) {
 // THE SET'S FIRST: a terrain's set is several textures, each over a block of tiles (GETextureSet::GetTexture: by x and y
 // over the tiles a texture covers), and the textures of a tile's corners are the set's for the tile. Two tiles across a
 // block's edge took their border's heights and noise from two textures, and the border broke there in a straight line
-// (the player, 2026-11-24: "ground blending can still have very noticable seams"). The borders go by the set's first
-// texture: its heights, repeating over the whole map, and its noise; what each tile shows and its relief stay its own.
+// (the player, 2026-11-24: "ground blending can still have very noticable seams"). The noise was each texture's own and
+// jumped at every block's edge. The borders' noise and which corners are one terrain go by the set's first texture; the
+// heights stay those of the texture the tile shows (by the first's heights over the whole map the borders no longer
+// followed the cracks of the cobblestones shown - the player, 2026-11-24: "a slight downgrade").
 // m the texture's material; -1 none
 internal int rg_canon(void *set, int m) {
     if (m < 0 || !set) return m;
     void *first = g_rg.tex(set, 0, 0);
     int c = first ? rg_material(first) : m;
-    if (c < 0) c = m;
-    g_rg.canon[m] = (int16_t)(c + 1);   // its heights made with the textures drawn (rg_draw_now)
-    return c;
+    return c < 0 ? m : c;
 }
 // the texture of a cell for the quad at x, y: the quad's own for a cell outside the map or of the same set
 internal void *rg_cell(long cx, long cy, unsigned long x, unsigned long y, unsigned long own, void *own_tex, void **set) {
@@ -513,10 +511,11 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
     if (g_rg.space) rg_space_corners(t, sets, x, y);
     int base = 0;
     for (int i = 1; i < 4; i++) if ((uintptr_t)t[i] < (uintptr_t)t[base]) base = i;
-    // the borders' table (rg_chunk_build): each corner's material and its texture's place among the quad's by address -
-    // the order they are drawn in; none (0) where a corner has no set (a space map's edge): its border by its own heights
+    // the borders' table (rg_chunk_build): each corner's set's first texture's material + 1 (bits 0-10), its texture's
+    // place among the quad's by address - the order they are drawn in (11-12), its texture's own material + 1 (13-23);
+    // none (0) where a corner has no set (a space map's edge): its border by its own heights
     if (g_rg.tqc) {
-        uint16_t *q = g_rg.tqc[(y - (unsigned long)g_rg.tq_y0) * RG_CHUNK + (x - (unsigned long)g_rg.tq_x0)];
+        uint32_t *q = g_rg.tqc[(y - (unsigned long)g_rg.tq_y0) * RG_CHUNK + (x - (unsigned long)g_rg.tq_x0)];
         int cm[4], ok = 1;
         int am[4];
         for (int k = 0; k < 4; k++) { am[k] = rg_material(t[k]); cm[k] = rg_canon(sets[k], am[k]); ok = ok && cm[k] >= 0 && sets[k]; }
@@ -531,7 +530,7 @@ internal int rg_quad(rg_tri *out, unsigned long x, unsigned long y) {
             g_rg.uv(sets[k], 1, 1, uv);   // (1 mod n) / n
             float inv = uv[0] > 0 ? uv[0] : 1.0f;
             if (g_rg.inv_n[cm[k]] != inv || g_rg.inv_n[am[k]] != inv) { g_rg.inv_n[cm[k]] = g_rg.inv_n[am[k]] = inv; g_rg.inv_dirty = 1; }
-            q[k] = (uint16_t)((cm[k] + 1) | rank << 11);
+            q[k] = (uint32_t)(cm[k] + 1) | (uint32_t)rank << 11 | (uint32_t)(am[k] + 1) << 13;
         }
         if (!ok) memset(q, 0, sizeof g_rg.tqc[0]);
     }
@@ -674,7 +673,7 @@ internal void rg_part_make(rg_part *c, rg_tri *tris, int n, int water) {
 internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
     rg_chunk *c = &g_rg.c[cy * g_rg.across + cx];
     unsigned groups = mesh_water_groups(g_rg.mesh);
-    static uint16_t tq[RG_CHUNK * RG_CHUNK][4];
+    static uint32_t tq[RG_CHUNK * RG_CHUNK][4];
     for (int w = 0; w < 2; w++) {
         int n = 0;
         if (!w && g_rg.tq) { memset(tq, 0, sizeof tq); g_rg.tqc = tq; g_rg.tq_x0 = cx * RG_CHUNK; g_rg.tq_y0 = cy * RG_CHUNK; }
@@ -839,7 +838,7 @@ internal int rg_build(void) {
     g_rg.c = calloc((size_t)g_rg.across * (size_t)g_rg.across, sizeof *g_rg.c);
     rg_tri *tris = malloc(sizeof *tris * (size_t)RG_CHUNK * RG_CHUNK * 2 * RG_LAYERS);
     if (!g_rg.c || !tris) { free(tris); rg_free(); return 0; }
-    D3D11_TEXTURE2D_DESC qd = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R16G16B16A16_UINT, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+    D3D11_TEXTURE2D_DESC qd = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R32G32B32A32_UINT, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
     if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &qd, NULL, &g_rg.tq)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.tq, NULL, &g_rg.tq_srv)))
         D3D_RELEASE(g_rg.tq);   // the borders each by its own heights
     LONGLONG t0 = rd_qpc();
@@ -1310,11 +1309,7 @@ internal void rg_draw_now(int water, int again) {
     }
     int nmat = again == 2 ? 0 : water ? (int)mesh_water_groups(g_rg.mesh) : g_rg.nmat;
     if (nmat > RG_MATERIALS) nmat = RG_MATERIALS;
-    if (!water) {
-        want[0] = 1;   // the black round the map: any texture, its colour is 0
-        for (int m = 0; m < nmat; m++)   // the borders' heights of the drawn textures' sets' first ones (rg_canon)
-            if (want[m] && g_rg.canon[m] > 0 && g_rg.canon[m] <= nmat) want[g_rg.canon[m] - 1] = 1;
-    }
+    if (!water) want[0] = 1;   // the black round the map: any texture, its colour is 0
     unsigned wg = water ? mesh_water_groups(g_rg.mesh) : 0;   // the water's groups: each one's next frame is the next one's texture
     if (wg > RG_MATERIALS) wg = RG_MATERIALS;
     float wblend = wg > 1 ? rg_water_blend() : 0.0f;

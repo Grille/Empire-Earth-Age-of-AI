@@ -333,8 +333,9 @@ internal const char k_rd3_shader[] =
     // height here, noise mixed in - (share x e^(4 height))^p, p the sharper the less soft. The layer covers what was drawn
     // before it in the tile (the lower addresses: the table's order) by its weight against theirs; the first, the base, whole.
     // A tile without the table (a space map's edge corner) as before: the layer's own heights over its fade
-    // the tile's textures by their sets' first ones (render_ground.c rg_canon: a set's textures over its blocks of tiles
-    // broke the borders at the blocks' edges): gm's bits 0-10 the texture's material + 1, 11-21 its set's first's
+    // the tile's terrains by their sets' first textures, their noise by those (render_ground.c rg_canon: a set's textures
+    // over its blocks of tiles broke the borders at the blocks' edges), their heights each texture's own: gm's bits 0-10
+    // the texture's material + 1, 11-21 its set's first's
     " [branch] if (gk > 0 && i.gt.a >= 0 && (i.gm >> 11) > 0) { uint own = (i.gm >> 11) - 1; int2 q = int2(floor(i.gw.xy)); uint4 tq = gtq.Load(int3(q, 0));"
     "  if (tq.x == 0) { if (c.a > 0 && c.a < 1) { float gh = lerp(ght.SampleGrad(ghw, float3(i.t, (i.gm & 2047) - 1), gdx, gdy), gbz(i.gw.xy, 0), gbl.z);"
     "   c.a = lerp(c.a, saturate((c.a * (1 + gbl.y) - (1 - gh)) / gbl.y), gk); } }"
@@ -342,8 +343,9 @@ internal const char k_rd3_shader[] =
     "   [unroll] for (int kb = 0; kb < 4; kb++) if (M[kb] == own) orank = R[kb];"
     "   [branch] if (orank > 0 && orank < 4) {"   // the base (every pixel of the ground) stays whole without the rest
     "   float2 f = saturate(i.gw.xy - q); float4 cw = float4(f.x * f.y, (1 - f.x) * f.y, (1 - f.x) * (1 - f.y), f.x * (1 - f.y)); float4 L; float mx = -1e30;"   // D B A C
-    "   [unroll] for (int ka = 0; ka < 4; ka++) { float gw = dot(cw, (float4)(M == M[ka])), gn = gmn[M[ka]]; float2 gu = i.gw.xy * gn;"
-    "    float gh = lerp(ght.SampleGrad(ghw, float3(gu, M[ka]), pdx * gn, pdy * gn), gbz(i.gw.xy, M[ka] + 1), gbl.z);"
+    "   uint4 T = ((tq >> 13) & 2047) - 1;"   // each corner's texture's own heights, its terrain's noise
+    "   [unroll] for (int ka = 0; ka < 4; ka++) { float gw = dot(cw, (float4)(M == M[ka])), gn = gmn[T[ka]]; float2 gu = i.gw.xy * gn;"
+    "    float gh = lerp(ght.SampleGrad(ghw, float3(gu, T[ka]), pdx * gn, pdy * gn), gbz(i.gw.xy, M[ka] + 1), gbl.z);"
     "    L[ka] = gw > 0 ? log(gw) + 4 * gh : -1e30; mx = max(mx, L[ka]); }"
     "   float gp = 1.5 * (1 + gbl.y) / gbl.y, mine = 0, below = 0;"
     "   [unroll] for (int kc = 0; kc < 4; kc++) { bool first = true; [unroll] for (int kd = 0; kd < kc; kd++) first = first && M[kd] != M[kc];"
