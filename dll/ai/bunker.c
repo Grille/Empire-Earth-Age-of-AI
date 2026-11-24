@@ -14,11 +14,13 @@
 // free soldiers within 25 tiles of it, not only those at the base. Each lets its guard out when enemies come near it.
 #define TG_NEAR 12
 internal int g_town_guards = 0, g_v_town_guards = -1;
+internal int g_bk_shelter = 0, g_v_bk_shelter = -1;   // [autotest] shelter_build, v_shelter_build: the shelter's Fortress with the game's computer player off (shelf_off_tick THE SHELTER'S TOO; off)
 #define TOWN_GUARDS(idx) PV(idx, g_v_town_guards, g_town_guards)
 internal int fronts_station(unsigned idx, int k, ivec2 *at);   // fronts.c
 internal void town_guards_install(void) {
     g_town_guards = g_set_ai[1].town_guards;
     if (g_autotest) g_v_town_guards = ini_int("autotest", "v_town_guards", -1, g_ini);
+    if (g_autotest) { g_bk_shelter = ini_int("autotest", "shelter_build", 0, g_ini); g_v_bk_shelter = ini_int("autotest", "v_shelter_build", -1, g_ini); }
     if (g_log) fprintf(g_log, "# town guards: %d (variant %d)\n", g_town_guards, g_v_town_guards);
 }
 internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport does, 0 = none
@@ -813,9 +815,24 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
                        pi, now / 60000.0, room, np, fp.x, fp.y, bk_held(fo), out, keep, st[2], st[3], st[5], st[6], g_shelf[pi].in, g_shelf[pi].out);
 }
 
-// the game's computer player off: nobody runs citizens_safety (attack.c: the citizen assignment's hook), which keeps
-// the fortresses' list and calls the shelf - eeaimod.c calls this instead, every 4 s: the list, the shelf, a fortress
-// the shelf wants.
+// the game's computer player off: the game's citizen assignment, whose hook kept the fortresses' list and laid them,
+// is not called - eeaimod.c calls this instead, every 4 s: the list, the shelf, the fortresses to lay.
+// THE SHELTER'S TOO ([autotest] shelter_build, v_shelter_build for the variant players; OFF - the player's call): only
+// the shelf's and the reserve's are laid - when this was written nobody walked into a shelter with the game's computer
+// player off; since ba12a168 citizens_safety runs then (attack.c: its citizens under fire go into a Fortress within
+// reach), but the Fortress to go into is never laid: shelter_first, on by the player's call of 2026-11-12, has done
+// nothing since 2026-11-14. With it, under the massed raid (air_raid.eeai, 30 B-17s from minute 14, 8 seeds):
+// a Fortress in 0 -> 8 of 8 games, laid at minute 13 - 14 (its 350 wood waits behind the fields'), 20 citizens in by
+// minute 17; citizens killed from the air 73.5 -> 64.0 (se 5.3, 4.0), bombers shot down 2.4 -> 6.0 - and the town
+// still out by minute 23 - 30 in every game: the raid's runs go at buildings (21 of 23 bombers), the Fortress has
+// 2000 hit points and falls within a minute, its citizens die beside it. Held inside between the runs (3 minutes
+// after a hit by what it does not see, instead of 45 s: it let 20 out between two runs) they died with it all the
+// same - 59.4 killed (3.4), none left at minute 30 against 2.8: not kept.
+// Ordinary games, head-to-head mirrored (4 AIs, 60 min, 10 games a map, with it - without): Continental from World War I
+// soldiers -12.6 (se 8.4), razed -9.1 (6.3), epoch -0.15 (0.08), workers -10.1 (14.6), alive -0.10 (0.12) - its 350
+// wood ahead of everything at 20 citizens (2026-11-12, the game's computer player on, 12 games: soldiers -8 (10),
+// workers -13 (14)); Small Islands large from epoch 12 soldiers +5.3 (4.4), losses -21.7 (15.8), razed +3.6 (2.8),
+// epoch +0.10 (0.07). No shelter from a raid of that size, a cost on land from the first air age: off.
 internal void shelf_off_tick(ee_player *pl, uint32_t now) {
     static uint32_t last[16];
     unsigned pi = (unsigned)player_get_index(pl) & 15;
@@ -823,7 +840,7 @@ internal void shelf_off_tick(ee_player *pl, uint32_t now) {
     last[pi] = now ? now : 1;
     bk_refresh(pl, pi);
     shelf_tick(pl, pi, now);
-    if (g_shelf[pi].want || g_bk_more[pi]) bk_build(pl, pi, now);   // only the shelf's: a shelter's fortress nobody would walk into then, and its wood was held back from minute 15
+    if (g_shelf[pi].want || g_bk_more[pi] || PV(pi, g_v_bk_shelter, g_bk_shelter)) bk_build(pl, pi, now);
 }
 // a new game (the game start hook): the fortresses and the citizens queued for them are the last game's
 internal void bunker_new_game(void) {
