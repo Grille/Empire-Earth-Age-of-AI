@@ -20,12 +20,12 @@
     X(B_GUARD_TOWER_PALEO, "b_guard_tower_paleo") X(B_GUARD_TOWER_COPPER, "b_guard_tower_copper") \
     X(B_GUARD_TOWER_BRONZE, "b_guard_tower_bronze") X(B_GUARD_TOWER_MIDDLE, "b_guard_tower_middle") \
     X(B_GUARD_TOWER_IMPERIAL, "b_guard_tower_imperial") X(B_GUARD_TOWER_WW1, "b_guard_tower_ww1") \
-    X(B_GUARD_TOWER_DIGITAL, "b_guard_tower_digital") X(B_TANK_OBSTACLE, "b_tank_obstacle") \
+    X(B_GUARD_TOWER_DIGITAL, "b_guard_tower_digital") X(B_GUARD_TOWER_SPACE, "b_guard_tower_space") X(B_TANK_OBSTACLE, "b_tank_obstacle") \
     X(B_WALL_COPPER, "b_wall_copper") X(B_WALL_BRONZE, "b_wall_bronze") X(B_WALL_MIDDLE, "b_wall_middle") \
-    X(B_WALL_IMPERIAL, "b_wall_imperial") X(B_WALL_WW1, "b_wall_ww1") X(B_WALL_DIGITAL, "b_wall_digital") \
+    X(B_WALL_IMPERIAL, "b_wall_imperial") X(B_WALL_WW1, "b_wall_ww1") X(B_WALL_DIGITAL, "b_wall_digital") X(B_WALL_SPACE, "b_wall_space") \
     X(B_BARBED_WIRE, "b_barbed_wire") \
     X(B_GATE_COPPER, "b_gate_copper") X(B_GATE_BRONZE, "b_gate_bronze") X(B_GATE_MIDDLE, "b_gate_middle") \
-    X(B_GATE_IMPERIAL, "b_gate_imperial") X(B_GATE_WW1, "b_gate_ww1") X(B_GATE_DIGITAL, "b_gate_digital") \
+    X(B_GATE_IMPERIAL, "b_gate_imperial") X(B_GATE_WW1, "b_gate_ww1") X(B_GATE_DIGITAL, "b_gate_digital") X(B_GATE_SPACE, "b_gate_space") \
     X(B_AA10_GUN_88MM, "b_aa10_gun_88mm") X(B_AA13_MISSILE_TOWER, "b_aa13_missile_tower") \
     X(GUN_SIEGE04_CATAPULT, "gun_siege04_catapult") X(GUN_SIEGE06_TREBUCHET, "gun_siege06_trebuchet") \
     X(GUN_SIEGE07_BASILISK_CANNON, "gun_siege07_basilisk_cannon") X(GUN_SIEGE09_SERPENTINE_CANNON, "gun_siege09_serpentine_cannon") \
@@ -55,9 +55,9 @@
 // (a tower, a wall, siege ...) is a role below. The tower line, oldest first (its upgrades: defence.c k_upg_names) -
 // the walls', the gates'
 #define UT_TOWER_LINE UT_B_GUARD_TOWER_PALEO, UT_B_GUARD_TOWER_COPPER, UT_B_GUARD_TOWER_BRONZE, UT_B_GUARD_TOWER_MIDDLE, \
-    UT_B_GUARD_TOWER_IMPERIAL, UT_B_GUARD_TOWER_WW1, UT_B_GUARD_TOWER_DIGITAL
-#define UT_WALL_LINE UT_B_WALL_COPPER, UT_B_WALL_BRONZE, UT_B_WALL_MIDDLE, UT_B_WALL_IMPERIAL, UT_B_WALL_WW1, UT_B_WALL_DIGITAL
-#define UT_GATE_LINE UT_B_GATE_COPPER, UT_B_GATE_BRONZE, UT_B_GATE_MIDDLE, UT_B_GATE_IMPERIAL, UT_B_GATE_WW1, UT_B_GATE_DIGITAL
+    UT_B_GUARD_TOWER_IMPERIAL, UT_B_GUARD_TOWER_WW1, UT_B_GUARD_TOWER_DIGITAL, UT_B_GUARD_TOWER_SPACE
+#define UT_WALL_LINE UT_B_WALL_COPPER, UT_B_WALL_BRONZE, UT_B_WALL_MIDDLE, UT_B_WALL_IMPERIAL, UT_B_WALL_WW1, UT_B_WALL_DIGITAL, UT_B_WALL_SPACE
+#define UT_GATE_LINE UT_B_GATE_COPPER, UT_B_GATE_BRONZE, UT_B_GATE_MIDDLE, UT_B_GATE_IMPERIAL, UT_B_GATE_WW1, UT_B_GATE_DIGITAL, UT_B_GATE_SPACE
 #define UT_TOWNS UT_B_TOWN_CENTER, UT_B_CAPITOL, UT_B_SETTLEMENT   // the drop sites that are towns
 // THE FIELD LINE: the Farm, and Art of Conquest's Robotic Farm - in its Space Age the game lays up to 8 of them round
 // every granary laid, a granary's own (a Farm laid stays a Farm): fields to count, build and farm alike (Small Planets

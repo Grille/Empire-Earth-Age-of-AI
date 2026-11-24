@@ -38,15 +38,16 @@ internal struct def_plan {
 } g_plan[16];
 
 internal unsigned area_id(ivec2 p, int kind);   // forces.c: 1 the sea, 2 the land there (0 none)
-internal const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
+internal const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first (Art of Conquest's Space Age: the Space tower after the Digital)
+#define TOWER_LINE_N ((int)(sizeof k_tower_line / sizeof *k_tower_line))
 internal int tower_newest(ee_player *pl) {   // the best tower the game lets this player build now (0: none)
-    for (int i = 6; i >= 0; i--)
+    for (int i = TOWER_LINE_N - 1; i >= 0; i--)
         if (ut_has(g_ut[k_tower_line[i]]) && can_build(pl, g_ut[k_tower_line[i]])) return g_ut[k_tower_line[i]];
     return 0;
 }
 internal int bq_has(ee_build_mgr *bm, int type);   // attack.c
 internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the build manager's queues
-    for (int i = 0; i < 7; i++) if (bq_has(bm, g_ut[k_tower_line[i]])) return 1;
+    for (int i = 0; i < TOWER_LINE_N; i++) if (bq_has(bm, g_ut[k_tower_line[i]])) return 1;
     return 0;
 }
 // AN AIRPORT'S RUNWAYS (the player 2026-11-15, screenshots of a strip through a Hospital, a University and a row of
@@ -711,7 +712,7 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
     {
         static const enum ut_name wl[] = { UT_WALL_LINE };
         int wt = 0;
-        for (int i = 5; i >= 0 && !wt; i--) if (ut_has(g_ut[wl[i]]) && can_build(pl, g_ut[wl[i]])) wt = g_ut[wl[i]];
+        for (int i = (int)(sizeof wl / sizeof *wl) - 1; i >= 0 && !wt; i--) if (ut_has(g_ut[wl[i]]) && can_build(pl, g_ut[wl[i]])) wt = g_ut[wl[i]];
         e->stone = wt ? (m - walled) * unit_cost(pl, wt, 4) : 0;
     }
     if (g_log && s.nfoe) {   // DIAG: enemy soldiers on the island, the open ring tiles
@@ -728,7 +729,7 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
         // DIAG: what the open ring tiles hold, and what the island's land borders on
         static const enum ut_name wline[] = { UT_WALL_LINE };
         int wtype = 0, place = 0, obj = 0, bare = 0, nb_ocean = 0, nb_none = 0, nb_other = 0;
-        for (int i = 5; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+        for (int i = (int)(sizeof wline / sizeof *wline) - 1; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
         for (int i = 0; i < m && wtype; i++) {
             int x = e->rx[i], y = e->ry[i];
             if (encl_walled(x, y)) continue;
@@ -1102,7 +1103,7 @@ internal void rf_ordered(int ax, int ay, int bx, int by) {   // a run ordered: s
 }
 internal int encl_gate_type(ee_player *pl) {   // the newest gate it can build, 0 none
     static const enum ut_name gline[] = { UT_GATE_LINE };   // oldest first
-    for (int i = 5; i >= 0; i--) if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) return g_ut[gline[i]];
+    for (int i = (int)(sizeof gline / sizeof *gline) - 1; i >= 0; i--) if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) return g_ut[gline[i]];
     return 0;
 }
 internal ee_unit *encl_own_piece(ee_player *pl, int x, int y) {   // a wall piece of pl's (not a gate) on the tile
@@ -1223,7 +1224,7 @@ internal void encl_lay(ee_player *pl, unsigned idx, struct encl *e, ivec2 base, 
     }
     static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
     int wtype = 0;
-    for (int i = 5; i >= 0 && !wtype; i--)   // the newest it can build
+    for (int i = (int)(sizeof wline / sizeof *wline) - 1; i >= 0 && !wtype; i--)   // the newest it can build
         if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
     if (!wtype) return;
     threat_refresh(pl, now);
@@ -1404,7 +1405,7 @@ internal int sf_build(ee_player *pl, unsigned idx, struct sfort *f, ee_build_mgr
 internal int sf_walls(ee_player *pl, unsigned idx, struct sfort *f, void *wm, const int *stock, uint32_t now) {
     static const enum ut_name wline[] = { UT_WALL_LINE };
     int wtype = 0;
-    for (int i = 5; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+    for (int i = (int)(sizeof wline / sizeof *wline) - 1; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
     if (!wtype || f->tries >= 12) return 0;
     static const int sides[4][2] = { { 3, 0 }, { 1, 2 }, { 0, 1 }, { 2, 3 } };   // side 0 -x .. 3 +y: its corners
     for (int sd = 0; sd < 4; sd++) {
@@ -1504,7 +1505,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (!f->gdir || f->gtries >= 20 || !gate_fits(pl, f->gx, f->gy, f->gdir)) continue;
         static const enum ut_name gline[] = { UT_GATE_LINE };   // oldest first
         int gtype = 0;
-        for (int i = 5; i >= 0 && !gtype; i--)
+        for (int i = (int)(sizeof gline / sizeof *gline) - 1; i >= 0 && !gtype; i--)
             if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) gtype = g_ut[gline[i]];
         f->gtries++;
         if (!gtype) continue;
@@ -1523,7 +1524,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (ntow < 2) continue;
         static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
         int wtype = 0;
-        for (int i = 5; i >= 0 && !wtype; i--)   // the newest it can build
+        for (int i = (int)(sizeof wline / sizeof *wline) - 1; i >= 0 && !wtype; i--)   // the newest it can build
             if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
         if (!wtype) continue;
         int ok = 1;
@@ -3350,7 +3351,7 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     void *wm = cm ? civ_mgr_get_wall_mgr(cm) : NULL;
     int wtype = 0, *stock = player_stock_at(pl);
     static const enum ut_name wline[] = { UT_WALL_LINE };
-    for (int i = 5; g_shore_walls && wm && i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+    for (int i = (int)(sizeof wline / sizeof *wline) - 1; g_shore_walls && wm && i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
     for (int k = 0; wtype && k < g_sg[idx].nd; k++) {
         if (!g_sg[idx].d[k].has_h) continue;
         int enough = 1;
@@ -3513,13 +3514,14 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
 // the newest type it can build (0x555710), and every finished object of an older type of that line that it can no
 // longer build is converted (still buildable = its upgrade not researched: the Copper tower comes with its own tech,
 // the conversion of the old ones is the paid upgrade - paid_upgrades).
-internal const enum ut_name k_upg_names[3][7] = {
-    { UT_TOWER_LINE },        // guard towers Paleo..Digital
-    { UT_WALL_LINE, UT_N },   // walls Copper..Digital
-    { UT_GATE_LINE, UT_N },   // gates Copper..Digital
+#define UPG_N 8
+internal const enum ut_name k_upg_names[3][UPG_N] = {
+    { UT_TOWER_LINE },        // guard towers Paleo..Digital, Space (Art of Conquest)
+    { UT_WALL_LINE, UT_N },   // walls Copper..Digital, Space
+    { UT_GATE_LINE, UT_N },   // gates Copper..Digital, Space
 };
 #define UPG(l, i) (k_upg_names[l][i] == UT_N ? -1 : g_ut[k_upg_names[l][i]])   // the type, -1 past the line's end
-internal struct { ee_player *pl; int best[3]; uint8_t avail[3][7]; ee_unit *u[64]; int to[64], n; } g_upg;
+internal struct { ee_player *pl; int best[3]; uint8_t avail[3][UPG_N]; ee_unit *u[64]; int to[64], n; } g_upg;
 internal void upg_scan(ee_unit *u, void *ctx) {
     (void)ctx;
     if (g_upg.n >= 64 || unit_get_owner(u) != g_upg.pl || unit_get_hp(u) <= 0) return;
@@ -3528,7 +3530,7 @@ internal void upg_scan(ee_unit *u, void *ctx) {
     if (((int)unit_get_list_node(u)) && ((int)unit_get_chain(st))) return;  // the effect's own condition (0x5BA645)
     int t = unit_type_get_id(td);
     for (int l = 0; l < 3; l++)
-        for (int i = 0; i < 7 && UPG(l, i) >= 0; i++)
+        for (int i = 0; i < UPG_N && UPG(l, i) >= 0; i++)
             if (UPG(l, i) == t && i < g_upg.best[l] && !g_upg.avail[l][i]) {
                 g_upg.u[g_upg.n] = u;
                 g_upg.to[g_upg.n++] = UPG(l, g_upg.best[l]);
@@ -3547,7 +3549,7 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
         int any = 0;
         for (int l = 0; l < 3; l++) {
             g_upg.best[l] = -1;
-            for (int i = 0; i < 7; i++) {
+            for (int i = 0; i < UPG_N; i++) {
                 g_upg.avail[l][i] = UPG(l, i) >= 0 &&
                     can_build(pl, UPG(l, i));
                 if (g_upg.avail[l][i]) g_upg.best[l] = i;
@@ -3579,10 +3581,10 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
 internal int upgraded_type(ee_player *pl, int type) {
     if (!pl) return type;
     for (int l = 0; l < 3; l++)
-        for (int i = 0; i < 7 && UPG(l, i) >= 0; i++) {
+        for (int i = 0; i < UPG_N && UPG(l, i) >= 0; i++) {
             if (UPG(l, i) != type) continue;
             if (can_build(pl, type)) return type;
-            for (int j = 6; j > i; j--)
+            for (int j = UPG_N - 1; j > i; j--)
                 if (UPG(l, j) >= 0 && can_build(pl, UPG(l, j))) {
                     if (g_log) fprintf(g_log, "# upgrades: P%d places %d instead of %d (upgraded since it was queued)\n",
                                        player_get_index(pl), UPG(l, j), type);
