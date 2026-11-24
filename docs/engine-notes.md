@@ -769,7 +769,15 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   the default else. A mountain's walkable ground is its biome's (a rock texture beside the cliffs looked wrong to
   him). Rivers first from springs at the ranges' feet; a
   mine (gold, iron, stone by turns) per 90 tiles of those feet whatever the biome; nothing is placed higher up a
-  mountain than its lowest 1.4 steps. Small and tiny maps have no room for a range between shore and starts. A texture gives its tiles their kind (ee_terrain.kind,
+  mountain than its lowest 1.4 steps. Small and tiny maps have no room for a range between shore and starts. Hill country (2026-11-25,
+  the player's list: hills, lakes, terraces): a third slow layer, the land's roughness, and the 12 tiles round a
+  range's foot have rolling hills of up to 3 steps without cliffs; the plain else swells by 0.8 at most. Lakes
+  (mg_lake): 1 + n/110 basins of 5 - 8 tiles' radius by turns on the continents, 2.2 steps deep (the game has one
+  water plane: a lake is at the sea's level), marsh at the rim and Underwater in the middle, a fish or two, a
+  river out of each to the sea. A river ends in water dug before it too (a tributary), its valley rises 0.3 a
+  tile from the banks (mountain flanks stay), and has a ford every 16 - 24 tiles: a gravel bar just over the
+  water - the game knows water and land tiles only, no shallows to wade. The rain shadow: a wind by the seed (one
+  of the four screen directions); a mountain up the wind within 32 tiles dries a place, one down the wind wets it. A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
