@@ -558,6 +558,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/work.c"          // the citizens' work by territory: the mod's own, while the game's computer player is off
 #include "ai/produce.c"       // production by territory: which production building, in which territory (build.c lays it)
 #include "ai/watch.c"         // its own ground out of its sight: patrols' patches (stations.c), watch towers' places (build.c)
+#include "ai/clearing.c"      // clearing ground: buildings no longer of use taken down where a wanted one finds no spot (build.c)
 #include "ai/build.c"         // building by territory: fields, a Settlement and a tower by every mine - the same
 #include "ai/research.c"      // research by rank: the Town Center's, University's and Hospital's, the fielded lines', the epoch, the rest
 #include "ai/scen_targets.c"   // a scenario's attack and defend targets (the trigger Modify AI Military Target)

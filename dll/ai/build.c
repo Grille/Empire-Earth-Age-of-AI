@@ -330,6 +330,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         else if (t == UT(B_SETTLEMENT)) open_settle += going;
         else if (pr_kind(t) >= 0) { open_prod += going; if (nprod < 256) prodp[nprod++] = p; }
         open_sink += going && (pr_kind(t) >= 0 || t == rb[0] || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
+        if (done && pr_kind(t) >= 0) cg_track(pl, idx, u, now);   // CLEARING GROUND (clearing.c): its last training
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
@@ -578,6 +579,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // Conquest's Space Age the plain one is no longer to be had (Small Planets 2026-11-23: no granary, no field, every
     // AI with 30-60 citizens idle and none on food from minute 25)
     int gtype = ut_has(UT(B_GRANARY)) && can_build(pl, UT(B_GRANARY)) ? UT(B_GRANARY) : ut_has(UT(B_GRANARY_IMPROVED)) && can_build(pl, UT(B_GRANARY_IMPROVED)) ? UT(B_GRANARY_IMPROVED) : 0;
+    ivec2 cen_p = iv2(-1, -1), town_p = iv2(-1, -1);   // CLEARING GROUND (clearing.c): the best centre, the best town - where a want is
+    for (int pass = 1; pass <= 3; pass++)
+        for (int c = 0; c < ncen; c++)
+            if (centre[c].cost == pass) { if (cen_p.x < 0) cen_p = centre[c].p; if (centre[c].town && town_p.x < 0) town_p = centre[c].p; }
     if (!placed && !ap_save && current_epoch(pl) >= FARM_EPOCH && gtype && bd_pays(pl, gtype, com) && !open_gran && !open_fields && !fields_due &&
         ngran < BD_GRANARIES && (!ngran || g_wk[idx].food_short > 0) && !wait[0] && bd_gran_first(b, idx, ngran >= BD_GRAN_PLAIN ? gran_room : 0, now)) {   // A GRANARY: by its centre in the best territory
         // ROOM AS THERE IS: a place for 6 of its 8 fields first; with none while it has no granary at all (a planet of 20
@@ -603,7 +608,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
                         }
             }
         if (!type && broom >= 2 && !ngran) { type = gtype; at = bq; what = "a granary for the fields there is room for"; }
-        if (!type) b->no_spot++;
+        if (!type) { b->no_spot++; if (cen_p.x >= 0) cg_want(idx, gtype, cen_p, 4, 12, 2, 0, now); }   // its 8 fields' places with it
     }
     g_rs_want[idx] = 0;
     produce_look(pl, idx, now);   // produce.c: the production building its territories ask for
@@ -612,7 +617,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         if (k == 1) {
             if (!g_pr[idx].type || !g_pr[idx].first || wait[4] || open_prod) continue;
             if (!bd_pays(pl, g_pr[idx].type, com)) { g_rs_want[idx] = g_pr[idx].type + 1; saving = 1; continue; }
-            if (bd_spot(pl, idx, g_pr[idx].type, g_pr[idx].at, 3, 10, &at)) { type = g_pr[idx].type; what = g_pr[idx].why; } else b->no_spot++;
+            if (bd_spot(pl, idx, g_pr[idx].type, g_pr[idx].at, 3, 10, &at)) { type = g_pr[idx].type; what = g_pr[idx].why; } else { b->no_spot++; cg_want(idx, g_pr[idx].type, g_pr[idx].at, 3, 10, 0, 1, now); }
             continue;
         }
         int j = k ? k - 1 : 0;
@@ -629,10 +634,10 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int pass = 1; pass <= 3 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++)
                 if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, rb[j], centre[c].p, 4, 10, &at)) { type = rb[j]; what = j == 2 ? "a Temple" : j ? "a Hospital" : "a University"; }
-        if (!type) b->no_spot++;
+        if (!type) { b->no_spot++; if (town_p.x >= 0) cg_want(idx, rb[j], town_p, 4, 10, 0, 1, now); }
     }
     if (!type && !placed && g_pr[idx].type && !g_pr[idx].first && !wait[4] && !open_prod && bd_pays(pl, g_pr[idx].type, com)) {   // PRODUCTION
-        if (bd_spot(pl, idx, g_pr[idx].type, g_pr[idx].at, 3, 10, &at)) { type = g_pr[idx].type; what = g_pr[idx].why; } else b->no_spot++;
+        if (bd_spot(pl, idx, g_pr[idx].type, g_pr[idx].at, 3, 10, &at)) { type = g_pr[idx].type; what = g_pr[idx].why; } else { b->no_spot++; cg_want(idx, g_pr[idx].type, g_pr[idx].at, 3, 10, 0, 1, now); }
     }
     // AN AIRPORT (airstrike.c af_train asks: the wing it wants has too few): by a Town Center or Capitol in a territory it
     // holds, backland first
@@ -640,8 +645,9 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int pass = 1; pass <= 2 && !type; pass++)
             for (int c = 0; c < ncen && !type; c++)
                 if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, UT(B_AIRPORT), centre[c].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport for the bombers' wing"; pick = BD_PICK_AIRPORT; }
-        if (!type) b->no_spot++;
+        if (!type) { b->no_spot++; if (town_p.x >= 0) cg_want(idx, UT(B_AIRPORT), town_p, 5, 16, 0, 1, now); }
     }
+    cg_clear(pl, idx, now);   // CLEARING GROUND (clearing.c): a want unmet long enough gets its ground
     if (ap_save && !type) placed = 1;   // AN AIRPORT SAVED FOR: nothing after it
     if (ap_save && !type && !g_rs_want[idx]) g_rs_want[idx] = UT(B_AIRPORT) + 1;   // ... and its price held from every other spender (priority.c's row "research": the docks' towers, the training)
     b->mines = b->mines_drop = b->mines_guard = 0;

@@ -927,6 +927,15 @@ class ai_base
         /// 119; the planets' wood, not their ground, ran out first)
         [advanced]
         bool compact_build = false;
+        /// Clearing ground: buildings it no longer uses are disposable - a Settlement with nothing left to gather round it,
+        /// a production building that has trained nothing for 10 minutes while another of its kind stands - and where a
+        /// granary, a research or production building or an Airport it wants has found no spot for 2 minutes, those
+        /// standing on the ground that would take it are taken down. After 10 minutes without a spot also usable ones:
+        /// Houses, a production building with another of its kind, the last of a kind gone idle - and for an Airport (on
+        /// a small island its runway finds no ground otherwise) towers, AA guns and wall pieces too. Never towns,
+        /// granaries, fields, docks, Airports or the research buildings. 0 = off (default until measured)
+        [advanced]
+        bool clear_ground = false;
         /// Resting soldiers on open ground (the game's computer player off): a territory's soldiers at rest stand in a patch
         /// of open ground looked for up to 40 tiles off in that territory - room for them all, else a smaller patch,
         /// closer packed - instead of at the station's point itself when nothing fits within 18 tiles (in a built-up town:
