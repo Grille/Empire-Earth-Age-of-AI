@@ -711,4 +711,28 @@ static unsafe class unit_type
     /// slot (the cursor 0x665E89, the answer to an attacker EEUCBasicPriest::vf40, eight callers)
     [address((ee)none, (aoc)0x0060DA86), cdecl]
     static extern char8 priest_can_convert(EEUnit* priest, EEUnit* target, char8* immune);
+
+    /// the way an Airport's three runways run from its hangar with its square's low corner at tile x, y: 0 +y, 1 -y,
+    /// 2 +x, 3 -x - towards the map's middle (2 at the middle itself), by the angle of the way there: within 45
+    /// degrees of an axis that axis, a tie with +y to +y, one with -y to the x axis. The player's preview (ghost_unit.preview, its ghosts: the
+    /// hangar's tile + the runway's size x 1, 2, 3 that way), the game's laying of the runways (EEUCBuilding::vf17
+    /// 0x601041, its footprint 0x630xxx) and its computer player's search for a spot (0x466xxx, the whole strip at
+    /// once) all ask it. Stdcall here (ret 8); AoC's is airport_facing_aoc
+    [address((ee)0x00600E64, (aoc)none), stdcall]
+    static extern int32 airport_facing(int32 x, int32 y);
+
+    /// AoC's airport_facing, cdecl: on a map of areas (map +0x18F4A0, Small Planets' planets) towards the middle of
+    /// the area x, y is in (its +0x44, +0x48) instead of the map's - the 2017 update's rule taken for it pointed the
+    /// AI's test at another side of the hangar than the one its runways were laid on (2026-11-24)
+    [address((ee)none, (aoc)0x0060EBDA), cdecl]
+    static extern int32 airport_facing_aoc(int32 x, int32 y);
+
+    /// the Airport's type id, as the game's code names it (the ghosts' create 0x5F4608 and preview, vf17, the
+    /// facing's callers; AoC the same): its hangar, the piece the player and the AI lay
+    [value(0x42)]
+    static uint32 type_airport;
+
+    /// the runway piece's type id (b_airport_runway), three of them beside an Airport's hangar
+    [value(0xF0)]
+    static uint32 type_runway;
 }

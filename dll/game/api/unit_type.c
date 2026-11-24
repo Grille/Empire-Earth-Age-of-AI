@@ -47,4 +47,10 @@ internal inline int priest_can_convert(ee_unit *priest, ee_unit *target, int *un
     if (university) *university = im != 0;
     return ok;
 }
+// the way an Airport's runways run from its hangar at x, y (its square's low corner): 0 +y, 1 -y, 2 +x, 3 -x - the
+// game's own rule (unit_type.airport_facing; AoC's towards the middle of a planet on Small Planets); -1 in a build
+// without either
+internal inline int airport_facing(int x, int y) {
+    return fn_unit_type_airport_facing ? unit_type_airport_facing(x, y) : fn_unit_type_airport_facing_aoc ? unit_type_airport_facing_aoc(x, y) : -1;
+}
 internal inline void unit_type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[value_unit_type_slot_type_assign])(td, u); }

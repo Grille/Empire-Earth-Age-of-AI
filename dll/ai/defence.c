@@ -52,20 +52,16 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
 }
 // AN AIRPORT'S RUNWAYS (the player 2026-11-15, screenshots of a strip through a Hospital, a University and a row of
 // towers: "the airport only checks for its hanger while the runway can go trough existing buildings or other
-// blockers"): the game lays three runway pieces (b_airport_runway) beside the hangar, 2, 4 and 6 tiles from it, along
-// the axis on which the hangar is further from the map's middle, towards the middle (18 Airports of one player in
-// his game, every one so) - its own placement test asked for the hangar says nothing of them. ap_strip: the three
-// pieces' tiles for a hangar at p; with the two distances within 2 of each other both axes are asked (which one the
-// game takes then is not known). g_ap_pend: the strips of the Airports laid in the last AP_PEND - the foundation
-// and its runways show only when the builder gets there, and until then anything could be laid onto the strip.
+// blockers"): the game lays three runway pieces beside the hangar, and its own placement test asked for the hangar
+// says nothing of them - the player's preview tests every piece. can_place asks game/api/player.c airport_fits, the
+// preview's test of the whole strip, which the mod's every lay of an Airport asks too (game/world.c). Until
+// 2026-11-24 the way the runways run was taken to be the 2017 update's - towards the map's middle - for both builds:
+// Art of Conquest points them at the middle of the hangar's planet on Small Planets, and the player's games there
+// showed strips through forests and buildings on the side the test hadn't looked at. g_ap_pend: the strips of the
+// Airports laid in the last AP_PEND - the foundation and its runways show only when the builder gets there, and until
+// then anything could be laid onto the strip.
 #define AP_PEND 300000
 internal struct { ivec2 p; uint32_t t; } g_ap_pend[16][6];
-internal int ap_strip(ivec2 p, int n, ivec2 *q) {   // the runway pieces' tiles: 3, or 6 with both axes
-    int dx = n / 2 - p.x, dy = n / 2 - p.y, k = 0;
-    if (abs(dx) + 2 >= abs(dy)) for (int j = 1; j <= 3; j++) q[k++] = iv2(p.x + (dx >= 0 ? 2 : -2) * j, p.y);
-    if (abs(dy) + 2 >= abs(dx)) for (int j = 1; j <= 3; j++) q[k++] = iv2(p.x, p.y + (dy >= 0 ? 2 : -2) * j);
-    return k;
-}
 internal void ap_laid(unsigned idx, ivec2 p, uint32_t now) {   // build.c: an Airport laid there
     int o = 0;
     for (int k = 1; k < 6; k++) if (g_ap_pend[idx & 15][k].t < g_ap_pend[idx & 15][o].t) o = k;
@@ -82,22 +78,20 @@ internal int can_place(ee_player *pl, int type, ivec2 p) {
     // land beside them - "there has to be some check by the game"; map.c dock_shore_ok)
     if ((type == UT(B_DOCK) || type == UT(B_NAVY_YARD)) && !dock_shore_ok(map, p.x, p.y, sz)) return 0;
     if (type == UT(B_SPACE_DOCK) && !space_dock_ok(map, p.x, p.y, sz)) return 0;   // part land, part space (map.c)
-    ivec2 q[6];
+    ivec2 q[3];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
     if (!is_wall(type) && !is_field_type(type))   // not onto the strip of an Airport of its that is laid and not there yet
         for (int k = 0; k < 6; k++) {
             if (!g_ap_pend[idx][k].t || now < g_ap_pend[idx][k].t || now - g_ap_pend[idx][k].t >= AP_PEND) continue;
-            int m = ap_strip(g_ap_pend[idx][k].p, n, q);
+            int m = airport_strip(g_ap_pend[idx][k].p.x, g_ap_pend[idx][k].p.y, q);
             if (abs(p.x - g_ap_pend[idx][k].p.x) <= sz + 1 && abs(p.y - g_ap_pend[idx][k].p.y) <= sz + 1) return 0;
             for (int j = 0; j < m; j++) if (abs(p.x - q[j].x) <= sz + 1 && abs(p.y - q[j].y) <= sz + 1) return 0;
         }
-    if (type == UT(B_AIRPORT)) {
-        int rt = ut_has(UT(B_AIRPORT_RUNWAY)) ? UT(B_AIRPORT_RUNWAY) : type, m = ap_strip(p, n, q);
-        ee_unit_type *rd = type_data(rt);
-        int rs = rd && unit_type_get_size(rd) > 0 ? unit_type_get_size(rd) : sz;
-        for (int j = 0; j < m; j++)
-            if (q[j].x < 2 || q[j].y < 2 || q[j].x >= n - 2 || q[j].y >= n - 2 || !can_place_area(pl, rt, q[j].x, q[j].y, rs)) return 0;
+    if (is_airport_type(type)) {   // its runways as the player's preview tests them, none of them by the map's edge
+        int m = airport_strip(p.x, p.y, q);
+        for (int j = 0; j < m; j++) if (q[j].x < 2 || q[j].y < 2 || q[j].x >= n - 2 || q[j].y >= n - 2) return 0;
+        if (!airport_fits(pl, p.x, p.y)) return 0;
     }
     return 1;
 }

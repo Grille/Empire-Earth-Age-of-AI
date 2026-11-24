@@ -618,6 +618,24 @@ internal inline ee_to_hit_table *unit_type_bonus_table_at(void) { return (ee_to_
 typedef char (__cdecl *unit_type_priest_can_convert_fn)(ee_unit *, ee_unit *, char *);
 internal unit_type_priest_can_convert_fn fn_unit_type_priest_can_convert;
 internal inline char unit_type_priest_can_convert(ee_unit *priest, ee_unit *target, char *immune) { return fn_unit_type_priest_can_convert(priest, target, immune); }
+// the way an Airport's three runways run from its hangar with its square's low corner at tile x, y: 0 +y, 1 -y,
+// 2 +x, 3 -x - towards the map's middle (2 at the middle itself), by the angle of the way there: within 45
+// degrees of an axis that axis, a tie with +y to +y, one with -y to the x axis. The player's preview (ghost_unit.preview, its ghosts: the
+// hangar's tile + the runway's size x 1, 2, 3 that way), the game's laying of the runways (EEUCBuilding::vf17
+// 0x601041, its footprint 0x630xxx) and its computer player's search for a spot (0x466xxx, the whole strip at
+// once) all ask it. Stdcall here (ret 8); AoC's is airport_facing_aoc
+typedef int (__stdcall *unit_type_airport_facing_fn)(int, int);
+internal unit_type_airport_facing_fn fn_unit_type_airport_facing;
+internal inline int unit_type_airport_facing(int x, int y) { return fn_unit_type_airport_facing(x, y); }
+// AoC's airport_facing, cdecl: on a map of areas (map +0x18F4A0, Small Planets' planets) towards the middle of
+// the area x, y is in (its +0x44, +0x48) instead of the map's - the 2017 update's rule taken for it pointed the
+// AI's test at another side of the hangar than the one its runways were laid on (2026-11-24)
+typedef int (__cdecl *unit_type_airport_facing_aoc_fn)(int, int);
+internal unit_type_airport_facing_aoc_fn fn_unit_type_airport_facing_aoc;
+internal inline int unit_type_airport_facing_aoc(int x, int y) { return fn_unit_type_airport_facing_aoc(x, y); }
+// the Airport's type id, as the game's code names it (the ghosts' create 0x5F4608 and preview, vf17, the
+// facing's callers; AoC the same): its hangar, the piece the player and the AI lay
+// the runway piece's type id (b_airport_runway), three of them beside an Airport's hangar
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_type_select(int build) {
@@ -756,7 +774,11 @@ internal int spec_unit_type_select(int build) {
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 60;
         fn_unit_type_priest_can_convert = (unit_type_priest_can_convert_fn)0;
-        return 1;
+        fn_unit_type_airport_facing = (unit_type_airport_facing_fn)0x00600E64;
+        fn_unit_type_airport_facing_aoc = (unit_type_airport_facing_aoc_fn)0;
+        value_unit_type_type_airport = 66;
+        value_unit_type_type_runway = 240;
+        return 2;
     case 1:   // aoc
         of_unit_type_vtable = 0x0;
         of_unit_type_name = 0x1C;
@@ -891,12 +913,16 @@ internal int spec_unit_type_select(int build) {
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 61;
         fn_unit_type_priest_can_convert = (unit_type_priest_can_convert_fn)0x0060DA86;
-        return 3;
+        fn_unit_type_airport_facing = (unit_type_airport_facing_fn)0;
+        fn_unit_type_airport_facing_aoc = (unit_type_airport_facing_aoc_fn)0x0060EBDA;
+        value_unit_type_type_airport = 66;
+        value_unit_type_type_runway = 240;
+        return 4;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "unit_type.priest_can_convert", "EEUnitClass.has_power EEUCBasicPriest.can_convert [slot] EEUCBasicPriest.can_convert" };
+internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "unit_type.priest_can_convert unit_type.airport_facing_aoc", "EEUnitClass.has_power EEUCBasicPriest.can_convert [slot] EEUCBasicPriest.can_convert unit_type.airport_facing" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_type_check(void) {
     int bad = 0;
@@ -928,5 +954,7 @@ internal int spec_unit_type_check(void) {
     bad += spec_data(data_unit_type_upgrade_tables, "unit_type.upgrade_tables");
     bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
     bad += spec_code((uintptr_t)fn_unit_type_priest_can_convert, "unit_type.priest_can_convert");
+    bad += spec_code((uintptr_t)fn_unit_type_airport_facing, "unit_type.airport_facing");
+    bad += spec_code((uintptr_t)fn_unit_type_airport_facing_aoc, "unit_type.airport_facing_aoc");
     return bad;
 }

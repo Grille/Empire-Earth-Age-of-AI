@@ -114,13 +114,13 @@ internal void cg_want(unsigned idx, int type, ivec2 at, int r0, int r1, int marg
     c->at = at; c->r0 = r0; c->r1 = r1; c->margin = margin; c->extreme = extreme; c->last = now ? now : 1;
 }
 // the tiles a footprint at q needs: type's square grown by margin, an Airport's runway pieces too
-internal int cg_tiles(int type, ivec2 q, int margin, int n, ivec2 *lo, ivec2 *hi) {
+internal int cg_tiles(int type, ivec2 q, int margin, ivec2 *lo, ivec2 *hi) {
     ee_unit_type *td = type_data(type);
     int s = td && unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 1, k = 0;
     lo[k] = iv2(q.x - margin, q.y - margin); hi[k++] = iv2(q.x + s - 1 + margin, q.y + s - 1 + margin);
     if (type == UT(B_AIRPORT)) {
-        ivec2 pc[6];
-        int rt = ut_has(UT(B_AIRPORT_RUNWAY)) ? UT(B_AIRPORT_RUNWAY) : type, m = ap_strip(q, n, pc);
+        ivec2 pc[3];
+        int rt = ut_has(UT(B_AIRPORT_RUNWAY)) ? UT(B_AIRPORT_RUNWAY) : type, m = airport_strip(q.x, q.y, pc);
         int rs = type_data(rt) && unit_type_get_size(type_data(rt)) > 0 ? unit_type_get_size(type_data(rt)) : s;
         for (int j = 0; j < m; j++) { lo[k] = pc[j]; hi[k++] = iv2(pc[j].x + rs - 1, pc[j].y + rs - 1); }
     }
@@ -137,7 +137,7 @@ internal int cg_fits(ee_player *pl, unsigned idx, int type, ivec2 q, int margin,
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0, cost = 0;
     ivec2 lo[8], hi[8];
-    int nb = cg_tiles(type, q, margin, n, lo, hi), took[PR_NK] = { 0 }, in_way[8] = { 0 }, took_gran = 0;
+    int nb = cg_tiles(type, q, margin, lo, hi), took[PR_NK] = { 0 }, in_way[8] = { 0 }, took_gran = 0;
     *nset = 0;
     if (!n || !g_ter.cls || g_ter.size != n) return -1;
     for (int b = 0; b < nb; b++)

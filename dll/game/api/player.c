@@ -76,6 +76,32 @@ internal inline char can_build(ee_player *pl, int type) { return fn_player_can_b
 // a foundation of type laid out at x, y (the player pays): the new building, NULL: none
 // can a building of type stand at x, y (size x size tiles: the game's placement test, every tile)
 internal inline char can_place_area(ee_player *pl, int type, int x, int y, int size) { return fn_can_place_game(pl, type, x, y, size, size, 0); }
+// AN AIRPORT'S STRIP (the player 2026-11-24, Airports the AI laid through forests and buildings: "placing that
+// foundation should be a hard refusal like the player gets"): the game lays three runway pieces beside the hangar, a
+// runway's size apart the way airport_facing gives (EEUCBuilding::vf17's footprint: the hangar's low corner + the
+// runway's size x 1, 2, 3), and the player's preview refuses the Airport when the per-tile test fails on one of them
+// (its ghosts, each tested as its own type; hangar and runway are of one size in both builds, so its ghosts' places
+// are these). airport_strip: the pieces' low corners for a hangar at x, y - 3, 0 when the build has no rule for the way
+internal inline int is_airport_type(int type) { return type == (int)value_unit_type_type_airport; }
+internal inline int airport_piece_size(int type) {
+    ee_unit_type *td = type >= 0 && type < type_table_count() ? type_table()[type] : NULL;
+    return td && unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 1;
+}
+internal inline int airport_strip(int x, int y, ivec2 *q) {
+    int rs = airport_piece_size((int)value_unit_type_type_runway), f = airport_facing(x, y);
+    if (f < 0 || f > 3) return 0;
+    for (int j = 1; j <= 3; j++) q[j - 1] = iv2(x + (f == 2 ? rs * j : f == 3 ? -rs * j : 0), y + (f == 0 ? rs * j : f == 1 ? -rs * j : 0));
+    return 3;
+}
+// may pl's Airport stand with its hangar's low corner at x, y: hangar and runways by the game's per-tile test, as the
+// player's preview asks it - no way known for the runways: no
+internal inline int airport_fits(ee_player *pl, int x, int y) {
+    ivec2 q[3];
+    int rt = (int)value_unit_type_type_runway, rs = airport_piece_size(rt), m = airport_strip(x, y, q);
+    if (!m || !can_place_area(pl, (int)value_unit_type_type_airport, x, y, airport_piece_size((int)value_unit_type_type_airport))) return 0;
+    for (int j = 0; j < m; j++) if (!can_place_area(pl, rt, q[j].x, q[j].y, rs)) return 0;
+    return 1;
+}
 // the player's per-type stats records (player +0x874, a vector): their count, the record of type
 internal inline unsigned type_stats_count(ee_player *pl) { return fn_vector_size(FIELD_AT(pl, of_player_type_stats)); }
 internal inline ee_unit_stats **type_stats(ee_player *pl, int type) { return (ee_unit_stats **)fn_type_stats_game(FIELD_AT(pl, of_player_type_stats), type); }

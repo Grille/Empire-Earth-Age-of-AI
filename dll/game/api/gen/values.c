@@ -3799,6 +3799,8 @@ internal uint32_t data_unit_type_upgrade_tables;
 internal uint32_t data_unit_type_bonus_table;
 internal uint32_t value_unit_type_slot_type_assign;
 internal uint32_t value_unit_type_slot_type_can_carry;
+internal uint32_t value_unit_type_type_airport;
+internal uint32_t value_unit_type_type_runway;
 
 // world.cs
 internal uint32_t of_dmg_model_map;

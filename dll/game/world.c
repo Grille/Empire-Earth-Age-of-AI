@@ -29,17 +29,23 @@ internal inline int ai_may_lay(ee_player *pl, int type) { return pl && player_ai
 // guns are")
 internal void (*g_foundation_laid)(ee_unit *b, int type);
 // a foundation of type laid out at x, y for pl when its AI may lay one (ai_may_lay) - every building the mod's AI lays
-// itself goes through here; NULL: none
+// itself goes through here; NULL: none. An Airport only where its whole strip fits (game/api/player.c airport_fits:
+// the game's own placing tests its hangar alone, the player's preview every runway piece too - the player
+// 2026-11-24: "placing that foundation should be a hard refusal like the player gets")
 internal inline ee_unit *lay_foundation(ee_player *pl, int type, int x, int y) {
+    if (is_airport_type(type) && !airport_fits(pl, x, y)) return NULL;
     ee_unit *b = ai_may_lay(pl, type) ? place_foundation(pl, type, x, y) : NULL;
     if (b && g_foundation_laid) g_foundation_laid(b, type);
     return b;
 }
 // a building of type laid out at x, y (0, 0: a spot of its own) by pl's build manager when its AI may lay one
 // (ai_may_lay) - every placement of the build manager's the mod asks for or lets through (econ.c hook_place) goes
-// through here; 0: refused
+// through here; 0: refused. An Airport at a spot only where its whole strip fits (lay_foundation); at a spot of the
+// game's own (0, 0) its computer player's search tests the whole strip itself (0x466xxx)
 internal inline char lay_queued(ee_build_mgr *bm, int type, int x, int y) {
-    return ai_may_lay(build_mgr_get_player(bm), type) ? build_mgr_place(bm, type, x, y) : 0;
+    ee_player *pl = build_mgr_get_player(bm);
+    if ((x || y) && is_airport_type(type) && !airport_fits(pl, x, y)) return 0;
+    return ai_may_lay(pl, type) ? build_mgr_place(bm, type, x, y) : 0;
 }
 // a wall of type from a to b ordered from pl's wall manager when its AI may lay one (ai_may_lay) - every wall the mod's
 // AI orders goes through here; 0: refused. THE ONE WAY IN: lay_foundation, lay_queued, lay_wall are the mod's AI's
