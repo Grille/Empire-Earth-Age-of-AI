@@ -777,7 +777,11 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   river out of each to the sea. A river ends in water dug before it too (a tributary), its valley rises 0.3 a
   tile from the banks (mountain flanks stay), and has a ford every 16 - 24 tiles: a gravel bar just over the
   water - the game knows water and land tiles only, no shallows to wade. The rain shadow: a wind by the seed (one
-  of the four screen directions); a mountain up the wind within 32 tiles dries a place, one down the wind wets it. A texture gives its tiles their kind (ee_terrain.kind,
+  of the four screen directions); a mountain up the wind within 32 tiles dries a place, one down the wind wets it. Plateaus (mg_plateau):
+  1 + n/120 by turns on the continents where there is room off the ranges and starts (a large map with four
+  players often has none), flat land 3.2 steps up, 7 - 12 tiles in radius, a cliff all round but for 2 or 3 ramps
+  4 tiles wide; a gold mine on top; its cliffs one type (the red RockyCliff in the hot south, the winter's in the
+  cold, the default's between). A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
