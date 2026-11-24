@@ -219,3 +219,9 @@ multiplayer_blocked = {
     en = "Age of AI doesn't support multiplayer yet. To try it anyway, every player needs the same mod version and settings, with multiplayer turned on in ageofai_config.exe - expect problems. Without the mod: turn it off there.",
     de = "Age of AI unterstützt den Mehrspielermodus noch nicht. Zum Ausprobieren brauchen alle Spieler dieselbe Mod-Version und dieselben Einstellungen, mit multiplayer in ageofai_config.exe an - Probleme sind zu erwarten. Ohne Mod: dort ausschalten.",
 }
+
+// THE MAP TYPES of the mod's own in the game setup's list (mapgen.c)
+map_two_continents = {
+    en = "Two Continents",
+    de = "Zwei Kontinente",
+}

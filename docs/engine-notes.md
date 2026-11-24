@@ -740,11 +740,27 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   start units (0x66B921: the type's vf15 at a point, set_built (1, 0, 0), paid_for) and the resources (0x66F0D5: vf14
   for the world player, the texture under them) - until every start position stands on land. Out: where this PC's
   view begins. Nothing after the call asks for the generator again.
+- **A map's flags** (EEMap.flags, the script's MapCharacteristics): 0 Continental, 1 the island types (IslandMap),
+  2 Plains (WaterlessMap) - read after the game's own maker in test games.
+- **The ground textures' names** are db\dbterrain.dat's ("Grass - Tufts", "Sand - Medium", "Snow - Dirt Patches",
+  "Underwater", "Beach"); the scripts spell them without the blanks (Grass-Tufts). It also has textures that are
+  object scatters ("RM Ambients - Forest / Beach / Desert / Aquatic / Marsh", "Forest - Maple" ...): the game's maker
+  lays a texture's objects at random on a painted tile (0x66EA64) - the stones and plants of its maps.
 - **The mod's own types** (the player 2026-11-24: the game's generator circumvented, our entries in the list): added
-  to the list after the game's own, their maps made by the mod instead of 0x66D402 - no .rmv, no plug-in. "Age of AI
-  Test" is the proof: the new map left as the game makes one (flat, the default ground), each player a Capitol and
-  its citizens on a circle. Played in both builds from the test start and from the setup screen (its list shows the
-  entry); the game's own types play as before.
+  to the list after the game's own, their maps made by the mod instead of 0x66D402 - no .rmv, no plug-in
+  (dll/engine/mapgen.c). The first, flat with a Capitol each, proved the way in. **Two Continents** ("Zwei
+  Kontinente", language.eeai): two landmasses left and right of a sea channel, the players by turns on them (more
+  than two share); snow in the north, grassland, desert in the south, each with its textures, trees and animals;
+  rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
+  the land stays one piece; each start levelled, with forage, gold, iron, stone, three forests and a herd round it,
+  more of each over the land by its size, fish off the shores. Its steps: land (two ellipses, the shore by noise),
+  heights, starts, rivers, the ground into the map (map_ground_set), climates, textures, the game's cliff pass, the
+  world's objects, the start units. Every number comes from the seed alone, without sine or cosine: the same map on
+  every PC. Checked 2026-11-24: all six sizes with 2 - 8 players start (84 to 440 tiles a side; a tiny map has no
+  room for a river), the same seed twice gives the same map, a 60 minute game of three AIs (population 161 - 230,
+  docks, fishing boats, warships, transports landing across the channel, no notice), Art of Conquest 10 minutes,
+  the setup screen's list. Not yet: teams kept together on a continent, hills steep enough for cliffs, the
+  textures' scattered stones and plants, the numbers in an .eeai description, the editor's random map tried.
 
 ## Unit AI scripts (.tai)
 

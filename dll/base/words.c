@@ -16,6 +16,7 @@ internal const char *const k_words[] = {
     "colour_ramp", "colour_each", "blend", "blend_srgb", "blend_linear", "blend_oklab", "slots", "recent",
     "slots_taken", "slots_short", "hint_ramp", "hint_each", "hint_flat",
     "multiplayer_blocked",                                                 // mp_block.c
+    "map_two_continents",                                                  // mapgen.c: the mod's map types in the game's list
 };
 #define N_WORDS (int)(sizeof k_words / sizeof *k_words)
 internal char *g_word[N_WORDS];

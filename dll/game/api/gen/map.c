@@ -90,7 +90,8 @@ internal inline uint32_t *map_size_at(const ee_map *o) { return (uint32_t *)((ui
 internal inline ee_grid *map_get_grid(const ee_map *o) { return *(ee_grid **)((uint8_t *)o + of_map_grid); }
 internal inline void map_set_grid(ee_map *o, ee_grid *v) { *(ee_grid **)((uint8_t *)o + of_map_grid) = v; }
 internal inline ee_grid **map_grid_at(const ee_map *o) { return (ee_grid **)((uint8_t *)o + of_map_grid); }
-// bit 0: water
+// what kind of map: a random map's MapCharacteristics - 0 Continental, 1 the island types (IslandMap), 2 Plains
+// (WaterlessMap), as the game's own maker left them in test games (2026-11-24); bit 0: water
 internal inline uint32_t map_get_flags(const ee_map *o) { return *(uint32_t *)((uint8_t *)o + of_map_flags); }
 internal inline void map_set_flags(ee_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_map_flags) = v; }
 internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((uint8_t *)o + of_map_flags); }

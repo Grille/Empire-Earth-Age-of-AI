@@ -92,7 +92,8 @@ unsafe struct EEMap
     [offset((ee)0x181724, (aoc)0x195640), found(c)]
     ee_grid* grid;
 
-    /// bit 0: water
+    /// what kind of map: a random map's MapCharacteristics - 0 Continental, 1 the island types (IslandMap), 2 Plains
+    /// (WaterlessMap), as the game's own maker left them in test games (2026-11-24); bit 0: water
     [offset((ee)0x181730, (aoc)0x19564C), found(c)]
     uint32 flags;
 
