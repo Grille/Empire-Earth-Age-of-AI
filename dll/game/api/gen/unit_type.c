@@ -374,6 +374,16 @@ internal inline ee_unit *unit_type_create(ee_unit_type *unit_type, int x, int y,
 // what EESEAPlaceUnit's vf1 makes each with
 typedef ee_unit *(__thiscall *unit_type_place_at_fn)(ee_unit_type *, float *, int, int, int);
 internal inline ee_unit *unit_type_place_at(ee_unit_type *unit_type, float *m, int player, int p3, int p4) { return ((unit_type_place_at_fn)(*(void ***)unit_type)[slot_unit_type_place_at])(unit_type, m, player, p3, p4); }
+// vf14: a new unit of this type for a player on tile (x, y) of a map, turned by angle (radians), thiscall(type,
+// player, x, y, map, angle) - what the random map lays its resources with (0x66F0D5, for the world player; AoC
+// 0x687636 the same slot): into the map it is given, which needn't be the running game's yet
+typedef ee_unit *(__thiscall *unit_type_create_on_fn)(ee_unit_type *, ee_player *, int, int, ee_map *, float);
+internal inline ee_unit *unit_type_create_on(ee_unit_type *unit_type, ee_player *pl, int x, int y, ee_map *map, float angle) { return ((unit_type_create_on_fn)(*(void ***)unit_type)[slot_unit_type_create_on])(unit_type, pl, x, y, map, angle); }
+// vf15: the same at a point (tiles, a tile's middle x + 0.5) - the random map's start units (0x66B921: the
+// script's PlaceUnit lines round each start position; AoC 0x684FD9 the same slot), which then get
+// EEComplexUnit.set_built (1, 0, 0) and paid_for on their physics. NULL: none made
+typedef ee_unit *(__thiscall *unit_type_create_at_fn)(ee_unit_type *, ee_player *, float, float, ee_map *, float);
+internal inline ee_unit *unit_type_create_at(ee_unit_type *unit_type, ee_player *pl, float x, float y, ee_map *map, float angle) { return ((unit_type_create_at_fn)(*(void ***)unit_type)[slot_unit_type_create_at])(unit_type, pl, x, y, map, angle); }
 // vf1: thiscall(type, float pos[3]) - the units' fill moves an object without a complex unit's place by it (its
 // tile's middle and the ground's height in) [guess: what it changes]
 typedef void (__thiscall *unit_type_place_drawn_fn)(ee_unit_type *, float *);
@@ -692,6 +702,8 @@ internal int spec_unit_type_select(int build) {
         slot_unit_type_launch = 42;
         slot_unit_type_create = 12;
         slot_unit_type_place_at = 13;
+        slot_unit_type_create_on = 14;
+        slot_unit_type_create_at = 15;
         slot_unit_type_place_drawn = 1;
         slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00832E90;
@@ -825,6 +837,8 @@ internal int spec_unit_type_select(int build) {
         slot_unit_type_launch = 43;
         slot_unit_type_create = 12;
         slot_unit_type_place_at = 13;
+        slot_unit_type_create_on = 14;
+        slot_unit_type_create_at = 15;
         slot_unit_type_place_drawn = 1;
         slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00848CF8;

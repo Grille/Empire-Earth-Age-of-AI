@@ -607,6 +607,11 @@ unsafe struct EEComplexUnit
     [offset((ee)0x337, (aoc)0x343), found(c)]
     uint8 anim_hold;
 
+    /// the random map sets it on each start unit it makes (0x66BF4F, AoC 0x685078), nothing else of its code touches
+    /// the unit after set_built (the AoC decompilation: mIsPaidFor)
+    [offset((ee)0x338, (aoc)0x344), found(c)]
+    uint8 paid_for;
+
     /// frozen (the scenario effect)
     [offset((ee)0x33B, (aoc)0x347), found(c)]
     uint8 frozen;

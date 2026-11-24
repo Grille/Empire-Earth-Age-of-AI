@@ -47,6 +47,7 @@
 #include "game/api/movement.c"
 #include "game/api/formation.c"
 #include "game/api/setup.c"
+#include "game/api/random_map.c"   // the random map's types: the game's list, a type more
 #include "game/api/messages.c"
 #include "game/api/scenario.c"
 #include "game/api/ui.c"

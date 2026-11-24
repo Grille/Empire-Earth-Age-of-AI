@@ -284,6 +284,7 @@ typedef struct ee_physics_model ee_physics_model;
 typedef struct ee_group ee_group;
 typedef struct ee_active_group ee_active_group;
 typedef struct ee_path_mgr ee_path_mgr;
+typedef struct ee_map_type ee_map_type;
 typedef struct ee_minimap_action ee_minimap_action;
 typedef struct ee_lasso ee_lasso;
 typedef struct ee_key_scroll ee_key_scroll;
@@ -684,6 +685,7 @@ typedef struct ee_game_state ee_game_state;
 #include "game/api/gen/patching.c"
 #include "game/api/gen/path.c"
 #include "game/api/gen/player.c"
+#include "game/api/gen/random_map.c"
 #include "game/api/gen/scenario.c"
 #include "game/api/gen/scenario_lists.c"
 #include "game/api/gen/setup.c"
@@ -699,7 +701,7 @@ typedef struct ee_game_state ee_game_state;
 #include "game/api/gen/zone.c"
 
 // g_spec_missing: exe.c's (game_build sets it)
-internal int spec_select(int build) { return spec_ai_managers_select(build) + spec_api_select(build) + spec_attack_select(build) + spec_editor_select(build) + spec_engine_display_select(build) + spec_engine_sound_select(build) + spec_formation_select(build) + spec_game_select(build) + spec_goal_select(build) + spec_graph_select(build) + spec_hooks_select(build) + spec_map_select(build) + spec_messages_select(build) + spec_movement_select(build) + spec_patching_select(build) + spec_path_select(build) + spec_player_select(build) + spec_scenario_select(build) + spec_scenario_lists_select(build) + spec_setup_select(build) + spec_stubs_select(build) + spec_tech_select(build) + spec_ui_select(build) + spec_ui_events_select(build) + spec_ui_forms_select(build) + spec_ui_imports_select(build) + spec_unit_select(build) + spec_unit_type_select(build) + spec_world_select(build) + spec_zone_select(build); }
+internal int spec_select(int build) { return spec_ai_managers_select(build) + spec_api_select(build) + spec_attack_select(build) + spec_editor_select(build) + spec_engine_display_select(build) + spec_engine_sound_select(build) + spec_formation_select(build) + spec_game_select(build) + spec_goal_select(build) + spec_graph_select(build) + spec_hooks_select(build) + spec_map_select(build) + spec_messages_select(build) + spec_movement_select(build) + spec_patching_select(build) + spec_path_select(build) + spec_player_select(build) + spec_random_map_select(build) + spec_scenario_select(build) + spec_scenario_lists_select(build) + spec_setup_select(build) + spec_stubs_select(build) + spec_tech_select(build) + spec_ui_select(build) + spec_ui_events_select(build) + spec_ui_forms_select(build) + spec_ui_imports_select(build) + spec_unit_select(build) + spec_unit_type_select(build) + spec_world_select(build) + spec_zone_select(build); }
 internal void spec_log(FILE *log) {
     if (!log || !g_spec_missing) return;
     fprintf(log, "# spec: build %d hasn't got %d:", g_exe_build, g_spec_missing);
@@ -720,6 +722,7 @@ internal void spec_log(FILE *log) {
     if (*k_spec_patching_missing[g_exe_build]) fprintf(log, " %s", k_spec_patching_missing[g_exe_build]);
     if (*k_spec_path_missing[g_exe_build]) fprintf(log, " %s", k_spec_path_missing[g_exe_build]);
     if (*k_spec_player_missing[g_exe_build]) fprintf(log, " %s", k_spec_player_missing[g_exe_build]);
+    if (*k_spec_random_map_missing[g_exe_build]) fprintf(log, " %s", k_spec_random_map_missing[g_exe_build]);
     if (*k_spec_scenario_missing[g_exe_build]) fprintf(log, " %s", k_spec_scenario_missing[g_exe_build]);
     if (*k_spec_scenario_lists_missing[g_exe_build]) fprintf(log, " %s", k_spec_scenario_lists_missing[g_exe_build]);
     if (*k_spec_setup_missing[g_exe_build]) fprintf(log, " %s", k_spec_setup_missing[g_exe_build]);
@@ -1267,4 +1270,4 @@ internal int spec_imports(void) {
     return bad;
 }
 // g_spec_bad: exe.c's (game_build runs it before any patch, its helpers note the failures)
-internal int spec_check(void) { return spec_ai_managers_check() + spec_api_check() + spec_attack_check() + spec_editor_check() + spec_engine_display_check() + spec_engine_sound_check() + spec_formation_check() + spec_game_check() + spec_goal_check() + spec_graph_check() + spec_hooks_check() + spec_map_check() + spec_messages_check() + spec_movement_check() + spec_patching_check() + spec_path_check() + spec_player_check() + spec_scenario_check() + spec_scenario_lists_check() + spec_setup_check() + spec_stubs_check() + spec_tech_check() + spec_ui_check() + spec_ui_events_check() + spec_ui_forms_check() + spec_ui_imports_check() + spec_unit_check() + spec_unit_type_check() + spec_world_check() + spec_zone_check(); }
+internal int spec_check(void) { return spec_ai_managers_check() + spec_api_check() + spec_attack_check() + spec_editor_check() + spec_engine_display_check() + spec_engine_sound_check() + spec_formation_check() + spec_game_check() + spec_goal_check() + spec_graph_check() + spec_hooks_check() + spec_map_check() + spec_messages_check() + spec_movement_check() + spec_patching_check() + spec_path_check() + spec_player_check() + spec_random_map_check() + spec_scenario_check() + spec_scenario_lists_check() + spec_setup_check() + spec_stubs_check() + spec_tech_check() + spec_ui_check() + spec_ui_events_check() + spec_ui_forms_check() + spec_ui_imports_check() + spec_unit_check() + spec_unit_type_check() + spec_world_check() + spec_zone_check(); }

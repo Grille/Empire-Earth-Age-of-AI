@@ -370,6 +370,18 @@ unsafe struct EEUnitClass
     [slot(13)]
     extern EEUnit* place_at(float32* m, int32 player, int32 p3, int32 p4);
 
+    /// vf14: a new unit of this type for a player on tile (x, y) of a map, turned by angle (radians), thiscall(type,
+    /// player, x, y, map, angle) - what the random map lays its resources with (0x66F0D5, for the world player; AoC
+    /// 0x687636 the same slot): into the map it is given, which needn't be the running game's yet
+    [slot(14)]
+    extern EEUnit* create_on(EEPlayer* pl, int32 x, int32 y, EEMap* map, float32 angle);
+
+    /// vf15: the same at a point (tiles, a tile's middle x + 0.5) - the random map's start units (0x66B921: the
+    /// script's PlaceUnit lines round each start position; AoC 0x684FD9 the same slot), which then get
+    /// EEComplexUnit.set_built (1, 0, 0) and paid_for on their physics. NULL: none made
+    [slot(15)]
+    extern EEUnit* create_at(EEPlayer* pl, float32 x, float32 y, EEMap* map, float32 angle);
+
     /// vf1: thiscall(type, float pos[3]) - the units' fill moves an object without a complex unit's place by it (its
     /// tile's middle and the ground's height in) [guess: what it changes]
     [slot(1)]

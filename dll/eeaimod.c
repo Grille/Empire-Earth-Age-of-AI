@@ -628,6 +628,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/terrain_dialog.c"
 #include "engine/terrain_filter.c"
 #include "engine/map_file.c"
+#include "engine/mapgen.c"         // the mod's own map types in the game's list, their maps made here whole
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
@@ -946,6 +947,7 @@ internal void install(HMODULE self) {
     editor_orders_install();
     terrain_palette_install();
     map_file_install();
+    mapgen_install();
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
     g_chat_console = chat_console;   // '>' lines of the chat: the pipe's commands (diplo.c -> test/control.c)

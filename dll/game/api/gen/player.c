@@ -127,6 +127,11 @@ internal inline int *player_result_at(const ee_player *o) { return (int *)((uint
 internal inline int player_get_variables(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_variables))[i]; }
 internal inline void player_set_variables(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_variables))[i] = v; }
 internal inline int *player_variables_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_variables); }
+// the citizens it starts a random map with (the setup slot's): the random map's start units (0x66B921, AoC
+// 0x684FD9) make no more of the script's citizens than this
+internal inline uint32_t player_get_start_citizens(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_start_citizens); }
+internal inline void player_set_start_citizens(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_start_citizens) = v; }
+internal inline uint32_t *player_start_citizens_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_start_citizens); }
 // the damage it took from each player over the game, by player index (0 the world): vf33 0x557147 adds every hit's;
 // the player's reset 0x557182.. clears all 17
 internal inline int player_get_damage_by(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_damage_by))[i]; }
@@ -1397,6 +1402,7 @@ internal int spec_player_select(int build) {
         of_player_strategy = 0xA28;
         of_player_result = 0xA30;
         of_player_variables = 0xA44;
+        of_player_start_citizens = 0xA6C;
         of_player_damage_by = 0xA70;
         of_player_attacks_running = 0xAB4;
         of_player_tribute_sent = 0xAB8;
@@ -1728,6 +1734,7 @@ internal int spec_player_select(int build) {
         of_player_strategy = 0xA20;
         of_player_result = 0xA28;
         of_player_variables = 0xA3C;
+        of_player_start_citizens = 0xA64;
         of_player_damage_by = 0xA68;
         of_player_attacks_running = 0xAAC;
         of_player_tribute_sent = 0xAB0;

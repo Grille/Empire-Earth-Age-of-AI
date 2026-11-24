@@ -711,6 +711,41 @@ docs/testing.md "Multiplayer test games") does by hand, 2026-10-27:
   about a broken .rmv: a pasted path after `#define (Is2Players, ...)` in Common Conditions.rmv made every
   two-player random map end during map generation (exit 3).
 
+## Random maps
+
+Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen.c).
+
+- **Three parts.** `Data\Random Map Scripts\<type>.rmv` (text, loose files: about 110 keywords behind a preprocessor -
+  `#if` / `#define` / `#include`, `Between`, `PERCENT`, `$MapSize`, `$PlayerCount`; a file per type includes one per
+  size, some 1500 lines, with branches per player count and start epoch), the generator plug-in the script names
+  (`UseMapGenerator "Default"`: `Default.dll` in the game folder, plug-in type 'rmap', which also holds the scripts'
+  parser - the keywords are its strings, the exe knows only `UseMapGenerator` and `StringTableID`), and the exe
+  (`EERandomMap`, 0x410 bytes, vtable 0x835F2C).
+- **What a script can say:** how much land, how rough, the players' and the neutral patches' size, flatness and trees,
+  resources per player and in rings round the start, forests, herds, the textures by a noise value, the climate (one
+  for the map: Map Climate.rmv's `PERCENT`), the start units (`PlaceUnit`). Not where land goes: it grows round each
+  start and round neutral points. `RiverWidth` is the island scripts' (2 - 19 tiles there, 0 on the others) - the
+  water between the players' lands, no river through a continent. `TeamGrowth` is false in all seven.
+- **The types' list** (`EERandomMap::sRandomMapGenerators`, 0x943520 / AoC 0x965570): a vector of 0x38-byte entries
+  - name +0 (the script's, what the setup's map_name holds), title +0x14 (the language file's string of
+  StringTableID), generator +0x28 -, made once at the game's start (0x66D6AC, AoC 0x686804: a type per *.rmv, then
+  sorted) and read by index by the setup screen, the lobby and the editor. A start finds its type by name.
+- **A map made** (0x66D402, AoC 0x68655A; called by the game start for setup.mode 0 and by the editor's
+  EESEACreateRandomMap): cdecl (setup, the playing players' vector with the world first, this PC's player's index in
+  it, the type's name, the seed, the new map, float start[3] out). Up to 11 tries, each a new EERandomMap: the script
+  read (plug-in `EERMPIMSetRandomMapValues`), then 0x66B434 - the plug-in's GeneratePlayerPositions,
+  GenerateNeutralPositions, CreatePlayerLandWaterMap, CreateNeutralLandWaterMap, CreateFlatMap, CreateHeightMap,
+  GenerateShallows and (a script's flag) FilterHeightMap, then the exe's own smoothing, the textures (0x66EB76
+  "PaintTiles": EEMap.reset_tile per tile), the cliff pass, the plug-in's GenerateResources and CreateTrees, the
+  start units (0x66B921: the type's vf15 at a point, set_built (1, 0, 0), paid_for) and the resources (0x66F0D5: vf14
+  for the world player, the texture under them) - until every start position stands on land. Out: where this PC's
+  view begins. Nothing after the call asks for the generator again.
+- **The mod's own types** (the player 2026-11-24: the game's generator circumvented, our entries in the list): added
+  to the list after the game's own, their maps made by the mod instead of 0x66D402 - no .rmv, no plug-in. "Age of AI
+  Test" is the proof: the new map left as the game makes one (flat, the default ground), each player a Capitol and
+  its citizens on a circle. Played in both builds from the test start and from the setup screen (its list shows the
+  entry); the game's own types play as before.
+
 ## Unit AI scripts (.tai)
 
 Each unit type's behaviour is a state machine from `Data\Unit AI Scripts\<name>.tai` (extracted copies:

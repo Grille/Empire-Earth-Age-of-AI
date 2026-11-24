@@ -1590,6 +1590,7 @@ internal uint32_t of_player_stance;
 internal uint32_t of_player_strategy;
 internal uint32_t of_player_result;
 internal uint32_t of_player_variables;
+internal uint32_t of_player_start_citizens;
 internal uint32_t of_player_damage_by;
 internal uint32_t of_player_attacks_running;
 internal uint32_t of_player_tribute_sent;
@@ -1832,6 +1833,15 @@ internal uint32_t value_player_of_player_civ_attributes;
 internal uint32_t call_dropoff_check;
 internal uint32_t calls_place_building[2];
 internal uint32_t calls_selection_sound[2];
+
+// random_map.cs
+internal uint32_t size_ee_map_type;
+internal uint32_t of_map_type_name;
+internal uint32_t of_map_type_title;
+internal uint32_t of_map_type_generator;
+internal uint32_t data_random_map_types;
+internal uint32_t calls_random_map_create[2];
+internal uint32_t call_random_map_types_load;
 
 // scenario.cs
 internal uint32_t of_scen_mgr_cam_rot;
@@ -3583,6 +3593,7 @@ internal uint32_t of_unit_deletable;
 internal uint32_t of_unit_commandable;
 internal uint32_t of_unit_clearance;
 internal uint32_t of_unit_anim_hold;
+internal uint32_t of_unit_paid_for;
 internal uint32_t of_unit_frozen;
 internal uint32_t of_unit_gate_locked;
 internal uint32_t of_unit_path_done;
@@ -3744,6 +3755,8 @@ internal uint32_t calls_fire[4];
 internal uint32_t slot_unit_type_launch;
 internal uint32_t slot_unit_type_create;
 internal uint32_t slot_unit_type_place_at;
+internal uint32_t slot_unit_type_create_on;
+internal uint32_t slot_unit_type_create_at;
 internal uint32_t slot_unit_type_place_drawn;
 internal uint32_t slot_unit_type_is_land_building;
 internal uint32_t vt_eeuc_missile;

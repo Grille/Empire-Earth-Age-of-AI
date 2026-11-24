@@ -597,6 +597,11 @@ internal inline uint8_t *unit_clearance_at(const ee_unit *o) { return (uint8_t *
 internal inline uint8_t unit_get_anim_hold(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_anim_hold); }
 internal inline void unit_set_anim_hold(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_anim_hold) = v; }
 internal inline uint8_t *unit_anim_hold_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_anim_hold); }
+// the random map sets it on each start unit it makes (0x66BF4F, AoC 0x685078), nothing else of its code touches
+// the unit after set_built (the AoC decompilation: mIsPaidFor)
+internal inline uint8_t unit_get_paid_for(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_paid_for); }
+internal inline void unit_set_paid_for(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_paid_for) = v; }
+internal inline uint8_t *unit_paid_for_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_paid_for); }
 // frozen (the scenario effect)
 internal inline uint8_t unit_get_frozen(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_frozen); }
 internal inline void unit_set_frozen(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_frozen) = v; }
@@ -1337,6 +1342,7 @@ internal int spec_unit_select(int build) {
         of_unit_commandable = 0x335;
         of_unit_clearance = 0x336;
         of_unit_anim_hold = 0x337;
+        of_unit_paid_for = 0x338;
         of_unit_frozen = 0x33B;
         of_unit_gate_locked = 0x33C;
         of_unit_path_done = 0x33E;
@@ -1641,6 +1647,7 @@ internal int spec_unit_select(int build) {
         of_unit_commandable = 0x341;
         of_unit_clearance = 0x342;
         of_unit_anim_hold = 0x343;
+        of_unit_paid_for = 0x344;
         of_unit_frozen = 0x347;
         of_unit_gate_locked = 0x348;
         of_unit_path_done = 0x34A;

@@ -139,6 +139,11 @@ unsafe struct EEPlayer
     [offset((ee)0xA44, (aoc)0xA3C), found(c)]
     fixed int32 variables[10];
 
+    /// the citizens it starts a random map with (the setup slot's): the random map's start units (0x66B921, AoC
+    /// 0x684FD9) make no more of the script's citizens than this
+    [offset((ee)0xA6C, (aoc)0xA64), found(c)]
+    uint32 start_citizens;
+
     /// the damage it took from each player over the game, by player index (0 the world): vf33 0x557147 adds every hit's;
     /// the player's reset 0x557182.. clears all 17
     [offset((ee)0xA70, (aoc)0xA68), found(c)]
