@@ -164,7 +164,7 @@ internal volatile LONG g_shot_req, g_shot_done;
 internal char g_shot_path[MAX_PATH];
 internal int write_desc_bmp(const DDSURFACEDESC2 *d, const char *path);
 internal int g_borderless;   // current mode: 1 borderless, 0 normal window
-internal int g_smooth;       // [display] smooth_scaling = 1: filtered scaling (HALFTONE) instead of nearest pixel
+internal int g_smooth;       // [display] scaling = linear or crt: filtered scaling (HALFTONE) instead of nearest pixel
 internal int g_dpi_windows;
 internal void window_hook(HWND hwnd);
 typedef void *(WINAPI *SetThreadDpiFn)(void *);
@@ -370,7 +370,7 @@ internal int present_primary(ee_rasterizer *ras, unsigned screen, ee_screen *scr
     static LONGLONG t_last;
     LONGLONG t0 = qpc();
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
-    if (g_shot_req && b->lpVtbl->Lock(b, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) == DD_OK) {
+    if (g_shot_req == 1 && b->lpVtbl->Lock(b, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) == DD_OK) {
         write_desc_bmp(&d, g_shot_path);
         b->lpVtbl->Unlock(b, NULL);
         g_shot_req = 0;
@@ -469,7 +469,7 @@ internal int present_to_window(ee_rasterizer *ras, unsigned screen) {
         return 0;
     }
     LONGLONG t1 = qpc();
-    if (g_shot_req) {   // control pipe "shot": the finished frame as BMP
+    if (g_shot_req == 1) {   // control pipe "shot": the finished frame as BMP
         write_desc_bmp(&d, g_shot_path);
         g_shot_req = 0;
         InterlockedIncrement(&g_shot_done);
@@ -1509,7 +1509,9 @@ internal void display_install(const char *autotest_ini) {
             if (!g_set_thread_dpi || !g_get_window_dpi) g_set_thread_dpi = NULL, g_get_window_dpi = NULL;
         }
         g_lock_mouse = g_set.lock_mouse;   // 0, 1, auto 2 (rows.h)
-        g_smooth = g_set.smooth_scaling;
+        g_smooth = g_set.scaling != 0;   // nearest 0, linear 1, crt 2 (rows.h); crt: present_d3d.c
+        g_crt.on = g_set.scaling == 2;
+        g_crt.k[0] = g_set.crt_scanlines, g_crt.k[1] = g_set.crt_stripes, g_crt.k[2] = g_set.crt_bulge, g_crt.k[3] = g_set.crt_glow;
         g_present_mode = g_set.present;   // auto 0, d3d 1, gdi 2, primary 3 (rows.h)
         g_present_d3d = g_present_mode <= 1;
         g_vsync = g_set.vsync;
@@ -2028,7 +2030,8 @@ internal void cmd_mapshot(const char *args, char *out) {
 // headless test commands (pipe thread, also in the menus and the editor):
 //   vmouse <x> <y>               game cursor to x, y (game coordinates; "vmouse off" = back to the real mouse)
 //   vclick <x> <y> [right|mid]   move there and click
-//   shot <name>                  next presented frame -> ageofai_dumps/<name>.bmp
+//   shot <name> [window]         next presented frame -> ageofai_dumps/<name>.bmp (window: as the window gets it -
+//                                scaled, [display] scaling = crt; the Direct3D present only)
 internal void cmd_headless(const char *verb, const char *args, char *out) {
     if (!strcmp(verb, "mapshot")) { cmd_mapshot(args, out); return; }
     if (!strcmp(verb, "shot")) {
@@ -2042,7 +2045,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
             return;
         }
         LONG before = g_shot_done;
-        g_shot_req = 1;
+        g_shot_req = strstr(args, " window") ? 2 : 1;   // window: what the window gets (present_d3d.c), not the game's picture
         for (int i = 0; i < 300 && g_shot_done == before; i++) Sleep(10);
         if (g_shot_done != before) REPLY("ok: %s\n", g_shot_path);
         else { g_shot_req = 0; REPLY("error: no frame presented within 3 s\n"); }

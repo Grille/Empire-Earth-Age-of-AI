@@ -1142,7 +1142,7 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
     g_ku_text = 0;   // the interface's text ends here: the mouse cursor isn't kept (render_frame.c)
     int cursor = rd_cursor_draw(s);
     if (cursor) rd3_submit();
-    if (g_shot_req && (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight)) {   // a larger target: the picture as it is drawn
+    if (g_shot_req == 1 && (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight)) {   // a larger target: the picture as it is drawn
         D3D11_TEXTURE2D_DESC td = { s->tw, s->th, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_STAGING, 0, D3D11_CPU_ACCESS_READ, 0 };
         ID3D11Texture2D *st = NULL;
         if (SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &st))) {
@@ -1160,7 +1160,7 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
         g_shot_req = 0;
         InterlockedIncrement(&g_shot_done);
     }
-    if (g_shot_req) {
+    if (g_shot_req == 1) {
         RECT all = { 0, 0, (LONG)s->desc.dwWidth, (LONG)s->desc.dwHeight };
         if (rd_read_target(s, &all)) {
             DDSURFACEDESC2 d = s->desc;

@@ -12,8 +12,9 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   has the game resolution from the game settings (scaled down if it doesn't fit the screen).
 - `[display] display_mode=borderless` (default since 2026-11-18; `native`, the game's fullscreen, before): a frameless
   window over the whole monitor, the game image scaled to it (aspect kept). Alt+Enter switches between window and
-  borderless. The window is DPI-aware (`dpi_aware`), so Windows display scaling doesn't blur it; `smooth_scaling=1`
-  filters the scaled image. The mod's own renderer (below) runs only in the two window modes: `native` draws through
+  borderless. The window is DPI-aware (`dpi_aware`), so Windows display scaling doesn't blur it; `scaling`
+  says how the image gets there (`nearest`, `linear`, or `crt`: a tube monitor's scan lines, colour stripes, bulging
+  glass and glow, also unscaled - `crt_scanlines`, `crt_stripes`, `crt_bulge`, `crt_glow`). The mod's own renderer (below) runs only in the two window modes: `native` draws through
   the game's DirectDraw, without the renderer's shadows, water, smooth units and the rest.
 - `[display] renderer=own` (default; both window modes): what draws the picture. Windows' own DirectDraw can't run
   the game in a window, so either the mod's own renderer on Direct3D 11 (`own`; screenshots, recording and the game's

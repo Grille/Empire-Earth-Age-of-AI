@@ -244,6 +244,7 @@ internal void cmd_picture(char *out, const char *args) {
     if (rao_pipe(out, mode, arg)) return;   // render_ao.c
     if (rgb_pipe(out, mode, arg)) return;   // render_ground.c
     if (ud_pipe(out, mode, arg)) return;    // render_units.c
+    if (crt_pipe(out, mode, args)) return;  // present_d3d.c
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }

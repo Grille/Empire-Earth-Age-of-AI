@@ -32,6 +32,8 @@ internal struct {
     ID3D11VertexShader *vs;
     ID3D11PixelShader *ps;
     ID3D11SamplerState *linear, *point;
+    ID3D11PixelShader *ps_crt;   // [display] scaling = crt (below); NULL: its shader didn't compile - linear
+    ID3D11Buffer *crt_k;
     ID3D11Texture2D *tex;
     ID3D11ShaderResourceView *srv;
     char err[160];
@@ -50,7 +52,7 @@ internal void d3d_release(void) {
     if (g_d3d.ctx) ID3D11DeviceContext_ClearState(g_d3d.ctx);
     d3d_release_window();
     D3D_RELEASE(g_d3d.srv); D3D_RELEASE(g_d3d.tex); D3D_RELEASE(g_d3d.linear); D3D_RELEASE(g_d3d.point);
-    D3D_RELEASE(g_d3d.vs); D3D_RELEASE(g_d3d.ps);
+    D3D_RELEASE(g_d3d.vs); D3D_RELEASE(g_d3d.ps); D3D_RELEASE(g_d3d.ps_crt); D3D_RELEASE(g_d3d.crt_k);
     D3D_RELEASE(g_d3d.ctx); D3D_RELEASE(g_d3d.dev);
     g_d3d.tw = g_d3d.th = 0;
 }
@@ -83,6 +85,66 @@ internal const char k_shader[] =
     "V vs(uint id : SV_VertexID) { V o; o.uv = float2((id << 1) & 2, id & 2);"
     " o.p = float4(o.uv * float2(2, -2) + float2(-1, 1), 0, 1); return o; }\n"
     "float4 ps(V i) : SV_Target { return float4(t.Sample(s, i.uv).rgb, 1); }\n";
+
+// [display] scaling = crt (the player, 2026-11-24: "silly idea, how about a crt mode?"): the picture as a tube monitor
+// showed it, the last step into the window instead of the plain copy - so the game's picture, shots and records stay
+// as they are (the pipe's "shot <name> window" reads the window's). It has to show at the screen's own resolution too
+// (the player's game is 2560x1440 on such a screen), so nothing of it hangs on the scale but the scan lines' count:
+// the game's lines where each gets 3 pixels of the window or more, else a line every 3 pixels over the picture (a
+// tube of a third of the window's lines; fewer pixels a line and the gaps beat against the pixel rows).
+//   the glass: the picture's place pushed outwards with the square of the other axis' distance from the middle, so
+//     its edges bow inwards at the corners and touch the window's at their middles; black beyond, the corners darker
+//   a scan line: the beam's spot across the line a bell, wider the brighter its colour (a bright line closes its
+//     gaps, a dark one is thin), worked in linear light (the colours squared, the root at the end)
+//   the stripes: the tube's red, green and blue phosphor stripes, one of the three on each pixel column of the window
+//   the glow: the picture's light spread over two rings round each place and added (the glass scatters it)
+// and the brightness the gaps and stripes take is given back by a gain (what was at full brightness clips).
+// k: the picture's size and a texel's; the window's view size and the scan lines' count; scan lines, stripes, bulge, glow
+internal const char k_crt_shader[] =
+    "Texture2D t : register(t0); SamplerState s : register(s0);\n"
+    "cbuffer k : register(b0) { float4 ksrc; float4 kout; float4 kp; };\n"
+    "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
+    "float3 lit(float2 uv) { float3 c = t.SampleLevel(s, uv, 0).rgb; return c * c; }\n"
+    "float4 ps(V i) : SV_Target {\n"
+    " float2 c = i.uv * 2 - 1, q = c * c;\n"
+    " c *= 1 + kp.z * float2(0.07 * q.y, 0.10 * q.x);\n"
+    " float2 uv = c * 0.5 + 0.5, e = (1 - abs(c)) * 0.5 * kout.xy;\n"   // e: pixels of the window to the picture's edge
+    " float in_glass = saturate(e.x + 0.5) * saturate(e.y + 0.5);\n"
+    " float2 px = 1 / kout.xy;\n"
+    " float3 col = lit(uv) * 0.5 + (lit(uv + float2(px.x * 0.6, 0)) + lit(uv - float2(px.x * 0.6, 0))) * 0.25;\n"   // the spot's width along the line
+    " if (kp.w > 0) {\n"
+    "  float3 g = 0;\n"
+    "  for (int n = 0; n < 8; n++) {\n"
+    "   float a = n * 0.7853982; float2 d = float2(cos(a), sin(a)) * px;\n"
+    "   g += lit(uv + d * 3.5) + lit(uv + d.yx * float2(-9, 9)) * 0.6;\n"
+    "  }\n"
+    "  col += g * (kp.w * 0.35 / 12.8);\n"
+    " }\n"
+    " float d = frac(uv.y * kout.z) - 0.5;\n"
+    " float3 w = lerp(0.24, 0.60, saturate(sqrt(col)));\n"
+    " col *= lerp(1, exp(-d * d / (2 * w * w)), kp.x);\n"
+    " float3 m = 1 - kp.y; int col3 = (int)i.p.x % 3;\n"
+    " if (col3 == 0) m.r = 1; else if (col3 == 1) m.g = 1; else m.b = 1;\n"
+    " col *= m * (1 + 0.55 * kp.x) * 3 / (3 - 2 * kp.y);\n"
+    " col *= 1 - 0.30 * kp.z * q.x * q.y - 0.10 * kp.z * (q.x + q.y) * 0.5;\n"
+    " return float4(sqrt(saturate(col)) * in_glass, 1);\n"
+    "}\n";
+internal struct { int on; float k[4]; } g_crt;   // display.c sets it from [display] scaling and crt_*; the pipe: picture crt
+
+// the pipe: picture crt [on | off | <scan lines> <stripes> <bulge> <glow>] (each 0..1)
+internal int crt_pipe(char *out, const char *mode, const char *args) {
+    if (strcmp(mode, "crt")) return 0;
+    char arg[16] = "";
+    float k[4];
+    int n = sscanf(args, "%*s %f %f %f %f", &k[0], &k[1], &k[2], &k[3]);
+    sscanf(args, "%*s %15s", arg);
+    if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_crt.on = arg[1] == 'n';
+    else if (n == 4 && k[0] >= 0 && k[0] <= 1 && k[1] >= 0 && k[1] <= 1 && k[2] >= 0 && k[2] <= 1 && k[3] >= 0 && k[3] <= 1) memcpy(g_crt.k, k, sizeof k);
+    else if (arg[0]) { REPLY("error: usage: picture crt [on | off | <scan lines> <stripes> <bulge> <glow>] (each 0..1)\n"); return 1; }
+    REPLY("crt %s%s: scan lines %.2f, stripes %.2f, bulge %.2f, glow %.2f\n", g_crt.on ? "on" : "off",
+          g_crt.on && g_d3d.dev && !g_d3d.ps_crt ? " (no shader: linear)" : "", (double)g_crt.k[0], (double)g_crt.k[1], (double)g_crt.k[2], (double)g_crt.k[3]);
+    return 1;
+}
 
 // a shader of src's entry point for target (vs_4_0, ps_4_0); NULL after logging the compiler's message
 internal ID3DBlob *d3d_compile(const char *src, size_t n, const char *entry, const char *target) {
@@ -129,6 +191,11 @@ internal int d3d_device(void) {
     hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_d3d.ps) : E_FAIL;
     D3D_RELEASE(code);
     if (FAILED(hr)) return d3d_fail("pixel shader", hr);
+    code = d3d_compile(k_crt_shader, sizeof k_crt_shader - 1, "ps", "ps_4_0");   // without it the plain copy: no failure
+    D3D11_BUFFER_DESC kd = { 48, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+    if (code && (FAILED(ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_d3d.ps_crt)) ||
+                 FAILED(ID3D11Device_CreateBuffer(g_d3d.dev, &kd, NULL, &g_d3d.crt_k)))) D3D_RELEASE(g_d3d.ps_crt);
+    D3D_RELEASE(code);
     D3D11_SAMPLER_DESC smp = { 0 };
     smp.AddressU = smp.AddressV = smp.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     smp.MaxLOD = D3D11_FLOAT32_MAX;
@@ -215,12 +282,38 @@ internal int d3d_draw_srv(ID3D11ShaderResourceView *srv, int sw, int sh, const R
     ID3D11DeviceContext_IASetInputLayout(c, NULL);
     ID3D11DeviceContext_IASetPrimitiveTopology(c, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     ID3D11DeviceContext_VSSetShader(c, g_d3d.vs, NULL, 0);
-    ID3D11DeviceContext_PSSetShader(c, g_d3d.ps, NULL, 0);
+    int crt = g_crt.on && g_d3d.ps_crt;
+    if (crt) {
+        float vw = vp.Width, vh = vp.Height, lines = (float)sh < vh / 3 ? (float)sh : floorf(vh / 3);
+        float k[12] = { (float)sw, (float)sh, 1.0f / (float)sw, 1.0f / (float)sh, vw, vh, lines, 0, g_crt.k[0], g_crt.k[1], g_crt.k[2], g_crt.k[3] };
+        ID3D11DeviceContext_UpdateSubresource(c, (ID3D11Resource *)g_d3d.crt_k, 0, NULL, k, 0, 0);
+        ID3D11DeviceContext_PSSetConstantBuffers(c, 0, 1, &g_d3d.crt_k);
+    }
+    ID3D11DeviceContext_PSSetShader(c, crt ? g_d3d.ps_crt : g_d3d.ps, NULL, 0);
     ID3D11DeviceContext_PSSetShaderResources(c, 0, 1, &srv);
-    ID3D11DeviceContext_PSSetSamplers(c, 0, 1, scaled && g_smooth ? &g_d3d.linear : &g_d3d.point);
+    ID3D11DeviceContext_PSSetSamplers(c, 0, 1, crt || (scaled && g_smooth) ? &g_d3d.linear : &g_d3d.point);
     ID3D11DeviceContext_Draw(c, 3, 0);
     ID3D11ShaderResourceView *none = NULL;
     ID3D11DeviceContext_PSSetShaderResources(c, 0, 1, &none);   // the frame may be a render target again next
+    if (g_shot_req == 2) {   // the pipe's "shot <name> window": what the window gets - scaled, bars, crt
+        ID3D11Texture2D *bb = NULL, *st = NULL;
+        D3D11_TEXTURE2D_DESC td = { (UINT)g_d3d.bw, (UINT)g_d3d.bh, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_STAGING, 0, D3D11_CPU_ACCESS_READ, 0 };
+        D3D11_MAPPED_SUBRESOURCE ms;
+        if (SUCCEEDED(IDXGISwapChain1_GetBuffer(g_d3d.sc, 0, &IID_ID3D11Texture2D, (void **)&bb)) &&
+            SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &st))) {
+            ID3D11DeviceContext_CopyResource(c, (ID3D11Resource *)st, (ID3D11Resource *)bb);
+            if (SUCCEEDED(ID3D11DeviceContext_Map(c, (ID3D11Resource *)st, 0, D3D11_MAP_READ, 0, &ms))) {
+                DDSURFACEDESC2 d = { .dwSize = sizeof d, .dwWidth = td.Width, .dwHeight = td.Height, .lPitch = (LONG)ms.RowPitch, .lpSurface = ms.pData };
+                d.ddpfPixelFormat.dwRGBBitCount = 32;
+                d.ddpfPixelFormat.dwRBitMask = 0xFF0000, d.ddpfPixelFormat.dwGBitMask = 0xFF00, d.ddpfPixelFormat.dwBBitMask = 0xFF;
+                write_desc_bmp(&d, g_shot_path);
+                ID3D11DeviceContext_Unmap(c, (ID3D11Resource *)st, 0);
+            }
+        }
+        D3D_RELEASE(st); D3D_RELEASE(bb);
+        g_shot_req = 0;
+        InterlockedIncrement(&g_shot_done);
+    }
     LARGE_INTEGER t0, t1;
     QueryPerformanceCounter(&t0);
     int sync = g_vsync && !g_present_no_wait;
