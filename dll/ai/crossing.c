@@ -87,7 +87,7 @@ internal void cx_scan(ee_player *pl, unsigned idx, ee_unit_type *trtd, uint32_t 
     if (c->t && now >= c->t && now - c->t < CX_LOOK && c->trtype == tt) return;
     c->t = now ? now : 1; c->n = 0; c->trtype = tt;
     if (!trtd) return;
-    int tpi = player_get_index(pl);
+    int tpi = player_get_index(pl), space = nv_space(unit_type_get_class_id(trtd));   // fleet.c THE LAYERS: a Space Transport's crossing
     static ivec2 own[256]; static float ownr[256];
     int no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -96,7 +96,7 @@ internal void cx_scan(ee_player *pl, unsigned idx, ee_unit_type *trtd, uint32_t 
         int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_class_id(it.td);
         if (!o || x < 0 || unit_get_hp(u) <= 0) continue;
         if (o == pl) {   // its warships: what they fight is busy
-            if ((fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && unit_type_get_attack(it.td) > 0 && !is_transport(unit_type_get_id(it.td)) && no < 256) { own[no] = iv2(x, y); ownr[no++] = fl_range(u, it.td); }
+            if ((space ? fam == CLS_SPACESHIP : fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && unit_type_get_attack(it.td) > 0 && !is_transport(unit_type_get_id(it.td)) && no < 256) { own[no] = iv2(x, y); ownr[no++] = fl_range(u, it.td); }
             continue;
         }
         if (player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
@@ -112,7 +112,7 @@ internal void cx_scan(ee_player *pl, unsigned idx, ee_unit_type *trtd, uint32_t 
             continue;
         }
         if (!air && !area_id(iv2(x, y), 1)) {   // on land: a long gun on the coast (fleet.c fl_danger_r), where it stands
-            float r = fl_danger_r(u, it.td);
+            float r = fl_danger_r(u, it.td, space);
             if (r > 0) cx_add(c, iv2(x, y), r, fl_dps(u, it.td) * f, 0, 0, 0);
             continue;
         }
@@ -128,7 +128,7 @@ internal void cx_scan(ee_player *pl, unsigned idx, ee_unit_type *trtd, uint32_t 
             if (!td || (e->kind == 2 && age > 300000)) continue;
             float f = ld_factor(td, e->owner, trtd, tpi);
             if (f <= 0) continue;
-            if (e->kind == 0) { float r = fl_danger_r(NULL, td); if (r > 0) cx_add(c, iv2(e->x, e->y), r, fl_dps(NULL, td) * f, 0, 0, 0); continue; }
+            if (e->kind == 0) { float r = fl_danger_r(NULL, td, space); if (r > 0) cx_add(c, iv2(e->x, e->y), r, fl_dps(NULL, td) * f, 0, 0, 0); continue; }
             float drift = (float)age / 1000.0f * CX_DRIFT;
             if (drift > CX_DRIFT_MAX) drift = CX_DRIFT_MAX;
             float r = fl_range(NULL, td);

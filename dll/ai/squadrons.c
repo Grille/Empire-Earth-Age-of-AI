@@ -210,15 +210,15 @@ internal int sq_on_land(ee_unit *t) {
            c != CLS_HELICOPTER && c != CLS_HELICOPTER_TRANSPORT && c != CLS_HELICOPTER_PRIEST && c != CLS_SEA_ANIMAL && c != CLS_AIR_ANIMAL;
 }
 // THE SHORE: the defences that reach the water off p (towers, land units that threaten ships, seen within their reach +
-// SQ_SHELL_DEF of p) into out (max n), how many; the one nearest c in *near
+// SQ_SHELL_DEF of p) into out (max n), how many; the one nearest c in *near; space: the squadron's sea is space (fleet.c THE LAYERS)
 #define SQ_SHELL_N 48
-internal int sq_shore_defs(ee_player *pl, ivec2 p, ivec2 c, ee_unit **out, int n, ee_unit **closest) {
+internal int sq_shore_defs(ee_player *pl, ivec2 p, ivec2 c, ee_unit **out, int n, ee_unit **closest, int space) {
     int k = 0, bd = 0x7FFFFFFF;
     *closest = NULL;
     for (struct grid_it it = grid_it_box(p.x, p.y, 24, 1); k < n && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_enemy(pl, unit_get_owner(u)) || !seen_by(u, pl)) continue;
-        float r = fl_danger_r(u, it.td) + SQ_SHELL_DEF;
+        float r = fl_danger_r(u, it.td, space) + SQ_SHELL_DEF;
         ivec2 q = unit_get_tile(u);
         if (r <= SQ_SHELL_DEF || (float)ivec2_dist2(q, p) > r * r) continue;
         out[k++] = u;
@@ -262,7 +262,7 @@ internal ivec2 sq_haven(const struct sq *q, ivec2 threat) {
         int n = pass ? g_fs.nd : g_fs.ntw;
         for (int k = 0; k < n; k++) {
             ivec2 b = pass ? g_fs.dk[k] : g_fs.tw[k], w, o;
-            if (!pass && ivec2_dist2(b, q->zc) > SQ_REACH * SQ_REACH) continue;
+            if (!pass && (ivec2_dist2(b, q->zc) > SQ_REACH * SQ_REACH || !fl_tw_covers(k, (unsigned)q->ocean))) continue;
             if ((int)ocean_near(b, pass ? 4 : 6, &w) != q->ocean || !fl_water(w, (unsigned)q->ocean, &o) || fl_in_danger(o)) continue;
             int d = ivec2_dist2(o, threat);
             if (d > bd) { bd = d; best = o; }
@@ -708,7 +708,7 @@ internal int sq_shell(ee_player *pl, unsigned idx, struct sq *q, ivec2 home, uin
     ivec2 c = sq_center(q);
     int nd = 0;
     if (t) {
-        nd = sq_shore_defs(pl, unit_get_tile(t), c, def, SQ_SHELL_N, &closest);
+        nd = sq_shore_defs(pl, unit_get_tile(t), c, def, SQ_SHELL_N, &closest, sea_is_space((unsigned)q->ocean));
         float r = sq_shore_ratio(q, def, nd);
         if (r < SQ_SHELL_HOLD || sq_hp_share(q) < SQ_SHELL_OFF) t = NULL; else q->ratio = r;
     }
@@ -726,7 +726,7 @@ internal int sq_shell(ee_player *pl, unsigned idx, struct sq *q, ivec2 home, uin
             }
             if (bj < 0) break;
             done[bj] = 1;
-            nd = sq_shore_defs(pl, g_fs.ec[bj].p, c, def, SQ_SHELL_N, &closest);
+            nd = sq_shore_defs(pl, g_fs.ec[bj].p, c, def, SQ_SHELL_N, &closest, sea_is_space((unsigned)q->ocean));
             float r = sq_shore_ratio(q, def, nd);
             if (r >= SQ_SHELL_GO) {
                 t = g_fs.ec[bj].u; q->ratio = r; q->shelled++;

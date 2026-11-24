@@ -169,6 +169,7 @@ internal struct fl_scan {
     ivec2 dk[16]; int nd;                             // own docks
     ivec2 eb, ed[16]; int eb_known, ned;              // the nearest known enemy building (to the guard base), enemy docks
     ivec2 tw[FL_TW]; int ntw; float twr[FL_TW];       // own towers and defence buildings (their range)
+    uint8_t twl[FL_TW]; int lbit;                     // the layers each one hits (fl_hits_layer: 1 water, 2 space), the fleet's sea's
 } g_fs;
 // storms.c STORMS ([ai_base] storm_dodge): a storm's reach - its 5 tiles, a ship's size and the second it takes to turn
 internal int g_storm = 0, g_v_storm = -1;
@@ -186,18 +187,29 @@ internal float fl_range(ee_unit *u, ee_unit_type *td) {
     float r = st ? unit_stats_get_range(st) : unit_type_get_range(td) + 1.0f;   // remembered: the base range + an upgrade
     return r > 0 && r < 40 ? r : 0;
 }
-// does a land unit or building of type td threaten ships: a defence with a ground attack (attack.c defence_stats), or
-// a unit whose weapon hits battleships x3+ (catapults, cannons, artillery ...) or reaches 7+ tiles, and hits ships
-internal float fl_danger_r(ee_unit *u, ee_unit_type *td) {
+// THE LAYERS (forces.c SPACE AS A SEA; the player 2026-11-24: "towers cant reach into space (no land unit can) ...
+// Space Turrets are needed for protection ... the dangers are limited to turrets and other ships/fighters"): what on
+// land reaches a sea's warships is the layer's - on water towers, coastal guns, long siege; in space the Space Turret
+// alone (the hit table: towers, artillery and every other land weapon 0 against the space categories 56/58, the Space
+// Turret's weapon 65 hits nothing afloat). One rule over the game's table: a weapon that hits the layer's warships.
+internal int fl_hits_layer(ee_unit_type *td, int space) {
+    int kind = unit_type_get_weapon(td);
+    return space ? nv_f(kind, NV_S_FRIG) > 0 || nv_f(kind, NV_S_LINE) > 0 : nv_f(kind, NV_C_FRIG) > 0 || nv_f(kind, NV_C_LINE) > 0;
+}
+// does a land unit or building of type td threaten the warships of a water sea (space 0) or a space sea (1): a defence
+// with a ground attack (attack.c defence_stats) whose weapon hits them, or on water a unit whose weapon hits
+// battleships x3+ (catapults, cannons, artillery ...) or reaches 7+ tiles, and hits ships
+internal float fl_danger_r(ee_unit *u, ee_unit_type *td, int space) {
     int fam = unit_type_get_class_id(td), t = unit_type_get_id(td), kind = unit_type_get_weapon(td);
-    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN || fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT || nv_space(fam) || fam == CLS_PLANET_SPACESHIP) return 0;   // afloat, aircraft, in space
-    if (unit_type_get_attack(td) <= 0 || (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0)) return 0;
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN || fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT || nv_space(fam) || fam == CLS_PLANET_SPACESHIP) return 0;   // afloat, aircraft (none enters space), in space
+    if (unit_type_get_attack(td) <= 0 || !fl_hits_layer(td, space)) return 0;
     if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
         float r, a;
         if (u) return defence_stats(u, &r, &a) ? r : 0;
         return t == UT(B_AA10_GUN_88MM) || t == UT(B_AA13_MISSILE_TOWER) || unit_type_get_range(td) <= 1.0f ? 0 : unit_type_get_range(td) + 1.0f;
     }
     float r = fl_range(u, td);
+    if (space) return r >= 2.0f ? r : 0;
     return (nv_f(kind, NV_C_LINE) >= 3.0f || r >= 7.0f) && r >= 2.0f ? r : 0;
 }
 internal void fl_dz_add(struct fl_scan *s, ivec2 p, float r) {
@@ -207,6 +219,7 @@ internal void fl_dz_add(struct fl_scan *s, ivec2 p, float r) {
     for (int k = 0; k < f->ndz; k++) if (ivec2_eq(s->dz[k].p, p) && s->dz[k].r >= r + 2.0f) return;
     s->dz[f->ndz].p = p; s->dz[f->ndz++].r = r + 2.0f;
 }
+internal int fl_tw_covers(int j, unsigned oc) { return g_fs.twl[j] & (sea_is_space(oc) ? 2 : 1); }   // own defence j shoots at the sea oc's layer
 internal int fl_in_danger(ivec2 p) {
     struct fleet *f = &g_fl[g_fs.idx];
     for (int k = 0; k < f->ndz; k++)
@@ -266,6 +279,8 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
     s->pl = pl; s->idx = idx;
     s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = s->ntw = 0; s->eb_known = 0;
     f->n = 0; f->ndz = 0;
+    int space = f->ocean && sea_is_space((unsigned)f->ocean);   // THE LAYERS: what reaches its warships, what covers them
+    s->lbit = space ? 2 : 1;
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     ivec2 h = bm ? build_mgr_get_base(bm) : iv2(0, 0);
@@ -290,7 +305,8 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 if ((unit_type_get_id(td) == UT(B_DOCK) || unit_type_get_id(td) == UT(B_SPACE_DOCK)) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);   // a Space Dock a space sea's (forces.c SPACE AS A SEA)
                 float tr, ta;
-                if (s->ntw < FL_TW && defence_stats(u, &tr, &ta)) { s->tw[s->ntw] = iv2(x, y); s->twr[s->ntw++] = tr; }
+                int lm = fl_hits_layer(td, 0) | fl_hits_layer(td, 1) << 1;   // a planet's guard tower covers no Space Dock, a Space Turret no Dock
+                if (s->ntw < FL_TW && lm && defence_stats(u, &tr, &ta)) { s->tw[s->ntw] = iv2(x, y); s->twl[s->ntw] = (uint8_t)lm; s->twr[s->ntw++] = tr; }
                 if (s->nbl < FL_BLD) s->b[s->nbl++] = iv2(x, y);
             }
             continue;
@@ -312,7 +328,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             if (d < bd) { bd = d; s->eb = iv2(x, y); s->eb_known = 1; }
             if (unit_type_get_id(td) == UT(B_DOCK) && s->ned < 16) s->ed[s->ned++] = iv2(x, y);
         }
-        fl_dz_add(s, iv2(x, y), fl_danger_r(u, td));
+        fl_dz_add(s, iv2(x, y), fl_danger_r(u, td, space));
     }
     if (!g_honest_vision) return;
     // remembered (intel.c): buildings until their spot is looked at again, siege and ships 5 minutes, prey 2
@@ -328,8 +344,8 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             int d = ivec2_dist2(iv2(e->x, e->y), h);
             if (d < bd) { bd = d; s->eb = iv2(e->x, e->y); s->eb_known = 1; }
             if (e->type == UT(B_DOCK) && s->ned < 16) s->ed[s->ned++] = iv2(e->x, e->y);
-            fl_dz_add(s, iv2(e->x, e->y), fl_danger_r(NULL, td));
-        } else if (e->kind == 1 && age <= 300000) fl_dz_add(s, iv2(e->x, e->y), fl_danger_r(NULL, td));
+            fl_dz_add(s, iv2(e->x, e->y), fl_danger_r(NULL, td, space));
+        } else if (e->kind == 1 && age <= 300000) fl_dz_add(s, iv2(e->x, e->y), fl_danger_r(NULL, td, space));
         else if ((nk == NV_WAR || nk == NV_SUB) && age <= 300000 && s->ne < FL_ES) {
             struct fl_ship *q = &s->es[s->ne++];
             q->u = NULL; q->td = td; q->p = iv2(e->x, e->y); q->hp = e->hp; q->pi = e->owner; q->seen = 0; q->dps = fl_dps(NULL, td);
@@ -529,7 +545,7 @@ internal int fl_repair_dock(ivec2 p) {
     for (int k = 0; k < g_fs.nd; k++) {
         if (fl_in_danger(g_fs.dk[k])) continue;
         int cov = 0;
-        for (int j = 0; j < g_fs.ntw && !cov; j++) cov = ivec2_dist2(g_fs.tw[j], g_fs.dk[k]) <= 64;
+        for (int j = 0; j < g_fs.ntw && !cov; j++) cov = (g_fs.twl[j] & g_fs.lbit) && ivec2_dist2(g_fs.tw[j], g_fs.dk[k]) <= 64;
         float d = sqrtf((float)ivec2_dist2(g_fs.dk[k], p)) * (cov ? 0.5f : 1.0f);
         if (d < bd) { bd = d; b = k; }
     }
@@ -750,6 +766,7 @@ internal void fl_haven(struct fleet *m) {
         int n = pass ? g_fs.nd : g_fs.ntw;
         for (int k = 0; k < n; k++) {
             ivec2 b = pass ? g_fs.dk[k] : g_fs.tw[k], w, o;
+            if (!pass && !fl_tw_covers(k, (unsigned)m->ocean)) continue;
             if ((int)ocean_near(b, pass ? 4 : 6, &w) != m->ocean || !fl_water(w, (unsigned)m->ocean, &o) || fl_in_danger(o)) continue;
             float d = g_fs.eb_known ? (float)ivec2_dist2(b, g_fs.eb) : 0.0f;
             if (d > bd) { bd = d; m->hv = o; }
@@ -781,7 +798,7 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
     int nwet = 0;
     for (int k = 0; k < g_fs.ntw; k++) {
         int R = (int)g_fs.twr[k] - 1;
-        if (R >= 2 && ocean_near(g_fs.tw[k], R > 20 ? 20 : R, NULL)) wet[nwet++] = k;
+        if (R >= 2 && fl_tw_covers(k, (unsigned)m->ocean) && ocean_near(g_fs.tw[k], R > 20 ? 20 : R, NULL)) wet[nwet++] = k;
     }
     for (int i = 0; i < nwet; i++) {
         int k = wet[i], R = (int)g_fs.twr[k] - 1;
@@ -877,6 +894,16 @@ internal unsigned fl_dock_land_of(ivec2 q, int type) {
     return 0;
 }
 internal unsigned fl_dock_land(ivec2 q) { return fl_dock_land_of(q, UT(B_DOCK)); }
+// a Space Turret's place (THE LAYERS): it stands in space, not on the planet - the game takes any space tile (its coastal
+// buildings' rule, 0x46B6B2: the Dock, the Space Dock, the Space Turret, the Orbital Station), a builder reaches one on
+// the planet's edge: the space sea oc's tile with land beside it
+internal int fl_space_shore(ivec2 q, unsigned oc) {
+    if (area_id(q, 1) != oc) return 0;
+    for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+            if ((dx || dy) && !area_id(iv2(q.x + dx, q.y + dy), 1) && area_id(iv2(q.x + dx, q.y + dy), 2)) return 1;   // land: no sea, a land region
+    return 0;
+}
 internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
     if (!HARBOURS(idx) || (g_hb[idx].t && now >= g_hb[idx].t && now - g_hb[idx].t < HB_EVERY)) return;
     g_hb[idx].t = now ? now : 1;
@@ -901,23 +928,23 @@ internal void fl_harbours(ee_player *pl, unsigned idx, uint32_t now) {
         if (!stands) { g_hb[idx].served[k--] = g_hb[idx].served[--g_hb[idx].nserved]; continue; }
         if (nds < 32) dock_seas[nds++] = g_hb[idx].served[k].sea;
     }
-    int ttype = tower_newest(pl);
-    for (int k = 0; ttype && k < g_fs.nd && k < 16 && (!GAME_AI(idx) || !tower_queued(bm)); k++) {   // its towers first: a dock without one is no harbour
+    int ttype = tower_newest(pl), sturret = ut_has(UT(B_SPACE_TURRET)) && can_build(pl, UT(B_SPACE_TURRET)) ? UT(B_SPACE_TURRET) : 0;
+    for (int k = 0; (ttype || sturret) && k < g_fs.nd && k < 16 && (!GAME_AI(idx) || !tower_queued(bm)); k++) {   // its towers first: a dock without one is no harbour
         ivec2 dk = g_fs.dk[k];
-        int cov = 0, oc = (int)ocean_near(dk, 4, NULL), want = 1 + ((dock_seas[k] != TER_NONE && tv_sea_threat(idx, dock_seas[k])) || player_stock_at(pl)[4] >= HB_STONE);   // the second: under threat, or with the stone there (the player: "just add the second tower if the stone is threr")
-        for (int j = 0; j < g_fs.ntw; j++) cov += ivec2_dist2(g_fs.tw[j], dk) <= HB_TOWER_R * HB_TOWER_R;
-        if (cov >= want || !oc || raiders_near(pl, dk, 10)) continue;
+        int cov = 0, oc = (int)ocean_near(dk, 4, NULL), tt = sea_is_space((unsigned)oc) ? sturret : ttype, want = 1 + ((dock_seas[k] != TER_NONE && tv_sea_threat(idx, dock_seas[k])) || player_stock_at(pl)[4] >= HB_STONE);   // the second: under threat, or with the stone there (the player: "just add the second tower if the stone is threr")
+        for (int j = 0; j < g_fs.ntw; j++) cov += fl_tw_covers(j, (unsigned)oc) && ivec2_dist2(g_fs.tw[j], dk) <= HB_TOWER_R * HB_TOWER_R;   // THE LAYERS: a Space Dock's are Space Turrets
+        if (!tt || cov >= want || !oc || raiders_near(pl, dk, 10)) continue;
         for (int r = 2; r <= 6; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
                     ivec2 q = ivec2_add(dk, iv2(ax, ay));
-                    if ((abs(ax) != r && abs(ay) != r) || !fl_coast(q, oc) || !can_place(pl, ttype, q)) continue;
+                    if ((abs(ax) != r && abs(ay) != r) || !(tt == sturret ? fl_space_shore(q, (unsigned)oc) && can_place_open(pl, tt, q) : fl_coast(q, oc)) || !can_place(pl, tt, q)) continue;
                     int close = 0;   // along the shore, not beside another tower (HB_TOWER_GAP)
                     for (int j = 0; j < g_fs.ntw && !close; j++) close = ivec2_dist2(g_fs.tw[j], q) < HB_TOWER_GAP * HB_TOWER_GAP;
                     if (close) continue;
-                    if (!hb_lay(pl, idx, bm, e, ttype, q)) return;
+                    if (!hb_lay(pl, idx, bm, e, tt, q)) return;
                     g_hb[idx].towers++; g_hb[idx].laid_t = now ? now : 1;
-                    if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d of %d towers there)\n", idx, now / 60000.0, ttype, q.x, q.y, dk.x, dk.y, cov, want);
+                    if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: harbour - tower %d queued at %d,%d by the dock %d,%d (%d of %d towers there)\n", idx, now / 60000.0, tt, q.x, q.y, dk.x, dk.y, cov, want);
                     return;
                 }
     }

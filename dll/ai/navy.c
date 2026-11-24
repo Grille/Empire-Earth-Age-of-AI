@@ -601,8 +601,8 @@ internal float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outs
             ee_unit_type *td = type_data(t);
             if (!td) continue;
             int c = unit_type_get_family(td), k = unit_type_get_weapon(td), fam = unit_type_get_class_id(td);
-            if (c >= 0 && c < 64 && c >= g_nv_nc) g_nv_nc = c + 1;
-            if (k >= 0 && k < 64 && k >= g_nv_nk) g_nv_nk = k + 1;
+            if (c >= 0 && c < 256 && c >= g_nv_nc) g_nv_nc = c + 1;   // the table as far as a type uses it: AoC's Space Turret has weapon 65 (a bound of 64 had it hit nothing)
+            if (k >= 0 && k < 256 && k >= g_nv_nk) g_nv_nk = k + 1;
             if ((fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;
         }
     }
@@ -1005,8 +1005,8 @@ internal void cmd_navy(char *out, const char *args) {
             ee_unit_type *td = type_data(t);
             if (!td) continue;
             int c = unit_type_get_family(td), k = unit_type_get_weapon(td);
-            if (c >= 0 && c < 64 && c >= nc) nc = c + 1;
-            if (k >= 0 && k < 64 && k >= nk) nk = k + 1;
+            if (c >= 0 && c < 256 && c >= nc) nc = c + 1;
+            if (k >= 0 && k < 256 && k >= nk) nk = k + 1;
         }
         REPLY("categories %d kinds %d; tables 8D200C %p 8D2008 %p 8D2010 %p mode %d\n", nc, nk, hit_table(),
               hit_table_a(), hit_table_b(), game_mode());

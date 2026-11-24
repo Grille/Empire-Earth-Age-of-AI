@@ -562,7 +562,7 @@ internal void sn_coast_train(ee_player *pl, unsigned idx, int have, uint32_t now
     for (int t = 0; t < G_TYPES_N; t++) {
         ee_unit_type *td = type_data(t);
         if (!td || unit_type_get_id(td) != t || unit_type_get_class_id(td) != CLS_LAND || !ut_role(t, UTR_SIEGE) || ut_role(t, UTR_RAM)) continue;
-        float r = fl_danger_r(NULL, td);
+        float r = fl_danger_r(NULL, td, 0);   // coastal guns: against ships (no land unit reaches space)
         if (r <= 0 || !can_build(pl, t)) continue;
         float v = r * 1000.0f + (float)unit_type_get_attack(td);
         if (v > ba) { ba = v; any = t; }
