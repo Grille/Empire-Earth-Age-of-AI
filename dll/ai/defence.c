@@ -27,6 +27,7 @@ internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air
 internal int g_aa_exp = 0, g_v_aa_exp = -1;                 // [ai_base] aa_expected, [autotest] v_aa_expected (ANTI-AIR, BY THE AIR FORCE IT EXPECTS)
 internal int g_aa_strong = 0, g_v_aa_strong = -1;           // [ai_base] aa_strong, [autotest] v_aa_strong (ANTI-AIR, STRONG)
 internal int g_v_aa_bound = -1;                             // [autotest] v_aa_bound (STRONG: WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS)
+internal int g_aa_scale = 100, g_v_aa_scale = -1;           // [autotest] aa_scale, v_aa_scale (STRONG: THE SIZE FOR A THREAT, percent)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
@@ -2637,6 +2638,7 @@ internal void defence_install(const char *autotest_ini) {
     g_aa_exp = g_set_ai[1].aa_expected;
     g_aa_strong = g_set_ai[1].aa_strong;
     if (autotest_ini) g_v_aa_bound = ini_int("autotest", "v_aa_bound", -1, autotest_ini);   // WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS
+    if (autotest_ini) { g_aa_scale = ini_int("autotest", "aa_scale", 100, autotest_ini); g_v_aa_scale = ini_int("autotest", "v_aa_scale", -1, autotest_ini); }   // THE SIZE FOR A THREAT
     g_aa_ahead_b = g_set_ai[1].aa_ahead_buildings;
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
@@ -2768,6 +2770,10 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
 // raised what the others expected of it.
 #define AAS_EXPECT 2.0f
 #define AA_BOUND(idx) PV(idx, g_v_aa_bound, 1)
+// THE SIZE FOR A THREAT ([autotest] aa_scale, v_aa_scale for the variant players; percent, 100): the blocks and the AA
+// units a threat buys, scaled - a test's knob: with the bound an AI on water still held 21 AA units (100 iron each, 2.5
+// Sentinels) and 24 AA buildings against 8 infantry for 2-5 enemy aircraft at a time, 28% of its iron and 18% of its gold
+#define AA_SCALE(idx) PV(idx, g_v_aa_scale, g_aa_scale)
 internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port, float *counters);   // army_view.c
 internal struct { float w_near, w_all; uint32_t near_t, all_t, block_t, train_t, log_t, prod_t, pf_t, pf_b_t; unsigned prods; ee_unit *pf_u; int pf_id; struct { ee_unit *u; int id; uint32_t t, b_t; } fnd[AAS_FOUNDS]; int nf; unsigned blocks, queued, trained, done, gave_up; } g_aas[16];
 // the newest type of family fam the game offers pl now (the strongest of those: hit points x attack); 0 none
@@ -2860,8 +2866,9 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
     // are seen anywhere or expected (the test's town had none standing when the first wave came: the farms first; from
     // minute 0 on, before any of that, it cost the economy the army then broke)
     g_aa_urgent[idx] = z->w_near > 0 || least >= AAS_FLOOR_PORT || (a->have_b < 2 && (z->w_all > 0 || ex > 0));
-    int block = threat < AAS_BIG ? 2 : 4;
-    int sites = 1 + (int)(threat / AAS_PER_SITE);
+    float sized = threat * (float)AA_SCALE(idx) / 100.0f;   // THE SIZE FOR A THREAT
+    int block = sized < AAS_BIG ? 2 : 4;
+    int sites = 1 + (int)(sized / AAS_PER_SITE);
     // the places, towns first then the nearest its base; covered: block AA buildings within AAS_R, or a block queued there
     // within the last 2 minutes
     unsigned pi = idx;
@@ -2918,7 +2925,7 @@ internal void aa_strong(ee_player *pl, unsigned idx, uint32_t now, const struct 
     }
     sites = nch;
     // AA units
-    int lim = (int)game_unit_limit(pl) / 4, want_u = 2 + (int)(threat + 0.5f);
+    int lim = (int)game_unit_limit(pl) / 4, want_u = 2 + (int)(sized + 0.5f);
     if (lim < 4) lim = 4;
     if (want_u > lim) want_u = lim;
     void *um = cm0 ? civ_mgr_get_unit_mgr(cm0) : NULL;
