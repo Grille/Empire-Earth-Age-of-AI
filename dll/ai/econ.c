@@ -528,7 +528,7 @@ internal int ap_upgrade_waits(ee_player *pl, ee_tech_data *d);   // army.c
 internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used);
 internal int ap_rs_has(ee_research_mgr *rs, int id);
 internal unsigned g_upg_retry[16], g_upg_stuck[16];
-internal uint8_t g_upg_told[16][15000 / 8 + 1];
+internal uint8_t g_upg_told[16][G_TECH_IDS / 8 + 1];
 internal int g_upg_reserve = 1, g_v_upg_reserve = -1;
 internal int g_upg_hold[16][7];   // the reserve, set every 30 s
 internal void upgrade_reserve(ee_player *pl, int reserve[7]) {
@@ -671,7 +671,7 @@ internal void citizens_home(ee_player *pl, unsigned idx, uint32_t now) {
 }
 internal void upgrades_retry(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    static uint8_t held[15000 / 8 + 1];
+    static uint8_t held[G_TECH_IDS / 8 + 1];
     if (now < last[idx]) { last[idx] = 0; g_upg_retry[idx] = g_upg_stuck[idx] = 0; memset(g_upg_told[idx], 0, sizeof g_upg_told[idx]); }   // a new game
     if (!g_paid_upgrades || is_vanilla(pl) || (last[idx] && now - last[idx] < 30000)) return;
     last[idx] = now ? now : 1;
@@ -687,13 +687,13 @@ internal void upgrades_retry(ee_player *pl, unsigned idx, uint32_t now) {
         int *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b), nq = qb && qe > qb && qe - qb < 4096 ? (int)(qe - qb) : 0;
         for (int j = -1; j < nq; j++) {
             int id = j < 0 ? unit_get_producing(b) : qb[j];
-            if (id >= 0 && id < 15000) held[id >> 3] |= (uint8_t)(1 << (id & 7));
+            if (id >= 0 && id < G_TECH_IDS) held[id >> 3] |= (uint8_t)(1 << (id & 7));
         }
     }
     char ids[256] = "";
     int n = 0, nh = 0, ep = tech_tree_get_epoch(tt), *stock = player_stock_at(pl);
     memset(g_upg_hold[idx], 0, sizeof g_upg_hold[idx]);
-    for (int id = 1000; id < 15000; id++) {
+    for (int id = 1000; id < G_TECH_IDS; id++) {
         ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (!d || tech_data_get_category(d) != 7 || tech_get_researched(t) || !tech_get_available(t) || tech_get_epoch(t) > ep) continue;

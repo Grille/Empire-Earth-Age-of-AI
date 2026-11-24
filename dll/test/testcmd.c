@@ -35,7 +35,7 @@ internal void cmd_lineup(char *out, const char *args) {
     ee_player *pl = player_at(p);
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
-    for (int id = 1000; id < 15000; id++) {
+    for (int id = 1000; id < G_TECH_IDS; id++) {
         ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         int ei = d ? tech_data_get_effects(d) : -1;
@@ -53,7 +53,7 @@ internal void cmd_lineup(char *out, const char *args) {
     }
     REPLY("error: no line upgrade of type %d\n", from);
 }
-// tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
+// tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes, the data's cost, category, object, unit type and the techs it requires
 internal void cmd_tech(char *out, const char *args) {
     int p = 0, n = 0, id;
     sscanf(args, "%d%n", &p, &n);
@@ -69,6 +69,8 @@ internal void cmd_tech(char *out, const char *args) {
         for (int i = 0; i < 0x20; i++) REPLY(" %02x", ((const uint8_t *)t)[i]);
         ee_tech_data *d = tech_get_data(t);
         if (d) REPLY(" | cost %d,%d,%d,%d,%d", tech_data_get_cost(d, 2), tech_data_get_cost(d, 3), tech_data_get_cost(d, 4), tech_data_get_cost(d, 5), tech_data_get_cost(d, 6));
+        if (d) REPLY(" | category %d object %d type %d requires %d %d %d %d", tech_data_get_category(d), tech_data_get_is_object(d), tech_data_get_unit_type(d),
+                     tech_data_get_requires(d, 0), tech_data_get_requires(d, 1), tech_data_get_requires(d, 2), tech_data_get_requires(d, 3));
         int ei = d ? tech_data_get_effects(d) : -1;
         REPLY(" | effects %d:", ei);
         if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
@@ -736,7 +738,7 @@ internal void cmd_wallghost(char *out, const char *args) {
         REPLY("error: an end off the map (%d tiles)\n", size);
         return;
     }
-    for (int id = 1; id < 15000 && !tech; id++) {
+    for (int id = 1; id < G_TECH_IDS && !tech; id++) {
         ee_tech *e = tech_tree_lookup(tt, id);
         ee_tech_data *d = e ? tech_get_data(e) : NULL;
         if (d && tech_data_get_unit_type(d) == t) tech = id;

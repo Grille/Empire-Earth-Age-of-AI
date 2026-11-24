@@ -60,7 +60,7 @@
 #define RS_HOLD1 2
 #define RS_HOLD2 4
 #define RS_QUEUE 2
-#define RS_IDS 15000
+#define RS_IDS G_TECH_IDS   // world.c: AoC's Space Age techs are 15001-15038
 // its finished buildings (not the fields: they research nothing): 128 left the late ones out - P4 in the player's game
 // at 215 min, 193 fields and ~400 buildings, had its one Naval Yard past the list's end, no maker for a ship's line
 // upgrade, its U-Boats unupgraded from epoch 11 to 13 (the player 2026-11-15: "the submarines of p4 are still the ww1

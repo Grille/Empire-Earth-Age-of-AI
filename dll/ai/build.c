@@ -178,7 +178,7 @@ internal int bd_reach(ee_player *pl, int type) {
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!base || !tt) return base;
     int level = 0;
-    for (int id = 14; id < 15000; id++) {
+    for (int id = 14; id < G_TECH_IDS; id++) {
         ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t && tech_get_researched(t) ? tech_get_data(t) : NULL;
         int ei = d ? tech_data_get_effects(d) : -1;

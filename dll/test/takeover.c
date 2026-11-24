@@ -149,7 +149,7 @@ internal void cmd_handover(char *out, const char *args) {
         if (tech_tree_get_epoch(ht) >= tech_tree_get_epoch(tt)) tech_tree_reach_epoch(tt, tech_tree_get_epoch(ht));
         for (int pass = 0, more = 1; pass < 8 && more; pass++) {   // a tech can need another first: again until none is left
             more = 0;
-            for (int id = 0; id < 15000; id++) {
+            for (int id = 0; id < G_TECH_IDS; id++) {
                 ee_tech *a = tech_tree_lookup(ht, id), *b = a && tech_get_researched(a) ? tech_tree_lookup(tt, id) : NULL;
                 if (!b || tech_get_researched(b)) continue;
                 // a unit's or building's: researched, not applied - as the game's start leaves its starting units

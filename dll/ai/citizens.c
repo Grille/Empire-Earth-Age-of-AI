@@ -509,7 +509,7 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
     if (!rm) return;
     int rs = 0;
-    for (int id = 1000; tt && id < 15000; id++) {
+    for (int id = 1000; tt && id < G_TECH_IDS; id++) {
         ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (d && tech_get_researched(t)) rs += tech_data_get_cost(d, 5) + tech_data_get_cost(d, 6);

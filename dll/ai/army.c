@@ -615,7 +615,7 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
     ee_research_mgr *rs = cm ? civ_mgr_get_research_mgr(cm) : NULL;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!rs || !tt) return;
-    for (int id = 1000; id < 15000; id++) {
+    for (int id = 1000; id < G_TECH_IDS; id++) {
         ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (!d || tech_get_researched(t) || !tech_get_available(t) || tech_data_get_category(d) != 7) continue;
@@ -709,7 +709,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     }
     int tech = 0, up7 = 0, up7c = 0;
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    for (int id = 1000; tt && id < 15000; id++) {
+    for (int id = 1000; tt && id < G_TECH_IDS; id++) {
         ee_tech *t = tech_tree_lookup(tt, id);
         if (!t || !tech_get_researched(t)) continue;
         ee_tech_data *d = tech_get_data(t);

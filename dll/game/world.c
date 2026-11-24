@@ -4,6 +4,10 @@
 // (AoC's ends at 0x964498, a float of the display's). Every read goes through here: NULL outside the build's table
 // (type_table_count) and for an empty slot. G_TYPES_N: the arrays by type, room for the larger of the two.
 #define G_TYPES_N 0x380
+// Tech ids (the tech tree's lookup, 0x4019A1): the 2017 update's end at 13xxx, Art of Conquest's at 15038 (its Space
+// Age's 15001-15038 - until 2026-11-24 the mod's loops stopped at 15000 and its AIs researched none of them: the
+// player's game, "all the space age technologies arent getting researched"). G_TECH_IDS: every loop and array by id.
+#define G_TECH_IDS 16384
 internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < type_table_count() ? type_table()[t] : NULL; }
 // MAY IT BUILD ONE (the player 2026-11-19, a campaign: "the ai places some buildings even if its not allowed to"): the
 // game's own question as the player's build click asks it (player_can_have of the type's tech, as can_build does) but
