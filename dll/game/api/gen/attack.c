@@ -116,10 +116,13 @@ internal inline uint8_t *attack_cmd_groups_at(const ee_attack_cmd *o) { return (
 typedef ee_attack_group *(__thiscall *attack_cmd_new_group_fn)(ee_attack_cmd *, void *, void *, void *);
 internal attack_cmd_new_group_fn fn_attack_cmd_new_group;
 internal inline ee_attack_group *attack_cmd_new_group(ee_attack_cmd *attack_cmd, void *task, void *strategy, void *ids) { return fn_attack_cmd_new_group(attack_cmd, task, strategy, ids); }
+// called where a unit is handed back (0x4824BF) and where a subgroup's release hands its units on
+// (EECPAttackSubGroup::vf26 0x45B4FB, AoC 0x45D0E3) - the call-off's release reaches the second with groups the same
+// call-off has freed (attack.c hook_unit_to_group)
 typedef char (__thiscall *attack_cmd_unit_to_group_fn)(ee_attack_cmd *, ee_unit *);
 internal attack_cmd_unit_to_group_fn fn_attack_cmd_unit_to_group;
 internal inline char attack_cmd_unit_to_group(ee_attack_cmd *attack_cmd, ee_unit *u) { return fn_attack_cmd_unit_to_group(attack_cmd, u); }
-internal inline int patch_unit_to_group(attack_cmd_unit_to_group_fn h) { return patch_call(call_unit_to_group, (uintptr_t)fn_attack_cmd_unit_to_group, (void *)h); }
+internal inline int patch_unit_to_group(attack_cmd_unit_to_group_fn h, int *of) { return patch_calls(calls_unit_to_group, 2, (uintptr_t)fn_attack_cmd_unit_to_group, (void *)h, of); }
 
 // class EECPAttackSubGroup (ee_attack_subgroup)
 // an attack subgroup (EECPAttackSubGroup, EECPASG*)
@@ -569,7 +572,8 @@ internal int spec_attack_select(int build) {
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x0045106C;
         fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00450E07;
-        call_unit_to_group = 0x004824BF;
+        calls_unit_to_group[0] = 0x004824BF;
+        calls_unit_to_group[1] = 0x0045B6B3;
         of_attack_subgroup_targets = 0x34;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_units_end = 0x58;
@@ -723,7 +727,8 @@ internal int spec_attack_select(int build) {
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x00451D8E;
         fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00451A8A;
-        call_unit_to_group = 0x004869F3;
+        calls_unit_to_group[0] = 0x004869F3;
+        calls_unit_to_group[1] = 0x0045D29B;
         of_attack_subgroup_targets = 0x34;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_units_end = 0x58;
@@ -871,7 +876,8 @@ internal int spec_attack_check(void) {
     bad += spec_call(call_wonder, (uintptr_t)fn_combat_mgr_wonder, "EECPCombatManager.wonder [call_site wonder]");
     bad += spec_code((uintptr_t)fn_attack_cmd_new_group, "ee_attack_cmd.new_group");
     bad += spec_code((uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group");
-    bad += spec_call(call_unit_to_group, (uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group [call_site unit_to_group]");
+    bad += spec_call(calls_unit_to_group[0], (uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group [call_site unit_to_group 0]");
+    bad += spec_call(calls_unit_to_group[1], (uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group [call_site unit_to_group 1]");
     bad += spec_code((uintptr_t)fn_attack_subgroup_air_give_goal, "EECPAttackSubGroup.air_give_goal");
     bad += spec_code((uintptr_t)fn_attack_subgroup_air_update, "EECPAttackSubGroup.air_update");
     bad += spec_code((uintptr_t)fn_attack_subgroup_give_goal, "EECPAttackSubGroup.give_goal");

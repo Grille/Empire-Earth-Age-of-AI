@@ -1947,7 +1947,10 @@ internal void __thiscall hook_asg_land_stats(ee_attack_subgroup *sg) {
 // (0x43033E -> 0x46FD01) hands each unit of the attack back, and each one is offered to the attack groups at once
 // (0x483ADE -> 0x4824BF -> 0x450E07 -> 0x453E10) - including groups the same call-off has just freed (their subgroup
 // vectors garbage, a jump to 0). While the mod calls attacks off (g_in_calloff, diplo.c) no unit is offered: "not
-// taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
+// taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass. The call-off's
+// release of a subgroup (EECPAttackSubGroup::vf26 0x45B4FB, by 0x454B90) offers its units directly too (0x45B6B3,
+// its answer not read): the player's game died there at a capitulation's call-off (2026-11-24, a jump to 0 under
+// 0x453E10) - both call sites hooked.
 internal int g_in_calloff;
 internal unsigned g_calloff_skips;
 internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *unit);   // armies.c: a mod-army player's land soldier - not taken
@@ -2113,8 +2116,8 @@ internal void attack_install(void) {
     int sg_guard = patch_asg_land_stats(hook_asg_land_stats) + patch_asg_stats(hook_asg_stats, NULL);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup stats %d/7\n", sg_guard);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
-    BOOL add_guard = patch_unit_to_group(hook_unit_to_group);
-    if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %s\n", add_guard ? "ok" : "FAILED");
+    int add_guard = patch_unit_to_group(hook_unit_to_group, NULL);
+    if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %d/2\n", add_guard);
     g_wonder_reactions = g_set_ai[1].wonder_reactions;
     if (!patch_wonder(hook_wonder) && g_log) fprintf(g_log, "# wonder: the combat manager's Wonder answer not hooked - the game's stays\n");
     g_avoid_towers = g_set_ai[1].avoid_towers;

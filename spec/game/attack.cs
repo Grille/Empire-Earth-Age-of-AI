@@ -124,8 +124,12 @@ unsafe struct ee_attack_cmd
     [address((ee)0x0045106C, (aoc)0x00451D8E)]
     extern EECPAttackGroup* new_group(void* task, void* strategy, void* ids);
 
+    /// called where a unit is handed back (0x4824BF) and where a subgroup's release hands its units on
+    /// (EECPAttackSubGroup::vf26 0x45B4FB, AoC 0x45D0E3) - the call-off's release reaches the second with groups the same
+    /// call-off has freed (attack.c hook_unit_to_group)
     [address((ee)0x00450E07, (aoc)0x00451A8A)]
     [call_site("unit_to_group", (ee)0x004824BF, (aoc)0x004869F3)]
+    [call_site("unit_to_group", (ee)0x0045B6B3, (aoc)0x0045D29B)]
     extern char8 unit_to_group(EEUnit* u);
 }
 

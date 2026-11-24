@@ -108,7 +108,7 @@ internal uint32_t of_combat_mgr_att_62;
 internal uint32_t call_wonder;
 internal uint32_t of_combat_mgr_4c_0x48;
 internal uint32_t of_attack_cmd_groups;
-internal uint32_t call_unit_to_group;
+internal uint32_t calls_unit_to_group[2];
 internal uint32_t of_attack_subgroup_targets;
 internal uint32_t of_attack_subgroup_units_begin;
 internal uint32_t of_attack_subgroup_units_end;
