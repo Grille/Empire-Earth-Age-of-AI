@@ -103,7 +103,7 @@ struct mg {
     float *h;                 // [corner] its height in height steps (below 0: under the water)
     uint8_t *used;            // [tile] taken: a start's yard, a river's bank, a mine, a tree
     uint8_t *clim;            // [tile] its biome (k_mg_biome)
-    uint8_t *marsh;           // [tile] 1: wet ground at the water's edge
+    uint8_t *marsh;           // [tile] 1: a river's or a pond's water where it doesn't freeze
     float half;               // n / 2: u and v reach that far
     int np;                   // the players that play
     int sx[MG_PLAYERS], sy[MG_PLAYERS];   // their starts (a tile corner: the Capitol's middle)
@@ -279,6 +279,22 @@ internal void mg_biomes(struct mg *g) {
             queue[tail++] = ny * n + nx;
         }
     }
+    // the sea: the water joined to the water round the land, through tiles that were water before the rivers were
+    // dug (f under 0) - a river's and a pond's water is not reached (its mouth is: sand there)
+    uint8_t *sea = g->marsh;
+    head = tail = 0;
+    for (int i = 0; i < n * n; i++)
+        if (!wd[i] && mg_f(g, i % n, i / n) < -3.0f) { sea[i] = 2; queue[tail++] = i; }
+    while (head < tail) {
+        int i = queue[head++], x = i % n, y = i / n;
+        static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+        for (int s = 0; s < 4; s++) {
+            int nx = x + side[s][0], ny = y + side[s][1], j = ny * n + nx;
+            if (!mg_tile(g, nx, ny) || wd[j] || sea[j] || mg_f(g, nx, ny) >= 0) continue;
+            sea[j] = 2;
+            queue[tail++] = j;
+        }
+    }
     for (int y = 0; y < n; y++)
         for (int x = 0; x < n; x++) {
             float lo = 0, hi = 0;
@@ -288,13 +304,16 @@ internal void mg_biomes(struct mg *g) {
             float wet = 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f + 0.22f * by_water;
             int b = (temp < -0.3f ? 0 : temp > 0.3f ? 2 : 1) * 3 + (wet < 0.4f ? 0 : wet > 0.6f ? 2 : 1);
             g->clim[y * n + x] = (uint8_t)b;
-            g->marsh[y * n + x] = wd[y * n + x] <= 2 && wet > 0.6f && temp >= -0.3f;   // wet, not frozen, by the water
+            g->marsh[y * n + x] = !wd[y * n + x] && sea[y * n + x] != 2 && temp >= -0.3f;   // inland water, not frozen
         }
     free(queue); free(wd);
 }
 // THE TEXTURES, by their names in the game's data (db\dbterrain.dat; the scripts, Common Terrain Painting.rmv, spell
 // them without the blanks): a biome's five for its land, picked by a noise value in their shares; its beach for water
-// up to a step deep, Underwater below; one under mines, one under trees; Marsh at the water's edge of the wet biomes.
+// up to a step deep, Underwater below; one under mines, one under trees; Marsh instead of
+// the beach under the rivers' and ponds' water where it isn't frozen (the player 2026-11-24, of the first maps'
+// marsh on the land by all water: "dont use the marshland like that, but instead of sand used for inland rivers and
+// lakes could look quite good, just not as an extra border around the beach").
 // A texture gives its tiles their kind (ee_terrain.kind: what may stand and walk there - the land textures have kinds
 // of their own, Grass 0). A name the data hasn't got, or a land texture whose kind is water's or a cliff's: the
 // biome's plain one, Grass for that - told in the log.
@@ -347,13 +366,13 @@ internal void mg_textures(struct mg *g) {
             if (!mg_tile_span(g, x, y, &lo, &hi)) continue;
             int b = g->clim[y * g->n + x], tex;
             if (lo < 0) {
-                tex = lo > -1.0f ? g->tex_beach[b] : g->tex_deep;
+                tex = g->marsh[y * g->n + x] && g->tex_marsh >= 0 ? g->tex_marsh : lo > -1.0f ? g->tex_beach[b] : g->tex_deep;
                 g->water++;
             } else {
                 int p = (int)(mg_fbm((float)x * 0.11f + 300, (float)y * 0.11f + 700, g->seed + 30) * 160.0f - 30.0f), k = 0;   // 0 .. 100, evened out
                 p = p < 0 ? 0 : p > 99 ? 99 : p;
                 while (k < 4 && p >= k_mg_biome[b].share[k]) p -= k_mg_biome[b].share[k++];
-                tex = g->marsh[y * g->n + x] && g->tex_marsh >= 0 ? g->tex_marsh : g->tex_land[b][k];
+                tex = g->tex_land[b][k];
                 g->land++;
                 g->biome_tiles[b]++;
             }
