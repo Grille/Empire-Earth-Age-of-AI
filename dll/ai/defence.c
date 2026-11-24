@@ -2695,7 +2695,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
             }
         return;
     }
-    if ((fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
+    if (!is_air_class(fam) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
     a->nall++; a->wall += aa_weight(td);
     int x = unit_get_x(u), y = unit_get_y(u);
     ivec2 d;

@@ -10,6 +10,10 @@ internal int is_tower_type(int t) { return ut_role(t, UTR_TOWER) || t == UT(B_TA
 internal int is_citizen_type(int type) { return ut_role(type, UTR_CITIZEN); }
 internal int is_transport(int t) { return ut_role(t, UTR_TRANSPORT); }   // a transport ship (its class)
 internal int is_fishing_boat(int t) { return ut_role(t, UTR_FISHING_BOAT); }
+// an aircraft by its class: airplanes, helicopters, and Art of Conquest's Space Fighter (class 34, EEUCPlanetSpaceship:
+// the airplane's movement over land, water and space alike - docs/engine-notes.md "Movement"; the Planetary Fighter
+// is an airplane that flies into space)
+internal int is_air_class(int fam) { return fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT || fam == CLS_PLANET_SPACESHIP; }
 // THE FIELD LINE: a field a farmer works - its type has food to gather (the Farm). Art of Conquest's Robotic Farm has
 // none: the game pays its food on a timer once it is finished (its building update, type 826: 2 food each period
 // of the type), a farmer there has nothing to do and an empty one is no idle field (the player 2026-11-24)

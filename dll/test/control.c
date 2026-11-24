@@ -13,6 +13,7 @@ internal void cmd_attacknow(char *out, const char *args);
 internal void cmd_attacks(char *out, const char *args);
 internal void cmd_asgtrace(char *out, const char *args);
 internal void cmd_train(char *out, const char *args);
+internal void cmd_enqueue(char *out, const char *args);
 internal void cmd_give(char *out, const char *args);
 internal void cmd_playas(char *out, const char *args);   // engine/godmode.c
 internal void cmd_godmode(char *out, const char *args);  // engine/godmode.c
@@ -480,6 +481,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "attacks")) cmd_attacks(out, args);
     else if (!strcmp(verb, "asgtrace")) cmd_asgtrace(out, args);
     else if (!strcmp(verb, "train")) cmd_train(out, args);
+    else if (!strcmp(verb, "enqueue")) cmd_enqueue(out, args);
     else if (!strcmp(verb, "give")) cmd_give(out, args);
     else if (!strcmp(verb, "playas")) cmd_playas(out, args);
     else if (!strcmp(verb, "godmode")) cmd_godmode(out, args);

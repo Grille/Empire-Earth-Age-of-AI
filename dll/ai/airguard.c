@@ -336,8 +336,9 @@ internal void sw_launch_role(ee_player *pl, unsigned idx, struct ag_st *g, ee_un
         for (ee_unit *u = player_get_units(op); u && count < 16384; u = unit_get_next(u), count++) {
             ee_unit_type *td = unit_get_type_data(u);
             int fam = td ? unit_type_get_class_id(td) : -1;
-            int air = fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT;
-            if ((!air && fam != CLS_LAND) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !seen_by(u, pl)) continue;
+            int air = is_air_class(fam);
+            int ship = !air && td && CARRIERS(idx) && navy_kind(td) != NV_NONE;   // THE CARRIERS (navy.c): ships and spaceships too - the Planetary Fighters out into space
+            if ((!air && fam != CLS_LAND && !ship) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !seen_by(u, pl)) continue;
             g->sw_seen++;
             if (st_shot_t(ftd, fst, (int)idx, td, unit_get_stats(u), oi) <= 0) continue;
             g->sw_hurt++;
@@ -636,7 +637,7 @@ internal void airguard_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
         int fam = unit_type_get_class_id(it.td);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0 || (fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT) || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0 || !is_air_class(fam) || !seen_by(u, pl)) continue;
         ivec2 p = unit_get_tile(u);
         int near_b = 0;
         for (int k = 0; k < nb && !near_b; k++) near_b = ivec2_dist2(bld[k], p) <= AG_REACH * AG_REACH;

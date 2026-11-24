@@ -318,10 +318,18 @@ internal int navy_type_kind(int type) {
     ee_unit_type *td = type_data(type);
     return td ? navy_kind(td) : NV_NONE;
 }
-// a warship order the navy account pays (econ.c hook_train_units)
+internal int g_carriers = 0, g_v_carriers = -1;   // THE CARRIERS ([ai_base] carriers; below, carriers.c)
+#define CARRIERS(idx) (PV(idx, g_v_carriers, g_carriers) && !GAME_AI(idx))
+internal int nv_carrier_plane(int type) {   // a carrier's plane: refuels aboard a carrier (2) or a Space Carrier (4)
+    ee_unit_type *td = type_data(type);
+    int c = td ? unit_type_get_class_id(td) : -1, r = td ? unit_type_get_refuel_at(td) : 0;
+    return (c == CLS_AIRPLANE || c == CLS_PLANET_SPACESHIP) && (r == 2 || r == 4);
+}
+// a warship order the navy account pays (econ.c hook_train_units) - with THE CARRIERS their planes too: the carrier's
+// worth is its planes
 internal int navy_pays(unsigned idx, int type) {
     int k = navy_type_kind(type);
-    return navy_share(idx) > 0 && (k == NV_WAR || k == NV_SUB || k == NV_CARRIER);
+    return navy_share(idx) > 0 && (k == NV_WAR || k == NV_SUB || k == NV_CARRIER || (CARRIERS(idx) && nv_carrier_plane(type)));
 }
 // an order paid as economy: fishing boats, the landing's transports
 // THE GAME'S CROSSINGS ([ai_base] transports_economy, default 0 until measured): the game's own transport orders - its
@@ -574,8 +582,8 @@ internal int navy_room_reserve(ee_player *pl) {
 //   for 5 minutes (not when it is the game's own type).
 // `# navy: P<n> mix at N min:` every 5 minutes: wanted shares, own fleet by role, the types, the enemy seen, what the
 // game asked for and what was trained.
-enum { NR_NONE, NR_FRIG, NR_LINE, NR_ANTI, NR_SUB, NR_AA, NR_MSUB, NR_N };
-internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA", "M" };
+enum { NR_NONE, NR_FRIG, NR_LINE, NR_ANTI, NR_SUB, NR_AA, NR_MSUB, NR_CARR, NR_N };
+internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA", "M", "C" };
 #define NV_C_SUB 7      // target categories (+0x4C4, the hit table's rows): submarines
 #define NV_C_FRIG 9     // frigates, cruisers, transports, fishing boats
 #define NV_C_LINE 21    // battleships
@@ -587,6 +595,43 @@ internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA", "M" };
 #define NV_S_LINE 56
 #define NV_S_FIGHTER 57
 #define NV_S_FRIG 58
+// THE CARRIERS ([ai_base] carriers; [autotest] v_carriers; carriers.c): a carrier role in the mix (C) - the Aircraft
+// Carriers (class 21, made at the Navy Yard) on water, the Space Carrier (32, at the Space Dock) in space; NV_CARRIER_W
+// of the mix while a plane it makes can be trained (nv_wing), at most one for every NV_CARRIER_PER other warships
+#define NV_CARRIER_W 0.75f
+#define NV_CARRIER_PER 6
+// the plane a carrier of type ct makes that this player may train now, the strongest (attack x hit points); 0 none.
+// The data's: a plane whose tech names ct among its makers (the Aircraft Carriers' F-14, Corsair, Avenger, Dauntless,
+// Zero; the Space Carrier's Space Fighter)
+internal int nv_wing(ee_player *pl, int ct) {
+    static short cand[8][8]; static int ctype[8], ncand[8], nct;
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    if (!tt || ct <= 0) return 0;
+    int k = 0;
+    while (k < nct && ctype[k] != ct) k++;
+    if (k == nct) {   // its planes, once (the data is fixed)
+        if (nct >= 8) return 0;
+        ctype[k] = ct; ncand[k] = 0; nct++;
+        for (int t = 0; t < G_TYPES_N && ncand[k] < 8; t++) {
+            ee_unit_type *td = type_data(t);
+            int c = td && unit_type_get_id(td) == t ? unit_type_get_class_id(td) : -1;
+            if ((c != CLS_AIRPLANE && c != CLS_PLANET_SPACESHIP) || unit_type_get_attack(td) <= 0) continue;
+            ee_tech *x = tech_tree_lookup(tt, unit_type_get_tech(td));
+            ee_tech_data *d = x ? tech_get_data(x) : NULL;
+            int *mb = d ? tech_data_get_makers_begin(d) : NULL, *me = d ? tech_data_get_makers_end(d) : NULL, made = 0;
+            for (int *q = mb; mb && me > mb && me - mb < 16 && q < me && !made; q++) made = *q == ct;
+            if (made) cand[k][ncand[k]++] = (short)t;
+        }
+    }
+    int best = 0; float bv = 0;
+    for (int j = 0; j < ncand[k]; j++) {
+        int t = cand[k][j];
+        ee_unit_type *td = type_data(t);
+        float v = td ? (float)unit_type_get_attack(td) * (float)unit_type_get_hp(td) : 0;
+        if (v > bv && ld_type_avail(pl, t)) { bv = v; best = t; }
+    }
+    return best;
+}
 internal int g_nv_layer;   // fl_build: the mix's types of one layer - 1 water ships, 2 spaceships (0: either)
 internal int nv_layer_ok(int t) { ee_unit_type *td = type_data(t); return !g_nv_layer || (td && (nv_space(unit_type_get_class_id(td)) ? 2 : 1) == g_nv_layer); }
 #define NV_MSUB_GROUP 2
@@ -603,7 +648,7 @@ internal float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outs
             int c = unit_type_get_family(td), k = unit_type_get_weapon(td), fam = unit_type_get_class_id(td);
             if (c >= 0 && c < 256 && c >= g_nv_nc) g_nv_nc = c + 1;   // the table as far as a type uses it: AoC's Space Turret has weapon 65 (a bound of 64 had it hit nothing)
             if (k >= 0 && k < 256 && k >= g_nv_nk) g_nv_nk = k + 1;
-            if ((fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;
+            if (is_air_class(fam) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;   // the Space Fighter's 57 too
         }
     }
     if (!tb || kind < 0 || cat < 0 || kind >= g_nv_nk || cat >= g_nv_nc) return 0;
@@ -638,6 +683,7 @@ internal int nv_role(ee_unit_type *td) {
         else r = NR_FRIG;
     } else if (fam == CLS_SPACESHIP && unit_type_get_attack(td) > 0 && (cat == NV_S_LINE || cat == NV_S_FRIG))   // SPACE FLEETS
         r = nv_f(kind, NV_S_LINE) >= 3.0f ? NR_ANTI : cat == NV_S_LINE ? NR_LINE : NR_FRIG;
+    else if (fam == CLS_NAVAL_BUILDING || fam == CLS_SPACE_BUILDING) r = NR_CARR;   // THE CARRIERS: no weapon of their own, their planes
     g_nv_role[t] = (int8_t)(r + 1);
     return r;
 }
@@ -645,6 +691,7 @@ internal float nv_score(ee_player *pl, int t, int role) {   // in its role: fact
     ee_unit_type *td = type_data(t);
     int kind = unit_type_get_weapon(td), cost = 0;
     for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
+    if (role == NR_CARR) return td && cost > 0 && nv_wing(pl, t) ? (float)unit_type_get_hp(td) / (float)cost : 0;   // THE CARRIERS: the sturdiest for its price, with a plane to make
     if (td && nv_space(unit_type_get_class_id(td))) {   // SPACE FLEETS: against the space categories
         float g = role == NR_LINE ? nv_f(kind, NV_S_FRIG) : role == NR_FRIG ? nv_f(kind, NV_S_FIGHTER) : nv_f(kind, NV_S_LINE);
         return cost <= 0 || g <= 0 ? 0 : g * (float)unit_type_get_attack(td) * 1000.0f / (float)(unit_type_get_reload(td) + 2000) * (float)unit_type_get_hp(td) / ((float)cost * (float)cost);
@@ -684,7 +731,7 @@ internal int nv_near_sea(int x, int y) {
 internal void nv_seen_one(struct nv_pick *pk, ee_unit_type *td, int x, int y) {
     if (!td) return;
     int fam = unit_type_get_class_id(td);
-    if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) { pk->air++; return; }
+    if (is_air_class(fam)) { pk->air++; return; }
     if (fam == CLS_NAVAL_BUILDING || fam == CLS_SPACE_BUILDING) { pk->carriers++; return; }
     int r = nv_role(td);
     if (r != NR_NONE) { pk->e[r]++; return; }
@@ -718,6 +765,7 @@ internal void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t 
     pk->w[NR_SUB] = 1.0f + 0.75f * (float)pk->e[NR_LINE];
     pk->w[NR_AA] = air > 0 ? (0.5f + air / 8.0f > 2.0f ? 2.0f : 0.5f + air / 8.0f) : 0.0f;
     pk->w[NR_MSUB] = 1.0f;   // capped by the fleet's size (nv_roles: MISSILE SUBS)
+    pk->w[NR_CARR] = NV_CARRIER_W;   // capped by the fleet's size (nv_roles: THE CARRIERS)
 }
 // what each role has (own afloat + paid in the last minute) and the best type per role it may train now
 internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t now, int best[NR_N], float w[NR_N], int have[NR_N]) {
@@ -740,6 +788,10 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
     int others = 0;
     for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
     for (int r = 1; r < NR_N; r++) if (r != NR_MSUB) others += have[r];
+    // THE CARRIERS: one for every NV_CARRIER_PER warships of the other roles, from NV_CARRIER_PER of them; in space the
+    // corvettes are the fleet's anti-air (x1.25 against the fighters' category): more of them for the enemy aircraft
+    if (!CARRIERS(idx) || have[NR_CARR] >= (others - have[NR_CARR]) / NV_CARRIER_PER) w[NR_CARR] = 0;
+    if (g_nv_layer == 2 && CARRIERS(idx)) w[NR_FRIG] += 0.25f * (float)(pk->air < 8 ? pk->air : 8);
     if (!g_set_ai[1].missile_subs || (sv_type(idx, SV_NAVY) != best[NR_MSUB] && have[NR_MSUB] >= (others >= 2 * NV_MSUB_FLEET ? 2 : others >= NV_MSUB_FLEET ? 1 : 0) * NV_MSUB_GROUP)) w[NR_MSUB] = 0;   // [ai_base] missile_subs; one saved for stays wanted (THE SAVINGS: a ship sunk dropped a saving at 97%)
 }
 // the mix's type for the game's warship order asked (0: the game's own)
@@ -796,12 +848,13 @@ internal int fleet_need_pick(ee_player *pl, unsigned idx, const int *cand, int n
 internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
     int mix = nv_mix_pick(pl, idx, asked);
     if (!mix) return 0;
+    if (nv_role(type_data(mix)) == NR_CARR) return mix;   // THE CARRIERS: the mix's alone (the need knows warships)
     uint32_t now = game_time();
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     static int cand[24];
     int nc = 0;
     for (int k = 0; k < pk->nc; k++) {   // the mix's candidates but those it waits out (refused, not trained)
-        if (pk->crole[k] == NR_MSUB) continue;   // missile subs only by the mix (the need's estimate rated a Trident against warships it can't hit)
+        if (pk->crole[k] == NR_MSUB || pk->crole[k] == NR_CARR) continue;   // missile subs only by the mix (the need's estimate rated a Trident against warships it can't hit)
         int t = pk->ctype[k], skip = (t == pk->skip_type && now < pk->skip_until) || !nv_layer_ok(t);
         for (int b = 0; b < 4; b++) skip |= t == pk->bad_type[b] && now < pk->bad_until[b];
         if (!skip) cand[nc++] = t;
@@ -818,7 +871,7 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
 internal int navy_fleet_type(ee_player *pl, unsigned idx) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     nv_cands(pl, pk, game_time());
-    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA && pk->crole[k] != NR_MSUB && nv_layer_ok(pk->ctype[k])) return navy_pick(pl, idx, pk->ctype[k]);
+    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA && pk->crole[k] != NR_MSUB && pk->crole[k] != NR_CARR && nv_layer_ok(pk->ctype[k])) return navy_pick(pl, idx, pk->ctype[k]);
     return 0;
 }
 // after the order: counts, the wait for a refused type, a type the game can't train

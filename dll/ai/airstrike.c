@@ -356,14 +356,17 @@ internal int as_shooters(unsigned idx, struct as_st *s, uint32_t now) {
         if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && (shoot < 0 || s->sh[j].hits > s->sh[shoot].hits)) shoot = j;
     return shoot;
 }
-// THE LONE RUNS: what shoots at aircraft - AA buildings and units, cruisers (navy.c NR_AA), carriers, fighters
+// THE LONE RUNS: what shoots at aircraft - AA buildings and units, cruisers (navy.c NR_AA), carriers, fighters (the
+// carriers' and Art of Conquest's space fighters too: the Space Fighter, the Planetary Fighter), the Space Corvettes
+// (their weapon hits the fighters' category 57 x1.25)
 internal int ah_aa(ee_unit_type *td) {
     int f = unit_type_get_family(td), c = unit_type_get_class_id(td);
-    return f == KIND_AA_BUILDING || f == KIND_LAND_AA || f == KIND_AIRCRAFT_CARRIER || (c == CLS_AIRPLANE && f == KIND_AIRCRAFT && unit_type_get_attack(td) > 0) ||
+    return f == KIND_AA_BUILDING || f == KIND_LAND_AA || f == KIND_AIRCRAFT_CARRIER || f == KIND_SPACE_CORVETTE ||
+           ((c == CLS_AIRPLANE || c == CLS_PLANET_SPACESHIP) && (f == KIND_AIRCRAFT || f == KIND_AIRCRAFT_CARRIER_FIGHTER || f == KIND_SPACE_FIGHTER) && unit_type_get_attack(td) > 0) ||
            ((c == CLS_NAVAL || c == CLS_SUBMERGED_NAVAL) && nv_role(td) == NR_AA);
 }
 internal float ah_aa_reach(ee_unit_type *td) {   // its reach over the way: its range and AH_MARGIN; a fighter's AH_FIGHTER_R
-    if (unit_type_get_class_id(td) == CLS_AIRPLANE) return (float)AH_FIGHTER_R;
+    if (unit_type_get_class_id(td) == CLS_AIRPLANE || unit_type_get_class_id(td) == CLS_PLANET_SPACESHIP) return (float)AH_FIGHTER_R;
     float r = unit_type_get_range(td) + (float)AH_MARGIN;
     return r < (float)AH_AA_MIN ? (float)AH_AA_MIN : r;
 }
@@ -466,7 +469,7 @@ internal void ah_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **re
             int c = unit_type_get_class_id(td), t = unit_type_get_id(td);
             if (ah_aa(td)) {
                 has_aa[o & 15] = 1;
-                if (c == CLS_AIRPLANE) fighters[o] = 1;
+                if (c == CLS_AIRPLANE || c == CLS_PLANET_SPACESHIP) fighters[o] = 1;
                 if (naa < AH_AA) { float r = ah_aa_reach(td); aa[naa].at = unit_get_tile(u); aa[naa++].r2 = (long)(r * r); }
                 continue;
             }
@@ -486,7 +489,7 @@ internal void ah_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **re
         struct intel_rec *e = &in->r[k];
         ee_unit_type *td = e->kind ? type_data(e->type) : NULL;
         if (!td || in->now - e->t > AH_MEM || !ah_aa(td)) continue;
-        if (e->owner > 0 && e->owner < 16) { has_aa[e->owner] = 1; if (unit_type_get_class_id(td) == CLS_AIRPLANE) fighters[e->owner] = 1; }
+        if (e->owner > 0 && e->owner < 16) { has_aa[e->owner] = 1; if (unit_type_get_class_id(td) == CLS_AIRPLANE || unit_type_get_class_id(td) == CLS_PLANET_SPACESHIP) fighters[e->owner] = 1; }
         if (e->x < 0) continue;
         float r = ah_aa_reach(td);
         aa[naa].at = iv2(e->x, e->y); aa[naa++].r2 = (long)(r * r);
@@ -722,7 +725,7 @@ internal void dct_scan(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
                     ar_log(idx, now, "air force: the anti-air of type %d (P%d) - %.0f a second at type %d, reach %.1f (bomber hp %.0f, speed %.2f, %d shots a sortie, price %d)",
                            t, oi, dc[oi][t], best, dr[oi][t], d->maxhp, d->speed, d->ammo, d->cost);
                 }
-                if (c == CLS_AIRPLANE) {
+                if (c == CLS_AIRPLANE || c == CLS_PLANET_SPACESHIP) {
                     float fd, fs = dct_fighter(td, oi, btd, bst, (int)idx, &fd);
                     d->nf[oi] += 1.0f;
                     if (fs > d->ftype_v[oi]) { d->ftype_v[oi] = fs; d->ftype[oi] = (short)t; }
@@ -732,7 +735,7 @@ internal void dct_scan(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
                 dct_add(d, u, unit_get_tile(u), dr[oi][t], dc[oi][t], t, oi, 0);
                 continue;
             }
-            if (t == UT(B_AIRPORT) || unit_type_get_family(td) == KIND_AIRCRAFT_CARRIER) d->airport[oi] = 1;   // it has or can have fighters: they rise at what comes near (airguard.c INTERCEPT)
+            if (t == UT(B_AIRPORT) || unit_type_get_family(td) == KIND_AIRCRAFT_CARRIER || c == CLS_SPACE_BUILDING) d->airport[oi] = 1;   // it has or can have fighters: they rise at what comes near (airguard.c INTERCEPT)
             if ((t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL) || t == UT(B_SETTLEMENT)) && ntown < 64) towns[ntown++] = u;
             if (c == CLS_BUILDING || c == CLS_FORTRESS || unit_type_get_family(td) == KIND_AIRCRAFT_CARRIER) {
                 if (nbld < AH_BLD) { bld[nbld].at = unit_get_tile(u); bld[nbld++].o = (int8_t)oi; }
@@ -751,7 +754,7 @@ internal void dct_scan(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
         if (dg[oi][t] != gen) { dg[oi][t] = gen; dc[oi][t] = dct_dps(td, oi, btd, bst, (int)idx, &dr[oi][t]); }
         if (dc[oi][t] <= 0) continue;
         d->has_aa[oi] = 1;
-        if (unit_type_get_class_id(td) == CLS_AIRPLANE) { d->nf[oi] += 1.0f; continue; }
+        if (unit_type_get_class_id(td) == CLS_AIRPLANE || unit_type_get_class_id(td) == CLS_PLANET_SPACESHIP) { d->nf[oi] += 1.0f; continue; }
         if (r->x < 0) continue;
         ee_player *op = st_player(oi);
         ee_unit_stats *ast = op ? st_rec(op, t) : NULL;

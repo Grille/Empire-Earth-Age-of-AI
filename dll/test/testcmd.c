@@ -162,6 +162,13 @@ internal void cmd_tinfo(char *out, const char *args) {
               unit_type_get_attack(td), unit_type_get_range(td), unit_type_get_size(td),
               can_build(pl, t), prio_buildable(pl, t), unit_type_get_resource_type(td), unit_type_get_family(td), k, nv_f(k, NV_C_FRIG), nv_f(k, NV_C_LINE),
               nv_f(k, NV_S_LINE), nv_f(k, NV_S_FIGHTER), nv_f(k, NV_S_FRIG), unit_type_get_name(td) ? unit_type_get_name(td) : "?");
+        ee_tech_tree *tt = player_get_tech_tree(pl);   // what trains it (its tech's makers) and an aircraft's refuel place (1 Airport, 2 carrier)
+        ee_tech *x = tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
+        ee_tech_data *d = x ? tech_get_data(x) : NULL;
+        int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
+        REPLY("   tech %d made at", unit_type_get_tech(td));
+        for (int *q = b; b && e > b && e - b < 16 && q < e; q++) REPLY(" %d", *q);
+        REPLY(" | refuel at %d\n", unit_type_get_refuel_at(td));
     }
 }
 
@@ -335,6 +342,34 @@ internal void cmd_give(char *out, const char *args) {
 
 // train P type [count] (test): AI P orders count (default 1) units of a type through its own unit manager, as a
 // priority order (the stock above the epoch reserve) - unlike spawn, the units come from its factories and join its pool
+// enqueue P B T: P's first finished unit of type B (a building, a carrier) queues type T as a player's click does
+// (EEUnit::enqueue): the stock before and after, the priority list's word, T's tech node (queueable)
+internal void cmd_enqueue(char *out, const char *args) {
+    int p = 0, b = 0, t = 0;
+    sscanf(args, "%d %d %d", &p, &b, &t);
+    ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
+    ee_unit_type *td = type_data(t);
+    if (!pl || !td || b <= 0) { REPLY("error: enqueue P B T\n"); return; }
+    ee_unit *u = NULL;
+    int count = 0;
+    for (ee_unit *x = player_get_units(pl); x && count < 16384 && !u; x = unit_get_next(x), count++) {
+        ee_unit_type *xt = unit_get_type_data(x);
+        ee_unit *st = unit_get_physics(x);
+        if (xt && unit_type_get_id(xt) == b && unit_get_hp(x) > 0 && st && unit_get_finished(st)) u = x;
+    }
+    if (!u) { REPLY("P%d: no finished unit of type %d\n", p, b); return; }
+    const int *stock = player_stock_at(pl);
+    int before[7];
+    for (int r = 0; r < 7; r++) before[r] = stock[r];
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    ee_tech *x = tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
+    REPLY("P%d: %d at %d,%d (room %d) queues %d (tech %d: node %p, available %d, queueable %d, researched %d), the priority list refuses %d | stock",
+          p, b, unit_get_x(u), unit_get_y(u), unit_get_room(u), t, unit_type_get_tech(td), (void *)x, x ? tech_available(x) : -1,
+          x ? tech_get_queueable(x) : -1, x ? tech_get_researched(x) : -1, prio_refuses(pl, t));
+    unit_enqueue(u, unit_type_get_tech(td), 0);
+    for (int r = 2; r < 7; r++) REPLY(" %d->%d", before[r], stock[r]);
+    REPLY(" | node queueable now %d\n", x ? tech_get_queueable(x) : -1);
+}
 internal void cmd_train(char *out, const char *args) {
     int p = 0, type = 0, count = 1;
     sscanf(args, "%d %d %d", &p, &type, &count);

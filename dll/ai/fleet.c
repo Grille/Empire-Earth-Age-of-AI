@@ -81,6 +81,7 @@ internal struct fleet {
     int need; uint32_t need_t; unsigned held;   // fleet_own without the navy account: the enemy warships known in its sea (the most, until 10 minutes after the last); ships held out of the game's groups
 } g_fl[16];
 internal unsigned g_fl_refused;
+internal void carriers_tick(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now);   // carriers.c
 
 // own_ships (econ.c EVERY UNIT THE MOD'S): on every map, a land map's warships too - else the game's groups led them
 // there (160 orders a game on Continental, 2026-11-13); its size target and task forces still only where the water
@@ -170,6 +171,7 @@ internal struct fl_scan {
     ivec2 eb, ed[16]; int eb_known, ned;              // the nearest known enemy building (to the guard base), enemy docks
     ivec2 tw[FL_TW]; int ntw; float twr[FL_TW];       // own towers and defence buildings (their range)
     uint8_t twl[FL_TW]; int lbit;                     // the layers each one hits (fl_hits_layer: 1 water, 2 space), the fleet's sea's
+    ee_unit *cv[16]; int ncv;                         // own carriers (navy.c THE CARRIERS: carriers.c leads them)
 } g_fs;
 // storms.c STORMS ([ai_base] storm_dodge): a storm's reach - its 5 tiles, a ship's size and the second it takes to turn
 internal int g_storm = 0, g_v_storm = -1;
@@ -277,7 +279,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
     struct fl_scan *s = &g_fs;
     struct fleet *f = &g_fl[idx];
     s->pl = pl; s->idx = idx;
-    s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = s->ntw = 0; s->eb_known = 0;
+    s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = s->ntw = s->ncv = 0; s->eb_known = 0;
     f->n = 0; f->ndz = 0;
     int space = f->ocean && sea_is_space((unsigned)f->ocean);   // THE LAYERS: what reaches its warships, what covers them
     s->lbit = space ? 2 : 1;
@@ -302,6 +304,10 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
                 if (!unit_get_ai_held(u) && fleet_own(idx)) { player_hold_unit(pl, u); f->held++; }   // EVERY WARSHIP THE MOD'S: out of the game's groups
             }
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
+            else if (k == NV_CARRIER && CARRIERS(idx)) {   // THE CARRIERS: the mod's, out of the game's groups
+                if (s->ncv < 16 && !landing_has_unit(pl, u)) s->cv[s->ncv++] = u;
+                if (!unit_get_ai_held(u)) player_hold_unit(pl, u);
+            }
             else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 if ((unit_type_get_id(td) == UT(B_DOCK) || unit_type_get_id(td) == UT(B_SPACE_DOCK)) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);   // a Space Dock a space sea's (forces.c SPACE AS A SEA)
                 float tr, ta;
@@ -316,7 +322,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             if (s->ne < FL_ES) { struct fl_ship *e = &s->es[s->ne++]; e->u = u; e->td = td; e->p = iv2(x, y); e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = fl_dps(u, td); }
             continue;
         }
-        if (k == NV_FISH || k == NV_TRANSPORT) {
+        if (k == NV_FISH || k == NV_TRANSPORT || (k == NV_CARRIER && CARRIERS(idx))) {   // prey: an enemy carrier too, no gun of its own
             if (s->nev < 64) { struct fl_ship *e = &s->ev[s->nev++]; e->u = u; e->td = td; e->p = iv2(x, y); e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0; }
             continue;
         }
@@ -349,7 +355,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
         else if ((nk == NV_WAR || nk == NV_SUB) && age <= 300000 && s->ne < FL_ES) {
             struct fl_ship *q = &s->es[s->ne++];
             q->u = NULL; q->td = td; q->p = iv2(e->x, e->y); q->hp = e->hp; q->pi = e->owner; q->seen = 0; q->dps = fl_dps(NULL, td);
-        } else if ((nk == NV_FISH || nk == NV_TRANSPORT) && age <= 120000 && s->nev < 64) {
+        } else if ((nk == NV_FISH || nk == NV_TRANSPORT || (nk == NV_CARRIER && CARRIERS(idx))) && age <= 120000 && s->nev < 64) {
             struct fl_ship *q = &s->ev[s->nev++];
             q->u = NULL; q->td = td; q->p = iv2(e->x, e->y); q->hp = e->hp; q->pi = e->owner; q->seen = 0; q->dps = 0;
         }
@@ -1703,6 +1709,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     ivec2 c = fl_center(f);
     fl_boats(f, c);
     fl_home_threats(f);
+    carriers_tick(pl, idx, f, now);   // THE CARRIERS (carriers.c): behind the fleet, their planes
     if (SQUADRONS(idx) && !GAME_AI(idx)) {   // squadrons.c THE SQUADRONS lead them; the training as before
         sq_tick(pl, idx, f, now);
         if (fleet_builds(idx)) fl_build(pl, idx, f, now);
@@ -1894,6 +1901,8 @@ internal void fleet_install(const char *autotest_ini) {
     g_storm = g_set_ai[1].storm_dodge;
     if (autotest_ini) g_v_storm = ini_int("autotest", "v_storm_dodge", -1, autotest_ini);
     g_harbours = g_set_ai[1].harbours;
+    g_carriers = g_set_ai[1].carriers;   // navy.c THE CARRIERS
+    if (autotest_ini) g_v_carriers = ini_int("autotest", "v_carriers", -1, autotest_ini);
     if (autotest_ini) g_v_harbours = ini_int("autotest", "v_harbours", -1, autotest_ini);
     if (autotest_ini) g_v_fl_station = ini_int("autotest", "v_fleet_station", -1, autotest_ini);
     g_fl_boats = g_set.navy_fleet_boats;

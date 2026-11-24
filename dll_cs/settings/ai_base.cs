@@ -317,6 +317,14 @@ class ai_base
         /// landings. 0 = none trained (the strike groups still lead any it has)
         [advanced]
         bool missile_subs = true;
+        /// Carriers (the game's computer player off): the fleets get carriers - the Aircraft Carrier from the Navy
+        /// Yard on water, the Space Carrier from the Space Dock in space, about one for every seven warships - that
+        /// sail behind the fleet's main group, out of reach of what it fights, filled with the planes they make. The
+        /// planes rise at enemy aircraft over the fleet, then at enemy ships and spaceships within their reach where
+        /// the enemy's anti-air can't bring the flight down. The Airports' fighters hunt ships and spaceships too, the
+        /// Space Age's Planetary Fighters out into space. 1 = on.
+        [advanced]
+        bool carriers = false;
         /// The shore decided (sea_squadrons): the squadrons' warships move plainly when quiet and keep a target on land
         /// only within their reach, instead of sailing after whatever they see there and turning back at the next
         /// tower; a main squadron shells a building on its sea's coast only when its estimate beats the defences that

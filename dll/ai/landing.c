@@ -556,7 +556,7 @@ internal ee_unit *ld_naval_target(ee_player *pl, ivec2 p, int r, int soldiers) {
 // the transports are built and boarded.
 internal int ld_is_air(ee_unit *u) {
     int fam = unit_type_get_class_id(unit_get_type_data(u));
-    return fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT;
+    return is_air_class(fam);
 }
 // THE SEA ON THE WAY (the user: "I certainly place subs or planes before my coasts on patrol now"; "subs are always
 // visible, but can only be attacked by frigates and towers"; "best to take the game's own table as source of truth"):

@@ -137,6 +137,7 @@ internal void returns_tick(ee_player *pl, uint32_t now);    // returns.c: what e
 internal void plans_tick(ee_player *pl, uint32_t now);      // plans.c: the strategy plan, picked and changed on the returns
 internal void plans_install(const char *autotest_ini);
 internal void airguard_new_game(void);
+internal void carriers_new_game(void);
 internal void holy_tick(ee_player *pl, uint32_t now);   // holy.c: priests and prophets
 internal void holy_new_game(void);
 internal void creep_tick(ee_player *pl, uint32_t now);   // creep.c: towers laid at an enemy's buildings
@@ -471,6 +472,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     news_new_game();
     takeover_new_game();
     airguard_new_game();
+    carriers_new_game();
     holy_new_game();
     creep_new_game();
     airstrike_new_game();
@@ -572,6 +574,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/storms.c"        // ships out of an enemy's storm (the prophet's hurricane)
 #include "ai/airstrike.c"
 #include "ai/airguard.c"      // the air guard: anti-air buildings and fighters while the game's computer player is off
+#include "ai/carriers.c"      // the carriers: behind the fleets, their planes at enemy aircraft and ships (navy.c NR_CARR)
 #include "ai/returns.c"       // the returns: what each kind of force kills and loses for what it fields (the strategy plans' step 1)
 #include "ai/plans.c"         // the strategy plans: the levers by the plan, picked by the leanings and changed on the returns
 #include "ai/holy.c"          // priests and prophets while the game's computer player is off
