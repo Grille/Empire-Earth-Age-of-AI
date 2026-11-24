@@ -3,12 +3,15 @@
 // should be able to destroy them to make new space, in very extrem cases it should even be able to destroy still usable
 // buildings (it will never get an airport on small silands elsewise)").
 // DISPOSABLE (worth 0): a Settlement with nothing left to gather round it (no tree, mine, bush or animal with food
-// within CG_SITE_R tiles, no field within CG_FIELD_R) - and a production building that has trained nothing for CG_IDLE
-// while another of its kind stands, with another building of its holding its territory. EXPENDABLE (worth 1, only in the
-// extreme): a House, a production building idle that long (the last of its kind, or its territory's only holder), one
-// in use with another of its kind. A DEFENCE (worth 2, an Airport's extreme only): a tower, an AA gun, a wall piece or
-// gate. Never: towns, granaries, fields, docks, fortresses, Airports, the research buildings, the space buildings, one
-// with units inside, anything going up.
+// within CG_SITE_R tiles, no field farmed within CG_FIELD_R) - a production building that has trained nothing for
+// CG_IDLE while another of its kind stands, with another building of its holding its territory - a field nobody has
+// farmed for CG_IDLE (the player 2026-11-24: "in the erly game the ai builds a lot to boom its economy, in later stages
+// many fields stay unused and are redundant") - a granary whose fields are all such, with no food gathered round it,
+// while another granary of its stands. EXPENDABLE (worth 1, only in the extreme): a House, a production building idle
+// that long (the last of its kind, or its territory's only holder), one in use with another of its kind, its last
+// granary gone unused. A DEFENCE (worth 2, an Airport's extreme only): a tower, an AA gun, a wall piece or gate. Never:
+// towns, fields farmed, docks, fortresses, Airports, the research buildings, the space buildings, one with units
+// inside, anything going up.
 // A WANT (build.c cg_want): a building a step of build.c found no spot for, by the step's centre and rings - a clock a
 // type (CG_WANTS), so two steps failing in the same look each keep theirs. Unmet for CG_PATIENCE it may clear the
 // disposable; unmet for CG_EXTREME (an Airport, a research or production building only) the expendable too, an Airport
@@ -27,40 +30,49 @@
 #define CG_COOL 600000
 #define CG_SET 4            // buildings a clearing takes down at most
 #define CG_SET_AIR 16       // ... for an Airport in the extreme (wall pieces are a tile each)
-#define CG_TRACK 256        // production buildings whose last training it keeps
+#define CG_TRACK 1024       // production buildings whose last training, fields whose last farmer it keeps
+#define CG_GRAN_R 4         // a granary's fields: their corners this near its own
 #define CG_WANTS 8          // wants kept at once, one a type (a granary and an Airport failing in the same look each keep their own clock)
 #define CG_TRIED 4          // a want's anchors cleared that still took no building: not cleared again (a tower rebuilt there meanwhile)
 struct cg_want { int type, r0, r1, margin, extreme; ivec2 at; uint32_t first, last, done_t, cool_t; ivec2 tried[CG_TRIED]; int ntried; };
 internal struct cg_st {
-    struct { uint32_t serial, busy; } tr[CG_TRACK]; int ntr;   // a production building's serial, when it last trained
+    struct { uint32_t serial, busy; } tr[CG_TRACK]; int ntr;   // a production building's or field's serial, when it last trained or was farmed
+    int ngran;                // its granaries (cg_clear)
+    uint32_t sum_t;           // the log's last "disposable now" line
     struct cg_want w[CG_WANTS];
     unsigned cleared, taken, extreme_n;   // so far: clearings, buildings taken down, clearings in the extreme
 } g_cg[16];
 internal int pr_kind(int type);   // produce.c
-// build.c, each look: its production buildings' training (CG_IDLE) - cheap, every look
-internal void cg_track(ee_player *pl, unsigned idx, ee_unit *u, uint32_t now) {
+// build.c, each look: its production buildings' training, its fields' farmers (CG_IDLE)
+internal void cg_note(unsigned idx, ee_unit *u, int busy, uint32_t now) {
     struct cg_st *c = &g_cg[idx];
     uint32_t sn = (uint32_t)unit_get_serial(u);
-    int *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u), busy = unit_get_producing(u) || (qb && qe > qb);
-    (void)pl;
     for (int k = 0; k < c->ntr; k++)
         if (c->tr[k].serial == sn) { if (busy) c->tr[k].busy = now ? now : 1; return; }
     if (c->ntr < CG_TRACK) { c->tr[c->ntr].serial = sn; c->tr[c->ntr++].busy = now ? now : 1; }   // new: as if it trained now
     else { int o = 0; for (int k = 1; k < CG_TRACK; k++) if (c->tr[k].busy < c->tr[o].busy) o = k; c->tr[o].serial = sn; c->tr[o].busy = now ? now : 1; }
 }
+internal void cg_track(unsigned idx, ee_unit *u, uint32_t now) {   // a production building: training or something queued
+    int *qb = unit_get_queue_begin(u), *qe = unit_get_queue_end(u);
+    cg_note(idx, u, unit_get_producing(u) || (qb && qe > qb), now);
+}
+internal void cg_track_field(unsigned idx, ee_unit *u, uint32_t now) { cg_note(idx, u, site_gatherers(u) > 0, now); }   // a field: a farmer on it
 internal int cg_idle(unsigned idx, ee_unit *u, uint32_t now) {
     struct cg_st *c = &g_cg[idx];
     uint32_t sn = (uint32_t)unit_get_serial(u);
     for (int k = 0; k < c->ntr; k++) if (c->tr[k].serial == sn) return now >= c->tr[k].busy && now - c->tr[k].busy >= CG_IDLE;
     return 0;
 }
-internal int cg_spent(ee_unit *s) {   // a Settlement with nothing left to gather round it
+// a Settlement with nothing left to gather round it - a granary with no food (fields farmed, bushes, animals): fields
+// nobody has farmed for CG_IDLE are none
+internal int cg_spent(unsigned idx, ee_unit *s, int fr, uint32_t now) {
     ivec2 p = unit_get_tile(s);
     for (struct grid_it it = grid_it_box(p.x + 1, p.y + 1, CG_SITE_R, 1); grid_it_next(&it); ) {
         int d = abs(unit_get_x(it.u) - p.x) > abs(unit_get_y(it.u) - p.y) ? abs(unit_get_x(it.u) - p.x) : abs(unit_get_y(it.u) - p.y);
         if (unit_get_hp(it.u) <= 0 && unit_type_get_family(it.td) != KIND_ANIMAL) continue;
-        if (is_field_type(unit_type_get_id(it.td)) && d <= CG_FIELD_R) return 0;
-        if (unit_type_get_class_id(it.td) == CLS_RESOURCE && unit_get_amount(it.u) > 0 && d <= CG_SITE_R) return 0;
+        if (is_field_type(unit_type_get_id(it.td)) && d <= fr && !cg_idle(idx, it.u, now)) return 0;
+        if (is_field_type(unit_type_get_id(it.td))) continue;
+        if (unit_type_get_class_id(it.td) == CLS_RESOURCE && unit_get_amount(it.u) > 0 && d <= CG_SITE_R && (fr == CG_FIELD_R || unit_get_resource(it.u) == 2)) return 0;   // a granary: food only
         if (unit_type_get_family(it.td) == KIND_ANIMAL && unit_get_resource(it.u) == 2 && unit_get_amount(it.u) > 0 && d <= CG_SITE_R) return 0;
     }
     return 1;
@@ -75,7 +87,12 @@ internal int cg_worth(ee_player *pl, unsigned idx, ee_unit *u, const int *kinds,
     if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !st || !unit_get_finished(st)) return -1;
     int t = unit_type_get_id(td), k = pr_kind(t), p = player_get_index(pl);
     if (unit_get_garrisoned(u) > 0) return -1;   // someone inside
-    if (t == UT(B_SETTLEMENT)) return cg_spent(u) ? 0 : -1;
+    if (t == UT(B_SETTLEMENT)) return cg_spent(idx, u, CG_FIELD_R, now) ? 0 : -1;
+    // FIELDS AND GRANARIES (the player 2026-11-24: "in the erly game the ai builds a lot to boom its economy, in later
+    // stages many fields stay unused and are redundant"): a field nobody has farmed for CG_IDLE, a granary whose fields
+    // are all such and no food is gathered round it - its last granary in the extreme only
+    if (is_field_type(t)) return cg_idle(idx, u, now) ? 0 : -1;
+    if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) return !cg_spent(idx, u, CG_GRAN_R, now) ? -1 : g_cg[idx].ngran >= 2 ? 0 : 1;
     if (t == UT(B_HOUSE)) return 1;
     if (is_tower_type(t) || is_wall(t) || unit_type_get_class_id(td) == CLS_GATE || unit_type_get_family(td) == KIND_AA_BUILDING) return 2;
     if (k < 0) return -1;
@@ -117,7 +134,7 @@ internal int cg_fits(ee_player *pl, unsigned idx, int type, ivec2 q, int margin,
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0, cost = 0;
     ivec2 lo[8], hi[8];
-    int nb = cg_tiles(type, q, margin, n, lo, hi), took[PR_NK] = { 0 }, in_way[8] = { 0 };
+    int nb = cg_tiles(type, q, margin, n, lo, hi), took[PR_NK] = { 0 }, in_way[8] = { 0 }, took_gran = 0;
     *nset = 0;
     if (!n || !g_ter.cls || g_ter.size != n) return -1;
     for (int b = 0; b < nb; b++)
@@ -131,7 +148,7 @@ internal int cg_fits(ee_player *pl, unsigned idx, int type, ivec2 q, int margin,
                     ee_unit_type *otd = o ? unit_get_type_data(o) : NULL;
                     int cls = otd ? unit_type_get_class_id(otd) : -1, ot = otd ? unit_type_get_id(otd) : -1;
                     if (!otd || cls == CLS_AMBIENT || cls == CLS_PROJECTILE) continue;
-                    if (is_field_type(ot)) { if (inner) { g_cgw[CGW_FIELD]++; return -1; } continue; }   // a field round a granary is one of its own
+                    if (is_field_type(ot) && !inner) continue;   // a field round a granary is one of its own
                     if (cls == CLS_RESOURCE) { g_cgw[CGW_RES]++; return -1; }
                     if (cls != CLS_BUILDING && cls != CLS_FORTRESS && cls != CLS_GATE && cls != CLS_NAVAL_BUILDING && cls != CLS_SPACE_BUILDING) continue;   // units walk off
                     int j = 0;
@@ -139,10 +156,12 @@ internal int cg_fits(ee_player *pl, unsigned idx, int type, ivec2 q, int margin,
                     while (j < *nset && set[j] != o) j++;
                     if (j < *nset) continue;
                     int w = cg_worth(pl, idx, o, kinds, now), k = pr_kind(ot);
+                    if (w < 0 && is_field_type(ot)) { g_cgw[CGW_FIELD]++; return -1; }   // a field farmed
                     if (w < 0) { g_cgw[CGW_KEPT]++; if (ot >= 0 && ot < G_TYPES_N) g_cg_kept[ot]++; return -1; }
                     if (w > limit) { g_cgw[CGW_WORTH]++; return -1; }
                     if (*nset == (limit >= 2 ? CG_SET_AIR : CG_SET)) { g_cgw[CGW_MANY]++; return -1; }
                     if (k >= 0 && ++took[k] >= kinds[k] && limit < 1) { g_cgw[CGW_LAST]++; return -1; }   // the last of a kind: the extreme's only
+                    if ((ot == UT(B_GRANARY) || ot == UT(B_GRANARY_IMPROVED)) && ++took_gran >= g_cg[idx].ngran && limit < 1) { g_cgw[CGW_LAST]++; return -1; }   // ... its last granary too
                     set[(*nset)++] = o; cost += w + 1;
                 }
             }
@@ -162,6 +181,26 @@ internal void cg_clear(ee_player *pl, unsigned idx, uint32_t now) {
     struct cg_st *g = &g_cg[idx];
     struct cg_want *c = NULL;
     if (!g_set_ai[1].clear_ground) return;
+    if (!g->sum_t || now < g->sum_t || now - g->sum_t >= 300000) {   // what is disposable now, every 5 minutes (the log)
+        int kinds[PR_NK] = { 0 }, count = 0, nd[4] = { 0 }, nu[4] = { 0 };   // fields, granaries, Settlements, production: disposable, all
+        g->sum_t = now ? now : 1; g->ngran = 0;
+        for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            int t = td && unit_get_hp(u) > 0 ? unit_type_get_id(td) : -1, k = t >= 0 ? pr_kind(t) : -1;
+            if (k >= 0) kinds[k]++;
+            g->ngran += t >= 0 && (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED));
+        }
+        count = 0;
+        for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
+            ee_unit_type *td = unit_get_type_data(u);
+            int t = td && unit_get_hp(u) > 0 ? unit_type_get_id(td) : -1;
+            int c4 = t < 0 ? -1 : is_field_type(t) ? 0 : t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED) ? 1 : t == UT(B_SETTLEMENT) ? 2 : pr_kind(t) >= 0 ? 3 : -1;
+            if (c4 < 0) continue;
+            nu[c4]++; nd[c4] += cg_worth(pl, idx, u, kinds, now) == 0;
+        }
+        log_locked("# clearing: P%u at %.1f min: disposable now %d of %d fields, %d of %d granaries, %d of %d Settlements, %d of %d production buildings | so far %u clearings (%u in the extreme), %u buildings taken down\n",
+                   idx, now / 60000.0, nd[0], nu[0], nd[1], nu[1], nd[2], nu[2], nd[3], nu[3], g->cleared, g->extreme_n, g->taken);
+    }
     for (int k = 0; k < CG_WANTS; k++) {   // of the wants unmet this look, the one waiting longest
         struct cg_want *w = &g->w[k];
         if (!w->last || w->last != now || now - w->first < CG_PATIENCE || (w->cool_t && now < w->cool_t)) continue;
@@ -173,10 +212,12 @@ internal void cg_clear(ee_player *pl, unsigned idx, uint32_t now) {
     int big = c->type == UT(B_AIRPORT) || c->type == UT(B_UNIVERSITY) || c->type == UT(B_HOSPITAL) || c->type == UT(B_TEMPLE) || pr_kind(c->type) >= 0;
     int limit = c->extreme && big && now - c->first >= CG_EXTREME ? c->type == UT(B_AIRPORT) ? 2 : 1 : 0;
     int kinds[PR_NK] = { 0 }, count = 0;
+    g->ngran = 0;
     for (ee_unit *u = player_get_units(pl); u && count < 16384; u = unit_get_next(u), count++) {
         ee_unit_type *td = unit_get_type_data(u);
         int k = td && unit_get_hp(u) > 0 ? pr_kind(unit_type_get_id(td)) : -1;
         if (k >= 0) kinds[k]++;
+        g->ngran += td && unit_get_hp(u) > 0 && (unit_type_get_id(td) == UT(B_GRANARY) || unit_type_get_id(td) == UT(B_GRANARY_IMPROVED));
     }
     static ee_unit *set[CG_SET_AIR], *best[CG_SET_AIR];
     int nset = 0, nbest = 0, bcost = 0x7FFFFFFF;

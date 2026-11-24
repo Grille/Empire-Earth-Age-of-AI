@@ -325,12 +325,12 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         lost_ground += !done && !going;
         if (t == UT(B_DOCK) && ndock < 32) dock[ndock++] = p;   // A FISHING DOCK: its docks, going up too
         float rng, att;
-        if (is_field_type(t)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; }   // THE FIELD LINE: the game's Robotic Farms too
+        if (is_field_type(t)) { if (nfld < 512) fld[nfld++] = p; open_fields += !done; if (done) cg_track_field(idx, u, now); }   // THE FIELD LINE: the game's Robotic Farms too; CLEARING GROUND: its last farmer
         else if (t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED)) { if (done && ngran < BD_GRANARIES + 8) gran[ngran++] = p; open_gran += going; gran_room += done && unit_type_get_garrison_capacity(td) > unit_get_garrisoned(u) && wk_cost(s, ter_near(p.x, p.y)); }
         else if (t == UT(B_SETTLEMENT)) open_settle += going;
         else if (pr_kind(t) >= 0) { open_prod += going; if (nprod < 256) prodp[nprod++] = p; }
         open_sink += going && (pr_kind(t) >= 0 || t == rb[0] || t == rb[1] || t == rb[2] || t == UT(B_AIRPORT));
-        if (done && pr_kind(t) >= 0) cg_track(pl, idx, u, now);   // CLEARING GROUND (clearing.c): its last training
+        if (done && pr_kind(t) >= 0) cg_track(idx, u, now);   // CLEARING GROUND (clearing.c): its last training
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }

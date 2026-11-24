@@ -928,14 +928,16 @@ class ai_base
         [advanced]
         bool compact_build = false;
         /// Clearing ground: buildings it no longer uses are disposable - a Settlement with nothing left to gather round it,
-        /// a production building that has trained nothing for 10 minutes while another of its kind stands - and where a
-        /// granary, a research or production building or an Airport it wants has found no spot for 2 minutes, those
-        /// standing on the ground that would take it are taken down. After 10 minutes without a spot also usable ones:
-        /// Houses, a production building with another of its kind, the last of a kind gone idle - and for an Airport (on
-        /// a small island its runway finds no ground otherwise) towers, AA guns and wall pieces too. Never towns,
-        /// granaries, fields, docks, Airports or the research buildings. 0 = off (default until measured)
+        /// a production building that has trained nothing for 10 minutes while another of its kind stands, a field nobody
+        /// has farmed for 10 minutes, a granary whose fields are all unused (not its last) - and where a granary, a
+        /// research or production building or an Airport it wants has found no spot for 2 minutes, those standing on
+        /// the ground that would take it are taken down. After 10 minutes without a spot also usable ones: Houses, a
+        /// production building with another of its kind, the last of a kind gone idle, its last granary gone unused - and
+        /// for an Airport (on a small island its runway finds no ground otherwise) towers, AA guns and wall pieces too.
+        /// Never towns, fields farmed, docks, Airports or the research buildings. 0 = off; on since 2026-11-24 by the
+        /// player's call (Small Islands from World War II: an Airport stood on cleared ground in 2 of 3 clearings)
         [advanced]
-        bool clear_ground = false;
+        bool clear_ground = true;
         /// Resting soldiers on open ground (the game's computer player off): a territory's soldiers at rest stand in a patch
         /// of open ground looked for up to 40 tiles off in that territory - room for them all, else a smaller patch,
         /// closer packed - instead of at the station's point itself when nothing fits within 18 tiles (in a built-up town:
