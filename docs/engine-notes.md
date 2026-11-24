@@ -746,7 +746,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   colder on hills. Moisture: a noise of its own, wetter within 7 tiles of water (the sea's and the rivers'). Three
   bands each, nine biomes (mapgen.c k_mg_biome): ice desert, tundra, taiga; steppe, grassland, woodland; desert,
   savanna, tropics - each its five ground textures and their shares, its beach, the ground under mines and trees,
-  its trees (dead trees and cacti where no timber grows), a forest's size and how much land there is to one (160
+  its trees (dead trees where no timber grows; the desert has palms, few - the player 2026-11-24: the two cactus models look alike and poor), a forest's size and how much land there is to one (160
   tiles in the tropics, 1500 in the ice desert), its animals, and of 100 mines, forage patches and herds drawn for a
   place there how many are laid (a desert: gold and stone 100, forage 15; the tropics: forage 100, iron and stone
   40). Marsh on wet, unfrozen ground within 2 tiles of water. A texture gives its tiles their kind (ee_terrain.kind,

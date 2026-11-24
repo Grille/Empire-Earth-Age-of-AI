@@ -51,7 +51,6 @@ internal int __cdecl hook_random_map_types_load(void *path) {
 #define MG_FIRS "tree_31_winter_spruce_1", "tree_32_winter_spruce_2", "tree_33_winter_spruce_3", "tree_34_winter_spruce_4", "tree_35_winter_spruce_5", "tree_36_winter_spruce_6"
 #define MG_PALMS "tree_21_palm", "tree_22_palm", "tree_23_palm", "tree_26_palm", "tree_28_palm", "tree_29_palm"
 #define MG_DEAD "tree_05_spruce_dead", "tree_06_spruce_dead", "tree_14_spruce_dead"
-#define MG_CACTI "tree_15_cactus", "tree_16_cactus"
 enum { MG_RICH_GOLD, MG_RICH_IRON, MG_RICH_STONE, MG_RICH_FORAGE, MG_RICH_HERD };
 internal const struct mg_biome {
     const char *name;
@@ -80,8 +79,8 @@ internal const struct mg_biome {
     { "woodland", { "Grass", "Grass - Tall", "Grass - Tufts", "Grass - Overgrown", "Grass" }, { 40, 22, 15, 18, 5 }, "Beach", "Sand - Medium", "Grass - Sparse",
       { MG_MIXED }, { NULL }, 170, 40, 60, { "res_deer", "res_goat" }, { 50, 60, 50, 100, 90 } },
     // hot
-    { "desert", { "Sand - Fine", "Sand - Medium", "Desert", "Sand - Cracked", "Dark Cracked Mud" }, { 35, 25, 20, 12, 8 }, "Desert", "Pebbles - Small", "Sand - Coarse",
-      { MG_CACTI }, { MG_PALMS }, 1300, 5, 12, { "res_ostrich", "res_goat" }, { 100, 60, 100, 15, 20 } },
+    { "desert", { "Sand - Fine", "Sand - Medium", "Desert", "Sand - Cracked", "Dark Cracked Mud" }, { 35, 25, 20, 12, 8 }, "Desert", "Pebbles - Small", "Sand - Medium",
+      { MG_PALMS }, { NULL }, 1300, 5, 12, { "res_ostrich", "res_goat" }, { 100, 60, 100, 15, 20 } },
     { "savanna", { "Grass - Patches", "Grass - Sparse", "Sand - Medium", "Grass", "Grass - Patches" }, { 40, 30, 15, 10, 5 }, "Beach", "Pebbles - Small", "Grass - Sparse",
       { MG_PALMS }, { NULL }, 800, 10, 24, { "res_giraffe", "res_elephant", "res_ostrich", "res_horse" }, { 90, 60, 70, 60, 100 } },
     { "tropics", { "Grass - Overgrown", "Grass - Tall", "Grass", "Grass - Tufts", "Grass - Overgrown" }, { 40, 25, 20, 10, 5 }, "Beach", "Sand - Medium", "Grass - Tall",
