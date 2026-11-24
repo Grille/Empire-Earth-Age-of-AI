@@ -25,9 +25,10 @@
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
 internal int g_aa_exp = 0, g_v_aa_exp = -1;                 // [ai_base] aa_expected, [autotest] v_aa_expected (ANTI-AIR, BY THE AIR FORCE IT EXPECTS)
+#define AAS_SCALE 50   // STRONG, THE SIZE FOR A THREAT: percent
 internal int g_aa_strong = 0, g_v_aa_strong = -1;           // [ai_base] aa_strong, [autotest] v_aa_strong (ANTI-AIR, STRONG)
 internal int g_v_aa_bound = -1;                             // [autotest] v_aa_bound (STRONG: WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS)
-internal int g_aa_scale = 100, g_v_aa_scale = -1;           // [autotest] aa_scale, v_aa_scale (STRONG: THE SIZE FOR A THREAT, percent)
+internal int g_aa_scale = AAS_SCALE, g_v_aa_scale = -1;           // [autotest] aa_scale, v_aa_scale (STRONG: THE SIZE FOR A THREAT, percent)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
@@ -2638,7 +2639,7 @@ internal void defence_install(const char *autotest_ini) {
     g_aa_exp = g_set_ai[1].aa_expected;
     g_aa_strong = g_set_ai[1].aa_strong;
     if (autotest_ini) g_v_aa_bound = ini_int("autotest", "v_aa_bound", -1, autotest_ini);   // WHAT IT HAS SEEN BOUNDS WHAT IT EXPECTS
-    if (autotest_ini) { g_aa_scale = ini_int("autotest", "aa_scale", 100, autotest_ini); g_v_aa_scale = ini_int("autotest", "v_aa_scale", -1, autotest_ini); }   // THE SIZE FOR A THREAT
+    if (autotest_ini) { g_aa_scale = ini_int("autotest", "aa_scale", AAS_SCALE, autotest_ini); g_v_aa_scale = ini_int("autotest", "v_aa_scale", -1, autotest_ini); }   // THE SIZE FOR A THREAT
     g_aa_ahead_b = g_set_ai[1].aa_ahead_buildings;
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
@@ -2725,7 +2726,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
 //   or AAS_FOUND_MS. One place per AAS_PER_SITE of the threat (one at least), as many as it has. Places within AAS_R of
 //   one already chosen are that one's; each AA building counts for the place nearest it. Without a real threat (the row
 //   "air", priority.c) a foundation waits for the rows as a building does (prio_refuses).
-// - AA UNITS: 2 + the threat, no more than a quarter of its unit limit; the newest land AA type the game offers it now
+// - AA UNITS: 2 + the threat (THE SIZE FOR A THREAT: half of it), no more than a quarter of its unit limit; the newest land AA type the game offers it now
 //   (the game's data: family land_aa), up to AAS_TRAIN every 10 s; without a building that makes it (the type's makers
 //   in the game's data) one is asked of the build manager first (the test's P3 in World War I wanted 19-22 and had
 //   none: no factory for the Flak halftrack).
@@ -2770,9 +2771,14 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
 // raised what the others expected of it.
 #define AAS_EXPECT 2.0f
 #define AA_BOUND(idx) PV(idx, g_v_aa_bound, 1)
-// THE SIZE FOR A THREAT ([autotest] aa_scale, v_aa_scale for the variant players; percent, 100): the blocks and the AA
-// units a threat buys, scaled - a test's knob: with the bound an AI on water still held 21 AA units (100 iron each, 2.5
-// Sentinels) and 24 AA buildings against 8 infantry for 2-5 enemy aircraft at a time, 28% of its iron and 18% of its gold
+// THE SIZE FOR A THREAT (AAS_SCALE percent; [autotest] aa_scale, v_aa_scale for the variant players): the blocks and
+// the AA units a threat buys, at half of the first measure (the player 2026-11-24: "yes, half it"; 2026-11-20: "half
+// of the aa would probably be more than enough for normal games"). With the bound an AI on water still held 21 AA units
+// (100 iron each, 2.5 Sentinels) and 24 AA buildings against 8 infantry for 2-5 enemy aircraft at a time, 28% of its
+// iron and 18% of its gold. Half against all of it, head-to-head (Small Islands from epoch 12, 10 games): AA buildings
+// 34 -> 20, AA units 25 -> 20, gold into buildings 2720 -> 1376, aircraft of its own 2.5 -> 5.5, warships 8.8 -> 12.8,
+// the epoch +0.25 (se 0.08), soldiers, kills and losses level; under the massed raid (air_raid.eeai) no difference -
+// its 2 AA buildings and 2 AA units of minute 14 stop no wave of 30 either way.
 #define AA_SCALE(idx) PV(idx, g_v_aa_scale, g_aa_scale)
 internal float aa_threat_expected(ee_player *pl, unsigned idx, uint32_t now, int *port, float *counters);   // army_view.c
 internal struct { float w_near, w_all; uint32_t near_t, all_t, block_t, train_t, log_t, prod_t, pf_t, pf_b_t; unsigned prods; ee_unit *pf_u; int pf_id; struct { ee_unit *u; int id; uint32_t t, b_t; } fnd[AAS_FOUNDS]; int nf; unsigned blocks, queued, trained, done, gave_up; } g_aas[16];
