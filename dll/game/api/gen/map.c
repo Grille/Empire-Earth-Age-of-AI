@@ -231,10 +231,21 @@ internal inline uint8_t **terrain_name_at(const ee_terrain *o) { return (uint8_t
 internal inline uint32_t terrain_get_set(const ee_terrain *o) { return *(uint32_t *)((uint8_t *)o + of_terrain_set); }
 internal inline void terrain_set_set(ee_terrain *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_terrain_set) = v; }
 internal inline uint32_t *terrain_set_at(const ee_terrain *o) { return (uint32_t *)((uint8_t *)o + of_terrain_set); }
-// how many kinds of objects painting it scatters (trees ...): the terrain paint's 0x598B7A and a new map's fill read it
+// of 100 tiles painted with it, how many get one of its objects (0: it scatters none) - the game's map maker's fill
+// (0x66EA64: a random number 0 .. 1 against it times 0.01, then one of `objects` drawn), the terrain paint's 0x598B7A.
+// (The name is from before that was read: not a count.)
 internal inline int terrain_get_objects_n(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_objects_n); }
 internal inline void terrain_set_objects_n(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_objects_n) = v; }
 internal inline int *terrain_objects_n_at(const ee_terrain *o) { return (int *)((uint8_t *)o + of_terrain_objects_n); }
+// the unit types it scatters (stones, plants, trees: db\dbterrain.dat's lists - "RM Ambients - Forest", "Forest -
+// Maple" ...), a vector's begin and end (0x66EA64 and its count 0x42E347 read them so)
+internal inline int *terrain_get_objects(const ee_terrain *o) { return *(int **)((uint8_t *)o + of_terrain_objects); }
+internal inline void terrain_set_objects(ee_terrain *o, int *v) { *(int **)((uint8_t *)o + of_terrain_objects) = v; }
+internal inline int **terrain_objects_at(const ee_terrain *o) { return (int **)((uint8_t *)o + of_terrain_objects); }
+// the same: its end
+internal inline int *terrain_get_objects_end(const ee_terrain *o) { return *(int **)((uint8_t *)o + of_terrain_objects_end); }
+internal inline void terrain_set_objects_end(ee_terrain *o, int *v) { *(int **)((uint8_t *)o + of_terrain_objects_end) = v; }
+internal inline int **terrain_objects_end_at(const ee_terrain *o) { return (int **)((uint8_t *)o + of_terrain_objects_end); }
 // the language file's string that names it in the editor's lists (GetString)
 internal inline int terrain_get_name_text(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_name_text); }
 internal inline void terrain_set_name_text(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_name_text) = v; }
@@ -519,6 +530,8 @@ internal int spec_map_select(int build) {
         of_terrain_name = 0x8;
         of_terrain_set = 0x40;
         of_terrain_objects_n = 0x7C;
+        of_terrain_objects = 0x70;
+        of_terrain_objects_end = 0x74;
         of_terrain_name_text = 0x54;
         of_terrain_in_editor = 0x85;
         of_terrain_kind = 0x5C;
@@ -637,6 +650,8 @@ internal int spec_map_select(int build) {
         of_terrain_name = 0x8;
         of_terrain_set = 0x40;
         of_terrain_objects_n = 0x7C;
+        of_terrain_objects = 0x70;
+        of_terrain_objects_end = 0x74;
         of_terrain_name_text = 0x54;
         of_terrain_in_editor = 0x85;
         of_terrain_kind = 0x5C;

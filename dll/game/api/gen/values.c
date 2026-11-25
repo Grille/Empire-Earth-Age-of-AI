@@ -1346,6 +1346,8 @@ internal uint32_t size_ee_terrain;
 internal uint32_t of_terrain_name;
 internal uint32_t of_terrain_set;
 internal uint32_t of_terrain_objects_n;
+internal uint32_t of_terrain_objects;
+internal uint32_t of_terrain_objects_end;
 internal uint32_t of_terrain_name_text;
 internal uint32_t of_terrain_in_editor;
 internal uint32_t of_terrain_kind;
