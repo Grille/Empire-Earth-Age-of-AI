@@ -34,8 +34,8 @@ class camera
     /// staying as at the game's furthest zoom (0, or no more than camera_distance: no further; without the own renderer 42 at most):
     [range(0, 1000, error: true)]
     int camera_distance_max = 100;
-    /// 1 = the mouse wheel zooms at the mouse, the ground under the cursor stays under it: in full further out than the game's own zoom range,
-    /// fading out over its outer half (nearer in the camera tilts toward the horizon). 0 = at the middle of the screen
+    /// 1 = the mouse wheel zooms at the mouse, the ground under the cursor stays under it: in full while the cursor looks
+    /// 15 degrees or more down at the ground, fading out nearer the horizon (near in the camera tilts toward it). 0 = at the middle of the screen
     bool camera_zoom_at_mouse = true;
     /// Free turn in play as in the scenario editor: 1 = the ^ key (` on an English keyboard) held turns the camera with the
     /// mouse, the view then the isometric one (it keeps its angle when scrolling and zooming; back to the normal view:

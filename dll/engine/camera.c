@@ -304,9 +304,9 @@ internal float camera_zoom_notches(int n) {
     return z;
 }
 // The wheel's zoom keeps the ground under the mouse where it is ([camera] camera_zoom_at_mouse; the player 2026-11-09: "the
-// mouse alsways remains on the same world position"), in full past the game's zoom 1 and fading out from there to 0.5
+// mouse alsways remains on the same world position"), fading out where the ray under the cursor nears the horizon
 // (the player: "horizon view and anchor dont mix", "the switch from tilting to far camera is a bit jaring"; the pitch turns
-// with the zoom below 1). A notch takes the point of the terrain under the cursor in the picture drawn now, and
+// with the zoom below 1: CAM_ANCHOR_SIN_FULL). A notch takes the point of the terrain under the cursor in the picture drawn now, and
 // keeps it through further notches while the cursor stays; every frame of the ride the same ray again, and the difference
 // (the fade's share of it, the point then being what the ray hits after that) taken off the look-at, at the ride's start and its end together, so the ride goes on (the player's way: world position,
 // zoom, world position again, remove the difference; one look-at worked out per notch for the ride's end strayed by 70 tiles
@@ -331,7 +331,13 @@ internal float g_cam_now[16];   // render_frame.c: the camera's transformation t
 internal int g_cam_now_ok;
 internal struct { int on; float mx, my, at[3]; } g_cam_anchor;
 internal void camera_anchor_drop(void) { g_cam_anchor.on = 0; }   // the player's own move (input_pan); the ride goes on
-#define CAM_ANCHOR_FROM 0.5f   // the zoom the fade starts at
+// The fade is the ray's under the cursor, not the zoom's: the normal view's pitch goes with the zoom in a straight line,
+// 35 degrees down at the game's 1 to 5 at its nearest (0x51DA2D, the two angles at 0x913284 / 0x913288), and only a ray
+// near the horizon hits the ground so far off that a notch's tilt moves the point by tiles. A fade from zoom 1 to 0.5 had the
+// zoom at the middle of the screen while the ray there still went 20 degrees down (the player 2026-11-26: "in normal it
+// loses the mouse zoom to early"); now in full down to 15 degrees, none from 6 - nearer in the lower half keeps it.
+#define CAM_ANCHOR_SIN_FULL 0.2588f   // sin 15 degrees
+#define CAM_ANCHOR_SIN_NONE 0.1045f   // sin 6 degrees
 // In view 2 (the isometric view: the editor's free turn, the ` key; the perspective key's third) the zoom keeps the
 // turn, the pitch doesn't come up towards the horizon: in full at any zoom (the player 2026-11-25: "in that mode the
 // mouse zoom can always be used instead of fadding to the center zoom")
@@ -339,16 +345,19 @@ internal int camera_anchor_full(void) {
     ee_camera *cam = game_camera();
     return cam && camera_get_view(cam) == 2;
 }
-internal float camera_anchor_share(float z) {
+// the share of the anchor's correction for a ray d from the eye
+internal float camera_anchor_share(const float *d) {
     if (camera_anchor_full()) return 1.0f;
-    float t = fmaxf(0, fminf(1.0f, (z - CAM_ANCHOR_FROM) / (1.0f - CAM_ANCHOR_FROM)));
+    float len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (!(len > 0)) return 0;
+    float t = fmaxf(0, fminf(1.0f, (-d[2] / len - CAM_ANCHOR_SIN_NONE) / (CAM_ANCHOR_SIN_FULL - CAM_ANCHOR_SIN_NONE)));
     return t * t * (3.0f - 2.0f * t);
 }
 internal void camera_zoom_at_mouse(float z) {
     ee_camera *cam = game_camera();
     ee_mouse *m = game_mouse();
-    int ok = g_set.camera_zoom_at_mouse && (camera_anchor_full() || fmaxf(z, camera_zoom_now()) > CAM_ANCHOR_FROM) && g_cam_now_ok && cam && m && game_map() && !mouse_get_frozen(m);
-    if (!ok && g_cam_anchor.on) {   // past the fade: the ride ended where it is now, as at its end below
+    int ok = g_set.camera_zoom_at_mouse && g_cam_now_ok && cam && m && game_map() && !mouse_get_frozen(m);
+    if (!ok && g_cam_anchor.on) {   // the ride ended where it is now, as at its end below
         g_cam_anchor.on = 0;
         if (cam) camera_pan(0.001f, 0);
     }
@@ -384,7 +393,7 @@ internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {
     if (!map) { g_cam_anchor.on = 0; return; }
     if (rf_screen_ray(now, g_cam_anchor.mx, g_cam_anchor.my, eye, d) && d[2] < -0.05f) {
         float k = (g_cam_anchor.at[2] - eye[2]) / d[2], n = (float)map_get_size(map), x = camera_get_x(cam), y = camera_get_y(cam);
-        float qx = eye[0] + d[0] * k, qy = eye[1] + d[1] * k, share = camera_anchor_share(camera_zoom_now());
+        float qx = eye[0] + d[0] * k, qy = eye[1] + d[1] * k, share = camera_anchor_share(d);
         float dx = fmaxf(0, fminf(n, x + (g_cam_anchor.at[0] - qx) * share)) - x;
         float dy = fmaxf(0, fminf(n, y + (g_cam_anchor.at[1] - qy) * share)) - y;
         g_cam_anchor.at[0] = qx + dx;
