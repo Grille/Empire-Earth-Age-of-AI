@@ -48,6 +48,7 @@ internal int __cdecl hook_random_map_types_load(void *path) {
 #define MG_BIOMES 9
 #define MG_MAPLE "tree_01_maple", "tree_02_maple", "tree_04_maple", "tree_30_maple"
 #define MG_MIXED "tree_07_spruce", "tree_09_spruce", "tree_10_spruce", "tree_11_spruce", "tree_01_maple", "tree_04_maple"
+#define MG_CONIFERS "tree_12_spruce", "tree_07_spruce", "tree_11_spruce", "tree_10_spruce"
 #define MG_FIRS "tree_31_winter_spruce_1", "tree_32_winter_spruce_2", "tree_33_winter_spruce_3", "tree_34_winter_spruce_4", "tree_35_winter_spruce_5", "tree_36_winter_spruce_6"
 #define MG_PALMS "tree_21_palm", "tree_22_palm", "tree_23_palm", "tree_26_palm", "tree_28_palm", "tree_29_palm"
 #define MG_DEAD "tree_05_spruce_dead", "tree_06_spruce_dead", "tree_14_spruce_dead"
@@ -63,28 +64,30 @@ internal const struct mg_biome {
     uint8_t size_lo, size_hi;    // a forest's tiles
     const char *animals[4];
     uint8_t rich[5];             // of 100 mines (gold, iron, stone), forage patches and herds drawn for a place there, how many are laid
+    uint8_t by_warmth;           // a forest is spruce, mixed or maple by the warmth where it grows (mg_forest), not of trees[]
+    int8_t lean;                 // and that many hundredths of the way warmer: more maple
 } k_mg_biome[MG_BIOMES] = {
     // cold: dry, middling, wet
     { "ice desert", { "Snow", "Ice", "Snow - Dirt Patches", "Snow", "Snow" }, { 45, 25, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
-      { MG_DEAD }, { MG_FIRS }, 1500, 6, 14, { "res_walrus", "res_goat" }, { 60, 100, 100, 10, 30 } },
+      { MG_DEAD }, { MG_FIRS }, 1500, 6, 14, { "res_walrus", "res_goat" }, { 60, 100, 100, 10, 30 }, 0, 0 },
     { "tundra", { "Snow", "Snow - Grass Patches", "Snow - Tufts", "Snow", "Snow" }, { 40, 30, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
-      { MG_FIRS }, { NULL }, 650, 18, 36, { "res_deer", "res_goat", "res_walrus" }, { 60, 100, 80, 30, 60 } },
+      { MG_FIRS }, { NULL }, 650, 18, 36, { "res_deer", "res_goat", "res_walrus" }, { 60, 100, 80, 30, 60 }, 0, 0 },
     { "taiga", { "Snow - Tufts", "Snow", "Snow - Grass Patches", "Snow", "Snow" }, { 40, 30, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
-      { MG_FIRS }, { NULL }, 200, 36, 60, { "res_deer", "res_goat" }, { 50, 90, 60, 50, 80 } },
+      { MG_FIRS }, { NULL }, 200, 36, 60, { "res_deer", "res_goat" }, { 50, 90, 60, 50, 80 }, 0, 0 },
     // mild
     { "steppe", { "Grass - Sparse", "Dry Leaves", "Grass - Patches", "Grass", "Grass - Sparse" }, { 40, 20, 25, 10, 5 }, "Beach", "Sand - Medium", "Dry Leaves",
-      { MG_DEAD }, { MG_MAPLE }, 1200, 8, 20, { "res_horse", "res_goat", "res_ostrich" }, { 80, 80, 80, 50, 80 } },
+      { MG_DEAD }, { MG_MAPLE }, 1200, 8, 20, { "res_horse", "res_goat", "res_ostrich" }, { 80, 80, 80, 50, 80 }, 0, 0 },
     { "grassland", { "Grass", "Grass - Tufts", "Grass - Tall", "Grass - Patches", "Grass" }, { 60, 10, 6, 8, 16 }, "Beach", "Sand - Medium", "Grass - Sparse",
-      { MG_MAPLE }, { NULL }, 420, 26, 50, { "res_deer", "res_horse", "res_goat" }, { 70, 70, 70, 100, 100 } },
+      { MG_MAPLE }, { NULL }, 420, 26, 50, { "res_deer", "res_horse", "res_goat" }, { 70, 70, 70, 100, 100 }, 1, 15 },
     { "woodland", { "Grass", "Grass - Tall", "Grass - Tufts", "Grass - Overgrown", "Grass" }, { 40, 22, 15, 18, 5 }, "Beach", "Sand - Medium", "Grass - Sparse",
-      { MG_MIXED }, { NULL }, 170, 40, 60, { "res_deer", "res_goat" }, { 50, 60, 50, 100, 90 } },
+      { MG_MIXED }, { NULL }, 170, 40, 60, { "res_deer", "res_goat" }, { 50, 60, 50, 100, 90 }, 1, 0 },
     // hot
     { "desert", { "Sand - Fine", "Sand - Medium", "Desert", "Sand - Cracked", "Dark Cracked Mud" }, { 35, 25, 20, 12, 8 }, "Desert", "Pebbles - Small", "Sand - Medium",
-      { MG_PALMS }, { NULL }, 1300, 5, 12, { "res_ostrich", "res_goat" }, { 100, 60, 100, 15, 20 } },
+      { MG_PALMS }, { NULL }, 1300, 5, 12, { "res_ostrich", "res_goat" }, { 100, 60, 100, 15, 20 }, 0, 0 },
     { "savanna", { "Grass - Patches", "Grass - Sparse", "Sand - Medium", "Grass", "Grass - Patches" }, { 40, 30, 15, 10, 5 }, "Beach", "Pebbles - Small", "Grass - Sparse",
-      { MG_PALMS }, { NULL }, 800, 10, 24, { "res_giraffe", "res_elephant", "res_ostrich", "res_horse" }, { 90, 60, 70, 60, 100 } },
+      { MG_PALMS }, { NULL }, 800, 10, 24, { "res_giraffe", "res_elephant", "res_ostrich", "res_horse" }, { 90, 60, 70, 60, 100 }, 0, 0 },
     { "tropics", { "Grass - Overgrown", "Grass - Tall", "Grass", "Grass - Tufts", "Grass - Overgrown" }, { 40, 25, 20, 10, 5 }, "Beach", "Sand - Medium", "Grass - Tall",
-      { MG_PALMS }, { NULL }, 160, 40, 60, { "res_elephant", "res_hippopotamus", "res_giraffe" }, { 50, 40, 40, 100, 90 } },
+      { MG_PALMS }, { NULL }, 160, 40, 60, { "res_elephant", "res_hippopotamus", "res_giraffe" }, { 50, 40, 40, 100, 90 }, 0, 0 },
 };
 
 // THE GENERATOR'S STATE. Tiles x, y (0 .. n - 1), corners 0 .. n: the map is the diamond of them the game made (a tile
@@ -118,6 +121,7 @@ struct mg {
     int nspot;
     int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_shore[MG_BIOMES], tex_deep, tex_marsh, tex_pebbles;
     int tree[MG_BIOMES][6], ntree[MG_BIOMES], grove[MG_BIOMES][6], ngrove[MG_BIOMES], animal[MG_BIOMES][4], nanimal[MG_BIOMES];   // the biomes' types the data has
+    int wood[3][6], nwood[3], wood_made[3];   // a by_warmth biome's forests: spruce, mixed, maple; how many of each
     struct { int x, y; } spring[16];      // the rivers' springs: apart from each other
     struct { int x, y, r; } lake[12];     // the lakes: middle and radius
     struct { int x, y, r; } plateau[8];   // the plateaus
@@ -827,6 +831,13 @@ internal void mg_textures_load(struct mg *g) {
             g->types_missing += k->animals[i] && (t < 0 || !type_data(t));
         }
     }
+    static const char *const wood[3][6] = { { MG_CONIFERS }, { MG_MIXED }, { MG_MAPLE } };
+    for (int k = 0; k < 3; k++)
+        for (int i = 0; i < 6; i++) {
+            int t = wood[k][i] ? mg_type(wood[k][i]) : -1;
+            if (t >= 0 && type_data(t)) g->wood[k][g->nwood[k]++] = t;
+            g->types_missing += wood[k][i] && (t < 0 || !type_data(t));
+        }
     MG_TEX(g->tex_deep, "Underwater", 0);
     MG_TEX(g->tex_marsh, "Marsh", 0);
     MG_TEX(g->tex_pebbles, "Pebbles - Small", 1);
@@ -927,11 +938,20 @@ internal void mg_mine(struct mg *g, int kind, int x, int y) {
 }
 // a forest: free tiles grown from a seed tile, a neighbour of a tile it has at a time - as many as the seed's biome
 // says; a tree of the biome's on 9 in 10 of them, its forest floor under all. grove: a start's own - the biome's
-// timber trees where its own are none, 28 - 50 tiles
+// timber trees where its own are none, 28 - 50 tiles. In the mild green biomes (by_warmth) a forest is all spruce,
+// mixed or all maple by the warmth at its seed (the player 2026-11-25: "the pure variants also should exist,
+// especially towards cold pure spruce"): from the mild band's cold edge to its warm one, give or take a quarter -
+// at the cold edge spruce only, in the middle mixed three times in five, at the warm edge maple only.
 internal void mg_forest(struct mg *g, int x, int y, int grove) {
     static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
     int b = g->clim[y * g->n + x], other = grove && g->ngrove[b], kinds = other ? g->ngrove[b] : g->ntree[b];
     const int *trees = other ? g->grove[b] : g->tree[b];
+    if (k_mg_biome[b].by_warmth && !other) {
+        float lo, hi, warm;
+        mg_tile_span(g, x, y, &lo, &hi);
+        warm = (mg_temp(g, x, y) - fmaxf(0, hi - 2.0f) * 0.07f + 0.3f) / 0.6f + (float)k_mg_biome[b].lean / 100.0f + (mg_rnd(g) - 0.5f) * 0.5f;
+        int k = warm < 0.35f ? 0 : warm > 0.65f ? 2 : 1;
+        if (g->nwood[k]) { trees = g->wood[k]; kinds = g->nwood[k]; g->wood_made[k]++; }    }
     if (!kinds) return;
     int want = grove ? mg_int(g, 28, 50) : mg_int(g, k_mg_biome[b].size_lo, k_mg_biome[b].size_hi), n = 1, tx[60], ty[60];
     tx[0] = x; ty[0] = y;
@@ -1213,8 +1233,9 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords (%d laid for a start cut off), %d oases, %d swamps, %d islands, %d capes, %d bays, %d fjords, the continents %s on foot, %d starts cut off from their continent's, %d of %d land tiles reached from the starts, %d players (%d start units) at",
                 MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords_ok, g->mended, g->oases, g->swamps, g->islands, g->capes, g->bays, g->fjords, g->afoot ? "JOINED" : "apart", g->cut, g->walked, g->walkable, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
-        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
-                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], g->made[MG_AMBIENT], (double)start[0], (double)start[1]);
+        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests (of the mild green biomes' %d spruce, %d mixed, %d maple), animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
+                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->wood_made[0], g->wood_made[1], g->wood_made[2],
+                g->made[MG_ANIMAL], g->made[MG_AMBIENT], (double)start[0], (double)start[1]);
         for (int b = 0; b < MG_BIOMES; b++) fprintf(g_log, " %s %d", k_mg_biome[b].name, g->biome_tiles[b]);
         fprintf(g_log, "; the starts in:");
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %s", k_mg_biome[g->clim[g->sy[i] * n + g->sx[i]]].name);

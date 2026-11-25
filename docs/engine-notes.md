@@ -809,7 +809,10 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
-  five AIs of that map at 78 - 146, a medium map's three at 104 - 159.
+  five AIs of that map at 78 - 146, a medium map's three at 104 - 159. A forest of the grassland or the woodland
+  is all spruce, mixed or all maple by the warmth at its seed (the player: the pure kinds too, spruce towards the
+  cold): spruce only at the mild band's cold edge, maple only at its warm one, mixed most often between; the
+  grassland leans to maple. The log's line counts the three.
 - **A map's flags** (EEMap.flags, the script's MapCharacteristics): 0 Continental, 1 the island types (IslandMap),
   2 Plains (WaterlessMap) - read after the game's own maker in test games.
 - **The ground textures' names** are db\dbterrain.dat's ("Grass - Tufts", "Sand - Medium", "Snow - Dirt Patches",
