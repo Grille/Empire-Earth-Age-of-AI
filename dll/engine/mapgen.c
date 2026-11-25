@@ -122,6 +122,8 @@ struct mg {
     struct { int x, y, r; } plateau[8];   // the plateaus
     int plateaus;
     int islands, bays, capes, fjords;
+    struct { int x, y, r; } oasis[8], swamp[4];   // the deserts' ponds, the hot wet south's swamps
+    int oases, swamps;
     struct { float x, y; } ford[64];      // the rivers' fords, laid once all water is dug
     int lakes, fords;
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
@@ -493,6 +495,66 @@ internal int mg_river(struct mg *g, int mountain, int fx, int fy) {
     }
     return 1;
 }
+// a basin dug: r tiles in radius, a noise in its outline, `deep` steps deep in the middle, the ground rising 0.5 a
+// tile from its rim; its shore (a tile and a half) kept free
+internal void mg_basin(struct mg *g, int x0, int y0, int r, float deep) {
+    for (int cy = y0 - r - 6; cy <= y0 + r + 6; cy++)
+        for (int cx = x0 - r - 6; cx <= x0 + r + 6; cx++) {
+            if (!mg_corner(g, cx, cy)) continue;
+            float d = sqrtf((float)((cx - x0) * (cx - x0) + (cy - y0) * (cy - y0)));
+            float s = 1 - d * (0.75f + 0.5f * mg_fbm((float)cx * 0.15f, (float)cy * 0.15f, g->seed + 80)) / (float)r;
+            float bed = s > 0 ? -deep * mg_step(0, 0.6f, s) : -s * (float)r * 0.5f;
+            if (bed < g->h[cy * g->m + cx]) g->h[cy * g->m + cx] = bed;
+            if (s > -1.5f / (float)r && mg_tile(g, cx, cy)) g->used[cy * g->n + cx] = 1;
+        }
+}
+// the moisture a place has of the noise alone - before the water near it and the mountains' rain shadow (mg_biomes)
+internal float mg_wet0(const struct mg *g, int x, int y) { return 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f; }
+// is the ground round (x0, y0) plain land for a feature of r tiles: no mountain, foothill, plateau or water, `inside`
+// tiles inside the land, `away` from any start, 14 from the lakes, oases and swamps so far
+internal int mg_plain(const struct mg *g, int x0, int y0, int r, float inside, float away) {
+    if (mg_f(g, x0, y0) < inside || mg_start_dist(g, (float)x0, (float)y0) < away) return 0;
+    for (int i = 0; i < g->lakes + g->oases + g->swamps; i++) {
+        int j = i - g->lakes, k = j - g->oases;
+        int ox = j < 0 ? g->lake[i].x : k < 0 ? g->oasis[j].x : g->swamp[k].x, oy = j < 0 ? g->lake[i].y : k < 0 ? g->oasis[j].y : g->swamp[k].y;
+        int apart = 14 + r + (j < 0 ? g->lake[i].r : k < 0 ? g->oasis[j].r : g->swamp[k].r);
+        if ((ox - x0) * (ox - x0) + (oy - y0) * (oy - y0) < apart * apart) return 0;
+    }
+    for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 3)
+        for (int cx = x0 - r - 3; cx <= x0 + r + 3; cx += 3)
+            if (!mg_corner(g, cx, cy) || g->mt[cy * g->m + cx] > 0.2f || g->foot[cy * g->m + cx] > 0.45f || g->plat[cy * g->m + cx] > 0 || g->h[cy * g->m + cx] < 0.8f || mg_f(g, cx, cy) < 5) return 0;
+    return 1;
+}
+// AN OASIS (the player 2026-11-25 agreed to the list: "a desert oasis (pond, palms, forage)"): a pond of 2 - 3 tiles'
+// radius where the land will be desert - hot and, of the noise alone, dry; its palms and its forage patch come with
+// the objects (mg_objects), the water makes the ground round it less dry (mg_biomes).
+internal int mg_oasis(struct mg *g) {
+    int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 2, 3);
+    if (g->oases >= 8 || mg_temp(g, x0, y0) < 0.4f || mg_wet0(g, x0, y0) > 0.3f || !mg_plain(g, x0, y0, r, 8, 16)) return 0;
+    mg_basin(g, x0, y0, r, 1.2f);
+    g->oasis[g->oases].x = x0; g->oasis[g->oases].y = y0; g->oasis[g->oases].r = r;
+    g->oases++;
+    return 1;
+}
+// A SWAMP (the same list: "tropical swamp with trees standing in marsh"): where the land will be hot and wet, 9 - 13
+// tiles in radius - the plain let down to the water's level and broken up by a fine noise: pools some 3 tiles across, up to a step deep
+// (four tenths of it; marsh their bed, the player's rule: marsh under water only) between low ground, where its trees
+// stand thick (mg_objects). An obstacle to go round or cut through, as a forest is. tight 0 .. 3: where
+// no such place was found - smaller, nearer a start, less hot and wet.
+internal int mg_swamp(struct mg *g, int tight) {
+    int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 9, 13 - tight);
+    if (g->swamps >= 4 || mg_temp(g, x0, y0) < 0.3f - 0.04f * (float)tight || mg_wet0(g, x0, y0) < 0.58f - 0.03f * (float)tight || !mg_plain(g, x0, y0, r, 8, (float)(20 - 2 * tight))) return 0;
+    for (int cy = y0 - r; cy <= y0 + r; cy++)
+        for (int cx = x0 - r; cx <= x0 + r; cx++) {
+            if (!mg_corner(g, cx, cy)) continue;
+            float d = sqrtf((float)((cx - x0) * (cx - x0) + (cy - y0) * (cy - y0))) * (0.8f + 0.4f * mg_fbm((float)cx * 0.12f, (float)cy * 0.12f, g->seed + 85));
+            float w = 1 - mg_step((float)r - 3, (float)r, d), low = 0.2f + (mg_noise((float)cx * 0.3f + 9, (float)cy * 0.3f + 4, g->seed + 86) - 0.5f) * 2.6f;
+            g->h[cy * g->m + cx] += (low - g->h[cy * g->m + cx]) * w;
+        }
+    g->swamp[g->swamps].x = x0; g->swamp[g->swamps].y = y0; g->swamp[g->swamps].r = r;
+    g->swamps++;
+    return 1;
+}
 // A LAKE (the player 2026-11-25): a basin 5 - 8 tiles in radius, its outline pushed in and out by a noise, 2.2 steps
 // deep in the middle, by turns on the two continents, well inside the land (12 tiles), 20 from any start, 25 from another lake, on the plain (no
 // mountain, no foothills, no water there yet). The water is the sea's level - the game has one water plane. Its
@@ -505,15 +567,7 @@ internal int mg_lake(struct mg *g, int tight) {
     for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 3)
         for (int cx = x0 - r - 3; cx <= x0 + r + 3; cx += 3)
             if (!mg_corner(g, cx, cy) || g->mt[cy * g->m + cx] > 0.2f || g->foot[cy * g->m + cx] > 0.45f || g->plat[cy * g->m + cx] > 0 || g->h[cy * g->m + cx] < 0.8f || mg_f(g, cx, cy) < 5) return 0;
-    for (int cy = y0 - r - 6; cy <= y0 + r + 6; cy++)
-        for (int cx = x0 - r - 6; cx <= x0 + r + 6; cx++) {
-            if (!mg_corner(g, cx, cy)) continue;
-            float d = sqrtf((float)((cx - x0) * (cx - x0) + (cy - y0) * (cy - y0)));
-            float s = 1 - d * (0.75f + 0.5f * mg_fbm((float)cx * 0.15f, (float)cy * 0.15f, g->seed + 80)) / (float)r;
-            float bed = s > 0 ? -2.2f * mg_step(0, 0.6f, s) : -s * (float)r * 0.5f;
-            if (bed < g->h[cy * g->m + cx]) g->h[cy * g->m + cx] = bed;
-            if (s > -1.5f / (float)r && mg_tile(g, cx, cy)) g->used[cy * g->n + cx] = 1;
-        }
+    mg_basin(g, x0, y0, r, 2.2f);
     g->lake[g->lakes].x = x0; g->lake[g->lakes].y = y0; g->lake[g->lakes].r = r;
     g->lakes++;
     return 1;
@@ -800,8 +854,28 @@ internal void mg_objects(struct mg *g) {
             if (mg_anywhere(g, 22, 9, &x, &y) && mg_rich(g, x, y, wild[k].kind)) mg_mine(g, wild[k].kind, x, y);
     for (int j = g->land / 150; j > 0; j--)
         if (mg_anywhere(g, 16, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
-    for (int j = g->land / 900; j > 0; j--)
+    for (int j = g->land / 600; j > 0; j--)
         if (mg_anywhere(g, 18, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
+    // an oasis' own: two stands of the biome's trees (the deserts' and the savanna's are palms) and a forage patch by
+    // its pond; a swamp's: a tree of the biome's on a quarter of its low ground, the rest of that kept free of mines
+    for (int k = 0; k < g->oases; k++) {
+        for (int j = 0; j < 2; j++)
+            if (mg_ring(g, g->oasis[k].x, g->oasis[k].y, g->oasis[k].r + 2, g->oasis[k].r + 5, 3, &x, &y)) mg_forest(g, x, y, 0);
+        if (mg_ring(g, g->oasis[k].x, g->oasis[k].y, g->oasis[k].r + 2, g->oasis[k].r + 6, 3, &x, &y)) mg_mine(g, MG_FORAGE, x, y);
+    }
+    for (int k = 0; k < g->swamps; k++)
+        for (y = g->swamp[k].y - g->swamp[k].r; y <= g->swamp[k].y + g->swamp[k].r; y++)
+            for (x = g->swamp[k].x - g->swamp[k].r; x <= g->swamp[k].x + g->swamp[k].r; x++) {
+                float lo, hi;
+                int dx = x - g->swamp[k].x, dy = y - g->swamp[k].y, b;
+                if (dx * dx + dy * dy > (g->swamp[k].r - 1) * (g->swamp[k].r - 1) || !mg_tile_span(g, x, y, &lo, &hi) || lo < 0.02f || hi > 1.0f || g->used[y * g->n + x]) continue;
+                g->used[y * g->n + x] = 1;
+                b = g->clim[y * g->n + x];
+                if (g->ntree[b] && mg_int(g, 0, 3) == 0) {
+                    map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)g->tex_wood[b]);
+                    mg_object(g, g->tree[b][mg_int(g, 0, g->ntree[b] - 1)], x, y, mg_rnd(g) * 6.2831853f, MG_TREE);
+                }
+            }
     // a plateau's own: a gold mine within half its radius of its middle - a reason to hold it
     for (int k = 0; k < g->plateaus; k++)
         if (mg_ring(g, g->plateau[k].x, g->plateau[k].y, 0, g->plateau[k].r / 2, 5, &x, &y)) mg_mine(g, MG_GOLD, x, y);
@@ -955,6 +1029,8 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     mg_heights(g);
     mg_yards(g);
     for (int want = 1 + n / 110, t = 0; g->lakes < want && t < 20000; t++) mg_lake(g, t / 5000);
+    for (int want = 1 + n / 150, t = 0; g->oases < want && t < 6000; t++) mg_oasis(g);
+    for (int want = 1 + n / 250, t = 0; g->swamps < want && t < 24000; t++) mg_swamp(g, t / 6000);
     for (int k = 0; k < g->lakes; k++)   // a lake's outflow
         for (int t = 0, was = g->rivers; t < 40 && g->rivers == was; t++) g->rivers += mg_river(g, 0, g->lake[k].x, g->lake[k].y);
     for (int want = g->rivers + 2 + n / 60, t = 0; g->rivers < want && t < 6000; t++) g->rivers += mg_river(g, t < 3000, -1, -1);   // from the mountains while such are found
@@ -995,8 +1071,8 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     start[2] = ground_at(map, start[0], start[1]);
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords, %d islands, %d capes, %d bays, %d fjords, %d players (%d start units) at",
-                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords, g->islands, g->capes, g->bays, g->fjords, g->np, units);
+        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords, %d oases, %d swamps, %d islands, %d capes, %d bays, %d fjords, %d players (%d start units) at",
+                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords, g->oases, g->swamps, g->islands, g->capes, g->bays, g->fjords, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
         fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
                 g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], g->made[MG_AMBIENT], (double)start[0], (double)start[1]);

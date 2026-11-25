@@ -790,7 +790,11 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   ferns and bamboo, "Forest - Maple" 100 of its trees); the game's maker's fill (0x66EA64) lays them, map_reset_tile
   does not - the mod's maps had none. Its own sets by what a tile is: lily pads on unfrozen inland water, reeds on
   its banks, seagrass in the shallows (corals in the hot south, ice floes and icebergs in the cold north), shells
-  on a wide beach, rocks at a range's foot, and each biome's stones and plants in patches (8 to 70 of 1000 tiles). A texture gives its tiles their kind (ee_terrain.kind,
+  on a wide beach, rocks at a range's foot, and each biome's stones and plants in patches (8 to 70 of 1000 tiles). The biomes' own places: an
+  oasis (1 + n/150 where the land will be desert: a pond of 2 - 3 tiles, two stands of palms and a forage patch
+  by it), a swamp (1 + n/250 where it will be hot and wet: 9 - 13 tiles in radius, the plain let down to the
+  water's level and broken into pools of marsh and low ground with a tree on a quarter of it); a lake in the
+  cold north is ice. A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
