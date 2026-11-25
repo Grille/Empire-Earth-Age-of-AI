@@ -332,14 +332,22 @@ internal int g_cam_now_ok;
 internal struct { int on; float mx, my, at[3]; } g_cam_anchor;
 internal void camera_anchor_drop(void) { g_cam_anchor.on = 0; }   // the player's own move (input_pan); the ride goes on
 #define CAM_ANCHOR_FROM 0.5f   // the zoom the fade starts at
+// In view 2 (the isometric view: the editor's free turn, the ` key; the perspective key's third) the zoom keeps the
+// turn, the pitch doesn't come up towards the horizon: in full at any zoom (the player 2026-11-25: "in that mode the
+// mouse zoom can always be used instead of fadding to the center zoom")
+internal int camera_anchor_full(void) {
+    ee_camera *cam = game_camera();
+    return cam && camera_get_view(cam) == 2;
+}
 internal float camera_anchor_share(float z) {
+    if (camera_anchor_full()) return 1.0f;
     float t = fmaxf(0, fminf(1.0f, (z - CAM_ANCHOR_FROM) / (1.0f - CAM_ANCHOR_FROM)));
     return t * t * (3.0f - 2.0f * t);
 }
 internal void camera_zoom_at_mouse(float z) {
     ee_camera *cam = game_camera();
     ee_mouse *m = game_mouse();
-    int ok = g_set.camera_zoom_at_mouse && fmaxf(z, camera_zoom_now()) > CAM_ANCHOR_FROM && g_cam_now_ok && cam && m && game_map() && !mouse_get_frozen(m);
+    int ok = g_set.camera_zoom_at_mouse && (camera_anchor_full() || fmaxf(z, camera_zoom_now()) > CAM_ANCHOR_FROM) && g_cam_now_ok && cam && m && game_map() && !mouse_get_frozen(m);
     if (!ok && g_cam_anchor.on) {   // past the fade: the ride ended where it is now, as at its end below
         g_cam_anchor.on = 0;
         if (cam) camera_pan(0.001f, 0);
