@@ -922,7 +922,8 @@ internal int mg_anywhere(struct mg *g, int away, int apart, int *ox, int *oy) {
     }
     return 0;
 }
-// a mine or a forage patch: the object, its tile and the four beside it the biome's ground for one
+// a mine or a forage patch: the object; the biome's ground for one only on its own tile - the 4 corners right under
+// it (the player 2026-11-25: on the four tiles beside it too it was a patch round it) -, those beside it kept free
 internal void mg_mine(struct mg *g, int kind, int x, int y) {
     static const char *const ident[4] = { "res_gold_mine", "res_iron", "res_stone_mine", "res_forage_bush" };
     static const int8_t side[5][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
@@ -931,7 +932,7 @@ internal void mg_mine(struct mg *g, int kind, int x, int y) {
     for (int k = 0; k < 5; k++) {
         int tx = x + side[k][0], ty = y + side[k][1];
         if (!mg_free(g, tx, ty)) continue;
-        map_reset_tile(g->map, (uint32_t)tx, (uint32_t)ty, (uint32_t)tex);
+        if (!k) map_reset_tile(g->map, (uint32_t)tx, (uint32_t)ty, (uint32_t)tex);
         g->used[ty * g->n + tx] = 1;
     }
     mg_spot_add(g, x, y);
