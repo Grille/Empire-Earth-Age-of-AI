@@ -32,6 +32,11 @@ unsafe struct EESEACreateBlankMap
 [size((ee)0x14, (aoc)0x14), vtable((ee)0x00830070, (aoc)0x00845944), c_type("ee_se_random_map")]
 unsafe struct EESEACreateRandomMap
 {
+    /// the map type's index in random_map.types, its constructor's second argument (the map panel's map style list's
+    /// choice): run hands it to 0x66D650, which gives the type at that index (types + i * 0x38) to the map's maker
+    [offset(0x10), found(c)]
+    int32 map_type;
+
     /// vf1: a random map made (editor_undo.c: what it changes kept)
     [slot(1), address((ee)0x00596426, (aoc)0x005A66E2)]
     [vtable_site("se_random_map")]

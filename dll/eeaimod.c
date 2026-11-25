@@ -63,6 +63,7 @@ internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void build_retry_new_game(void);  // engine/buildretry.c
 internal void walls_new_game(void);        // engine/walls.c
 internal void editor_undo_new_game(void);  // engine/editor_undo.c
+internal int mapgen_editor_ask(ee_se_random_map *a);  // engine/mapgen_dialog.c: the editor's Create Map asks for the options
 internal void editor_orders_hide(void);    // engine/editor_orders.c
 internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
@@ -629,10 +630,12 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/game_strings.c"    // the mod's words for numbers of the game's language file
 #include "engine/terrain_cliffs.c"
 #include "engine/terrain_palette.c"
+#include "engine/game_dialog.c"     // a dialog of the mod's over the game, in its look
 #include "engine/terrain_dialog.c"
 #include "engine/terrain_filter.c"
 #include "engine/map_file.c"
 #include "engine/mapgen.c"         // the mod's own map types in the game's list, their maps made here whole
+#include "engine/mapgen_dialog.c"  // its options asked for in the editor
 #include "engine/map_sizes.c"      // map sizes past Gigantic in the game's lists
 #include "voice/llm.c"
 #include "test/testcmd.c"

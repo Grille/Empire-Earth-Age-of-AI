@@ -20,6 +20,11 @@ internal se_blank_map_init_fn fn_se_blank_map_init;
 internal inline void *se_blank_map_init(ee_se_blank_map *se_blank_map, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_se_blank_map_init(se_blank_map, p1, p2, p3); }
 
 // class EESEACreateRandomMap (ee_se_random_map)
+// the map type's index in random_map.types, its constructor's second argument (the map panel's map style list's
+// choice): run hands it to 0x66D650, which gives the type at that index (types + i * 0x38) to the map's maker
+internal inline int se_random_map_get_map_type(const ee_se_random_map *o) { return *(int *)((uint8_t *)o + of_se_random_map_map_type); }
+internal inline void se_random_map_set_map_type(ee_se_random_map *o, int v) { *(int *)((uint8_t *)o + of_se_random_map_map_type) = v; }
+internal inline int *se_random_map_map_type_at(const ee_se_random_map *o) { return (int *)((uint8_t *)o + of_se_random_map_map_type); }
 // vf1: a random map made (editor_undo.c: what it changes kept)
 typedef void (__thiscall *se_random_map_run_fn)(ee_se_random_map *);
 internal inline void se_random_map_run(ee_se_random_map *se_random_map) { ((se_random_map_run_fn)(*(void ***)se_random_map)[slot_se_random_map_run])(se_random_map); }
@@ -2616,6 +2621,7 @@ internal int spec_editor_select(int build) {
         fn_se_blank_map_init = (se_blank_map_init_fn)0x005955C3;
         vt_eesea_create_random_map = 0x00830070;
         size_eesea_create_random_map = 0x14;
+        of_se_random_map_map_type = 0x10;
         slot_se_random_map_run = 1;
         fn_eesea_create_random_map_run = (se_random_map_run_fn)0x00596426;
         fn_se_random_map_init = (se_random_map_init_fn)0x005963F2;
@@ -3229,6 +3235,7 @@ internal int spec_editor_select(int build) {
         fn_se_blank_map_init = (se_blank_map_init_fn)0x005A5881;
         vt_eesea_create_random_map = 0x00845944;
         size_eesea_create_random_map = 0x14;
+        of_se_random_map_map_type = 0x10;
         slot_se_random_map_run = 1;
         fn_eesea_create_random_map_run = (se_random_map_run_fn)0x005A66E2;
         fn_se_random_map_init = (se_random_map_init_fn)0x005A66AE;

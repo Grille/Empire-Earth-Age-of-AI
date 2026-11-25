@@ -220,10 +220,125 @@ multiplayer_blocked = {
     de = "Age of AI unterstützt den Mehrspielermodus noch nicht. Zum Ausprobieren brauchen alle Spieler dieselbe Mod-Version und dieselben Einstellungen, mit multiplayer in ageofai_config.exe an - Probleme sind zu erwarten. Ohne Mod: dort ausschalten.",
 }
 
-// THE MAP TYPES of the mod's own in the game setup's list (mapgen.c)
-map_two_continents = {
-    en = "Two Continents",
+// THE MAP TYPE of the mod's own in the game setup's list (mapgen.c)
+map_age_of_ai = {
+    en = "Age of AI",
+    de = "Age of AI",
+}
+
+// ITS OPTIONS' DIALOG in the scenario editor (mapgen_dialog.c): the title, a label per option, the options' values
+// (map_v_ and the value's name in ageofai.ini), the line under them
+map_options = {
+    en = "Age of AI map",
+    de = "Age-of-AI-Karte",
+}
+map_layout = {
+    en = "Layout",
+    de = "Aufbau",
+}
+map_land = {
+    en = "Land",
+    de = "Land",
+}
+map_climate = {
+    en = "Climate",
+    de = "Klima",
+}
+map_rain = {
+    en = "Rain",
+    de = "Regen",
+}
+map_mountains = {
+    en = "Mountains",
+    de = "Gebirge",
+}
+map_rivers = {
+    en = "Rivers",
+    de = "Flüsse",
+}
+map_lakes = {
+    en = "Lakes",
+    de = "Seen",
+}
+map_islands = {
+    en = "Islands",
+    de = "Inseln",
+}
+map_forests = {
+    en = "Forests",
+    de = "Wälder",
+}
+map_mines = {
+    en = "Mines",
+    de = "Minen",
+}
+map_v_two_continents = {
+    en = "Two continents",
     de = "Zwei Kontinente",
+}
+map_v_small = {
+    en = "Small",
+    de = "Klein",
+}
+map_v_normal = {
+    en = "Normal",
+    de = "Normal",
+}
+map_v_large = {
+    en = "Large",
+    de = "Groß",
+}
+map_v_cold = {
+    en = "Cold",
+    de = "Kalt",
+}
+map_v_cool = {
+    en = "Cool",
+    de = "Kühl",
+}
+map_v_warm = {
+    en = "Warm",
+    de = "Warm",
+}
+map_v_hot = {
+    en = "Hot",
+    de = "Heiß",
+}
+map_v_arid = {
+    en = "Arid",
+    de = "Dürr",
+}
+map_v_dry = {
+    en = "Dry",
+    de = "Trocken",
+}
+map_v_wet = {
+    en = "Wet",
+    de = "Feucht",
+}
+map_v_lush = {
+    en = "Lush",
+    de = "Üppig",
+}
+map_v_none = {
+    en = "None",
+    de = "Keine",
+}
+map_v_few = {
+    en = "Few",
+    de = "Wenige",
+}
+map_v_many = {
+    en = "Many",
+    de = "Viele",
+}
+map_v_lots = {
+    en = "Lots",
+    de = "Sehr viele",
+}
+map_starts_keep = {
+    en = "Every start keeps its mines, forage, forests and herd.",
+    de = "Jeder Start behält seine Minen, Beeren, Wälder, Herde.",
 }
 
 // THE MAP SIZES past Gigantic in the game's lists of sizes (map_sizes.c)

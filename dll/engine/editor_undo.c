@@ -440,7 +440,11 @@ internal void __thiscall hook_eu_se_move(ee_se_move *a) {
 }
 // a new map: nothing of before stands
 internal void __thiscall hook_eu_se_blank_map(ee_se_blank_map *a) { eu_clear(); g_eu_depth++; eesea_create_blank_map_run(a); g_eu_depth--; }
-internal void __thiscall hook_eu_se_random_map(ee_se_random_map *a) { eu_clear(); g_eu_depth++; eesea_create_random_map_run(a); g_eu_depth--; }
+// (a random map of the mod's type asks for its options first: none made when they are cancelled - mapgen_dialog.c)
+internal void __thiscall hook_eu_se_random_map(ee_se_random_map *a) {
+    if (!mapgen_editor_ask(a)) return;
+    eu_clear(); g_eu_depth++; eesea_create_random_map_run(a); g_eu_depth--;
+}
 
 internal void editor_undo_install(void) {
     int n = patch_se_place_unit(hook_eu_se_place_unit) + patch_se_place_wall(hook_eu_se_place_wall) + patch_se_place_gate(hook_eu_se_place_gate)

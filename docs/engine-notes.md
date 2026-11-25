@@ -829,8 +829,8 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   lays a texture's objects at random on a painted tile (0x66EA64) - the stones and plants of its maps.
 - **The mod's own types** (the player 2026-11-24: the game's generator circumvented, our entries in the list): added
   to the list after the game's own, their maps made by the mod instead of 0x66D402 - no .rmv, no plug-in
-  (dll/engine/mapgen.c). The first, flat with a Capitol each, proved the way in. **Two Continents** ("Zwei
-  Kontinente", language.eeai): two landmasses left and right of a sea channel, the players by turns on them (more
+  (dll/engine/mapgen.c). The first, flat with a Capitol each, proved the way in. **Age of AI** (language.eeai map_age_of_ai; "Two
+  Continents" until 2026-11-25), so far one layout: two landmasses left and right of a sea channel, the players by turns on them (more
   than two share); biomes (below); rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
   the land stays one piece; each start levelled, with forage, gold, iron, stone, three forests and a herd round it,
   more of each over the land by its size, fish off the shores. Its steps: land (two ellipses, the shore by noise),
@@ -841,6 +841,18 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   docks, fishing boats, warships, transports landing across the channel, no notice), Art of Conquest 10 minutes,
   the setup screen's list. Not yet: teams kept together on a continent, hills steep enough for cliffs, the
   textures' scattered stones and plants, the numbers in an .eeai description, the editor's random map tried.
+- **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
+  "Age of AI", its options in a dialog): the layout (two continents so far), the land's size (the continents' ellipses
+  and the starts' spread 0.8 / 1 / 1.12 times), the climate (-0.4 .. +0.4 on the temperature, whose bands are at
+  -0.3 / 0.3), the rain (-0.2 .. +0.2 on the moisture, bands at 0.4 / 0.6), and how many mountains (ranges and
+  plateaus), rivers (lakes' outflows too), lakes, islands, forests and mines (land, mountain feet, plateaus) - none,
+  few, normal, many, lots: 0, 0.5, 1, 2, 3 times the count the map's size gives. "normal" is the map as before, bit
+  for bit (a factor of exactly 1 leaves a count alone, a shift of 0 a number). A start's own mines, forage, forests
+  and herd stay whatever is chosen. The scenario editor's Create Map with the type chosen opens a dialog with them
+  first (dll/engine/mapgen_dialog.c, from the hook of EESEACreateRandomMap.run - its map_type +0x10 the type's index):
+  OK makes the map and writes the choices into ageofai.ini (a test: its own ini's [autotest]), Cancel makes none. A
+  multiplayer game plays the defaults until the host's choices travel with the setup. The log: `# mapgen: "Age of
+  AI" options: ...` before each map, `# mapgen: the options' dialog ...` after the dialog.
 
 ## Unit AI scripts (.tai)
 

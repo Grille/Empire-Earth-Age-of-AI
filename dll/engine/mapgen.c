@@ -15,8 +15,11 @@
 // is drawn from the clock or the game's random numbers, and no sine, cosine or arc tangent is used (the C library's
 // may differ between PCs in a last bit; +, -, x, / and the square root don't) - directions are vectors, turned by
 // adding a share of their normal.
-// TWO CONTINENTS so far, its numbers in the code until the steps are settled (then a description in .eeai).
-#define MG_NAME "Two Continents"
+// ONE ENTRY, "Age of AI" (the player 2026-11-25: one entry with its options in a dialog, not a line per kind of map):
+// what it makes is [random_map]'s (map_layout - two continents so far - and how much of what: g->opt below), the
+// scenario editor asks for them when it makes one (mapgen_dialog.c). Its numbers in the code until the steps are
+// settled (then a description in .eeai).
+#define MG_NAME "Age of AI"
 internal int g_mapgen_added;
 
 internal int mapgen_is_ours(const char *name) { return name && !lstrcmpiA(name, MG_NAME); }
@@ -25,8 +28,8 @@ internal int mapgen_is_ours(const char *name) { return name && !lstrcmpiA(name, 
 internal void mapgen_types_add(void) {
     if (g_mapgen_added || !map_types_count()) return;
     g_mapgen_added = 1;
-    const char *title = word("map_two_continents");   // the list's line, in the game's language (English before the words are read)
-    map_types_add(MG_NAME, lstrcmpA(title, "map_two_continents") ? title : MG_NAME, "Default");
+    const char *title = word("map_age_of_ai");   // the list's line, in the game's language (English before the words are read)
+    map_types_add(MG_NAME, lstrcmpA(title, "map_age_of_ai") ? title : MG_NAME, "Default");
     if (g_log) log_locked("# mapgen: \"%s\" added to the game's %u map types\n", MG_NAME, map_types_count() - 1);
 }
 internal int __cdecl hook_random_map_types_load(void *path) {
@@ -138,6 +141,12 @@ struct mg {
     int lakes, fords;
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
     int clumps, clump_mines;  // mg_clump's: how many, and the mines in them
+    struct mg_opt {           // [random_map] as numbers (mg_options); "normal" a factor of exactly 1, a shift of 0: the map as before
+        float land;           // the continents' size
+        float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
+        float mountains, rivers, lakes, islands, forests, mines;   // factors on how many
+        int mp;               // a multiplayer game: the defaults
+    } opt;
 };
 internal uint32_t mg_next(struct mg *g) {
     uint32_t x = g->rng;
@@ -146,6 +155,45 @@ internal uint32_t mg_next(struct mg *g) {
 }
 internal float mg_rnd(struct mg *g) { return (float)(mg_next(g) >> 8) * (1.0f / 16777216.0f); }          // 0 .. 1
 internal int mg_int(struct mg *g, int lo, int hi) { return lo + (int)(mg_next(g) % (uint32_t)(hi - lo + 1)); }   // lo .. hi
+// how many of a thing: the map's count of it times an option's factor (1: the count itself, not through a float)
+internal int mg_amount(int base, float f) { return f == 1.0f ? base : (int)((float)base * f + 0.5f); }
+// THE OPTIONS ([random_map], dll_cs/settings/random_map.cs) as the steps use them. A multiplayer game plays the
+// defaults: every PC makes the map itself from the setup and the seed, and the host's [random_map] doesn't reach the
+// others yet - with their own each would make another map.
+internal void mg_options(struct mg *g, const ee_setup *setup) {
+    static const float amount[5] = { 0, 0.5f, 1, 2, 3 }, land[3] = { 0.8f, 1, 1.12f };
+    static const float temp[5] = { -0.4f, -0.2f, 0, 0.2f, 0.4f }, wet[5] = { -0.2f, -0.1f, 0, 0.1f, 0.2f };
+    struct settings s = g_set;
+    int humans = 0;   // more than one human in the setup, or this PC joined: multiplayer (the host of a single-player game is a server too)
+    for (int k = 0; setup && k < 16; k++) humans += setup_slot_get_type(setup_slot_at(setup, k)) == 1;
+    g->opt.mp = humans > 1 || net_joined();
+    if (g->opt.mp)
+        for (int i = SETTING_map_layout; i <= SETTING_map_mines; i++) setting_default(&k_settings[i], (uint8_t *)&s + k_settings[i].off);
+#define MG_PICK(t, v) t[(unsigned)(v) < sizeof t / sizeof *t ? (unsigned)(v) : sizeof t / sizeof *t / 2]
+    g->opt.land = MG_PICK(land, s.map_land);
+    g->opt.temp = MG_PICK(temp, s.map_climate);
+    g->opt.wet = MG_PICK(wet, s.map_rain);
+    g->opt.mountains = MG_PICK(amount, s.map_mountains);
+    g->opt.rivers = MG_PICK(amount, s.map_rivers);
+    g->opt.lakes = MG_PICK(amount, s.map_lakes);
+    g->opt.islands = MG_PICK(amount, s.map_islands);
+    g->opt.forests = MG_PICK(amount, s.map_forests);
+    g->opt.mines = MG_PICK(amount, s.map_mines);
+#undef MG_PICK
+}
+internal void mg_options_log(const struct mg *g) {
+    if (!g_log) return;
+    char line[400];
+    int at = snprintf(line, sizeof line, "# mapgen: \"%s\" options%s:", MG_NAME, g->opt.mp ? " (a multiplayer game: the defaults)" : "");
+    for (int i = SETTING_map_layout; i <= SETTING_map_mines && at > 0 && at < (int)sizeof line - 40; i++) {
+        char name[32];
+        int v = *(const int *)((const uint8_t *)&g_set + k_settings[i].off);
+        if (g->opt.mp) setting_default(&k_settings[i], &v);
+        setting_choice_name(k_settings[i].choices, v, name, sizeof name);
+        at += snprintf(line + at, sizeof line - (size_t)at, " %s %s", k_settings[i].key + 4, name);
+    }
+    log_locked("%s\n", line);
+}
 // noise: a number 0 .. 1 per lattice point of a seed, smoothed between them; three octaves of it
 internal float mg_lattice(int x, int y, uint32_t s) {
     uint32_t h = (uint32_t)x * 0x9E3779B1u ^ (uint32_t)y * 0x85EBCA77u ^ s * 0xC2B2AE3Du;
@@ -223,7 +271,7 @@ internal float mg_isle_in(const struct mg *g, int cx, int cy, int x, int y, floa
 // its shore 8 tiles of water from any other land's - an island, no spit: deep water goes round it (mg_heights).
 // Last the water along the map's edge and in a channel down the middle, whatever is there.
 internal void mg_land(struct mg *g) {
-    float half = g->half, ra = 0.42f * half, rb = 0.85f * half, ox, oy;
+    float half = g->half, ra = 0.42f * half * g->opt.land, rb = 0.85f * half * g->opt.land, ox, oy;
     int x, y;
     for (y = 0; y <= g->n; y++)
         for (x = 0; x <= g->n; x++) {
@@ -257,7 +305,7 @@ internal void mg_land(struct mg *g) {
         g->fjords++;
         k--;
     }
-    for (int want = 2 + g->n / 80, t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
+    for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
         x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
         float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 3, 7);
         int clear = f <= -8 && f >= -20 && fminf(half - fabsf(u), half - fabsf(v)) > r + 9 && fabsf(v) > r + 8;
@@ -301,7 +349,7 @@ internal float mg_start_dist(const struct mg *g, float x, float y);
 // the temperature at a place before its height: cold (under -0.3) in the far north, hot (over 0.3) in the near south,
 // pushed about by a noise
 internal float mg_temp(const struct mg *g, int x, int y) {
-    return (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f;
+    return (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f + g->opt.temp;
 }
 // A MOUNTAIN RANGE (the player 2026-11-24: "cliffs, mountain ranges, rivers flowing from the mountains, increased
 // chance for mine in mountains"; then, of the first ones - 5 steps high, in terraces -: "the mountains inland still
@@ -437,7 +485,7 @@ internal void mg_starts(struct mg *g) {
     int count[2] = { g->np - g->np / 2, g->np / 2 };
     for (int i = 0; i < g->np; i++) {
         int k = i & 1, j = i / 2;
-        float v = (k ? 0.5f : -0.5f) * g->half, u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * 2 * 0.72f * 0.85f * g->half;
+        float v = (k ? 0.5f : -0.5f) * g->half, u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * 2 * 0.72f * 0.85f * g->half * g->opt.land;
         int x0 = (int)floorf((u + v + (float)g->n) * 0.5f), y0 = (int)floorf((v + (float)g->n - u) * 0.5f), bx = x0, by = y0;
         int nearest = 1 << 30;
         for (int y = y0 - 12; mg_f(g, x0, y0) < 10 && y <= y0 + 12; y++)
@@ -541,7 +589,7 @@ internal void mg_basin(struct mg *g, int x0, int y0, int r, float deep) {
         }
 }
 // the moisture a place has of the noise alone - before the water near it and the mountains' rain shadow (mg_biomes)
-internal float mg_wet0(const struct mg *g, int x, int y) { return 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f; }
+internal float mg_wet0(const struct mg *g, int x, int y) { return 0.42f + g->opt.wet + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f; }
 // is the ground round (x0, y0) plain land for a feature of r tiles: no mountain, foothill, plateau or water, `inside`
 // tiles inside the land, `away` from any start, 14 from the lakes, oases and swamps so far
 internal int mg_plain(const struct mg *g, int x0, int y0, int r, float inside, float away) {
@@ -686,7 +734,7 @@ internal int mg_ford_way(struct mg *g, const uint8_t *seen, uint8_t mark, int to
     }
     return laid;
 }
-// The map's promises looked at: the continents apart on foot ("Two Continents": g->afoot 0), a continent's starts
+// The map's promises looked at: the continents apart on foot (the two continents' layout: g->afoot 0), a continent's starts
 // reached from one another (g->cut 0) - with rivers too deep to walk through they were not always (the first huge
 // map had one behind a range and the two rivers from its ends). mend: where one isn't, fords laid on the way to it
 // (mg_ford_way) - into the heights only: the ground is to be set again. -> the fords laid.
@@ -770,7 +818,7 @@ internal void mg_biomes(struct mg *g) {
             int bare = g->range[y * g->m + x] && g->range[y * g->m + x] < 16 && g->range_cliffs[g->range[y * g->m + x] - 1] != CLIFFS_WINTER;   // a hot range: no snow up there
             float temp = mg_temp(g, x, y) - (bare ? 0 : fmaxf(0, hi - 2.0f) * 0.07f);
             float by_water = 1 - (float)(wd[y * n + x] < 7 ? wd[y * n + x] : 7) / 7.0f;
-            float wet = 0.42f + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f + 0.22f * by_water;
+            float wet = mg_wet0(g, x, y) + 0.22f * by_water;
             float up = 0, down = 0;
             for (int d = 4; d <= 32; d += 4) {
                 int ux = x - wind_x * d * 7 / 10, uy = y - wind_y * d * 7 / 10, vx = x + wind_x * d * 7 / 10, vy = y + wind_y * d * 7 / 10;
@@ -1026,7 +1074,7 @@ internal void mg_objects(struct mg *g) {
     // still to come (owed) - clumps leave the map no richer
     static const struct { int8_t kind; int16_t tiles; } wild[4] = { { MG_GOLD, 2600 }, { MG_IRON, 2600 }, { MG_STONE, 4000 }, { MG_FORAGE, 1100 } };
     int draws[4], owed[3] = { 0, 0, 0 }, most = 0;
-    for (int k = 0; k < 4; k++) { draws[k] = g->land / wild[k].tiles; most = draws[k] > most ? draws[k] : most; }
+    for (int k = 0; k < 4; k++) { draws[k] = mg_amount(g->land / wild[k].tiles, wild[k].kind == MG_FORAGE ? 1.0f : g->opt.mines); most = draws[k] > most ? draws[k] : most; }
     for (int j = 0; j < most; j++)
         for (int k = 0; k < 4; k++) {
             int kind = wild[k].kind;
@@ -1034,7 +1082,7 @@ internal void mg_objects(struct mg *g) {
             if (kind != MG_FORAGE && owed[kind] > 0) { owed[kind]--; continue; }   // one that would have been laid
             if (mg_mine(g, kind, x, y) && kind != MG_FORAGE) mg_clump(g, kind, x, y, 18, 0, 0, 0, owed);
         }
-    for (int j = g->land / 150; j > 0; j--)
+    for (int j = mg_amount(g->land / 150, g->opt.forests); j > 0; j--)
         if (mg_anywhere(g, 16, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
     for (int j = g->land / 600; j > 0; j--)
         if (mg_anywhere(g, 18, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
@@ -1061,7 +1109,7 @@ internal void mg_objects(struct mg *g) {
     // a plateau's own: a gold mine within half its radius of its middle - a reason to hold it -, a clump every other
     // time, on its top (2 tiles in from its cliffs); those are a plateau's extra, not taken off the land's
     int spare[3] = { 0, 0, 0 };
-    for (int k = 0; k < g->plateaus; k++)
+    for (int k = 0; k < g->plateaus && g->opt.mines > 0; k++)
         if (mg_ring(g, g->plateau[k].x, g->plateau[k].y, 0, g->plateau[k].r / 2, 5, &x, &y) && mg_mine(g, MG_GOLD, x, y))
             mg_clump(g, MG_GOLD, x, y, 50, g->plateau[k].x, g->plateau[k].y, g->plateau[k].r - 2, spare);
     // the mountains' own (the player 2026-11-24: "increased chance for mine in mountains"): a gold, iron or stone
@@ -1070,7 +1118,7 @@ internal void mg_objects(struct mg *g) {
     int foot = 0, turn = 0;
     for (int ty = 0; ty < g->n; ty++)
         for (int tx = 0; tx < g->n; tx++) foot += g->mt[ty * g->m + tx] > 0.3f && g->mt[ty * g->m + tx] < 1.4f;
-    for (int j = foot / 360, t = 0; j > 0 && t < 40000; t++) {
+    for (int j = mg_amount(foot / 360, g->opt.mines), t = 0; j > 0 && t < 40000; t++) {
         static const int8_t kinds[3] = { MG_GOLD, MG_IRON, MG_STONE };
         x = mg_int(g, 0, g->n - 1); y = mg_int(g, 0, g->n - 1);
         if (g->mt[y * g->m + x] < 0.3f || !mg_free(g, x, y) || !mg_spot_far(g, x, y, 7)) continue;
@@ -1183,7 +1231,7 @@ internal ee_unit *mapgen_unit(int type, ee_player *pl, float x, float y, ee_map 
 
 // THE MAP MADE, step by step. players: the game's vector of the players that play, the world first; human: this PC's
 // index in it (0: none); start: where its view begins
-internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, float *start) {
+internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32_t seed, ee_map *map, float *start) {
     ee_player **pb = FIELD(players, 4, ee_player **), **pe = FIELD(players, 8, ee_player **);
     int count = pb ? (int)(pe - pb) : 0, n = (int)map_get_size(map), units = 0;
     struct mg *g = calloc(1, sizeof *g);
@@ -1191,6 +1239,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     if (g) {
         g->map = map; g->n = n; g->m = n + 1; g->half = (float)n * 0.5f;
         g->seed = seed; g->rng = seed * 2654435761u | 1;
+        mg_options(g, setup);
         g->world = count ? pb[0] : NULL;
         g->np = count - 1 > MG_PLAYERS ? MG_PLAYERS : count - 1;
         g->f = calloc((size_t)(g->m * g->m), sizeof *g->f);
@@ -1210,18 +1259,19 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
         return 0;
     }
+    mg_options_log(g);
     mg_land(g);
     mg_starts(g);
-    for (int want = 2 + n / 100, t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1, t / 10000);
-    for (int want = 1 + n / 120, t = 0; g->plateaus < want && t < 40000; t++) mg_plateau(g, g->plateaus & 1, t / 10000);
+    for (int want = mg_amount(2 + n / 100, g->opt.mountains), t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1, t / 10000);
+    for (int want = mg_amount(1 + n / 120, g->opt.mountains), t = 0; g->plateaus < want && t < 40000; t++) mg_plateau(g, g->plateaus & 1, t / 10000);
     mg_heights(g);
     mg_yards(g);
-    for (int want = 1 + n / 110, t = 0; g->lakes < want && t < 20000; t++) mg_lake(g, t / 5000);
+    for (int want = mg_amount(1 + n / 110, g->opt.lakes), t = 0; g->lakes < want && t < 20000; t++) mg_lake(g, t / 5000);
     for (int want = 1 + n / 150, t = 0; g->oases < want && t < 6000; t++) mg_oasis(g);
     for (int want = 1 + n / 250, t = 0; g->swamps < want && t < 24000; t++) mg_swamp(g, t / 6000);
-    for (int k = 0; k < g->lakes; k++)   // a lake's outflow
+    for (int k = 0; k < g->lakes && g->opt.rivers > 0; k++)   // a lake's outflow
         for (int t = 0, was = g->rivers; t < 40 && g->rivers == was; t++) g->rivers += mg_river(g, 0, g->lake[k].x, g->lake[k].y);
-    for (int want = g->rivers + 2 + n / 60, t = 0; g->rivers < want && t < 6000; t++) g->rivers += mg_river(g, t < 3000, -1, -1);   // from the mountains while such are found
+    for (int want = g->rivers + mg_amount(2 + n / 60, g->opt.rivers), t = 0; g->rivers < want && t < 6000; t++) g->rivers += mg_river(g, t < 3000, -1, -1);   // from the mountains while such are found
     mg_fords(g);
     float step = map_get_height_step(map);
     mg_textures_load(g);
@@ -1284,7 +1334,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     return 0;
 }
 internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int human, void *name, uint32_t seed, ee_map *map, float *start) {
-    if (mapgen_is_ours(name ? FIELD(name, 4, const char *) : NULL)) return mapgen_make(players, human, seed, map, start);
+    if (mapgen_is_ours(name ? FIELD(name, 4, const char *) : NULL)) return mapgen_make(setup, players, human, seed, map, start);
     int r = random_map_create(setup, players, human, name, seed, map, start);
     if (g_log) log_locked("# mapgen: the game's own map made (%d): its flags %u\n", r, map_get_flags(map));
     return r;

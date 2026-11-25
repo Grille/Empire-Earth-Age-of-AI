@@ -212,6 +212,7 @@ internal uint32_t size_eesea_create_blank_map;
 internal uint32_t slot_se_blank_map_run;
 internal uint32_t vt_eesea_create_random_map;
 internal uint32_t size_eesea_create_random_map;
+internal uint32_t of_se_random_map_map_type;
 internal uint32_t slot_se_random_map_run;
 internal uint32_t vt_eesea_delete_unit;
 internal uint32_t of_se_delete_unit_id;

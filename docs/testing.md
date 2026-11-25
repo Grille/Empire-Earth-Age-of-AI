@@ -475,6 +475,10 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 - `topbar [0|1|2]`: what the game's top bar shows - the age, the game clock, or "FPS: n".
 - `form`: the current UI form - its dbuiforms.dat row (UIForm.id: main menu 12, game tools 9, campaign editor 24, the
   scenario editor -1) and its class; answers in the menus too.
+- `edmap [size [type]]`: the scenario editor's Create Map as its button makes it - the size's index in its list
+  (default 1, small), a map type by its name (default "Age of AI": the options' dialog opens first; it blocks the
+  game until it is answered - from outside the game, by its window: find it by its title, the word map_options, and
+  send it WM_COMMAND IDOK or IDCANCEL; its dropdowns are the controls 200 + the option's row).
 
 Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was
 64% in GDI (gdi32full); in test games 11-18%, all GDI calls from DDrawCompat itself (its ddraw.dll +0x46CB6,

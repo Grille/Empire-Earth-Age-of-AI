@@ -8,6 +8,13 @@ internal inline unsigned map_types_count(void) {
 }
 internal inline ee_map_type *map_types_at(unsigned i) { return (ee_map_type *)(FIELD(random_map_types_at(), 4, uint8_t *) + i * size_ee_map_type); }
 internal inline const char *map_type_name_text(const ee_map_type *t) { return wstring_text(map_type_name_at(t)); }
+// the scenario editor's Create Map as its button makes it (0x593A23): the map size's index in its list, the type's
+// in the list of types - its constructor queues it, the editor's actions run it
+internal inline ee_se_random_map *se_random_map_new(uint32_t size, uint32_t type) {
+    ee_se_random_map *a = game_new(size_eesea_create_random_map);
+    if (a) se_random_map_init(a, size, type);
+    return a;
+}
 // a type more at the list's end: name what a setup's map_name holds for it, title what the lists show, generator the
 // plug-in's name its script would give ("Default" - only the game's own maker looks it up). The game's push copies
 // the three strings: ours are let go of

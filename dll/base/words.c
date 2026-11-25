@@ -16,7 +16,12 @@ internal const char *const k_words[] = {
     "colour_ramp", "colour_each", "blend", "blend_srgb", "blend_linear", "blend_oklab", "slots", "recent",
     "slots_taken", "slots_short", "hint_ramp", "hint_each", "hint_flat",
     "multiplayer_blocked",                                                 // mp_block.c
-    "map_two_continents",                                                  // mapgen.c: the mod's map types in the game's list
+    "map_age_of_ai",                                                       // mapgen.c: the mod's map type in the game's list
+    "map_options", "map_layout", "map_land", "map_climate", "map_rain",    // mapgen_dialog.c: its options
+    "map_mountains", "map_rivers", "map_lakes", "map_islands", "map_forests", "map_mines", "map_starts_keep",
+    "map_v_two_continents", "map_v_small", "map_v_normal", "map_v_large", "map_v_cold", "map_v_cool", "map_v_warm",
+    "map_v_hot", "map_v_arid", "map_v_dry", "map_v_wet", "map_v_lush", "map_v_none", "map_v_few", "map_v_many",
+    "map_v_lots",
     "map_size_enormous", "map_size_colossal", "map_size_titanic",          // map_sizes.c: the sizes past Gigantic
 };
 #define N_WORDS (int)(sizeof k_words / sizeof *k_words)

@@ -5,12 +5,7 @@
 // game's own, linear light or OKLab - tp_ramp), its slots (1 .. 16; a ramp 2 at least), its colours as a strip - a click on a slot chooses it for the picker under the strip (a ramp: the end
 // nearer the click, the slots between follow) -, the slots free for it. The picker (ui/color_picker.c) is part of the dialog, not a
 // window of its own (the theme has one background at a time), and the strip follows it as the mouse moves; OK makes the type (terrain_palette.c
-// tp_type_put), Delete takes it out. A modal Win32 dialog over the game's window, on the game's thread: the game
-// waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself). In the
-// game's look (ui/theme.c, ageofai_config.exe's controls in the editor's style: the parchment of its pages under it,
-// yellow text on its darker boxes, the game's radio buttons, dropdown and buttons; plain dark without the game's
-// pictures), and at the scale the game's picture is shown at (td_open): at a lower resolution, enlarged to the window, it
-// is as much larger as the game's own controls.
+// tp_type_put), Delete takes it out. A modal dialog over the game's window in the game's look (game_dialog.c).
 #define TD_FLAT 101
 #define TD_RAMP 102
 #define TD_EACH 103
@@ -180,13 +175,7 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         for (unsigned k = 0; k < sizeof blends / sizeof *blends; k++) SendDlgItemMessageW(d, TD_BLEND, CB_ADDSTRING, 0, (LPARAM)word_w(blends[k]));
         if (g_td.type < 0) ShowWindow(GetDlgItem(d, TD_DELETE), SW_HIDE);
         SetWindowTextW(d, word_w(g_td.type < 0 ? "colour_new" : "colour_edit"));
-        HWND o = GetWindow(d, GW_OWNER);   // over the game's window (headless: off the screen with it)
-        RECT ro, rd;
-        if (o && GetWindowRect(o, &ro) && GetWindowRect(d, &rd))
-            SetWindowPos(d, HWND_TOP, (ro.left + ro.right - (rd.right - rd.left)) / 2, (ro.top + ro.bottom - (rd.bottom - rd.top)) / 2,
-                         0, 0, SWP_NOSIZE);
-        theme_window(d);
-        theme_size(d);   // the painting under it (the labels on its darkened copy)
+        game_dialog_init(d);
         static const int buttons[] = { IDOK, IDCANCEL, TD_DELETE, TD_FLAT, TD_RAMP, TD_EACH };   // not the strip: drawn here
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
         theme_control(GetDlgItem(d, TD_COUNT), WC_COMBOBOXA);
@@ -277,19 +266,7 @@ internal void td_open(int i, int sel) {
         memcpy(g_td.cell[0], a, 3), memcpy(g_td.cell[7], b, 3);
     }
     td_derive();
-    ee_window *gw = game_window();
-    HWND owner = gw ? window_get_hwnd(gw) : NULL;
-    // the scale the game's picture is shown at (windowed or borderless it is enlarged to the window, the bars left out),
-    // as the font's size - the dialog units follow it, what is drawn in pixels g_theme_zoom; it must fit in the window
-    int points = TD_POINTS;
-    RECT cr;
-    if (owner && GetClientRect(owner, &cr) && window_get_height(gw) > 0) {
-        RECT v = view_rect(&cr, window_get_width(gw), window_get_height(gw));
-        points = (TD_POINTS * (int)(v.bottom - v.top) + window_get_height(gw) / 2) / window_get_height(gw);
-        if (points > TD_POINTS * cr.bottom / TD_PIXELS) points = TD_POINTS * cr.bottom / TD_PIXELS;
-        if (points < 7) points = 7;
-    }
-    g_theme_zoom = points * 100 / TD_POINTS;
+    int points = game_dialog_points(TD_POINTS, TD_PIXELS), ctx;
     static WORD tpl[1024];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
@@ -317,26 +294,7 @@ internal void td_open(int i, int sel) {
     p = cpk_tpl_item(p, SS_OWNERDRAW, 8, 72, 244, 24, TD_STRIP, 0x82, L"");
     p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 101, 244, 12, TD_HINT, 0x82, L"");
     p = cpk_items(p, 8, 118, td_lead("recent"));   // the picker (td_rows: the square, bar and swatch as tall as the fields)
-    RECT clip;
-    int clipped = GetClipCursor(&clip);
-    ClipCursor(NULL);
-    int before = ShowCursor(TRUE) - 1, shown = before + 1;   // Windows' cursor over the dialog, its count as it was after
-    while (shown < 0) shown = ShowCursor(TRUE);
-    static int looked;
-    if (!looked) {   // the game's pictures read at the first open (from the game's folder, else the original game's: AoC)
-        looked = 1;
-        char ini[MAX_PATH + 32];
-        snprintf(ini, sizeof ini, "%sageofai\\ageofai.ini", g_game_dir);   // its eesettings.ini beside it: the original's folder
-        theme_look(ini, theme_style_editor());
-        theme_app_mode(1);
-    }
-    ULONG_PTR cookie;
-    int ctx = theme_context_enter(&cookie);
-    INT_PTR r = DialogBoxIndirectParamW(GetModuleHandleW(NULL), dt, owner, td_proc, 0);
-    if (ctx) theme_context_leave(cookie);
-    while (shown > before) shown = ShowCursor(FALSE);
-    if (clipped) ClipCursor(&clip);
-    if (owner) SetForegroundWindow(owner);
+    INT_PTR r = game_dialog_show(dt, td_proc, &ctx);
     if (g_log) log_locked("# terrain palette: the colour dialog for %s %d (%s, %s, %d points): %s%s\n", i < 0 ? "a new type, from item" : "type", i < 0 ? sel : i,
                           g_gl.on ? "the game's look" : "plain, no game pictures", ctx ? "common controls 6" : "the old controls", points,
                           r < 0 ? "FAILED to open" : g_td.result == IDOK ? "OK" : g_td.result == TD_DELETE ? "delete" : "cancel",
