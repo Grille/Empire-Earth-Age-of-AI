@@ -1978,6 +1978,7 @@ internal int ff_marching(const struct ff_group *gr) { return gr->on && gr->start
 internal int ff_lingering(const struct ff_group *gr) {
     return !gr->on && gr->linger && ff_since(gr->linger) < FF_LINGER_MAX && (!gr->settled || ff_since(gr->settled) < FF_LINGER);
 }
+internal unsigned g_ff_left;   // members let go: given another order
 internal uint32_t g_ff_ticked = ~0u;   // the block of FF_HOME_EVERY steps ff_linger_tick last ran in
 internal void ff_linger_tick(void) {
     uint32_t step = ff_step();
@@ -2002,6 +2003,34 @@ internal void ff_linger_tick(void) {
         any |= ff_lingering(gr) || ff_marching(gr);
     }
     if (!any) return;
+    // A MEMBER GIVEN ANOTHER ORDER leaves its formation (the player, 2026-11-25: "when a formation arrives, I select a
+    // single unit and order it a few steps away, it gets recalled into the formation - units that get other orders
+    // should be removed from the formation they are in"): an order to one unit doesn't pass the formation's layout, so
+    // nothing let it go, and the linger walked it back to its spot once it stood. Another order: a move elsewhere (not
+    // to its spot), a build, a gathering, a load, an unload, a garrison, a power; an attack (the game's own answer to an
+    // enemy, an attack-move's fight) or a heal keeps it. A march's leader is the march's own business (ff_leader: given
+    // another order, the march ends) - let go here once the march is over. A move to its spot anywhere in its queue keeps it
+    for (int k = 0; k < FF_UNITS; k++) {
+        struct ff_unit *e = &g_ff_u[k];
+        if (!e->id || e->g < 0 || e->pend) continue;
+        struct ff_group *gr = &g_ff[e->g];
+        if (gr->on && e->id == gr->leader) continue;
+        ee_unit *u = unit_by_id(e->id);
+        ee_goal *g = u && unit_get_hp(u) > 0 && unit_orders(u) ? unit_get_goal(u) : NULL;
+        if (!g) continue;
+        if (!goal_is_location(g) && !goal_is_build(g) && !goal_is_gather(g) && !goal_is_load(g) && !goal_is_unload(g) && !goal_is_garrison(g) && !goal_is_cast(g)) continue;
+        // still on its way there later: a move to its spot in its queue (a queued march's unit joins the next leg's march
+        // while it finishes the leg before - its current move the leg before's spot; a member's own order shift-queued
+        // after the march's)
+        int n = unit_orders(u), queued = 0;
+        for (int i = 0; i < n && !queued; i++) {
+            ee_goal *q = unit_order_at(u, i);
+            if (q && goal_is_location(q)) { vec3 to = goal_target(q, u); queued = vec2_dist2(v2(to.x, to.y), e->home) < 1.5f * 1.5f; }
+        }
+        if (queued) continue;
+        e->g = -1;
+        g_ff_left++;
+    }
     for (int k = 0; k < FF_UNITS; k++) {   // its units still on their way
         struct ff_unit *e = &g_ff_u[k];
         if (!e->id || e->g < 0 || e->pend || !ff_lingering(&g_ff[e->g])) continue;
