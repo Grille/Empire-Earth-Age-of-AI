@@ -396,18 +396,31 @@ internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {
         float qx = eye[0] + d[0] * k, qy = eye[1] + d[1] * k, share = camera_anchor_share(d);
         float dx = fmaxf(0, fminf(n, x + (g_cam_anchor.at[0] - qx) * share)) - x;
         float dy = fmaxf(0, fminf(n, y + (g_cam_anchor.at[1] - qy) * share)) - y;
+        // The look-at goes with the ground's height as the game's move puts it (0x51E2E6: GetMeshZ under it): moved
+        // sideways alone, the frame drew the eye at the old spot's height and the move at the ride's end lifted or lowered
+        // it a frame later - a step in height at every notch (the player 2026-11-26: "if you zoom one step in and one out
+        // again there is a very notivable jump in height each time"; 0.09 tiles on a gentle slope, measured by camtrace)
+        const void *mesh = map_mesh_at(map);
+        float dz = mesh_z(mesh, x + dx, y + dy) - mesh_z(mesh, x, y);
+        if (!(fabsf(dz) < 100.0f)) dz = 0;
         g_cam_anchor.at[0] = qx + dx;
         g_cam_anchor.at[1] = qy + dy;
         camera_set_x(cam, x + dx);
         camera_set_y(cam, y + dy);
+        camera_look_at(cam)[2] += dz;
         camera_set_last_x(cam, camera_get_last_x(cam) + dx);
         camera_set_last_y(cam, camera_get_last_y(cam) + dy);
         now[3] += dx;
         now[7] += dy;
+        now[11] += dz;
     }
+    // The ride's end: the camera's own move, and this frame made again from it - the move's pose is not the zoom's (its
+    // eye 0.13 tiles lower at zoom 0.45, measured), and a frame of the zoom's before it was the other half of the step
+    // in height at every notch
     if (t >= 1.0f && !(camera_get_blend(cam) < 1)) {
         g_cam_anchor.on = 0;
         camera_pan(0.001f, 0);
+        camera_make_transformation(cam, now, 1.0f);
     }
 }
 // every frame, the render thread: a float the game's step reads; a zoom past 1 ends with a new map or a zoom the game made
