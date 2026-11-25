@@ -110,6 +110,12 @@ internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((ui
 internal inline int camera_get_view(const ee_camera *o) { return *(int *)((uint8_t *)o + of_camera_view); }
 internal inline void camera_set_view(ee_camera *o, int v) { *(int *)((uint8_t *)o + of_camera_view) = v; }
 internal inline int *camera_view_at(const ee_camera *o) { return (int *)((uint8_t *)o + of_camera_view); }
+// the view set and the camera zoomed to its zoom again (a new move): 0 and 1 give the turn the zoom's pitch at the
+// default yaw, 2 keeps the turn it has - which the editor's ` key turns (EEUIERotateCamera, only in 2 with the
+// free camera) and the scroll keeps
+typedef void (__thiscall *camera_view_to_fn)(ee_camera *, int);
+internal camera_view_to_fn fn_camera_view_to;
+internal inline void camera_view_to(ee_camera *camera, int view) { fn_camera_view_to(camera, view); }
 // thiscall on game.camera (float dx, float dy)
 typedef void (__thiscall *camera_move_fn)(ee_camera *, float, float);
 internal camera_move_fn fn_camera_move;
@@ -822,6 +828,7 @@ internal int spec_ui_select(int build) {
         fn_camera_make_transformation = (camera_make_transformation_fn)0x0051D2F2;
         of_camera_zoom = 0xE0;
         of_camera_view = 0xF4;
+        fn_camera_view_to = (camera_view_to_fn)0x0051EE01;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
         fn_camera_look_at_blend = (camera_look_at_blend_fn)0x0051D56A;
         call_quake_look_at = 0x004AA5CE;
@@ -1078,6 +1085,7 @@ internal int spec_ui_select(int build) {
         fn_camera_make_transformation = (camera_make_transformation_fn)0x00527EB1;
         of_camera_zoom = 0xE0;
         of_camera_view = 0xF4;
+        fn_camera_view_to = (camera_view_to_fn)0x005299C0;
         fn_camera_move = (camera_move_fn)0x00528EA5;
         fn_camera_look_at_blend = (camera_look_at_blend_fn)0x00528129;
         call_quake_look_at = 0x004B09F6;
@@ -1325,6 +1333,7 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_ui_pop, "EEUserInterface.pop");
     bad += spec_call(call_save_done_pop, (uintptr_t)fn_ui_pop, "EEUserInterface.pop [call_site save_done_pop]");
     bad += spec_code((uintptr_t)fn_camera_make_transformation, "EECameraControl.make_transformation");
+    bad += spec_code((uintptr_t)fn_camera_view_to, "EECameraControl.view_to");
     bad += spec_code((uintptr_t)fn_camera_move, "EECameraControl.move");
     bad += spec_code((uintptr_t)fn_camera_look_at_blend, "EECameraControl.look_at_blend");
     bad += spec_call(call_quake_look_at, (uintptr_t)fn_camera_look_at_blend, "EECameraControl.look_at_blend [call_site quake_look_at]");

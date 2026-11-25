@@ -641,7 +641,10 @@ unsafe struct EEUIEDSTributeRClick
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x0082F764, (aoc)0x00845030)]
 unsafe struct EEUIEDisableMouseMove
 {
+    /// the ` key pressed (the editor's form, the game's too): freezes the game's mouse while the camera's view is 2, so
+    /// that the key held turns the camera by the mouse (EEUIERotateCamera) instead of moving the cursor
     [address((ee)0x005D5DA5, (aoc)0x005E6711), overrides(typeof(UIEvent))]
+    [vtable_site("disable_mouse_move_execute")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 
@@ -1931,7 +1934,10 @@ unsafe struct EEUIEProcessTimerExpired
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x0082F714, (aoc)0x00844FE0)]
 unsafe struct EEUIEReturnToHomeRotation
 {
+    /// the editor's Home key: the camera's turns back to the editor's start (no view turn, the offset turn 45 degrees
+    /// round and 35 down)
     [address((ee)0x0058CA2A, (aoc)0x0059CC5E), overrides(typeof(UIEvent))]
+    [vtable_site("home_rotation_execute")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

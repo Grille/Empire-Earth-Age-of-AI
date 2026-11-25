@@ -555,9 +555,12 @@ internal inline uint32_t eeuieds_tribute_r_click_execute(eeuieds_tribute_r_click
 // class EEUIEDisableMouseMove (eeuie_disable_mouse_move)
 // made in 0x58D3E1, 0x64C8B0
 // UIEvent's, the base's
+// the ` key pressed (the editor's form, the game's too): freezes the game's mouse while the camera's view is 2, so
+// that the key held turns the camera by the mouse (EEUIERotateCamera) instead of moving the cursor
 typedef uint32_t (__thiscall *eeuie_disable_mouse_move_execute_fn)(eeuie_disable_mouse_move *, ee_ui_form *, uint32_t);
 internal eeuie_disable_mouse_move_execute_fn fn_eeuie_disable_mouse_move_execute;
 internal inline uint32_t eeuie_disable_mouse_move_execute(eeuie_disable_mouse_move *eeuie_disable_mouse_move, ee_ui_form *form, uint32_t arg) { return fn_eeuie_disable_mouse_move_execute(eeuie_disable_mouse_move, form, arg); }
+internal inline int patch_disable_mouse_move_execute(eeuie_disable_mouse_move_execute_fn h) { return patch_vtable(vt_eeuie_disable_mouse_move, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_disable_mouse_move_execute, (void *)h); }
 
 // class EEUIEEEECivBuilder (eeuieeee_civ_builder)
 // control event 240 "EE Editor Sub Menu: Civ Builder Button" (dbuicontrolevents.dat), made by the event creator 0x65B496
@@ -1682,9 +1685,12 @@ internal inline uint32_t eeuie_process_timer_expired_execute(eeuie_process_timer
 // class EEUIEReturnToHomeRotation (eeuie_return_to_home_rotation)
 // made in 0x58D3E1
 // UIEvent's, the base's
+// the editor's Home key: the camera's turns back to the editor's start (no view turn, the offset turn 45 degrees
+// round and 35 down)
 typedef uint32_t (__thiscall *eeuie_return_to_home_rotation_execute_fn)(eeuie_return_to_home_rotation *, ee_ui_form *, uint32_t);
 internal eeuie_return_to_home_rotation_execute_fn fn_eeuie_return_to_home_rotation_execute;
 internal inline uint32_t eeuie_return_to_home_rotation_execute(eeuie_return_to_home_rotation *eeuie_return_to_home_rotation, ee_ui_form *form, uint32_t arg) { return fn_eeuie_return_to_home_rotation_execute(eeuie_return_to_home_rotation, form, arg); }
+internal inline int patch_home_rotation_execute(eeuie_return_to_home_rotation_execute_fn h) { return patch_vtable(vt_eeuie_return_to_home_rotation, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_return_to_home_rotation_execute, (void *)h); }
 
 // class EEUIERevolveCamera (eeuie_revolve_camera)
 // made in 0x58D3E1

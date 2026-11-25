@@ -113,6 +113,12 @@ unsafe struct EECameraControl
     [offset(0xF4), found(c)]
     int32 view;
 
+    /// the view set and the camera zoomed to its zoom again (a new move): 0 and 1 give the turn the zoom's pitch at the
+    /// default yaw, 2 keeps the turn it has - which the editor's ` key turns (EEUIERotateCamera, only in 2 with the
+    /// free camera) and the scroll keeps
+    [address((ee)0x0051EE01, (aoc)0x005299C0)]
+    extern void view_to(int32 view);
+
     /// thiscall on game.camera (float dx, float dy)
     [address((ee)0x0051E2E6, (aoc)0x00528EA5)]
     extern void move(float32 dx, float32 dy);
