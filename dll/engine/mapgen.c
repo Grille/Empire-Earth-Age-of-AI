@@ -137,6 +137,7 @@ struct mg {
     struct { float x, y; } ford[MG_FORDS];   // the rivers' fords, laid once all water is dug (x under 0: not laid)
     int lakes, fords;
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
+    int clumps, clump_mines;  // mg_clump's: how many, and the mines in them
 };
 internal uint32_t mg_next(struct mg *g) {
     uint32_t x = g->rng;
@@ -924,10 +925,10 @@ internal int mg_anywhere(struct mg *g, int away, int apart, int *ox, int *oy) {
 }
 // a mine or a forage patch: the object; the biome's ground for one only on its own tile - the 4 corners right under
 // it (the player 2026-11-25: on the four tiles beside it too it was a patch round it) -, those beside it kept free
-internal void mg_mine(struct mg *g, int kind, int x, int y) {
+internal int mg_mine(struct mg *g, int kind, int x, int y) {
     static const char *const ident[4] = { "res_gold_mine", "res_iron", "res_stone_mine", "res_forage_bush" };
     static const int8_t side[5][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-    if (!mg_object(g, mg_type(ident[kind]), x, y, 0, kind)) return;
+    if (!mg_object(g, mg_type(ident[kind]), x, y, 0, kind)) return 0;
     int b = g->clim[y * g->n + x], tex = kind == MG_FORAGE ? g->tex_wood[b] : g->tex_res[b];
     for (int k = 0; k < 5; k++) {
         int tx = x + side[k][0], ty = y + side[k][1];
@@ -936,6 +937,26 @@ internal void mg_mine(struct mg *g, int kind, int x, int y) {
         g->used[ty * g->n + tx] = 1;
     }
     mg_spot_add(g, x, y);
+    return 1;
+}
+// A CLUMP of mines (the player 2026-11-25: "a low chance of 2 or even more near each other instead of them evenly
+// spread over the map"): a place worth a Settlement, walls and a fight. After a mine at x, y, with `chance` in 100,
+// 1 more (6 times in 10), 2 (3) or 3 (1) 4 - 6 tiles from it and from each other - room for six miners each and a
+// wall round them all -, a gold mine's mostly iron or stone, an iron's or a stone's mostly gold, else its own kind
+// (a district of mixed ores is more to hold than a double). within > 0: no further than that from cx, cy (a
+// plateau's top). Never within 30 tiles of a start: a start's own mines are the same for everyone. Returns the
+// mines laid beside it; each counts against the map's mines, not on top of them (mg_objects).
+internal int mg_clump(struct mg *g, int kind, int x, int y, int chance, int cx, int cy, int within, int laid[3]) {
+    static const int8_t other[3][2] = { { MG_IRON, MG_STONE }, { MG_GOLD, MG_GOLD }, { MG_GOLD, MG_IRON } };
+    if (mg_int(g, 0, 99) >= chance || mg_start_dist(g, (float)x, (float)y) < 30) return 0;
+    int r = mg_int(g, 0, 9), extra = r < 6 ? 1 : r < 9 ? 2 : 3, n = 0;
+    for (int i = 0; i < extra; i++) {
+        int k = mg_int(g, 0, 9) < 6 ? other[kind][mg_int(g, 0, 1)] : kind, ex, ey;
+        if (!mg_ring(g, x, y, 4, 6, 4, &ex, &ey)) break;
+        if (within > 0 && (ex - cx) * (ex - cx) + (ey - cy) * (ey - cy) > within * within) continue;
+        if (mg_mine(g, k, ex, ey)) { laid[k]++; n++; }
+    }
+    if (n) { g->clumps++; g->clump_mines += n + 1; }    return n;
 }
 // a forest: free tiles grown from a seed tile, a neighbour of a tile it has at a time - as many as the seed's biome
 // says; a tree of the biome's on 9 in 10 of them, its forest floor under all. grove: a start's own - the biome's
@@ -999,10 +1020,18 @@ internal void mg_objects(struct mg *g) {
                 mg_forest(g, x, y, !j);
         if (mg_ring(g, g->sx[i], g->sy[i], 11, 16, 6, &x, &y)) mg_herd(g, x, y);
     }
+    // the land's mines and forage: drawn by turns (gold, iron, stone, forage, gold ...), so that a clump's mines of
+    // another kind are taken off that kind's draws still to come (owed) - clumps leave the map no richer
     static const struct { int8_t kind; int16_t tiles; } wild[4] = { { MG_GOLD, 650 }, { MG_IRON, 650 }, { MG_STONE, 1000 }, { MG_FORAGE, 1100 } };
-    for (int k = 0; k < 4; k++)
-        for (int j = g->land / wild[k].tiles; j > 0; j--)
-            if (mg_anywhere(g, 22, 9, &x, &y) && mg_rich(g, x, y, wild[k].kind)) mg_mine(g, wild[k].kind, x, y);
+    int draws[4], owed[3] = { 0, 0, 0 }, most = 0;
+    for (int k = 0; k < 4; k++) { draws[k] = g->land / wild[k].tiles; most = draws[k] > most ? draws[k] : most; }
+    for (int j = 0; j < most; j++)
+        for (int k = 0; k < 4; k++) {
+            int kind = wild[k].kind;
+            if (j >= draws[k] || !mg_anywhere(g, 22, 9, &x, &y) || !mg_rich(g, x, y, kind)) continue;
+            if (kind != MG_FORAGE && owed[kind] > 0) { owed[kind]--; continue; }   // one that would have been laid
+            if (mg_mine(g, kind, x, y) && kind != MG_FORAGE) mg_clump(g, kind, x, y, 18, 0, 0, 0, owed);
+        }
     for (int j = g->land / 150; j > 0; j--)
         if (mg_anywhere(g, 16, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
     for (int j = g->land / 600; j > 0; j--)
@@ -1027,11 +1056,15 @@ internal void mg_objects(struct mg *g) {
                     mg_object(g, g->tree[b][mg_int(g, 0, g->ntree[b] - 1)], x, y, mg_rnd(g) * 6.2831853f, MG_TREE);
                 }
             }
-    // a plateau's own: a gold mine within half its radius of its middle - a reason to hold it
+    // a plateau's own: a gold mine within half its radius of its middle - a reason to hold it -, a clump every other
+    // time, on its top (2 tiles in from its cliffs); those are a plateau's extra, not taken off the land's
+    int spare[3] = { 0, 0, 0 };
     for (int k = 0; k < g->plateaus; k++)
-        if (mg_ring(g, g->plateau[k].x, g->plateau[k].y, 0, g->plateau[k].r / 2, 5, &x, &y)) mg_mine(g, MG_GOLD, x, y);
+        if (mg_ring(g, g->plateau[k].x, g->plateau[k].y, 0, g->plateau[k].r / 2, 5, &x, &y) && mg_mine(g, MG_GOLD, x, y))
+            mg_clump(g, MG_GOLD, x, y, 50, g->plateau[k].x, g->plateau[k].y, g->plateau[k].r - 2, spare);
     // the mountains' own (the player 2026-11-24: "increased chance for mine in mountains"): a gold, iron or stone
-    // mine by turns per 90 tiles of the ranges' feet (their lowest 1.4 steps), whatever the biome
+    // mine by turns per 90 tiles of the ranges' feet (their lowest 1.4 steps), whatever the biome; a clump 3 times
+    // in 10 (a vein where the rock comes up), its mines counted among those of the feet
     int foot = 0, turn = 0;
     for (int ty = 0; ty < g->n; ty++)
         for (int tx = 0; tx < g->n; tx++) foot += g->mt[ty * g->m + tx] > 0.3f && g->mt[ty * g->m + tx] < 1.4f;
@@ -1039,9 +1072,11 @@ internal void mg_objects(struct mg *g) {
         static const int8_t kinds[3] = { MG_GOLD, MG_IRON, MG_STONE };
         x = mg_int(g, 0, g->n - 1); y = mg_int(g, 0, g->n - 1);
         if (g->mt[y * g->m + x] < 0.3f || !mg_free(g, x, y) || !mg_spot_far(g, x, y, 7)) continue;
-        mg_mine(g, kinds[turn++ % 3], x, y);
-        g->mountain_mines++;
-        j--;
+        int kind = kinds[turn++ % 3], more;
+        if (!mg_mine(g, kind, x, y)) continue;
+        more = mg_clump(g, kind, x, y, 30, 0, 0, 0, spare);
+        g->mountain_mines += 1 + more;
+        j -= 1 + more;
     }
     // fish: in water a step deep at least, 2 - 7 tiles off a shore, 5 tiles apart - 5 a player and one per 1500 tiles of the map
     int fish = mg_type("res_fish"), first = g->nspot;
@@ -1234,8 +1269,8 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords (%d laid for a start cut off), %d oases, %d swamps, %d islands, %d capes, %d bays, %d fjords, the continents %s on foot, %d starts cut off from their continent's, %d of %d land tiles reached from the starts, %d players (%d start units) at",
                 MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords_ok, g->mended, g->oases, g->swamps, g->islands, g->capes, g->bays, g->fjords, g->afoot ? "JOINED" : "apart", g->cut, g->walked, g->walkable, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
-        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests (of the mild green biomes' %d spruce, %d mixed, %d maple), animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
-                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->wood_made[0], g->wood_made[1], g->wood_made[2],
+        fprintf(g_log, "; gold %d iron %d stone %d (%d of them in %d clumps) forage %d fish %d trees %d in %d forests (of the mild green biomes' %d spruce, %d mixed, %d maple), animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
+                g->made[MG_IRON], g->made[MG_STONE], g->clump_mines, g->clumps, g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->wood_made[0], g->wood_made[1], g->wood_made[2],
                 g->made[MG_ANIMAL], g->made[MG_AMBIENT], (double)start[0], (double)start[1]);
         for (int b = 0; b < MG_BIOMES; b++) fprintf(g_log, " %s %d", k_mg_biome[b].name, g->biome_tiles[b]);
         fprintf(g_log, "; the starts in:");

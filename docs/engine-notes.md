@@ -812,7 +812,13 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   five AIs of that map at 78 - 146, a medium map's three at 104 - 159. A forest of the grassland or the woodland
   is all spruce, mixed or all maple by the warmth at its seed (the player: the pure kinds too, spruce towards the
   cold): spruce only at the mild band's cold edge, maple only at its warm one, mixed most often between; the
-  grassland leans to maple. The log's line counts the three.
+  grassland leans to maple. The log's line counts the three. Mines in clumps (the player: "a low chance of 2 or
+  even more near each other"; mg_clump): after a mine of the land 18 in 100 times, of a range's foot 30, of a
+  plateau's top 50, 1 - 3 more 4 - 6 tiles from it (room for six miners each and a wall round them), mostly of
+  another ore (gold with iron or stone, iron or stone with gold), never within 30 tiles of a start. The land's
+  mines are drawn by turns and a clump's taken off the draws of their kind still to come: a map is no richer for
+  them (huge seed 7: 135 mines, 132 without; gigantic 237 / 229 - a plateau's clump is its extra). Small and
+  medium maps seldom have one (no place 30 tiles from every start).
 - **A map's flags** (EEMap.flags, the script's MapCharacteristics): 0 Continental, 1 the island types (IslandMap),
   2 Plains (WaterlessMap) - read after the game's own maker in test games.
 - **The ground textures' names** are db\dbterrain.dat's ("Grass - Tufts", "Sand - Medium", "Snow - Dirt Patches",
