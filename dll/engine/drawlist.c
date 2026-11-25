@@ -43,38 +43,56 @@ internal int draw_list_moved(void) { return g_draw_recs != NULL; }
 // - before it draws an object it asks whether its list of what it drew has it already (hooks_functions.pick_listed: an
 //   object on several tiles is met again) - a search through the whole list, 1175 entries on average: the list is
 //   mirrored in a hash set instead, made anew when the list starts over (fewer entries or another array) and topped
-//   up with the entries added since;
+//   up with the entries added since. The set grows with the list (rebuilt twice the size past half full), up to the
+//   list's largest room (draw_limit 32768: 131072 entries), and starts each list at the size the last one needed: a
+//   set of a fixed 43690 fell back to the game's search on a Titanic map zoomed out (51752 entries, trees the most:
+//   two thirds of the drawing thread in the search, 2026-11-25);
 // - each object drawn takes a user of its type's pictures (EEGraphicObject.acquire), and acquire makes and frees 16
 //   empty maps whatever it does with them - 32 allocations a call, used only by the first user, who loads the models:
 //   a user more of loaded models is counted directly, under the engine's lock as acquire does.
-#define PL_SLOTS (1 << 16)   // the set's room: two thirds full at most, else the game's search
-internal ee_unit *g_pl_set[PL_SLOTS];
+#define PL_MIN_BITS 12
+#define PL_MAX_BITS 18   // the set's largest room: half full at most, else the game's search
+internal ee_unit *g_pl_set[1 << PL_MAX_BITS];   // the slots past the size in use are empty
+internal uint32_t g_pl_bits = PL_MIN_BITS;      // the size in use: 1 << bits slots
 internal const ee_pick_entry *g_pl_entries;   // the list's array the set holds
 internal uint32_t g_pl_n;                     // its entries in it
 internal ee_unit *g_pl_ends[2];               // the first and the last of them: the list filled anew to as many
+internal uint32_t pl_slot(const ee_unit *e) { return (uint32_t)((uintptr_t)e >> 3) * 2654435761u >> (32 - g_pl_bits); }
+internal void pl_put(ee_unit *e) {
+    uint32_t h = pl_slot(e), mask = (1u << g_pl_bits) - 1;
+    while (g_pl_set[h] && g_pl_set[h] != e) h = (h + 1) & mask;
+    g_pl_set[h] = e;
+}
 internal uint8_t __thiscall hook_pick_listed(void *p, ee_unit *u) {
     ee_pick_list *l = p;
     uint32_t n = pick_list_get_count(l);
-    if (n > PL_SLOTS * 2 / 3) return pick_listed(p, u);
+    if (n > (1u << PL_MAX_BITS) / 2) return pick_listed(p, u);
     if (n && (pick_list_get_entries(l) != g_pl_entries || (g_pl_n && n >= g_pl_n &&
         (pick_entry_get_unit(pick_list_entry(l, 0)) != g_pl_ends[0] ||
          pick_entry_get_unit(pick_list_entry(l, g_pl_n - 1)) != g_pl_ends[1]))))
         g_pl_n = n + 1;   // another array, other entries: all anew
     if (n < g_pl_n) {
-        memset(g_pl_set, 0, sizeof g_pl_set);
+        // emptied, at the size the last list needed (it grows if this one needs more)
+        memset(g_pl_set, 0, sizeof *g_pl_set << g_pl_bits);
+        uint32_t want = g_pl_n * 2;
+        for (g_pl_bits = PL_MIN_BITS; g_pl_bits < PL_MAX_BITS && (1u << g_pl_bits) < want; g_pl_bits++) {}
         g_pl_n = 0;
         g_pl_entries = n ? pick_list_get_entries(l) : NULL;
     }
+    if (n * 2 > 1u << g_pl_bits) {
+        // grown: the entries so far into a set twice the size (the slots past the old size are empty)
+        memset(g_pl_set, 0, sizeof *g_pl_set << g_pl_bits);
+        while (n * 2 > 1u << g_pl_bits) g_pl_bits++;
+        for (uint32_t i = 0; i < g_pl_n; i++) pl_put(pick_entry_get_unit(pick_list_entry(l, i)));
+    }
     for (; g_pl_n < n; g_pl_n++) {
         ee_unit *e = pick_entry_get_unit(pick_list_entry(l, g_pl_n));
-        uint32_t h = (uint32_t)((uintptr_t)e >> 3) * 2654435761u >> 16;
-        while (g_pl_set[h] && g_pl_set[h] != e) h = (h + 1) & (PL_SLOTS - 1);
-        g_pl_set[h] = e;
+        pl_put(e);
         if (!g_pl_n) g_pl_ends[0] = e;
         g_pl_ends[1] = e;
     }
-    uint32_t h = (uint32_t)((uintptr_t)u >> 3) * 2654435761u >> 16;
-    for (; g_pl_set[h]; h = (h + 1) & (PL_SLOTS - 1))
+    uint32_t mask = (1u << g_pl_bits) - 1;
+    for (uint32_t h = pl_slot(u); g_pl_set[h]; h = (h + 1) & mask)
         if (g_pl_set[h] == u) return 1;
     return 0;
 }
