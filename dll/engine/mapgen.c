@@ -104,6 +104,7 @@ struct mg {
     float *mt;                // [corner] the mountains' height there (steps; 0: none)
     float *foot;              // [corner] 0 .. 1 how near a range's foot is (its foothills; 0: 12 tiles and more beyond it)
     float *plat;              // [corner] a plateau's height there (steps; 0: none)
+    float *fjord;             // [corner] 0 .. 1 a fjord's shore: rocky whatever the coast's noise says
     uint8_t *range;           // [corner] which range's that is, from 1, or 16 + which plateau's (0: none)
     int8_t range_cliffs[32];  // a range's and a plateau's cliff type (CLIFFS_*): one for the whole of it
     uint8_t *used;            // [tile] taken: a start's yard, a river's bank, a mine, a tree; 2: a ford's gravel
@@ -120,6 +121,7 @@ struct mg {
     struct { int x, y, r; } lake[12];     // the lakes: middle and radius
     struct { int x, y, r; } plateau[8];   // the plateaus
     int plateaus;
+    int islands, bays, capes, fjords;
     struct { float x, y; } ford[64];      // the rivers' fords, laid once all water is dug
     int lakes, fords;
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
@@ -165,13 +167,49 @@ internal int mg_tile_span(const struct mg *g, int x, int y, float *lo, float *hi
     return 1;
 }
 
+internal float mg_temp(const struct mg *g, int x, int y);
+// a point of the shore (f 0 .. 1.5 tiles inside) at least `clear` tiles from the map's edge and the middle channel,
+// and the way out to sea there (ox, oy: down f's slope, length 1); 0: none found in 400 draws
+internal int mg_shore_point(struct mg *g, float clear, int *px, int *py, float *ox, float *oy) {
+    for (int t = 0; t < 400; t++) {
+        int x = mg_int(g, 3, g->n - 3), y = mg_int(g, 3, g->n - 3);
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n);
+        if (f < 0 || f > 1.5f || fminf(g->half - fabsf(u), g->half - fabsf(v)) < clear + 4 || fabsf(v) < clear + 4) continue;
+        float gx = mg_f(g, x - 2, y) - mg_f(g, x + 2, y), gy = mg_f(g, x, y - 2) - mg_f(g, x, y + 2), gl = sqrtf(gx * gx + gy * gy);
+        if (gl < 0.2f) continue;
+        *px = x; *py = y; *ox = gx / gl; *oy = gy / gl;
+        return 1;
+    }
+    return 0;
+}
+// a tongue along a line from (x0, y0), `len` tiles the way (dx, dy), its half width `wide` at the root and 0.4 of it
+// at the tip, a noise in its outline: land laid into the sea (sign 1: a cape) or sea cut into the land (-1: a bay)
+internal void mg_tongue(struct mg *g, int x0, int y0, float dx, float dy, float len, float wide, int sign) {
+    int reach = (int)(len + wide) + 3;
+    for (int cy = y0 - reach; cy <= y0 + reach; cy++)
+        for (int cx = x0 - reach; cx <= x0 + reach; cx++) {
+            if (!mg_corner(g, cx, cy)) continue;
+            float ex = (float)(cx - x0), ey = (float)(cy - y0), t = ex * dx + ey * dy;
+            t = t < -3 ? -3 : t > len ? len : t;
+            float ax = ex - dx * t, ay = ey - dy * t, r = wide * (1 - 0.6f * fmaxf(0, t) / len) + (mg_fbm((float)cx * 0.15f, (float)cy * 0.15f, g->seed + 95) - 0.5f) * 3.0f;
+            float in = r - sqrtf(ax * ax + ay * ay);   // tiles inside the tongue
+            float *f = &g->f[cy * g->m + cx];
+            if (in > -6 && (sign > 0 ? in > *f : -in < *f)) *f = sign > 0 ? in : -in;   // 6 tiles of shoal (of shore) round it, no further
+        }
+}
 // THE LAND: two continents, each an ellipse about the middle of its half of the map (0.42 of the half wide, 0.85 long),
-// its shore pushed in and out by noise; water along the map's edge and in a channel down the middle whatever the
-// noise says. f is the distance inside the land in tiles, as the ellipses and the noise give it.
+// its shore pushed in and out by noise. f is the distance inside the land in tiles, as the ellipses and the noise give
+// it. Then the coast's own shapes (the player 2026-11-25 agreed to the list: "small offshore islands, bays and
+// peninsulas, and fjords in the cold north"): capes - tongues of land 10 - 18 tiles out to sea -, bays - as far cut
+// in -, 1 + n/200 of each; fjords in the cold north, 1 + n/150: a narrow cut (3 tiles of water) 14 - 24 tiles up
+// the land's slope, winding a little, its shores rocky (g->fjord: cliffs); islands, 2 + n/80: 4 - 8 tiles in radius,
+// 7 - 16 tiles off a shore, 14 apart. Last the water along the map's edge and in a channel down the middle,
+// whatever is there.
 internal void mg_land(struct mg *g) {
-    float half = g->half, ra = 0.42f * half, rb = 0.85f * half;
-    for (int y = 0; y <= g->n; y++)
-        for (int x = 0; x <= g->n; x++) {
+    float half = g->half, ra = 0.42f * half, rb = 0.85f * half, ox, oy;
+    int x, y;
+    for (y = 0; y <= g->n; y++)
+        for (x = 0; x <= g->n; x++) {
             float u = (float)(x - y), v = (float)(x + y - g->n), best = -1e9f;
             for (int k = 0; k < 2; k++) {
                 float da = (v - (k ? 0.5f : -0.5f) * half) / ra, db = u / rb;
@@ -179,8 +217,50 @@ internal void mg_land(struct mg *g) {
                 if (fk > best) best = fk;
             }
             best += (mg_fbm((float)x * 0.045f, (float)y * 0.045f, g->seed) - 0.5f) * 0.5f * ra;
+            g->f[y * g->m + x] = best * 0.7071f;
+        }
+    for (int k = 1 + g->n / 200; k > 0; k--)
+        if (mg_shore_point(g, 20, &x, &y, &ox, &oy)) { mg_tongue(g, x, y, ox, oy, (float)mg_int(g, 10, 18), (float)mg_int(g, 3, 5), 1); g->capes++; }
+    for (int k = 1 + g->n / 200; k > 0; k--)
+        if (mg_shore_point(g, 8, &x, &y, &ox, &oy)) { mg_tongue(g, x, y, -ox, -oy, (float)mg_int(g, 8, 14), (float)mg_int(g, 4, 6), -1); g->bays++; }
+    for (int k = 1 + g->n / 150, t = 0; k > 0 && t < 60; t++) {
+        if (!mg_shore_point(g, 8, &x, &y, &ox, &oy) || mg_temp(g, x, y) > -0.3f) continue;
+        float fx = (float)x - ox * 3, fy = (float)y - oy * 3, dx = -ox, dy = -oy;   // from 3 tiles out at sea, up the land
+        for (int i = 0, len = mg_int(g, 17, 27); i < len && mg_f(g, (int)fx, (int)fy) < 16; i++) {
+            for (int cy = (int)fy - 6; cy <= (int)fy + 7; cy++)
+                for (int cx = (int)fx - 6; cx <= (int)fx + 7; cx++) {
+                    if (!mg_corner(g, cx, cy)) continue;
+                    float ex = (float)cx - fx, ey = (float)cy - fy, d = sqrtf(ex * ex + ey * ey), by = 1 - mg_step(3, 6, d);
+                    if (d - 1.6f < g->f[cy * g->m + cx]) g->f[cy * g->m + cx] = d - 1.6f;
+                    if (by > g->fjord[cy * g->m + cx]) g->fjord[cy * g->m + cx] = by;
+                }
+            float turn = (mg_rnd(g) - 0.5f) * 0.5f, nx = dx - dy * turn, ny = dy + dx * turn, nl = sqrtf(nx * nx + ny * ny);
+            dx = nx / nl; dy = ny / nl; fx += dx; fy += dy;
+        }
+        g->fjords++;
+        k--;
+    }
+    struct { int x, y; } isle[16];
+    for (int want = 2 + g->n / 80, t = 0; g->islands < want && g->islands < 16 && t < 4000; t++) {
+        x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 4, 8);
+        int clear = f <= -7 && f >= -16 && fminf(half - fabsf(u), half - fabsf(v)) > r + 10 && fabsf(v) > r + 8;
+        for (int i = 0; clear && i < g->islands; i++) clear = (isle[i].x - x) * (isle[i].x - x) + (isle[i].y - y) * (isle[i].y - y) >= 14 * 14;
+        if (!clear) continue;
+        for (int cy = y - 18; cy <= y + 18; cy++)
+            for (int cx = x - 18; cx <= x + 18; cx++) {
+                if (!mg_corner(g, cx, cy)) continue;
+                float in = r * (0.7f + 0.6f * mg_fbm((float)cx * 0.2f, (float)cy * 0.2f, g->seed + 96)) - sqrtf((float)((cx - x) * (cx - x) + (cy - y) * (cy - y)));
+                if (in > -6 && in > g->f[cy * g->m + cx]) g->f[cy * g->m + cx] = in;
+            }
+        isle[g->islands].x = x; isle[g->islands].y = y;
+        g->islands++;
+    }
+    for (y = 0; y <= g->n; y++)
+        for (x = 0; x <= g->n; x++) {
+            float u = (float)(x - y), v = (float)(x + y - g->n);
             float edge = fminf(half - fabsf(u), half - fabsf(v)) - 4, channel = fabsf(v) - 4;
-            g->f[y * g->m + x] = fminf(best, fminf(edge, channel)) * 0.7071f;
+            g->f[y * g->m + x] = fminf(g->f[y * g->m + x], fminf(edge, channel) * 0.7071f);
         }
 }
 // THE COAST, its kind at a corner from a noise along it (the player 2026-11-24: "make the ocean beaches more dynamic,
@@ -192,6 +272,8 @@ internal void mg_coast(const struct mg *g, int x, int y, float *beach, float *wi
     *width = 2 + 4 * mg_step(0.60f, 0.75f, c);
     *bluff = *beach * mg_step(0.5f, 0.6f, c2);
     *rocky = 1 - mg_step(0.36f, 0.44f, c);
+    float fjord = g->fjord[y * g->m + x];   // a fjord's shores: rock, no beach
+    *rocky = fmaxf(*rocky, fjord); *beach *= 1 - fjord; *bluff *= 1 - fjord;
 }
 // a bluff: 1.8 steps up within a tile from `at` tiles inside the land (a cliff: a tile whose corners differ by 1.5
 // steps is one), down again to the plain 3 .. 12 tiles behind
@@ -786,12 +868,13 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         g->range = calloc((size_t)(g->m * g->m), 1);
         g->foot = calloc((size_t)(g->m * g->m), sizeof *g->foot);
         g->plat = calloc((size_t)(g->m * g->m), sizeof *g->plat);
+        g->fjord = calloc((size_t)(g->m * g->m), sizeof *g->fjord);
         g->used = calloc((size_t)(n * n), 1);
         g->clim = calloc((size_t)(n * n), 1);
         g->marsh = calloc((size_t)(n * n), 1);
         z = calloc((size_t)(g->m * g->m), sizeof *z);
     }
-    if (!g || !g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
+    if (!g || !g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
         notice("mapgen", "the map type \"%s\" could not be made (%d players, %d tiles a side) - an empty map instead", MG_NAME, count - 1, n);
         start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
         return 0;
@@ -842,8 +925,8 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     start[2] = ground_at(map, start[0], start[1]);
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords, %d players (%d start units) at",
-                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords, g->np, units);
+        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords, %d islands, %d capes, %d bays, %d fjords, %d players (%d start units) at",
+                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords, g->islands, g->capes, g->bays, g->fjords, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
         fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
                 g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], (double)start[0], (double)start[1]);
@@ -853,7 +936,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "\n");
         LeaveCriticalSection(&g_lock);
     }
-    free(z); free(g->f); free(g->h); free(g->mt); free(g->range); free(g->foot); free(g->plat); free(g->used); free(g->clim); free(g->marsh); free(g);
+    free(z); free(g->f); free(g->h); free(g->mt); free(g->range); free(g->foot); free(g->plat); free(g->fjord); free(g->used); free(g->clim); free(g->marsh); free(g);
     return 0;
 }
 internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int human, void *name, uint32_t seed, ee_map *map, float *start) {

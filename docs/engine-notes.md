@@ -781,7 +781,10 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   1 + n/120 by turns on the continents where there is room off the ranges and starts (a large map with four
   players often has none), flat land 3.2 steps up, 7 - 12 tiles in radius, a cliff all round but for 2 or 3 ramps
   4 tiles wide; a gold mine on top; its cliffs one type (the red RockyCliff in the hot south, the winter's in the
-  cold, the default's between). A texture gives its tiles their kind (ee_terrain.kind,
+  cold, the default's between). The coast's own shapes (mg_land, laid into f before the edge's and the channel's
+  water): capes and bays (mg_tongue: 1 + n/200 each, 8 - 18 tiles long), fjords in the cold north (1 + n/150: 3
+  tiles of water 14 - 24 tiles up the land, its shores rocky whatever the coast's noise says - g->fjord), islands
+  (2 + n/80: 4 - 8 tiles in radius, 7 - 16 tiles off a shore, 6 tiles of shoal round each). A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
