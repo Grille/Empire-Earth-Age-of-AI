@@ -1011,6 +1011,7 @@ internal uint32_t data_game_epoch_techs;
 internal uint32_t data_game_free_camera;
 internal uint32_t data_game_free_camera_reads[7];
 internal uint32_t data_game_site_editor_view;
+internal uint32_t data_game_site_rotate_free_camera;
 internal uint32_t data_game_fullscreen;
 internal uint32_t data_game_game_data;
 internal uint32_t data_game_file_path;

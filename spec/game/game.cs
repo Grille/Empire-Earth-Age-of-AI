@@ -119,6 +119,11 @@ static unsafe class game
     [address((ee)0x0058F383, (aoc)0x0059F7B4)]
     static code site_editor_view;
 
+    /// the address operand of free_camera's read in EEUIERotateCamera.execute (cmp byte [free_camera], 0): the ` key's
+    /// turn only in the editor - engine/editor_camera.c points it at a byte of its own for the turn in play too
+    [address((ee)0x005D5EF4, (aoc)0x005E6860)]
+    static code site_rotate_free_camera;
+
     [address((ee)0x0091945A, (aoc)0x009308DB)]
     static block fullscreen;
 

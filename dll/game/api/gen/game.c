@@ -64,6 +64,9 @@ internal inline uint8_t *game_free_camera_at(void) { return (uint8_t *)(uintptr_
 // points them at a byte that stays 0)
 // the push of 2 in the editor's start (EEUIFScenarioEditor vf18 0x58F363), the view it gives the camera
 internal inline uint8_t *game_site_editor_view_at(void) { return (uint8_t *)(uintptr_t)data_game_site_editor_view; }
+// the address operand of free_camera's read in EEUIERotateCamera.execute (cmp byte [free_camera], 0): the ` key's
+// turn only in the editor - engine/editor_camera.c points it at a byte of its own for the turn in play too
+internal inline uint8_t *game_site_rotate_free_camera_at(void) { return (uint8_t *)(uintptr_t)data_game_site_rotate_free_camera; }
 internal inline uint8_t *game_fullscreen_at(void) { return (uint8_t *)(uintptr_t)data_game_fullscreen; }
 // game data loaded (unit limit +0x2EC, chat time +0x2CC)
 internal inline uint8_t *game_game_data_at(void) { return (uint8_t *)(uintptr_t)data_game_game_data; }
@@ -348,6 +351,7 @@ internal int spec_game_select(int build) {
         data_game_free_camera_reads[5] = 0x0051E150;
         data_game_free_camera_reads[6] = 0x0051ED71;
         data_game_site_editor_view = 0x0058F383;
+        data_game_site_rotate_free_camera = 0x005D5EF4;
         data_game_fullscreen = 0x0091945A;
         data_game_game_data = 0x00917BB8;
         data_game_file_path = 0x0091978C;
@@ -483,6 +487,7 @@ internal int spec_game_select(int build) {
         data_game_free_camera_reads[5] = 0x00528D0F;
         data_game_free_camera_reads[6] = 0x00529930;
         data_game_site_editor_view = 0x0059F7B4;
+        data_game_site_rotate_free_camera = 0x005E6860;
         data_game_fullscreen = 0x009308DB;
         data_game_game_data = 0x0092FCA8;
         data_game_file_path = 0x00931908;
@@ -624,6 +629,7 @@ internal int spec_game_check(void) {
     bad += spec_code(data_game_free_camera_reads[5], "game.free_camera_reads 5");
     bad += spec_code(data_game_free_camera_reads[6], "game.free_camera_reads 6");
     bad += spec_code(data_game_site_editor_view, "game.site_editor_view");
+    bad += spec_code(data_game_site_rotate_free_camera, "game.site_rotate_free_camera");
     bad += spec_data(data_game_fullscreen, "game.fullscreen");
     bad += spec_data(data_game_game_data, "game.game_data");
     bad += spec_data(data_game_file_path, "game.file_path");

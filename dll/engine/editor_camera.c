@@ -17,18 +17,25 @@
 // back a little at every poll while the mouse turned it (the player 2026-11-25: "it stutters and jump back while moving,
 // only a visual bug, in the end it moves as it should"). So a turn is there at once, as a notch of the wheel is
 // (hook_ec_turn: snap; its steps as fine as the mouse's counts).
+// The same in play ([camera] camera_free_turn; the player 2026-11-25: "yes, build it, on by default"): the game's form
+// has the key's events too, but the turn asks for the editor's free camera byte - that one read points at g_ec_turn_ok
+// (1), the press puts view 0 or 1 into 2 as in the editor (not view 3, a camera object's or a cinematic's; not in a
+// cinematic). The way back is the game's perspective key (F2: 2 goes to 0); Home is the editor's only.
 internal uint8_t g_ec_not_free;   // always 0
+internal uint8_t g_ec_turn_ok = 1;
 
 internal uint32_t __thiscall hook_ec_turn(eeuie_rotate_camera *self, ee_ui_form *form, uint32_t arg) {
     uint32_t r = eeuie_rotate_camera_execute(self, form, arg);
     ee_camera *cam = game_camera();
-    if (editor_is_on() && cam && camera_get_view(cam) == 2) camera_set_snap(cam, 1);
+    if ((editor_is_on() || g_set.camera_free_turn) && cam && camera_get_view(cam) == 2) camera_set_snap(cam, 1);
     return r;
 }
 
 internal uint32_t __thiscall hook_ec_turn_key(eeuie_disable_mouse_move *self, ee_ui_form *form, uint32_t arg) {
     ee_camera *cam = game_camera();
-    if (editor_is_on() && cam && camera_get_view(cam) != 2) camera_view_to(cam, 2);
+    int v = cam ? camera_get_view(cam) : 2;
+    if (v != 2 && (editor_is_on() || (g_set.camera_free_turn && v != 3 && !*game_cinematic_at() && game_map())))
+        camera_view_to(cam, 2);
     return eeuie_disable_mouse_move_execute(self, form, arg);
 }
 internal uint32_t __thiscall hook_ec_home(eeuie_return_to_home_rotation *self, ee_ui_form *form, uint32_t arg) {
@@ -44,5 +51,7 @@ internal void editor_camera_install(void) {
     int n = patch_editor_camera(&g_ec_not_free),
         t = patch_disable_mouse_move_execute(hook_ec_turn_key) + patch_home_rotation_execute(hook_ec_home)
           + patch_rotate_camera_execute(hook_ec_turn);
-    if (g_log) fprintf(g_log, "# editor: the game's camera, patches %d/%d, the free turn's keys %d/3\n", n, editor_camera_patches(), t);
+    int p = g_set.camera_free_turn ? patch_rotate_free(&g_ec_turn_ok) : 0;
+    if (g_log) fprintf(g_log, "# editor: the game's camera, patches %d/%d, the free turn's keys %d/3, in play %s\n", n, editor_camera_patches(), t,
+                       !g_set.camera_free_turn ? "off" : p ? "on" : "FAILED");
 }

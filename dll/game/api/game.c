@@ -82,6 +82,10 @@ internal inline int patch_editor_camera(const uint8_t *not_free) {
         n += patch_code32(data_game_free_camera_reads[i], data_game_free_camera, (uint32_t)(uintptr_t)not_free);
     return n + patch_byte(data_game_site_editor_view + 1, 2, 0);
 }
+// the ` key's turn (EEUIERotateCamera) reads this byte instead of the free camera's: 1 done
+internal inline int patch_rotate_free(const uint8_t *allowed) {
+    return patch_code32(data_game_site_rotate_free_camera, data_game_free_camera, (uint32_t)(uintptr_t)allowed);
+}
 // the scenario editor is on (the free camera's byte)
 internal inline int editor_is_on(void) { return *(const uint8_t *)data_game_free_camera != 0; }
 // the wheel's zoom would zoom (EEUIEWheelZoom's conditions; else it puts the camera back)
