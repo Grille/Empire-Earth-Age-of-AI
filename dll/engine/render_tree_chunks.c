@@ -64,6 +64,7 @@ internal struct {
     float sw[360 + 4];             // the sway's table and the clock's place (the shader's b6)
     uint32_t sw_bits[3], sw_ok, sw_clock;
     LONG made, kept, looked, trees, loose, failed;
+    LONG why[TC_GENS + 4];         // made for: none kept, another count of trees, a gen (tc_gens' order), records, details
 } g_tc = { .force = -1 };
 internal int tc_on(void) { return (g_tc.force < 0 ? 1 : g_tc.force) && ud_mode() == 1 && kt_on() && tl_on() && in_on(); }
 internal int tc_grow(void **p, uint32_t *cap, uint32_t need, size_t size) {
@@ -371,18 +372,22 @@ internal int tc_draw(ee_ro_units *ro, float *at, int fog) {
         if (!cn) continue;
         const uint32_t *ix = g_tc.ix + g_tc.at[k];
         tc_chunk *ch = &g_tc.c[(uint32_t)fog * nc + k];
-        int same = ch->built && ch->n == cn && !memcmp(ch->gen, gen, sizeof gen);
+        int same = ch->built && ch->n == cn && !memcmp(ch->gen, gen, sizeof gen), why = !ch->built ? 0 : ch->n != cn ? 1 : -1;
+        for (int g = 0; why < 0 && g < TC_GENS; g++) if (ch->gen[g] != gen[g]) why = 2 + g;
         for (uint32_t i = 0; same && i < cn; i++) {
             memcpy(rk, g_tl.rec + (size_t)ix[i] * DRAW_SMALL_REC, sizeof rk);
             draw_small_record_set_sway(rk, 0.0f);
             same = !memcmp(rk, ch->recs + (size_t)i * DRAW_SMALL_REC, sizeof rk);
+            if (!same) why = 2 + TC_GENS;
         }
         if (same && (ch->view != view || ch->cam != g_tc.cam_state)) {
             if (cs) g_in.cs_enter(cs);
             same = tc_still(ch, &c, d);
             if (cs) g_in.cs_leave(cs);
             if (same) ch->view = view, ch->cam = g_tc.cam_state;
+            else why = 3 + TC_GENS;
         }
+        if (!same && why >= 0) InterlockedIncrement(&g_tc.why[why]);
         int made = 0;
         if (!same) {
             g_sl.in = in, g_sl.tag = tag;
@@ -444,5 +449,8 @@ internal int tc_pipe(char *out, const char *arg) {
         if (g_tc.c[i].built) { built++; for (uint32_t j = 0; j < g_tc.c[i].ng; j++) ents += g_tc.c[i].g[j].count; }
     REPLY("the trees kept by chunk: %s; %u chunks of %u tiles kept now (%u entries, %u states); made %ld, drawn kept %ld (after a camera's move looked at %ld), trees drawn by chunk %ld, of them as before %ld; failed %ld\n",
           tc_on() ? "on" : "off", built, TC_SIDE, ents, g_tc.nst, (long)g_tc.made, (long)g_tc.kept, (long)g_tc.looked, (long)g_tc.trees, (long)g_tc.loose, (long)g_tc.failed);
+    REPLY("  made for: none kept %ld, another count %ld, the animation pool %ld, the instance pool %ld, kept trees taken again %ld, the shadows' switches %ld, the states' table %ld, records %ld, details %ld\n",
+          (long)g_tc.why[0], (long)g_tc.why[1], (long)g_tc.why[2], (long)g_tc.why[3], (long)g_tc.why[4], (long)g_tc.why[5], (long)g_tc.why[6],
+          (long)g_tc.why[7], (long)g_tc.why[8]);
     return 1;
 }

@@ -1532,21 +1532,25 @@ internal int uc_opacity_of(ee_ro_units *ro, uc_obj *o, float *out) {
 
 // THE TREES' OWN LIST (render_units.c g_tl): whether this walk lists trees there - the mod's walk, test, opacity and
 // fill, the trees kept, the mod's tree draw, every model let through the view's test (the shadows' casters off the screen
-// collected: this walk's rows widened), no free camera - and the list emptied (its graphics' users given back)
+// collected: this walk's rows widened) - and the list emptied (its graphics' users given back). The editor's free camera
+// and godmode too (the player 2026-11-25, the editor zoomed out over a Titanic map: every tree the game's list and loop):
+// there a tree is seen on any tile and the editor's selected trees stay the game's (tl_tree)
 internal void tl_begin(void) {
     tl_clear();
     g_tl.on = 0;
-    if (!tl_on() || ud_mode() == 0 || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || god_see_all()) return;
+    if (!tl_on() || ud_mode() == 0 || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2) return;
     if (g_shr.n <= 0 || !g_shr.on || g_shr.off || !g_sh.on || !draw_list_moved()) return;
     if (!g_tl.rec) {
-        g_tl.rec = malloc((size_t)TL_MAX * DRAW_SMALL_REC);
-        g_tl.key = malloc(TL_MAX * sizeof *g_tl.key);
-        g_tl.order = malloc(TL_MAX * sizeof *g_tl.order);
-        g_tl.swq = malloc(TL_MAX * sizeof *g_tl.swq);
+        uint32_t cap = 2 * draw_small_room() > TL_MIN ? 2 * draw_small_room() : TL_MIN;
+        g_tl.rec = malloc((size_t)cap * DRAW_SMALL_REC);
+        g_tl.key = malloc(cap * sizeof *g_tl.key);
+        g_tl.order = malloc(cap * sizeof *g_tl.order);
+        g_tl.swq = malloc(cap * sizeof *g_tl.swq);
         if (!g_tl.rec || !g_tl.key || !g_tl.order || !g_tl.swq) {
             free(g_tl.rec); free(g_tl.key); free(g_tl.order); free(g_tl.swq); g_tl.rec = NULL; g_tl.swq = NULL;
             return;
         }
+        g_tl.cap = cap;
     }
     g_tl.clock = tree_consts_now().clock;
     g_tl.on = 1;
@@ -1562,19 +1566,21 @@ internal uint16_t tl_sway_place(const uint8_t *rec, int32_t id) {
 // a tree of the walk's tile ct for the list: 1 listed, 0 not drawn (as uc_drawn tests a tree with every model let
 // through: the tile in the player's sight, a scale), -1 the game's list's as before, -2 that and the anchor. Of one tile
 // (else the walk's set of the met), not selected nor with its health bar shown (the game's list of the trees' bars holds
-// the record), not seen through (the trees' second map); its opacity before the walk's mark, which the game's path tests
+// the record; the editor's selection as uc_fill_tree marks it), not seen through (the trees' second map); its opacity
+// before the walk's mark, which the game's path tests. Seeing all (the free camera, godmode), any tile is in sight, as
+// uc_drawn has it
 internal int tl_tree(uc_obj *o, const uc_ctile *ct, uc_info *info, int during) {
     if (o->food || unit_type_get_size(o->ty) != 1) return -1;
     ee_player *me = game_players()[local_player_index()];
-    if (o->u == player_get_selected_unit(me) || uc_in_bar_ids(o->serial)) return -1;
-    if (!ct->seen_me) return 0;
+    if (o->u == player_get_selected_unit(me) || uc_in_bar_ids(o->serial) || (*game_free_camera_at() && o->selected)) return -1;
+    if (!ct->seen_me && !god_see_all()) return 0;
     float sc = o->height;
     if (!(sc < 0.0f || sc > 0.0f)) return 0;
     if (during && o->walked == g_uc_walk_gen) return 0;
     float op;
     if (uc_opacity(o, &op)) return -1;
     if (g_tl.want[0]) { g_tl.normal++; return -2; }
-    if (g_tl.n >= TL_MAX || !tl_hold(o->gfx)) { g_tl.full++; return -1; }
+    if (g_tl.n >= g_tl.cap || !tl_hold(o->gfx)) { g_tl.full++; return -1; }
     o->walked = g_uc_walk_gen;
     uint8_t *rec = g_tl.rec + (size_t)g_tl.n * DRAW_SMALL_REC;
     memset(rec, 0, DRAW_SMALL_REC);
@@ -1596,11 +1602,11 @@ internal int tl_dopp(const uc_dopp *p, uint8_t *small, uint32_t *sn, uint32_t sm
         if (*sn != n0) g_tl.anchor[1] = rec, g_tl.want[1] = 0, g_tl.normal++;
         return 1;
     }
-    if (g_tl.n >= TL_MAX || !tl_hold(p->gfx)) { g_tl.full++; return 0; }
+    if (g_tl.n >= g_tl.cap || !tl_hold(p->gfx)) { g_tl.full++; return 0; }
     uint8_t *rec = g_tl.rec + (size_t)g_tl.n * DRAW_SMALL_REC;
     memset(rec, 0, DRAW_SMALL_REC);
     uint32_t n = g_tl.n;
-    if (!uc_fill_dopp_tree(p, rec, &n, NULL, TL_MAX, x, y, info, 2)) return 1;
+    if (!uc_fill_dopp_tree(p, rec, &n, NULL, g_tl.cap, x, y, info, 2)) return 1;
     g_tl.swq[g_tl.n] = tl_sway_place(rec, p->serial);
     g_tl.key[g_tl.n] = graphics_anim_key(p->gfx, 0);
     g_tl.n = n;
@@ -1743,12 +1749,13 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
 // THE PICKER'S ROOM: the list the mouse picks from (EEUnitPicker at engine_display.pick_list; the walk adds every
 // object it draws, IsUnitDrawn) has room for 0x600 - its constructor's; its add drops any more, so with more objects on
 // the screen the rest couldn't be clicked (the 8000 save: 7198 drawn, 1536 in it; the player: "a known limitation").
-// It gets room for all the draw lists hold (objects and trees, drawlist.c's limits): an array of its own, swapped in
-// once inside its lock with the list emptied, before the first walk (game/api pick_list_grow).
+// It gets room for all the draw lists hold (objects and trees, drawlist.c's limits, and the trees' own list as many as
+// the small objects': render_units.c g_tl): an array of its own, swapped in once inside its lock with the list emptied,
+// before the first walk (game/api pick_list_grow).
 internal int g_uc_grown;   // 1 grown, -1 not (once)
 internal void picker_grow(void) {
     ee_pick_list *l = (ee_pick_list *)engine_display_pick_list_at();
-    uint32_t was = pick_list_get_room(l), room = draw_room() + draw_small_room();
+    uint32_t was = pick_list_get_room(l), room = draw_room() + 2 * draw_small_room();
     void *lock = *(void **)engine_display_picker_lock_at();
     g_uc_grown = -1;
     if (room <= was || !lock || !g_uc_transform_ctor) return;

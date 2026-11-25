@@ -302,9 +302,12 @@ internal int ut_draw(float *at, void *rec) {
 // depth's use, its player's colour into the materials). Not kept: a record with turned parts, a gate, a tint on its
 // model (its draw writes them into the shared models the walk reads), a building site (a wall's skirt is part of its
 // model from its load: walls.c PART OF THE MESH).
-#define KT_SLOTS 65536       // the hash's (a tree's number + 1), at most half full
-#define KT_TREES 32768       // trees and records kept; full, it starts over
-#define KT_ALL_PARTS 65536   // their parts
+// The table's room (g_kt.room): what the lists can hold - the objects', the small objects' and the trees' own (draw_limit's:
+// 114 688 at its default), 32768 at the least. Full, it starts over, and every chunk with it (render_tree_chunks.c): a
+// Titanic map zoomed out drew 63 600 trees and 5600 records, and a fixed 32768 started over every frame, the chunks made
+// again 20 a frame (2026-11-25). Its parts one and a half a tree (there a tree had one, 39 256 parts for 39 248 kept),
+// its hash at most half full. Allocated at once, the pages only used as it fills (a table of 72 MB at the default).
+#define KT_MIN 32768
 #define KT_PARTS 32          // a tree's or record's parts at most
 enum { KT_NEW, KT_OK, KT_NOT };
 enum { KT_SWAY, KT_MANY, KT_NONE, KT_REASONS };
@@ -332,6 +335,7 @@ internal struct {
     uint32_t *hash;
     kt_tree *t;
     kt_part *part;
+    uint32_t room, parts_room, slots;   // the trees', their parts', the hash's (a power of two)
     uint32_t n, nparts, last;   // last: the tree drawn last (its number + 1)
     void *map;
     int starts;
@@ -383,7 +387,7 @@ internal void kt_capture(ee_model *m, ee_material *mat, void *tex, const in_pose
     kt_tree *k = g_kt_cap;
     if (p->va && !k->rec) { g_kt.bad |= 1 << KT_MANY; return; }
     if (!g_kt.pass) {
-        if (k->np >= KT_PARTS || g_kt.nparts >= KT_ALL_PARTS) { g_kt.bad |= 1 << KT_MANY; return; }
+        if (k->np >= KT_PARTS || g_kt.nparts >= g_kt.parts_room) { g_kt.bad |= 1 << KT_MANY; return; }
         kt_part *e = &g_kt.part[g_kt.nparts++];
         k->np++;
         e->m = m; e->mat = mat; e->tex = tex; e->w = *world; e->root = m == k->m; e->va = p->va;
@@ -404,14 +408,22 @@ internal inline int kt_same(const kt_tree *k, const ee_dmg_model *g, const ee_mo
 internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame, uint32_t next, float scale, const float *at, float frac, int rec) {
     void *map = game_map();
     if (!g_kt.hash) {
-        g_kt.hash = calloc(KT_SLOTS, sizeof *g_kt.hash);
-        g_kt.t = malloc(KT_TREES * sizeof *g_kt.t);
-        g_kt.part = malloc(KT_ALL_PARTS * sizeof *g_kt.part);
-        if (!g_kt.hash || !g_kt.t || !g_kt.part) { free(g_kt.hash); free(g_kt.t); free(g_kt.part); g_kt.hash = NULL; return NULL; }
+        uint32_t room = draw_room() + 2 * draw_small_room();
+        if (room < KT_MIN) room = KT_MIN;
+        for (; room >= KT_MIN && !g_kt.hash; room /= 2) {   // (no memory: smaller)
+            uint32_t parts = room + room / 2, slots = 1;
+            while (slots < 2 * room) slots *= 2;
+            g_kt.hash = calloc(slots, sizeof *g_kt.hash);
+            g_kt.t = malloc(room * sizeof *g_kt.t);
+            g_kt.part = malloc(parts * sizeof *g_kt.part);
+            if (!g_kt.hash || !g_kt.t || !g_kt.part) { free(g_kt.hash); free(g_kt.t); free(g_kt.part); g_kt.hash = NULL; g_kt.t = NULL; g_kt.part = NULL; }
+            else g_kt.parts_room = parts, g_kt.slots = slots, g_kt.room = room;   // (room last: kt_gfx_loads reads it)
+        }
+        if (!g_kt.hash) return NULL;
     }
-    if (map != g_kt.map || g_kt.starts != g_game_starts || g_kt.n >= KT_TREES || g_kt.nparts > KT_ALL_PARTS - KT_PARTS) {
+    if (map != g_kt.map || g_kt.starts != g_game_starts || g_kt.n >= g_kt.room || g_kt.nparts > g_kt.parts_room - KT_PARTS) {
         if (map == g_kt.map && g_kt.starts == g_game_starts) InterlockedIncrement(&g_kt.starts_over);
-        memset(g_kt.hash, 0, KT_SLOTS * sizeof *g_kt.hash);
+        memset(g_kt.hash, 0, g_kt.slots * sizeof *g_kt.hash);
         g_kt.n = g_kt.nparts = g_kt.last = 0;
         g_kt.map = map; g_kt.starts = g_game_starts;
     }
@@ -425,7 +437,7 @@ internal kt_tree *kt_find(ee_dmg_model *g, ee_model *m, int anim, uint32_t frame
         memcpy(&w, &scale, 4); h = (h ^ w) * 16777619u;
         memcpy(&w, &frac, 4); h = (h ^ w ^ (uint32_t)rec) * 16777619u;
         for (int i = 0; i < 12; i++) { memcpy(&w, at + i, 4); h = (h ^ w) * 16777619u; }
-        for (h &= KT_SLOTS - 1;; h = (h + 1) & (KT_SLOTS - 1)) {
+        for (h &= g_kt.slots - 1;; h = (h + 1) & (g_kt.slots - 1)) {
             if (!g_kt.hash[h]) {
                 k = &g_kt.t[g_kt.n++];
                 memset(k, 0, sizeof *k);
@@ -463,7 +475,7 @@ internal void kt_retex(kt_tree *k, void *tex) {
 // and after it). Drawn on the drawing thread meanwhile only through anim_model, which the release emptied.
 internal void kt_gfx_loads(ee_dmg_model *g) {
     if (!g_kt.t) return;
-    for (uint32_t i = 0, n = g_kt.n; i < n && i < KT_TREES; i++)
+    for (uint32_t i = 0, n = g_kt.n; i < n && i < g_kt.room; i++)
         if (g_kt.t[i].g == g && g_kt.t[i].state != KT_NEW) { g_kt.t[i].state = KT_NEW; InterlockedIncrement(&g_kt.reloads); }
 }
 // a new tree's parts taken from the walk at fractions 0 and 1 (the states of its draw set by the caller)
@@ -1303,8 +1315,9 @@ internal int kt_pipe(char *out, const char *arg) {
         return 1;
     }
     if (arg[0]) { REPLY("error: usage: picture kept [on | off]\n"); return 1; }
-    REPLY("the trees kept: %s; %lu in the table (%ld made, started over %ld times), drawn kept %ld (found by the guess %ld), by the walk %ld (",
-          kt_on() ? "on" : "off", (unsigned long)g_kt.n, (long)g_kt.made, (long)g_kt.starts_over, (long)g_kt.drawn, (long)g_kt.guessed, (long)g_kt.walked);
+    REPLY("the trees kept: %s; %lu in the table of %lu, %lu parts (%ld made, started over %ld times), drawn kept %ld (found by the guess %ld), by the walk %ld (",
+          kt_on() ? "on" : "off", (unsigned long)g_kt.n, (unsigned long)g_kt.room, (unsigned long)g_kt.nparts, (long)g_kt.made, (long)g_kt.starts_over,
+          (long)g_kt.drawn, (long)g_kt.guessed, (long)g_kt.walked);
     for (int i = 0; i < KT_REASONS; i++) REPLY("%s%s %ld", i ? ", " : "", k_kt_reason[i], (long)g_kt.reason[i]);
     REPLY("); records drawn kept %ld (made %ld), not to be kept %ld; taken again for their graphics' new load %ld, for a part changed under them %ld (walls remade in place %ld)\n",
           (long)g_kt.rec_drawn, (long)g_kt.rec_made, (long)g_kt.rec_not, (long)g_kt.reloads, (long)g_kt.changed, (long)g_kt.reshaped);
@@ -1348,8 +1361,9 @@ internal int ut_record(ee_ro_units *ro, float *at, void *rec) {
 // collect.c tl_dopp) too: the game's loop lights a tree by its record's flag (+0x38: EE 0x50B2A9, AoC 0x515AC4 - the
 // fogged lights, all of them halved, EE 0x504D17 / AoC 0x50FB74 instead of 0x504C8B / 0x50FAE8), so they have an anchor
 // of their own, the walk's first such tree, and are drawn after it under its lights; the list's others after the normal
-// anchor.
-#define TL_MAX 32768
+// anchor. Its room (g_tl.cap) is twice the small objects' (draw_limit's: 98 304 at its default), 32768 at the least: a
+// Titanic map zoomed out lists 63 600 trees, which past a fixed 32768 were the game's list's again.
+#define TL_MIN 32768
 #define TL_NO_SWAY 0xFFFF
 #define TL_GFX 256
 internal struct {
@@ -1359,7 +1373,7 @@ internal struct {
     uint32_t *key, *order;  // each's sort key; the draw's order
     uint16_t *swq;          // each's place in the sway's circle (its id's: render_tree_chunks.c), TL_NO_SWAY none
     uint32_t clock;         // the sway's clock the walk filled them with
-    uint32_t n;
+    uint32_t n, cap;
     const void *anchor[2];  // the trees in the game's list the list is drawn after: a normal one's, a remembered one's
     int want[2];            // the walk's next such tree it can take is to be the anchor
     ee_dmg_model *gfx[TL_GFX];
