@@ -171,12 +171,16 @@ internal inline void mesh_compute_shorelines(void *mesh, unsigned long x, unsign
 internal inline int tile_is_cliff(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_cliff; }
 internal inline int terrain_is_cliff(const ee_terrain *t) { return terrain_get_kind(t) == (int)value_map_kind_cliff; }
 internal inline void tile_make_cliff(ee_tile *t, int *pos, void *map) { tile_change_kind(t, (int)value_map_kind_cliff, pos, map); }
+// water's two kinds, the game's own by a tile's lowest corner (spec map.kind_shallows): shallows down to 0.75 height
+// steps - land units walk through them, ships sail them -, deep water under that - ships only
+internal inline int tile_is_shallows(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_shallows; }
+internal inline int tile_is_deep(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_water; }
 // THE DOCK'S SHORE, the game's own (ghost_unit.check_shore, the player's preview of a Dock or a Navy Yard): the tiles
 // of the ring one tile round the footprint at x, y (s tiles a side), corners too, that are on the map and no water or
 // cliff - placeable with at least dock_shore_min (3). The AI's placement test (can_place_game) leaves it out
 internal inline int tile_shore_land(const ee_tile *t) {
     int k = tile_get_kind(t);
-    return k != (int)value_map_kind_water && k != (int)value_map_kind_water_other && k != (int)value_map_kind_cliff && k != (int)value_map_kind_aoc_12;
+    return k != (int)value_map_kind_water && k != (int)value_map_kind_shallows && k != (int)value_map_kind_cliff && k != (int)value_map_kind_aoc_12;
 }
 internal inline int dock_shore_ok(const ee_map *map, int x, int y, int s) {
     int n = (int)map_get_size(map), land = 0;

@@ -759,7 +759,8 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   shore. Mountain ranges (mg_range): 2 + n/100 lines laid by turns on the continents, n/6 .. n/3 tiles long,
   off the shore and the starts; a crest up to 14 steps high (the player: "a lot higher to justify the snow" - the
   first ones had 5, in terraces), peaks along it, steep by the crest (cliffs) and gentle at its foot, 10 - 15 tiles
-  to either side, a pass (a saddle to walk over) every 30 - 45 tiles. The height makes it colder (0.07 of the
+  to either side, a pass every 30 - 45 tiles - the crest down to a fifth for 6 tiles and up again over 7 more (a
+  notch of 2 tiles was none: the peaks' flanks beside it and the cliff pass filled it). The height makes it colder (0.07 of the
   temperature a step above 2): the snow line is at some 6 steps in the mild middle, none in the hot south. The
   cliffs by the game's cliff pass, which lays the textures of the map's one cliff type (EEMap.cliff_type, its place
   in db\dbcliffterrain.dat: DefaultCliff, WinterCliff, RockyCliff): run a row's run of tiles at a time with the type
@@ -775,8 +776,17 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   (mg_lake): 1 + n/110 basins of 5 - 8 tiles' radius by turns on the continents, 2.2 steps deep (the game has one
   water plane: a lake is at the sea's level), marsh at the rim and Underwater in the middle, a fish or two, a
   river out of each to the sea. A river ends in water dug before it too (a tributary), its valley rises 0.3 a
-  tile from the banks (mountain flanks stay), and has a ford every 16 - 24 tiles: a gravel bar just over the
-  water - the game knows water and land tiles only, no shallows to wade. The rain shadow: a wind by the seed (one
+  tile from the banks (mountain flanks stay). Shallows (the player 2026-11-25: "water at -1 can be walked
+  trough, so you can use that for fords"): a water tile whose lowest corner is no more than 0.75 height steps down
+  has the kind 10 - land units walk through it, ships sail it - (EETile vf5 0x516E8C; spec map.kind_shallows), a
+  deeper one kind 1. So a river's bed is 0.95 steps down along its middle (in the way) and comes up to 0.4 at a
+  ford, every 12 - 18 tiles of its way, gravel under it and on its banks; its mouth is cut through the sea's
+  shallows. The first maps' rivers (0.8 steps) were waded nearly anywhere, and the channel between the continents
+  where both shores were beaches: the sea is 1.5 steps deep down the middle now whatever its shores, and in a
+  ring 3 - 5 tiles off an island. What the game then makes of the tiles is looked at (mg_afoot, by the tiles'
+  kinds): the continents apart on foot, a continent's starts reached from one another - where one is cut off (a
+  range and the rivers from its ends) fords are laid on the way to it that goes through the least river, and the
+  ground is set again; the log's line says both. A swamp's pools are shallows. The rain shadow: a wind by the seed (one
   of the four screen directions); a mountain up the wind within 32 tiles dries a place, one down the wind wets it. Plateaus (mg_plateau):
   1 + n/120 by turns on the continents where there is room off the ranges and starts (a large map with four
   players often has none), flat land 3.2 steps up, 7 - 12 tiles in radius, a cliff all round but for 2 or 3 ramps
@@ -784,7 +794,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   cold, the default's between). The coast's own shapes (mg_land, laid into f before the edge's and the channel's
   water): capes and bays (mg_tongue: 1 + n/200 each, 8 - 18 tiles long), fjords in the cold north (1 + n/150: 3
   tiles of water 14 - 24 tiles up the land, its shores rocky whatever the coast's noise says - g->fjord), islands
-  (2 + n/80: 4 - 8 tiles in radius, 7 - 16 tiles off a shore, 6 tiles of shoal round each). The ground's scatter (mg_scatter): a texture of
+  (2 + n/80: 3 - 7 tiles in radius, 8 tiles of water to any other land, 6 tiles of shoal round each). The ground's scatter (mg_scatter): a texture of
   db\dbterrain.dat carries a list of unit types (ee_terrain.objects) and how many of 100 tiles get one
   (ee_terrain.objects_n - a rate, not a count: "Beach" 15 of seagrass and seaweed, "RM Ambients - Forest" 1 of
   ferns and bamboo, "Forest - Maple" 100 of its trees); the game's maker's fill (0x66EA64) lays them, map_reset_tile
@@ -1561,7 +1571,8 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   "needs the original game" check come from the 2017 update's registry values - engine/data_order.c.
 - **The tile kind** (2026-11-23, the exe): kind 12 is space - EETile vf5 (0x5214BF) calls the mesh's SetIsSpace(x, y,
   kind == 12) (its only call, 0x521502); then the 2017 update's rule (0x516E8C): a tile under the water level becomes
-  kind 1 or 10 whatever it was given, so space painted over low ground is sea to the simulation. "A space map" in
+  kind 1 or 10 whatever it was given (10, shallows, down to 0.75 height steps and with fewer than 3 corners at
+  the water's level; 1 deeper), so space painted over low ground is sea to the simulation. "A space map" in
   the exe: the map's +0x18F4A0 (the mesh's count) not 0 (0x50E94A).
 - **The areas** (the continent manager, EEAIPathArea 0x8C bytes, vtable 0x839FAC): region() 0x422B86 (EE 0x425F9F)
   knows four kinds - 1 water (+0x86; EE +0x84), 2 land (+0x88; EE +0x86), 3 space (+0x8A, new), 4 planet (+0x84,

@@ -1378,7 +1378,7 @@ internal uint32_t data_map_fn_tile_sight_add;
 internal uint32_t data_map_fn_tile_sight_sub;
 internal uint32_t value_map_kind_cliff;
 internal uint32_t value_map_kind_water;
-internal uint32_t value_map_kind_water_other;
+internal uint32_t value_map_kind_shallows;
 internal uint32_t value_map_kind_aoc_12;
 internal uint32_t value_map_dock_shore_min;
 internal uint32_t data_map_map_areas;

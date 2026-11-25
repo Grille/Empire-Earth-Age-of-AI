@@ -971,7 +971,7 @@ unsafe struct EEGhostUnit
     /// the Dock's and the Navy Yard's check (their type ids 0x24 and 0x41, which check() hands here - the per-tile
     /// test alone lets them stand on any water: their type is allowed on the water kinds, which also leaves out the
     /// test's area check, and has no slope rule): each tile of the footprint the per-tile test (0x638D4F), and of the
-    /// ring one tile round it, corners too, those that are on the map and of no kind map.kind_water, kind_water_other,
+    /// ring one tile round it, corners too, those that are on the map and of no kind map.kind_water, kind_shallows,
     /// kind_cliff (AoC: and 12, its 0x6035EF) counted - placeable with at least map.dock_shore_min of them. The
     /// player's click asks the preview's can_place; the AI's spots (can_place_game) never come here
     [address((ee)0x005F3E48, (aoc)0x00603A8C)]

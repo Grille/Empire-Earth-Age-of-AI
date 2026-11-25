@@ -294,6 +294,8 @@ unsafe struct ee_tile
     [offset(0xC), found(c)]
     uint16* sight;
 
+    /// its lowest corner's height (tiles; under 0: water) - what the game's random map gives it (0x66F59D) and what
+    /// decides deep water or shallows (map.kind_shallows)
     [offset(0x10), found(c)]
     float32 height;
 
@@ -436,14 +438,21 @@ static unsafe class map
     [value(9)]
     static uint32 kind_cliff;
 
-    /// the two ee_tile.kind of water: the placement preview leaves their tiles' heights out (0x5F4189), the Dock's
-    /// type is allowed on these two only (its data +0x5D6 by kind, read in a game: 1 at kinds 1 and 10) - which of
-    /// them is the deep water isn't known
+    /// ee_tile.kind of deep water. A tile under the water has one of two kinds whatever its texture's (EETile vf5,
+    /// 0x516E8C, by ee_tile.height): this one where its lowest corner is more than 0.75 height steps down (the 2017
+    /// update's float 0x8257B0), the shallows' above that. Ships sail both; the placement preview leaves their
+    /// tiles' heights out (0x5F4189), the Dock's type is allowed on these two only (its data +0x5D6 by kind, read in
+    /// a game: 1 at kinds 1 and 10)
     [value(1)]
     static uint32 kind_water;
 
+    /// ee_tile.kind of shallows: a tile whose lowest corner is under the water by no more than 0.75 height steps and
+    /// that has fewer than 3 corners at the water's level or above (with 3 it keeps its texture's kind: land). Land
+    /// units walk through it (the player 2026-11-25: "water at -1 can be walked trough") - the land areas spread over
+    /// it as the water areas do (docs/engine-notes.md "The areas") - and ships sail it. Counted on a map of the mod's,
+    /// both builds: every water tile down to 0.75 steps has it, every deeper one kind_water
     [value(10)]
-    static uint32 kind_water_other;
+    static uint32 kind_shallows;
 
     /// a kind AoC's dock check (0x6035EF) leaves out besides those; the 2017 update has none (its types' tables of
     /// kinds end at 11), so the rule is one for both
