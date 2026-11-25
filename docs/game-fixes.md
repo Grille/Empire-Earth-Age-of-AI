@@ -12,8 +12,13 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   Enormous (300), Colossal (400) and Titanic (500: 1000 tiles a side). The game's two numbers that come from a map's
   width and stopped at Gigantic - the map script's size (`IsGiganticMap`; a wider map had none) and the pathing's
   sectors (a wider map got Large's 15 tiles) - give a wider map Gigantic's. The mod's own map types fill the new
-  sizes as any other; the game's own play Gigantic's script for now: its resources and neutral areas, unscaled, over
-  the wider map. In multiplayer every PC needs the same setting (engine/map_sizes.c).
+  sizes as any other. The game's own play Gigantic's script, scaled to the map before it is made from it: most of a
+  script's numbers are shares (of the land, of the map's radius) and grow with the map by themselves; those in tiles
+  grow with the side - the water along the map's edge, how far the starts are pushed from the middle and the edge,
+  the water between the islands - and the neutral lands by the area, so that each has Gigantic's size and resources
+  (without, Titanic had Gigantic's few neutral lands, each five times as big, with Gigantic's mines on them). What is
+  round a start stays as it is (its resources, forests, herds). In multiplayer every PC needs the same setting
+  (engine/map_sizes.c).
 
 ## Window and picture
 

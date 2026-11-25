@@ -285,6 +285,7 @@ typedef struct ee_group ee_group;
 typedef struct ee_active_group ee_active_group;
 typedef struct ee_path_mgr ee_path_mgr;
 typedef struct ee_map_type ee_map_type;
+typedef struct ee_random_map ee_random_map;
 typedef struct ee_minimap_action ee_minimap_action;
 typedef struct ee_lasso ee_lasso;
 typedef struct ee_key_scroll ee_key_scroll;

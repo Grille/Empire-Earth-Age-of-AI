@@ -14,6 +14,67 @@ internal inline uint8_t *map_type_title_at(const ee_map_type *o) { return (uint8
 // 'rmap') random_map_create looks up
 internal inline uint8_t *map_type_generator_at(const ee_map_type *o) { return (uint8_t *)o + of_map_type_generator; }
 
+// class EERandomMap (ee_random_map)
+// a random map being made (EERandomMap, EE 0x410 bytes): random_map_create makes a new one for each try. Its script's
+// values are the generator plug-in's to fill (EERMPIMSetRandomMapValues, Default.dll's parser: a keyword's number
+// into a field, the same keyword the same field in every script) - the plug-in is handed the map + 4, so its field
+// X is the map's X + 4 here. AoC's Default.dll has fields more before them: its offsets 0x10 - 0x14 later. Each
+// field's keyword below; its type is the keyword's (int, Between picked once)
+// MaxIterationsClumpGrowth: the land's growth runs in up to its square of rounds (Default.dll's land growth
+// 0x1000149A), each patch's own limit it x its clumps (0x10007272)
+internal inline int random_map_get_clump_growth(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_clump_growth); }
+internal inline void random_map_set_clump_growth(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_clump_growth) = v; }
+internal inline int *random_map_clump_growth_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_clump_growth); }
+// WaterBorder: tiles of water along the map's edge (with start_to_edge the start positions' distance from it,
+// Default.dll's start positions 0x10003AE0)
+internal inline int random_map_get_water_border(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_water_border); }
+internal inline void random_map_set_water_border(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_water_border) = v; }
+internal inline int *random_map_water_border_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_water_border); }
+// OuterPushFromMapCenter: tiles the start positions of the outer ring keep from the middle (0x10003AE0)
+internal inline int random_map_get_outer_push(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_outer_push); }
+internal inline void random_map_set_outer_push(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_outer_push) = v; }
+internal inline int *random_map_outer_push_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_outer_push); }
+// InnerPushFromMapCenter: the same for the inner ring
+internal inline int random_map_get_inner_push(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_inner_push); }
+internal inline void random_map_set_inner_push(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_inner_push) = v; }
+internal inline int *random_map_inner_push_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_inner_push); }
+// MinimumStartPositionToMapEdge: tiles more between a start and the water border
+internal inline int random_map_get_start_to_edge(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_start_to_edge); }
+internal inline void random_map_set_start_to_edge(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_start_to_edge) = v; }
+internal inline int *random_map_start_to_edge_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_start_to_edge); }
+// ResourcePerNeutralLand by resource (Stone, Gold, Tree, Berry, Animal, Fish, Iron - the script's "Steel" too):
+// how many of it go onto the neutral lands in all, laid one by one round their places in turn (Default.dll
+// 0x10015299) - not so many each
+internal inline int random_map_get_neutral_resources(const ee_random_map *o, int i) { return ((int *)((uint8_t *)o + of_random_map_neutral_resources))[i]; }
+internal inline void random_map_set_neutral_resources(ee_random_map *o, int i, int v) { ((int *)((uint8_t *)o + of_random_map_neutral_resources))[i] = v; }
+internal inline int *random_map_neutral_resources_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_neutral_resources); }
+// the square the plug-in works in, a side (the map's edge_diff x 2: Gigantic 440): set by the script read
+// (0x66DC35) before the plug-in reads the script
+internal inline int random_map_get_side(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_side); }
+internal inline void random_map_set_side(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_side) = v; }
+internal inline int *random_map_side_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_side); }
+// NumInnerNeutrals: the patches of neutral land near the middle - InnerNeutralPercentLand of the land split
+// among them (0x1000149A)
+internal inline int random_map_get_inner_neutrals(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_inner_neutrals); }
+internal inline void random_map_set_inner_neutrals(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_inner_neutrals) = v; }
+internal inline int *random_map_inner_neutrals_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_inner_neutrals); }
+// NumOuterNeutrals: the same for the outer ones (OuterNeutralPercentLand); each its ResourcePerNeutralLand
+internal inline int random_map_get_outer_neutrals(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_outer_neutrals); }
+internal inline void random_map_set_outer_neutrals(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_outer_neutrals) = v; }
+internal inline int *random_map_outer_neutrals_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_outer_neutrals); }
+// RiverWidth: the water between the players' lands (the island scripts'; 0 none)
+internal inline int random_map_get_river_width(const ee_random_map *o) { return *(int *)((uint8_t *)o + of_random_map_river_width); }
+internal inline void random_map_set_river_width(ee_random_map *o, int v) { *(int *)((uint8_t *)o + of_random_map_river_width) = v; }
+internal inline int *random_map_river_width_at(const ee_random_map *o) { return (int *)((uint8_t *)o + of_random_map_river_width); }
+// the map made from the script read: the plug-in's steps (player and neutral positions, land and water, flat
+// land, heights, shallows, the height filter) and the exe's own between them, then the textures, cliffs,
+// resources, trees and start units; 0 made. Its one call: random_map_create's try, right after the script read
+// (0x66F4A6: the plug-in's SetRandomMapValues and the exe's reads of the script's values)
+typedef int (__thiscall *random_map_generate_fn)(ee_random_map *);
+internal random_map_generate_fn fn_random_map_generate;
+internal inline int random_map_generate(ee_random_map *random_map) { return fn_random_map_generate(random_map); }
+internal inline int patch_random_map_generate(random_map_generate_fn h) { return patch_call(call_random_map_generate, (uintptr_t)fn_random_map_generate, (void *)h); }
+
 // static class random_map
 // the random map's data of the game
 // the map types (EERandomMap::sRandomMapGenerators): a vector of ee_map_type (MSVC: the first at +4, the end at
@@ -57,6 +118,18 @@ internal int spec_random_map_select(int build) {
         of_map_type_name = 0x0;
         of_map_type_title = 0x14;
         of_map_type_generator = 0x28;
+        of_random_map_clump_growth = 0x2FC;
+        of_random_map_water_border = 0x308;
+        of_random_map_outer_push = 0x314;
+        of_random_map_inner_push = 0x318;
+        of_random_map_start_to_edge = 0x31C;
+        of_random_map_neutral_resources = 0x358;
+        of_random_map_side = 0x380;
+        of_random_map_inner_neutrals = 0x398;
+        of_random_map_outer_neutrals = 0x39C;
+        of_random_map_river_width = 0x3B8;
+        fn_random_map_generate = (random_map_generate_fn)0x0066B434;
+        call_random_map_generate = 0x0066C4B6;
         data_random_map_types = 0x00943520;
         data_random_map_site_script_gigantic = 0x0066DDA5;
         fn_random_map_create = (random_map_create_fn)0x0066D402;
@@ -71,6 +144,18 @@ internal int spec_random_map_select(int build) {
         of_map_type_name = 0x0;
         of_map_type_title = 0x14;
         of_map_type_generator = 0x28;
+        of_random_map_clump_growth = 0x310;
+        of_random_map_water_border = 0x31C;
+        of_random_map_outer_push = 0x328;
+        of_random_map_inner_push = 0x32C;
+        of_random_map_start_to_edge = 0x330;
+        of_random_map_neutral_resources = 0x36C;
+        of_random_map_side = 0x394;
+        of_random_map_inner_neutrals = 0x3AC;
+        of_random_map_outer_neutrals = 0x3B0;
+        of_random_map_river_width = 0x3CC;
+        fn_random_map_generate = (random_map_generate_fn)0x0068449E;
+        call_random_map_generate = 0x00685587;
         data_random_map_types = 0x00965570;
         data_random_map_site_script_gigantic = 0x00686EFD;
         fn_random_map_create = (random_map_create_fn)0x0068655A;
@@ -88,6 +173,8 @@ internal const char *const k_spec_random_map_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_random_map_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_random_map_generate, "EERandomMap.generate");
+    bad += spec_call(call_random_map_generate, (uintptr_t)fn_random_map_generate, "EERandomMap.generate [call_site random_map_generate]");
     bad += spec_data(data_random_map_types, "random_map.types");
     bad += spec_code(data_random_map_site_script_gigantic, "random_map.site_script_gigantic");
     bad += spec_code((uintptr_t)fn_random_map_create, "random_map_functions.random_map_create");
