@@ -91,7 +91,7 @@ internal const struct mg_biome {
 // there has its ee_tile). Across the diamond run u = x - y and v = x + y - n, each from -n / 2 to n / 2: the screen's
 // two ways - v from left to right, u from the near edge to the far one. The continents lie apart along v, left and
 // right, and stretch along u; the far end is the north.
-enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_KINDS };
+enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_AMBIENT, MG_KINDS };
 #define MG_PLAYERS 16
 #define MG_SPOTS 1024
 struct mg {
@@ -839,6 +839,75 @@ internal void mg_objects(struct mg *g) {
     }
 }
 
+// THE GROUND'S SCATTER: stones, plants and the water's own - the game's maps have them (a ground texture of
+// db\dbterrain.dat carries a list of unit types and how many of 100 tiles get one: "Beach" 15 of seagrass and
+// seaweed, "RM Ambients - Forest" 1 of ferns, bamboo, bushes ...; its map maker's fill 0x66EA64 lays them - the mod's
+// maps, textured tile by tile, got none: bare land, the player's list 2026-11-25). The mod's own sets, by what a
+// tile is - the first that fits; of 1000 such tiles `rate` get an object of the set, a land set's in patches (0.3 to
+// 2.5 times the rate by a noise: meadows of flowers, not confetti). They are the world's objects as the game's
+// are: no obstacle, built over.
+enum { MG_SC_LILIES, MG_SC_REEDS, MG_SC_SEA, MG_SC_REEF, MG_SC_FLOES, MG_SC_BERGS, MG_SC_STRAND, MG_SC_SCREE, MG_SC_BIOME, MG_SCATTERS = MG_SC_BIOME + MG_BIOMES };
+#define MG_ROCKS "amb_rock_3", "amb_rock_4", "amb_rock_5", "amb_rock_6", "amb_rock_7", "amb_rock_8", "amb_rock_9", "amb_rock_10"
+#define MG_FLOWERS "amb_flowers01_roses", "amb_flowers02_daisies", "amb_flowers03_daffodils", "amb_flowers04_thistles", "amb_flowers05_violets", "amb_flowers06_violets_2"
+internal const struct mg_scatter_set {
+    const char *what;
+    int16_t rate;
+    const char *ident[16];
+} k_mg_scatter[MG_SCATTERS] = {
+    { "a river's or a lake's water that isn't frozen", 70, { "amb_lillypads1", "amb_lillypads2", "amb_lillypads3", "amb_lillypads4", "amb_lillypads5" } },
+    { "its bank", 160, { "amb_cattails_1", "amb_cattails_2", "amb_cattails_1", "amb_tall_grass" } },
+    { "the sea up to a step deep", 60, { "amb_seagrass1", "amb_seagrass2", "amb_seagrass3", "amb_seastalks1", "amb_seastalks2", "amb_seastalks3", "amb_seaweed1", "amb_seaweed2", "amb_seaweed3", "amb_seaweed4", "amb_seaweed5" } },
+    { "the same in the hot south", 90, { "amb_coral_1", "amb_coral_2", "amb_coral_fan", "amb_seagrass1", "amb_seastalks1", "amb_seaweed1", "amb_seaweed3", "amb_starfish2" } },
+    { "the cold north's sea up to a step deep", 25, { "amb_icefloat1", "amb_icefloat2", "amb_icefloat3", "amb_icefloat4" } },
+    { "the cold north's deeper sea", 5, { "amb_iceberg1", "amb_iceberg2", "amb_iceberg3", "amb_iceberg4", "amb_icefloat2", "amb_icefloat4" } },
+    { "a wide beach's sand", 25, { "amb_clam_1", "amb_clam_2", "amb_starfish_01", "amb_starfish2", "amb_starfish3", "amb_giant_clam", "amb_clam_1", "amb_starfish3" } },
+    { "a range's foot", 55, { MG_ROCKS, "amb_rock_granite", "amb_rock_large", "amb_rock_outcrop_1", "amb_rock_outcrop_2", "amb_rock_outcrop_3" } },
+    { "ice desert", 8, { MG_ROCKS } },
+    { "tundra", 14, { MG_ROCKS, "amb_log", "amb_tree_stump_1" } },
+    { "taiga", 24, { "amb_log", "amb_tree_stump_1", "amb_tree_stump_2", "amb_tree_stump_3", "amb_tree_stump_4", "amb_rock_3", "amb_rock_5", "amb_rock_7" } },
+    { "steppe", 26, { "amb_tall_grass", "amb_tumbleweed", "amb_crab_grass", "amb_rock_4", "amb_rock_6", "amb_rock_8", "amb_cowskull", "amb_bush", "amb_clump1", "amb_clump2" } },
+    { "grassland", 45, { MG_FLOWERS, "amb_tall_grass", "amb_bush", "amb_clump1", "amb_clump2", "amb_crab_grass", "amb_rock_3", "amb_log" } },
+    { "woodland", 60, { "amb_fern_1", "amb_fern_2", "amb_fern_patch", "amb_bush", "amb_log", "amb_tall_grass", "amb_tree_stump_1", "amb_tree_stump_3", "amb_flowers05_violets", "amb_flowers02_daisies", "amb_flowers04_thistles" } },
+    { "desert", 20, { MG_ROCKS, "amb_rock_granite", "amb_rock_outcrop_3", "amb_cowskull", "amb_dinosaur_bones", "amb_aloe", "amb_tumbleweed", "amb_skeleton" } },
+    { "savanna", 32, { "amb_tall_grass", "amb_aloe", "amb_bush", "amb_crab_grass", "amb_clump1", "amb_rock_5", "amb_rock_9", "amb_cowskull", "amb_tumbleweed" } },
+    { "tropics", 70, { "amb_fern_1", "amb_fern_2", "amb_fern_patch", "amb_bamboo", "amb_bamboo", "amb_tall_grass", "amb_bush", "amb_flowers01_roses", "amb_flowers03_daffodils", "amb_log" } },
+};
+internal void mg_scatter(struct mg *g) {
+    static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+    int type[MG_SCATTERS][16], kinds[MG_SCATTERS], n = g->n;
+    for (int k = 0; k < MG_SCATTERS; k++) {
+        kinds[k] = 0;
+        for (int i = 0; i < 16 && k_mg_scatter[k].ident[i]; i++) {
+            int t = mg_type(k_mg_scatter[k].ident[i]);
+            if (t >= 0 && type_data(t)) type[k][kinds[k]++] = t; else g->types_missing++;
+        }
+    }
+    for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++) {
+            float lo, hi, beach, width, bluff, rocky;
+            if (!mg_tile_span(g, x, y, &lo, &hi) || tile_is_cliff(mg_tile(g, x, y))) continue;
+            int b = g->clim[y * n + x], water = g->marsh[y * n + x], set = -1, patchy = 0;
+            if (lo < 0) {
+                if (water == 1) set = lo > -1.0f ? MG_SC_LILIES : -1;
+                else if (water == 2 && hi < 0) set = b < 3 ? (lo > -1.0f ? MG_SC_FLOES : MG_SC_BERGS) : lo > -1.0f ? (b >= 6 ? MG_SC_REEF : MG_SC_SEA) : -1;
+            } else if (g->used[y * n + x] == 1) {
+                // a bank: land beside a river's or a lake's open water
+                for (int k = 0; k < 4 && set < 0; k++)
+                    if (mg_tile(g, x + side[k][0], y + side[k][1]) && g->marsh[(y + side[k][1]) * n + x + side[k][0]] == 1) set = MG_SC_REEDS;
+                if (set >= 0 && mg_start_dist(g, (float)x, (float)y) < 9) set = -1;   // not in a start's yard
+            } else if (!g->used[y * n + x] && lo >= 0.05f) {
+                mg_coast(g, x, y, &beach, &width, &bluff, &rocky);
+                if (beach > 0.5f && mg_f(g, x, y) < width && g->tex_shore[b] >= 0) set = MG_SC_STRAND;
+                else if (g->mt[y * g->m + x] > 0.3f) set = g->mt[y * g->m + x] < 4.0f ? MG_SC_SCREE : -1;
+                else { set = MG_SC_BIOME + b; patchy = 1; }
+            }
+            if (set < 0 || !kinds[set]) continue;
+            float rate = (float)k_mg_scatter[set].rate;
+            if (patchy) rate *= 0.3f + 2.2f * mg_step(0.48f, 0.66f, mg_fbm((float)x * 0.09f + 70, (float)y * 0.09f + 20, g->seed + 97));
+            if (mg_rnd(g) * 1000.0f < rate) mg_object(g, type[set][mg_int(g, 0, kinds[set] - 1)], x, y, mg_rnd(g) * 6.2831853f, MG_AMBIENT);
+        }
+}
+
 // a start unit as the game's random map makes one: the type's unit at a point of the map, built, paid for
 internal ee_unit *mapgen_unit(int type, ee_player *pl, float x, float y, ee_map *map) {
     ee_unit_type *t = ut_has(type) ? type_data(type) : NULL;
@@ -912,6 +981,7 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
     for (int i = 0; i < n * n; i++) g->cliffs += map_get_tiles(map)[i] && tile_is_cliff(map_get_tiles(map)[i]);
     map_set_flags(map, 1);   // as the game's island maps have it (Continental 0, the island types 1, Plains 2): the players are apart by water
     mg_objects(g);
+    mg_scatter(g);
     start[0] = start[1] = g->half + 0.5f;
     for (int i = 0; i < g->np; i++) {
         ee_player *pl = pb[i + 1];
@@ -928,8 +998,8 @@ internal int mapgen_make(void *players, int human, uint32_t seed, ee_map *map, f
         fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords, %d islands, %d capes, %d bays, %d fjords, %d players (%d start units) at",
                 MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords, g->islands, g->capes, g->bays, g->fjords, g->np, units);
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
-        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
-                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], (double)start[0], (double)start[1]);
+        fprintf(g_log, "; gold %d iron %d stone %d forage %d fish %d trees %d in %d forests, animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
+                g->made[MG_IRON], g->made[MG_STONE], g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->made[MG_ANIMAL], g->made[MG_AMBIENT], (double)start[0], (double)start[1]);
         for (int b = 0; b < MG_BIOMES; b++) fprintf(g_log, " %s %d", k_mg_biome[b].name, g->biome_tiles[b]);
         fprintf(g_log, "; the starts in:");
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %s", k_mg_biome[g->clim[g->sy[i] * n + g->sx[i]]].name);

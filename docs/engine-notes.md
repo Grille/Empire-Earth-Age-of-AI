@@ -784,7 +784,13 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   cold, the default's between). The coast's own shapes (mg_land, laid into f before the edge's and the channel's
   water): capes and bays (mg_tongue: 1 + n/200 each, 8 - 18 tiles long), fjords in the cold north (1 + n/150: 3
   tiles of water 14 - 24 tiles up the land, its shores rocky whatever the coast's noise says - g->fjord), islands
-  (2 + n/80: 4 - 8 tiles in radius, 7 - 16 tiles off a shore, 6 tiles of shoal round each). A texture gives its tiles their kind (ee_terrain.kind,
+  (2 + n/80: 4 - 8 tiles in radius, 7 - 16 tiles off a shore, 6 tiles of shoal round each). The ground's scatter (mg_scatter): a texture of
+  db\dbterrain.dat carries a list of unit types (ee_terrain.objects) and how many of 100 tiles get one
+  (ee_terrain.objects_n - a rate, not a count: "Beach" 15 of seagrass and seaweed, "RM Ambients - Forest" 1 of
+  ferns and bamboo, "Forest - Maple" 100 of its trees); the game's maker's fill (0x66EA64) lays them, map_reset_tile
+  does not - the mod's maps had none. Its own sets by what a tile is: lily pads on unfrozen inland water, reeds on
+  its banks, seagrass in the shallows (corals in the hot south, ice floes and icebergs in the cold north), shells
+  on a wide beach, rocks at a range's foot, and each biome's stones and plants in patches (8 to 70 of 1000 tiles). A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
   start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
   forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the

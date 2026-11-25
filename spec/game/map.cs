@@ -244,9 +244,20 @@ unsafe struct ee_terrain
     [offset(0x40), found(c)]
     uint32 set;
 
-    /// how many kinds of objects painting it scatters (trees ...): the terrain paint's 0x598B7A and a new map's fill read it
+    /// of 100 tiles painted with it, how many get one of its objects (0: it scatters none) - the game's map maker's fill
+    /// (0x66EA64: a random number 0 .. 1 against it times 0.01, then one of `objects` drawn), the terrain paint's 0x598B7A.
+    /// (The name is from before that was read: not a count.)
     [offset(0x7C), found(c)]
     int32 objects_n;
+
+    /// the unit types it scatters (stones, plants, trees: db\dbterrain.dat's lists - "RM Ambients - Forest", "Forest -
+    /// Maple" ...), a vector's begin and end (0x66EA64 and its count 0x42E347 read them so)
+    [offset(0x70), found(c)]
+    int32* objects;
+
+    /// the same: its end
+    [offset(0x74), found(c)]
+    int32* objects_end;
 
     /// the language file's string that names it in the editor's lists (GetString)
     [offset(0x54), found(c)]
