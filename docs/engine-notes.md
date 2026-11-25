@@ -769,7 +769,9 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   hot south - the default's there, and no snow on it; the other cliffs (coasts) the winter's in the cold biomes,
   the default else. A mountain's walkable ground is its biome's (a rock texture beside the cliffs looked wrong to
   him). Rivers first from springs at the ranges' feet; a
-  mine (gold, iron, stone by turns) per 90 tiles of those feet whatever the biome; nothing is placed higher up a
+  mine (gold, iron, stone by turns) per 360 tiles of those feet whatever the biome (90 until the player's
+  "25% of what generates now would still be plenty", 2026-11-25: the land's too, a gold or iron mine per 2600 land
+  tiles and a stone mine per 4000, were 650 and 1000; a start's own six stay); nothing is placed higher up a
   mountain than its lowest 1.4 steps. Small and tiny maps have no room for a range between shore and starts. Hill country (2026-11-25,
   the player's list: hills, lakes, terraces): a third slow layer, the land's roughness, and the 12 tiles round a
   range's foot have rolling hills of up to 3 steps without cliffs; the plain else swells by 0.8 at most. Lakes

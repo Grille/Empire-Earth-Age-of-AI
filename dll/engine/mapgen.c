@@ -1020,9 +1020,11 @@ internal void mg_objects(struct mg *g) {
                 mg_forest(g, x, y, !j);
         if (mg_ring(g, g->sx[i], g->sy[i], 11, 16, 6, &x, &y)) mg_herd(g, x, y);
     }
-    // the land's mines and forage: drawn by turns (gold, iron, stone, forage, gold ...), so that a clump's mines of
-    // another kind are taken off that kind's draws still to come (owed) - clumps leave the map no richer
-    static const struct { int8_t kind; int16_t tiles; } wild[4] = { { MG_GOLD, 650 }, { MG_IRON, 650 }, { MG_STONE, 1000 }, { MG_FORAGE, 1100 } };
+    // the land's mines and forage (the player 2026-11-25: a quarter of the mines of before - a gold or an iron mine
+    // per 2600 land tiles, a stone mine per 4000 - "would still be plenty"; a start's own stay): drawn by turns
+    // (gold, iron, stone, forage, gold ...), so that a clump's mines of another kind are taken off that kind's draws
+    // still to come (owed) - clumps leave the map no richer
+    static const struct { int8_t kind; int16_t tiles; } wild[4] = { { MG_GOLD, 2600 }, { MG_IRON, 2600 }, { MG_STONE, 4000 }, { MG_FORAGE, 1100 } };
     int draws[4], owed[3] = { 0, 0, 0 }, most = 0;
     for (int k = 0; k < 4; k++) { draws[k] = g->land / wild[k].tiles; most = draws[k] > most ? draws[k] : most; }
     for (int j = 0; j < most; j++)
@@ -1063,12 +1065,12 @@ internal void mg_objects(struct mg *g) {
         if (mg_ring(g, g->plateau[k].x, g->plateau[k].y, 0, g->plateau[k].r / 2, 5, &x, &y) && mg_mine(g, MG_GOLD, x, y))
             mg_clump(g, MG_GOLD, x, y, 50, g->plateau[k].x, g->plateau[k].y, g->plateau[k].r - 2, spare);
     // the mountains' own (the player 2026-11-24: "increased chance for mine in mountains"): a gold, iron or stone
-    // mine by turns per 90 tiles of the ranges' feet (their lowest 1.4 steps), whatever the biome; a clump 3 times
+    // mine by turns per 360 tiles of the ranges' feet (their lowest 1.4 steps), whatever the biome; a clump 3 times
     // in 10 (a vein where the rock comes up), its mines counted among those of the feet
     int foot = 0, turn = 0;
     for (int ty = 0; ty < g->n; ty++)
         for (int tx = 0; tx < g->n; tx++) foot += g->mt[ty * g->m + tx] > 0.3f && g->mt[ty * g->m + tx] < 1.4f;
-    for (int j = foot / 90, t = 0; j > 0 && t < 40000; t++) {
+    for (int j = foot / 360, t = 0; j > 0 && t < 40000; t++) {
         static const int8_t kinds[3] = { MG_GOLD, MG_IRON, MG_STONE };
         x = mg_int(g, 0, g->n - 1); y = mg_int(g, 0, g->n - 1);
         if (g->mt[y * g->m + x] < 0.3f || !mg_free(g, x, y) || !mg_spot_far(g, x, y, 7)) continue;
