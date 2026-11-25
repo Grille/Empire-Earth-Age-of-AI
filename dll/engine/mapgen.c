@@ -848,10 +848,12 @@ internal void mg_textures(struct mg *g) {
             int tex = g->tex_land[b][k];
             mg_coast(g, x, y, &beach, &width, &bluff, &rocky);
             if (lo < 0) {
-                // the sea's: beach, deep; a river's and a lake's: marsh all under water, its shore the biome's ground, frozen its ice
+                // the sea's: beach, Underwater only below 3 steps (the player: shallower it looked wrong, beach sand
+                // there); a river's and a lake's: marsh down to 1 step, its shore the biome's ground, frozen its ice
                 if (g->used[y * g->n + x] == 2 && sort != 2 && b >= 3 && g->tex_pebbles >= 0) tex = g->tex_pebbles;   // a ford
-                else if (sort == 2) tex = lo > -1.0f ? g->tex_beach[b] : g->tex_deep;
-                else if (sort == 1 && g->tex_marsh >= 0) tex = lo > -1.0f ? g->tex_marsh : g->tex_deep;   // a lake's middle is deep
+                else if (lo < -3.0f) tex = g->tex_deep;
+                else if (sort == 1 && lo > -1.0f && g->tex_marsh >= 0) tex = g->tex_marsh;
+                else if (sort == 2 || (sort == 1 && g->tex_marsh >= 0)) tex = g->tex_beach[b];   // a lake's middle the beach's sand
                 else if (hi < 0) tex = g->tex_beach[b];
                 g->water++;
             } else {

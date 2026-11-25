@@ -774,7 +774,8 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   the player's list: hills, lakes, terraces): a third slow layer, the land's roughness, and the 12 tiles round a
   range's foot have rolling hills of up to 3 steps without cliffs; the plain else swells by 0.8 at most. Lakes
   (mg_lake): 1 + n/110 basins of 5 - 8 tiles' radius by turns on the continents, 2.2 steps deep (the game has one
-  water plane: a lake is at the sea's level), marsh at the rim and Underwater in the middle, a fish or two, a
+  water plane: a lake is at the sea's level), marsh at the rim and the beach's sand in the middle (the
+  Underwater texture only below 3 steps, sea or lake - the player: beach sand above that), a fish or two, a
   river out of each to the sea. A river ends in water dug before it too (a tributary), its valley rises 0.3 a
   tile from the banks (mountain flanks stay). Shallows (the player 2026-11-25: "water at -1 can be walked
   trough, so you can use that for fords"): a water tile whose lowest corner is no more than 0.75 height steps down
