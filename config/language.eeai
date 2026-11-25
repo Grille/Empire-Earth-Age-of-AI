@@ -336,6 +336,14 @@ map_v_lots = {
     en = "Lots",
     de = "Sehr viele",
 }
+map_seed = {
+    en = "Seed {1}",
+    de = "Start-Wert {1}",
+}
+map_new_seed = {
+    en = "New seed",
+    de = "Neuer Start-Wert",
+}
 map_starts_keep = {
     en = "Every start keeps its mines, forage, forests and herd.",
     de = "Jeder Start behält seine Minen, Beeren, Wälder, Herde.",

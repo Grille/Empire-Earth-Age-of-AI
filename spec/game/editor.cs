@@ -32,6 +32,12 @@ unsafe struct EESEACreateBlankMap
 [size((ee)0x14, (aoc)0x14), vtable((ee)0x00830070, (aoc)0x00845944), c_type("ee_se_random_map")]
 unsafe struct EESEACreateRandomMap
 {
+    /// the map's size, a setup.map_scale (0 Tiny ..), its constructor's first argument (the map panel's size list's
+    /// choice): run copies it into its setup's map_scale (its local setup at -0x46C, this at -0x90: +0x3DC) before
+    /// map_dims
+    [offset(0xC), found(c)]
+    int32 map_scale;
+
     /// the map type's index in random_map.types, its constructor's second argument (the map panel's map style list's
     /// choice): run hands it to 0x66D650, which gives the type at that index (types + i * 0x38) to the map's maker
     [offset(0x10), found(c)]
@@ -1857,6 +1863,11 @@ static unsafe class editor
     /// the listeners told of a change of the ground (a list; what EESEAPaintElevation's end tells, editor_functions.ground_changed)
     [address((ee)0x00918E1C, (aoc)0x0093185C)]
     static block ground_listeners;
+
+    /// the scenario's players with the world (its Players screen's count + 1: EESEAChangeWorldPlayerCount.run sets it
+    /// from its +0xC; 3 in a new editor's, whose random map then has 2 starts - read in a game, 2026-11-26)
+    [address((ee)0x00918E8C, (aoc)0x009318CC)]
+    static int32 world_player_count;
 
     /// the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
     /// 0x58A70E): shown while the panel is

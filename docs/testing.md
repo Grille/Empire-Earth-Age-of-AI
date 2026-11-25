@@ -478,7 +478,9 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 - `edmap [size [type]]`: the scenario editor's Create Map as its button makes it - the size's index in its list
   (default 1, small), a map type by its name (default "Age of AI": the options' dialog opens first; it blocks the
   game until it is answered - from outside the game, by its window: find it by its title, the word map_options, and
-  send it WM_COMMAND IDOK or IDCANCEL; its dropdowns are the controls 200 + the option's row).
+  send it WM_COMMAND IDOK or IDCANCEL; its dropdowns are the controls 200 + the option's row - a choice as the
+  player makes it: CB_SETCURSEL and WM_COMMAND with CBN_SELCHANGE, the preview made anew -, New seed 262; the log's
+  `# mapgen: preview ...` and `# mapgen: "Age of AI" made ...` lines then compare preview and map).
 
 Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was
 64% in GDI (gdi32full); in test games 11-18%, all GDI calls from DDrawCompat itself (its ddraw.dll +0x46CB6,

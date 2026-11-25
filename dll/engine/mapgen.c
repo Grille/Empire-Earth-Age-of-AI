@@ -102,7 +102,7 @@ enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_AM
 #define MG_SPOTS 1024
 #define MG_FORDS 96
 struct mg {
-    ee_map *map;
+    ee_map *map;              // the game's new map; NULL: a preview (mapgen_preview) - the generator's own arrays alone
     ee_player *world;
     int n, m;                 // tiles a side, corners a side
     uint32_t rng, seed;
@@ -117,6 +117,11 @@ struct mg {
     uint8_t *used;            // [tile] taken: a start's yard, a river's bank, a mine, a tree; 2: a ford's gravel
     uint8_t *clim;            // [tile] its biome (k_mg_biome)
     uint8_t *marsh;           // [tile] water: 2 the sea's, 1 a river's or a pond's all under water and not frozen (marsh), 0 other inland water
+    uint8_t *kind;            // [tile] a preview's tile kinds (MG_K_*: the game's rules, mg_kinds) - the game's map has its own
+    int16_t *tex;             // [tile] its ground texture
+    uint8_t *obj;             // [tile] a preview's object there: its kind (MG_GOLD ...) + 1, 0 none
+    uint8_t *rock;            // [tile] a preview's cliff texture there: its cliff type + 1, 0 none (mg_cliff_run)
+    float *z;                 // [corner] the heights handed to the game's map (tiles)
     float half;               // n / 2: u and v reach that far
     int np;                   // the players that play
     int sx[MG_PLAYERS], sy[MG_PLAYERS];   // their starts (a tile corner: the Capitol's middle)
@@ -216,12 +221,28 @@ internal float mg_step(float lo, float hi, float v) {   // 0 below lo, 1 above h
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     return t * t * (3 - 2 * t);
 }
-internal inline int mg_corner(const struct mg *g, int x, int y) { return x >= 0 && y >= 0 && x <= g->n && y <= g->n && map_corner(g->map, x, y); }
+// a corner of the map: the game's map's, a preview's the diamond the game's has (u and v within half the side)
+internal inline int mg_corner(const struct mg *g, int x, int y) {
+    if (x < 0 || y < 0 || x > g->n || y > g->n) return 0;
+    return g->map ? map_corner(g->map, x, y) != NULL : fabsf((float)(x - y)) <= g->half && fabsf((float)(x + y - g->n)) <= g->half;
+}
 internal inline ee_tile *mg_tile(const struct mg *g, int x, int y) { return x >= 0 && y >= 0 && x < g->n && y < g->n ? map_get_tiles(g->map)[y * g->n + x] : NULL; }
+// a tile of the map (a preview's: its four corners are)
+internal inline int mg_on(const struct mg *g, int x, int y) {
+    if (g->map) return mg_tile(g, x, y) != NULL;
+    return x >= 0 && y >= 0 && x < g->n && y < g->n && mg_corner(g, x, y) && mg_corner(g, x + 1, y) && mg_corner(g, x, y + 1) && mg_corner(g, x + 1, y + 1);
+}
+// what a tile is to a walker: the game's map's kind, a preview's by the game's rules (mg_kinds)
+enum { MG_K_OFF, MG_K_LAND, MG_K_SHALLOWS, MG_K_DEEP, MG_K_CLIFF };
+internal int mg_kind(const struct mg *g, int x, int y) {
+    if (!g->map) return x >= 0 && y >= 0 && x < g->n && y < g->n ? g->kind[y * g->n + x] : MG_K_OFF;
+    ee_tile *t = mg_tile(g, x, y);
+    return !t ? MG_K_OFF : tile_is_cliff(t) ? MG_K_CLIFF : tile_is_deep(t) ? MG_K_DEEP : tile_is_shallows(t) ? MG_K_SHALLOWS : MG_K_LAND;
+}
 internal inline float mg_f(const struct mg *g, int x, int y) { return mg_corner(g, x, y) ? g->f[y * g->m + x] : -99.0f; }
 // a tile's lowest and highest corner (height steps); 0: no tile there
 internal int mg_tile_span(const struct mg *g, int x, int y, float *lo, float *hi) {
-    if (!mg_tile(g, x, y) || !mg_corner(g, x + 1, y) || !mg_corner(g, x, y + 1) || !mg_corner(g, x + 1, y + 1)) return 0;
+    if (!mg_on(g, x, y) || !mg_corner(g, x + 1, y) || !mg_corner(g, x, y + 1) || !mg_corner(g, x + 1, y + 1)) return 0;
     const float *h = g->h + y * g->m + x;
     *lo = fminf(fminf(h[0], h[1]), fminf(h[g->m], h[g->m + 1]));
     *hi = fmaxf(fmaxf(h[0], h[1]), fmaxf(h[g->m], h[g->m + 1]));
@@ -504,7 +525,7 @@ internal void mg_yards(struct mg *g) {
                 if (!mg_corner(g, x, y)) continue;
                 float d = sqrtf((float)((x - bx) * (x - bx) + (y - by) * (y - by))), w = 1 - mg_step(7, 11, d);
                 g->h[y * g->m + x] += (1.0f - g->h[y * g->m + x]) * w;
-                if (d < 7 && mg_tile(g, x, y)) g->used[y * g->n + x] = 1;
+                if (d < 7 && mg_on(g, x, y)) g->used[y * g->n + x] = 1;
             }
     }
 }
@@ -566,7 +587,7 @@ internal int mg_river(struct mg *g, int mountain, int fx, int fy) {
                 float ex = (float)cx - px[i], ey = (float)cy - py[i], d = fmaxf(0, sqrtf(ex * ex + ey * ey) - pond);
                 float bed = d < 1.4f ? fmaxf(-0.95f, -1.9f + 1.407f * d) : 0.1f + 0.3f * (d - 1.5f) + g->mt[cy * g->m + cx] + g->plat[cy * g->m + cx];   // a mountain's flank and a plateau stay
                 if (bed < g->h[cy * g->m + cx]) g->h[cy * g->m + cx] = bed;
-                if (d < 3 && mg_tile(g, cx, cy) && !g->used[cy * g->n + cx]) g->used[cy * g->n + cx] = 1;
+                if (d < 3 && mg_on(g, cx, cy) && !g->used[cy * g->n + cx]) g->used[cy * g->n + cx] = 1;
             }
     }
     for (int i = fx < 0 ? mg_int(g, 6, 10) : mg_int(g, 13, 16); i < len - (joined ? 4 : 7) && g->fords < MG_FORDS - 16; i += mg_int(g, 12, 18)) {
@@ -585,7 +606,7 @@ internal void mg_basin(struct mg *g, int x0, int y0, int r, float deep) {
             float s = 1 - d * (0.75f + 0.5f * mg_fbm((float)cx * 0.15f, (float)cy * 0.15f, g->seed + 80)) / (float)r;
             float bed = s > 0 ? -deep * mg_step(0, 0.6f, s) : -s * (float)r * 0.5f;
             if (bed < g->h[cy * g->m + cx]) g->h[cy * g->m + cx] = bed;
-            if (s > -1.5f / (float)r && mg_tile(g, cx, cy)) g->used[cy * g->n + cx] = 1;
+            if (s > -1.5f / (float)r && mg_on(g, cx, cy)) g->used[cy * g->n + cx] = 1;
         }
 }
 // the moisture a place has of the noise alone - before the water near it and the mountains' rain shadow (mg_biomes)
@@ -665,7 +686,7 @@ internal void mg_ford_lay(struct mg *g, int k) {
             if (!mg_corner(g, cx, cy) || d > 3.0f) continue;
             float bed = -0.4f - 0.55f * mg_step(2.2f, 3.0f, d);
             if (g->h[cy * g->m + cx] < bed) g->h[cy * g->m + cx] = bed;
-            if (mg_tile(g, cx, cy) && d < 2.0f) g->used[cy * g->n + cx] = 2;
+            if (mg_on(g, cx, cy) && d < 2.0f) g->used[cy * g->n + cx] = 2;
         }
 }
 internal void mg_fords(struct mg *g) {
@@ -688,8 +709,8 @@ internal void mg_walk(const struct mg *g, int x0, int y0, uint8_t *seen, int *qu
         head++;
         for (int k = 0; k < 9; k++) {
             int tx = x + k % 3 - 1, ty = y + k / 3 - 1;
-            ee_tile *t = mg_tile(g, tx, ty);
-            if (!t || seen[ty * n + tx] || tile_is_deep(t) || tile_is_cliff(t)) continue;
+            int kind = mg_kind(g, tx, ty);
+            if (kind == MG_K_OFF || seen[ty * n + tx] || kind == MG_K_DEEP || kind == MG_K_CLIFF) continue;
             seen[ty * n + tx] = mark;
             queue[tail++] = ty * n + tx;
         }
@@ -710,10 +731,10 @@ internal int mg_ford_way(struct mg *g, const uint8_t *seen, uint8_t mark, int to
             int x = queue[head] % n, y = queue[head] / n;
             for (int k = 0; k < 9; k++) {
                 int tx = x + k % 3 - 1, ty = y + k / 3 - 1, at = ty * n + tx;
-                ee_tile *t = mg_tile(g, tx, ty);
+                int kind = mg_kind(g, tx, ty);
                 float lo, hi;
-                if (!t || cost[at] != 255 || tile_is_cliff(t)) continue;
-                if (!tile_is_deep(t)) { cost[at] = (uint8_t)level; from[at] = queue[head]; queue[tail++] = at; }
+                if (kind == MG_K_OFF || cost[at] != 255 || kind == MG_K_CLIFF) continue;
+                if (kind != MG_K_DEEP) { cost[at] = (uint8_t)level; from[at] = queue[head]; queue[tail++] = at; }
                 else if (mg_f(g, tx, ty) > 0.5f && mg_tile_span(g, tx, ty, &lo, &hi) && lo >= -1.0f) { cost[at] = (uint8_t)(level + 1); from[at] = queue[head]; next[more++] = at; }
             }
         }
@@ -723,7 +744,7 @@ internal int mg_ford_way(struct mg *g, const uint8_t *seen, uint8_t mark, int to
     if (cost[target] == 255) return 0;
     // back along the way: a ford at the middle of each run of deep tiles
     for (int i = target, run = 0, sx = 0, sy = 0; i >= 0; i = from[i]) {
-        int deep = tile_is_deep(mg_tile(g, i % n, i / n));
+        int deep = mg_kind(g, i % n, i / n) == MG_K_DEEP;
         if (deep) { run++; sx += i % n; sy += i / n; continue; }
         if (run && g->fords < MG_FORDS) {
             g->ford[g->fords].x = (float)sx / (float)run + 0.5f; g->ford[g->fords].y = (float)sy / (float)run + 0.5f;
@@ -755,14 +776,13 @@ internal int mg_afoot(struct mg *g, int mend) {
         mg_walk(g, g->sx[i], g->sy[i], seen, queue, mark);
     }
     for (int i = 0; seen && i < n * n; i++) {
-        ee_tile *t = map_get_tiles(g->map)[i];
-        int land = t && !tile_is_deep(t) && !tile_is_shallows(t) && !tile_is_cliff(t);
+        int land = mg_kind(g, i % n, i / n) == MG_K_LAND;
         g->walkable += land;
         g->walked += land && seen[i];
     }
     for (int k = 0; k < g->fords; k++) {
-        ee_tile *t = g->ford[k].x < 0 ? NULL : mg_tile(g, (int)g->ford[k].x, (int)g->ford[k].y);
-        g->fords_ok += t && !tile_is_deep(t) && !tile_is_cliff(t);
+        int kind = g->ford[k].x < 0 ? MG_K_OFF : mg_kind(g, (int)g->ford[k].x, (int)g->ford[k].y);
+        g->fords_ok += kind != MG_K_OFF && kind != MG_K_DEEP && kind != MG_K_CLIFF;
     }
     free(queue); free(from); free(seen); free(cost);
     return laid;
@@ -787,7 +807,7 @@ internal void mg_biomes(struct mg *g) {
         static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
         for (int s = 0; s < 4 && wd[i] < 8; s++) {
             int nx = x + side[s][0], ny = y + side[s][1];
-            if (!mg_tile(g, nx, ny) || wd[ny * n + nx] != 255) continue;
+            if (!mg_on(g, nx, ny) || wd[ny * n + nx] != 255) continue;
             wd[ny * n + nx] = (uint8_t)(wd[i] + 1);
             queue[tail++] = ny * n + nx;
         }
@@ -805,7 +825,7 @@ internal void mg_biomes(struct mg *g) {
         static const int8_t side[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
         for (int s = 0; s < 4; s++) {
             int nx = x + side[s][0], ny = y + side[s][1], j = ny * n + nx;
-            if (!mg_tile(g, nx, ny) || wd[j] || sea[j]) continue;
+            if (!mg_on(g, nx, ny) || wd[j] || sea[j]) continue;
             if (fminf(fminf(mg_f(g, nx, ny), mg_f(g, nx + 1, ny)), fminf(mg_f(g, nx, ny + 1), mg_f(g, nx + 1, ny + 1))) >= 0) continue;
             sea[j] = 2;
             queue[tail++] = j;
@@ -846,7 +866,7 @@ internal void mg_biomes(struct mg *g) {
 // of their own, Grass 0). A name the data hasn't got, or a land texture whose kind is water's or a cliff's: the
 // biome's plain one, Grass for that - told in the log.
 internal void mg_textures_load(struct mg *g) {
-    int grass = terrain_named("Grass"), def = grass >= 0 ? grass : map_get_default_terrain(g->map), bad = 0;
+    int grass = terrain_named("Grass"), def = grass >= 0 ? grass : g->map ? map_get_default_terrain(g->map) : 0, bad = 0;
     char names[400] = "";
 #define MG_TEX(to, name, land) do { \
         int t_ = terrain_named(name); \
@@ -896,6 +916,50 @@ internal void mg_textures_load(struct mg *g) {
         log_locked("# mapgen: %d ground textures not used (not in the data, or a water's or a cliff's kind of tile): %s; %d tree and animal types not in the data\n",
                    bad, names, g->types_missing);
 }
+// a tile's ground texture: the game's map's (its tile's kind follows the texture's), a preview's own
+internal void mg_set_tex(struct mg *g, int x, int y, int tex) {
+    g->tex[y * g->n + x] = (int16_t)tex;
+    if (g->map) map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)tex);
+}
+// a preview's tile kinds by the game's rules (spec map.kind_water, kind_shallows): under the water - fewer than 3
+// corners at its level or above - deep below 0.75 steps, shallows above; the cliffs come after (mg_cliff_run)
+internal void mg_kinds(struct mg *g) {
+    int n = g->n;
+    for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++) {
+            float lo, hi;
+            uint8_t *k = &g->kind[y * n + x];
+            if (!mg_tile_span(g, x, y, &lo, &hi)) { *k = MG_K_OFF; continue; }
+            const float *h = g->h + y * g->m + x;
+            int dry = (h[0] >= 0) + (h[1] >= 0) + (h[g->m] >= 0) + (h[g->m + 1] >= 0);
+            *k = lo < 0 && dry < 3 ? (lo < -0.75f ? MG_K_DEEP : MG_K_SHALLOWS) : MG_K_LAND;
+        }
+    memset(g->rock, 0, (size_t)(n * n));
+}
+// a preview's cliffs of a run of row y's tiles (x0 .. x1 - 1) of one cliff type, as the game's cliff pass makes them
+// for that run (0x512FB0, mg_steps calls it as map_cliffs_run): first a tile whose highest corner is a step up at
+// least and whose corners differ by 1.5 steps (less 0.0001) is a cliff, its 2 x 2 block (x - 1 .. x, y - 1 .. y) the
+// type's textures (g->rock: the type + 1); then a tile of the run with 3 of its block off the map or of this type's
+// textures laid so far is one too
+internal void mg_cliff_run(struct mg *g, int x0, int x1, int y, int type) {
+    int n = g->n;
+    for (int x = x0; x < x1; x++) {
+        float lo, hi;
+        if (!mg_tile_span(g, x, y, &lo, &hi) || hi < 1.0f || hi - lo < 1.4999f) continue;
+        g->kind[y * n + x] = MG_K_CLIFF;
+        for (int j = 0; j < 4; j++)
+            if (mg_on(g, x - (j & 1), y - (j >> 1))) g->rock[(y - (j >> 1)) * n + x - (j & 1)] = (uint8_t)(type + 1);
+    }
+    for (int x = x0; x < x1; x++) {
+        int block = 0, k = g->kind[y * n + x];
+        if (k == MG_K_OFF || k == MG_K_CLIFF) continue;
+        for (int j = 0; j < 4; j++) {
+            int bx = x - (j & 1), by = y - (j >> 1);
+            block += !mg_on(g, bx, by) || g->rock[by * n + bx] == type + 1;
+        }
+        if (block >= 3) g->kind[y * n + x] = MG_K_CLIFF;
+    }
+}
 internal void mg_textures(struct mg *g) {
     for (int y = 0; y < g->n; y++)
         for (int x = 0; x < g->n; x++) {
@@ -925,7 +989,7 @@ internal void mg_textures(struct mg *g) {
                 g->biome_tiles[b]++;
                 g->mountain += g->mt[y * g->m + x] > 2.0f;
             }
-            map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)tex);
+            mg_set_tex(g, x, y, tex);
         }
 }
 
@@ -933,13 +997,15 @@ internal void mg_textures(struct mg *g) {
 // within 0.8 of each other), no cliff, not taken and not up a mountain (its foot only: what the plain reaches).
 internal int mg_free(const struct mg *g, int x, int y) {
     float lo, hi;
-    return mg_tile_span(g, x, y, &lo, &hi) && !g->used[y * g->n + x] && lo >= 0.3f && hi - lo < 0.8f && g->mt[y * g->m + x] < 1.4f && !tile_is_cliff(mg_tile(g, x, y));
+    return mg_tile_span(g, x, y, &lo, &hi) && !g->used[y * g->n + x] && lo >= 0.3f && hi - lo < 0.8f && g->mt[y * g->m + x] < 1.4f && mg_kind(g, x, y) != MG_K_CLIFF;
 }
-internal ee_unit *mg_object(struct mg *g, int type, int x, int y, float angle, int kind) {
+// an object of the world's: the game's unit, a preview's mark on its tile -> 1 made
+internal int mg_object(struct mg *g, int type, int x, int y, float angle, int kind) {
     ee_unit_type *t = type >= 0 ? type_data(type) : NULL;
-    ee_unit *u = t ? unit_type_create_on(t, g->world, x, y, g->map, angle) : NULL;
-    if (u) g->made[kind]++;
-    return u;
+    int made = !t ? 0 : g->map ? unit_type_create_on(t, g->world, x, y, g->map, angle) != NULL : 1;
+    if (made && !g->map) g->obj[y * g->n + x] = (uint8_t)(kind + 1);
+    g->made[kind] += made;
+    return made;
 }
 internal int mg_spot_far(const struct mg *g, int x, int y, int apart) {
     for (int i = 0; i < g->nspot; i++) {
@@ -981,7 +1047,7 @@ internal int mg_mine(struct mg *g, int kind, int x, int y) {
     for (int k = 0; k < 5; k++) {
         int tx = x + side[k][0], ty = y + side[k][1];
         if (!mg_free(g, tx, ty)) continue;
-        if (!k) map_reset_tile(g->map, (uint32_t)tx, (uint32_t)ty, (uint32_t)tex);
+        if (!k) mg_set_tex(g, tx, ty, tex);
         g->used[ty * g->n + tx] = 1;
     }
     mg_spot_add(g, x, y);
@@ -1033,7 +1099,7 @@ internal void mg_forest(struct mg *g, int x, int y, int grove) {
         tx[n] = nx; ty[n] = ny; n++;
     }
     for (int i = 0; i < n; i++) {
-        map_reset_tile(g->map, (uint32_t)tx[i], (uint32_t)ty[i], (uint32_t)g->tex_wood[b]);
+        mg_set_tex(g, tx[i], ty[i], g->tex_wood[b]);
         if (mg_int(g, 0, 9)) mg_object(g, trees[mg_int(g, 0, kinds - 1)], tx[i], ty[i], mg_rnd(g) * 6.2831853f, MG_TREE);
     }
     g->forests++;
@@ -1102,7 +1168,7 @@ internal void mg_objects(struct mg *g) {
                 g->used[y * g->n + x] = 1;
                 b = g->clim[y * g->n + x];
                 if (g->ntree[b] && mg_int(g, 0, 3) == 0) {
-                    map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)g->tex_wood[b]);
+                    mg_set_tex(g, x, y, g->tex_wood[b]);
                     mg_object(g, g->tree[b][mg_int(g, 0, g->ntree[b] - 1)], x, y, mg_rnd(g) * 6.2831853f, MG_TREE);
                 }
             }
@@ -1195,7 +1261,7 @@ internal void mg_scatter(struct mg *g) {
     for (int y = 0; y < n; y++)
         for (int x = 0; x < n; x++) {
             float lo, hi, beach, width, bluff, rocky;
-            if (!mg_tile_span(g, x, y, &lo, &hi) || tile_is_cliff(mg_tile(g, x, y))) continue;
+            if (!mg_tile_span(g, x, y, &lo, &hi) || mg_kind(g, x, y) == MG_K_CLIFF) continue;
             int b = g->clim[y * n + x], water = g->marsh[y * n + x], set = -1, patchy = 0;
             if (lo < 0) {
                 if (water == 1) set = lo > -1.0f && g->used[y * n + x] != 2 ? MG_SC_LILIES : -1;   // none on a ford
@@ -1203,7 +1269,7 @@ internal void mg_scatter(struct mg *g) {
             } else if (g->used[y * n + x] == 1) {
                 // a bank: land beside a river's or a lake's open water
                 for (int k = 0; k < 4 && set < 0; k++)
-                    if (mg_tile(g, x + side[k][0], y + side[k][1]) && g->marsh[(y + side[k][1]) * n + x + side[k][0]] == 1) set = MG_SC_REEDS;
+                    if (mg_on(g, x + side[k][0], y + side[k][1]) && g->marsh[(y + side[k][1]) * n + x + side[k][0]] == 1) set = MG_SC_REEDS;
                 if (set >= 0 && mg_start_dist(g, (float)x, (float)y) < 9) set = -1;   // not in a start's yard
             } else if (!g->used[y * n + x] && lo >= 0.05f) {
                 mg_coast(g, x, y, &beach, &width, &bluff, &rocky);
@@ -1229,37 +1295,36 @@ internal ee_unit *mapgen_unit(int type, ee_player *pl, float x, float y, ee_map 
     return u;
 }
 
-// THE MAP MADE, step by step. players: the game's vector of the players that play, the world first; human: this PC's
-// index in it (0: none); start: where its view begins
-internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32_t seed, ee_map *map, float *start) {
-    ee_player **pb = FIELD(players, 4, ee_player **), **pe = FIELD(players, 8, ee_player **);
-    int count = pb ? (int)(pe - pb) : 0, n = (int)map_get_size(map), units = 0;
-    struct mg *g = calloc(1, sizeof *g);
-    float *z = NULL;
-    if (g) {
-        g->map = map; g->n = n; g->m = n + 1; g->half = (float)n * 0.5f;
-        g->seed = seed; g->rng = seed * 2654435761u | 1;
-        mg_options(g, setup);
-        g->world = count ? pb[0] : NULL;
-        g->np = count - 1 > MG_PLAYERS ? MG_PLAYERS : count - 1;
-        g->f = calloc((size_t)(g->m * g->m), sizeof *g->f);
-        g->h = calloc((size_t)(g->m * g->m), sizeof *g->h);
-        g->mt = calloc((size_t)(g->m * g->m), sizeof *g->mt);
-        g->range = calloc((size_t)(g->m * g->m), 1);
-        g->foot = calloc((size_t)(g->m * g->m), sizeof *g->foot);
-        g->plat = calloc((size_t)(g->m * g->m), sizeof *g->plat);
-        g->fjord = calloc((size_t)(g->m * g->m), sizeof *g->fjord);
-        g->used = calloc((size_t)(n * n), 1);
-        g->clim = calloc((size_t)(n * n), 1);
-        g->marsh = calloc((size_t)(n * n), 1);
-        z = calloc((size_t)(g->m * g->m), sizeof *z);
-    }
-    if (!g || !g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !z || g->np < 1 || !g->world) {
-        notice("mapgen", "the map type \"%s\" could not be made (%d players, %d tiles a side) - an empty map instead", MG_NAME, count - 1, n);
-        start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
-        return 0;
-    }
-    mg_options_log(g);
+// THE GENERATOR for a map of n tiles a side and np players: its state and arrays (map: the game's new map, NULL a
+// preview); NULL: no memory
+internal void mg_delete(struct mg *g) {
+    if (!g) return;
+    free(g->f); free(g->h); free(g->mt); free(g->range); free(g->foot); free(g->plat); free(g->fjord); free(g->used); free(g->clim);
+    free(g->marsh); free(g->kind); free(g->tex); free(g->obj); free(g->rock); free(g->z); free(g);
+}
+internal struct mg *mg_new(ee_map *map, int n, int np, uint32_t seed, const ee_setup *setup) {
+    struct mg *g = n > 0 && np > 0 ? calloc(1, sizeof *g) : NULL;
+    if (!g) return NULL;
+    g->map = map; g->n = n; g->m = n + 1; g->half = (float)n * 0.5f;
+    g->seed = seed; g->rng = seed * 2654435761u | 1;
+    g->np = np > MG_PLAYERS ? MG_PLAYERS : np;
+    mg_options(g, setup);
+    size_t c = (size_t)(g->m * g->m), t = (size_t)(n * n);
+    g->f = calloc(c, sizeof *g->f); g->h = calloc(c, sizeof *g->h); g->mt = calloc(c, sizeof *g->mt); g->range = calloc(c, 1);
+    g->foot = calloc(c, sizeof *g->foot); g->plat = calloc(c, sizeof *g->plat); g->fjord = calloc(c, sizeof *g->fjord);
+    g->used = calloc(t, 1); g->clim = calloc(t, 1); g->marsh = calloc(t, 1); g->tex = calloc(t, sizeof *g->tex);
+    g->kind = map ? NULL : calloc(t, 1); g->obj = map ? NULL : calloc(t, 1); g->rock = map ? NULL : calloc(t, 1); g->z = map ? calloc(c, sizeof *g->z) : NULL;
+    if (!g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !g->tex
+        || (map ? !g->z : !g->kind || !g->obj || !g->rock)) { mg_delete(g); return NULL; }
+    return g;
+}
+
+// THE MAP MADE, step by step - but for the start units: into the game's map, or a preview's into the generator's own
+// arrays by the same steps and draws (the map OK will make), without the ground's scatter (last of all: nothing
+// after it to keep the same)
+internal void mg_steps(struct mg *g) {
+    int n = g->n;
+    if (g->map) mg_options_log(g);
     mg_land(g);
     mg_starts(g);
     for (int want = mg_amount(2 + n / 100, g->opt.mountains), t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1, t / 10000);
@@ -1273,38 +1338,55 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
         for (int t = 0, was = g->rivers; t < 40 && g->rivers == was; t++) g->rivers += mg_river(g, 0, g->lake[k].x, g->lake[k].y);
     for (int want = g->rivers + mg_amount(2 + n / 60, g->opt.rivers), t = 0; g->rivers < want && t < 6000; t++) g->rivers += mg_river(g, t < 3000, -1, -1);   // from the mountains while such are found
     mg_fords(g);
-    float step = map_get_height_step(map);
+    float step = g->map ? map_get_height_step(g->map) : 1;
     mg_textures_load(g);
     // the ground, its textures and cliffs - and, once the game has given the tiles their kinds, the way on foot
     // between a continent's starts: where one is cut off, fords are laid for it and the ground is made again
     for (int pass = 0; ; pass++) {
         for (int i = 0; i < g->m * g->m; i++) {
             if (g->h[i] > -0.05f && g->h[i] < 0) g->h[i] = 0;   // no film of water
-            z[i] = g->h[i] * step;
+            if (g->map) g->z[i] = g->h[i] * step;
         }
-        map_ground_set(map, z);
+        if (g->map) map_ground_set(g->map, g->z);
         mg_biomes(g);
         g->land = g->water = g->mountain = 0;
         memset(g->biome_tiles, 0, sizeof g->biome_tiles);
         mg_textures(g);
         // the cliffs, a row's runs of one type at a time: a mountain's and a plateau's all of its own type, the others (the coasts')
         // the winter's in the cold biomes and the data's default else
+        if (!g->map) mg_kinds(g);
         for (int y = 0; y < n; y++)
             for (int x = 0, x0 = 0, type = -1; x <= n; x++) {
                 int r = x < n && (g->mt[y * g->m + x] > 0.3f || g->plat[y * g->m + x] > 0.3f) ? g->range[y * g->m + x] : 0;
                 int t = x == n ? -1 : r ? g->range_cliffs[r - 1] : g->clim[y * n + x] < 3 ? CLIFFS_WINTER : CLIFFS_DEFAULT;
                 if (t == type) continue;
-                if (type >= 0) map_cliffs_run(map, x0, x, y, type);
+                if (type >= 0 && g->map) map_cliffs_run(g->map, x0, x, y, type);
+                else if (type >= 0) mg_cliff_run(g, x0, x, y, type);
                 x0 = x; type = t;
             }
         int laid = mg_afoot(g, pass < 3);
         if (!laid) break;
         g->mended += laid;
     }
-    for (int i = 0; i < n * n; i++) g->cliffs += map_get_tiles(map)[i] && tile_is_cliff(map_get_tiles(map)[i]);
-    map_set_flags(map, 1);   // as the game's island maps have it (Continental 0, the island types 1, Plains 2): the players are apart by water
+    for (int i = 0; i < n * n; i++) g->cliffs += mg_kind(g, i % n, i / n) == MG_K_CLIFF;
+    if (g->map) map_set_flags(g->map, 1);   // as the game's island maps have it (Continental 0, the island types 1, Plains 2): the players are apart by water
     mg_objects(g);
-    mg_scatter(g);
+    if (g->map) mg_scatter(g);
+}
+
+// THE GAME'S MAP MADE. players: the game's vector of the players that play, the world first; human: this PC's index in
+// it (0: none); start: where its view begins
+internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32_t seed, ee_map *map, float *start) {
+    ee_player **pb = FIELD(players, 4, ee_player **), **pe = FIELD(players, 8, ee_player **);
+    int count = pb ? (int)(pe - pb) : 0, n = (int)map_get_size(map), units = 0;
+    struct mg *g = count > 1 ? mg_new(map, n, count - 1, seed, setup) : NULL;
+    if (!g) {
+        notice("mapgen", "the map type \"%s\" could not be made (%d players, %d tiles a side) - an empty map instead", MG_NAME, count - 1, n);
+        start[0] = start[1] = (float)n * 0.5f; start[2] = 0;
+        return 0;
+    }
+    g->world = pb[0];
+    mg_steps(g);
     start[0] = start[1] = g->half + 0.5f;
     for (int i = 0; i < g->np; i++) {
         ee_player *pl = pb[i + 1];
@@ -1330,9 +1412,81 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
         fprintf(g_log, "\n");
         LeaveCriticalSection(&g_lock);
     }
-    free(z); free(g->f); free(g->h); free(g->mt); free(g->range); free(g->foot); free(g->plat); free(g->fjord); free(g->used); free(g->clim); free(g->marsh); free(g);
+    mg_delete(g);
     return 0;
 }
+
+// THE PREVIEW (the player 2026-11-25: the options' dialog shows what they make): the map of n tiles a side for np
+// players from seed, by the same steps into the generator's own arrays - no game's map, no units: in the editor the
+// map OK makes (its seed is drawn before): the game's tile kinds by its rules (mg_kinds, mg_cliff_run), so that the
+// walks, the fords and the free tiles come out alike - on four maps of 150 - 440 tiles every lake, river, mine and
+// forest where the preview had it; the game counted fewer cliff tiles (620 against 901 on one: none of them in the
+// way of what is laid; the map's diamond edge a guess, mg_corner) - painted top down into px, size x size (a 32-bit DIB's 0x00RRGGBB,
+// the top row first): the far end, the north, up, the continents left and right as the game's minimap shows them. A
+// tile's colour: its biome's ground (a forest darker), the sea deeper darker, shallows and inland water lighter, a
+// mountain toward rock, a cliff dark, lit from the north-west by its corners' heights; the mines as dots (gold
+// yellow, iron red, stone grey, forage purple), the starts as white squares. -> what was made (log line), 0 no memory
+internal int mapgen_preview(int n, int np, uint32_t seed, uint32_t *px, int size, char *what, int cap) {
+    static const uint8_t land[MG_BIOMES][3] = { { 236, 240, 244 }, { 214, 222, 218 }, { 196, 208, 200 }, { 190, 178, 120 }, { 120, 165, 80 },
+                                                { 95, 150, 70 }, { 226, 204, 150 }, { 196, 176, 100 }, { 70, 155, 70 } };
+    static const uint32_t dot[4] = { 0xFFD400, 0xC84828, 0xB4B4B4, 0xB040B0 };   // gold, iron, stone, forage
+    struct mg *g = mg_new(NULL, n, np, seed, NULL);
+    if (!g) return 0;
+    mg_steps(g);
+    float half = g->half, scale = (float)n / (float)size;
+    for (int j = 0; j < size; j++)
+        for (int i = 0; i < size; i++) {
+            float u = ((float)j + 0.5f) * scale - half, v = ((float)i + 0.5f) * scale - half;
+            int x = (int)floorf((u + v + (float)n) * 0.5f), y = (int)floorf((v + (float)n - u) * 0.5f);
+            uint32_t *o = &px[j * size + i];
+            float lo, hi;
+            if (!mg_tile_span(g, x, y, &lo, &hi)) { *o = 0x202020; continue; }
+            int t = y * n + x, b = g->clim[t], kind = g->kind[t];
+            float c[3], *hc = g->h + y * g->m + x;
+            for (int k = 0; k < 3; k++) c[k] = land[b][k];
+            if (kind == MG_K_DEEP || kind == MG_K_SHALLOWS) {
+                float d = mg_step(-0.75f, -5.0f, lo);
+                static const float sea[2][3] = { { 70, 128, 178 }, { 22, 50, 104 } }, inland[3] = { 72, 122, 150 };
+                for (int k = 0; k < 3; k++) c[k] = g->marsh[t] == 2 || kind == MG_K_DEEP ? sea[0][k] + (sea[1][k] - sea[0][k]) * d : inland[k];
+            } else if (kind == MG_K_CLIFF) {
+                c[0] = 96; c[1] = 86; c[2] = 76;
+            } else {
+                if (g->tex[t] == g->tex_shore[b] && g->tex_shore[b] >= 0) { c[0] = 222; c[1] = 206; c[2] = 160; }
+                else if (g->tex[t] == g->tex_pebbles && g->tex_pebbles >= 0) { c[0] = 160; c[1] = 150; c[2] = 130; }
+                if (g->obj[t] == MG_TREE + 1) { c[0] *= 0.45f; c[1] *= 0.62f; c[2] *= 0.45f; }
+                float rock = 0.7f * mg_step(2, 7, g->mt[y * g->m + x]);
+                if (b >= 3) for (int k = 0; k < 3; k++) c[k] += (125 - c[k]) * rock;
+                float shade = 1 - 0.16f * ((hc[g->m] - hc[1]) + (hc[0] - hc[g->m + 1]));   // the north corner minus the south one, the west minus the east
+                shade = shade < 0.55f ? 0.55f : shade > 1.35f ? 1.35f : shade;
+                for (int k = 0; k < 3; k++) c[k] *= shade;
+            }
+            uint32_t r = (uint32_t)fminf(255, c[0]), gg = (uint32_t)fminf(255, c[1]), bb = (uint32_t)fminf(255, c[2]);
+            *o = r << 16 | gg << 8 | bb;
+        }
+    // the mines and the starts over it: at their tiles' middles
+    int rad = size / 220 > 0 ? size / 220 : 1;
+    for (int t = 0; t < n * n + g->np; t++) {
+        int x, y, r = rad;
+        uint32_t col;
+        if (t < n * n) {
+            int o = g->obj[t] - 1;
+            if (o < MG_GOLD || o > MG_FORAGE) continue;
+            x = t % n; y = t / n; col = dot[o];
+        } else { x = g->sx[t - n * n]; y = g->sy[t - n * n]; col = 0xFFFFFF; r = rad + 2; }
+        float u = (float)(x - y), v = (float)(x + y + 1 - n);
+        int ci = (int)((v + half) / scale), cj = (int)((u + half) / scale);
+        for (int dj = -r - 1; dj <= r + 1; dj++)
+            for (int di = -r - 1; di <= r + 1; di++) {
+                int pi = ci + di, pj = cj + dj, edge = abs(di) > r || abs(dj) > r;
+                if (pi >= 0 && pj >= 0 && pi < size && pj < size) px[pj * size + pi] = edge ? 0x101010 : col;
+            }
+    }
+    snprintf(what, (size_t)cap, "%d land tiles, %d cliff tiles, %d ranges, %d lakes, %d rivers, %d islands, gold %d iron %d stone %d, %d forests",
+             g->land, g->cliffs, g->ranges, g->lakes, g->rivers, g->islands, g->made[MG_GOLD], g->made[MG_IRON], g->made[MG_STONE], g->forests);
+    mg_delete(g);
+    return 1;
+}
+
 internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int human, void *name, uint32_t seed, ee_map *map, float *start) {
     if (mapgen_is_ours(name ? FIELD(name, 4, const char *) : NULL)) return mapgen_make(setup, players, human, seed, map, start);
     int r = random_map_create(setup, players, human, name, seed, map, start);

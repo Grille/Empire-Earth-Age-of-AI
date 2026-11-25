@@ -853,6 +853,21 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   OK makes the map and writes the choices into ageofai.ini (a test: its own ini's [autotest]), Cancel makes none. A
   multiplayer game plays the defaults until the host's choices travel with the setup. The log: `# mapgen: "Age of
   AI" options: ...` before each map, `# mapgen: the options' dialog ...` after the dialog.
+- **Its preview** (the player 2026-11-25): the dialog shows the map beside the options, made anew at each change
+  (dll/engine/mapgen.c mapgen_preview: 15 ms on 150 tiles a side, 95 ms on 440). The generator's steps run with no
+  game's map (g->map NULL): heights, textures, objects into its own arrays, no units, no ground scatter - and the
+  game's tile kinds by its own rules, since the walks, the fords and the free tiles depend on them: water deep below
+  0.75 steps under, shallows above (with fewer than 3 corners at the water's level), and the cliff pass (0x512FB0)
+  as the game runs it, once per run of one cliff type in a row: a tile whose highest corner is a step up and whose
+  corners differ by 1.5 steps (less 0.0001) is a cliff and gives its 2 x 2 block (x - 1 .. x, y - 1 .. y) the type's
+  textures; then a tile of the run with 3 of its block off the map or of that type's textures so far is one too. In
+  the editor the dialog has the map's size from the Create Map action (its map_scale +0xC), the seed it will use
+  (the ui's seed, drawn by the panel before; New seed draws another, which the map then takes) and the scenario's
+  players (editor.world_player_count, 0x918E8C: the Players screen's count + 1 - before Create Map runs the game's 17
+  slots all look alike). Checked on four maps of 150 - 440 tiles: every lake, river, mine and forest as the preview
+  had it; the game counts fewer cliff tiles (620 against 901). The picture: the far end (north) up, the biomes'
+  ground, forests darker, the sea by its depth, mountains toward rock, lit from the north-west, mines as dots, starts
+  white.
 
 ## Unit AI scripts (.tai)
 

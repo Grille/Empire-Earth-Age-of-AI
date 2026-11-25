@@ -20,6 +20,12 @@ internal se_blank_map_init_fn fn_se_blank_map_init;
 internal inline void *se_blank_map_init(ee_se_blank_map *se_blank_map, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_se_blank_map_init(se_blank_map, p1, p2, p3); }
 
 // class EESEACreateRandomMap (ee_se_random_map)
+// the map's size, a setup.map_scale (0 Tiny ..), its constructor's first argument (the map panel's size list's
+// choice): run copies it into its setup's map_scale (its local setup at -0x46C, this at -0x90: +0x3DC) before
+// map_dims
+internal inline int se_random_map_get_map_scale(const ee_se_random_map *o) { return *(int *)((uint8_t *)o + of_se_random_map_map_scale); }
+internal inline void se_random_map_set_map_scale(ee_se_random_map *o, int v) { *(int *)((uint8_t *)o + of_se_random_map_map_scale) = v; }
+internal inline int *se_random_map_map_scale_at(const ee_se_random_map *o) { return (int *)((uint8_t *)o + of_se_random_map_map_scale); }
 // the map type's index in random_map.types, its constructor's second argument (the map panel's map style list's
 // choice): run hands it to 0x66D650, which gives the type at that index (types + i * 0x38) to the map's maker
 internal inline int se_random_map_get_map_type(const ee_se_random_map *o) { return *(int *)((uint8_t *)o + of_se_random_map_map_type); }
@@ -2578,6 +2584,11 @@ internal inline int patch_editor_open(editor_form_open_fn h) { return patch_vtab
 // static class editor
 // the listeners told of a change of the ground (a list; what EESEAPaintElevation's end tells, editor_functions.ground_changed)
 internal inline uint8_t *editor_ground_listeners_at(void) { return (uint8_t *)(uintptr_t)data_editor_ground_listeners; }
+// the scenario's players with the world (its Players screen's count + 1: EESEAChangeWorldPlayerCount.run sets it
+// from its +0xC; 3 in a new editor's, whose random map then has 2 starts - read in a game, 2026-11-26)
+internal inline int editor_get_world_player_count(void) { return *(int *)(uint8_t *)(uintptr_t)data_editor_world_player_count; }
+internal inline void editor_set_world_player_count(int v) { *(int *)(uint8_t *)(uintptr_t)data_editor_world_player_count = v; }
+internal inline int *editor_world_player_count_at(void) { return (int *)(uint8_t *)(uintptr_t)data_editor_world_player_count; }
 // the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
 // 0x58A70E): shown while the panel is
 // the elevation panel's (0x590734)
@@ -2621,6 +2632,7 @@ internal int spec_editor_select(int build) {
         fn_se_blank_map_init = (se_blank_map_init_fn)0x005955C3;
         vt_eesea_create_random_map = 0x00830070;
         size_eesea_create_random_map = 0x14;
+        of_se_random_map_map_scale = 0xC;
         of_se_random_map_map_type = 0x10;
         slot_se_random_map_run = 1;
         fn_eesea_create_random_map_run = (se_random_map_run_fn)0x00596426;
@@ -3213,6 +3225,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0058E30D;
         fn_editor_form_open = (editor_form_open_fn)0x0058F363;
         data_editor_ground_listeners = 0x00918E1C;
+        data_editor_world_player_count = 0x00918E8C;
         value_editor_group_units = 6;
         value_editor_group_elevation = 2;
         value_editor_group_terrain = 3;
@@ -3235,6 +3248,7 @@ internal int spec_editor_select(int build) {
         fn_se_blank_map_init = (se_blank_map_init_fn)0x005A5881;
         vt_eesea_create_random_map = 0x00845944;
         size_eesea_create_random_map = 0x14;
+        of_se_random_map_map_scale = 0xC;
         of_se_random_map_map_type = 0x10;
         slot_se_random_map_run = 1;
         fn_eesea_create_random_map_run = (se_random_map_run_fn)0x005A66E2;
@@ -3827,6 +3841,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0059E72C;
         fn_editor_form_open = (editor_form_open_fn)0x0059F794;
         data_editor_ground_listeners = 0x0093185C;
+        data_editor_world_player_count = 0x009318CC;
         value_editor_group_units = 6;
         value_editor_group_elevation = 2;
         value_editor_group_terrain = 3;
@@ -4418,6 +4433,7 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open");
     bad += spec_slot(vt_eeuif_scenario_editor, slot_ui_form_open, (uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open [slot]");
     bad += spec_data(data_editor_ground_listeners, "editor.ground_listeners");
+    bad += spec_data(data_editor_world_player_count, "editor.world_player_count");
     bad += spec_code((uintptr_t)fn_ground_changed, "editor_functions.ground_changed");
     bad += spec_code((uintptr_t)fn_scenario_read, "editor_functions.scenario_read");
     bad += spec_call(call_se_quick_read, (uintptr_t)fn_scenario_read, "editor_functions.scenario_read [call_site se_quick_read]");

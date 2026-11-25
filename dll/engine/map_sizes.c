@@ -33,6 +33,16 @@ internal void __thiscall hook_map_dims(ee_setup *setup, int *w, int *h) {
     setup_map_dims(setup, w, h);
 }
 
+// a scale's map: its tiles a side, 0 none - map_dims (the game's and the mod's) asked with a setup of that scale
+// alone: the game's reads nothing else of it (0x524E1F)
+internal int map_scale_tiles(int scale) {
+    static uint8_t setup[0x1000];   // room for a setup up to its map_scale (+0x3DC in both builds)
+    int w = 0, h = 0;
+    setup_set_map_scale((ee_setup *)setup, scale);
+    hook_map_dims((ee_setup *)setup, &w, &h);
+    return w + h;
+}
+
 // the script's numbers of a map wider than Gigantic scaled to its side before the map is made from them (each try
 // of random_map_create reads the script anew)
 #define MS_GIGANTIC 440   // Gigantic's side as the plug-in sees it (random_map_get_side)

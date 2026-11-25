@@ -635,8 +635,8 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/terrain_filter.c"
 #include "engine/map_file.c"
 #include "engine/mapgen.c"         // the mod's own map types in the game's list, their maps made here whole
-#include "engine/mapgen_dialog.c"  // its options asked for in the editor
 #include "engine/map_sizes.c"      // map sizes past Gigantic in the game's lists
+#include "engine/mapgen_dialog.c"  // the mod's map type's options asked for in the editor, its preview
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
