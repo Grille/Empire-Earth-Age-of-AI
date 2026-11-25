@@ -1953,7 +1953,10 @@ unsafe struct EEUIERevolveCamera
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x0082F728, (aoc)0x00844FF4)]
 unsafe struct EEUIERotateCamera
 {
+    /// the ` key held, every poll of the form's input: the camera's offset turn turned by the mouse's counts (half a
+    /// degree a count) as a new move (EECameraControl::GoTo, 0x51E79C) - only in view 2 with the free camera
     [address((ee)0x005D5E71, (aoc)0x005E67DD), overrides(typeof(UIEvent))]
+    [vtable_site("rotate_camera_execute")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

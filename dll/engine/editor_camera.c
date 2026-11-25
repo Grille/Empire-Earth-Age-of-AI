@@ -12,7 +12,19 @@
 // as it stands (hook_ec_turn_key: the turn of view 0 kept, the game's mouse frozen by the game's own event then), and
 // Home, the game's way back to the editor's fixed start, goes back to view 0 instead (hook_ec_home): the turn, the
 // pitch, the angle levelling out on the way in as before.
+// Each poll's turn is a move of its own: the render thread draws the camera's ride ahead of the camera's step
+// (render_frame.c rf_camera_frame), and the next turn's move starts from where the step had got to - the picture went
+// back a little at every poll while the mouse turned it (the player 2026-11-25: "it stutters and jump back while moving,
+// only a visual bug, in the end it moves as it should"). So a turn is there at once, as a notch of the wheel is
+// (hook_ec_turn: snap; its steps as fine as the mouse's counts).
 internal uint8_t g_ec_not_free;   // always 0
+
+internal uint32_t __thiscall hook_ec_turn(eeuie_rotate_camera *self, ee_ui_form *form, uint32_t arg) {
+    uint32_t r = eeuie_rotate_camera_execute(self, form, arg);
+    ee_camera *cam = game_camera();
+    if (editor_is_on() && cam && camera_get_view(cam) == 2) camera_set_snap(cam, 1);
+    return r;
+}
 
 internal uint32_t __thiscall hook_ec_turn_key(eeuie_disable_mouse_move *self, ee_ui_form *form, uint32_t arg) {
     ee_camera *cam = game_camera();
@@ -30,6 +42,7 @@ internal uint32_t __thiscall hook_ec_home(eeuie_return_to_home_rotation *self, e
 
 internal void editor_camera_install(void) {
     int n = patch_editor_camera(&g_ec_not_free),
-        t = patch_disable_mouse_move_execute(hook_ec_turn_key) + patch_home_rotation_execute(hook_ec_home);
-    if (g_log) fprintf(g_log, "# editor: the game's camera, patches %d/%d, the free turn's keys %d/2\n", n, editor_camera_patches(), t);
+        t = patch_disable_mouse_move_execute(hook_ec_turn_key) + patch_home_rotation_execute(hook_ec_home)
+          + patch_rotate_camera_execute(hook_ec_turn);
+    if (g_log) fprintf(g_log, "# editor: the game's camera, patches %d/%d, the free turn's keys %d/3\n", n, editor_camera_patches(), t);
 }

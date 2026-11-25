@@ -1702,9 +1702,12 @@ internal inline uint32_t eeuie_revolve_camera_execute(eeuie_revolve_camera *eeui
 // class EEUIERotateCamera (eeuie_rotate_camera)
 // made in 0x58D3E1, 0x64C8B0
 // UIEvent's, the base's
+// the ` key held, every poll of the form's input: the camera's offset turn turned by the mouse's counts (half a
+// degree a count) as a new move (EECameraControl::GoTo, 0x51E79C) - only in view 2 with the free camera
 typedef uint32_t (__thiscall *eeuie_rotate_camera_execute_fn)(eeuie_rotate_camera *, ee_ui_form *, uint32_t);
 internal eeuie_rotate_camera_execute_fn fn_eeuie_rotate_camera_execute;
 internal inline uint32_t eeuie_rotate_camera_execute(eeuie_rotate_camera *eeuie_rotate_camera, ee_ui_form *form, uint32_t arg) { return fn_eeuie_rotate_camera_execute(eeuie_rotate_camera, form, arg); }
+internal inline int patch_rotate_camera_execute(eeuie_rotate_camera_execute_fn h) { return patch_vtable(vt_eeuie_rotate_camera, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_rotate_camera_execute, (void *)h); }
 
 // class EEUIESCLECancel (eeuiescle_cancel)
 // control event 103 "SL Load Cancel" (dbuicontrolevents.dat), made by the event creator 0x65BBE6
