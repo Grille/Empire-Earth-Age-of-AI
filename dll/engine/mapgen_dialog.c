@@ -86,7 +86,7 @@ internal DWORD WINAPI md_work(void *arg) {
     return 0;
 }
 // the preview made anew for the dropdowns' choices and the seed - as large as its box - by a worker: the dialog
-// answers meanwhile, the old picture stays till the new one is done (MD_DONE: md_done). A change while one is being
+// answers meanwhile, the box black till the new one is done (md_draw, MD_DONE: md_done). A change while one is being
 // made only marks it dirty: the next is made of the choices then, once it is done - none made for each step of a
 // scroll through a list. The game waits in the dialog's loop meanwhile: its data (mapgen_preview's types and
 // textures) holds still
@@ -108,6 +108,7 @@ internal void md_render(HWND d) {
     // (the generator's steps want more stack than a thread's default 1 MB might leave: as the game's main thread's)
     g_md.worker = CreateThread(NULL, 8u << 20, md_work, j, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
     if (!g_md.worker) md_work(j);   // (no thread: made here, as before; its MD_DONE comes next)
+    InvalidateRect(GetDlgItem(d, MD_PREVIEW), NULL, FALSE);   // (black till it is done: md_draw)
 }
 // a worker's preview taken: its picture shown, the next made if a choice changed meanwhile. show 0: only waited for
 // (OK, Cancel: the dialog closes)
@@ -125,14 +126,21 @@ internal void md_done(HWND d, int show) {
     if (g_md.dirty) { g_md.dirty = 0; md_render(d); }
 }
 
-// the preview's box: the picture in its middle in a sunken frame, the parchment round it
+// the preview's box: the picture in its middle in a sunken frame, the parchment round it; black while one is being
+// made, so an old picture isn't taken for the choices' map
 internal void md_draw(const DRAWITEMSTRUCT *di) {
     RECT r = di->rcItem;
     theme_under(di->hDC, di->hwndItem, &r);
-    if (!g_md.px) return;
-    int s = g_md.side, b = theme_px(2), x = (r.right - r.left - s) / 2, y = (r.bottom - r.top - s) / 2;
+    int busy = g_md.worker || g_md.job.px;
+    if (!busy && !g_md.px) return;
+    int s = busy ? g_md.job.side : g_md.side, b = theme_px(2), x = (r.right - r.left - s) / 2, y = (r.bottom - r.top - s) / 2;
     RECT f = { x - b, y - b, x + s + b, y + s + b };
     theme_bevel(di->hDC, &f, 1);
+    if (busy) {
+        RECT in = { x, y, x + s, y + s };
+        FillRect(di->hDC, &in, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        return;
+    }
     BITMAPINFOHEADER h = { sizeof h, s, -s, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
     SetDIBitsToDevice(di->hDC, x, y, (DWORD)s, (DWORD)s, 0, 0, 0, (UINT)s, g_md.px, (BITMAPINFO *)&h, DIB_RGB_COLORS);
 }
