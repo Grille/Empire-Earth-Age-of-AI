@@ -475,6 +475,13 @@ internal inline uint32_t *ui_control_index_at(const ee_ui_control *o) { return (
 internal inline uint32_t ui_control_get_id(const ee_ui_control *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_control_set_id(ee_ui_control *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_control_id_at(const ee_ui_control *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_control_get_border(const ee_ui_control *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_control_set_border(ee_ui_control *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_control_border_at(const ee_ui_control *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 typedef void (__thiscall *ui_control_add_ime_result_string_fn)(ee_ui_control *, void *);
 internal inline void ui_control_add_ime_result_string(ee_ui_control *ui_control, void *text) { ((ui_control_add_ime_result_string_fn)(*(void ***)ui_control)[slot_ui_control_add_ime_result_string])(ui_control, text); }
 typedef int (__thiscall *ui_control_change_ime_composition_string_fn)(ee_ui_control *, void *, void *, uint32_t);
@@ -587,6 +594,13 @@ internal inline uint32_t *ui_button_index_at(const ee_ui_button *o) { return (ui
 internal inline uint32_t ui_button_get_id(const ee_ui_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_button_set_id(ee_ui_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_button_id_at(const ee_ui_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_button_get_border(const ee_ui_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_button_set_border(ee_ui_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_button_border_at(const ee_ui_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
 // own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
 // itself, drew white (2026-11-26)
@@ -1005,6 +1019,7 @@ internal int spec_ui_select(int build) {
         of_ui_control_form = 0x68;
         of_ui_control_index = 0x7C;
         of_ui_control_id = 0x80;
+        of_ui_control_border = 0x88;
         slot_ui_control_add_ime_result_string = 1;
         slot_ui_control_change_ime_composition_string = 2;
         slot_ui_control_change_font = 3;
@@ -1279,6 +1294,7 @@ internal int spec_ui_select(int build) {
         of_ui_control_form = 0x68;
         of_ui_control_index = 0x7C;
         of_ui_control_id = 0x80;
+        of_ui_control_border = 0x88;
         slot_ui_control_add_ime_result_string = 1;
         slot_ui_control_change_ime_composition_string = 2;
         slot_ui_control_change_font = 3;

@@ -5,8 +5,9 @@
 // (controls_drawn) and finds the control under the mouse in its groups. So the button gets a slot of its own: both
 // arrays one longer (ui_form_grow), the button at the new end - beyond every index the game's code knows -, with the
 // map type list's id (the form finds a control's group by it) and in the list's group. Low-Level Engine.dll's
-// UIButton without pictures (the Cancel button's draw white on a control the form didn't load itself): a black box,
-// the word map_options_button in the Cancel button's font and the lists' yellow. Made the first time the screen is
+// UIButton without pictures, as the screen's own Start and Cancel (theirs are none either: a bevel of 2 and a
+// background): the Cancel button's bevel and background, the word map_options_button in the lists' font (their text
+// box's - the Cancel button's is larger) and yellow. Made the first time the screen is
 // brought up to date with the list's event there (setup_screen_refresh: from then on the list has it; the form is
 // kept, it has the button from then on). It takes the right part of the list's place: with the mod's type chosen the
 // list - and its text box, which keeps its own width when the list's changes - gives up MB_WIDTH of its width (the
@@ -88,15 +89,19 @@ internal void mb_make(ee_ui_form *form, ee_ui_control *list) {
     float rect[4] = { ui_control_get_bottom(list), ui_control_get_right(list) - MB_WIDTH, ui_control_get_right(list), ui_control_get_top(list) };
     int group = ui_form_group_of(form, list);
     if (group < 0) { if (g_log) log_line("# mapgen: the setup screen's map type list in none of its form's groups - no options button\n"); return; }
-    ee_ui_control *b = button_new(ui_control_get_id(list), NULL, NULL, NULL, rect, form, ui_form_control_count(form));
+    ee_ui_control *b = button_new(ui_control_get_id(list), NULL, NULL, NULL, rect, form, ui_form_control_count(form), cancel ? ui_control_get_border(cancel) : 2);
     void *ev = b ? ui_event_own(g_mb_vt, (void *)mb_click) : NULL;
     if (!b || !ev || ui_form_grow(form, b) < 0) { if (g_log) log_line("# mapgen: the setup screen's options button not made (no memory)\n"); return; }
-    static const float black[4] = { 0, 0, 0, 1 };
-    ui_control_set_bg_color(b, (void *)black);
-    ui_control_set_bg_opacity(b, 1.0f);
+    float color[3] = { 0, 0, 0 }, opacity = 1.0f;
+    if (cancel) ui_control_bg(cancel, color, &opacity);
+    ui_control_set_bg_color(b, color);
+    ui_control_set_bg_opacity(b, opacity);
     __attribute__((aligned(8))) uint8_t w[32];
     wstring_init_text(w, word("map_options_button"));
-    ee_ui_label_text *t = c ? ui_button_get_text(c) : NULL;
+    // the lists' font (their text box's: smaller than the Cancel button's), else the Cancel button's
+    ee_ui_control *box = ui_combo_box_get_text_box((ui_combo_box *)list);
+    ee_ui_label_text *t = box && !strcmp(rtti_name(box), "UITextLabel@@") ? ui_text_label_get_text((ui_text_label *)box) : NULL;
+    if (!t && c) t = ui_button_get_text(c);
     button_set_text(b, w, t ? ui_label_text_get_font(t) : ui_get_font_label());
     wstring_free(w);
     ee_ui_label_text *bt = ui_button_get_text((ee_ui_button *)b);
@@ -109,7 +114,8 @@ internal void mb_make(ee_ui_form *form, ee_ui_control *list) {
     ui_form_add_control(form, b, (unsigned long)group);
     g_mb.form = form; g_mb.list = list; g_mb.button = b; g_mb.right = ui_control_get_right(list);
     if (g_log) log_locked("# mapgen: the setup screen's options button made (form %p, the map type list %u in group %d, %.0f .. %.0f, %s)\n", (void *)form,
-                          ui_control_get_index(list), group, ui_control_get_left(list), g_mb.right, c ? "the Cancel button's font" : "the editor's font: no Cancel button found");
+                          ui_control_get_index(list), group, ui_control_get_left(list), g_mb.right,
+                          !c ? "no Cancel button found: a bevel of 2 on black" : t && t != ui_button_get_text(c) ? "the lists' font" : "the Cancel button's font");
 }
 
 // the screen brought up to date (setup_functions.setup_screen_refresh, after the game's own): the button made (the

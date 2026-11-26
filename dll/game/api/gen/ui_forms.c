@@ -44,6 +44,13 @@ internal inline uint32_t *eecbui_list_box_index_at(const eecbui_list_box *o) { r
 internal inline uint32_t eecbui_list_box_get_id(const eecbui_list_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eecbui_list_box_set_id(eecbui_list_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eecbui_list_box_id_at(const eecbui_list_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eecbui_list_box_get_border(const eecbui_list_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eecbui_list_box_set_border(eecbui_list_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eecbui_list_box_border_at(const eecbui_list_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (9 arguments, not typed yet)
 typedef void *(__thiscall *eecbui_list_box_init_fn)(eecbui_list_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eecbui_list_box_init_fn fn_eecbui_list_box_init;
@@ -128,6 +135,13 @@ internal inline uint32_t *eeuib_color_index_at(const eeuib_color *o) { return (u
 internal inline uint32_t eeuib_color_get_id(const eeuib_color *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuib_color_set_id(eeuib_color *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuib_color_id_at(const eeuib_color *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuib_color_get_border(const eeuib_color *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuib_color_set_border(eeuib_color *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuib_color_border_at(const eeuib_color *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_color_init_fn)(eeuib_color *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuib_color_init_fn fn_eeuib_color_init;
@@ -206,6 +220,13 @@ internal inline uint32_t *eeuib_saved_group_index_at(const eeuib_saved_group *o)
 internal inline uint32_t eeuib_saved_group_get_id(const eeuib_saved_group *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuib_saved_group_set_id(eeuib_saved_group *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuib_saved_group_id_at(const eeuib_saved_group *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuib_saved_group_get_border(const eeuib_saved_group *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuib_saved_group_set_border(eeuib_saved_group *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuib_saved_group_border_at(const eeuib_saved_group *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_saved_group_init_fn)(eeuib_saved_group *, uint32_t, uint32_t, uint32_t);
 internal eeuib_saved_group_init_fn fn_eeuib_saved_group_init;
@@ -292,6 +313,13 @@ internal inline uint32_t *eeuib_upgrade_index_at(const eeuib_upgrade *o) { retur
 internal inline uint32_t eeuib_upgrade_get_id(const eeuib_upgrade *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuib_upgrade_set_id(eeuib_upgrade *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuib_upgrade_id_at(const eeuib_upgrade *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuib_upgrade_get_border(const eeuib_upgrade *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuib_upgrade_set_border(eeuib_upgrade *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuib_upgrade_border_at(const eeuib_upgrade *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // the improvement it buys (enum improvement; 16 the garrison button) - the unit panel's attribute buttons
 // (EEUIFMGAttribute); button_up makes EEAUpgradeImprovement(the selection's first unit, it, 1, in a game)
 internal inline int eeuib_upgrade_get_attr(const eeuib_upgrade *o) { return *(int *)((uint8_t *)o + of_eeuib_upgrade_attr); }
@@ -386,6 +414,13 @@ internal inline uint32_t *eeuic_chat_line_index_at(const eeuic_chat_line *o) { r
 internal inline uint32_t eeuic_chat_line_get_id(const eeuic_chat_line *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_chat_line_set_id(eeuic_chat_line *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_chat_line_id_at(const eeuic_chat_line *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_chat_line_get_border(const eeuic_chat_line *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_chat_line_set_border(eeuic_chat_line *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_chat_line_border_at(const eeuic_chat_line *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_chat_line_init_fn)(eeuic_chat_line *, uint32_t, uint32_t, uint32_t);
 internal eeuic_chat_line_init_fn fn_eeuic_chat_line_init;
@@ -462,6 +497,13 @@ internal inline uint32_t *eeuic_command_units_index_at(const eeuic_command_units
 internal inline uint32_t eeuic_command_units_get_id(const eeuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_command_units_set_id(eeuic_command_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_command_units_id_at(const eeuic_command_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_command_units_get_border(const eeuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_command_units_set_border(eeuic_command_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_command_units_border_at(const eeuic_command_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // the point on the map under the right button's press (vf34: the cursor's ray met with the ground, 0x66326E);
 // mouse_move meets the cursor's ray with the plane at its z (both builds' mouse_move)
 internal inline vec3 eeuic_command_units_get_press_at(const eeuic_command_units *o) { return *(vec3 *)((uint8_t *)o + of_eeuic_command_units_press_at); }
@@ -554,6 +596,13 @@ internal inline uint32_t *eeuic_ping_index_at(const eeuic_ping *o) { return (uin
 internal inline uint32_t eeuic_ping_get_id(const eeuic_ping *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_ping_set_id(eeuic_ping *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_ping_id_at(const eeuic_ping *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_ping_get_border(const eeuic_ping *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_ping_set_border(eeuic_ping *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_ping_border_at(const eeuic_ping *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_ping_init_fn)(eeuic_ping *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_ping_init_fn fn_eeuic_ping_init;
@@ -625,6 +674,13 @@ internal inline uint32_t *eeuic_portrait_index_at(const eeuic_portrait *o) { ret
 internal inline uint32_t eeuic_portrait_get_id(const eeuic_portrait *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_portrait_set_id(eeuic_portrait *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_portrait_id_at(const eeuic_portrait *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_portrait_get_border(const eeuic_portrait *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_portrait_set_border(eeuic_portrait *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_portrait_border_at(const eeuic_portrait *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_portrait_init_fn)(eeuic_portrait *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_portrait_init_fn fn_eeuic_portrait_init;
@@ -699,6 +755,13 @@ internal inline uint32_t *eeuic_select_units_index_at(const eeuic_select_units *
 internal inline uint32_t eeuic_select_units_get_id(const eeuic_select_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_select_units_set_id(eeuic_select_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_select_units_id_at(const eeuic_select_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_select_units_get_border(const eeuic_select_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_select_units_set_border(eeuic_select_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_select_units_border_at(const eeuic_select_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_select_units_init_fn)(eeuic_select_units *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_select_units_init_fn fn_eeuic_select_units_init;
@@ -779,6 +842,13 @@ internal inline uint32_t *icon_bar_index_at(const ee_icon_bar *o) { return (uint
 internal inline uint32_t icon_bar_get_id(const ee_icon_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void icon_bar_set_id(ee_icon_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *icon_bar_id_at(const ee_icon_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t icon_bar_get_border(const ee_icon_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void icon_bar_set_border(ee_icon_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *icon_bar_border_at(const ee_icon_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // the control's place on the screen, as its draw_polygons draws the cards: their top, the first's left edge (the
 // next ones to its right); bottom - top its height (draw_polygons 0x643CBB, AoC 0x65A36B)
 internal inline float icon_bar_get_screen_bottom(const ee_icon_bar *o) { return *(float *)((uint8_t *)o + of_icon_bar_screen_bottom); }
@@ -936,6 +1006,13 @@ internal inline uint32_t *eeuic_won_net_games_box_index_at(const eeuic_won_net_g
 internal inline uint32_t eeuic_won_net_games_box_get_id(const eeuic_won_net_games_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_won_net_games_box_set_id(eeuic_won_net_games_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_won_net_games_box_id_at(const eeuic_won_net_games_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_won_net_games_box_get_border(const eeuic_won_net_games_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_won_net_games_box_set_border(eeuic_won_net_games_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_won_net_games_box_border_at(const eeuic_won_net_games_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_games_box_init_fn)(eeuic_won_net_games_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_games_box_init_fn fn_eeuic_won_net_games_box_init;
@@ -1020,6 +1097,13 @@ internal inline uint32_t *eeuic_won_net_rooms_box_index_at(const eeuic_won_net_r
 internal inline uint32_t eeuic_won_net_rooms_box_get_id(const eeuic_won_net_rooms_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_won_net_rooms_box_set_id(eeuic_won_net_rooms_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_won_net_rooms_box_id_at(const eeuic_won_net_rooms_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_won_net_rooms_box_get_border(const eeuic_won_net_rooms_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_won_net_rooms_box_set_border(eeuic_won_net_rooms_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_won_net_rooms_box_border_at(const eeuic_won_net_rooms_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_rooms_box_init_fn)(eeuic_won_net_rooms_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_rooms_box_init_fn fn_eeuic_won_net_rooms_box_init;
@@ -1103,6 +1187,13 @@ internal inline uint32_t *eeuic_won_net_stat_box_index_at(const eeuic_won_net_st
 internal inline uint32_t eeuic_won_net_stat_box_get_id(const eeuic_won_net_stat_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuic_won_net_stat_box_set_id(eeuic_won_net_stat_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuic_won_net_stat_box_id_at(const eeuic_won_net_stat_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuic_won_net_stat_box_get_border(const eeuic_won_net_stat_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuic_won_net_stat_box_set_border(eeuic_won_net_stat_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuic_won_net_stat_box_border_at(const eeuic_won_net_stat_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_stat_box_init_fn)(eeuic_won_net_stat_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_stat_box_init_fn fn_eeuic_won_net_stat_box_init;
@@ -1208,6 +1299,13 @@ internal inline uint32_t *eeuifeb_cancel_index_at(const eeuifeb_cancel *o) { ret
 internal inline uint32_t eeuifeb_cancel_get_id(const eeuifeb_cancel *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuifeb_cancel_set_id(eeuifeb_cancel *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuifeb_cancel_id_at(const eeuifeb_cancel *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuifeb_cancel_get_border(const eeuifeb_cancel *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuifeb_cancel_set_border(eeuifeb_cancel *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuifeb_cancel_border_at(const eeuifeb_cancel *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (2 arguments, not typed yet)
 typedef void *(__thiscall *eeuifeb_cancel_init_fn)(eeuifeb_cancel *, uint32_t, uint32_t);
 internal eeuifeb_cancel_init_fn fn_eeuifeb_cancel_init;
@@ -1271,6 +1369,13 @@ internal inline uint32_t *eeuifebok_index_at(const eeuifebok *o) { return (uint3
 internal inline uint32_t eeuifebok_get_id(const eeuifebok *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuifebok_set_id(eeuifebok *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuifebok_id_at(const eeuifebok *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuifebok_get_border(const eeuifebok *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuifebok_set_border(eeuifebok *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuifebok_border_at(const eeuifebok *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (2 arguments, not typed yet)
 typedef void *(__thiscall *eeuifebok_init_fn)(eeuifebok *, uint32_t, uint32_t);
 internal eeuifebok_init_fn fn_eeuifebok_init;
@@ -1407,6 +1512,13 @@ internal inline uint32_t *eeuifmg_attribute_index_at(const eeuifmg_attribute *o)
 internal inline uint32_t eeuifmg_attribute_get_id(const eeuifmg_attribute *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuifmg_attribute_set_id(eeuifmg_attribute *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuifmg_attribute_id_at(const eeuifmg_attribute *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuifmg_attribute_get_border(const eeuifmg_attribute *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuifmg_attribute_set_border(eeuifmg_attribute *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuifmg_attribute_border_at(const eeuifmg_attribute *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_attribute_init_fn)(eeuifmg_attribute *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_attribute_init_fn fn_eeuifmg_attribute_init;
@@ -1464,6 +1576,13 @@ internal inline uint32_t *eeuifmg_error_log_index_at(const eeuifmg_error_log *o)
 internal inline uint32_t eeuifmg_error_log_get_id(const eeuifmg_error_log *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuifmg_error_log_set_id(eeuifmg_error_log *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuifmg_error_log_id_at(const eeuifmg_error_log *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuifmg_error_log_get_border(const eeuifmg_error_log *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuifmg_error_log_set_border(eeuifmg_error_log *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuifmg_error_log_border_at(const eeuifmg_error_log *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (6 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_error_log_init_fn)(eeuifmg_error_log *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_error_log_init_fn fn_eeuifmg_error_log_init;
@@ -1586,6 +1705,13 @@ internal inline uint32_t *eeuifmg_status_bar_index_at(const eeuifmg_status_bar *
 internal inline uint32_t eeuifmg_status_bar_get_id(const eeuifmg_status_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuifmg_status_bar_set_id(eeuifmg_status_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuifmg_status_bar_id_at(const eeuifmg_status_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuifmg_status_bar_get_border(const eeuifmg_status_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuifmg_status_bar_set_border(eeuifmg_status_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuifmg_status_bar_border_at(const eeuifmg_status_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 typedef int (__thiscall *eeuifmg_status_bar_copy_data_fn)(eeuifmg_status_bar *);
 internal eeuifmg_status_bar_copy_data_fn fn_eeuifmg_status_bar_copy_data;
 internal inline int eeuifmg_status_bar_copy_data(eeuifmg_status_bar *eeuifmg_status_bar) { return fn_eeuifmg_status_bar_copy_data(eeuifmg_status_bar); }
@@ -1665,6 +1791,13 @@ internal inline uint32_t *status_button_index_at(const ee_status_button *o) { re
 internal inline uint32_t status_button_get_id(const ee_status_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void status_button_set_id(ee_status_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *status_button_id_at(const ee_status_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t status_button_get_border(const ee_status_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void status_button_set_border(ee_status_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *status_button_border_at(const ee_status_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // the number queued drawn on it (GEText, "this->mBuildQueue" in the constructor's assertion, 0x6571F7): copy_data
 // writes queued into it, draw_text draws it into the button's rectangle (UIControl.bottom ..) while queue_shown
 internal inline ee_text *status_button_get_queue_text(const ee_status_button *o) { return *(ee_text **)((uint8_t *)o + of_status_button_queue_text); }
@@ -1866,6 +1999,13 @@ internal inline uint32_t *eeui_file_combo_box_index_at(const eeui_file_combo_box
 internal inline uint32_t eeui_file_combo_box_get_id(const eeui_file_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeui_file_combo_box_set_id(eeui_file_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeui_file_combo_box_id_at(const eeui_file_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeui_file_combo_box_get_border(const eeui_file_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeui_file_combo_box_set_border(eeui_file_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeui_file_combo_box_border_at(const eeui_file_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (17 arguments, not typed yet)
 typedef void *(__thiscall *eeui_file_combo_box_init_fn)(eeui_file_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeui_file_combo_box_init_fn fn_eeui_file_combo_box_init;
@@ -1907,6 +2047,13 @@ internal inline uint32_t *eeui_mini_map_index_at(const eeui_mini_map *o) { retur
 internal inline uint32_t eeui_mini_map_get_id(const eeui_mini_map *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeui_mini_map_set_id(eeui_mini_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeui_mini_map_id_at(const eeui_mini_map *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeui_mini_map_get_border(const eeui_mini_map *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeui_mini_map_set_border(eeui_mini_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeui_mini_map_border_at(const eeui_mini_map *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // the minimap's picture's top left in the form's pixels: a point on it is (the mouse - this) / (the window's size x
 // 1/800, 1/600) (0x65EAFA, AoC 0x6760EC; the scale's operands hooks.minimap_fx_ops / fy_ops)
 internal inline float eeui_mini_map_get_origin_x(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_eeui_mini_map_origin_x); }
@@ -2001,6 +2148,13 @@ internal inline uint32_t *eeuipgs_line_graph_index_at(const eeuipgs_line_graph *
 internal inline uint32_t eeuipgs_line_graph_get_id(const eeuipgs_line_graph *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void eeuipgs_line_graph_set_id(eeuipgs_line_graph *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *eeuipgs_line_graph_id_at(const eeuipgs_line_graph *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t eeuipgs_line_graph_get_border(const eeuipgs_line_graph *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void eeuipgs_line_graph_set_border(eeuipgs_line_graph *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *eeuipgs_line_graph_border_at(const eeuipgs_line_graph *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuipgs_line_graph_init_fn)(eeuipgs_line_graph *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuipgs_line_graph_init_fn fn_eeuipgs_line_graph_init;
@@ -2068,6 +2222,13 @@ internal inline uint32_t *uib_map_index_at(const uib_map *o) { return (uint32_t 
 internal inline uint32_t uib_map_get_id(const uib_map *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void uib_map_set_id(uib_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *uib_map_id_at(const uib_map *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t uib_map_get_border(const uib_map *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void uib_map_set_border(uib_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *uib_map_border_at(const uib_map *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 typedef void (__thiscall *uib_map_button_up_fn)(uib_map *);
 internal uib_map_button_up_fn fn_uib_map_button_up;
 internal inline void uib_map_button_up(uib_map *uib_map) { fn_uib_map_button_up(uib_map); }
@@ -2108,6 +2269,13 @@ internal inline uint32_t *ui_bitmap_index_at(const ui_bitmap *o) { return (uint3
 internal inline uint32_t ui_bitmap_get_id(const ui_bitmap *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_bitmap_set_id(ui_bitmap *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_bitmap_id_at(const ui_bitmap *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_bitmap_get_border(const ui_bitmap *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_bitmap_set_border(ui_bitmap *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_bitmap_border_at(const ui_bitmap *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class ee_ui_label (ee_ui_label)
 // a check box's label (UICheckBox.label)
@@ -2187,6 +2355,13 @@ internal inline uint32_t *ui_check_box_index_at(const ui_check_box *o) { return 
 internal inline uint32_t ui_check_box_get_id(const ui_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_check_box_set_id(ui_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_check_box_id_at(const ui_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_check_box_get_border(const ui_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_check_box_set_border(ui_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_check_box_border_at(const ui_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // its label (the editor's own boxes: yellow, 0x56575B)
 internal inline ee_ui_label *ui_check_box_get_label(const ui_check_box *o) { return *(ee_ui_label **)((uint8_t *)o + of_ui_check_box_label); }
 internal inline void ui_check_box_set_label(ui_check_box *o, ee_ui_label *v) { *(ee_ui_label **)((uint8_t *)o + of_ui_check_box_label) = v; }
@@ -2232,6 +2407,13 @@ internal inline uint32_t *ui_combo_box_index_at(const ui_combo_box *o) { return 
 internal inline uint32_t ui_combo_box_get_id(const ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_combo_box_set_id(ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_combo_box_id_at(const ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_combo_box_get_border(const ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_combo_box_set_border(ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_combo_box_border_at(const ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 // the box its text is shown in (SetTextBoxBgOpacity: its vf24)
 internal inline ee_ui_control *ui_combo_box_get_text_box(const ui_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
 internal inline void ui_combo_box_set_text_box(ui_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
@@ -2282,6 +2464,13 @@ internal inline uint32_t *ui_edit_box_index_at(const ui_edit_box *o) { return (u
 internal inline uint32_t ui_edit_box_get_id(const ui_edit_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_edit_box_set_id(ui_edit_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_edit_box_id_at(const ui_edit_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_edit_box_get_border(const ui_edit_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_edit_box_set_border(ui_edit_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_edit_box_border_at(const ui_edit_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UIFullBackground (ui_full_background)
 // made in 0x58E400
@@ -2322,6 +2511,13 @@ internal inline uint32_t *uilb_string_index_at(const uilb_string *o) { return (u
 internal inline uint32_t uilb_string_get_id(const uilb_string *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void uilb_string_set_id(uilb_string *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *uilb_string_id_at(const uilb_string *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t uilb_string_get_border(const uilb_string *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void uilb_string_set_border(uilb_string *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *uilb_string_border_at(const uilb_string *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UIRBMap (uirb_map)
 // made in 0x59198C
@@ -2377,6 +2573,13 @@ internal inline uint32_t *uirb_map_index_at(const uirb_map *o) { return (uint32_
 internal inline uint32_t uirb_map_get_id(const uirb_map *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void uirb_map_set_id(uirb_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *uirb_map_id_at(const uirb_map *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t uirb_map_get_border(const uirb_map *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void uirb_map_set_border(uirb_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *uirb_map_border_at(const uirb_map *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UIRadioButton (ui_radio_button)
 // made in 0x56B75E, 0x56E14F, 0x571B93, 0x57ED81, 0x58A70E, 0x590734
@@ -2431,6 +2634,13 @@ internal inline uint32_t *ui_radio_button_index_at(const ui_radio_button *o) { r
 internal inline uint32_t ui_radio_button_get_id(const ui_radio_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_radio_button_set_id(ui_radio_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_radio_button_id_at(const ui_radio_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_radio_button_get_border(const ui_radio_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_radio_button_set_border(ui_radio_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_radio_button_border_at(const ui_radio_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UIScrollBar (ui_scroll_bar)
 // made in 0x59DE62
@@ -2468,6 +2678,13 @@ internal inline uint32_t *ui_scroll_bar_index_at(const ui_scroll_bar *o) { retur
 internal inline uint32_t ui_scroll_bar_get_id(const ui_scroll_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_scroll_bar_set_id(ui_scroll_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_scroll_bar_id_at(const ui_scroll_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_scroll_bar_get_border(const ui_scroll_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_scroll_bar_set_border(ui_scroll_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_scroll_bar_border_at(const ui_scroll_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UISlider (ui_slider)
 // made in 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x590734
@@ -2505,6 +2722,13 @@ internal inline uint32_t *ui_slider_index_at(const ui_slider *o) { return (uint3
 internal inline uint32_t ui_slider_get_id(const ui_slider *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_slider_set_id(ui_slider *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_slider_id_at(const ui_slider *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_slider_get_border(const ui_slider *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_slider_set_border(ui_slider *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_slider_border_at(const ui_slider *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UIStatusBar (ui_status_bar)
 // made in 0x5D23E7
@@ -2542,6 +2766,13 @@ internal inline uint32_t *ui_status_bar_index_at(const ui_status_bar *o) { retur
 internal inline uint32_t ui_status_bar_get_id(const ui_status_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_status_bar_set_id(ui_status_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_status_bar_id_at(const ui_status_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_status_bar_get_border(const ui_status_bar *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_status_bar_set_border(ui_status_bar *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_status_bar_border_at(const ui_status_bar *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // class UITextLabel (ui_text_label)
 // made in 0x560EC7, 0x563EB8, 0x56575B, 0x5672AC, 0x5685A3, 0x569046, 0x56B75E, 0x56D39A, 0x56E14F, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58A70E, 0x58D3E1, 0x5900BB, 0x590734, 0x59198C, 0x594C3F, 0x59B710, 0x64AAB7, 0x6526E7
@@ -2579,6 +2810,18 @@ internal inline uint32_t *ui_text_label_index_at(const ui_text_label *o) { retur
 internal inline uint32_t ui_text_label_get_id(const ui_text_label *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_text_label_set_id(ui_text_label *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_text_label_id_at(const ui_text_label *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_text_label_get_border(const ui_text_label *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_text_label_set_border(ui_text_label *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_text_label_border_at(const ui_text_label *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
+// its text (a GEText, its font the label's: ChangeFont sets it here and in the one at +0x104) - a combo box's
+// text box (UIComboBox.text_box) is one: the setup screen's lists' font
+internal inline ee_ui_label_text *ui_text_label_get_text(const ui_text_label *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_text_label_text); }
+internal inline void ui_text_label_set_text(ui_text_label *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_text_label_text) = v; }
+internal inline ee_ui_label_text **ui_text_label_text_at(const ui_text_label *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_text_label_text); }
 
 // class UITriStateCheckBox (ui_tri_state_check_box)
 // made in 0x57ED81
@@ -2633,6 +2876,13 @@ internal inline uint32_t *ui_tri_state_check_box_index_at(const ui_tri_state_che
 internal inline uint32_t ui_tri_state_check_box_get_id(const ui_tri_state_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
 internal inline void ui_tri_state_check_box_set_id(ui_tri_state_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
 internal inline uint32_t *ui_tri_state_check_box_id_at(const ui_tri_state_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
+// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+// pictures (2026-11-27)
+internal inline uint32_t ui_tri_state_check_box_get_border(const ui_tri_state_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_border); }
+internal inline void ui_tri_state_check_box_set_border(ui_tri_state_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_border) = v; }
+internal inline uint32_t *ui_tri_state_check_box_border_at(const ui_tri_state_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_border); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_ui_forms_select(int build) {
@@ -3017,6 +3267,7 @@ internal int spec_ui_forms_select(int build) {
         size_ui_status_bar = 0x114;
         vt_ui_text_label = 0x0082D484;
         size_ui_text_label = 0x124;
+        of_ui_text_label_text = 0x108;
         vt_ui_tri_state_check_box = 0x0082EB38;
         size_ui_tri_state_check_box = 0x110;
         return 0;
@@ -3400,6 +3651,7 @@ internal int spec_ui_forms_select(int build) {
         size_ui_status_bar = 0x114;
         vt_ui_text_label = 0x00842D34;
         size_ui_text_label = 0x124;
+        of_ui_text_label_text = 0x108;
         vt_ui_tri_state_check_box = 0x008443F8;
         size_ui_tri_state_check_box = 0x110;
         return 0;

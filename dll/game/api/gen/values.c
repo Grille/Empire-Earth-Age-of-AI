@@ -2215,6 +2215,7 @@ internal uint32_t of_ui_control_top;
 internal uint32_t of_ui_control_form;
 internal uint32_t of_ui_control_index;
 internal uint32_t of_ui_control_id;
+internal uint32_t of_ui_control_border;
 internal uint32_t slot_ui_control_add_ime_result_string;
 internal uint32_t slot_ui_control_change_ime_composition_string;
 internal uint32_t slot_ui_control_change_font;
@@ -3073,6 +3074,7 @@ internal uint32_t vt_ui_status_bar;
 internal uint32_t size_ui_status_bar;
 internal uint32_t vt_ui_text_label;
 internal uint32_t size_ui_text_label;
+internal uint32_t of_ui_text_label_text;
 internal uint32_t vt_ui_tri_state_check_box;
 internal uint32_t size_ui_tri_state_check_box;
 

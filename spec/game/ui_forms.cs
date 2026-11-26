@@ -1207,6 +1207,10 @@ unsafe struct UIStatusBar
 [@base(typeof(UIControl)), size((ee)0x124, (aoc)0x124), vtable((ee)0x0082D484, (aoc)0x00842D34)]
 unsafe struct UITextLabel
 {
+    /// its text (a GEText, its font the label's: ChangeFont sets it here and in the one at +0x104) - a combo box's
+    /// text box (UIComboBox.text_box) is one: the setup screen's lists' font
+    [offset(0x108), found(c)]
+    ee_ui_label_text* text;
 }
 
 /// made in 0x57ED81

@@ -255,14 +255,31 @@ internal inline ee_ui_control *setup_screen_map_list(const ee_ui_form *f) { retu
 internal inline ee_ui_control *setup_screen_cancel(const ee_ui_form *f) { return ui_form_control_by_event(f, value_ui_trigger_button_up, vt_eeuiele_cancel); }
 // a button (Low-Level Engine.dll's UIButton, its vtable) with its three pictures (GEBitmaps, NULL none: the pressed
 // one the normal one), not added to its form yet: id its id (ui_control.id: the form finds its group by it), index
-// its index in the form (a slot of its own: ui_form_grow). Its memory the game's: the exe and the engine share
-// msvcrt.dll's heap, its destructor may free it
-internal inline ee_ui_control *button_new(unsigned long id, void *normal, void *focused, void *pressed, const float rect[4], ee_ui_form *form, unsigned long index) {
+// its index in the form (a slot of its own: ui_form_grow), border its bevel's width (ui_control.border; 0 none).
+// Its memory the game's: the exe and the engine share msvcrt.dll's heap, its destructor may free it
+internal inline ee_ui_control *button_new(unsigned long id, void *normal, void *focused, void *pressed, const float rect[4], ee_ui_form *form, unsigned long index,
+                                          unsigned long border) {
     ee_ui_control *b = game_new(size_ui_button);
     if (!b) return NULL;
     typedef void *(__thiscall *ctor_fn)(void *, unsigned long, void *, void *, void *, const float *, ee_ui_form *, unsigned long, unsigned long);
-    (*(ctor_fn *)data_ui_iat_button_ctor)(b, id, normal, focused, pressed, rect, form, index, 0);
+    (*(ctor_fn *)data_ui_iat_button_ctor)(b, id, normal, focused, pressed, rect, form, index, border);
     return b;
+}
+// a control's background: its colour (a GEColor: r, g, b floats) and opacity, by UIControl::GetBgColor and
+// GetBgOpacity - the engine keeps them in its rhombus' vertices; the exe imports neither. 0 not found
+internal inline int ui_control_bg(const ee_ui_control *c, float color[3], float *opacity) {
+    static void (__thiscall *get_color)(const ee_ui_control *, float *);
+    static float (__thiscall *get_opacity)(const ee_ui_control *);
+    if (!get_color || !get_opacity) {
+        HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+        if (!lle) return 0;
+        get_color = (void (__thiscall *)(const ee_ui_control *, float *))(void *)GetProcAddress(lle, "?GetBgColor@UIControl@@QBEXAAVGEColor@@@Z");
+        get_opacity = (float (__thiscall *)(const ee_ui_control *))(void *)GetProcAddress(lle, "?GetBgOpacity@UIControl@@QBEMXZ");
+        if (!get_color || !get_opacity) return 0;
+    }
+    get_color(c, color);
+    *opacity = get_opacity(c);
+    return 1;
 }
 // its text (a UWideString) in font
 internal inline void button_set_text(ee_ui_control *b, const void *wstr, void *font) {

@@ -616,6 +616,13 @@ unsafe struct UIControl
     [offset(0x80), found(c)]
     uint32 id;
 
+    /// its bevel's width in pixels, the constructor's last argument: DrawPolygons has DrawBorder draw it round the
+    /// control, light at the top and left, dark at the bottom and right (the other way round while +0x78 is set: a
+    /// button held down). A button's pictures go inside it. The game setup screen's Start and Cancel buttons: 2, no
+    /// pictures (2026-11-27)
+    [offset(0x88), found(c)]
+    uint32 border;
+
     // VIRTUAL FUNCTIONS (slot 0 the destructor)
 
     [slot(1)]
