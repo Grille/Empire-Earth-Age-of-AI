@@ -49,14 +49,24 @@ internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(da
 // ART OF CONQUEST'S ENERGY FIELDS (engine/energy_walls.c): a Wall - Space that should have its field and has none - the
 // game's own test where it finishes or lays one (the type, no foundation, the owner's tech_energy_wall available), and
 // no effect hung on it, alive; energy_wall_make gives it the field as those places do. Never in the 2017 update
-internal int energy_wall_wanted(ee_unit *u) {
-    if (!fn_make_energy_wall || of_unit_effect == NA || value_unit_type_energy_wall == NA) return 0;
+// a standing Wall - Space piece (alive, no foundation): one an energy field links to
+internal int energy_wall_piece(ee_unit *u) {
+    if (value_unit_type_energy_wall == NA) return 0;
     ee_unit_type *td = unit_get_type_data(u);
-    if (!td || unit_type_get_id(td) != (int)value_unit_type_energy_wall || unit_get_effect(u) || unit_get_hp(u) <= 0
-        || unit_is_foundation(u)) return 0;
+    return td && unit_type_get_id(td) == (int)value_unit_type_energy_wall && unit_get_hp(u) > 0 && !unit_is_foundation(u);
+}
+internal int energy_wall_wanted(ee_unit *u) {
+    if (!fn_make_energy_wall || of_unit_effect == NA || !energy_wall_piece(u) || unit_get_effect(u)) return 0;
     ee_player *pl = unit_get_owner(u);
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     ee_tech *t = tt ? tech_tree_lookup(tt, (int)value_unit_tech_energy_wall) : NULL;
     return t && tech_available(t);
 }
 internal inline void energy_wall_make(ee_unit *u) { make_energy_wall(u); }
+// the energy field's link (EEE3DEnergyWall): its store of a neighbour's height (unit.energy_wall_link_store, 7 bytes)
+// made a call of thunk, which does the store itself (mov eax, [ebp-8]; faddp; fstp [eax]) and then its own - the
+// neighbour in edi, the field in esi. 0: not AoC, or the code not as expected
+internal int patch_energy_wall_link(void *thunk) {
+    static const uint8_t k_store[7] = { 0x8B, 0x45, 0xF8, 0xDE, 0xC1, 0xD9, 0x18 };
+    return data_unit_energy_wall_link_store && patch_insns_call(data_unit_energy_wall_link_store, k_store, 7, thunk);
+}

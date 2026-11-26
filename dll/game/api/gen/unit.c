@@ -993,6 +993,9 @@ internal inline int patch_se_ghost_preview(ghost_unit_preview_fn h, int *of) { r
 // type's id with it before they call make_energy_wall (0x61E4B9, 0x644FDF)
 // AoC only: the tech those places ask its owner's tree for (lookup, then tech_available) before they make the field
 // - Wall - Space's object tech: available from the Space Age on
+// AoC only: the link's store of a neighbour's height into its point (EEE3DEnergyWall, 0x4EE00C): mov eax, [ebp-8]
+// (the point's height), faddp, fstp [eax] - the neighbour in edi, the field in esi, the loop's next at +7
+internal inline uint8_t *unit_energy_wall_link_store_at(void) { return (uint8_t *)(uintptr_t)data_unit_energy_wall_link_store; }
 internal inline uint8_t *unit_call_node_del_1_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_1; }
 internal inline uint8_t *unit_call_node_del_2_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_2; }
 internal inline uint8_t *unit_fn_op_delete_at(void) { return (uint8_t *)(uintptr_t)data_unit_fn_op_delete; }
@@ -1083,6 +1086,31 @@ internal inline ee_unit **target_search_unit_at(const ee_target_search *o) { ret
 internal inline ee_player *target_search_get_player(const ee_target_search *o) { return *(ee_player **)((uint8_t *)o + of_target_search_player); }
 internal inline void target_search_set_player(ee_target_search *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_target_search_player) = v; }
 internal inline ee_player **target_search_player_at(const ee_target_search *o) { return (ee_player **)((uint8_t *)o + of_target_search_player); }
+
+// class EEE3DEnergyWall (ee_energy_wall)
+// AoC only: a Wall - Space's energy field, the effect hung on it (unit effect; EEE3DEnergyWall, vtable 0x8406DC, made
+// by make_energy_wall; a gate's by 0x64F8F9). Its first update (vf19 0x4EDF19 -> 0x4ED784) sets its own point from
+// the wall's position and a neighbour's point k (1-4) at that point + the tile step k: (-1, 0), (-1, -1), (0, -1),
+// (1, -1) - floats 0x8BD800 / 0x8BD824; every 500 ms (0x4EDF5A) it links: the owner's piece on the tile of each step
+// (0x4EE00C, ints 0x8BD844 / 0x8BD868; a gate's second end steps 5-8 from gate_end) sets bit k of links and point k's
+// height from the piece's (energy_wall_link_store) - never its x, y. vf6 0x4EDB6C draws a quad from at to point k
+// for each bit (0x503AC8, the sprite batch)
+// its own point: the wall's position (a gate's first end), the height its type's +0x3C over it
+internal inline float energy_wall_get_at(const ee_energy_wall *o, int i) { return ((float *)((uint8_t *)o + of_energy_wall_at))[i]; }
+internal inline void energy_wall_set_at(ee_energy_wall *o, int i, float v) { ((float *)((uint8_t *)o + of_energy_wall_at))[i] = v; }
+internal inline float *energy_wall_at_at(const ee_energy_wall *o) { return (float *)((uint8_t *)o + of_energy_wall_at); }
+// the neighbours' points 1-8, 3 floats each (5-8: a gate's second end's)
+internal inline float energy_wall_get_points(const ee_energy_wall *o, int i) { return ((float *)((uint8_t *)o + of_energy_wall_points))[i]; }
+internal inline void energy_wall_set_points(ee_energy_wall *o, int i, float v) { ((float *)((uint8_t *)o + of_energy_wall_points))[i] = v; }
+internal inline float *energy_wall_points_at(const ee_energy_wall *o) { return (float *)((uint8_t *)o + of_energy_wall_points); }
+// a gate's second end
+internal inline float energy_wall_get_gate_end(const ee_energy_wall *o, int i) { return ((float *)((uint8_t *)o + of_energy_wall_gate_end))[i]; }
+internal inline void energy_wall_set_gate_end(ee_energy_wall *o, int i, float v) { ((float *)((uint8_t *)o + of_energy_wall_gate_end))[i] = v; }
+internal inline float *energy_wall_gate_end_at(const ee_energy_wall *o) { return (float *)((uint8_t *)o + of_energy_wall_gate_end); }
+// bit k: neighbour k linked (drawn)
+internal inline uint32_t energy_wall_get_links(const ee_energy_wall *o) { return *(uint32_t *)((uint8_t *)o + of_energy_wall_links); }
+internal inline void energy_wall_set_links(ee_energy_wall *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_energy_wall_links) = v; }
+internal inline uint32_t *energy_wall_links_at(const ee_energy_wall *o) { return (uint32_t *)((uint8_t *)o + of_energy_wall_links); }
 
 // static class unit_functions
 // the game's functions unit.c wraps, by the names the C side gives them
@@ -1479,6 +1507,7 @@ internal int spec_unit_select(int build) {
         value_unit_contagion_plague = 1;
         value_unit_type_energy_wall = NA;
         value_unit_tech_energy_wall = NA;
+        data_unit_energy_wall_link_store = 0;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
         data_unit_fn_op_delete = 0x006836F0;
@@ -1503,6 +1532,10 @@ internal int spec_unit_select(int build) {
         of_herd_births = 0xF8;
         of_target_search_unit = 0x1C;
         of_target_search_player = 0x20;
+        of_energy_wall_at = NA;
+        of_energy_wall_points = NA;
+        of_energy_wall_gate_end = NA;
+        of_energy_wall_links = NA;
         fn_make_energy_wall = (make_energy_wall_fn)0;
         fn_target_ok = (target_ok_fn)0x00639993;
         calls_target_ok[0] = 0x00639918;
@@ -1538,7 +1571,7 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_give = (unit_give_fn)0x00638670;
         fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
-        return 12;
+        return 17;
     case 1:   // aoc
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
@@ -1788,6 +1821,7 @@ internal int spec_unit_select(int build) {
         value_unit_contagion_plague = 1;
         value_unit_type_energy_wall = 766;
         value_unit_tech_energy_wall = 15013;
+        data_unit_energy_wall_link_store = 0x004EE183;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
         data_unit_fn_op_delete = 0x0069D150;
@@ -1812,6 +1846,10 @@ internal int spec_unit_select(int build) {
         of_herd_births = 0xF8;
         of_target_search_unit = 0x1C;
         of_target_search_player = 0x20;
+        of_energy_wall_at = 0xA0;
+        of_energy_wall_points = 0xAC;
+        of_energy_wall_gate_end = 0x10C;
+        of_energy_wall_links = 0x118;
         fn_make_energy_wall = (make_energy_wall_fn)0x0064F8C0;
         fn_target_ok = (target_ok_fn)0x0064FFCA;
         calls_target_ok[0] = 0x0064FF4F;
@@ -1852,7 +1890,7 @@ internal int spec_unit_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.cloaked EEComplexUnit.effect EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.type_energy_wall unit.tech_energy_wall unit.attack_anim unit_functions.make_energy_wall", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
+internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.cloaked EEComplexUnit.effect EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.type_energy_wall unit.tech_energy_wall unit.energy_wall_link_store unit.attack_anim EEE3DEnergyWall.at EEE3DEnergyWall.points EEE3DEnergyWall.gate_end EEE3DEnergyWall.links unit_functions.make_energy_wall", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_check(void) {
     int bad = 0;
@@ -1963,6 +2001,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview");
     bad += spec_call(calls_se_ghost_preview[0], (uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview [call_site se_ghost_preview 0]");
     bad += spec_call(calls_se_ghost_preview[1], (uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview [call_site se_ghost_preview 1]");
+    bad += spec_code(data_unit_energy_wall_link_store, "unit.energy_wall_link_store");
     bad += spec_code(data_unit_call_node_del_1, "unit.call_node_del_1");
     bad += spec_code(data_unit_call_node_del_2, "unit.call_node_del_2");
     bad += spec_code(data_unit_fn_op_delete, "unit.fn_op_delete");

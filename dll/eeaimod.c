@@ -949,6 +949,7 @@ internal void install(HMODULE self) {
     lob_install();
     data_order_install();
     civ_powers_install();
+    energy_walls_install();
     g_step_end_also = ai_step_end;   // before walls_install: it hooks the step's end for it too
     walls_install();
     editor_search_install();

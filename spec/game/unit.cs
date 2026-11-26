@@ -1041,6 +1041,11 @@ static unsafe class unit
     [value((ee)none, (aoc)15013)]
     static uint32 tech_energy_wall;
 
+    /// AoC only: the link's store of a neighbour's height into its point (EEE3DEnergyWall, 0x4EE00C): mov eax, [ebp-8]
+    /// (the point's height), faddp, fstp [eax] - the neighbour in edi, the field in esi, the loop's next at +7
+    [address((ee)none, (aoc)0x004EE183)]
+    static code energy_wall_link_store;
+
     [address((ee)0x00628BE7, (aoc)0x0063D998)]
     static code call_node_del_1;
 
@@ -1146,6 +1151,33 @@ unsafe struct EETargetSearch
     /// the player of the unit searching: target_ok skips its own and those it isn't at war with
     [offset(0x20), found(c)]
     EEPlayer* player;
+}
+
+/// AoC only: a Wall - Space's energy field, the effect hung on it (unit effect; EEE3DEnergyWall, vtable 0x8406DC, made
+/// by make_energy_wall; a gate's by 0x64F8F9). Its first update (vf19 0x4EDF19 -> 0x4ED784) sets its own point from
+/// the wall's position and a neighbour's point k (1-4) at that point + the tile step k: (-1, 0), (-1, -1), (0, -1),
+/// (1, -1) - floats 0x8BD800 / 0x8BD824; every 500 ms (0x4EDF5A) it links: the owner's piece on the tile of each step
+/// (0x4EE00C, ints 0x8BD844 / 0x8BD868; a gate's second end steps 5-8 from gate_end) sets bit k of links and point k's
+/// height from the piece's (energy_wall_link_store) - never its x, y. vf6 0x4EDB6C draws a quad from at to point k
+/// for each bit (0x503AC8, the sprite batch)
+[c_type("ee_energy_wall")]
+unsafe struct EEE3DEnergyWall
+{
+    /// its own point: the wall's position (a gate's first end), the height its type's +0x3C over it
+    [offset((ee)none, (aoc)0xA0), found(c)]
+    fixed float32 at[3];
+
+    /// the neighbours' points 1-8, 3 floats each (5-8: a gate's second end's)
+    [offset((ee)none, (aoc)0xAC), found(c)]
+    fixed float32 points[24];
+
+    /// a gate's second end
+    [offset((ee)none, (aoc)0x10C), found(c)]
+    fixed float32 gate_end[3];
+
+    /// bit k: neighbour k linked (drawn)
+    [offset((ee)none, (aoc)0x118), found(c)]
+    uint32 links;
 }
 
 /// the game's functions unit.c wraps, by the names the C side gives them

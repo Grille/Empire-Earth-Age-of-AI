@@ -114,6 +114,19 @@ internal int patch_insn6_call(uintptr_t at, const uint8_t expected[6], void *hoo
     return 1;
 }
 
+// n bytes of whole instructions (5 to 16) replaced by a call of hook and nops, only while they hold `expected`
+internal int patch_insns_call(uintptr_t at, const uint8_t *expected, int n, void *hook) {
+    uint8_t *p = (uint8_t *)at;
+    DWORD old;
+    if (!at || n < 5 || n > 16 || memcmp(p, expected, (size_t)n) || !VirtualProtect(p, (SIZE_T)n, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    p[0] = 0xE8;
+    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook - (at + 5));
+    memset(p + 5, 0x90, (size_t)n - 5);
+    VirtualProtect(p, (SIZE_T)n, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, (SIZE_T)n);
+    return 1;
+}
+
 // one byte of the code, only while it holds `expected`
 internal int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
     uint8_t *p = (uint8_t *)at;

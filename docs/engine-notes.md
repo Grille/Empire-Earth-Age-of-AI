@@ -1774,7 +1774,16 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   saved game's walls get theirs back at the load.
 - **The fire shares the slot**: EEFireFunctor::vf10 (0x4B6D2C) hangs a damaged building's fire there only while it is
   0, vf11 (0x4B6DEC) deletes the effect in it at the fire's end - a repaired space wall lost its field.
-- The mod's fix: engine/energy_walls.c, each second the pieces without one given it by the game's own test and maker.
+- **Where a quad reaches**: its own point is the piece's position (0x4ED784, once), a neighbour's point that + the
+  tile step as floats (0x8BD800 / 0x8BD824) - the link (0x4EE00C, every 500 ms) stores only the neighbour's height
+  (0x4EE183). The posts of a sloped wall stand off that grid (the game's staircase, the mod's fit), so each quad ended
+  beside the next post and overlapped the next quad: a sawtooth on every sloped wall, triangles where a piece also
+  reached a diagonal neighbour round the corner.
+- The quads are drawn through the sprite batch, never as a lit model: they cast no shadow in the own renderer; the
+  posts do (their shadows show through the field).
+- The mod's fix: engine/energy_walls.c - each second the pieces without one given it by the game's own test and
+  maker; the link's store hooked to put the neighbour's x, y into the point too, and a diagonal link dropped where
+  the two pieces meet round the corner (a tile map of the pieces, made with each second's look).
 
 ## Scenario / save file format (.scn / .ees)
 

@@ -664,6 +664,7 @@ typedef struct ee_ghost_unit ee_ghost_unit;
 typedef struct ee_unit_vec ee_unit_vec;
 typedef struct ee_tile_vec ee_tile_vec;
 typedef struct ee_target_search ee_target_search;
+typedef struct ee_energy_wall ee_energy_wall;
 typedef struct ee_upgrade_table ee_upgrade_table;
 typedef struct ee_to_hit_table ee_to_hit_table;
 typedef struct ee_improvements ee_improvements;
