@@ -19,7 +19,7 @@
 #define MD_SEED 263
 #define MD_KEEP 264
 #define MD_POINTS 9     // its font's size at the game's picture 1:1 ...
-#define MD_PIXELS 493   // ... and about its height then, with the title bar
+#define MD_PIXELS 528   // ... and about its height then, with the title bar
 internal struct {
     int result;
     int n, np;          // the map's tiles a side and players
@@ -172,7 +172,7 @@ internal int md_open(int n, int np, uint32_t *seed, int setup) {
     static WORD tpl[2048];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
-    // a row 17 units high, the hint under them, the buttons under it (11 rows: 237 units high)
+    // a row 17 units high, the hint under them, the buttons under it (12 rows: 254 units high)
     short hint = (short)(9 + 17 * MD_ROWS), by = (short)(hint + 19);
     *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 2 * MD_ROWS + 7, .cx = 412, .cy = (short)(by + 22) };
     WORD *p = (WORD *)(dt + 1);

@@ -252,6 +252,10 @@ map_rain = {
     en = "Rain",
     de = "Regen",
 }
+map_biome_size = {
+    en = "Biome size",
+    de = "Biomgröße",
+}
 map_mountains = {
     en = "Mountains",
     de = "Gebirge",
@@ -280,6 +284,10 @@ map_v_two_continents = {
     en = "Two continents",
     de = "Zwei Kontinente",
 }
+map_v_tiny = {
+    en = "Tiny",
+    de = "Winzig",
+}
 map_v_small = {
     en = "Small",
     de = "Klein",
@@ -291,6 +299,10 @@ map_v_normal = {
 map_v_large = {
     en = "Large",
     de = "Groß",
+}
+map_v_huge = {
+    en = "Huge",
+    de = "Riesig",
 }
 map_v_cold = {
     en = "Cold",

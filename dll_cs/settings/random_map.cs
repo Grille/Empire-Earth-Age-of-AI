@@ -71,6 +71,21 @@ class random_map
     }
     /// How much rain falls:
     map_rain_choice map_rain = map_rain_choice.normal;
+    enum map_biome_size_choice
+    {
+        /// warm and cold, dry and wet places a fifth as large: many small ones
+        tiny,
+        /// half as large
+        small,
+        /// as made so far
+        normal,
+        /// twice as large
+        large,
+        /// four times as large: a few wide ones
+        huge,
+    }
+    /// How large the biomes' patches are (the size of the weather's warm and cold, dry and wet places):
+    map_biome_size_choice map_biome_size = map_biome_size_choice.normal;
     enum map_mountains_choice { none, few, normal, many, lots }
     /// How many mountain ranges and plateaus:
     map_mountains_choice map_mountains = map_mountains_choice.normal;

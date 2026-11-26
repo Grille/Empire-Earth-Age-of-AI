@@ -884,7 +884,10 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   south are cold with a warm equator), none (no bias based on position, noise only)"; named "mixed" at their next
   word) - mapgen.c mg_temp: north to south from -1 to 1 along the continents; poles 0.7 in the middle to -0.75 at the continents' ends, so cold, mild,
   hot, mild, cold along each (from 1 in the middle half of each continent was hot, mostly desert); mixed the noise
-  alone, 2.5 times as strong), the rain (-0.2 .. +0.2 on the moisture, bands at 0.4 / 0.6), and how many mountains (ranges and
+  alone, 2.5 times as strong), the rain (-0.2 .. +0.2 on the moisture, bands at 0.4 / 0.6), the biome size
+  (2026-11-26, the player: "biome size, which controls the scale of the noise pattern used for temperature and
+  rain" - tiny, small, normal, large, huge: 2.2, 1.41, 1, 0.71, 0.5 times the two noises' frequency, a patch's area a
+  fifth, a half, once, twice, four times; the zones' bands stay, the textures' mix within a biome too), and how many mountains (ranges and
   plateaus), rivers (lakes' outflows too), lakes, islands, forests and mines (land, mountain feet, plateaus) - none,
   few, normal, many, lots: 0, 0.5, 1, 2, 3 times the count the map's size gives. "normal" leaves the map as it is, bit
   for bit (a factor of exactly 1 leaves a count alone, a shift of 0 a number). A start's own mines, forage, forests

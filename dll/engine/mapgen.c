@@ -163,6 +163,7 @@ struct mg {
         float land;           // the continents' size
         float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
         int zones;            // where it is cold and where hot: MG_ZONES_*
+        float biome;          // a factor on the temperature's and the moisture's noise frequency: under 1 larger patches
         float mountains, rivers, lakes, islands, forests, mines;   // factors on how many
         int mp;               // a multiplayer game: the host's options (none came: the defaults)
         int from;             // MG_FROM_*: whose they are
@@ -191,6 +192,7 @@ internal int mg_humans(const ee_setup *setup) {   // the humans' slots (1 this P
 internal void mg_options(struct mg *g, const ee_setup *setup) {
     static const float amount[5] = { 0, 0.5f, 1, 2, 3 }, land[3] = { 0.8f, 1, 1.12f };
     static const float temp[5] = { -0.4f, -0.2f, 0, 0.2f, 0.4f }, wet[5] = { -0.2f, -0.1f, 0, 0.1f, 0.2f };
+    static const float biome[5] = { 2.2f, 1.41f, 1, 0.71f, 0.5f };   // a patch's area by the square: a fifth, a half, ..., four times
     struct settings s = g_set;
     // more than one human in the setup, or this PC joined: multiplayer (the host of a single-player game is a server too)
     g->opt.mp = mg_humans(setup) > 1 || net_joined();
@@ -206,6 +208,7 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
     g->opt.temp = MG_PICK(temp, s.map_climate);
     g->opt.wet = MG_PICK(wet, s.map_rain);
     g->opt.zones = (unsigned)s.map_climate_zones <= MG_ZONES_MIXED ? s.map_climate_zones : MG_ZONES_NORTH_SOUTH;
+    g->opt.biome = MG_PICK(biome, s.map_biome_size);
     g->opt.mountains = MG_PICK(amount, s.map_mountains);
     g->opt.rivers = MG_PICK(amount, s.map_rivers);
     g->opt.lakes = MG_PICK(amount, s.map_lakes);
@@ -442,9 +445,11 @@ internal float mg_start_dist(const struct mg *g, float x, float y);
 // south (1) along the continents; poles: 0.7 in the middle falling to -0.75 at the continents' ends (0.85 of the way)
 // - cold, mild, hot, mild, cold along each, the hot band a quarter of it (from 1 at the middle a half of each
 // continent was hot, deserts the most of it); mixed - a noise alone, 2.5 times as strong, its patches of warm and cold
-// some 40 tiles across. Then the noise and the climate's shift
+// some 40 tiles across. Then the noise and the climate's shift. The noise's scale is the biome size's
+// ([random_map] map_biome_size; normal: 0.025 a tile exactly, the maps as before): its patches larger or smaller, the
+// zones' bands the same
 internal float mg_temp(const struct mg *g, int x, int y) {
-    float u = (float)(x - y) / g->half, noise = mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f;
+    float k = 0.025f * g->opt.biome, u = (float)(x - y) / g->half, noise = mg_fbm((float)x * k + 90, (float)y * k + 40, g->seed + 20) - 0.5f;
     float lat = g->opt.zones == MG_ZONES_POLES ? 0.7f - 1.7f * fabsf(u) : g->opt.zones == MG_ZONES_MIXED ? 0 : u;
     return lat + noise * (g->opt.zones == MG_ZONES_MIXED ? 2.5f : 1.0f) + g->opt.temp;
 }
@@ -822,8 +827,12 @@ internal void mg_basin(struct mg *g, int x0, int y0, int r, float deep) {
             if (s > -1.5f / (float)r && mg_on(g, cx, cy)) g->used[cy * g->n + cx] = 1;
         }
 }
-// the moisture a place has of the noise alone - before the water near it and the mountains' rain shadow (mg_biomes)
-internal float mg_wet0(const struct mg *g, int x, int y) { return 0.42f + g->opt.wet + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f; }
+// the moisture a place has of the noise alone - before the water near it and the mountains' rain shadow (mg_biomes);
+// its scale the biome size's, as the temperature's
+internal float mg_wet0(const struct mg *g, int x, int y) {
+    float k = 0.03f * g->opt.biome;
+    return 0.42f + g->opt.wet + (mg_fbm((float)x * k + 510, (float)y * k + 260, g->seed + 40) - 0.5f) * 1.5f;
+}
 // is the ground round (x0, y0) plain land for a feature of r tiles: no mountain, foothill, plateau or water, `inside`
 // tiles inside the land, 14 from the lakes, oases and swamps so far
 internal int mg_plain(const struct mg *g, int x0, int y0, int r, float inside) {

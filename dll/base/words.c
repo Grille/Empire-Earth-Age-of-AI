@@ -18,11 +18,11 @@ internal const char *const k_words[] = {
     "multiplayer_blocked",                                                 // mp_block.c
     "map_age_of_ai",                                                       // mapgen.c: the mod's map type in the game's list
     "map_options", "map_layout", "map_land", "map_climate", "map_climate_zones", "map_rain",    // mapgen_dialog.c: its options
-    "map_mountains", "map_rivers", "map_lakes", "map_islands", "map_forests", "map_mines", "map_starts_keep",
+    "map_biome_size", "map_mountains", "map_rivers", "map_lakes", "map_islands", "map_forests", "map_mines", "map_starts_keep",
     "map_seed", "map_new_seed", "map_keep_seed", "map_options_button",
     "map_v_two_continents", "map_v_small", "map_v_normal", "map_v_large", "map_v_cold", "map_v_cool", "map_v_warm",
     "map_v_hot", "map_v_arid", "map_v_dry", "map_v_wet", "map_v_lush", "map_v_none", "map_v_few", "map_v_many",
-    "map_v_lots", "map_v_north_south", "map_v_poles", "map_v_mixed",
+    "map_v_lots", "map_v_north_south", "map_v_poles", "map_v_mixed", "map_v_tiny", "map_v_huge",
     "map_size_enormous", "map_size_colossal", "map_size_titanic",          // map_sizes.c: the sizes past Gigantic
 };
 #define N_WORDS (int)(sizeof k_words / sizeof *k_words)
