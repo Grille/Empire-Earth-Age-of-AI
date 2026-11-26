@@ -46,17 +46,21 @@ internal inline int patch_epoch_upgrades(epoch_upgrades_hook h, epoch_upgrades_a
 typedef int (__thiscall *tech_grant_hook)(ee_tech *t);
 internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(data_tech_vts_tech_researched, 0, (uintptr_t)fn_tech_grant, (void *)h); }
 
-// ART OF CONQUEST'S ENERGY FIELDS (engine/energy_walls.c): a Wall - Space that should have its field and has none - the
-// game's own test where it finishes or lays one (the type, no foundation, the owner's tech_energy_wall available), and
-// no effect hung on it, alive; energy_wall_make gives it the field as those places do. Never in the 2017 update
-// a standing Wall - Space piece (alive, no foundation): one an energy field links to
+// a standing Wall - Space piece (alive, no foundation; built or not, as the field's link takes them): one an energy
+// field links to
 internal int energy_wall_piece(ee_unit *u) {
     if (value_unit_type_energy_wall == NA) return 0;
     ee_unit_type *td = unit_get_type_data(u);
     return td && unit_type_get_id(td) == (int)value_unit_type_energy_wall && unit_get_hp(u) > 0 && !unit_is_foundation(u);
 }
+// ART OF CONQUEST'S ENERGY FIELDS (engine/energy_walls.c): a Wall - Space that should have its field and has none - the
+// game's own test where it finishes or lays one (the type, no foundation, the owner's tech_energy_wall available), and
+// no effect hung on it, alive, built: a building site isn't a foundation by vf22, and the construction's end makes its
+// field without a look at the slot - one given before would stay beside it, drawn twice (the player 2026-11-26: "walls
+// build during the game render in double strength"); energy_wall_make gives it the field as those places do. Never in
+// the 2017 update
 internal int energy_wall_wanted(ee_unit *u) {
-    if (!fn_make_energy_wall || of_unit_effect == NA || !energy_wall_piece(u) || unit_get_effect(u)) return 0;
+    if (!fn_make_energy_wall || of_unit_effect == NA || !energy_wall_piece(u) || !unit_get_finished(u) || unit_get_effect(u)) return 0;
     ee_player *pl = unit_get_owner(u);
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     ee_tech *t = tt ? tech_tree_lookup(tt, (int)value_unit_tech_energy_wall) : NULL;
