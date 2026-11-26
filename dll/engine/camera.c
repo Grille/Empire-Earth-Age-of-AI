@@ -315,11 +315,11 @@ internal float camera_zoom_notches(int n) {
 #define CAM_RAY_STEP 0.5f     // tiles along the ray
 #define CAM_RAY_MOST 20000
 internal int rf_screen_ray(const float *m, float mx, float my, float *eye, float *d);
-// The ray stops at what is seen: GetMeshZ, the ground's height and over water the surface's (0 - the camera's move puts the
-// look-at on it too: 46 spots of Small Islands' sea all 0). The tile's height it took before is its lowest corner, under
-// water the seabed's: the point under the mouse lay under the surface and the sea slid under the cursor as the zoom
-// tilted the view (the player 2026-11-26: "the camera behaves weired over water, it seems to take the ground underneth as
-// base for the tilt, instead of the water surface"). Off the map at the look-at's height.
+// The ray stops at what is seen: the ground, over water the surface (mesh_surface_z). The tile's height it took first is
+// its lowest corner, and GetMeshZ after it the ground's - under water both the seabed's: the point under the mouse lay
+// under the surface and the sea slid under the cursor as the zoom tilted the view (the player 2026-11-26: "the camera
+// behaves weired over water, it seems to take the ground underneth as base for the tilt", "the mouse zoom grabs to the
+// sea ground, not the water surface"). Off the map at the look-at's height.
 internal int camera_ground_point(const float *eye, const float *d, float low, float *at) {
     float len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
     ee_map *map = game_map();
@@ -328,7 +328,7 @@ internal int camera_ground_point(const float *eye, const float *d, float low, fl
     float p[3] = { eye[0], eye[1], eye[2] }, k = CAM_RAY_STEP / len;
     for (int i = 0; i < CAM_RAY_MOST; i++) {
         int on = p[0] >= 0 && p[1] >= 0 && mesh_has_tile(mesh, (int)p[0], (int)p[1]);
-        if (p[2] <= (on ? mesh_z(mesh, p[0], p[1]) : low)) { memcpy(at, p, sizeof p); return 1; }
+        if (p[2] <= (on ? mesh_surface_z(mesh, p[0], p[1]) : low)) { memcpy(at, p, sizeof p); return 1; }
         for (int a = 0; a < 3; a++) p[a] += d[a] * k;
     }
     return 0;
@@ -344,7 +344,9 @@ internal struct { int on; float mx, my, at[3]; } g_cam_anchor;
 // height at the middle and on two rings of 8 around it, out to that share of the eye's distance: close in it stays on
 // the ground (a ring under 0.05 tiles: the middle's alone), far out a hill's top or a gully under the middle moves it
 // a little.
-// The middle's own height counts as one of the 17; points off the map don't count.
+// The middle's own height counts as one of the 17; points off the map don't count. Each over water the surface's
+// (mesh_surface_z: the move had none of the go-to's clamp to the level - scrolled out to sea, the look-at sank to the
+// seabed), with camera_height_smooth 0 too.
 internal struct { float x, y, z; int ok; } g_cam_z_last;   // the camera's move's last answer (camera_anchor_frame)
 internal float camera_eye_distance(void) {
     float dist = g_cam_dist > 0 ? g_cam_dist : CAM_DIST_GAME, z = camera_zoom_now();
@@ -353,13 +355,13 @@ internal float camera_eye_distance(void) {
 internal float camera_ground_z(const void *mesh, float x, float y) {
     static const float ring[8][2] = { { 1, 0 }, { 0.7071f, 0.7071f }, { 0, 1 }, { -0.7071f, 0.7071f },
                                       { -1, 0 }, { -0.7071f, -0.7071f }, { 0, -1 }, { 0.7071f, -0.7071f } };
-    float z0 = mesh_z(mesh, x, y), r = g_set.camera_height_smooth * camera_eye_distance();
+    float z0 = mesh_surface_z(mesh, x, y), r = g_set.camera_height_smooth * camera_eye_distance();
     if (!(r > 0.05f)) return z0;
     float sum = z0;
     int n = 1;
     for (int k = 0; k < 16; k++) {
         float s = k < 8 ? 0.5f * r : r, px = x + ring[k % 8][0] * s, py = y + ring[k % 8][1] * s;
-        if (px >= 0 && py >= 0 && mesh_has_tile(mesh, (int)px, (int)py)) sum += mesh_z(mesh, px, py), n++;
+        if (px >= 0 && py >= 0 && mesh_has_tile(mesh, (int)px, (int)py)) sum += mesh_surface_z(mesh, px, py), n++;
     }
     float z = sum / (float)n;
     return fabsf(z) < 1e4f ? z : z0;
@@ -508,8 +510,9 @@ internal void camera_shape_install(void) {
     int sight = lift ? patch_camera_sight(hook_camera_sight) : -1;
     if (g_log) fprintf(g_log, "# camera: the look-at on the ground %s%s\n", lift ? "at any zoom" : "within the game's 10 tiles",
                        sight < 0 ? "" : sight ? ", over a hill in front within 10" : ", over a hill in front at any zoom (NOT patched)");
-    int smooth = g_set.camera_height_smooth > 0 ? patch_camera_lift_z(hook_camera_lift_z) : -1;
-    if (g_log) fprintf(g_log, "# camera: its height %s (%d of 2 calls)\n", smooth < 0 ? "the ground's under the middle" : smooth == 2 ? "the ground's smoothed" : "NOT all smoothed", smooth < 0 ? 0 : smooth);
+    int smooth = patch_camera_lift_z(hook_camera_lift_z);
+    if (g_log) fprintf(g_log, "# camera: its height %s, over water the surface (%d of 2 calls)\n",
+                       smooth < 2 ? "NOT all the mod's" : g_set.camera_height_smooth > 0 ? "the ground's smoothed" : "the ground's under the middle", smooth);
     int epic = g_set.camera_epic_angle ? patch_view_pitch(hook_view_pitch, 0) : -1;
     if (g_log) fprintf(g_log, "# camera: the epic view's angle %s\n", epic < 0 ? "the game's" : epic == 4 ? "ends a notch before the game's" : "FAILED");
     g_cam_shape = camera_shape_open();

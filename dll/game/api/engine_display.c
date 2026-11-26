@@ -403,6 +403,24 @@ internal inline int mesh_has_tile(const void *mesh, int x, int y) {
     const int32_t *row = (const int32_t *)(*(const uint8_t *const *)(m + value_engine_display_of_mesh_rows) + (size_t)(uint32_t)y * 0xC);
     return (uint32_t)(x - row[0]) < (uint32_t)row[1];
 }
+// THE HEIGHT OF WHAT IS SEEN at (x, y): GetMeshZ is the ground's, under water the seabed's (the camera's go-to clamps its
+// look-at to the level itself: 0x51ED59's result under 0 -> its 0.4 alone); over water the surface, the level z 0 (a
+// tile is water where a corner lies under it: AoC's EEMap 0x5225FA SetIsWater(x, y, that < 0); render_ground.c draws
+// the surface there at 0). A space tile keeps its ground: space has no water (GetWaterInfo's bit 0x80 on a space map).
+#define MESH_WATER_SPACE 0x80
+typedef uint8_t (__thiscall *mesh_water_info_fn)(const void *mesh, unsigned long x, unsigned long y);
+internal inline float mesh_surface_z(const void *mesh, float x, float y) {
+    float z = mesh_z(mesh, x, y);
+    if (!(z < 0) || !(x >= 0) || !(y >= 0) || !mesh_has_tile(mesh, (int)x, (int)y)) return z;
+    static mesh_water_info_fn info;
+    static int looked;
+    if (!looked) {
+        HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+        info = lle ? (mesh_water_info_fn)(void *)GetProcAddress(lle, "?GetWaterInfo@GETerrainMesh@@QBEEKK@Z") : NULL;
+        looked = 1;
+    }
+    return info && (info(mesh, (unsigned long)x, (unsigned long)y) & MESH_WATER_SPACE) ? z : 0.0f;
+}
 // a tile the map hasn't got is not lit: its rows are read only where the mesh has the tile - the game's fill asks of a
 // unit's own tile, a wreck's pose may lie anywhere (the player's AoC game 2026-11-26: a deleted ship's wreck, its row
 // read past the rows)
