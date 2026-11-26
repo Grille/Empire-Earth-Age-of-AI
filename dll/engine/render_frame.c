@@ -1111,6 +1111,7 @@ internal void rf_edges_part(ID3D11DeviceContext *x, int part) {
 // WATER'S STEP AND WHAT COMES AFTER IT)
 #define RF_HIGH_SPLIT 0.1f
 internal struct { ID3D11Buffer *cb[9]; int part, fail; } g_wsp;
+internal int g_rf_late[4];   // the last list's see-through batches under the water's level after its step, by their blend's kind (render_water.c's readout)
 internal void rf_water_part(ID3D11DeviceContext *x, int part) {
     if (!g_wsp.cb[0] && !g_wsp.fail) {
         static const float v[9][4] = { { 0, 0, 0, 0 }, { 1, 0, 0, 0 }, { -1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 1, 2, 0, 0 }, { -1, 2, 0, 0 }, { 1, 0, RF_HIGH_SPLIT, 0 }, { -1, 0, RF_HIGH_SPLIT, 0 }, { 1, 0, 0, 1 } };
@@ -1252,7 +1253,12 @@ internal void rf_replay(void) {
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
         if (i == firstw) {
             rd3_water_steps(x, lastw, &b, &first);
-            for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) { rf_water_part(x, rf_water_split(&g_rf.cmd[j], 1)); rf_draw(x, &g_rf.cmd[j], &b, &first); }
+            memset(g_rf_late, 0, sizeof g_rf_late);
+            for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) {
+                rf_water_part(x, rf_water_split(&g_rf.cmd[j], 1));
+                rf_draw(x, &g_rf.cmd[j], &b, &first);
+                g_rf_late[(int)g_rf.pcs[g_rf.cmd[j].pc].misc[3] & 3]++;
+            }
             if (owat) { rf_water_part(x, 8); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 4);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);

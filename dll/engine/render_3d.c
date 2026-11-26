@@ -137,7 +137,7 @@ typedef struct {
 typedef struct {
     int32_t op[4], aop[4];
     float fogc[4], tf[4];
-    float misc[4];   // alpha reference, fog on, colour key
+    float misc[4];   // alpha reference, fog on, colour key, the blend's kind (rd3_blend_kind)
     float shk[4];    // the dynamic shadows (the ground's, a decal's): their colour; the draw's role, a texel, on, the bias;
     float shd[4];
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
@@ -432,8 +432,15 @@ internal const char k_rd3_shader[] =
     // weighted transparency's among them - not the circles' parts, wsp.y) isn't in the step's copy: it takes the step's
     // tint and fog itself, by its own way through the water from where the line of sight enters it (render_water.c THE
     // WATER'S STEP AND WHAT COMES AFTER IT)
+    // - each by what its blend makes of its colour (misc.w, rd3_blend_kind): laid over by its alpha, toward the fog's colour;
+    // added, its light swallowed toward none (toward the fog's colour it added the fog once more over the water the step had
+    // fogged: the player 2026-11-27, an explosion's whole square lighter, "the fully transprant parts of the explosion cause
+    // double fogging"); its colour already times its alpha, toward the fog's colour times its alpha; multiplied, toward
+    // white (none) and not tinted (what it darkens is tinted)
     " if (wsp.x > 0 && wsp.y == 0 && wtn.x > 0 && wop.w > 0 && i.w.z < sea.z && wop.z > sea.z) { float dz = sea.z - i.w.z;"
-    "  float wp = saturate(length(i.w - wop.xyz) * dz / (wop.z - i.w.z) * wop.w); c.rgb = lerp(c.rgb * wtint(i.w.z, dz), wtm.yzw, wp * wp * (3 - 2 * wp)); }"
+    "  float wp = saturate(length(i.w - wop.xyz) * dz / (wop.z - i.w.z) * wop.w), wq = wp * wp * (3 - 2 * wp);"
+    "  c.rgb = misc.w > 2.5 ? lerp(c.rgb * wtint(i.w.z, dz), wtm.yzw * saturate(c.a), wq) : misc.w > 1.5 ? lerp(c.rgb, 1, wq)"
+    "   : misc.w > 0.5 ? c.rgb * wtint(i.w.z, dz) * (1 - wq) : lerp(c.rgb * wtint(i.w.z, dz), wtm.yzw, wq); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     // the overlay laid on the ground and the water's surface by their place on the map (render_ground.c gov) - their own
     // vertices' (gw: the map's tiles, the level at 0; w goes through the shadows' constants, set only with them on); the ground
@@ -742,6 +749,19 @@ internal void *rd3_sampler_of(const DWORD *ts, int clamp) {
 }
 // the device's states into the shaders' constants and the states the batch is collected under; 0: nothing to draw
 // into. clamp: CLAMP addressing
+// what a draw's blend makes of its colour, for what the water does to it (render_water.c THE WATER'S STEP AND WHAT COMES
+// AFTER IT): 0 laid over by its alpha (or not blended), 1 added to what is there (the destination's factor one: glows, an
+// explosion's fire), 2 multiplied with it (the source's factor zero or the destination's colour), 3 laid over with its
+// colour already times its alpha (the source's factor one, the destination's one less the alpha) - in 1 and 3 a texel
+// that shows nothing still adds its colour
+internal int rd3_blend_kind(const DWORD *rs) {
+    if (!rs[D3DRENDERSTATE_ALPHABLENDENABLE]) return 0;
+    DWORD sb = rs[D3DRENDERSTATE_SRCBLEND], db = rs[D3DRENDERSTATE_DESTBLEND];
+    if (db == D3DBLEND_ONE) return 1;
+    if (sb == D3DBLEND_ZERO || sb == D3DBLEND_DESTCOLOR) return 2;
+    if (sb == D3DBLEND_ONE && db == D3DBLEND_INVSRCALPHA) return 3;
+    return 0;
+}
 internal int rd3_prepare(rd_device *d, int clamp) {
     rd_surface *t = d->target;
     if (!t || !t->rtv || !rd3_init()) return 0;
@@ -846,6 +866,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     pc.misc[0] = (float)(rs[D3DRENDERSTATE_ALPHAREF] & 255);
     pc.misc[1] = fog ? 1.0f : 0.0f;
     pc.misc[2] = ckey ? 1.0f : 0.0f;
+    pc.misc[3] = (float)rd3_blend_kind(rs);
     rd3_shadow_pconstants(d, &pc);
     if (full || memcmp(&pc, &g_rd3.pc, sizeof pc)) { rd3_flush(); g_rd3.pc = pc; g_rf.pc_new = 1; }
     d->changed = 0;
