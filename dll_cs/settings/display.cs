@@ -254,6 +254,19 @@ class display
         /// <red green blue> / water color map):
         [advanced]
         color water_fog_color = none;
+        /// With water_look: what lies under the water takes the map's underwater colours by its own depth - the seabed,
+        /// and ships' hulls, wading units and fish under the surface too - instead of the game's colours painted into the
+        /// ground's corners, which a face from a cliff down into deep water carried up the cliff over the water (the
+        /// control pipe: water depthtint on / off):
+        bool water_depth_tint = true;
+        /// With water_depth_tint: the depth at which the tint begins, in the scenario editor's height numbers under the
+        /// water's level (none above it; the control pipe: water tintstart <n>):
+        [advanced, range(0, 20)]
+        int water_depth_tint_start = 0;
+        /// With water_depth_tint: the depth at which it is whole, eased in from the start (the control pipe: water
+        /// tintfull <n>):
+        [advanced, range(1, 40)]
+        int water_depth_tint_full = 3;
         /// With water_look: the light the waves gather on the seabed, lines of light that run with the waves, none at
         /// the waterline and fading with the depth; how bright, of the light on the ground (0% = none; the control
         /// pipe: water caustics <0..2>):
