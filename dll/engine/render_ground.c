@@ -105,8 +105,6 @@ internal struct {
     int32_t mop[2][RG_MATERIALS][6];
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
-    ID3D11Texture2D *wfl;          // a corner's colour of the water's by depth: 1, else 0 (R8, the corners across: the map's size + 1;
-    ID3D11ShaderResourceView *wfl_srv;   // render_water.c THE TINT BY DEPTH), each chunk's part as the chunk is made
     uint8_t *fow_was, *fow_now;
     ID3D11Buffer *cb, *cbw, *skirt;
     int nskirt;
@@ -174,8 +172,6 @@ internal void rg_free(void) {
     g_rg.nskirt = 0;
     D3D_RELEASE(g_rg.fow_srv);
     D3D_RELEASE(g_rg.fow);
-    D3D_RELEASE(g_rg.wfl_srv);
-    D3D_RELEASE(g_rg.wfl);
     free(g_rg.fow_was); free(g_rg.fow_now);
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
@@ -695,17 +691,7 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
         }
         rg_part_make(&c->p[w], tris, n, w);
     }
-    if (g_rg.wfl) {   // the chunk's corners, its far edges' too
-        static uint8_t f[(RG_CHUNK + 1) * (RG_CHUNK + 1)];
-        int x0 = cx * RG_CHUNK, y0 = cy * RG_CHUNK, x1 = x0 + RG_CHUNK < g_rg.size ? x0 + RG_CHUNK : g_rg.size, y1 = y0 + RG_CHUNK < g_rg.size ? y0 + RG_CHUNK : g_rg.size;
-        for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++)
-            f[(y - y0) * (RG_CHUNK + 1) + x - x0] = rw_water_slot(g_rg.mesh, g_rg.colour(g_rg.mesh, (unsigned long)x, (unsigned long)y)) ? 255 : 0;
-        D3D11_BOX b = { (UINT)x0, (UINT)y0, 0, (UINT)x1 + 1, (UINT)y1 + 1, 1 };
-        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rg.wfl, 0, &b, f, RG_CHUNK + 1, 0);
-    }
 }
-// the corners' flags of the water's colours for the water's step (render_water.c), NULL: none
-internal ID3D11ShaderResourceView *rg_water_flags(void) { return g_rg.built ? g_rg.wfl_srv : NULL; }
 // THE BLACK ROUND THE MAP. Its triangles both ways round: which way the game's face (four lists by hand) doesn't matter when both are there
 internal void rg_black(rb_vertex *o, const float *p) {
     float *f = (float *)o->fvf;
@@ -857,9 +843,6 @@ internal int rg_build(void) {
     D3D11_TEXTURE2D_DESC qd = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R32G32B32A32_UINT, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
     if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &qd, NULL, &g_rg.tq)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.tq, NULL, &g_rg.tq_srv)))
         D3D_RELEASE(g_rg.tq);   // the borders each by its own heights
-    D3D11_TEXTURE2D_DESC fd = { (UINT)g_rg.size + 1, (UINT)g_rg.size + 1, 1, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
-    if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &fd, NULL, &g_rg.wfl)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.wfl, NULL, &g_rg.wfl_srv)))
-        D3D_RELEASE(g_rg.wfl);   // no tint by depth: the game's colours under the water
     LONGLONG t0 = rd_qpc();
     g_rg.wcol = rg_bytes(g_rg.water_colour(g_rg.mesh, 0, 0), 0);
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) rg_chunk_build(cx, cy, tris);

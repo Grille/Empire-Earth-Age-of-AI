@@ -41,16 +41,16 @@
 // colour up the cliff over the level. With the step on, the ground's corners whose slot is one of that set's are white
 // (render_ground.c, the vertex shader: the chunks keep the game's colours, the step off takes them as before), and the
 // step multiplies what lies behind the surface by the set's colour at that pixel's own height - from the copy's depth,
-// between two steps rather than cut. So a hull or a wading unit takes it too. Where it does is the corners': each corner
-// of the water's colours 1, others 0 (render_ground.c's flags, a texel a corner), between the corners as their colours
-// went - the map's own choice: a beach's corners under the level and its shoals keep their sand's colour, a corner the
-// player painted with a colour of another set keeps it, and so does a hull over them (tinting all under the level, the
-// shallows came out one turquoise up to the surface's edge). The tint also fades in over the first RW_TINT_FADE tiles
-// under the level - the cliff's face over it none - and goes under the fog the place's line of sight enters the water by
-// (what lies under the water takes that fog: haze). Ground under the level with no surface over it (a land tile dipping
-// under it at a beach) is no longer tinted.
+// between two steps rather than cut. So a hull or a wading unit takes it too, and a corner the player painted with a colour
+// of another set keeps it under the tint. How strong the tint is goes by the depth alone (the player, 2026-11-26: "dont do
+// the corner hack, use only depth, but scale the intensithy 0 should have no tint -1 a little, and by -3 it should reach its
+// full strength" - in the editor's height units, half a height step each): none at the level, eased in (a smoothstep) to
+// whole at RW_TINT_FULL under it, so the shallows over a beach or a shoal keep most of their sand. Tried first, by a flag per
+// corner (the water's colour or not, read between corners): the map's own choice where to tint, dropped at the player's word.
+// It goes under the fog the place's line of sight enters the water by (what lies under the water takes that fog: haze).
+// Ground under the level with no surface over it (a land tile dipping under it at a beach) is no longer tinted.
 #define RW_STEPS 64          // the water set's steps the tint holds (more: the deepest of those for the rest)
-#define RW_TINT_FADE 0.05f   // tiles under the level by which the tint is whole
+#define RW_TINT_FULL 3.0f    // the editor's height units under the level by which the tint is whole (none at the level)
 internal struct {
     int on;          // -1: as the ini says
     float fog;       // the depth (tiles) by which 63% of the way from the shallows' alpha to the deep's is done
@@ -71,10 +71,10 @@ internal struct {
     float sc[RW_STEPS][4];   // the steps' colours, the shallowest first (the step's tint by depth)
     uint32_t wmask[8];       // the colour table's slots of the water's set (rw_water_slot)
     int dtint;       // the tint by depth in the step, 0: off (the pipe's water depthtint)
-    float tfade;     // tiles under the level by which it is whole (the pipe's water tintfade)
+    float tfull;     // the editor's height units under the level by which it is whole (the pipe's water tintfull)
     int tdirty;      // the tint's buffer to be sent again
     int copy_ok;     // the last copy of the picture could be made (else the ground keeps the game's colours under the water)
-    float across;    // the corners across it was sent for
+    float hstep;     // the map's height step it was sent for
     ID3D11Buffer *tcb;
     float za;        // the projection's depth term (rw_depth)
     ID3D11PixelShader *fps;
@@ -103,7 +103,7 @@ internal struct {
     void *rsrc[8];                   // the list's raster states (render_3d.c rd3_mk_raster: one a cull mode) ...
     ID3D11RasterizerState *rmir[8];  // ... and the mirrored picture's for them (rw_raster)
     int nr;
-} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .owned = -1, .dtint = 1, .tfade = RW_TINT_FADE, .copy_ok = 1, .late = 1, .away = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
+} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .owned = -1, .dtint = 1, .tfull = RW_TINT_FULL, .copy_ok = 1, .late = 1, .away = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
 // the game's colours for the depths, once a map: the mesh's water colour set, a list of slots of its colour table, first the
 // shallowest (GETerrainMesh::SetWaterColorSet) - the last one's the colour under the water
@@ -169,8 +169,7 @@ internal float rw_opaque(void) {
 }
 // the step tints what lies under the water by its depth: the ground's corners of the water's colours are white then
 // (render_ground.c)
-internal ID3D11ShaderResourceView *rg_water_flags(void);   // render_ground.c
-internal int rw_depth_tint(void) { return g_wa.dtint && !g_wa.ffail && g_wa.copy_ok && rw_opaque() > 0 && rg_water_flags(); }
+internal int rw_depth_tint(void) { return g_wa.dtint && !g_wa.ffail && g_wa.copy_ok && rw_opaque() > 0; }
 // 1: the colour the mesh gives a corner (GetVertexColor: its slot's place in the mesh's colour table) is of the water's set
 internal int rw_water_slot(void *mesh, const float *c) {
     rw_table();
@@ -401,22 +400,20 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
     }
     if (!g_wa.have) return;
     if (!g_wa.tcb) {
-        D3D11_BUFFER_DESC bd = { (2 + RW_STEPS) * 4 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { (1 + RW_STEPS) * 4 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_wa.tcb);
         if (FAILED(hr)) { g_wa.tcb = NULL; g_wa.dtint = 0; rd_fail("the water's tint by depth", hr); }   // the game's colours, as before
         g_wa.tdirty = 1;
     }
-    ID3D11ShaderResourceView *flags = rg_water_flags();
-    float across = (float)map_get_size(game_map()) + 1;
-    if (g_wa.tcb && (g_wa.tdirty || across != g_wa.across)) {   // wtn: the last step, the scale, on, 1 / the fade; wtm: the corners across; wts: the steps' colours
-        float cb[(2 + RW_STEPS) * 4] = { (float)((g_wa.tn < RW_STEPS ? g_wa.tn : RW_STEPS) - 1), g_wa.scale, g_wa.dtint && g_wa.tn ? 1.0f : 0.0f, 1 / g_wa.tfade, across };
-        memcpy(cb + 8, g_wa.sc, sizeof g_wa.sc);
-        g_wa.across = across;
+    float hstep = map_get_height_step(game_map());
+    if (g_wa.tcb && (g_wa.tdirty || hstep != g_wa.hstep)) {   // wtn: the last step, the scale, on, 1 / the depth (tiles) of the whole tint; wts: the steps' colours
+        float cb[(1 + RW_STEPS) * 4] = { (float)((g_wa.tn < RW_STEPS ? g_wa.tn : RW_STEPS) - 1), g_wa.scale, g_wa.dtint && g_wa.tn ? 1.0f : 0.0f, 1 / (g_wa.tfull * hstep * 0.5f) };
+        memcpy(cb + 4, g_wa.sc, sizeof g_wa.sc);
+        g_wa.hstep = hstep;
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_wa.tcb, 0, NULL, cb, 0, 0);
         g_wa.tdirty = 0;
     }
     ID3D11DeviceContext_PSSetConstantBuffers(x, 7, 1, &g_wa.tcb);
-    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &flags);
     ID3D11ShaderResourceView *srv[2] = { g_wa.csrv, g_wa.zsrv };
     ID3D11DeviceContext_PSSetShaderResources(x, 8, 2, srv);
     ID3D11DeviceContext_PSSetShader(x, g_wa.fps, NULL, 0);
@@ -572,15 +569,15 @@ internal void cmd_water(char *out, const char *args) {
     else if (!strcmp(mode, "edges")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_fe.force = 1; else if (!strcmp(a, "off")) g_fe.force = 0; }
     else if (!strcmp(mode, "still")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_rw_still = 1; else if (!strcmp(a, "off")) g_rw_still = 0; }
     else if (!strcmp(mode, "blend")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_rw_blend = 1; else if (!strcmp(a, "off")) g_rw_blend = 0; }
-    else if (n == 2 && !strcmp(mode, "tintfade") && v > 0) { g_wa.tfade = v; g_wa.tdirty = 1; }
+    else if (n == 2 && !strcmp(mode, "tintfull") && v > 0) { g_wa.tfull = v; g_wa.tdirty = 1; }
     else if (!strcmp(mode, "depthtint")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.dtint = 1; else if (!strcmp(a, "off")) g_wa.dtint = 0; g_wa.tdirty = 1; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..8> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | depthtint on | off | tintfade <depth> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | blend on | off | still on | off\n"); return; }
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..8> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | depthtint on | off | tintfull <editor units> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | blend on | off | still on | off\n"); return; }
     const float *wc = rw_colour();
-    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x (scale %.3f, the step's tint by them %s, whole %.2f under), under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f; the animation's frames %s%s\n",
+    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x (scale %.3f, the step's tint by them %s, whole %.1f editor units under), under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f; the animation's frames %s%s\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth, g_wa.haze ? "on" : "off", (double)(g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque),
-          g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, (double)g_wa.scale, rw_depth_tint() ? "on" : g_wa.dtint ? "on, no step" : "off", (double)g_wa.tfade, (double)(wc[0] * 255), (double)(wc[1] * 255), (double)(wc[2] * 255), g_wa.owned ? "the setting" : "the map's deepest", g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za,
+          g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, (double)g_wa.scale, rw_depth_tint() ? "on" : g_wa.dtint ? "on, no step" : "off", (double)g_wa.tfull, (double)(wc[0] * 255), (double)(wc[1] * 255), (double)(wc[2] * 255), g_wa.owned ? "the setting" : "the map's deepest", g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za,
           (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full,
           (double)(g_rw_refract >= 0 ? g_rw_refract : g_set.water_refraction), (double)(g_rw_ripples >= 0 ? g_rw_ripples : g_set.water_reflection_ripples), g_rw_blend ? "blended" : "stepped",
           g_rw_still ? "; still: no surface movement, no animation" : "");
