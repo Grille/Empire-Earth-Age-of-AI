@@ -33,10 +33,26 @@ internal int mb_ours(ee_ui_control *list) {
     return i < map_types_count() && mapgen_is_ours(map_type_name_text(map_types_at(i)));
 }
 
+// The list and the button kept are still the form's controls. The game builds its forms anew (another resolution: the
+// editor's, its uiscale) and a new setup screen can come at the address the old one had: the list and the button kept
+// were freed with it, and the click on Random Map's skirmish set the list's width through a freed text box (the
+// player's game, 2026-11-27: "ee died after i clicked on the random map skirmish button", a jump to garbage under
+// mb_update). Then they are forgotten - the screen's next refresh makes the button for the new form (hook_mb_refresh).
+internal int mb_still(ee_ui_form *form) {
+    if (!g_mb.button || setup_screen_map_list(form) != g_mb.list) return 0;
+    for (unsigned i = 0, n = ui_form_control_count(form); i < n; i++)
+        if (ui_form_control_at(form, i) == g_mb.button) return 1;
+    return 0;
+}
 // the list's width and the button by what is chosen (the list hidden - a scenario's or a saved game's setup -, a
 // multiplayer game this PC joined: the list whole, no button)
 internal void mb_update(ee_ui_form *form) {
     if (!form || form != g_mb.form || !g_mb.list || !g_mb.button) return;
+    if (!mb_still(form)) {
+        if (g_log) log_locked("# mapgen: the setup screen made anew at %p - its options button made again at its refresh\n", (void *)form);
+        g_mb.form = NULL, g_mb.list = g_mb.button = NULL;
+        return;
+    }
     ee_ui_control *list = g_mb.list;
     int on = !g_mb.joined && ui_control_get_mode_now(list) && mb_ours(list);
     float right = on ? g_mb.right - MB_WIDTH - MB_GAP : g_mb.right, d = right - ui_control_get_right(list);
@@ -103,7 +119,7 @@ internal void __cdecl hook_mb_refresh(void) {
     ee_ui_form *form = ui_form(FORM_SETUP);
     ee_ui_control *list = form ? setup_screen_map_list(form) : NULL;
     if (!list) return;
-    if (form != g_mb.form || list != g_mb.list) mb_make(form, list);
+    if (form != g_mb.form || list != g_mb.list || !mb_still(form)) mb_make(form, list);   // (a form made anew where the old was)
     mb_update(form);
 }
 // the screen set up for a single-player game, a multiplayer game's host, one who joined: which it is known before
