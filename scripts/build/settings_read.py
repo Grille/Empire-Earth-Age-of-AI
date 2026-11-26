@@ -71,6 +71,20 @@ def percent(x, where):   # a share's fraction as the whole percents rows.h keeps
     return str(int(d))
 
 
+def milli(x, where):   # a real key's number as the whole thousandths rows.h keeps: 1.5 -> 1500
+    from decimal import Decimal
+    d = Decimal(str(x)) * 1000
+    if d != d.to_integral_value():
+        raise SystemExit('%s: %s has more than three decimals' % (where, x))
+    return str(int(d))
+
+
+def real_text(x):   # a real key's number as the file writes it: 3, 1.5, 0.25
+    from decimal import Decimal
+    t = '%f' % Decimal(str(x))
+    return t.rstrip('0').rstrip('.') if '.' in t else t
+
+
 def color(x, where):   # a colour key's default (none, rgb(r, g, b)) as rows.h keeps it and the file writes it: (-1, 'none'), (0x3265BB, '#3265BB')
     if x.strip() == 'none':
         return -1, 'none'
@@ -108,6 +122,8 @@ def kind_of(sec, k):   # rows.h's kind of a key
         return 'STR'
     if k.type == 'share':
         return 'SHARE'
+    if k.type == 'double':
+        return 'REAL'
     if k.type == 'color':
         return 'COLOR'
     if k.type == 'int':

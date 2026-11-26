@@ -262,11 +262,11 @@ class display
         /// With water_depth_tint: the depth at which the tint begins, in the scenario editor's height numbers under the
         /// water's level (none above it; the control pipe: water tintstart <n>):
         [advanced, range(0, 20)]
-        int water_depth_tint_start = 0;
+        double water_depth_tint_start = 0;
         /// With water_depth_tint: the depth at which it is whole, eased in from the start (the control pipe: water
         /// tintfull <n>):
-        [advanced, range(1, 40)]
-        int water_depth_tint_full = 3;
+        [advanced, range(0.1, 40)]
+        double water_depth_tint_full = 3;
         /// With water_look: the light the waves gather on the seabed, lines of light that run with the waves, none at
         /// the waterline and fading with the depth; how bright, of the light on the ground (0% = none; the control
         /// pipe: water caustics <0..2>):

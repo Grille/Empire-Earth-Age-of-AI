@@ -46,6 +46,8 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
     if kind in ('SHARE', 'FACTOR'):
         v = settings_read.percent(d, k.where)
         return v, v + '%'
+    if kind == 'REAL':   # whole thousandths
+        return settings_read.milli(d, k.where), settings_read.real_text(d)
     if kind == 'COLOR':   # 0xRRGGBB, -1 none
         v, text = settings_read.color(d, k.where)
         return ('0x%06X' % v if v >= 0 else '-1'), text
@@ -64,6 +66,8 @@ def diff_value(base, k):   # a difficulty's own value of an [ai_base] key, as th
         return settings_read.percent(k.default, k.where) + '%'
     if k.type == 'int':
         return k.default
+    if kind == 'REAL':
+        return settings_read.real_text(k.default)
     if kind == 'COLOR':
         return settings_read.color(k.default, k.where)[1]
     v = cs_str(k.default)
@@ -89,6 +93,7 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_
         'FACTOR': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),
         'FLAGS': ('%s_FIELDS' % k.name.upper(), '0'),
         'COLOR': ('0', '0'),
+        'REAL': tuple(settings_read.milli(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-2000000000', '2000000000'),   # thousandths; no bound
     }[kind]
     if sec.kind == 'ALL':
         return 'D(%s %s %s, %s, %s)' % ((kind + ',').ljust(6), (k.name + ',').ljust(30), d, lo_hi[0], lo_hi[1])

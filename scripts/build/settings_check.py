@@ -54,6 +54,9 @@ def same(kind, value, default):
     if kind in ('FLAG', 'INT', 'NUM', 'LIMIT'):
         try: return int(value, 0) == int(want, 0)
         except ValueError: return False
+    if kind == 'REAL':   # a decimal against whole thousandths
+        try: return abs(float(value) - int(want) / 1000) < 1e-9
+        except ValueError: return False
     if kind == 'COLOR':   # none or #RRGGBB against -1 or 0xRRGGBB
         if value == 'none': return int(want, 0) == -1
         try: return int(value.lstrip('#'), 16) == int(want, 0)

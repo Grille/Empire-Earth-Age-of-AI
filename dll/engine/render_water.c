@@ -171,8 +171,8 @@ internal float rw_opaque(void) {
 // the step tints what lies under the water by its depth: the ground's corners of the water's colours are white then
 // (render_ground.c)
 internal int rw_tint_on(void) { return g_wa.dtint < 0 ? g_set.water_depth_tint : g_wa.dtint; }
-internal float rw_tint_start(void) { return g_wa.tstart < 0 ? (float)g_set.water_depth_tint_start : g_wa.tstart; }
-internal float rw_tint_full(void) { return g_wa.tfull < 0 ? (float)g_set.water_depth_tint_full : g_wa.tfull; }
+internal float rw_tint_start(void) { return g_wa.tstart < 0 ? g_set.water_depth_tint_start : g_wa.tstart; }
+internal float rw_tint_full(void) { return g_wa.tfull < 0 ? g_set.water_depth_tint_full : g_wa.tfull; }
 internal int rw_depth_tint(void) { return rw_tint_on() && !g_wa.ffail && g_wa.copy_ok && rw_opaque() > 0; }
 // 1: the colour the mesh gives a corner (GetVertexColor: its slot's place in the mesh's colour table) is of the water's set
 internal int rw_water_slot(void *mesh, const float *c) {

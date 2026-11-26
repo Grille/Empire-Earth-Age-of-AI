@@ -163,6 +163,7 @@ internal void default_text(const struct setting_row *r, char *out, int cap) {
     case SETK_SHARE: case SETK_FACTOR: snprintf(out, cap, "%d%%", r->def); break;   // both keep whole percents
     case SETK_CHOICE: case SETK_STR: case SETK_STR_P: case SETK_FLAGS: lstrcpynA(out, r->def_s, cap); break;
     case SETK_COLOR: setting_text(r, (const uint8_t *)&r->def, out, cap); break;   // none, #RRGGBB
+    case SETK_REAL: snprintf(out, cap, "%g", r->def / 1000.0); break;   // kept in thousandths
     default: snprintf(out, cap, "%d", r->def);
     }
 }
@@ -708,7 +709,7 @@ internal int game_keeps(const struct entry *e, int game) {
         setting_value(r, g_ini_path, sec_of(e), key, e->text, val);
         g_ini_why = NULL;
     }
-    double x = r->kind == SETK_SHARE ? *(float *)val * 100.0 : (double)*(int *)val;
+    double x = r->kind == SETK_SHARE ? *(float *)val * 100.0 : r->kind == SETK_REAL ? *(float *)val : (double)*(int *)val;
     return x <= k_settings_game[game].keep;
 }
 internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard has a value of its own in the file

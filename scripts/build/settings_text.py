@@ -82,6 +82,8 @@ TEXT = {
         '          default the same way. A part that keeps a bit mask: SETTING_BITS(g_set_ai[1].army_plan) - field i, bit i.',
         '  COLOR   a colour, an int 0xRRGGBB, -1 none (its code\'s own then); in the file #RRGGBB (the # may be left out) or',
         '          none (settings.c setting_color)',
+        '  REAL    a number with decimals, a float (water_depth_tint_full=2.5), lo .. hi (outside: a warning, the value',
+        '          used); the default and the range in whole thousandths (2500)',
         '',
         'A range (INT, SHARE) is a sanity bound, not a limit the code relies on: a value outside it is a warning in the log',
         '("- used anyway") and the value kept (formation_wait=0% is silly but runs). A mistake is only what can\'t be used at',

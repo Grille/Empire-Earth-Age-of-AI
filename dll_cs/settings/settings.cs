@@ -40,6 +40,8 @@
 //   [length(n)] string k = "";                   STR      a text shorter than n
 //   [per_player, length(n)] string k_P = "";     STR_P    a text per player slot (k_P0 .. k_P15)
 //   [range(1, 3)] factor k = 1.25;               FACTOR   a multiplier, 1 the game's own (dll_cs/language.cs), in percent
+//   [range(0, 20)] double k = 2.5;               REAL     a number with decimals (at most three) lo .. hi (outside: a
+//                                                         warning, used), in the file as it is: 2.5
 //   k_fields k;                                  FLAGS    a struct of the section: bool fields and enum fields; its
 //                                                         default all at their first ([on("a, b")]: those on)
 //   color k = rgb(50, 101, 187);                 COLOR    a colour, in the file #RRGGBB (six hex digits, the # may be
