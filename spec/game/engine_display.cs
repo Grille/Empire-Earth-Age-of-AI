@@ -1525,6 +1525,16 @@ static unsafe class engine_display
     [address((ee)0x0082327C, (aoc)0x00837278)]
     static block iat_mesh_z;
 
+    /// the camera's move's look-at height (0x51D5AF, AoC 0x52816E, within game.camera_lift_reach): call [GetMeshZ] under
+    /// the look-at, 0.4 (0x82C6D4) added - its only call there
+    [address((ee)0x0051D6E9, (aoc)0x005282A8)]
+    static code call_camera_lift_z;
+
+    /// the camera's go-to's look-at height (0x51EC85, AoC's by the same bytes: a jump to a spot - the minimap, the
+    /// pipe's camera x y, a unit followed): call [GetMeshZ] under the spot, 0.4 added the same way
+    [address((ee)0x0051ED59, (aoc)0x00529918)]
+    static code call_camera_goto_z;
+
     /// a unit's script state while it dies and rots (EEUnitAction.id; the AoC decompilation's kActionUnitRotting): the
     /// opacity is its rot_ms over its type's rot_time
     [value((ee)0x1772, (aoc)0x1772)]

@@ -336,6 +336,48 @@ internal int camera_ground_point(const float *eye, const float *d, float low, fl
 internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
 internal int g_cam_now_ok;
 internal struct { int on; float mx, my, at[3]; } g_cam_anchor;
+// THE LOOK-AT'S HEIGHT SMOOTHED ([camera] camera_height_smooth; the player 2026-11-26: "the camera in general feels a bit
+// jittery, probably because it now always adjusts to the terrain benth it instead of staying at it current height"):
+// the camera's move puts the look-at 0.4 above GetMeshZ under it (0x51D5AF), and since the look-at follows the ground at
+// any zoom (CAM_LIFT_REACH) every bump scrolled over lifted and dropped the whole picture - the game's camera kept its
+// height past 10 tiles of the eye, and its jump at that reach was the other trouble. Now the mean of the ground's
+// height at the middle and on two rings of 8 around it, out to that share of the eye's distance: close in it stays on
+// the ground (a ring under 0.05 tiles: the middle's alone), far out a hill's top or a gully under the middle moves it
+// a little.
+// The middle's own height counts as one of the 17; points off the map don't count.
+internal struct { float x, y, z; int ok; } g_cam_z_last;   // the camera's move's last answer (camera_anchor_frame)
+internal float camera_eye_distance(void) {
+    float dist = g_cam_dist > 0 ? g_cam_dist : CAM_DIST_GAME, z = camera_zoom_now();
+    return z < 1.0f ? (dist - 0.1f) * z + 0.1f : dist * z;
+}
+internal float camera_ground_z(const void *mesh, float x, float y) {
+    static const float ring[8][2] = { { 1, 0 }, { 0.7071f, 0.7071f }, { 0, 1 }, { -0.7071f, 0.7071f },
+                                      { -1, 0 }, { -0.7071f, -0.7071f }, { 0, -1 }, { 0.7071f, -0.7071f } };
+    float z0 = mesh_z(mesh, x, y), r = g_set.camera_height_smooth * camera_eye_distance();
+    if (!(r > 0.05f)) return z0;
+    float sum = z0;
+    int n = 1;
+    for (int k = 0; k < 16; k++) {
+        float s = k < 8 ? 0.5f * r : r, px = x + ring[k % 8][0] * s, py = y + ring[k % 8][1] * s;
+        if (px >= 0 && py >= 0 && mesh_has_tile(mesh, (int)px, (int)py)) sum += mesh_z(mesh, px, py), n++;
+    }
+    float z = sum / (float)n;
+    return fabsf(z) < 1e4f ? z : z0;
+}
+// The hill in front: after the height the move asks where the line from the eye to the look-at meets the ground and
+// lifts the look-at onto that point (0x51E56F, EEMap.line_ground) - within the same reach, so the game did it only
+// close in, where it keeps the eye from looking through a hill. With the reach at any zoom every hill between the eye
+// and the middle of the view popped the picture up by its height and down again behind it (Highlands seed 7, a scroll
+// of 60 tiles: 2.24 tiles up and 1.1 at once, smoothed or not). Kept within the game's 10 tiles of the eye.
+#define CAM_SIGHT_REACH 10.0f   // the game's camera_lift_reach, before camera_shape_install raises it
+internal ee_tile *__thiscall hook_camera_sight(ee_map *map, void *line, float *hit, char test) {
+    return camera_eye_distance() > CAM_SIGHT_REACH ? NULL : map_line_ground(map, line, hit, test);
+}
+internal float __thiscall hook_camera_lift_z(const void *mesh, float x, float y) {
+    float z = camera_ground_z(mesh, x, y);
+    g_cam_z_last.x = x, g_cam_z_last.y = y, g_cam_z_last.z = z, g_cam_z_last.ok = 1;
+    return z;
+}
 internal void camera_anchor_drop(void) { g_cam_anchor.on = 0; }   // the player's own move (input_pan); the ride goes on
 // The fade is the ray's under the cursor, not the zoom's: the normal view's pitch goes with the zoom in a straight line,
 // 35 degrees down at the game's 1 to 5 at its nearest (0x51DA2D, the two angles at 0x913284 / 0x913288), and only a ray
@@ -406,8 +448,11 @@ internal void camera_anchor_frame(ee_camera *cam, float *now, float t) {
         // sideways alone, the frame drew the eye at the old spot's height and the move at the ride's end lifted or lowered
         // it a frame later - a step in height at every notch (the player 2026-11-26: "if you zoom one step in and one out
         // again there is a very notivable jump in height each time"; 0.09 tiles on a gentle slope, measured by camtrace)
+        // (the height smoothed as the move makes it: from its last answer where the look-at stands - its circle went with
+        // the zoom before this notch - else the same height here at this zoom)
         const void *mesh = map_mesh_at(map);
-        float dz = mesh_z(mesh, x + dx, y + dy) - mesh_z(mesh, x, y);
+        float was = g_cam_z_last.ok && g_cam_z_last.x == x && g_cam_z_last.y == y ? g_cam_z_last.z : camera_ground_z(mesh, x, y);
+        float dz = camera_ground_z(mesh, x + dx, y + dy) - was;
         if (!(fabsf(dz) < 100.0f)) dz = 0;
         g_cam_anchor.at[0] = qx + dx;
         g_cam_anchor.at[1] = qy + dy;
@@ -460,7 +505,11 @@ internal float __cdecl hook_view_pitch(float zoom, int view) {
 }
 internal void camera_shape_install(void) {
     int lift = g_set.camera_zoom_at_mouse && camera_lift_reach_set(CAM_LIFT_REACH);
-    if (g_log) fprintf(g_log, "# camera: the look-at on the ground %s\n", lift ? "at any zoom" : "within the game's 10 tiles");
+    int sight = lift ? patch_camera_sight(hook_camera_sight) : -1;
+    if (g_log) fprintf(g_log, "# camera: the look-at on the ground %s%s\n", lift ? "at any zoom" : "within the game's 10 tiles",
+                       sight < 0 ? "" : sight ? ", over a hill in front within 10" : ", over a hill in front at any zoom (NOT patched)");
+    int smooth = g_set.camera_height_smooth > 0 ? patch_camera_lift_z(hook_camera_lift_z) : -1;
+    if (g_log) fprintf(g_log, "# camera: its height %s (%d of 2 calls)\n", smooth < 0 ? "the ground's under the middle" : smooth == 2 ? "the ground's smoothed" : "NOT all smoothed", smooth < 0 ? 0 : smooth);
     int epic = g_set.camera_epic_angle ? patch_view_pitch(hook_view_pitch, 0) : -1;
     if (g_log) fprintf(g_log, "# camera: the epic view's angle %s\n", epic < 0 ? "the game's" : epic == 4 ? "ends a notch before the game's" : "FAILED");
     g_cam_shape = camera_shape_open();

@@ -1153,6 +1153,12 @@ internal inline uint8_t *engine_display_opacity_viewport_at(void) { return (uint
 // GETerrainMesh::GetMeshZ (thiscall on the mesh: x, y; the ground's height, a float on the FPU's stack)
 internal inline uint8_t *engine_display_iat_transform_apply_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_apply; }
 internal inline uint8_t *engine_display_iat_mesh_z_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_mesh_z; }
+// the camera's move's look-at height (0x51D5AF, AoC 0x52816E, within game.camera_lift_reach): call [GetMeshZ] under
+// the look-at, 0.4 (0x82C6D4) added - its only call there
+internal inline uint8_t *engine_display_call_camera_lift_z_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_camera_lift_z; }
+// the camera's go-to's look-at height (0x51EC85, AoC's by the same bytes: a jump to a spot - the minimap, the
+// pipe's camera x y, a unit followed): call [GetMeshZ] under the spot, 0.4 added the same way
+internal inline uint8_t *engine_display_call_camera_goto_z_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_camera_goto_z; }
 // a unit's script state while it dies and rots (EEUnitAction.id; the AoC decompilation's kActionUnitRotting): the
 // opacity is its rot_ms over its type's rot_time
 // EEUnit.hidden_flags' moved bit (kHiddenFlagMoved)
@@ -1751,6 +1757,8 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_viewport_inverse = 240;
         data_engine_display_iat_transform_apply = 0x008231C4;
         data_engine_display_iat_mesh_z = 0x0082327C;
+        data_engine_display_call_camera_lift_z = 0x0051D6E9;
+        data_engine_display_call_camera_goto_z = 0x0051ED59;
         value_engine_display_state_rotting = 6002;
         value_engine_display_hidden_moved = 16;
         data_engine_display_camera_yaw = 0x009125C4;
@@ -2213,6 +2221,8 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_viewport_inverse = 240;
         data_engine_display_iat_transform_apply = 0x008371C0;
         data_engine_display_iat_mesh_z = 0x00837278;
+        data_engine_display_call_camera_lift_z = 0x005282A8;
+        data_engine_display_call_camera_goto_z = 0x00529918;
         value_engine_display_state_rotting = 6002;
         value_engine_display_hidden_moved = 16;
         data_engine_display_camera_yaw = 0x00928D64;
@@ -2476,6 +2486,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_opacity_viewport, "engine_display.opacity_viewport");
     bad += spec_data(data_engine_display_iat_transform_apply, "engine_display.iat_transform_apply");
     bad += spec_data(data_engine_display_iat_mesh_z, "engine_display.iat_mesh_z");
+    bad += spec_code(data_engine_display_call_camera_lift_z, "engine_display.call_camera_lift_z");
+    bad += spec_code(data_engine_display_call_camera_goto_z, "engine_display.call_camera_goto_z");
     bad += spec_data(data_engine_display_camera_yaw, "engine_display.camera_yaw");
     bad += spec_data(data_engine_display_tree_shift, "engine_display.tree_shift");
     bad += spec_data(data_engine_display_iat_set_orientation, "engine_display.iat_set_orientation");

@@ -35,6 +35,14 @@ unsafe struct EEMap
     [address((ee)0x00511694, (aoc)0x0051BC03)]
     extern void sight_players(uint32 n);
 
+    /// thiscall(map, line, hit, test): where a line first meets the ground - its point into hit (x, y, z), its tile
+    /// returned, NULL where it meets none (ret 0xC). GUESSED from its use: the camera's move (0x51E2E6) asks it of the
+    /// line from the eye to the look-at (made by 0x512075, test 1) and lifts the look-at onto the point when it hits -
+    /// a hill in front of the look-at; the code reads the map's tile table (+0x1816D4) at the point found
+    [address((ee)0x005189AC, (aoc)0x0052307D), guess]
+    [call_site("camera_sight", (ee)0x0051E56F, (aoc)0x0052912E)]
+    extern ee_tile* line_ground(void* line, float32* hit, char8 test);
+
     /// thiscall(map, player): every tile the player's sight count has at 0 (never explored) set to 1 (explored,
     /// through 0x51979C) - a computer player's first update gives it the whole map so (EEComputerPlayer::update's
     /// one-time setup: mov ecx, [game.map]; push the player; call), the cheat codes' reveal map (0x520D0D) too

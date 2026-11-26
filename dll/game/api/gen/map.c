@@ -35,6 +35,15 @@ internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { ret
 typedef void (__thiscall *map_sight_players_fn)(ee_map *, uint32_t);
 internal map_sight_players_fn fn_map_sight_players;
 internal inline void map_sight_players(ee_map *map, uint32_t n) { fn_map_sight_players(map, n); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// thiscall(map, line, hit, test): where a line first meets the ground - its point into hit (x, y, z), its tile
+// returned, NULL where it meets none (ret 0xC). GUESSED from its use: the camera's move (0x51E2E6) asks it of the
+// line from the eye to the look-at (made by 0x512075, test 1) and lifts the look-at onto the point when it hits -
+// a hill in front of the look-at; the code reads the map's tile table (+0x1816D4) at the point found
+typedef ee_tile *(__thiscall *map_line_ground_fn)(ee_map *, void *, float *, char);
+internal map_line_ground_fn fn_map_line_ground;
+internal inline ee_tile *map_line_ground(ee_map *map, void *line, float *hit, char test) { return fn_map_line_ground(map, line, hit, test); }
+internal inline int patch_camera_sight(map_line_ground_fn h) { return patch_call(call_camera_sight, (uintptr_t)fn_map_line_ground, (void *)h); }
 // thiscall(map, player): every tile the player's sight count has at 0 (never explored) set to 1 (explored,
 // through 0x51979C) - a computer player's first update gives it the whole map so (EEComputerPlayer::update's
 // one-time setup: mov ecx, [game.map]; push the player; call), the cheat codes' reveal map (0x520D0D) too
@@ -485,6 +494,8 @@ internal int spec_map_select(int build) {
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
         fn_map_sight_players = (map_sight_players_fn)0x00511694;
+        fn_map_line_ground = (map_line_ground_fn)0x005189AC;
+        call_camera_sight = 0x0051E56F;
         fn_map_explore_all = (map_explore_all_fn)0x005190AE;
         call_cp_explore_all = 0x0043F94C;
         of_map_mesh = 0x1C;
@@ -605,6 +616,8 @@ internal int spec_map_select(int build) {
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
         fn_map_sight_players = (map_sight_players_fn)0x0051BC03;
+        fn_map_line_ground = (map_line_ground_fn)0x0052307D;
+        call_camera_sight = 0x0052912E;
         fn_map_explore_all = (map_explore_all_fn)0x0052377F;
         call_cp_explore_all = 0x0043F1A7;
         of_map_mesh = 0x1C;
@@ -727,6 +740,8 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "EEMap.space_tile
 internal int spec_map_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_map_sight_players, "EEMap.sight_players");
+    bad += spec_code((uintptr_t)fn_map_line_ground, "EEMap.line_ground");
+    bad += spec_call(call_camera_sight, (uintptr_t)fn_map_line_ground, "EEMap.line_ground [call_site camera_sight]");
     bad += spec_code((uintptr_t)fn_map_explore_all, "EEMap.explore_all");
     bad += spec_call(call_cp_explore_all, (uintptr_t)fn_map_explore_all, "EEMap.explore_all [call_site cp_explore_all]");
     bad += spec_code((uintptr_t)fn_map_refresh_corner, "EEMap.refresh_corner");

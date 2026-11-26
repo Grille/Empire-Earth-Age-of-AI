@@ -206,6 +206,11 @@ internal inline void transform_apply(const void *t, const float *in, float *out)
     (*(transform_apply_fn *)data_engine_display_iat_transform_apply)(t, in, out);
 }
 internal inline float mesh_z(const void *mesh, float x, float y) { return (*(mesh_z_fn *)data_engine_display_iat_mesh_z)(mesh, x, y); }
+// the look-at's height in the camera's move and its go-to (their calls of GetMeshZ) -> a hook of GetMeshZ's type
+internal inline int patch_camera_lift_z(mesh_z_fn h) {
+    return patch_import_call(data_engine_display_call_camera_lift_z, data_engine_display_iat_mesh_z, (void *)h)
+         + patch_import_call(data_engine_display_call_camera_goto_z, data_engine_display_iat_mesh_z, (void *)h);
+}
 internal inline int unit_rotting(const ee_unit *u) {
     ee_ai_state *s = unit_get_ai_state(u);
     return (s ? ai_state_get_id(s) : 0) == value_engine_display_state_rotting;
