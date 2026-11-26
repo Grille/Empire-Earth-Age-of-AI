@@ -825,8 +825,10 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   river kept 11 - 24 tiles off them: each start in the same bare ring, and a small map had no room for the features
   (116 tiles, 4 players: no range and no lake whatever the options). Now the land, its mountains, water and hills
   are made whole, the ground set once (the tiles' kinds), and then each start - by turns on the two continents, in
-  its share of its continent's length - takes the best place within reach of that share's middle (mg_starts): a
-  yard of 7 tiles without water, cliff, mountain or plateau, no water within 9, 8 tiles inside the land; worth room
+  its share of its continent's length - takes the best place within reach of that share's middle, by turns on
+  either side of the continent's middle line 0.6 of the way to its shore (the player the same day: "still placed
+  too much on the vertical line through the center of the continent, they could spread way more horizontal"; going
+  further across costs 0.15 of going along) (mg_starts): a yard of 7 tiles without water, cliff, mountain or plateau, no water within 9, 8 tiles inside the land; worth room
   to build 18 tiles round, smooth ground, water within 22 - 40 tiles (docks, fish), its biome's forage and herds
   (twice), less the further out. Not found: further out, then with a smaller yard (5, then 3), last forced (the place
   furthest from all of those). Read by the heights alone, not the tiles' kinds: the game's cliff pass makes a few

@@ -568,17 +568,18 @@ internal void mg_heights(struct mg *g) {
 // in the same bare ring, and on a small map the features found no room (116 tiles, 4 players: no range, no lake,
 // whatever the options). Now the land is made whole, and once the ground has its tile kinds (the first pass of
 // mg_steps) the players are placed on it by turns on the two continents, each in its share of its continent's
-// length - where it looks first is the middle of that share, as the starts were placed before -, at the best place
-// within reach of it. A place (a tile corner) needs a yard round it of what levelling can't make ground to build on
-// - no water, cliff, mountain or plateau (mg_starts_fields: bad) - 7 tiles every way, no water within 9 (the yard's
-// levelling fades out at 10: a river's bed or a lake's shore stays as it is) and to be 8 tiles inside the land. Its
-// worth: room (the share of the land 18 tiles round to build on, flat enough as well: farms, houses, walls), smooth
-// ground (the heights' spread 8 tiles round: hills are levelled, but the less the better), water within 22 - 40 tiles
-// (docks, fish), the biome's food (its forage and herds; counted twice - the first epoch lives on them) - less the
-// further from where it looked first. The levels, the first with a place: 0 within reach (0.45 of the share, 12 .. 40 tiles), 1 within twice that, 2 so with 5 tiles
-// of yard, water 6 off and 6 tiles inside the land, 3 with 3, 4 and 4, 4 forced: the place within twice the reach
-// furthest from all of those (its yard levelled, whatever is there). A start keeps 0.6 of a share (16 tiles at least) from its
-// continent's others, 16 from the other's.
+// length - where it looks first is that share's middle, by turns on either side of the continent's middle line,
+// 0.6 of the way to its shore -, at the best place within reach of it. A place (a tile corner) needs a yard round it of what
+// levelling can't make ground to build on - no water, cliff, mountain or plateau (mg_starts_fields: bad) - 7 tiles
+// every way, no water within 9 (the yard's levelling fades out at 10: a river's bed or a lake's shore stays as it is)
+// and to be 8 tiles inside the land. Its worth: room (the share of the land 18 tiles round to build on, flat enough
+// as well: farms, houses, walls), smooth ground (the heights' spread 8 tiles round: hills are levelled, but the less
+// the better), water within 22 - 40 tiles (docks, fish), the biome's food (its forage and herds; counted twice - the
+// first epoch lives on them) - less the further from where it looked first along the continent, 0.15 of that
+// across it. The levels, the first with a place: 0 within reach (0.45 of the share, 12 .. 40 tiles), 1 within twice
+// that, 2 so with 5 tiles of yard, water 6 off and 6 tiles inside the land, 3 with 3, 4 and 4, 4 forced: the place
+// within twice the reach furthest from all of those (its yard levelled, whatever is there). A start keeps 0.6 of a
+// share (16 tiles at least) from its continent's others, 16 from the other's.
 // Nothing here is drawn at random: the places follow from the land, the land from the seed.
 struct mg_fields {
     uint8_t *bad, *wet;   // [tile] the Chebyshev distance to water, a cliff, a mountain or a plateau (off the map too) / to water
@@ -662,7 +663,10 @@ internal float mg_start_worth(const struct mg *g, const struct mg_fields *f, int
     float water = wet <= 22 ? 1 : wet >= 40 ? 0 : (40 - wet) / 18;
     const struct mg_biome *b = &k_mg_biome[g->clim[y * n + x]];
     float food = (float)(b->rich[MG_RICH_FORAGE] + b->rich[MG_RICH_HERD]) / 200.0f;
-    float dx = (float)x - ax, dy = (float)y - ay, off = (dx * dx + dy * dy) / (reach * reach);
+    // out of its share along the continent (u) costs, across it (v) 0.15 of that: the continent's width is the
+    // start's to use (the player 2026-11-26: "still placed too much on the vertical line through the center of the
+    // continent, they could spread way more horizontal")
+    float du = (float)(x - y) - (ax - ay), dv = (float)(x + y) - (ax + ay), off = (du * du + 0.15f * dv * dv) * 0.5f / (reach * reach);
     return 3 * (float)room - 2 * rough + water + 2 * food - 1.5f * off;
 }
 internal void mg_starts(struct mg *g) {
@@ -672,7 +676,12 @@ internal void mg_starts(struct mg *g) {
     for (int i = 0; i < g->np; i++) {
         int k = i & 1, j = i / 2, bx = -1, by = -1;
         float share = length / (float)count[k], reach = fminf(40, fmaxf(12, 0.45f * share)), apart = fmaxf(16, 0.6f * share);
-        float v = (k ? 0.5f : -0.5f) * g->half, u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length;
+        // where it looks first: its share's middle along the continent, and by turns on either side of the
+        // continent's middle line, 0.6 of the way to its shore (the ellipse's half width there) - a continent's one start
+        // in the middle
+        float u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length, rb = 0.85f * g->half * g->opt.land;
+        float wide = 0.42f * g->half * g->opt.land * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
+        float v = (k ? 0.5f : -0.5f) * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
         float ax = (u + v + (float)n) * 0.5f, ay = (v + (float)n - u) * 0.5f;
         for (int level = 0; ok && level < 5 && bx < 0; level++) {
             static const int8_t yards[4] = { 7, 7, 5, 3 }, drys[4] = { 9, 9, 6, 4 }, insides[4] = { 8, 8, 6, 4 };
