@@ -398,7 +398,11 @@ internal inline int mesh_has_tile(const void *mesh, int x, int y) {
     const int32_t *row = (const int32_t *)(*(const uint8_t *const *)(m + value_engine_display_of_mesh_rows) + (size_t)(uint32_t)y * 0xC);
     return (uint32_t)(x - row[0]) < (uint32_t)row[1];
 }
+// a tile the map hasn't got is not lit: its rows are read only where the mesh has the tile - the game's fill asks of a
+// unit's own tile, a wreck's pose may lie anywhere (the player's AoC game 2026-11-26: a deleted ship's wreck, its row
+// read past the rows)
 internal inline int map_tile_lit(const ee_map *map, int x, int y) {
+    if (!mesh_has_tile(map_mesh_at(map), x, y)) return 0;
     const uint8_t *row = *(const uint8_t *const *)((const uint8_t *)map + value_engine_display_of_map_light_rows) + (size_t)(uint32_t)y * 0xC;
     uint8_t b = (*(const uint8_t *const *)(row + 8))[(size_t)(x - *(const int32_t *)row) * 4 + 3];
     return build_is("aoc") ? (b & 0x7F) != 0 : b != 0;

@@ -318,6 +318,21 @@ internal void uc_corpses_clear(void) {
 }
 // a kept corpse into the record rec at its age d, as uc_fill_dopp fills a remembered building: whole or see-through by
 // its fade, fogged out of the player's sight, never picked, no silhouette, its parts as last seen; 0 when outside the view
+// A KEPT CORPSE OFF THE MAP: its pose (a wreck's by its floats, simulated on up to 3 s at once) is where the fill reads
+// the map - the tile's light, the ground - and the walk tested only where it lay before. One whose place is no tile of
+// the map, or no number, is not drawn (the player's AoC game 2026-11-26 died on such a read as a deleted ship's
+// three pieces went down: map_tile_lit read past the rows)
+internal int uc_corpse_on_map(const uc_corpse *k, const float *pose) {
+    if (isfinite(pose[3]) && isfinite(pose[7]) && isfinite(pose[11]) && fabsf(pose[3]) < 1e6f && fabsf(pose[7]) < 1e6f &&
+        mesh_has_tile(map_mesh_at(game_map()), (int)floorf(pose[3]), (int)floorf(pose[7])))
+        return 1;
+    notice("a corpse's place off the map",
+           "%s (serial %u, %s) at %g, %g, %g - not drawn (collect_remains.c uc_corpse_on_map)",
+           k->ty && unit_type_get_name(k->ty) ? unit_type_get_name(k->ty) : "?", (unsigned)k->serial,
+           !k->ship ? "not a ship" : k->half == 1 ? "the bow's piece" : k->half == 2 ? "the stern's piece" : k->half == 3 ? "the middle piece" : "whole",
+           (double)pose[3], (double)pose[7], (double)pose[11]);
+    return 0;
+}
 internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d, int fogged) {
     __attribute__((aligned(8))) float pose[16];   // where it lies: its last pose, a ship's by its floats on
     memcpy(pose, k->t, sizeof pose);
@@ -326,6 +341,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
     int32_t anim = k->anim, frame = k->frame, next = k->frame;
     float fraction = 0.0f;
     us_shatter(k, pose, &anim, &frame, &next, &fraction);
+    if (!uc_corpse_on_map(k, pose)) return 0;
     ee_model *m = ((ee_model **)dmg_model_anim_model_at(k->gfx))[anim];
     if (!m) return 0;
     __attribute__((aligned(8))) uint8_t pm[0x60];
