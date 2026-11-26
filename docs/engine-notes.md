@@ -878,7 +878,11 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   the setup screen's list. Not yet: hills steep enough for cliffs, the
   textures' scattered stones and plants, the numbers in an .eeai description, the editor's random map tried.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
-  "Age of AI", its options in a dialog): the layout (two continents so far), the land's size (the continents' ellipses
+  "Age of AI", its options in a dialog): the layout (two continents west and east, the sea between them north to
+  south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -
+  north and south: mapgen.c's continents' frame, mg_along / mg_across, the map's u and v swapped for the land, the
+  ranges', plateaus', lakes' and starts' continent; the weather keeps the map's north, so the northern continent is
+  the colder), the land's size (the continents' ellipses
   and the starts' spread 0.8 / 1 / 1.12 times), the climate (-0.4 .. +0.4 on the temperature, whose bands are at
   -0.3 / 0.3), the climate zones (2026-11-26, the player: "north to south (what we have now), poles (north and
   south are cold with a warm equator), none (no bias based on position, noise only)"; named "mixed" at their next

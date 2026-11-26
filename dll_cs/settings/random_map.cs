@@ -14,11 +14,13 @@ class random_map
 {
     enum map_layout_choice
     {
-        /// two continents side by side, the sea between them, the players by turns on either
-        two_continents,
+        /// two continents west and east, the sea between them running north to south, the players by turns on either
+        continents_west_east,
+        /// two continents north and south, the sea between them running west to east (the north the colder)
+        continents_north_south,
     }
     /// What the map is:
-    map_layout_choice map_layout = map_layout_choice.two_continents;
+    map_layout_choice map_layout = map_layout_choice.continents_west_east;
     enum map_land_choice
     {
         /// smaller continents, more sea

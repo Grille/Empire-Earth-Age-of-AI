@@ -17,7 +17,7 @@
 // may differ between PCs in a last bit; +, -, x, / and the square root don't) - directions are vectors, turned by
 // adding a share of their normal.
 // ONE ENTRY, "Age of AI" (the player 2026-11-25: one entry with its options in a dialog, not a line per kind of map):
-// what it makes is [random_map]'s (map_layout - two continents so far - and how much of what: g->opt below), the
+// what it makes is [random_map]'s (map_layout - two continents, west and east or north and south - and how much of what: g->opt below), the
 // scenario editor asks for them when it makes one (mapgen_dialog.c). Its numbers in the code until the steps are
 // settled (then a description in .eeai).
 #define MG_NAME "Age of AI"
@@ -108,8 +108,9 @@ internal const struct mg_biome {
 
 // THE GENERATOR'S STATE. Tiles x, y (0 .. n - 1), corners 0 .. n: the map is the diamond of them the game made (a tile
 // there has its ee_tile). Across the diamond run u = x - y and v = x + y - n, each from -n / 2 to n / 2: the screen's
-// two ways - v from left to right, u from the near edge to the far one. The continents lie apart along v, left and
-// right, and stretch along u; the far end is the north.
+// two ways - v from left to right, u from the near edge to the far one; the far end is the north. The continents
+// (map_layout) lie apart west and east, along v, and stretch along u - or north and south, the two swapped: what
+// is the land's is said along and across them (mg_along, mg_across), the weather's by u (mg_temp: the north cold).
 enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_AMBIENT, MG_KINDS };
 #define MG_PLAYERS 16
 #define MG_SPOTS 1024
@@ -163,6 +164,7 @@ struct mg {
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
     int clumps, clump_mines;  // mg_clump's: how many, and the mines in them
     struct mg_opt {           // [random_map] as numbers (mg_options); "normal" a factor of exactly 1, a shift of 0: the map as before
+        int ns;               // the layout: 0 the continents west and east, 1 north and south
         float land;           // the continents' size
         float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
         int zones;            // where it is cold and where hot: MG_ZONES_*
@@ -207,6 +209,7 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
         g->opt.v[i - SETTING_map_layout] = *v;
     }
 #define MG_PICK(t, v) t[(unsigned)(v) < sizeof t / sizeof *t ? (unsigned)(v) : sizeof t / sizeof *t / 2]
+    g->opt.ns = s.map_layout == 1;
     g->opt.land = MG_PICK(land, s.map_land);
     g->opt.temp = MG_PICK(temp, s.map_climate);
     g->opt.wet = MG_PICK(wet, s.map_rain);
@@ -315,6 +318,15 @@ internal int mg_kind(const struct mg *g, int x, int y) {
     return !t ? MG_K_OFF : tile_is_cliff(t) ? MG_K_CLIFF : tile_is_deep(t) ? MG_K_DEEP : tile_is_shallows(t) ? MG_K_SHALLOWS : MG_K_LAND;
 }
 internal inline float mg_f(const struct mg *g, int x, int y) { return mg_corner(g, x, y) ? g->f[y * g->m + x] : -99.0f; }
+// THE CONTINENTS' FRAME (map_layout): along them and across - u and v west and east, v and u north and south;
+// across under 0 the first (seat 0's: the west, the north), over 0 the second. mg_from: a place's x, y from both
+internal inline int mg_along(const struct mg *g, int x, int y) { return g->opt.ns ? x + y - g->n : x - y; }
+internal inline int mg_across(const struct mg *g, int x, int y) { return g->opt.ns ? x - y : x + y - g->n; }
+internal inline int mg_side(const struct mg *g, int x, int y) { return mg_across(g, x, y) > 0; }
+internal void mg_from(const struct mg *g, float along, float across, float *x, float *y) {
+    float u = g->opt.ns ? across : along, v = g->opt.ns ? along : across;
+    *x = (u + v + (float)g->n) * 0.5f; *y = (v + (float)g->n - u) * 0.5f;
+}
 // a tile's lowest and highest corner (height steps); 0: no tile there
 internal int mg_tile_span(const struct mg *g, int x, int y, float *lo, float *hi) {
     if (!mg_on(g, x, y) || !mg_corner(g, x + 1, y) || !mg_corner(g, x, y + 1) || !mg_corner(g, x + 1, y + 1)) return 0;
@@ -330,8 +342,8 @@ internal float mg_temp(const struct mg *g, int x, int y);
 internal int mg_shore_point(struct mg *g, float clear, int *px, int *py, float *ox, float *oy) {
     for (int t = 0; t < 400; t++) {
         int x = mg_int(g, 3, g->n - 3), y = mg_int(g, 3, g->n - 3);
-        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n);
-        if (f < 0 || f > 1.5f || fminf(g->half - fabsf(u), g->half - fabsf(v)) < clear + 4 || fabsf(v) < clear + 4) continue;
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), c = (float)mg_across(g, x, y);
+        if (f < 0 || f > 1.5f || fminf(g->half - fabsf(u), g->half - fabsf(v)) < clear + 4 || fabsf(c) < clear + 4) continue;
         float gx = mg_f(g, x - 2, y) - mg_f(g, x + 2, y), gy = mg_f(g, x, y - 2) - mg_f(g, x, y + 2), gl = sqrtf(gx * gx + gy * gy);
         if (gl < 0.2f) continue;
         *px = x; *py = y; *ox = gx / gl; *oy = gy / gl;
@@ -371,7 +383,7 @@ internal void mg_land(struct mg *g) {
     int x, y;
     for (y = 0; y <= g->n; y++)
         for (x = 0; x <= g->n; x++) {
-            float u = (float)(x - y), v = (float)(x + y - g->n), best = -1e9f;
+            float u = (float)mg_along(g, x, y), v = (float)mg_across(g, x, y), best = -1e9f;
             for (int k = 0; k < 2; k++) {
                 float da = (v - (k ? 0.5f : -0.5f) * half) / ra, db = u / rb;
                 float fk = (1 - sqrtf(da * da + db * db)) * ra;
@@ -403,8 +415,8 @@ internal void mg_land(struct mg *g) {
     }
     for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
         x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
-        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 3, 7);
-        int clear = f <= -8 && f >= -20 && fminf(half - fabsf(u), half - fabsf(v)) > r + 9 && fabsf(v) > r + 8;
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), c = (float)mg_across(g, x, y), r = (float)mg_int(g, 3, 7);
+        int clear = f <= -8 && f >= -20 && fminf(half - fabsf(u), half - fabsf(v)) > r + 9 && fabsf(c) > r + 8;
         // nothing within 4 tiles of it that is within 4 tiles of the land there is (the continents, a cape, an island before)
         for (int cy = y - 14; clear && cy <= y + 14; cy++)
             for (int cx = x - 14; clear && cx <= x + 14; cx++)
@@ -422,7 +434,7 @@ internal void mg_land(struct mg *g) {
     for (y = 0; y <= g->n; y++)
         for (x = 0; x <= g->n; x++) {
             float u = (float)(x - y), v = (float)(x + y - g->n);
-            float edge = fminf(half - fabsf(u), half - fabsf(v)) - 4, channel = fabsf(v) - 4;
+            float edge = fminf(half - fabsf(u), half - fabsf(v)) - 4, channel = fabsf((float)mg_across(g, x, y)) - 4;
             g->f[y * g->m + x] = fminf(g->f[y * g->m + x], fminf(edge, channel) * 0.7071f);
         }
 }
@@ -450,7 +462,8 @@ internal float mg_start_dist(const struct mg *g, float x, float y);
 // continent was hot, deserts the most of it); mixed - a noise alone, 2.5 times as strong, its patches of warm and cold
 // some 40 tiles across. Then the noise and the climate's shift. The noise's scale is the biome size's
 // ([random_map] map_biome_size; normal: 0.025 a tile exactly, the maps as before): its patches larger or smaller, the
-// zones' bands the same
+// zones' bands the same. North and south are the map's whatever the layout: with the continents north and south
+// the northern one is the colder (poles: each cold at its far end, hot by the channel)
 internal float mg_temp(const struct mg *g, int x, int y) {
     float k = 0.025f * g->opt.biome, u = (float)(x - y) / g->half, noise = mg_fbm((float)x * k + 90, (float)y * k + 40, g->seed + 20) - 0.5f;
     float lat = g->opt.zones == MG_ZONES_POLES ? 0.7f - 1.7f * fabsf(u) : g->opt.zones == MG_ZONES_MIXED ? 0 : u;
@@ -474,7 +487,7 @@ internal float mg_temp(const struct mg *g, int x, int y) {
 internal int mg_range(struct mg *g, int continent) {
     float px[128], py[128];
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), want = mg_int(g, g->n / 6, g->n / 3), len = 0;
-    if ((x0 + y0 > g->n) != continent || mg_f(g, x0, y0) < 10) return 0;
+    if (mg_side(g, x0, y0) != continent || mg_f(g, x0, y0) < 10) return 0;
     float x = (float)x0, y = (float)y0, dx = mg_rnd(g) - 0.5f, dy = mg_rnd(g) - 0.5f, dl = sqrtf(dx * dx + dy * dy);
     if (dl < 0.01f) { dx = 1; dy = 0; dl = 1; }
     dx /= dl; dy /= dl;
@@ -515,7 +528,7 @@ internal int mg_range(struct mg *g, int continent) {
 #define MG_PLATEAU 3.2f
 internal int mg_plateau(struct mg *g, int continent, int tight) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 7, 12), ramps = r >= 10 ? 3 : 2;
-    if (g->plateaus >= 8 || (x0 + y0 > g->n) != continent || mg_f(g, x0, y0) < (float)(14 - 2 * tight)) return 0;
+    if (g->plateaus >= 8 || mg_side(g, x0, y0) != continent ||mg_f(g, x0, y0) < (float)(14 - 2 * tight)) return 0;
     for (int cy = y0 - r - 6; cy <= y0 + r + 6; cy += 3)
         for (int cx = x0 - r - 6; cx <= x0 + r + 6; cx += 3)
             if (!mg_corner(g, cx, cy) || g->mt[cy * g->m + cx] > 0.1f || g->foot[cy * g->m + cx] > 0.3f || g->plat[cy * g->m + cx] > 0 || mg_f(g, cx, cy) < 6) return 0;
@@ -559,7 +572,7 @@ internal void mg_heights(struct mg *g) {
                 // (map.c tile_is_shallows) - 5 tiles of them off a wide beach: the channel between the continents is
                 // deep whatever its shores are, and so is a ring 3 - 5 tiles off an island's shore
                 float deep = f * (0.3f - 0.15f * beach + 1.0f * rocky);
-                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, fabsf((float)(x + y - g->n)))));
+                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, fabsf((float)mg_across(g, x, y)))));
                 for (int i = 0; i < g->islands; i++) {
                     float in = abs(x - g->isle[i].x) > 16 || abs(y - g->isle[i].y) > 16 ? -99 : mg_isle_in(g, x, y, g->isle[i].x, g->isle[i].y, g->isle[i].r);
                     if (in > -5 && in < -3) deep = fminf(deep, -1.2f);
@@ -684,7 +697,9 @@ internal float mg_start_worth(const struct mg *g, const struct mg_fields *f, int
     // out of its share along the continent (u) costs, across it (v) 0.15 of that: the continent's width is the
     // start's to use (the player 2026-11-26: "still placed too much on the vertical line through the center of the
     // continent, they could spread way more horizontal")
-    float du = (float)(x - y) - (ax - ay), dv = (float)(x + y) - (ax + ay), off = (du * du + 0.15f * dv * dv) * 0.5f / (reach * reach);
+    float du = (float)(x - y) - (ax - ay), dv = (float)(x + y) - (ax + ay);
+    if (g->opt.ns) { float t = du; du = dv; dv = t; }   // (along the continents is v there)
+    float off = (du * du + 0.15f * dv * dv) * 0.5f / (reach * reach);
     return 3 * (float)room - 2 * rough + water + 2 * food - 1.5f * off;
 }
 internal void mg_starts(struct mg *g) {
@@ -700,7 +715,8 @@ internal void mg_starts(struct mg *g) {
         float u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length, rb = 0.85f * g->half * g->opt.land;
         float wide = 0.42f * g->half * g->opt.land * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
         float v = (k ? 0.5f : -0.5f) * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
-        float ax = (u + v + (float)n) * 0.5f, ay = (v + (float)n - u) * 0.5f;
+        float ax, ay;
+        mg_from(g, u, v, &ax, &ay);
         for (int level = 0; ok && level < 5 && bx < 0; level++) {
             static const int8_t yards[4] = { 7, 7, 5, 3 }, drys[4] = { 9, 9, 6, 4 }, insides[4] = { 8, 8, 6, 4 };
             float within = level ? 2 * reach : reach, best = -1e30f;
@@ -708,7 +724,7 @@ internal void mg_starts(struct mg *g) {
             for (int y = (int)(ay - within); y <= (int)(ay + within); y++)
                 for (int x = (int)(ax - within); x <= (int)(ax + within); x++) {
                     float dx = (float)x - ax, dy = (float)y - ay;
-                    if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1 || (x + y > n) != k || dx * dx + dy * dy > within * within) continue;
+                    if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1 || mg_side(g, x, y) != k ||dx * dx + dy * dy > within * within) continue;
                     float in = mg_f(g, x, y);
                     if (level < 4 && (in < (float)inside || f.bad[y * n + x] < yard || f.wet[y * n + x] < dry)) continue;
                     int crowded = 0;
@@ -887,7 +903,7 @@ internal int mg_swamp(struct mg *g, int tight) {
 // shore (a tile) is kept free. tight 0 .. 3: a small map's.
 internal int mg_lake(struct mg *g, int tight) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 5, 8);
-    if (g->lakes >= 12 || (x0 + y0 > g->n) != (g->lakes & 1) || mg_f(g, x0, y0) < (float)(12 - 2 * tight)) return 0;
+    if (g->lakes >= 12 || mg_side(g, x0, y0) != (g->lakes & 1) ||mg_f(g, x0, y0) < (float)(12 - 2 * tight)) return 0;
     for (int i = 0; i < g->lakes; i++)
         if ((g->lake[i].x - x0) * (g->lake[i].x - x0) + (g->lake[i].y - y0) * (g->lake[i].y - y0) < 25 * 25) return 0;
     for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 3)

@@ -280,9 +280,13 @@ map_mines = {
     en = "Mines",
     de = "Minen",
 }
-map_v_two_continents = {
-    en = "Two continents",
-    de = "Zwei Kontinente",
+map_v_continents_west_east = {
+    en = "Two continents W-E",
+    de = "Zwei Kontinente W-O",
+}
+map_v_continents_north_south = {
+    en = "Two continents N-S",
+    de = "Zwei Kontinente N-S",
 }
 map_v_tiny = {
     en = "Tiny",
