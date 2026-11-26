@@ -845,6 +845,18 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   the noise: in both builds an AI or two in ten games stayed at 6 - 16 people, most of them with their citizens
   held back for the epoch's saving (the cit line's "blocked (... epoch N)"), on starts of any biome, or losing
   citizens to the hunt.
+- **Who starts where** (2026-11-26, the player: "next the per team sorting, and then randomize the teams' positions
+  in the list, so that team 1 (usually player 1) doesn't always start in the north west"; mapgen.c mg_seats): the
+  starts are the map's places, seats - the same whoever sits there, so a preview is the game's map whatever the
+  teams. The game makes a player for each slot of a computer, a human or an observer (types 0, 1, 2), in slot
+  order, and allies a slot's team (+0x28; 0 none) at the start (0x52599B) - so player i is the i-th such slot. A
+  team's players sit on one continent, side by side along it; one too large for the seats a continent has left is
+  split over both (three pairs on 3 + 3 seats: one pair parted). The teams in an order drawn, the largest first, each
+  to a continent where it fits whole; a continent's teams along it in an order drawn, from one end or the other -
+  from a generator of its own seeded by the map's seed, the same on every PC. The made line lists each player's
+  start and team (x,y/team). Checked: teams=pairs, 7 players on seeds 1 - 4 - each pair on one continent beside
+  each other, the human (team 1) somewhere else each time; free-for-all the same; a multiplayer game's two PCs the
+  same seats, in sync.
 - **A map's flags** (EEMap.flags, the script's MapCharacteristics): 0 Continental, 1 the island types (IslandMap),
   2 Plains (WaterlessMap) - read after the game's own maker in test games.
 - **The ground textures' names** are db\dbterrain.dat's ("Grass - Tufts", "Sand - Medium", "Snow - Dirt Patches",
@@ -863,7 +875,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   every PC. Checked 2026-11-24: all six sizes with 2 - 8 players start (84 to 440 tiles a side; a tiny map has no
   room for a river), the same seed twice gives the same map, a 60 minute game of three AIs (population 161 - 230,
   docks, fishing boats, warships, transports landing across the channel, no notice), Art of Conquest 10 minutes,
-  the setup screen's list. Not yet: teams kept together on a continent, hills steep enough for cliffs, the
+  the setup screen's list. Not yet: hills steep enough for cliffs, the
   textures' scattered stones and plants, the numbers in an .eeai description, the editor's random map tried.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
   "Age of AI", its options in a dialog): the layout (two continents so far), the land's size (the continents' ellipses

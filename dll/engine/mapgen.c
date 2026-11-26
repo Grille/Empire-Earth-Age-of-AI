@@ -1604,6 +1604,76 @@ internal void mg_steps(struct mg *g) {
     if (g->map) mg_scatter(g);
 }
 
+// WHO STARTS WHERE (the player 2026-11-26: "next the per team sorting, and then randomize the teams' positions in the
+// list, so that team 1 (usually player 1) doesn't always start in the north west"). The starts are the map's places
+// (seats: seat s on continent s & 1, the (s / 2)-th along it, mg_starts) whoever sits there - a preview's map is the
+// game's whatever the teams. The players get them by team: the game makes its players from the setup's slots in
+// order, one for each slot of a computer, a human or an observer (0, 1, 2: game start 0x52599B), and allies those of
+// one team (a slot's +0x28; 0 none, an observer none). A team's players sit on one continent side by side; one too
+// large for either continent's seats left is split over both. The teams go in an order drawn - the largest first -
+// each to a continent where it fits whole (the one with more seats free; a tie drawn), the blocks of a continent along
+// it in an order drawn, from one end or the other. The draws from a generator of their own seeded by the map's seed
+// (the map's own draws stay as they were): the same on every PC. seat[i], team[i]: player i's seat and team (0 none).
+internal int mg_draw(uint32_t *r, int m) {
+    uint32_t x = *r;
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    *r = x;
+    return (int)(x % (uint32_t)m);
+}
+internal void mg_seats(const struct mg *g, const ee_setup *setup, int *seat, int *team) {
+    int np = g->np, key[MG_PLAYERS], id[MG_PLAYERS], size[MG_PLAYERS], order[MG_PLAYERS], nt = 0, k = 0;
+    uint32_t r = g->seed * 0x9E3779B1u ^ 0x7EA35u;
+    if (!r) r = 1;
+    for (int i = 0; i < np; i++) {   // the players' teams: the i-th slot of a computer, a human or an observer is player i
+        int t = 0;
+        while (setup && k < 16) {
+            const ee_setup_slot *sl = setup_slot_at(setup, k++);
+            int type = setup_slot_get_type(sl);
+            if (type == 0 || type == 1 || type == 2) { t = type == 2 ? 0 : setup_slot_get_team(sl); break; }
+        }
+        team[i] = t > 0 ? t : 0;
+        key[i] = t > 0 ? t : 1000 + i;   // none: a team of its own
+        seat[i] = -1;
+    }
+    for (int i = 0; i < np; i++) {
+        int j = 0;
+        while (j < nt && id[j] != key[i]) j++;
+        if (j == nt) { id[nt] = key[i]; size[nt++] = 0; }
+        size[j]++;
+    }
+    for (int i = 0; i < nt; i++) order[i] = i;
+    for (int i = nt - 1; i > 0; i--) { int j = mg_draw(&r, i + 1), t = order[i]; order[i] = order[j]; order[j] = t; }
+    for (int i = 1; i < nt; i++)   // the largest first (stable: the drawn order among those of a size)
+        for (int j = i; j > 0 && size[order[j]] > size[order[j - 1]]; j--) { int t = order[j]; order[j] = order[j - 1]; order[j - 1] = t; }
+    int left[2] = { np - np / 2, np / 2 }, nb = 0;
+    struct { int team, k, n; } block[2 * MG_PLAYERS];
+    for (int o = 0; o < nt; o++)
+        for (int want = size[order[o]]; want > 0; ) {
+            int fits0 = left[0] >= want, fits1 = left[1] >= want, c;
+            if (fits0 != fits1) c = fits1;
+            else c = left[0] > left[1] ? 0 : left[1] > left[0] ? 1 : mg_draw(&r, 2);
+            int take = want < left[c] ? want : left[c];
+            block[nb].team = order[o]; block[nb].k = c; block[nb].n = take; nb++;
+            left[c] -= take; want -= take;
+        }
+    for (int c = 0; c < 2; c++) {
+        int on[2 * MG_PLAYERS], m = 0, seats = c ? np / 2 : np - np / 2, from_end = mg_draw(&r, 2), at = 0;
+        for (int b = 0; b < nb; b++) if (block[b].k == c) on[m++] = b;
+        for (int i = m - 1; i > 0; i--) { int j = mg_draw(&r, i + 1), t = on[i]; on[i] = on[j]; on[j] = t; }
+        for (int b = 0; b < m; b++)
+            for (int q = 0; q < block[on[b]].n; q++, at++) {
+                int j = from_end ? seats - 1 - at : at, i = 0;
+                while (i < np && (seat[i] >= 0 || key[i] != id[block[on[b]].team])) i++;   // the team's next player without a seat
+                if (i < np) seat[i] = 2 * j + c;
+            }
+    }
+    for (int i = 0, s = 0; i < np; i++)   // (none left without one; a guard all the same: the seats nobody has)
+        if (seat[i] < 0) {
+            for (s = 0; s < np; s++) { int taken = 0; for (int o = 0; o < np; o++) taken |= seat[o] == s; if (!taken) break; }
+            seat[i] = s < np ? s : i;
+        }
+}
+
 // THE GAME'S MAP MADE. players: the game's vector of the players that play, the world first; human: this PC's index in
 // it (0: none); start: where its view begins
 internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32_t seed, ee_map *map, float *start) {
@@ -1630,10 +1700,12 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
     }
     g_mg_host.got = 0;   // this game's (the next game's options come with its own Start)
     mg_steps(g);
+    int seat[MG_PLAYERS], team[MG_PLAYERS];
+    mg_seats(g, setup, seat, team);
     start[0] = start[1] = g->half + 0.5f;
     for (int i = 0; i < g->np; i++) {
         ee_player *pl = pb[i + 1];
-        float cx = (float)g->sx[i], cy = (float)g->sy[i];
+        float cx = (float)g->sx[seat[i]], cy = (float)g->sy[seat[i]];
         units += mapgen_unit(UT(B_CAPITOL), pl, cx, cy, map) != NULL;
         int want = (int)player_get_start_citizens(pl);
         for (int k = 0; k < want && k < 12; k++)
@@ -1643,15 +1715,18 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
     start[2] = ground_at(map, start[0], start[1]);
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords (%d laid for a start cut off), %d oases, %d swamps, %d islands, %d capes, %d bays, %d fjords, the continents %s on foot, %d starts cut off from their continent's, %d of %d land tiles reached from the starts, %d players (%d start units) at",
+        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords (%d laid for a start cut off), %d oases, %d swamps, %d islands, %d capes, %d bays, %d fjords, the continents %s on foot, %d starts cut off from their continent's, %d of %d land tiles reached from the starts, %d players (%d start units) - each's start (/ its team) at",
                 MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords_ok, g->mended, g->oases, g->swamps, g->islands, g->capes, g->bays, g->fjords, g->afoot ? "JOINED" : "apart", g->cut, g->walked, g->walkable, g->np, units);
-        for (int i = 0; i < g->np; i++) fprintf(g_log, " %d,%d", g->sx[i], g->sy[i]);
+        for (int i = 0; i < g->np; i++) {
+            fprintf(g_log, " %d,%d", g->sx[seat[i]], g->sy[seat[i]]);
+            if (team[i]) fprintf(g_log, "/%d", team[i]);
+        }
         fprintf(g_log, "; gold %d iron %d stone %d (%d of them in %d clumps) forage %d fish %d trees %d in %d forests (of the mild green biomes' %d spruce, %d mixed, %d maple), animals %d, scatter %d; the view from %.1f %.1f; land tiles by biome:", g->made[MG_GOLD],
                 g->made[MG_IRON], g->made[MG_STONE], g->clump_mines, g->clumps, g->made[MG_FORAGE], g->made[MG_FISH], g->made[MG_TREE], g->forests, g->wood_made[0], g->wood_made[1], g->wood_made[2],
                 g->made[MG_ANIMAL], g->made[MG_AMBIENT], (double)start[0], (double)start[1]);
         for (int b = 0; b < MG_BIOMES; b++) fprintf(g_log, " %s %d", k_mg_biome[b].name, g->biome_tiles[b]);
-        fprintf(g_log, "; the starts in:");
-        for (int i = 0; i < g->np; i++) fprintf(g_log, " %s", k_mg_biome[g->clim[g->sy[i] * n + g->sx[i]]].name);
+        fprintf(g_log, "; the players' starts in:");
+        for (int i = 0; i < g->np; i++) fprintf(g_log, " %s", k_mg_biome[g->clim[g->sy[seat[i]] * n + g->sx[seat[i]]]].name);
         fprintf(g_log, "; the starts placed where they looked first %d, further out %d, with a smaller yard %d, with the smallest %d, forced %d;"
                        " their own laid beyond what the land had near them: forage %d gold %d iron %d stone %d forests %d herds %d\n",
                 g->start_how[0], g->start_how[1], g->start_how[2], g->start_how[3], g->start_how[4],
