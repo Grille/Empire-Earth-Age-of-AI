@@ -181,7 +181,7 @@ internal const char k_rd3_shader[] =
     "Texture2D gom : register(t15);\n"   // the overlay's picture of the ground (premultiplied; render_ground.c, gov: its tiles' origin, its share a tile)
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges); y: by the material's alpha too (render_oit.c)
-    "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher (render_frame.c rf_water_part)
+    "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher; w: 1 not bent by the vertex shader (render_frame.c rf_water_part)
     "cbuffer wtc : register(b7) { float4 wtn; float4 wtm; float4 wts[64]; };\n"   // the water's tint by depth (render_water.c rw_step): the last step, the scale, on, 1 / the depths (tiles) from its start to its whole; the start, the colour under the water as the surface is lit; the steps' colours
     // the tint at a point of height z, dz under the level: the water's colour by the height as the game picks it, between
     // the two steps around it, eased in by the depth (render_water.c THE TINT BY DEPTH)
@@ -222,9 +222,21 @@ internal const char k_rd3_shader[] =
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
     " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); fo = i.w > 1 && abs(i.n.z) < 0.5 ? i.n.xy : float2(0, 0); gt = i.w > 1 ? float4(0, 0, 0, any(fo != 0) ? -2 : -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
+    "float2 wslope(float2 w);\n"   // (below)
     "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; o.gm = 0; o.gnn = 0; float2 fo = 0; if (gnd.x > 0) ground(i, o.gt, o.gl, fo, o.gm, o.gnn); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
-    " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
+    " float4 p = mul(float4(i.p, 1), world), pp = p;"
+    // what is drawn under the water's level after the water's step (wsp.x 1, its circles' parts not: wsp.y; the weighted
+    // transparency's layers are read bent instead: wsp.w) is bent as the step bends the picture: each corner moved on the
+    // screen as the step moves what it reads at the place its line of sight enters the water - the surface's slope there
+    // times the refraction's strength (cat.y), fully from a quarter tile through the water on - by the move on the map
+    // turned back to the draw's own space (shx, shy, shz: its rows) and grown by how much farther the corner lies than that
+    // place along the line (render_water.c THE WATER'S STEP AND WHAT COMES AFTER IT)
+    " if (gnd.x == 0 && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0) { float3 wv = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
+    "  if (wv.z < sea.z && wop.z > sea.z) { float k = (wop.z - wv.z) / (wop.z - sea.z); float3 ws = wop.xyz + (wv - wop.xyz) / k;"
+    "   float2 dm = wslope(ws.xy) * (cat.y * saturate(length(wv - ws) * 4)); float3 bc = cross(shy.xyz, shz.xyz), ca = cross(shz.xyz, shx.xyz);"
+    "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) pp.xyz -= k * (dm.x * bc + dm.y * ca) / dt; } }"
+    " o.p = mul(pp, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz)); o.w.xy += fo * 0.5;"
     // (a space map's faces hang under the level in no water: rg_space_quad's gt.a -1 - none of the water's own there)

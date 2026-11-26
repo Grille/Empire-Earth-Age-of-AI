@@ -58,7 +58,11 @@
 // height and its own way through the water (from where its line of sight enters it), the fog's colour lit as the surface
 // is on level ground (wl). The refraction moves what was copied, and they come after the copy: the step writes how far
 // it moved each surface pixel (otex), and the weighted transparency's layers under the level are laid over the scene read
-// shifted by it (render_3d.c poitc) - bent as the seabed behind them. The split batches' parts (smoke, decals) aren't.
+// shifted by it (render_3d.c poitc) - bent as the seabed behind them. The split batches' parts under the level (a
+// torpedo's trail, a submarine's lights, smoke: the player, 2026-11-27, "partciles like the torpedos trail or subs lights get
+// the tint but not the refraction?") are bent in the vertex shader: each corner moved on the screen as the step moves what
+// it reads where the corner's line of sight enters the water (render_3d.c vs) - a particle is small, the move across it
+// nearly one.
 #define RW_STEPS 64          // the water set's steps the tint holds (more: the deepest of those for the rest)
 internal struct {
     int on;          // -1: as the ini says

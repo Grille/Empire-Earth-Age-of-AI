@@ -1050,6 +1050,7 @@ internal void rf_bind(ID3D11DeviceContext *x) {
     ID3D11DeviceContext_VSSetShaderResources(x, 5, 1, &g_mo_srv);   // the animation's pool (render_morph.c)
     if (g_tc_swb) ID3D11DeviceContext_VSSetConstantBuffers(x, 6, 1, &g_tc_swb);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
+    ID3D11DeviceContext_VSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);   // the water's waves for what is bent under it (render_3d.c vs)
     UINT stride = sizeof(rb_vertex), off = 0;
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
     ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
@@ -1104,14 +1105,17 @@ internal void rf_edges_part(ID3D11DeviceContext *x, int part) {
 }
 // the shader's wsp, which pixels of a draw are wanted: 0 all, 1 under the water's level, 2 not under it, 3 over the land, 4 over
 // the water and under its level, 5 over the water and not under it; 6 and 7 as 1 and 2 with the split RF_HIGH_SPLIT higher
-// (rf_water_split). A slot of its own: the shadows' maps leave their constants in the edges' (rd3_shadow_frame)
+// (rf_water_split); 8 as 1, for the weighted transparency's layers (w 1: the vertex shader doesn't bend them - their sums are
+// read bent, render_3d.c poitc). A slot of its own: the shadows' maps leave their constants in the edges' (rd3_shadow_frame).
+// The vertex shader has them too: what is drawn under the level after the water's step is bent there (render_water.c THE
+// WATER'S STEP AND WHAT COMES AFTER IT)
 #define RF_HIGH_SPLIT 0.1f
-internal struct { ID3D11Buffer *cb[8]; int part, fail; } g_wsp;
+internal struct { ID3D11Buffer *cb[9]; int part, fail; } g_wsp;
 internal void rf_water_part(ID3D11DeviceContext *x, int part) {
     if (!g_wsp.cb[0] && !g_wsp.fail) {
-        static const float v[8][3] = { { 0, 0, 0 }, { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 1, 2, 0 }, { -1, 2, 0 }, { 1, 0, RF_HIGH_SPLIT }, { -1, 0, RF_HIGH_SPLIT } };
-        for (int i = 0; i < 8 && !g_wsp.fail; i++) {
-            float k[4] = { v[i][0], v[i][1], v[i][2], 0 };
+        static const float v[9][4] = { { 0, 0, 0, 0 }, { 1, 0, 0, 0 }, { -1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 1, 2, 0, 0 }, { -1, 2, 0, 0 }, { 1, 0, RF_HIGH_SPLIT, 0 }, { -1, 0, RF_HIGH_SPLIT, 0 }, { 1, 0, 0, 1 } };
+        for (int i = 0; i < 9 && !g_wsp.fail; i++) {
+            float k[4] = { v[i][0], v[i][1], v[i][2], v[i][3] };
             D3D11_BUFFER_DESC bd = { sizeof k, D3D11_USAGE_IMMUTABLE, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
             D3D11_SUBRESOURCE_DATA sd = { k, 0, 0 };
             HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_wsp.cb[i]);
@@ -1122,6 +1126,7 @@ internal void rf_water_part(ID3D11DeviceContext *x, int part) {
     if (g_wsp.fail || part == g_wsp.part) return;
     g_wsp.part = part;
     ID3D11DeviceContext_PSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
+    ID3D11DeviceContext_VSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
 }
 // a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them. A batch
 // into the weighted transparency's sums (render_oit.c: rtv its first target) draws into both, and is placed as on the
@@ -1248,7 +1253,7 @@ internal void rf_replay(void) {
         if (i == firstw) {
             rd3_water_steps(x, lastw, &b, &first);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) { rf_water_part(x, rf_water_split(&g_rf.cmd[j], 1)); rf_draw(x, &g_rf.cmd[j], &b, &first); }
-            if (owat) { rf_water_part(x, 1); oit_pass(x, lasto, scene, &b, &first); }
+            if (owat) { rf_water_part(x, 8); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 4);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);
         }
