@@ -45,6 +45,17 @@ class random_map
     }
     /// The climate (the north of the map is the far end):
     map_climate_choice map_climate = map_climate_choice.normal;
+    enum map_climate_zones_choice
+    {
+        /// cold in the far north, hot in the near south
+        north_south,
+        /// cold at both ends of the continents, hot along the middle of the map
+        poles,
+        /// no zones: warm and cold places wherever the weather has them
+        none,
+    }
+    /// Where it is cold and where hot:
+    map_climate_zones_choice map_climate_zones = map_climate_zones_choice.north_south;
     enum map_rain_choice
     {
         /// deserts, steppes and tundra where it is dry

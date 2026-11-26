@@ -19,7 +19,7 @@
 #define MD_SEED 263
 #define MD_KEEP 264
 #define MD_POINTS 9     // its font's size at the game's picture 1:1 ...
-#define MD_PIXELS 460   // ... and about its height then, with the title bar
+#define MD_PIXELS 493   // ... and about its height then, with the title bar
 internal struct {
     int result;
     int n, np;          // the map's tiles a side and players
@@ -172,25 +172,27 @@ internal int md_open(int n, int np, uint32_t *seed, int setup) {
     static WORD tpl[2048];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
-    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 2 * MD_ROWS + 7, .cx = 412, .cy = 221 };
+    // a row 17 units high, the hint under them, the buttons under it (11 rows: 237 units high)
+    short hint = (short)(9 + 17 * MD_ROWS), by = (short)(hint + 19);
+    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 2 * MD_ROWS + 7, .cx = 412, .cy = (short)(by + 22) };
     WORD *p = (WORD *)(dt + 1);
     *p++ = 0, *p++ = 0;               // no menu, the dialog class
     p = cpk_tpl_str(p, L"");          // the title: set at its start
     *p++ = (WORD)points;
     p = cpk_tpl_str(p, L"Segoe UI");  // ageofai_config.exe's (Windows' message font)
-    p = cpk_tpl_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 298, 199, 50, 15, IDOK, 0x80, word_w("ok"));
-    p = cpk_tpl_item(p, BS_PUSHBUTTON | WS_TABSTOP, 354, 199, 50, 15, IDCANCEL, 0x80, word_w("cancel"));
+    p = cpk_tpl_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 298, by, 50, 15, IDOK, 0x80, word_w("ok"));
+    p = cpk_tpl_item(p, BS_PUSHBUTTON | WS_TABSTOP, 354, by, 50, 15, IDCANCEL, 0x80, word_w("cancel"));
     for (int i = 0; i < MD_ROWS; i++) {
         short y = (short)(8 + 17 * i);
         p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 8, y, 62, 12, (WORD)(MD_LABEL + i), 0x82, md_lead(k_settings[MD_FIRST + i].key));
         p = cpk_tpl_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 72, y, 120, 100,
                          (WORD)(MD_COMBO + i), 0x85, L"");
     }
-    p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 180, 184, 12, MD_HINT, 0x82, md_lead("map_starts_keep"));
-    p = cpk_tpl_item(p, SS_OWNERDRAW, 204, 8, 200, 184, MD_PREVIEW, 0x82, L"");
-    p = cpk_tpl_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 199, 72, 15, MD_RESEED, 0x80, word_w("map_new_seed"));
-    p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 84, 199, 108, 12, MD_SEED, 0x82, L"");
-    p = cpk_tpl_item(p, BS_AUTOCHECKBOX | WS_TABSTOP, 204, 200, 90, 12, MD_KEEP, 0x80, word_w("map_keep_seed"));
+    p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 8, hint, 184, 12, MD_HINT, 0x82, md_lead("map_starts_keep"));
+    p = cpk_tpl_item(p, SS_OWNERDRAW, 204, 8, 200, (short)(by - 15), MD_PREVIEW, 0x82, L"");
+    p = cpk_tpl_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, by, 72, 15, MD_RESEED, 0x80, word_w("map_new_seed"));
+    p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 84, by, 108, 12, MD_SEED, 0x82, L"");
+    p = cpk_tpl_item(p, BS_AUTOCHECKBOX | WS_TABSTOP, 204, (short)(by + 1), 90, 12, MD_KEEP, 0x80, word_w("map_keep_seed"));
     g_md.result = IDCANCEL;
     g_md.setup = setup; g_md.keep = 0;
     g_md.n = n; g_md.np = np; g_md.seed = *seed;

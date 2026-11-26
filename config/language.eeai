@@ -244,6 +244,10 @@ map_climate = {
     en = "Climate",
     de = "Klima",
 }
+map_climate_zones = {
+    en = "Climate zones",
+    de = "Klimazonen",
+}
 map_rain = {
     en = "Rain",
     de = "Regen",
@@ -303,6 +307,14 @@ map_v_warm = {
 map_v_hot = {
     en = "Hot",
     de = "Heiß",
+}
+map_v_north_south = {
+    en = "North to south",
+    de = "Nord nach Süd",
+}
+map_v_poles = {
+    en = "Poles and equator",
+    de = "Pole und Äquator",
 }
 map_v_arid = {
     en = "Arid",

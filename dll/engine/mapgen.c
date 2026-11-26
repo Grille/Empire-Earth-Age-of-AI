@@ -162,6 +162,7 @@ struct mg {
     struct mg_opt {           // [random_map] as numbers (mg_options); "normal" a factor of exactly 1, a shift of 0: the map as before
         float land;           // the continents' size
         float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
+        int zones;            // where it is cold and where hot: MG_ZONES_*
         float mountains, rivers, lakes, islands, forests, mines;   // factors on how many
         int mp;               // a multiplayer game: the host's options (none came: the defaults)
         int from;             // MG_FROM_*: whose they are
@@ -181,6 +182,7 @@ internal int mg_amount(int base, float f) { return f == 1.0f ? base : (int)((flo
 // game the host's (g_mg_host: its Start sent them) - none came (a host whose mod has no step 4, the type chosen
 // otherwise than by the lobby's list): the defaults, as on every other PC then.
 enum { MG_FROM_OWN, MG_FROM_HOST, MG_FROM_DEFAULTS };
+enum { MG_ZONES_NORTH_SOUTH, MG_ZONES_POLES, MG_ZONES_NONE };   // [random_map] map_climate_zones (mg_temp)
 internal int mg_humans(const ee_setup *setup) {   // the humans' slots (1 this PC's or a seated player's, 2 a network one's)
     int humans = 0;
     for (int k = 0; setup && k < 16; k++) { int t = setup_slot_get_type(setup_slot_at(setup, k)); humans += t == 1 || t == 2; }
@@ -203,6 +205,7 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
     g->opt.land = MG_PICK(land, s.map_land);
     g->opt.temp = MG_PICK(temp, s.map_climate);
     g->opt.wet = MG_PICK(wet, s.map_rain);
+    g->opt.zones = (unsigned)s.map_climate_zones <= MG_ZONES_NONE ? s.map_climate_zones : MG_ZONES_NORTH_SOUTH;
     g->opt.mountains = MG_PICK(amount, s.map_mountains);
     g->opt.rivers = MG_PICK(amount, s.map_rivers);
     g->opt.lakes = MG_PICK(amount, s.map_lakes);
@@ -433,10 +436,17 @@ internal void mg_coast(const struct mg *g, int x, int y, float *beach, float *wi
 // steps is one), down again to the plain 3 .. 12 tiles behind
 internal float mg_bluff(float f, float at) { return 1.8f * mg_step(at, at + 0.8f, f) * (1 - mg_step(at + 3, at + 12, f)); }
 internal float mg_start_dist(const struct mg *g, float x, float y);
-// the temperature at a place before its height: cold (under -0.3) in the far north, hot (over 0.3) in the near south,
-// pushed about by a noise
+// the temperature at a place before its height (its bands: cold under -0.3, hot over 0.3), by the climate zones
+// ([random_map] map_climate_zones; the player 2026-11-26: "north to south (what we have now), poles (north and south
+// are cold with a warm equator), none (no bias based on position, noise only)"): from the far north (-1) to the near
+// south (1) along the continents; poles: 0.7 in the middle falling to -0.75 at the continents' ends (0.85 of the way)
+// - cold, mild, hot, mild, cold along each, the hot band a quarter of it (from 1 at the middle a half of each
+// continent was hot, deserts the most of it); none - a noise alone, 2.5 times as strong, its patches of warm and cold
+// some 40 tiles across. Then the noise and the climate's shift
 internal float mg_temp(const struct mg *g, int x, int y) {
-    return (float)(x - y) / g->half + (mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f) * 1.0f + g->opt.temp;
+    float u = (float)(x - y) / g->half, noise = mg_fbm((float)x * 0.025f + 90, (float)y * 0.025f + 40, g->seed + 20) - 0.5f;
+    float lat = g->opt.zones == MG_ZONES_POLES ? 0.7f - 1.7f * fabsf(u) : g->opt.zones == MG_ZONES_NONE ? 0 : u;
+    return lat + noise * (g->opt.zones == MG_ZONES_NONE ? 2.5f : 1.0f) + g->opt.temp;
 }
 // A MOUNTAIN RANGE (the player 2026-11-24: "cliffs, mountain ranges, rivers flowing from the mountains, increased
 // chance for mine in mountains"; then, of the first ones - 5 steps high, in terraces -: "the mountains inland still
