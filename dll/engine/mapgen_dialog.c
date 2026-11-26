@@ -20,6 +20,16 @@
 #define MD_KEEP 264
 #define MD_POINTS 9     // its font's size at the game's picture 1:1 ...
 #define MD_PIXELS 528   // ... and about its height then, with the title bar
+#define MD_DONE (WM_APP + 1)   // the preview's worker is done
+// a preview made by a worker (md_render): the map's whole steps, 0.75 s on a Titanic map - on the dialog's thread
+// it froze the dialog at each choice
+struct md_job {
+    HWND d;
+    int n, np, side, ok;
+    uint32_t seed, *px;
+    char what[200];
+    double ms;
+};
 internal struct {
     int result;
     int n, np;          // the map's tiles a side and players
@@ -29,6 +39,9 @@ internal struct {
     int side;
     int setup;          // asked on the game setup screen (mapgen_button.c): the seed an example, "play this map" offered
     int keep;           // ... and ticked
+    HANDLE worker;      // the preview being made (job), NULL none
+    int dirty;          // a choice changed meanwhile: made anew once it is done
+    struct md_job job;
 } g_md;
 
 // a label's word, a space in: off its box's edge (the caller copies it before the next)
@@ -54,37 +67,62 @@ internal void md_rows(HWND d) {
     }
 }
 
-// the preview made anew for the dropdowns' choices (into g_set: mapgen_preview reads them) - as large as its box
-internal void md_render(HWND d) {
+// the dropdowns' choices into g_set (mapgen_preview reads them) - never while a worker makes a preview of them
+internal void md_read(HWND d) {
     for (int i = 0; i < MD_ROWS; i++) {
         LRESULT k = SendDlgItemMessageW(d, MD_COMBO + i, CB_GETCURSEL, 0, 0);
         if (k >= 0) *md_value(i) = (int)k;
     }
-    RECT r;
-    GetClientRect(GetDlgItem(d, MD_PREVIEW), &r);
-    int side = (r.right < r.bottom ? r.right : r.bottom) - 2 * theme_px(2);
-    if (side < 16) return;
-    if (side != g_md.side || !g_md.px) {
-        free(g_md.px);
-        g_md.px = malloc((size_t)side * (size_t)side * sizeof *g_md.px);
-        g_md.side = g_md.px ? side : 0;
-    }
-    char what[200] = "";
-    HCURSOR was = SetCursor(LoadCursorW(NULL, (LPCWSTR)IDC_WAIT));
+}
+internal DWORD WINAPI md_work(void *arg) {
+    struct md_job *j = arg;
     LARGE_INTEGER f, t0, t1;
     QueryPerformanceFrequency(&f);
     QueryPerformanceCounter(&t0);
-    int ok = g_md.px && mapgen_preview(g_md.n, g_md.np, g_md.seed, g_md.px, g_md.side, what, sizeof what);
+    j->ok = j->px && mapgen_preview(j->n, j->np, j->seed, j->px, j->side, j->what, sizeof j->what);
     QueryPerformanceCounter(&t1);
-    SetCursor(was);
-    if (!ok) { free(g_md.px); g_md.px = NULL; g_md.side = 0; }
+    j->ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart;
+    PostMessageW(j->d, MD_DONE, 0, 0);
+    return 0;
+}
+// the preview made anew for the dropdowns' choices and the seed - as large as its box - by a worker: the dialog
+// answers meanwhile, the old picture stays till the new one is done (MD_DONE: md_done). A change while one is being
+// made only marks it dirty: the next is made of the choices then, once it is done - none made for each step of a
+// scroll through a list. The game waits in the dialog's loop meanwhile: its data (mapgen_preview's types and
+// textures) holds still
+internal void md_render(HWND d) {
+    if (g_md.worker || g_md.job.px) { g_md.dirty = 1; return; }   // (one made, not taken yet: its MD_DONE is coming)
+    md_read(d);
     wchar_t t[64];
     t[0] = L' ';
     word_fill_w(t + 1, 63, "map_seed", g_md.seed, 0);
     SetDlgItemTextW(d, MD_SEED, t);
+    RECT r;
+    GetClientRect(GetDlgItem(d, MD_PREVIEW), &r);
+    int side = (r.right < r.bottom ? r.right : r.bottom) - 2 * theme_px(2);
+    if (side < 16) return;
+    struct md_job *j = &g_md.job;
+    memset(j, 0, sizeof *j);
+    j->d = d; j->n = g_md.n; j->np = g_md.np; j->seed = g_md.seed; j->side = side;
+    j->px = malloc((size_t)side * (size_t)side * sizeof *j->px);
+    // (the generator's steps want more stack than a thread's default 1 MB might leave: as the game's main thread's)
+    g_md.worker = CreateThread(NULL, 8u << 20, md_work, j, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+    if (!g_md.worker) md_work(j);   // (no thread: made here, as before; its MD_DONE comes next)
+}
+// a worker's preview taken: its picture shown, the next made if a choice changed meanwhile. show 0: only waited for
+// (OK, Cancel: the dialog closes)
+internal void md_done(HWND d, int show) {
+    if (g_md.worker) { WaitForSingleObject(g_md.worker, INFINITE); CloseHandle(g_md.worker); g_md.worker = NULL; }
+    struct md_job *j = &g_md.job;
+    if (!j->px && !j->ok) return;   // (none made, or taken already)
+    if (g_log) log_locked("# mapgen: preview - %d tiles a side, %d players, seed %u: %s (%.0f ms)\n", j->n, j->np, j->seed,
+                          j->ok ? j->what : "no memory", j->ms);
+    if (show && j->ok) { free(g_md.px); g_md.px = j->px; g_md.side = j->side; }
+    else free(j->px);
+    j->px = NULL; j->ok = 0;
+    if (!show) return;
     InvalidateRect(GetDlgItem(d, MD_PREVIEW), NULL, FALSE);
-    if (g_log) log_locked("# mapgen: preview - %d tiles a side, %d players, seed %u: %s (%.0f ms)\n", g_md.n, g_md.np, g_md.seed,
-                          ok ? what : "no memory", (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart);
+    if (g_md.dirty) { g_md.dirty = 0; md_render(d); }
 }
 
 // the preview's box: the picture in its middle in a sunken frame, the parchment round it
@@ -131,6 +169,9 @@ internal INT_PTR CALLBACK md_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         return TRUE;
     case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN: case WM_CTLCOLORDLG:
         return (INT_PTR)theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
+    case MD_DONE:
+        md_done(d, 1);
+        return TRUE;
     case WM_DRAWITEM:
         if (w == MD_PREVIEW) { md_draw((const DRAWITEMSTRUCT *)l); return TRUE; }
         if (theme_draw_item((const DRAWITEMSTRUCT *)l)) return TRUE;   // the dropdowns' lists
@@ -144,8 +185,9 @@ internal INT_PTR CALLBACK md_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
             md_render(d);
             return TRUE;
         }
-        if (LOWORD(w) == IDOK) md_render(d), g_md.keep = IsDlgButtonChecked(d, MD_KEEP) == BST_CHECKED;   // the choices into g_set (as the preview has them)
         if (LOWORD(w) == IDOK || LOWORD(w) == IDCANCEL) {
+            md_done(d, 0);   // (a preview being made: waited for, its picture let go)
+            if (LOWORD(w) == IDOK) md_read(d), g_md.keep = IsDlgButtonChecked(d, MD_KEEP) == BST_CHECKED;   // the choices into g_set
             g_md.result = LOWORD(w);
             EndDialog(d, 0);
             return TRUE;
@@ -198,6 +240,8 @@ internal int md_open(int n, int np, uint32_t *seed, int setup) {
     g_md.n = n; g_md.np = np; g_md.seed = *seed;
     for (int i = 0; i < MD_ROWS; i++) g_md.was[i] = *md_value(i);
     INT_PTR r = game_dialog_show(dt, md_proc, &ctx);
+    md_done(NULL, 0);   // (closed some other way with a preview being made)
+    g_md.dirty = 0;
     free(g_md.px);
     g_md.px = NULL; g_md.side = 0;
     if (g_md.result == IDOK) { md_keep(); *seed = g_md.seed; }
