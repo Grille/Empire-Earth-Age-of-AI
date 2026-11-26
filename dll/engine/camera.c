@@ -444,9 +444,19 @@ internal void camera_shape_frame(void) {
 // single notch back and forth there moved the picture up and down by the ground's height (the player 2026-11-26: "in the
 // middle of the zoom is a step where the height noticably jumps"; the look-at 0.64 at zoom 0.4, 0.40 at 0.45).
 #define CAM_LIFT_REACH 1e9f
+// The epic view's pitch ([camera] camera_epic_angle; the player 2026-11-26: "the transition to far zoom has a noticable
+// jump in angle, it has a diffrent final view angle than default i think, far zoom should use it"): the game's curve,
+// 1 - (1 - zoom)^0.3 between -5 and -35 degrees, is steep at its end - the last notch, 0.95 to 1, turned it from -22.8 to
+// -35, the normal view's, and the zoom past 1 kept that. Its zoom taken times 0.95: the same curve, ending at -22.8.
+#define CAM_EPIC_END 0.95f
+internal float __cdecl hook_view_pitch(float zoom, int view) {
+    return view_pitch(view == 1 ? zoom * CAM_EPIC_END : zoom, view);
+}
 internal void camera_shape_install(void) {
     int lift = g_set.camera_zoom_at_mouse && camera_lift_reach_set(CAM_LIFT_REACH);
     if (g_log) fprintf(g_log, "# camera: the look-at on the ground %s\n", lift ? "at any zoom" : "within the game's 10 tiles");
+    int epic = g_set.camera_epic_angle ? patch_view_pitch(hook_view_pitch, 0) : -1;
+    if (g_log) fprintf(g_log, "# camera: the epic view's angle %s\n", epic < 0 ? "the game's" : epic == 4 ? "ends a notch before the game's" : "FAILED");
     g_cam_shape = camera_shape_open();
     if (!g_cam_shape) return;
     g_cam_dist = g_set.camera_distance > 0 ? (float)g_set.camera_distance * CAM_AS_DREXMOD : CAM_DIST_GAME;

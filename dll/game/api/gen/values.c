@@ -1092,6 +1092,7 @@ internal uint32_t value_game_size_save_action;
 internal uint32_t value_game_size_join_action;
 internal uint32_t data_game_vtbl_phys_step;
 internal uint32_t data_game_vt_pause_action;
+internal uint32_t calls_view_pitch[4];
 internal uint32_t call_load_saved;
 internal uint32_t call_parse_cmdline;
 internal uint32_t calls_save_write[2];

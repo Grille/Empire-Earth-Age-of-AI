@@ -475,6 +475,17 @@ static unsafe class game_functions
     [address((ee)0x0046D436, (aoc)0x0047005A), cdecl]
     static extern int32 highest_human_epoch();
 
+    /// the camera's pitch in radians for a zoom (0 .. 1) in a view (EECameraControl.view): 0 the angle at 0x913288 (-5
+    /// degrees) at zoom 0 to the one at 0x913284 (-35) at 1 in a straight line; 1 (the epic view) the same two angles by
+    /// 1 - (1 - zoom)^0.3 (0x82C728, a double) - steep at its end, -22.8 degrees at 0.95 and -35 at 1; 2 the turn's own;
+    /// 3 by its own angles (0x91327C / 0x913280) and ^0.5. Called in 0x51D95F, the zoom (0x51DDD7) and the move (0x51E2E6)
+    [address((ee)0x0051DA2D, (aoc)0x005285EC), cdecl]
+    [call_site("view_pitch", (ee)0x0051D983, (aoc)0x00528542)]
+    [call_site("view_pitch", (ee)0x0051E179, (aoc)0x00528D38)]
+    [call_site("view_pitch", (ee)0x0051E1C1, (aoc)0x00528D80)]
+    [call_site("view_pitch", (ee)0x0051E3C5, (aoc)0x00528F84)]
+    static extern float32 view_pitch(float32 zoom, int32 view);
+
     [address((ee)0x00521F94, (aoc)0x0052CB90), cdecl]
     // call LoadSavedGameFromCmdline(UString *) 0x521F94
     [call_site("load_saved", (ee)0x00522BF8, (aoc)0x0052D8F9)]

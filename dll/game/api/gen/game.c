@@ -245,6 +245,14 @@ internal inline void exit_confirm(void) { fn_exit_confirm(); }
 typedef int (__cdecl *highest_human_epoch_fn)(void);
 internal highest_human_epoch_fn fn_highest_human_epoch;
 internal inline int highest_human_epoch(void) { return fn_highest_human_epoch(); }
+// the camera's pitch in radians for a zoom (0 .. 1) in a view (EECameraControl.view): 0 the angle at 0x913288 (-5
+// degrees) at zoom 0 to the one at 0x913284 (-35) at 1 in a straight line; 1 (the epic view) the same two angles by
+// 1 - (1 - zoom)^0.3 (0x82C728, a double) - steep at its end, -22.8 degrees at 0.95 and -35 at 1; 2 the turn's own;
+// 3 by its own angles (0x91327C / 0x913280) and ^0.5. Called in 0x51D95F, the zoom (0x51DDD7) and the move (0x51E2E6)
+typedef float (__cdecl *view_pitch_fn)(float, int);
+internal view_pitch_fn fn_view_pitch;
+internal inline float view_pitch(float zoom, int view) { return fn_view_pitch(zoom, view); }
+internal inline int patch_view_pitch(view_pitch_fn h, int *of) { return patch_calls(calls_view_pitch, 4, (uintptr_t)fn_view_pitch, (void *)h, of); }
 typedef int (__cdecl *load_saved_fn)(void *);
 internal load_saved_fn fn_load_saved;
 internal inline int load_saved(void *name) { return fn_load_saved(name); }
@@ -435,6 +443,11 @@ internal int spec_game_select(int build) {
         data_game_vt_pause_action = 0x00830E94;
         fn_exit_confirm = (exit_confirm_fn)0x005D0B4F;
         fn_highest_human_epoch = (highest_human_epoch_fn)0x0046D436;
+        fn_view_pitch = (view_pitch_fn)0x0051DA2D;
+        calls_view_pitch[0] = 0x0051D983;
+        calls_view_pitch[1] = 0x0051E179;
+        calls_view_pitch[2] = 0x0051E1C1;
+        calls_view_pitch[3] = 0x0051E3C5;
         fn_load_saved = (load_saved_fn)0x00521F94;
         call_load_saved = 0x00522BF8;
         fn_game_new = (game_new_fn)0x00683718;
@@ -572,6 +585,11 @@ internal int spec_game_select(int build) {
         data_game_vt_pause_action = 0x00846790;
         fn_exit_confirm = (exit_confirm_fn)0x005E145B;
         fn_highest_human_epoch = (highest_human_epoch_fn)0x0047005A;
+        fn_view_pitch = (view_pitch_fn)0x005285EC;
+        calls_view_pitch[0] = 0x00528542;
+        calls_view_pitch[1] = 0x00528D38;
+        calls_view_pitch[2] = 0x00528D80;
+        calls_view_pitch[3] = 0x00528F84;
         fn_load_saved = (load_saved_fn)0x0052CB90;
         call_load_saved = 0x0052D8F9;
         fn_game_new = (game_new_fn)0x0069D178;
@@ -709,6 +727,11 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_vt_pause_action, "game.vt_pause_action");
     bad += spec_code((uintptr_t)fn_exit_confirm, "game_functions.exit_confirm");
     bad += spec_code((uintptr_t)fn_highest_human_epoch, "game_functions.highest_human_epoch");
+    bad += spec_code((uintptr_t)fn_view_pitch, "game_functions.view_pitch");
+    bad += spec_call(calls_view_pitch[0], (uintptr_t)fn_view_pitch, "game_functions.view_pitch [call_site view_pitch 0]");
+    bad += spec_call(calls_view_pitch[1], (uintptr_t)fn_view_pitch, "game_functions.view_pitch [call_site view_pitch 1]");
+    bad += spec_call(calls_view_pitch[2], (uintptr_t)fn_view_pitch, "game_functions.view_pitch [call_site view_pitch 2]");
+    bad += spec_call(calls_view_pitch[3], (uintptr_t)fn_view_pitch, "game_functions.view_pitch [call_site view_pitch 3]");
     bad += spec_code((uintptr_t)fn_load_saved, "game_functions.load_saved");
     bad += spec_call(call_load_saved, (uintptr_t)fn_load_saved, "game_functions.load_saved [call_site load_saved]");
     bad += spec_code((uintptr_t)fn_game_new, "game_functions.game_new");

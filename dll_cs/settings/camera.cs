@@ -41,6 +41,10 @@ class camera
     /// mouse, the view then the isometric one (it keeps its angle when scrolling and zooming; back to the normal view:
     /// F2, the perspective key). 0 = only in the scenario editor, as in the game
     bool camera_free_turn = true;
+    /// The epic view (F2 once): the game's turns it 12 degrees further down at the last notch before the furthest zoom,
+    /// to the normal view's 35. 1 = its angle runs on evenly and ends at the one a notch before (23 degrees down), further
+    /// out it stays at that. 0 = the game's
+    bool camera_epic_angle = true;
     /// How far the camera sees, in tiles (0 = the game's 35); further out it grows with the camera's distance:
     [range(0, 100)]
     int camera_view_distance = 100;
