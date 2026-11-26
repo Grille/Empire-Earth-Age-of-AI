@@ -1146,6 +1146,24 @@ internal void mg_set_tex(struct mg *g, int x, int y, int tex) {
     g->tex[y * g->n + x] = (int16_t)tex;
     if (g->map) map_reset_tile(g->map, (uint32_t)x, (uint32_t)y, (uint32_t)tex);
 }
+// does the cliff pass's rock lie on the tile: a cliff (a step up, 1.5 steps between its corners) lays its type's
+// textures on its 2 x 2 block x - 1 .. x, y - 1 .. y (mg_cliff_run), so on a tile whose block's partners right and
+// below are one - by the heights, as the pass decides, or a cliff of the game's map. Those around a cliff are of
+// the land's kind: free for a tree or a mine, whose ground went over the rock (the player 2026-11-26: "the ground
+// texture for trees and mines overwrites cliff textures, stop that")
+internal int mg_rock(const struct mg *g, int x, int y) {
+    for (int j = 0; j < 4; j++) {
+        float lo, hi;
+        int cx = x + (j & 1), cy = y + (j >> 1);
+        if (mg_tile_span(g, cx, cy, &lo, &hi) && hi >= 1.0f && hi - lo >= 1.4999f) return 1;
+        if (mg_kind(g, cx, cy) == MG_K_CLIFF) return 1;
+    }
+    return 0;
+}
+// a forest's or a mine's ground on the tile - not over the cliffs' rock
+internal void mg_set_floor(struct mg *g, int x, int y, int tex) {
+    if (!mg_rock(g, x, y)) mg_set_tex(g, x, y, tex);
+}
 // a preview's tile kinds by the game's rules (spec map.kind_water, kind_shallows): under the water - fewer than 3
 // corners at its level or above - deep below 0.75 steps, shallows above; the cliffs come after (mg_cliff_run)
 internal void mg_kinds(struct mg *g) {
@@ -1272,7 +1290,7 @@ internal int mg_mine(struct mg *g, int kind, int x, int y) {
     for (int k = 0; k < 5; k++) {
         int tx = x + side[k][0], ty = y + side[k][1];
         if (!mg_free(g, tx, ty)) continue;
-        if (!k) mg_set_tex(g, tx, ty, tex);
+        if (!k) mg_set_floor(g, tx, ty, tex);
         g->used[ty * g->n + tx] = 1;
     }
     mg_spot_add(g, x, y);
@@ -1324,7 +1342,7 @@ internal void mg_forest(struct mg *g, int x, int y, int grove) {
         tx[n] = nx; ty[n] = ny; n++;
     }
     for (int i = 0; i < n; i++) {
-        mg_set_tex(g, tx[i], ty[i], g->tex_wood[b]);
+        mg_set_floor(g, tx[i], ty[i], g->tex_wood[b]);
         if (mg_int(g, 0, 9)) mg_object(g, trees[mg_int(g, 0, kinds - 1)], tx[i], ty[i], mg_rnd(g) * 6.2831853f, MG_TREE);
     }
     g->forests++;
@@ -1416,7 +1434,7 @@ internal void mg_objects(struct mg *g) {
                 g->used[y * g->n + x] = 1;
                 b = g->clim[y * g->n + x];
                 if (g->ntree[b] && mg_int(g, 0, 3) == 0) {
-                    mg_set_tex(g, x, y, g->tex_wood[b]);
+                    mg_set_floor(g, x, y, g->tex_wood[b]);
                     mg_object(g, g->tree[b][mg_int(g, 0, g->ntree[b] - 1)], x, y, mg_rnd(g) * 6.2831853f, MG_TREE);
                 }
             }
