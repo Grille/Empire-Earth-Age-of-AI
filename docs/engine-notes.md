@@ -772,7 +772,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   mine (gold, iron, stone by turns) per 360 tiles of those feet whatever the biome (90 until the player's
   "25% of what generates now would still be plenty", 2026-11-25: the land's too, a gold or iron mine per 2600 land
   tiles and a stone mine per 4000, were 650 and 1000; a start's own six stay); nothing is placed higher up a
-  mountain than its lowest 1.4 steps. Small and tiny maps have no room for a range between shore and starts. Hill country (2026-11-25,
+  mountain than its lowest 1.4 steps. A small map has 2 ranges (1 + n^2/12000 where that is less than 2 + n/100). Hill country (2026-11-25,
   the player's list: hills, lakes, terraces): a third slow layer, the land's roughness, and the 12 tiles round a
   range's foot have rolling hills of up to 3 steps without cliffs; the plain else swells by 0.8 at most. Lakes
   (mg_lake): 1 + n/110 basins of 5 - 8 tiles' radius by turns on the continents, 2.2 steps deep (the game has one
@@ -791,8 +791,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   range and the rivers from its ends) fords are laid on the way to it that goes through the least river, and the
   ground is set again; the log's line says both. A swamp's pools are shallows. The rain shadow: a wind by the seed (one
   of the four screen directions); a mountain up the wind within 32 tiles dries a place, one down the wind wets it. Plateaus (mg_plateau):
-  1 + n/120 by turns on the continents where there is room off the ranges and starts (a large map with four
-  players often has none), flat land 3.2 steps up, 7 - 12 tiles in radius, a cliff all round but for 2 or 3 ramps
+  1 + n/120 by turns on the continents where there is room off the ranges, flat land 3.2 steps up, 7 - 12 tiles in radius, a cliff all round but for 2 or 3 ramps
   4 tiles wide; a gold mine on top; its cliffs one type (the red RockyCliff in the hot south, the winter's in the
   cold, the default's between). The coast's own shapes (mg_land, laid into f before the edge's and the channel's
   water): capes and bays (mg_tongue: 1 + n/200 each, 8 - 18 tiles long), fjords in the cold north (1 + n/150: 3
@@ -809,18 +808,41 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   water's level and broken into pools of marsh and low ground with a tree on a quarter of it); a lake in the
   cold north is ice. A texture gives its tiles their kind (ee_terrain.kind,
   Grass 0; nearly every land texture has one of its own): only water's and a cliff's are kept off the land. Every
-  start has, whatever its biome, 2 forage patches, its six mines, a herd and a grove of timber trees - with one
-  forage patch a tundra start stood at 23 people after 38 minutes (the first epoch has no farms), with two the
-  five AIs of that map at 78 - 146, a medium map's three at 104 - 159. A forest of the grassland or the woodland
+  start has, whatever its biome, 2 forage patches, six mines, a herd and timber trees near it (the land's counted,
+  the rest its own: below) - with one forage patch a tundra start stood at 23 people after 38 minutes (the first
+  epoch has no farms), with two the five AIs of that map at 78 - 146, a medium map's three at 104 - 159. A forest of the grassland or the woodland
   is all spruce, mixed or all maple by the warmth at its seed (the player: the pure kinds too, spruce towards the
   cold): spruce only at the mild band's cold edge, maple only at its warm one, mixed most often between; the
   grassland leans to maple. The log's line counts the three. Mines in clumps (the player: "a low chance of 2 or
   even more near each other"; mg_clump): after a mine of the land 18 in 100 times, of a range's foot 30, of a
   plateau's top 50, 1 - 3 more 4 - 6 tiles from it (room for six miners each and a wall round them), mostly of
-  another ore (gold with iron or stone, iron or stone with gold), never within 30 tiles of a start. The land's
+  another ore (gold with iron or stone, iron or stone with gold), not within 10 tiles of a start. The land's
   mines are drawn by turns and a clump's taken off the draws of their kind still to come: a map is no richer for
-  them (huge seed 7: 135 mines, 132 without; gigantic 237 / 229 - a plateau's clump is its extra). Small and
-  medium maps seldom have one (no place 30 tiles from every start).
+  them (huge seed 7: 135 mines, 132 without; gigantic 237 / 229 - a plateau's clump is its extra).
+- **The starts on the land made** (2026-11-26, the player: "instead of deciding them first the map gets generated
+  first independently, with the mod picking good starts after and adding the extra resource patches if needed").
+  Until then the starts were placed first, evenly along each continent, and every range, plateau, hill, lake and
+  river kept 11 - 24 tiles off them: each start in the same bare ring, and a small map had no room for the features
+  (116 tiles, 4 players: no range and no lake whatever the options). Now the land, its mountains, water and hills
+  are made whole, the ground set once (the tiles' kinds), and then each start - by turns on the two continents, in
+  its share of its continent's length - takes the best place within reach of that share's middle (mg_starts): a
+  yard of 7 tiles without water, cliff, mountain or plateau, no water within 9, 8 tiles inside the land; worth room
+  to build 18 tiles round, smooth ground, water within 22 - 40 tiles (docks, fish), its biome's forage and herds
+  (twice), less the further out. Not found: further out, then with a smaller yard (5, then 3), last forced (the place
+  furthest from all of those). Read by the heights alone, not the tiles' kinds: the game's cliff pass makes a few
+  more cliffs than a preview's, and a start placed by them parted a map from its preview. The yards are levelled to
+  their own mean height (water, a mountain's flank and a plateau beyond 7 tiles left as they are) and the ground set
+  again. The land's objects come next, none within 10 tiles of a start, and then each start's own topped up to the
+  least above (mg_starts_own): forage within 12, the six mines within 20, 30 trees within 16 (a grove) and two more
+  forests where it has under 60, a herd within 18 - a start on rich land gets less of its own. The log's line says
+  how the starts were placed and what was topped up. Checked: large maps, 5 players, seeds 3 11 21 40 7 - every
+  start at its first or second level, none forced, each map equal to its preview (land, ranges, lakes, rivers,
+  mines, forests, the starts' levels and their own); 116-tile maps with 4 - 8 players have ranges now, a forced
+  start now and then. The AIs' population at 8 minutes, 10 games each (large, 4 AIs, seeds 1 2 4 6 8; Art of
+  Conquest normal, 3 AIs, the same seeds): 21.6 against 21.5 before, Art of Conquest 19.4 against 20.7 - within
+  the noise: in both builds an AI or two in ten games stayed at 6 - 16 people, most of them with their citizens
+  held back for the epoch's saving (the cit line's "blocked (... epoch N)"), on starts of any biome, or losing
+  citizens to the hunt.
 - **A map's flags** (EEMap.flags, the script's MapCharacteristics): 0 Continental, 1 the island types (IslandMap),
   2 Plains (WaterlessMap) - read after the game's own maker in test games.
 - **The ground textures' names** are db\dbterrain.dat's ("Grass - Tufts", "Sand - Medium", "Snow - Dirt Patches",
@@ -832,10 +854,10 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   (dll/engine/mapgen.c). The first, flat with a Capitol each, proved the way in. **Age of AI** (language.eeai map_age_of_ai; "Two
   Continents" until 2026-11-25), so far one layout: two landmasses left and right of a sea channel, the players by turns on them (more
   than two share); biomes (below); rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
-  the land stays one piece; each start levelled, with forage, gold, iron, stone, three forests and a herd round it,
+  the land stays one piece; each start levelled, with forage, gold, iron, stone, forests and a herd round it,
   more of each over the land by its size, fish off the shores. Its steps: land (two ellipses, the shore by noise),
-  heights, starts, rivers, the ground into the map (map_ground_set), biomes, textures, the game's cliff pass, the
-  world's objects, the start units. Every number comes from the seed alone, without sine or cosine: the same map on
+  heights, rivers, the ground into the map (map_ground_set), biomes, textures, the game's cliff pass, the starts on
+  it (the ground set again with their yards), the world's objects, the starts' own, the start units. Every number comes from the seed alone, without sine or cosine: the same map on
   every PC. Checked 2026-11-24: all six sizes with 2 - 8 players start (84 to 440 tiles a side; a tiny map has no
   room for a river), the same seed twice gives the same map, a 60 minute game of three AIs (population 161 - 230,
   docks, fishing boats, warships, transports landing across the channel, no notice), Art of Conquest 10 minutes,
@@ -846,7 +868,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   and the starts' spread 0.8 / 1 / 1.12 times), the climate (-0.4 .. +0.4 on the temperature, whose bands are at
   -0.3 / 0.3), the rain (-0.2 .. +0.2 on the moisture, bands at 0.4 / 0.6), and how many mountains (ranges and
   plateaus), rivers (lakes' outflows too), lakes, islands, forests and mines (land, mountain feet, plateaus) - none,
-  few, normal, many, lots: 0, 0.5, 1, 2, 3 times the count the map's size gives. "normal" is the map as before, bit
+  few, normal, many, lots: 0, 0.5, 1, 2, 3 times the count the map's size gives. "normal" leaves the map as it is, bit
   for bit (a factor of exactly 1 leaves a count alone, a shift of 0 a number). A start's own mines, forage, forests
   and herd stay whatever is chosen. The scenario editor's Create Map with the type chosen opens a dialog with them
   first (dll/engine/mapgen_dialog.c, from the hook of EESEACreateRandomMap.run - its map_type +0x10 the type's index):

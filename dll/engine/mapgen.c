@@ -129,12 +129,15 @@ struct mg {
     uint8_t *marsh;           // [tile] water: 2 the sea's, 1 a river's or a pond's all under water and not frozen (marsh), 0 other inland water
     uint8_t *kind;            // [tile] a preview's tile kinds (MG_K_*: the game's rules, mg_kinds) - the game's map has its own
     int16_t *tex;             // [tile] its ground texture
-    uint8_t *obj;             // [tile] a preview's object there: its kind (MG_GOLD ...) + 1, 0 none
+    uint8_t *obj;             // [tile] the object made there: its kind (MG_GOLD ...) + 1, 0 none (what a start has near it; a preview's picture)
     uint8_t *rock;            // [tile] a preview's cliff texture there: its cliff type + 1, 0 none (mg_cliff_run)
     float *z;                 // [corner] the heights handed to the game's map (tiles)
     float half;               // n / 2: u and v reach that far
     int np;                   // the players that play
     int sx[MG_PLAYERS], sy[MG_PLAYERS];   // their starts (a tile corner: the Capitol's middle)
+    int placed;               // the starts placed: 0 until the land is made (mg_starts), then np
+    int start_how[5];         // the starts placed at each of mg_starts' levels (0: where it looked first ... 4: forced)
+    int topped[6];            // what the starts' own gave them beyond the map's near them: forage, gold, iron, stone, forests, herds
     struct { int x, y; } spot[MG_SPOTS];  // the mines', forests' and herds' places: kept apart from each other
     int nspot;
     int tex_land[MG_BIOMES][5], tex_beach[MG_BIOMES], tex_res[MG_BIOMES], tex_wood[MG_BIOMES], tex_shore[MG_BIOMES], tex_deep, tex_marsh, tex_pebbles;
@@ -438,21 +441,22 @@ internal float mg_temp(const struct mg *g, int x, int y) {
 // A MOUNTAIN RANGE (the player 2026-11-24: "cliffs, mountain ranges, rivers flowing from the mountains, increased
 // chance for mine in mountains"; then, of the first ones - 5 steps high, in terraces -: "the mountains inland still
 // need some work, they should also be a lot higher to justify the snow"): a line from a point well inside the land of
-// the continent asked for (10 tiles, 24 from any start), a tile a step, turned a little at random each step, n/6 ..
-// n/3 tiles long or until it comes within 7 tiles of the shore or 20 of a start (shorter than n/12: none). The
+// the continent asked for (10 tiles), a tile a step, turned a little at random each step, n/6 .. n/3 tiles long or
+// until it comes within 7 tiles of the shore (shorter than n/12: none) - wherever the starts will be: they are
+// placed on the land made (mg_starts). The
 // mountain along it: a crest up to 14 steps high - peaks of half to the whole of that by a noise along the line,
 // lower towards its ends -, falling to the plain 10 - 15 tiles to either side, steeply by the crest (cliffs) and
 // gently at its foot (to walk and build on); a pass every 30 - 45 tiles of the line, the crest down to a fifth for
 // 6 tiles and up again over 7 more: a saddle to walk over (the first ones, 2 tiles and up over 4, were none - the
-// peaks' flanks beside them filled the notch, the cliff pass the rest). tight 0 .. 3: a small map's - the starts 3 and 2 tiles nearer for each. A range has one
+// peaks' flanks beside them filled the notch, the cliff pass the rest). A range has one
 // cliff type, by the temperature at its middle (the player 2026-11-24, of mountains with the cold biomes' cliffs on
 // top and the default below: "try to stick to a single cliff type"): the winter's but in the hot south, where it is
 // the default's and the mountain bare of snow.
 #define MG_PEAK 14.0f
-internal int mg_range(struct mg *g, int continent, int tight) {
+internal int mg_range(struct mg *g, int continent) {
     float px[128], py[128];
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), want = mg_int(g, g->n / 6, g->n / 3), len = 0;
-    if ((x0 + y0 > g->n) != continent || mg_f(g, x0, y0) < 10 || mg_start_dist(g, (float)x0, (float)y0) < (float)(24 - 3 * tight)) return 0;
+    if ((x0 + y0 > g->n) != continent || mg_f(g, x0, y0) < 10) return 0;
     float x = (float)x0, y = (float)y0, dx = mg_rnd(g) - 0.5f, dy = mg_rnd(g) - 0.5f, dl = sqrtf(dx * dx + dy * dy);
     if (dl < 0.01f) { dx = 1; dy = 0; dl = 1; }
     dx /= dl; dy /= dl;
@@ -460,7 +464,7 @@ internal int mg_range(struct mg *g, int continent, int tight) {
         px[len] = x; py[len] = y;
         float turn = (mg_rnd(g) - 0.5f) * 0.5f, nx = dx - dy * turn, ny = dy + dx * turn, nl = sqrtf(nx * nx + ny * ny);
         nx /= nl; ny /= nl;
-        if (mg_f(g, (int)floorf(x + nx + 0.5f), (int)floorf(y + ny + 0.5f)) < 7 || mg_start_dist(g, x + nx, y + ny) < (float)(20 - 2 * tight)) break;
+        if (mg_f(g, (int)floorf(x + nx + 0.5f), (int)floorf(y + ny + 0.5f)) < 7) break;
         dx = nx; dy = ny; x += nx; y += ny;
     }
     if (len < g->n / 12 || g->ranges >= 15) return 0;
@@ -487,14 +491,13 @@ internal int mg_range(struct mg *g, int continent, int tight) {
 // A PLATEAU (the player 2026-11-25: "terraces"): flat land 3.2 steps over the plain, 7 - 12 tiles in radius, its
 // outline pushed in and out by a noise, a cliff all round but for two ramps (three from 10 tiles' radius) - 4 tiles
 // wide, 6 long, evenly round it from a direction drawn - so it is always reached: a place for a fortress, a ramp a
-// chokepoint. Well inside the land (14 tiles), 22 + its radius from any start, off the ranges and their foothills,
+// chokepoint. Well inside the land (14 tiles), off the ranges and their foothills,
 // one plateau's rim 6 tiles from another's. Its cliffs are the red rock in the hot south, the winter's in the cold
 // north, the default's between - one type each, as a range's. tight 0 .. 3: a small map's.
 #define MG_PLATEAU 3.2f
 internal int mg_plateau(struct mg *g, int continent, int tight) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 7, 12), ramps = r >= 10 ? 3 : 2;
     if (g->plateaus >= 8 || (x0 + y0 > g->n) != continent || mg_f(g, x0, y0) < (float)(14 - 2 * tight)) return 0;
-    if (mg_start_dist(g, (float)x0, (float)y0) < (float)(22 + r - 3 * tight)) return 0;
     for (int cy = y0 - r - 6; cy <= y0 + r + 6; cy += 3)
         for (int cx = x0 - r - 6; cx <= x0 + r + 6; cx += 3)
             if (!mg_corner(g, cx, cy) || g->mt[cy * g->m + cx] > 0.1f || g->foot[cy * g->m + cx] > 0.3f || g->plat[cy * g->m + cx] > 0 || mg_f(g, cx, cy) < 6) return 0;
@@ -526,9 +529,8 @@ internal int mg_plateau(struct mg *g, int continent, int tight) {
 // coast and a beach's bluff are cliffs. Inland the plain swells by up to 0.8 steps; HILL COUNTRY (the player
 // 2026-11-25: "hills as well as lakes would be my first ideas") where a slow third layer - the land's roughness, as
 // temperature and moisture are layers - says so, and as foothills within 12 tiles of a range: rolling hills of up to
-// 3 steps, some 14 tiles across, never a cliff (0.8 steps a tile at their steepest); none within 12 tiles of a
-// start. The mountains (the ranges before: g->mt) keep 5 tiles off the shore and 12 off the starts, a noise makes
-// their sides rugged (0.75 .. 1.25 of their height).
+// 3 steps, some 14 tiles across, never a cliff (0.8 steps a tile at their steepest). The mountains (the ranges
+// before: g->mt) keep 5 tiles off the shore, a noise makes their sides rugged (0.75 .. 1.25 of their height).
 internal void mg_heights(struct mg *g) {
     for (int y = 0; y <= g->n; y++)
         for (int x = 0; x <= g->n; x++) {
@@ -549,61 +551,190 @@ internal void mg_heights(struct mg *g) {
             }
             float base = fminf(f * 0.3f, 1.0f), flat = fminf(f * 0.08f, base);
             float h = base + (flat - base) * beach * (1 - mg_step(width, width + 3, f)) + bluff * mg_bluff(f, width) + rocky * mg_bluff(f, 0);
-            float away = mg_start_dist(g, (float)x, (float)y);
             float hilly = fmaxf(mg_step(0.5f, 0.62f, mg_fbm((float)x * 0.012f + 400, (float)y * 0.012f + 900, g->seed + 70)), 0.8f * mg_step(0.1f, 0.5f, g->foot[y * g->m + x]));
             float hn2 = 0.7f * mg_noise((float)x * 0.07f + 17, (float)y * 0.07f + 5, g->seed + 71) + 0.3f * mg_noise((float)x * 0.14f + 3, (float)y * 0.14f + 8, g->seed + 72);
             h += fmaxf(0, hn - 0.5f) * 1.6f * mg_step(5, 14, f);
-            h += hilly * mg_step(12, 22, away) * mg_step(4, 10, f) * (1 - mg_step(0.2f, 1.0f, g->plat[y * g->m + x])) * 6.0f * fmaxf(0, hn2 - 0.38f);   // a plateau's top is flat
+            h += hilly * mg_step(4, 10, f) * (1 - mg_step(0.2f, 1.0f, g->plat[y * g->m + x])) * 6.0f * fmaxf(0, hn2 - 0.38f);   // a plateau's top is flat
             h += g->plat[y * g->m + x];
-            float m = g->mt[y * g->m + x] * mg_step(5, 10, f) * mg_step(12, 16, away);
+            float m = g->mt[y * g->m + x] * mg_step(5, 10, f);
             m *= 0.75f + 0.5f * mg_fbm((float)x * 0.2f + 31, (float)y * 0.2f + 9, g->seed + 62);
             g->mt[y * g->m + x] = m;
             g->h[y * g->m + x] = h + m;
         }
 }
-// THE STARTS: the players by turns on the two continents, a continent's own spread along its length; a start less
-// than 10 tiles inside the land moved to the nearest corner within 12 tiles that is (none: the one farthest inside).
-// Then (mg_yards, once the heights are there - the mountains keep off the starts) the ground round it levelled to the
-// plain (whole within 7 tiles, fading to 11), its yard (7 tiles) kept free
-internal void mg_starts(struct mg *g) {
-    int count[2] = { g->np - g->np / 2, g->np / 2 };
-    for (int i = 0; i < g->np; i++) {
-        int k = i & 1, j = i / 2;
-        float v = (k ? 0.5f : -0.5f) * g->half, u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * 2 * 0.72f * 0.85f * g->half * g->opt.land;
-        int x0 = (int)floorf((u + v + (float)g->n) * 0.5f), y0 = (int)floorf((v + (float)g->n - u) * 0.5f), bx = x0, by = y0;
-        int nearest = 1 << 30;
-        for (int y = y0 - 12; mg_f(g, x0, y0) < 10 && y <= y0 + 12; y++)
-            for (int x = x0 - 12; x <= x0 + 12; x++) {
-                int d = (x - x0) * (x - x0) + (y - y0) * (y - y0);
-                if (mg_f(g, x, y) >= 10 ? d < nearest : nearest == 1 << 30 && mg_f(g, x, y) > mg_f(g, bx, by)) { bx = x; by = y; if (mg_f(g, x, y) >= 10) nearest = d; }
+// THE STARTS, on the land made (the player 2026-11-26: "instead of deciding them first the map gets generated first
+// independently, with the mod picking good starts after and adding the extra resource patches if needed"). Before,
+// the starts came first and every range, plateau, hill, lake and river kept 11 - 24 tiles off them: each start sat
+// in the same bare ring, and on a small map the features found no room (116 tiles, 4 players: no range, no lake,
+// whatever the options). Now the land is made whole, and once the ground has its tile kinds (the first pass of
+// mg_steps) the players are placed on it by turns on the two continents, each in its share of its continent's
+// length - where it looks first is the middle of that share, as the starts were placed before -, at the best place
+// within reach of it. A place (a tile corner) needs a yard round it of what levelling can't make ground to build on
+// - no water, cliff, mountain or plateau (mg_starts_fields: bad) - 7 tiles every way, no water within 9 (the yard's
+// levelling fades out at 10: a river's bed or a lake's shore stays as it is) and to be 8 tiles inside the land. Its
+// worth: room (the share of the land 18 tiles round to build on, flat enough as well: farms, houses, walls), smooth
+// ground (the heights' spread 8 tiles round: hills are levelled, but the less the better), water within 22 - 40 tiles
+// (docks, fish), the biome's food (its forage and herds; counted twice - the first epoch lives on them) - less the
+// further from where it looked first. The levels, the first with a place: 0 within reach (0.45 of the share, 12 .. 40 tiles), 1 within twice that, 2 so with 5 tiles
+// of yard, water 6 off and 6 tiles inside the land, 3 with 3, 4 and 4, 4 forced: the place within twice the reach
+// furthest from all of those (its yard levelled, whatever is there). A start keeps 0.6 of a share (16 tiles at least) from its
+// continent's others, 16 from the other's.
+// Nothing here is drawn at random: the places follow from the land, the land from the seed.
+struct mg_fields {
+    uint8_t *bad, *wet;   // [tile] the Chebyshev distance to water, a cliff, a mountain or a plateau (off the map too) / to water
+    int *room;            // [(n + 1)^2] the summed area of the tiles to build on: none of those, under 0.8 steps between its corners
+    double *hs, *hq;      // [(m + 1)^2] the summed area of the corners' heights and their squares
+};
+// the distances by two passes over the tiles (each tile the least of its 8 neighbours' + 1): exact for Chebyshev's
+internal void mg_cheb(uint8_t *d, int n) {
+    for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++) {
+            int v = d[y * n + x];
+            if (x > 0) v = v < d[y * n + x - 1] + 1 ? v : d[y * n + x - 1] + 1;
+            if (y > 0)
+                for (int dx = -1; dx <= 1; dx++)
+                    if (x + dx >= 0 && x + dx < n && d[(y - 1) * n + x + dx] + 1 < v) v = d[(y - 1) * n + x + dx] + 1;
+            d[y * n + x] = (uint8_t)(v > 255 ? 255 : v);
+        }
+    for (int y = n - 1; y >= 0; y--)
+        for (int x = n - 1; x >= 0; x--) {
+            int v = d[y * n + x];
+            if (x < n - 1) v = v < d[y * n + x + 1] + 1 ? v : d[y * n + x + 1] + 1;
+            if (y < n - 1)
+                for (int dx = -1; dx <= 1; dx++)
+                    if (x + dx >= 0 && x + dx < n && d[(y + 1) * n + x + dx] + 1 < v) v = d[(y + 1) * n + x + dx] + 1;
+            d[y * n + x] = (uint8_t)(v > 255 ? 255 : v);
+        }
+}
+internal int mg_starts_fields(const struct mg *g, struct mg_fields *f) {
+    int n = g->n, m = g->m;
+    f->bad = malloc((size_t)(n * n)); f->wet = malloc((size_t)(n * n));
+    f->room = calloc((size_t)((n + 1) * (n + 1)), sizeof *f->room);
+    f->hs = calloc((size_t)((m + 1) * (m + 1)), sizeof *f->hs); f->hq = calloc((size_t)((m + 1) * (m + 1)), sizeof *f->hq);
+    if (!f->bad || !f->wet || !f->room || !f->hs || !f->hq) return 0;
+    for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++) {
+            float lo, hi;
+            // by the heights alone, not the tiles' kinds: the game's cliff pass makes a few more cliffs than a
+            // preview's (a tile beside a steep one, by its textures) - a start placed by them parted a map from its
+            // preview. Water is the game's rule (mg_kinds), a cliff a tile with 1.2 steps between its corners or more
+            // (the game's at 1.5, those it adds beside them a tile further: outside the yard's middle)
+            int i = y * m + x, bad = 1, steep = 1, wet = 0;
+            if (mg_tile_span(g, x, y, &lo, &hi)) {
+                const float *h = g->h + i;
+                int dry = (h[0] >= 0) + (h[1] >= 0) + (h[m] >= 0) + (h[m + 1] >= 0);
+                float mt = fmaxf(fmaxf(g->mt[i], g->mt[i + 1]), fmaxf(g->mt[i + m], g->mt[i + m + 1]));
+                float pl = fmaxf(fmaxf(g->plat[i], g->plat[i + 1]), fmaxf(g->plat[i + m], g->plat[i + m + 1]));
+                wet = lo < 0 && dry < 3;
+                bad = wet || hi - lo >= 1.2f || mt >= 0.3f || pl >= 0.3f;
+                steep = hi - lo >= 0.8f;
             }
+            f->bad[y * n + x] = bad ? 0 : 255;
+            f->wet[y * n + x] = wet ? 0 : 255;
+            f->room[(y + 1) * (n + 1) + x + 1] = (!bad && !steep) + f->room[y * (n + 1) + x + 1] + f->room[(y + 1) * (n + 1) + x] - f->room[y * (n + 1) + x];
+        }
+    mg_cheb(f->bad, n);
+    mg_cheb(f->wet, n);
+    for (int y = 0; y < m; y++)
+        for (int x = 0; x < m; x++) {
+            double h = mg_corner(g, x, y) ? (double)g->h[y * m + x] : 0;
+            int at = (y + 1) * (m + 1) + x + 1, up = y * (m + 1) + x + 1, left = (y + 1) * (m + 1) + x, both = y * (m + 1) + x;
+            f->hs[at] = h + f->hs[up] + f->hs[left] - f->hs[both];
+            f->hq[at] = h * h + f->hq[up] + f->hq[left] - f->hq[both];
+        }
+    return 1;
+}
+internal void mg_starts_fields_free(struct mg_fields *f) { free(f->bad); free(f->wet); free(f->room); free(f->hs); free(f->hq); }
+// a square's sum of a summed area (side w + 1 of it), x0 .. x1 and y0 .. y1 clipped to 0 .. w - 1
+internal double mg_area(const double *s, const int *si, int w, int x0, int y0, int x1, int y1, int *count) {
+    x0 = x0 < 0 ? 0 : x0; y0 = y0 < 0 ? 0 : y0; x1 = x1 > w - 1 ? w - 1 : x1; y1 = y1 > w - 1 ? w - 1 : y1;
+    *count = (x1 - x0 + 1) * (y1 - y0 + 1);
+    int a = (y1 + 1) * (w + 1) + x1 + 1, b = y0 * (w + 1) + x1 + 1, c = (y1 + 1) * (w + 1) + x0, d = y0 * (w + 1) + x0;
+    return s ? s[a] - s[b] - s[c] + s[d] : (double)(si[a] - si[b] - si[c] + si[d]);
+}
+// a place's worth (see above); ax, ay where it looked first, reach the reach
+internal float mg_start_worth(const struct mg *g, const struct mg_fields *f, int x, int y, float ax, float ay, float reach) {
+    int n = g->n, c;
+    double room = mg_area(NULL, f->room, n, x - 18, y - 18, x + 17, y + 17, &c) / (37.0 * 37.0);   // (off the map: no room)
+    double s = mg_area(f->hs, NULL, g->m, x - 8, y - 8, x + 8, y + 8, &c), q = mg_area(f->hq, NULL, g->m, x - 8, y - 8, x + 8, y + 8, &c);
+    double var = q / c - (s / c) * (s / c);
+    float rough = sqrtf((float)(var > 0 ? var : 0)), wet = (float)f->wet[y * n + x];
+    float water = wet <= 22 ? 1 : wet >= 40 ? 0 : (40 - wet) / 18;
+    const struct mg_biome *b = &k_mg_biome[g->clim[y * n + x]];
+    float food = (float)(b->rich[MG_RICH_FORAGE] + b->rich[MG_RICH_HERD]) / 200.0f;
+    float dx = (float)x - ax, dy = (float)y - ay, off = (dx * dx + dy * dy) / (reach * reach);
+    return 3 * (float)room - 2 * rough + water + 2 * food - 1.5f * off;
+}
+internal void mg_starts(struct mg *g) {
+    struct mg_fields f = { 0 };
+    int n = g->n, count[2] = { g->np - g->np / 2, g->np / 2 }, ok = mg_starts_fields(g, &f);
+    float length = 2 * 0.72f * 0.85f * g->half * g->opt.land;
+    for (int i = 0; i < g->np; i++) {
+        int k = i & 1, j = i / 2, bx = -1, by = -1;
+        float share = length / (float)count[k], reach = fminf(40, fmaxf(12, 0.45f * share)), apart = fmaxf(16, 0.6f * share);
+        float v = (k ? 0.5f : -0.5f) * g->half, u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length;
+        float ax = (u + v + (float)n) * 0.5f, ay = (v + (float)n - u) * 0.5f;
+        for (int level = 0; ok && level < 5 && bx < 0; level++) {
+            static const int8_t yards[4] = { 7, 7, 5, 3 }, drys[4] = { 9, 9, 6, 4 }, insides[4] = { 8, 8, 6, 4 };
+            float within = level ? 2 * reach : reach, best = -1e30f;
+            int yard = yards[level & 3], dry = drys[level & 3], inside = insides[level & 3];
+            for (int y = (int)(ay - within); y <= (int)(ay + within); y++)
+                for (int x = (int)(ax - within); x <= (int)(ax + within); x++) {
+                    float dx = (float)x - ax, dy = (float)y - ay;
+                    if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1 || (x + y > n) != k || dx * dx + dy * dy > within * within) continue;
+                    float in = mg_f(g, x, y);
+                    if (level < 4 && (in < (float)inside || f.bad[y * n + x] < yard || f.wet[y * n + x] < dry)) continue;
+                    int crowded = 0;
+                    for (int o = 0; o < i && !crowded; o++) {
+                        float ex = (float)(x - g->sx[o]), ey = (float)(y - g->sy[o]), need = (o & 1) == k ? apart : 16;
+                        crowded = ex * ex + ey * ey < need * need;
+                    }
+                    if (crowded) continue;
+                    int clear = f.bad[y * n + x] < f.wet[y * n + x] ? f.bad[y * n + x] : f.wet[y * n + x];
+                    float w = level < 4 ? mg_start_worth(g, &f, x, y, ax, ay, reach) : (float)clear - 0.05f * sqrtf(dx * dx + dy * dy);
+                    if (w > best) { best = w; bx = x; by = y; }
+                }
+            if (bx >= 0) g->start_how[level]++;
+        }
+        if (bx < 0) { bx = (int)ax; by = (int)ay; g->start_how[4]++; }   // (no memory for the fields, or no land: where it looked first)
         g->sx[i] = bx; g->sy[i] = by;
     }
+    g->placed = g->np;
+    mg_starts_fields_free(&f);
 }
+// a start's yard: the ground within 7 tiles levelled to its own mean height there (the land's, not the water's),
+// fading out to 10 - but for water, a mountain's flank and a plateau beyond 7 tiles: they stay as they are -, the
+// yard kept free
 internal void mg_yards(struct mg *g) {
     for (int i = 0; i < g->np; i++) {
-        int bx = g->sx[i], by = g->sy[i];
-        for (int y = by - 11; y <= by + 11; y++)
-            for (int x = bx - 11; x <= bx + 11; x++) {
+        int bx = g->sx[i], by = g->sy[i], c = 0;
+        float mean = 0;
+        for (int y = by - 7; y <= by + 7; y++)
+            for (int x = bx - 7; x <= bx + 7; x++)
+                if (mg_corner(g, x, y) && (x - bx) * (x - bx) + (y - by) * (y - by) < 49 && g->h[y * g->m + x] >= 0.3f) { mean += g->h[y * g->m + x]; c++; }
+        mean = c ? mean / (float)c : 1.0f;
+        for (int y = by - 10; y <= by + 10; y++)
+            for (int x = bx - 10; x <= bx + 10; x++) {
                 if (!mg_corner(g, x, y)) continue;
-                float d = sqrtf((float)((x - bx) * (x - bx) + (y - by) * (y - by))), w = 1 - mg_step(7, 11, d);
-                g->h[y * g->m + x] += (1.0f - g->h[y * g->m + x]) * w;
+                float d = sqrtf((float)((x - bx) * (x - bx) + (y - by) * (y - by))), w = 1 - mg_step(7, 10, d), *h = &g->h[y * g->m + x];
+                if (d >= 7 && (*h < 0.3f || g->mt[y * g->m + x] >= 0.3f || g->plat[y * g->m + x] >= 0.3f)) continue;
+                *h += (mean - *h) * w;
                 if (d < 7 && mg_on(g, x, y)) g->used[y * g->n + x] = 1;
             }
     }
 }
-internal float mg_start_dist(const struct mg *g, float x, float y) {   // to the nearest start (tiles)
+internal float mg_start_dist(const struct mg *g, float x, float y) {   // to the nearest start placed (tiles)
     float best = 1e9f;
-    for (int i = 0; i < g->np; i++) {
+    for (int i = 0; i < g->placed; i++) {
         float dx = x - (float)g->sx[i], dy = y - (float)g->sy[i], d = sqrtf(dx * dx + dy * dy);
         if (d < best) best = d;
     }
     return best;
 }
-// A RIVER: from a spring well inside the land (8 tiles, 13 from any start) downhill of f - towards the nearest shore
+// A RIVER: from a spring well inside the land (8 tiles) downhill of f - towards the nearest shore
 // - a tile a step, its way turned a little at random each step, until it is in the sea or in water dug before it (a
-// tributary; a lake's water too); one that comes within 11 tiles of a start, finds no water in 250 steps or winds
-// more than twice the straight way is not dug. Dug: the bed 0.95 steps under the water along its way (water 2 - 3
+// tributary; a lake's water too); one that finds no water in 250 steps or winds more than twice the straight way is
+// not dug. Dug: the bed 0.95 steps under the water along its way (water 2 - 3
 // tiles wide, the tiles of its middle too deep to walk through: under the shallows' 0.75 steps, map.c
 // tile_is_shallows - a river is in the way), out through the sea's shallows to its deep water, its valley rising
 // 0.3 a tile from the banks for 10 tiles (hills make way for it), a small pond at the spring; its banks (3 tiles)
@@ -616,7 +747,7 @@ internal int mg_river(struct mg *g, int mountain, int fx, int fy) {
     int x0 = fx >= 0 ? fx : mg_int(g, 0, g->n), y0 = fx >= 0 ? fy : mg_int(g, 0, g->n), len = 0, out = 0, joined = 0;
     if (g->rivers >= 16) return 0;
     if (fx < 0) {
-        if (mg_f(g, x0, y0) < 8 || mg_start_dist(g, (float)x0, (float)y0) < 13) return 0;
+        if (mg_f(g, x0, y0) < 8) return 0;
         if (g->mt[y0 * g->m + x0] > 1.5f || (mountain && g->mt[y0 * g->m + x0] < 0.2f) || g->h[y0 * g->m + x0] < 0.5f || g->plat[y0 * g->m + x0] > 0) return 0;
         for (int i = 0; i < g->rivers; i++)
             if ((g->spring[i].x - x0) * (g->spring[i].x - x0) + (g->spring[i].y - y0) * (g->spring[i].y - y0) < 20 * 20) return 0;
@@ -625,7 +756,7 @@ internal int mg_river(struct mg *g, int mountain, int fx, int fy) {
     for (; len < 250; len++) {
         int ix = (int)floorf(x + 0.5f), iy = (int)floorf(y + 0.5f);
         float f = mg_f(g, ix, iy);
-        if (f < -90 || (out && mg_start_dist(g, x, y) < 11) || g->mt[iy * g->m + ix] > 1.8f || g->plat[iy * g->m + ix] > 0.3f) return 0;
+        if (f < -90 || g->mt[iy * g->m + ix] > 1.8f || g->plat[iy * g->m + ix] > 0.3f) return 0;
         px[len] = x; py[len] = y;
         if (f < -1.5f && (g->h[iy * g->m + ix] < -1.0f || f < -8)) break;   // in the sea's deep water
         if (g->h[iy * g->m + ix] >= 0) out = 1;                         // out of the lake it began in
@@ -675,9 +806,9 @@ internal void mg_basin(struct mg *g, int x0, int y0, int r, float deep) {
 // the moisture a place has of the noise alone - before the water near it and the mountains' rain shadow (mg_biomes)
 internal float mg_wet0(const struct mg *g, int x, int y) { return 0.42f + g->opt.wet + (mg_fbm((float)x * 0.03f + 510, (float)y * 0.03f + 260, g->seed + 40) - 0.5f) * 1.5f; }
 // is the ground round (x0, y0) plain land for a feature of r tiles: no mountain, foothill, plateau or water, `inside`
-// tiles inside the land, `away` from any start, 14 from the lakes, oases and swamps so far
-internal int mg_plain(const struct mg *g, int x0, int y0, int r, float inside, float away) {
-    if (mg_f(g, x0, y0) < inside || mg_start_dist(g, (float)x0, (float)y0) < away) return 0;
+// tiles inside the land, 14 from the lakes, oases and swamps so far
+internal int mg_plain(const struct mg *g, int x0, int y0, int r, float inside) {
+    if (mg_f(g, x0, y0) < inside) return 0;
     for (int i = 0; i < g->lakes + g->oases + g->swamps; i++) {
         int j = i - g->lakes, k = j - g->oases;
         int ox = j < 0 ? g->lake[i].x : k < 0 ? g->oasis[j].x : g->swamp[k].x, oy = j < 0 ? g->lake[i].y : k < 0 ? g->oasis[j].y : g->swamp[k].y;
@@ -694,7 +825,7 @@ internal int mg_plain(const struct mg *g, int x0, int y0, int r, float inside, f
 // the objects (mg_objects), the water makes the ground round it less dry (mg_biomes).
 internal int mg_oasis(struct mg *g) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 2, 3);
-    if (g->oases >= 8 || mg_temp(g, x0, y0) < 0.4f || mg_wet0(g, x0, y0) > 0.3f || !mg_plain(g, x0, y0, r, 8, 16)) return 0;
+    if (g->oases >= 8 || mg_temp(g, x0, y0) < 0.4f || mg_wet0(g, x0, y0) > 0.3f || !mg_plain(g, x0, y0, r, 8)) return 0;
     mg_basin(g, x0, y0, r, 1.2f);
     g->oasis[g->oases].x = x0; g->oasis[g->oases].y = y0; g->oasis[g->oases].r = r;
     g->oases++;
@@ -704,10 +835,10 @@ internal int mg_oasis(struct mg *g) {
 // tiles in radius - the plain let down to the water's level and broken up by a fine noise: pools some 3 tiles across, 0.6 steps deep at most
 // (four tenths of it; marsh their bed, the player's rule: marsh under water only) between low ground, where its trees
 // stand thick (mg_objects). Its pools are shallows: land units wade through it, nothing is built in them. tight 0 .. 3: where
-// no such place was found - smaller, nearer a start, less hot and wet.
+// no such place was found - smaller, less hot and wet.
 internal int mg_swamp(struct mg *g, int tight) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 9, 13 - tight);
-    if (g->swamps >= 4 || mg_temp(g, x0, y0) < 0.3f - 0.04f * (float)tight || mg_wet0(g, x0, y0) < 0.58f - 0.03f * (float)tight || !mg_plain(g, x0, y0, r, 8, (float)(20 - 2 * tight))) return 0;
+    if (g->swamps >= 4 || mg_temp(g, x0, y0) < 0.3f - 0.04f * (float)tight || mg_wet0(g, x0, y0) < 0.58f - 0.03f * (float)tight || !mg_plain(g, x0, y0, r, 8)) return 0;
     for (int cy = y0 - r; cy <= y0 + r; cy++)
         for (int cx = x0 - r; cx <= x0 + r; cx++) {
             if (!mg_corner(g, cx, cy)) continue;
@@ -720,12 +851,12 @@ internal int mg_swamp(struct mg *g, int tight) {
     return 1;
 }
 // A LAKE (the player 2026-11-25): a basin 5 - 8 tiles in radius, its outline pushed in and out by a noise, 2.2 steps
-// deep in the middle, by turns on the two continents, well inside the land (12 tiles), 20 from any start, 25 from another lake, on the plain (no
+// deep in the middle, by turns on the two continents, well inside the land (12 tiles), 25 from another lake, on the plain (no
 // mountain, no foothills, no water there yet). The water is the sea's level - the game has one water plane. Its
 // shore (a tile) is kept free. tight 0 .. 3: a small map's.
 internal int mg_lake(struct mg *g, int tight) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 5, 8);
-    if (g->lakes >= 12 || (x0 + y0 > g->n) != (g->lakes & 1) || mg_f(g, x0, y0) < (float)(12 - 2 * tight) || mg_start_dist(g, (float)x0, (float)y0) < (float)(20 + r - 2 * tight)) return 0;
+    if (g->lakes >= 12 || (x0 + y0 > g->n) != (g->lakes & 1) || mg_f(g, x0, y0) < (float)(12 - 2 * tight)) return 0;
     for (int i = 0; i < g->lakes; i++)
         if ((g->lake[i].x - x0) * (g->lake[i].x - x0) + (g->lake[i].y - y0) * (g->lake[i].y - y0) < 25 * 25) return 0;
     for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 3)
@@ -1066,7 +1197,7 @@ internal int mg_free(const struct mg *g, int x, int y) {
 internal int mg_object(struct mg *g, int type, int x, int y, float angle, int kind) {
     ee_unit_type *t = type >= 0 ? type_data(type) : NULL;
     int made = !t ? 0 : g->map ? unit_type_create_on(t, g->world, x, y, g->map, angle) != NULL : 1;
-    if (made && !g->map) g->obj[y * g->n + x] = (uint8_t)(kind + 1);
+    if (made) g->obj[y * g->n + x] = (uint8_t)(kind + 1);
     g->made[kind] += made;
     return made;
 }
@@ -1121,16 +1252,16 @@ internal int mg_mine(struct mg *g, int kind, int x, int y) {
 // 1 more (6 times in 10), 2 (3) or 3 (1) 4 - 6 tiles from it and from each other - room for six miners each and a
 // wall round them all -, a gold mine's mostly iron or stone, an iron's or a stone's mostly gold, else its own kind
 // (a district of mixed ores is more to hold than a double). within > 0: no further than that from cx, cy (a
-// plateau's top). Never within 30 tiles of a start: a start's own mines are the same for everyone. Returns the
+// plateau's top). Not within 10 tiles of a start (as the land's other objects). Returns the
 // mines laid beside it; each counts against the map's mines, not on top of them (mg_objects).
 internal int mg_clump(struct mg *g, int kind, int x, int y, int chance, int cx, int cy, int within, int laid[3]) {
     static const int8_t other[3][2] = { { MG_IRON, MG_STONE }, { MG_GOLD, MG_GOLD }, { MG_GOLD, MG_IRON } };
-    if (mg_int(g, 0, 99) >= chance || mg_start_dist(g, (float)x, (float)y) < 30) return 0;
+    if (mg_int(g, 0, 99) >= chance || mg_start_dist(g, (float)x, (float)y) < 10) return 0;
     int r = mg_int(g, 0, 9), extra = r < 6 ? 1 : r < 9 ? 2 : 3, n = 0;
     for (int i = 0; i < extra; i++) {
         int k = mg_int(g, 0, 9) < 6 ? other[kind][mg_int(g, 0, 1)] : kind, ex, ey;
         if (!mg_ring(g, x, y, 4, 6, 4, &ex, &ey)) break;
-        if (within > 0 && (ex - cx) * (ex - cx) + (ey - cy) * (ey - cy) > within * within) continue;
+        if ((within > 0 && (ex - cx) * (ex - cx) + (ey - cy) * (ey - cy) > within * within) || mg_start_dist(g, (float)ex, (float)ey) < 10) continue;
         if (mg_mine(g, k, ex, ey)) { laid[k]++; n++; }
     }
     if (n) { g->clumps++; g->clump_mines += n + 1; }    return n;
@@ -1180,23 +1311,46 @@ internal void mg_herd(struct mg *g, int x, int y) {
     mg_spot_add(g, x, y);
 }
 internal int mg_rich(struct mg *g, int x, int y, int what) { return mg_int(g, 0, 99) < k_mg_biome[g->clim[y * g->n + x]].rich[what]; }
-// each start's own - 2 forage patches, 2 gold, 2 iron and 2 stone mines (far enough out to want a Settlement), a grove
-// of timber and a herd whatever its biome, two more forests as the biome gives them -, then the land's: places drawn
-// by its size, away from the starts, each laid as the biome there gives it. (With one forage patch where the biome
-// gave no second, a tundra start stood at 23 people after 38 minutes, the others at 91 - 168: the first epoch has no
-// farms, its food is forage, game and fish.)
-internal void mg_objects(struct mg *g) {
-    static const struct { int8_t kind, n, lo, hi; } own[4] = { { MG_FORAGE, 2, 8, 11 }, { MG_GOLD, 2, 13, 16 }, { MG_IRON, 2, 14, 18 }, { MG_STONE, 2, 15, 20 } };
+// the objects of a kind within r tiles of (cx, cy)
+internal int mg_near(const struct mg *g, int cx, int cy, int r, int kind) {
+    int c = 0;
+    for (int y = cy - r; y <= cy + r; y++)
+        for (int x = cx - r; x <= cx + r; x++)
+            c += x >= 0 && y >= 0 && x < g->n && y < g->n && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r && g->obj[y * g->n + x] == kind + 1;
+    return c;
+}
+// The land's objects - places drawn by its size, each laid as the biome there gives it, none within 10 tiles of a
+// start (its yard and the ring round it its houses and farms take: forests 8 tiles out walled a start in) -, then
+// each start's own topped up (the player 2026-11-26: "adding the extra resource patches if needed"): what the land
+// already has near it counts. A start has at least 2 forage patches within 12 tiles, 2 gold, 2 iron and 2 stone
+// mines within 20 (its own laid 13 - 20 out: far enough to want a Settlement), 30 trees within 16 (else a grove of
+// timber, whatever its biome) and two more forests as the biome gives them where it has fewer than 60, a herd within
+// 18 (3 animals). A start on rich land gets less of its own; the map is not even - the player 2026-11-25 on
+// fairness: "this might lean more in a 4x flavour of the game". (With one forage patch where the biome gave no
+// second, a tundra start stood at 23 people after 38 minutes, the others at 91 - 168: the first epoch has no farms,
+// its food is forage, game and fish - so the forage is never less than 2.)
+internal void mg_starts_own(struct mg *g) {
+    static const struct { int8_t kind, n, lo, hi, within; } own[4] = { { MG_FORAGE, 2, 8, 11, 12 }, { MG_GOLD, 2, 13, 16, 20 }, { MG_IRON, 2, 14, 18, 20 }, { MG_STONE, 2, 15, 20, 20 } };
     int x, y;
     for (int i = 0; i < g->np; i++) {
+        int sx = g->sx[i], sy = g->sy[i];
         for (int k = 0; k < 4; k++)
-            for (int j = 0; j < own[k].n; j++)
-                if (mg_ring(g, g->sx[i], g->sy[i], own[k].lo, own[k].hi, 5, &x, &y)) mg_mine(g, own[k].kind, x, y);
-        for (int j = 0; j < 3; j++)
-            if (mg_ring(g, g->sx[i], g->sy[i], 10, 15, 6, &x, &y) && (!j || mg_int(g, 0, 99) < 42000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles))
+            for (int j = mg_near(g, sx, sy, own[k].within, own[k].kind); j < own[k].n; j++)
+                if (mg_ring(g, sx, sy, own[k].lo, own[k].hi, 5, &x, &y) && mg_mine(g, own[k].kind, x, y)) g->topped[k]++;
+        int trees = mg_near(g, sx, sy, 16, MG_TREE);
+        for (int j = 0; j < 3; j++) {
+            if (j ? trees >= 60 : trees >= 30) continue;
+            if (mg_ring(g, sx, sy, 10, 15, 6, &x, &y) && (!j || mg_int(g, 0, 99) < 42000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles)) {
                 mg_forest(g, x, y, !j);
-        if (mg_ring(g, g->sx[i], g->sy[i], 11, 16, 6, &x, &y)) mg_herd(g, x, y);
+                g->topped[4]++;
+                trees = mg_near(g, sx, sy, 16, MG_TREE);
+            }
+        }
+        if (mg_near(g, sx, sy, 18, MG_ANIMAL) < 3 && mg_ring(g, sx, sy, 11, 16, 6, &x, &y)) { mg_herd(g, x, y); g->topped[5]++; }
     }
+}
+internal void mg_objects(struct mg *g) {
+    int x, y;
     // the land's mines and forage (the player 2026-11-25: a quarter of the mines of before - a gold or an iron mine
     // per 2600 land tiles, a stone mine per 4000 - "would still be plenty"; a start's own stay): drawn by turns
     // (gold, iron, stone, forage, gold ...), so that a clump's mines of another kind are taken off that kind's draws
@@ -1207,14 +1361,14 @@ internal void mg_objects(struct mg *g) {
     for (int j = 0; j < most; j++)
         for (int k = 0; k < 4; k++) {
             int kind = wild[k].kind;
-            if (j >= draws[k] || !mg_anywhere(g, 22, 9, &x, &y) || !mg_rich(g, x, y, kind)) continue;
+            if (j >= draws[k] || !mg_anywhere(g, 10, 9, &x, &y) || !mg_rich(g, x, y, kind)) continue;
             if (kind != MG_FORAGE && owed[kind] > 0) { owed[kind]--; continue; }   // one that would have been laid
             if (mg_mine(g, kind, x, y) && kind != MG_FORAGE) mg_clump(g, kind, x, y, 18, 0, 0, 0, owed);
         }
     for (int j = mg_amount(g->land / 150, g->opt.forests); j > 0; j--)
-        if (mg_anywhere(g, 16, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
+        if (mg_anywhere(g, 10, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
     for (int j = g->land / 600; j > 0; j--)
-        if (mg_anywhere(g, 18, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
+        if (mg_anywhere(g, 10, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
     // an oasis' own: two stands of the biome's trees (the deserts' and the savanna's are palms) and a forage patch by
     // its pond; a swamp's: a tree of the biome's on a quarter of its low ground, the rest of that kept free of mines
     for (int k = 0; k < g->oases; k++) {
@@ -1376,9 +1530,9 @@ internal struct mg *mg_new(ee_map *map, int n, int np, uint32_t seed, const ee_s
     g->f = calloc(c, sizeof *g->f); g->h = calloc(c, sizeof *g->h); g->mt = calloc(c, sizeof *g->mt); g->range = calloc(c, 1);
     g->foot = calloc(c, sizeof *g->foot); g->plat = calloc(c, sizeof *g->plat); g->fjord = calloc(c, sizeof *g->fjord);
     g->used = calloc(t, 1); g->clim = calloc(t, 1); g->marsh = calloc(t, 1); g->tex = calloc(t, sizeof *g->tex);
-    g->kind = map ? NULL : calloc(t, 1); g->obj = map ? NULL : calloc(t, 1); g->rock = map ? NULL : calloc(t, 1); g->z = map ? calloc(c, sizeof *g->z) : NULL;
-    if (!g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !g->tex
-        || (map ? !g->z : !g->kind || !g->obj || !g->rock)) { mg_delete(g); return NULL; }
+    g->kind = map ? NULL : calloc(t, 1); g->obj = calloc(t, 1); g->rock = map ? NULL : calloc(t, 1); g->z = map ? calloc(c, sizeof *g->z) : NULL;
+    if (!g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !g->tex || !g->obj
+        || (map ? !g->z : !g->kind || !g->rock)) { mg_delete(g); return NULL; }
     return g;
 }
 
@@ -1389,11 +1543,12 @@ internal void mg_steps(struct mg *g) {
     int n = g->n;
     if (g->map) mg_options_log(g);
     mg_land(g);
-    mg_starts(g);
-    for (int want = mg_amount(2 + n / 100, g->opt.mountains), t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1, t / 10000);
+    // the ranges: 2 + n/100, on a small map fewer (1 + n^2/12000: 2 on 116 - 150 tiles - three took the middle of
+    // its continents, once the starts no longer kept them off)
+    int ranges = 2 + n / 100 < 1 + n * n / 12000 ? 2 + n / 100 : 1 + n * n / 12000;
+    for (int want = mg_amount(ranges, g->opt.mountains), t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1);
     for (int want = mg_amount(1 + n / 120, g->opt.mountains), t = 0; g->plateaus < want && t < 40000; t++) mg_plateau(g, g->plateaus & 1, t / 10000);
     mg_heights(g);
-    mg_yards(g);
     for (int want = mg_amount(1 + n / 110, g->opt.lakes), t = 0; g->lakes < want && t < 20000; t++) mg_lake(g, t / 5000);
     for (int want = 1 + n / 150, t = 0; g->oases < want && t < 6000; t++) mg_oasis(g);
     for (int want = 1 + n / 250, t = 0; g->swamps < want && t < 24000; t++) mg_swamp(g, t / 6000);
@@ -1403,9 +1558,10 @@ internal void mg_steps(struct mg *g) {
     mg_fords(g);
     float step = g->map ? map_get_height_step(g->map) : 1;
     mg_textures_load(g);
-    // the ground, its textures and cliffs - and, once the game has given the tiles their kinds, the way on foot
-    // between a continent's starts: where one is cut off, fords are laid for it and the ground is made again
-    for (int pass = 0; ; pass++) {
+    // the ground, its textures and cliffs - and, once the game has given the tiles their kinds, the starts placed on
+    // it and their yards levelled (the ground made again), then the way on foot between a continent's starts: where
+    // one is cut off, fords are laid for it and the ground is made again
+    for (int mends = 0; ; ) {
         for (int i = 0; i < g->m * g->m; i++) {
             if (g->h[i] > -0.05f && g->h[i] < 0) g->h[i] = 0;   // no film of water
             if (g->map) g->z[i] = g->h[i] * step;
@@ -1427,13 +1583,15 @@ internal void mg_steps(struct mg *g) {
                 else if (type >= 0) mg_cliff_run(g, x0, x, y, type);
                 x0 = x; type = t;
             }
-        int laid = mg_afoot(g, pass < 3);
+        if (!g->placed) { mg_starts(g); mg_yards(g); continue; }
+        int laid = mg_afoot(g, mends++ < 3);
         if (!laid) break;
         g->mended += laid;
     }
     for (int i = 0; i < n * n; i++) g->cliffs += mg_kind(g, i % n, i / n) == MG_K_CLIFF;
     if (g->map) map_set_flags(g->map, 1);   // as the game's island maps have it (Continental 0, the island types 1, Plains 2): the players are apart by water
     mg_objects(g);
+    mg_starts_own(g);
     if (g->map) mg_scatter(g);
 }
 
@@ -1485,7 +1643,10 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
         for (int b = 0; b < MG_BIOMES; b++) fprintf(g_log, " %s %d", k_mg_biome[b].name, g->biome_tiles[b]);
         fprintf(g_log, "; the starts in:");
         for (int i = 0; i < g->np; i++) fprintf(g_log, " %s", k_mg_biome[g->clim[g->sy[i] * n + g->sx[i]]].name);
-        fprintf(g_log, "\n");
+        fprintf(g_log, "; the starts placed where they looked first %d, further out %d, with a smaller yard %d, with the smallest %d, forced %d;"
+                       " their own laid beyond what the land had near them: forage %d gold %d iron %d stone %d forests %d herds %d\n",
+                g->start_how[0], g->start_how[1], g->start_how[2], g->start_how[3], g->start_how[4],
+                g->topped[0], g->topped[1], g->topped[2], g->topped[3], g->topped[4], g->topped[5]);
         LeaveCriticalSection(&g_lock);
     }
     mg_delete(g);
