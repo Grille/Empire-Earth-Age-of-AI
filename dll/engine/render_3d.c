@@ -323,8 +323,11 @@ internal const char k_rd3_shader[] =
     // out white next to a cliff, where the colour is still the cliff's (the player, 2026-11-10)
     // Under the level the game's own blending and colours (the seabed's depth is painted in them, and a ragged border showed
     // through the water as streaks - the player, 2026-11-10), over a band of 0.005 below it: land on an island map lies within
-    // hundredths of the level, a wider band took its borders too
-    " float gk = gnd.x == 1 && gbl.x > 0 ? saturate((i.gw.z + 0.005) * 200) : 0;"
+    // hundredths of the level, a wider band took its borders too. With the water's tint by depth (grl.z) the blending goes on
+    // under it too: the seabed's corners of the water's colours are white then, its depth the step's tint (the player,
+    // 2026-11-27: "that can be disabled aslong as pixel tint is enabled since it was meant to preserve the height color
+    // blending")
+    " float gk = gnd.x == 1 && gbl.x > 0 ? (grl.z > 0 ? 1 : saturate((i.gw.z + 0.005) * 200)) : 0;"
     " if (gk > 0 && i.gt.a > 0.001) c.rgb = d.rgb = lerp(d.rgb, i.gt.rgb / i.gt.a * i.gl, gk);"
     " if (misc.z > 0.5 && x.a == 0) discard;"
     // a space map's edge (render_ground.c rg_space_quad): its clear texels write no depth - the faces and the stars drawn
