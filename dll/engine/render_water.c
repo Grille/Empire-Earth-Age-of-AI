@@ -50,6 +50,15 @@
 // corner (the water's colour or not, read between corners): the map's own choice where to tint, dropped at the player's word.
 // It goes under the fog the place's line of sight enters the water by (what lies under the water takes that fog: haze).
 // Ground under the level with no surface over it (a land tile dipping under it at a beach) is no longer tinted.
+// THE WATER'S STEP AND WHAT COMES AFTER IT (the player, 2026-11-26: "water affects like fog and refraction dont affect
+// transparent edges, (and probably transparent materials in general)" - a sea plant's see-through blades stood bright
+// green in the fogged water). What is see-through and writes no depth - the weighted transparency's layers (render_oit.c),
+// the split batches (smoke, decals) - is drawn under the level after the step, its copy taken without them (in the copy,
+// the step fogged them by the seabed behind). So such a pixel takes the tint and the fog in its own shader, by its own
+// height and its own way through the water (from where its line of sight enters it), the fog's colour lit as the surface
+// is on level ground (wl). The refraction moves what was copied, and they come after the copy: the step writes how far
+// it moved each surface pixel (otex), and the weighted transparency's layers under the level are laid over the scene read
+// shifted by it (render_3d.c poitc) - bent as the seabed behind them. The split batches' parts (smoke, decals) aren't.
 #define RW_STEPS 64          // the water set's steps the tint holds (more: the deepest of those for the rest)
 internal struct {
     int on;          // -1: as the ini says
@@ -69,6 +78,8 @@ internal struct {
     unsigned tn, tfirst, tlast;   // how many steps, the first's and the last's colour
     float scale;     // the mesh's water scale: a height times it times (steps - 1) is the step (SetWaterColorSet)
     float sc[RW_STEPS][4];   // the steps' colours, the shallowest first (the step's tint by depth)
+    float wl[3];     // the surface's colour as the lights have it on level ground (render_ground.c, each frame): the fog's light for what
+                     // is drawn under the water after the step
     uint32_t wmask[8];       // the colour table's slots of the water's set (rw_water_slot)
     int dtint;       // the tint by depth in the step, 0: off, -1: as the ini says (the pipe's water depthtint)
     float tfull;     // the editor's height units under the level by which it is whole (the pipe's water tintfull; -1: the ini's)
@@ -88,6 +99,10 @@ internal struct {
     long copied;     // the list they are of, + 1
     ID3D11Texture2D *ctex, *ztex;
     ID3D11ShaderResourceView *csrv, *zsrv;
+    ID3D11Texture2D *otex;           // the refraction's shift of each surface pixel (pixels, R16G16; the step writes it, the weighted
+    ID3D11RenderTargetView *ortv;    // transparency's layers under the level read their picture shifted by it: THE WATER'S STEP AND
+    ID3D11ShaderResourceView *osrv;  // WHAT COMES AFTER IT)
+    int ow, oh;
     int mirror;      // the reflections, -1: as the ini says
     float strength;  // how much of the surface a reflection takes
     float wobble;    // how far the water's ripples move it (of the picture)
@@ -364,9 +379,13 @@ internal int rd3_water_first(void) {
 }
 // the step of the whole surface, from here on its batches without it: what lies under the level comes between the two
 internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first) {
+    ID3D11ShaderResourceView *o = NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &o);   // the refraction's shifts a target now
     g_wa.stage = 1;
     for (int j = 0; j <= lastw; j++) if (g_rf.cmd[j].role == SH_WATER) rf_draw(x, &g_rf.cmd[j], b, first);
     g_wa.stage = 2;
+    o = g_wa.have ? g_wa.osrv : NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &o);   // for the weighted transparency's layers under the level (render_3d.c poitc)
 }
 // The ground's pass: only what is tested with "less" (the game's move circle), not what lies under everything at "less or
 // equal", the sky's plane 200 tiles up among it
@@ -401,6 +420,20 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
         g_wa.copied = g_rf.replays + 1;
         g_wa.have = rw_copy(x, c->rtv, c->dsv);
         g_wa.copy_ok = g_wa.have;
+        if (g_wa.have && (!g_wa.otex || g_wa.ow != g_wa.cw || g_wa.oh != g_wa.ch)) {
+            D3D_RELEASE(g_wa.osrv); D3D_RELEASE(g_wa.ortv); D3D_RELEASE(g_wa.otex);
+            D3D11_TEXTURE2D_DESC nd = { (UINT)g_wa.cw, (UINT)g_wa.ch, 1, 1, DXGI_FORMAT_R16G16_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
+                                        D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+            HRESULT hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &nd, NULL, &g_wa.otex);
+            if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRenderTargetView(g_d3d.dev, (ID3D11Resource *)g_wa.otex, NULL, &g_wa.ortv);
+            if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_wa.otex, NULL, &g_wa.osrv);
+            if (FAILED(hr)) { D3D_RELEASE(g_wa.osrv); D3D_RELEASE(g_wa.ortv); D3D_RELEASE(g_wa.otex); }   // none bent (a target of none: its writes go nowhere)
+            g_wa.ow = g_wa.cw; g_wa.oh = g_wa.ch;
+        }
+        if (g_wa.ortv) {
+            static const FLOAT none[4] = { 0, 0, 0, 0 };
+            ID3D11DeviceContext_ClearRenderTargetView(x, g_wa.ortv, none);
+        }
     }
     if (!g_wa.have) return;
     if (!g_wa.tcb) {
@@ -412,7 +445,7 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
     float hstep = map_get_height_step(game_map());
     if (g_wa.tcb && (g_wa.tdirty || hstep != g_wa.hstep)) {   // wtn: the last step, the scale, on, 1 / the depths (tiles) from the tint's start to its whole; wtm: the start; wts: the steps' colours
         float unit = hstep * 0.5f, span = (rw_tint_full() - rw_tint_start()) * unit;
-        float cb[(2 + RW_STEPS) * 4] = { (float)((g_wa.tn < RW_STEPS ? g_wa.tn : RW_STEPS) - 1), g_wa.scale, rw_tint_on() && g_wa.tn ? 1.0f : 0.0f, 1 / (span > 0.001f ? span : 0.001f), rw_tint_start() * unit };
+        float cb[(2 + RW_STEPS) * 4] = { (float)((g_wa.tn < RW_STEPS ? g_wa.tn : RW_STEPS) - 1), g_wa.scale, rw_tint_on() && g_wa.tn ? 1.0f : 0.0f, 1 / (span > 0.001f ? span : 0.001f), rw_tint_start() * unit, rw_colour()[0] * g_wa.tint * g_wa.wl[0], rw_colour()[1] * g_wa.tint * g_wa.wl[1], rw_colour()[2] * g_wa.tint * g_wa.wl[2] };
         memcpy(cb + 8, g_wa.sc, sizeof g_wa.sc);
         g_wa.hstep = hstep;
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_wa.tcb, 0, NULL, cb, 0, 0);
@@ -424,8 +457,11 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
     ID3D11DeviceContext_PSSetShader(x, g_wa.fps, NULL, 0);
     ID3D11DeviceContext_OMSetBlendState(x, NULL, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, g_wa.fdepth, 0);
+    ID3D11RenderTargetView *rtv[2] = { c->rtv, g_wa.ortv };
+    ID3D11DeviceContext_OMSetRenderTargets(x, 2, rtv, c->dsv);
     if (c->gvb) rg_replay(x, c);
     else rf_call(x, c);
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
     ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
     ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0);

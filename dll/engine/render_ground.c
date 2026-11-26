@@ -1386,6 +1386,15 @@ internal void rg_draw_now(int water, int again) {
     if (!water && rgb_wanted() && g_rgb.nrm_srv) { cb[80] = rgb_relief() * RGB_RELIEF; cb[81] = RGB_SIDE; }
     if (!water) cb[82] = rw_depth_tint() ? 1.0f : 0.0f;   // grl.z: the corners of the water's colours white (render_water.c THE TINT BY DEPTH)
     if (water) cb[73] = wblend;   // the water's: its frames' blend (gbl.y; its borders' gbl.x stays 0)
+    if (water) {   // the surface's colour lit on level ground, for what is drawn under the water after its step (render_water.c)
+        float L[3];
+        for (int a = 0; a < 3; a++) {
+            L[a] = g_rg.lights.amb[a];
+            for (int l = 0; l < g_rg.lights.n; l++) L[a] += g_rg.lights.col[l][a] * fmaxf(0, g_rg.lights.dir[l][2]);
+            float w = (float)(g_rg.wcol >> (16 - a * 8) & 255) / 255 * fminf(1, fmaxf(0, L[a]));
+            if (w != g_wa.wl[a]) { g_wa.wl[a] = w; g_wa.tdirty = 1; }
+        }
+    }
     if (g_rg.ov_on) {   // the overlay's picture (gov): the map's place -> its texture's
         cb[76] = g_rg.ov[0]; cb[77] = g_rg.ov[1];
         cb[78] = cb[79] = g_rg.ov_ppt / (float)RG_OV_SIDE;

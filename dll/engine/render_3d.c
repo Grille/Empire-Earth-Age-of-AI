@@ -182,7 +182,11 @@ internal const char k_rd3_shader[] =
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges); y: by the material's alpha too (render_oit.c)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher (render_frame.c rf_water_part)
-    "cbuffer wtc : register(b7) { float4 wtn; float4 wtm; float4 wts[64]; };\n"   // the water's tint by depth (render_water.c rw_step): the last step, the scale, on, 1 / the depths (tiles) from its start to its whole; the start; the steps' colours
+    "cbuffer wtc : register(b7) { float4 wtn; float4 wtm; float4 wts[64]; };\n"   // the water's tint by depth (render_water.c rw_step): the last step, the scale, on, 1 / the depths (tiles) from its start to its whole; the start, the colour under the water as the surface is lit; the steps' colours
+    // the tint at a point of height z, dz under the level: the water's colour by the height as the game picks it, between
+    // the two steps around it, eased in by the depth (render_water.c THE TINT BY DEPTH)
+    "float3 wtint(float z, float dz) { if (wtn.z <= 0) return float3(1, 1, 1); float u = clamp(z * wtn.y * wtn.x - 0.5, 0, wtn.x); uint k = (uint)u;"
+    " return lerp(float3(1, 1, 1), lerp(wts[k].rgb, wts[min(k + 1, (uint)wtn.x)].rgb, u - k), smoothstep(0, 1, (dz - wtm.x) * wtn.w)); }\n"
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
@@ -409,6 +413,12 @@ internal const char k_rd3_shader[] =
     "   rk *= smoothstep(0, 1, (i.w.z - (rh.x - rh.y)) * rfa.w); }"
     "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
     " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = misc.y > 0.5 ? saturate(i.f) : 1; }"
+    // what is drawn under the water's level after the water's step (wsp.x 1: the see-through draws' parts under it, the
+    // weighted transparency's among them - not the circles' parts, wsp.y) isn't in the step's copy: it takes the step's
+    // tint and fog itself, by its own way through the water from where the line of sight enters it (render_water.c THE
+    // WATER'S STEP AND WHAT COMES AFTER IT)
+    " if (wsp.x > 0 && wsp.y == 0 && wtn.x > 0 && wop.w > 0 && i.w.z < sea.z && wop.z > sea.z) { float dz = sea.z - i.w.z;"
+    "  float wp = saturate(length(i.w - wop.xyz) * dz / (wop.z - i.w.z) * wop.w); c.rgb = lerp(c.rgb * wtint(i.w.z, dz), wtm.yzw, wp * wp * (3 - 2 * wp)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     // the overlay laid on the ground and the water's surface by their place on the map (render_ground.c gov) - their own
     // vertices' (gw: the map's tiles, the level at 0; w goes through the shadows' constants, set only with them on); the ground
@@ -425,22 +435,20 @@ internal const char k_rd3_shader[] =
     // and the game's fade to black at what isn't explored, its fog the distance's. The refraction (cat.y): what lies
     // behind read aside by the waves' slope, by the way through the water to it - none at the shore, all from a quarter
     // tile on -, but only what lies behind the surface there too: a hull or the shore in front of it stays where it is
-    "float4 wfog(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz);"
+    "struct WO { float4 c : SV_Target0; float2 o : SV_Target1; };\n"   // the picture; the refraction's shift there (render_water.c otex)
+    "WO wfog(O i) { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz);"
     " float2 wx = ddx(i.w.xy), wy = ddy(i.w.xy);"
     " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1;"
     "  int3 b = int3(i.p.xy + wpix(wslope(i.w.xy) * (cat.y * saturate(tw * 4)), wx, wy), 0); float db = wsd.Load(b);"
     "  if (db > i.p.z) { a = b; d = db; } }"
     " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
-    // the tint by depth (render_water.c THE TINT BY DEPTH): the point behind on the same line of sight, the water's colour
-    // by its height as the game picks it, between the two steps around it, eased in by the depth; under the fog of where
-    // the line enters
+    // the tint by depth (render_water.c THE TINT BY DEPTH): of the point behind on the same line of sight; under the fog of
+    // where the line enters
     " float3 bc = wsc.Load(a).rgb;"
-    " if (wtn.z > 0 && d < 0.99999) { float3 bp = wop.xyz + (i.w - wop.xyz) * ((i.p.z - wfc.w) / (d - wfc.w));"
-    "  float u = clamp(bp.z * wtn.y * wtn.x - 0.5, 0, wtn.x); uint k = (uint)u;"
-    "  float3 tc = lerp(float3(1, 1, 1), lerp(wts[k].rgb, wts[min(k + 1, (uint)wtn.x)].rgb, u - k), smoothstep(0, 1, (sea.z - bp.z - wtm.x) * wtn.w));"
+    " if (wtn.z > 0 && d < 0.99999) { float3 bp = wop.xyz + (i.w - wop.xyz) * ((i.p.z - wfc.w) / (d - wfc.w)), tc = wtint(bp.z, sea.z - bp.z);"
     "  float3 fr = misc.y > 0.5 ? fogc.rgb * (1 - saturate(i.f)) : float3(0, 0, 0); bc = bc * tc + fr * (1 - tc); }"
-    " return float4(lerp(bc, fc, wp * wp * (3 - 2 * wp)), 1); }\n"
+    " WO o; o.c = float4(lerp(bc, fc, wp * wp * (3 - 2 * wp)), 1); o.o = float2(a.xy - int2(i.p.xy)); return o; }\n"
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
     // colour lit as the unit is - on a white part the brightest channel of its vertex colour, on a part in the player's
     // colour (the vertex colour the light times it: nearer the player's colour's direction than grey's) the vertex colour
@@ -470,8 +478,11 @@ internal const char k_rd3_shader[] =
     "OO psoit(O i) { float4 c = ps(i); float a = saturate(c.a), z = i.p.w;"
     " float w = clamp(10 / (1e-5 + pow(z / 10, 2) + pow(z / 300, 6)), 1e-2, 3e3); OO o; o.a = float4(c.rgb * a, a) * w; o.r = a; return o; }\n"
     // the sums over the scene: their weighted mean colour, as strong as all layers together hide what lies behind
-    "Texture2D oac : register(t16); Texture2D<float> orv : register(t17);\n"
-    "float4 poitc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0); float r = orv.Load(a); if (r >= 0.9999) discard;"
+    "Texture2D oac : register(t16); Texture2D<float> orv : register(t17); Texture2D<float2> wof : register(t3);\n"
+    // the layers under the water's level (wsp.x 1) read where the water's step read the picture behind the surface: bent as
+    // the seabed behind them (render_water.c THE WATER'S STEP AND WHAT COMES AFTER IT)
+    "float4 poitc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0);"
+    " if (wsp.x > 0 && wsp.y == 0) a.xy += int2(round(wof.Load(a))); float r = orv.Load(a); if (r >= 0.9999) discard;"
     " float4 c = oac.Load(a); return float4(c.rgb / max(c.a, 1e-5), 1 - r); }\n";
 
 // The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
