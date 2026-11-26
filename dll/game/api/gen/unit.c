@@ -565,6 +565,13 @@ internal inline int *unit_times_updated_at(const ee_unit *o) { return (int *)((u
 internal inline int unit_get_next_frame(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_next_frame); }
 internal inline void unit_set_next_frame(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_next_frame) = v; }
 internal inline int *unit_next_frame_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_next_frame); }
+// AoC only: the handle of an effect hung on it (the effect factory 0x50562C's out value): a Wall - Space's energy
+// field (make_energy_wall), a gate's (0x64F8F9); a building's fire takes it only while it is 0
+// (EEFireFunctor::vf10 0x4B6D2C), and the fire's end deletes the effect in it and clears it (vf11 0x4B6DEC) - a
+// space wall's field as well
+internal inline int unit_get_effect(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_effect); }
+internal inline void unit_set_effect(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_effect) = v; }
+internal inline int *unit_effect_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_effect); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // game time: the ship contact test EEPMNaval::vf16 0x54F84C sets now + 5000 when both ships stand and pushes them
 // apart; till then contacts with it take the push branch (the AoC decompilation: mPushImmuneUntil)
@@ -982,6 +989,10 @@ internal inline int patch_se_ghost_preview(ghost_unit_preview_fn h, int *of) { r
 // a gatherer's state on its way to its gather goal's storage to unload (MoveToStorage: the player's drop-off order
 // sets it on a loaded citizen keeping its gathering, which then goes back to its resource)
 // the plague's bit in a unit's contagions (seen in a test game: set by the cast and by the spread)
+// AoC only: the type that gets an energy field (Wall - Space): the places that finish or lay a wall compare its
+// type's id with it before they call make_energy_wall (0x61E4B9, 0x644FDF)
+// AoC only: the tech those places ask its owner's tree for (lookup, then tech_available) before they make the field
+// - Wall - Space's object tech: available from the Space Age on
 internal inline uint8_t *unit_call_node_del_1_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_1; }
 internal inline uint8_t *unit_call_node_del_2_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_2; }
 internal inline uint8_t *unit_fn_op_delete_at(void) { return (uint8_t *)(uintptr_t)data_unit_fn_op_delete; }
@@ -1075,6 +1086,13 @@ internal inline ee_player **target_search_player_at(const ee_target_search *o) {
 
 // static class unit_functions
 // the game's functions unit.c wraps, by the names the C side gives them
+// AoC only: a Wall - Space's energy field made (graphic 0x113 through the effect factory 0x50562C) into its
+// effect - by the construction's end (0x61E4E1), the in-game placing (0x63EE61) and the placing of a finished
+// wall (0x645015), each when the wall is no foundation and its owner has tech_energy_wall available; the scenario
+// editor's placing makes none, and a scenario's walls start without one
+typedef void (__cdecl *make_energy_wall_fn)(ee_unit *);
+internal make_energy_wall_fn fn_make_energy_wall;
+internal inline void make_energy_wall(ee_unit *wall) { fn_make_energy_wall(wall); }
 // the auto-target search's test of a candidate (thiscall on the searcher 0x62EA64 fills: +0x1C the unit
 // searching, +0x20 its player): not its own player's, an enemy by the stance (player +0x9E4), alive (+0x3C), not
 // +0x33B - then 0x6399CA scores it; the searches 0x63969A (2 calls) and 0x639D7D (2) of 0x62E99D, which a unit's
@@ -1336,6 +1354,7 @@ internal int spec_unit_select(int build) {
         of_unit_anim_ms = 0x2FC;
         of_unit_times_updated = 0x304;
         of_unit_next_frame = 0x308;
+        of_unit_effect = NA;
         of_unit_nudge_until = 0x320;
         of_unit_collision_state = 0x330;
         of_unit_deletable = 0x334;
@@ -1458,6 +1477,8 @@ internal int spec_unit_select(int build) {
         value_unit_state_idle = 5000;
         value_unit_state_to_storage = 8009;
         value_unit_contagion_plague = 1;
+        value_unit_type_energy_wall = NA;
+        value_unit_tech_energy_wall = NA;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
         data_unit_fn_op_delete = 0x006836F0;
@@ -1482,6 +1503,7 @@ internal int spec_unit_select(int build) {
         of_herd_births = 0xF8;
         of_target_search_unit = 0x1C;
         of_target_search_player = 0x20;
+        fn_make_energy_wall = (make_energy_wall_fn)0;
         fn_target_ok = (target_ok_fn)0x00639993;
         calls_target_ok[0] = 0x00639918;
         calls_target_ok[1] = 0x00639F4A;
@@ -1516,7 +1538,7 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_give = (unit_give_fn)0x00638670;
         fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
-        return 8;
+        return 12;
     case 1:   // aoc
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
@@ -1641,6 +1663,7 @@ internal int spec_unit_select(int build) {
         of_unit_anim_ms = 0x300;
         of_unit_times_updated = 0x308;
         of_unit_next_frame = 0x30C;
+        of_unit_effect = 0x310;
         of_unit_nudge_until = 0x324;
         of_unit_collision_state = 0x33C;
         of_unit_deletable = 0x340;
@@ -1763,6 +1786,8 @@ internal int spec_unit_select(int build) {
         value_unit_state_idle = 5000;
         value_unit_state_to_storage = 8009;
         value_unit_contagion_plague = 1;
+        value_unit_type_energy_wall = 766;
+        value_unit_tech_energy_wall = 15013;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
         data_unit_fn_op_delete = 0x0069D150;
@@ -1787,6 +1812,7 @@ internal int spec_unit_select(int build) {
         of_herd_births = 0xF8;
         of_target_search_unit = 0x1C;
         of_target_search_player = 0x20;
+        fn_make_energy_wall = (make_energy_wall_fn)0x0064F8C0;
         fn_target_ok = (target_ok_fn)0x0064FFCA;
         calls_target_ok[0] = 0x0064FF4F;
         calls_target_ok[1] = 0x006505A4;
@@ -1826,7 +1852,7 @@ internal int spec_unit_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.cloaked EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.attack_anim", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
+internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.cloaked EEComplexUnit.effect EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.type_energy_wall unit.tech_energy_wall unit.attack_anim unit_functions.make_energy_wall", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_check(void) {
     int bad = 0;
@@ -1949,6 +1975,7 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 0]");
     bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 1]");
     bad += spec_vtable(vt_ee_herd, ".?AVEEHerd@@", "EEHerd [vtable]");
+    bad += spec_code((uintptr_t)fn_make_energy_wall, "unit_functions.make_energy_wall");
     bad += spec_code((uintptr_t)fn_target_ok, "unit_functions.target_ok");
     bad += spec_call(calls_target_ok[0], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 0]");
     bad += spec_call(calls_target_ok[1], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 1]");

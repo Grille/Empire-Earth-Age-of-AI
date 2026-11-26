@@ -45,3 +45,18 @@ internal inline int patch_epoch_upgrades(epoch_upgrades_hook h, epoch_upgrades_a
 // a tech researched for nothing (EETechTreeNode::vf6, its vtable slot data_tech_vts_tech_researched)
 typedef int (__thiscall *tech_grant_hook)(ee_tech *t);
 internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(data_tech_vts_tech_researched, 0, (uintptr_t)fn_tech_grant, (void *)h); }
+
+// ART OF CONQUEST'S ENERGY FIELDS (engine/energy_walls.c): a Wall - Space that should have its field and has none - the
+// game's own test where it finishes or lays one (the type, no foundation, the owner's tech_energy_wall available), and
+// no effect hung on it, alive; energy_wall_make gives it the field as those places do. Never in the 2017 update
+internal int energy_wall_wanted(ee_unit *u) {
+    if (!fn_make_energy_wall || of_unit_effect == NA || value_unit_type_energy_wall == NA) return 0;
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!td || unit_type_get_id(td) != (int)value_unit_type_energy_wall || unit_get_effect(u) || unit_get_hp(u) <= 0
+        || unit_is_foundation(u)) return 0;
+    ee_player *pl = unit_get_owner(u);
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    ee_tech *t = tt ? tech_tree_lookup(tt, (int)value_unit_tech_energy_wall) : NULL;
+    return t && tech_available(t);
+}
+internal inline void energy_wall_make(ee_unit *u) { make_energy_wall(u); }

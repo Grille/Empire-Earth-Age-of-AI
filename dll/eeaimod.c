@@ -585,6 +585,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "test/takeover.c"   // `handover`: the human player's empire to a new computer player
 #include "ai/ai_overlay.c"   // the AI's tactical map (the overlay's layer "ai")
 #include "engine/civ_powers.c"   // AoC's civilization powers off in skirmishes ([general] skirmish_civ_powers) - its flag is saved
+#include "engine/energy_walls.c"   // AoC's space walls' energy fields where the game left them out (a scenario's walls)
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"
@@ -711,6 +712,7 @@ internal int cp_update_own(ee_player *pl, uint32_t now) {
 internal void ai_step_end(void) {
     uint32_t now = game_time();
     civ_powers_step();   // engine/civ_powers.c: the powers out of the players' civilizations, once they are there
+    energy_walls_step();   // engine/energy_walls.c: each second, the space walls without their field given it
     for (unsigned i = 1; i < game_player_count() && i < 16; i++) {
         ee_player *pl = game_players()[i];
         if (!pl || is_out(pl) || GAME_AI(i)) continue;

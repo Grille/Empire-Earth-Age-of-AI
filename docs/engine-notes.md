@@ -1761,6 +1761,21 @@ DLLs and the exe; the own renderer draws them from this (dll/engine/render_groun
   players get their civilizations over its first steps, after the game's start returns.
 - The mod's switch: engine/civ_powers.c ([general] skirmish_civ_powers).
 
+### Space walls' energy fields (AoC; 2026-11-26)
+
+- **What the field is**: an effect hung on each Wall - Space piece (type 766): EEE3DEnergyWall (vtable 0x8406DC),
+  graphic 0x113 through the effect factory 0x50562C, its handle in the piece's +0x310 (spec unit effect). It links
+  to the owner's pieces beside it (0x4EE00C: the tiles (-1,0), (-1,-1), (0,-1), (1,-1), mask at +0x118) and draws a
+  quad between the posts in the owner's colour.
+- **Where the game makes it**: 0x64F8C0 (spec make_energy_wall) from the construction's end (0x61E4E1), the in-game
+  placing (0x63EE61) and the placing of a finished wall (0x645015) - each when the piece is no foundation and the
+  owner's tree has tech 15013 (Wall - Space's object tech) available. Not in the scenario editor (its placing skips
+  it), and a scenario's walls come from the file without one: they stood bare in every scenario and test play. A
+  saved game's walls get theirs back at the load.
+- **The fire shares the slot**: EEFireFunctor::vf10 (0x4B6D2C) hangs a damaged building's fire there only while it is
+  0, vf11 (0x4B6DEC) deletes the effect in it at the fire's end - a repaired space wall lost its field.
+- The mod's fix: engine/energy_walls.c, each second the pieces without one given it by the game's own test and maker.
+
 ## Scenario / save file format (.scn / .ees)
 
 The author's C# project EEScnEdit (GitHub; the library `EEScnLib/Headers`, `EEScnLib/Data`, the WinForms editor `EEScnEdit`) reads and writes every part of

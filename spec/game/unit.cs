@@ -578,6 +578,13 @@ unsafe struct EEComplexUnit
     [offset((ee)0x308, (aoc)0x30C), found(c)]
     int32 next_frame;
 
+    /// AoC only: the handle of an effect hung on it (the effect factory 0x50562C's out value): a Wall - Space's energy
+    /// field (make_energy_wall), a gate's (0x64F8F9); a building's fire takes it only while it is 0
+    /// (EEFireFunctor::vf10 0x4B6D2C), and the fire's end deletes the effect in it and clears it (vf11 0x4B6DEC) - a
+    /// space wall's field as well
+    [offset((ee)none, (aoc)0x310), found(c)]
+    int32 effect;
+
     /// game time: the ship contact test EEPMNaval::vf16 0x54F84C sets now + 5000 when both ships stand and pushes them
     /// apart; till then contacts with it take the push branch (the AoC decompilation: mPushImmuneUntil)
     [offset((ee)0x320, (aoc)0x324), found(c), guess]
@@ -1024,6 +1031,16 @@ static unsafe class unit
     [value(1)]
     static uint32 contagion_plague;
 
+    /// AoC only: the type that gets an energy field (Wall - Space): the places that finish or lay a wall compare its
+    /// type's id with it before they call make_energy_wall (0x61E4B9, 0x644FDF)
+    [value((ee)none, (aoc)766)]
+    static uint32 type_energy_wall;
+
+    /// AoC only: the tech those places ask its owner's tree for (lookup, then tech_available) before they make the field
+    /// - Wall - Space's object tech: available from the Space Age on
+    [value((ee)none, (aoc)15013)]
+    static uint32 tech_energy_wall;
+
     [address((ee)0x00628BE7, (aoc)0x0063D998)]
     static code call_node_del_1;
 
@@ -1135,6 +1152,13 @@ unsafe struct EETargetSearch
 [c_prefix("")]
 static unsafe class unit_functions
 {
+    /// AoC only: a Wall - Space's energy field made (graphic 0x113 through the effect factory 0x50562C) into its
+    /// effect - by the construction's end (0x61E4E1), the in-game placing (0x63EE61) and the placing of a finished
+    /// wall (0x645015), each when the wall is no foundation and its owner has tech_energy_wall available; the scenario
+    /// editor's placing makes none, and a scenario's walls start without one
+    [address((ee)none, (aoc)0x0064F8C0), cdecl]
+    static extern void make_energy_wall(EEUnit* wall);
+
     /// the auto-target search's test of a candidate (thiscall on the searcher 0x62EA64 fills: +0x1C the unit
     /// searching, +0x20 its player): not its own player's, an enemy by the stance (player +0x9E4), alive (+0x3C), not
     /// +0x33B - then 0x6399CA scores it; the searches 0x63969A (2 calls) and 0x639D7D (2) of 0x62E99D, which a unit's
