@@ -438,7 +438,15 @@ internal void camera_shape_frame(void) {
     }
     g_cam_v_map = map;
 }
+// The look-at on the ground at any zoom: the camera's move puts it 0.4 above the ground only while the eye is within 10
+// tiles of it (data camera_lift_reach) and leaves its height as it was further out - with [camera] camera_distance 25 at
+// zoom 0.4. In the game a scroll alone crossed that; the wheel's zoom at the mouse ends every notch with the move, and a
+// single notch back and forth there moved the picture up and down by the ground's height (the player 2026-11-26: "in the
+// middle of the zoom is a step where the height noticably jumps"; the look-at 0.64 at zoom 0.4, 0.40 at 0.45).
+#define CAM_LIFT_REACH 1e9f
 internal void camera_shape_install(void) {
+    int lift = g_set.camera_zoom_at_mouse && camera_lift_reach_set(CAM_LIFT_REACH);
+    if (g_log) fprintf(g_log, "# camera: the look-at on the ground %s\n", lift ? "at any zoom" : "within the game's 10 tiles");
     g_cam_shape = camera_shape_open();
     if (!g_cam_shape) return;
     g_cam_dist = g_set.camera_distance > 0 ? (float)g_set.camera_distance * CAM_AS_DREXMOD : CAM_DIST_GAME;

@@ -19,6 +19,10 @@ internal inline uint8_t *game_camera_fixed_at(void) { return (uint8_t *)(uintptr
 // float in .rdata: the eye's distance from the look-at at zoom 1 in the normal view, -20.5 (read in the camera's move
 // 0x51DDD7, AoC 0x528996: the distance = (it - 0.1) x zoom + 0.1; view 3 and a cinematic take -42 instead)
 internal inline uint8_t *game_camera_eye_far_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_eye_far; }
+// float in .rdata: 10, the reach in tiles within which the camera's move (0x51E2E6 and 0x51D5AF it calls, AoC 0x528EA5 /
+// 0x52816E) puts the look-at on the ground, 0.4 (0x82C6D4) above it - the eye's offset from the look-at no longer than
+// it; further out the look-at keeps its height (4 reads, all in those two)
+internal inline uint8_t *game_camera_lift_reach_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_lift_reach; }
 // float in .rdata: the far depth of the normal view, 35 (0x51CE31, AoC 0x527BC7, every camera step; view 3 and a
 // cinematic take 58 instead)
 internal inline uint8_t *game_camera_far_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_far; }
@@ -324,6 +328,7 @@ internal int spec_game_select(int build) {
         data_game_camera = 0x00918CD0;
         data_game_camera_fixed = 0x00919461;
         data_game_camera_eye_far = 0x0082C700;
+        data_game_camera_lift_reach = 0x0082C6D8;
         data_game_camera_far = 0x0082C704;
         data_game_camera_fov = 0x0091328C;
         data_game_camera_pitch = 0x009183C8;
@@ -460,6 +465,7 @@ internal int spec_game_select(int build) {
         data_game_camera = 0x00931710;
         data_game_camera_fixed = 0x009308E2;
         data_game_camera_eye_far = 0x00841EA0;
+        data_game_camera_lift_reach = 0x00841E78;
         data_game_camera_far = 0x00841EA4;
         data_game_camera_fov = 0x00929A34;
         data_game_camera_pitch = 0x00930E08;
@@ -603,6 +609,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_camera, "game.camera");
     bad += spec_data(data_game_camera_fixed, "game.camera_fixed");
     bad += spec_data(data_game_camera_eye_far, "game.camera_eye_far");
+    bad += spec_data(data_game_camera_lift_reach, "game.camera_lift_reach");
     bad += spec_data(data_game_camera_far, "game.camera_far");
     bad += spec_data(data_game_camera_fov, "game.camera_fov");
     bad += spec_data(data_game_camera_pitch, "game.camera_pitch");

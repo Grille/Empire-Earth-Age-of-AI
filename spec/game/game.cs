@@ -28,6 +28,12 @@ static unsafe class game
     [address((ee)0x0082C700, (aoc)0x00841EA0)]
     static block camera_eye_far;
 
+    /// float in .rdata: 10, the reach in tiles within which the camera's move (0x51E2E6 and 0x51D5AF it calls, AoC 0x528EA5 /
+    /// 0x52816E) puts the look-at on the ground, 0.4 (0x82C6D4) above it - the eye's offset from the look-at no longer than
+    /// it; further out the look-at keeps its height (4 reads, all in those two)
+    [address((ee)0x0082C6D8, (aoc)0x00841E78)]
+    static block camera_lift_reach;
+
     /// float in .rdata: the far depth of the normal view, 35 (0x51CE31, AoC 0x527BC7, every camera step; view 3 and a
     /// cinematic take 58 instead)
     [address((ee)0x0082C704, (aoc)0x00841EA4)]

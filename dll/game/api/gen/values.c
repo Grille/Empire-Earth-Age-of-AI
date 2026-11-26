@@ -993,6 +993,7 @@ internal uint32_t data_game_behaviour_table;
 internal uint32_t data_game_camera;
 internal uint32_t data_game_camera_fixed;
 internal uint32_t data_game_camera_eye_far;
+internal uint32_t data_game_camera_lift_reach;
 internal uint32_t data_game_camera_far;
 internal uint32_t data_game_camera_fov;
 internal uint32_t data_game_camera_pitch;

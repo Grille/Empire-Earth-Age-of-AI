@@ -70,6 +70,14 @@ internal inline int camera_shape_open(void) {
     DWORD old;
     return VirtualProtect((void *)data_game_camera_eye_far, 8, PAGE_READWRITE, &old) != 0;
 }
+// the camera's move puts the look-at on the ground within this reach of the eye (camera.c camera_shape_install)
+internal inline int camera_lift_reach_set(float tiles) {
+    DWORD old;
+    float *at = (float *)data_game_camera_lift_reach;
+    if (!VirtualProtect(at, sizeof *at, PAGE_READWRITE, &old)) return 0;
+    *at = tiles;
+    return 1;
+}
 internal inline int patch_camera_tilt(void) {
     return patch_code32(data_game_site_camera_tilt, value_game_camera_tilt_was, (uint32_t)data_game_camera_pitch);
 }
