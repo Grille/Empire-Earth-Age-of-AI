@@ -487,6 +487,8 @@ task: a poll left running after its caller gave up keeps sending commands to wha
   fired; the menus' clicks by the mouse often don't take headless). The game setup screen: main menu 512,268, the
   single-player menu 748,143 by `vclick` (form 12, 6, then 26); its map type list is 179, Start 10.
 - `mapoptions`: the setup screen's Age of AI options button clicked (shown only with that type chosen).
+- `mapkeep <seed>`: the next Age of AI map from that seed, as the dialog's "play this map" - a multiplayer test's host
+  (no setup screen there): `RUN=mp<stamp>_0 eectl.py "mapkeep 4242"` before its Start, it goes with the options.
 
 Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was
 64% in GDI (gdi32full); in test games 11-18%, all GDI calls from DDrawCompat itself (its ddraw.dll +0x46CB6,

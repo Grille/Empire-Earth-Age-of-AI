@@ -618,8 +618,10 @@ static unsafe class messages_functions
     [address((ee)0x004B1B31, (aoc)0x004B8F8E), cdecl]
     static extern EEMessage* message_build(uint8* mem);
 
-    /// cdecl(): message_build into sConstructors for kinds 0x41 .. 0xFD, once at the start (0x530xxx's set-up)
+    /// cdecl(): message_build into sConstructors for kinds 0x41 .. 0xFD, once at the start (0x537FE5's set-up) - hooked:
+    /// the mod's own kind after it (messages.c mod_msg_install), so a message of the mod's can come in the lobby too
     [address((ee)0x004B18A8, (aoc)0x004B8CDA), cdecl]
+    [call_site("messages_register", (ee)0x0053807C, (aoc)0x00543273)]
     static extern void messages_register();
 
     [address((ee)0x004BD15A, (aoc)0x004C5E67), cdecl]

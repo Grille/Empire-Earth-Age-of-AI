@@ -1,12 +1,13 @@
 // [random_map]: the mod's own random map, "Age of AI" in the game's list of map types (engine/mapgen.c). The
 // scenario editor's Create Map asks for these in a dialog when that type is chosen (engine/mapgen_dialog.c), which
-// writes them back here; a multiplayer game plays the defaults (every PC makes the map itself: the host's choices
-// don't reach the others yet).
+// writes them back here, so does the game setup screen's Options button (engine/mapgen_button.c); a multiplayer game
+// plays the host's (every PC makes the map itself: the host's Start sends them to every PC).
 namespace ageofai.settings;
 
 ///
 /// The "Age of AI" map type: the mod's own random maps. The scenario editor asks for these when you create such a
-/// map, and keeps what you chose here. Whatever is chosen, every start keeps its own mines, forage, forests and herd.
+/// map, the game setup's Options button beside the map type too, and keeps what you chose here. In a multiplayer
+/// game every player gets the host's. Whatever is chosen, every start keeps its own mines, forage, forests and herd.
 /// The amounts: none, few (half as many as the map's size gives), normal, many (twice as many), lots (three times).
 [section(45), title("Age of AI maps")]
 class random_map

@@ -91,6 +91,8 @@ internal void *mp_start_form(void) {
     return g_mp_form;
 }
 
+internal void randmap_lobby_map(ee_setup *lobby);   // randmap.c
+
 // the host's lobby: Start once it is full
 internal void mp_lobby(DWORD now) {
     if (g_net.started || !net_hosting()) return;
@@ -118,6 +120,7 @@ internal void mp_lobby(DWORD now) {
         log_line("# mp: lobby slot %d type %d colour %d team %d flags %08x name \"%s\"\n", i, setup_slot_get_type(s),
                  setup_slot_get_color(s), setup_slot_get_team(s), setup_slot_get_flags(s), pn ? pn : "");
     }
+    randmap_lobby_map(lobby);
     int r = lobby_start(mp_start_form(), 0);
     log_line("# mp: Start pressed (%d)\n", r);
 }

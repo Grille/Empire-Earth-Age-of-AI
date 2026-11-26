@@ -11,7 +11,8 @@
 // (heights, textures, cliffs), the world's objects on it (mines, trees, animals: the world player's), each playing
 // player's start units (made, built and paid for as its own are), where this PC's view begins - and 0 for "made".
 // Nothing else of the start asks for the generator's own object.
-// IN MULTIPLAYER every PC makes the map itself from the setup and the seed: the same numbers on each. So nothing here
+// IN MULTIPLAYER every PC makes the map itself from the setup, the seed and the host's options (g_mg_host): the same
+// numbers on each. So nothing here
 // is drawn from the clock or the game's random numbers, and no sine, cosine or arc tangent is used (the C library's
 // may differ between PCs in a last bit; +, -, x, / and the square root don't) - directions are vectors, turned by
 // adding a share of their normal.
@@ -24,6 +25,12 @@ internal int g_mapgen_added;
 // the seed of the options' preview to play (the setup screen's dialog, "play this map"): the next single-player random
 // map of the mod's type is made from it instead of the game's, once
 internal struct { int on; uint32_t seed; } g_mg_keep;
+// THE HOST'S OPTIONS IN MULTIPLAYER (step 4 of the plan): every PC makes the map itself, so every PC must make it from
+// the same options - the host's. Its Start sends them to every PC as the mod's own message (hook_lobby_check: before
+// the game's start message, through the same server, so they are carried out first - its own PC's too) with the
+// preview's seed when "play this map" is ticked; each PC's map of that game is made from what came (mg_options), once
+#define MG_OPTS (SETTING_map_mines - SETTING_map_layout + 1)
+internal struct { int got; uint8_t v[MG_OPTS]; int keep; uint32_t seed; } g_mg_host;
 
 internal int mapgen_is_ours(const char *name) { return name && !lstrcmpiA(name, MG_NAME); }
 
@@ -153,7 +160,9 @@ struct mg {
         float land;           // the continents' size
         float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
         float mountains, rivers, lakes, islands, forests, mines;   // factors on how many
-        int mp;               // a multiplayer game: the defaults
+        int mp;               // a multiplayer game: the host's options (none came: the defaults)
+        int from;             // MG_FROM_*: whose they are
+        int v[MG_OPTS];       // the choices, [random_map]'s order
     } opt;
 };
 internal uint32_t mg_next(struct mg *g) {
@@ -165,18 +174,28 @@ internal float mg_rnd(struct mg *g) { return (float)(mg_next(g) >> 8) * (1.0f / 
 internal int mg_int(struct mg *g, int lo, int hi) { return lo + (int)(mg_next(g) % (uint32_t)(hi - lo + 1)); }   // lo .. hi
 // how many of a thing: the map's count of it times an option's factor (1: the count itself, not through a float)
 internal int mg_amount(int base, float f) { return f == 1.0f ? base : (int)((float)base * f + 0.5f); }
-// THE OPTIONS ([random_map], dll_cs/settings/random_map.cs) as the steps use them. A multiplayer game plays the
-// defaults: every PC makes the map itself from the setup and the seed, and the host's [random_map] doesn't reach the
-// others yet - with their own each would make another map.
+// THE OPTIONS ([random_map], dll_cs/settings/random_map.cs) as the steps use them: this PC's own, in a multiplayer
+// game the host's (g_mg_host: its Start sent them) - none came (a host whose mod has no step 4, the type chosen
+// otherwise than by the lobby's list): the defaults, as on every other PC then.
+enum { MG_FROM_OWN, MG_FROM_HOST, MG_FROM_DEFAULTS };
+internal int mg_humans(const ee_setup *setup) {   // the humans' slots (1 this PC's or a seated player's, 2 a network one's)
+    int humans = 0;
+    for (int k = 0; setup && k < 16; k++) { int t = setup_slot_get_type(setup_slot_at(setup, k)); humans += t == 1 || t == 2; }
+    return humans;
+}
 internal void mg_options(struct mg *g, const ee_setup *setup) {
     static const float amount[5] = { 0, 0.5f, 1, 2, 3 }, land[3] = { 0.8f, 1, 1.12f };
     static const float temp[5] = { -0.4f, -0.2f, 0, 0.2f, 0.4f }, wet[5] = { -0.2f, -0.1f, 0, 0.1f, 0.2f };
     struct settings s = g_set;
-    int humans = 0;   // more than one human in the setup, or this PC joined: multiplayer (the host of a single-player game is a server too)
-    for (int k = 0; setup && k < 16; k++) humans += setup_slot_get_type(setup_slot_at(setup, k)) == 1;
-    g->opt.mp = humans > 1 || net_joined();
-    if (g->opt.mp)
-        for (int i = SETTING_map_layout; i <= SETTING_map_mines; i++) setting_default(&k_settings[i], (uint8_t *)&s + k_settings[i].off);
+    // more than one human in the setup, or this PC joined: multiplayer (the host of a single-player game is a server too)
+    g->opt.mp = mg_humans(setup) > 1 || net_joined();
+    g->opt.from = !g->opt.mp ? MG_FROM_OWN : g_mg_host.got ? MG_FROM_HOST : MG_FROM_DEFAULTS;
+    for (int i = SETTING_map_layout; i <= SETTING_map_mines; i++) {
+        int *v = (int *)((uint8_t *)&s + k_settings[i].off);
+        if (g->opt.from == MG_FROM_HOST) *v = g_mg_host.v[i - SETTING_map_layout];
+        else if (g->opt.from == MG_FROM_DEFAULTS) setting_default(&k_settings[i], (uint8_t *)v);
+        g->opt.v[i - SETTING_map_layout] = *v;
+    }
 #define MG_PICK(t, v) t[(unsigned)(v) < sizeof t / sizeof *t ? (unsigned)(v) : sizeof t / sizeof *t / 2]
     g->opt.land = MG_PICK(land, s.map_land);
     g->opt.temp = MG_PICK(temp, s.map_climate);
@@ -191,16 +210,55 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
 }
 internal void mg_options_log(const struct mg *g) {
     if (!g_log) return;
+    static const char *const from[3] = { "", " (a multiplayer game: the host's)", " (a multiplayer game, none came from the host: the defaults)" };
     char line[400];
-    int at = snprintf(line, sizeof line, "# mapgen: \"%s\" options%s:", MG_NAME, g->opt.mp ? " (a multiplayer game: the defaults)" : "");
+    int at = snprintf(line, sizeof line, "# mapgen: \"%s\" options%s:", MG_NAME, from[g->opt.from]);
     for (int i = SETTING_map_layout; i <= SETTING_map_mines && at > 0 && at < (int)sizeof line - 40; i++) {
         char name[32];
-        int v = *(const int *)((const uint8_t *)&g_set + k_settings[i].off);
-        if (g->opt.mp) setting_default(&k_settings[i], &v);
-        setting_choice_name(k_settings[i].choices, v, name, sizeof name);
+        setting_choice_name(k_settings[i].choices, g->opt.v[i - SETTING_map_layout], name, sizeof name);
         at += snprintf(line + at, sizeof line - (size_t)at, " %s %s", k_settings[i].key + 4, name);
     }
     log_locked("%s\n", line);
+}
+
+// The host's options sent (its Start, the lobby checked): [random_map]'s choices, "play this map" and its seed. The
+// payload: a format byte (1), the choices' count, the choices, keep, the seed (little-endian)
+internal int mg_host_send(void) {
+    uint8_t b[2 + MG_OPTS + 1 + 4];
+    b[0] = 1;
+    b[1] = MG_OPTS;
+    for (int i = SETTING_map_layout; i <= SETTING_map_mines; i++) b[2 + i - SETTING_map_layout] = (uint8_t)*(const int *)((const uint8_t *)&g_set + k_settings[i].off);
+    b[2 + MG_OPTS] = (uint8_t)(g_mg_keep.on != 0);
+    memcpy(b + 3 + MG_OPTS, &g_mg_keep.seed, 4);
+    int sent = mod_msg_send(MOD_MSG_MAP_OPTIONS, b, (int)sizeof b);
+    if (g_log) log_locked("# mapgen: the host's \"%s\" options %s to every PC%s\n", MG_NAME, sent ? "sent" : "NOT sent (no server, the message not registered)",
+                          g_mg_keep.on ? ", with the preview's seed (play this map)" : "");
+    if (sent) g_mg_keep.on = 0;   // its seed goes with the options: every PC's map from it
+    return sent;
+}
+// ... and carried out on every PC, the host's too: kept for the game's map. Only from the host (on every PC its
+// messages come from 0xFE), only the format known
+internal void mg_host_seen(int from, const uint8_t *data, int n) {
+    if (from != 0xFE || n != 2 + MG_OPTS + 1 + 4 || data[0] != 1 || data[1] != MG_OPTS) {
+        if (g_log) log_locked("# mapgen: a message of map options left out (from slot %d, %d bytes, format %d) - another build's?\n", from, n, n > 0 ? data[0] : -1);
+        return;
+    }
+    memcpy(g_mg_host.v, data + 2, MG_OPTS);
+    g_mg_host.keep = data[2 + MG_OPTS];
+    memcpy(&g_mg_host.seed, data + 3 + MG_OPTS, 4);
+    g_mg_host.got = 1;
+    if (g_log) log_locked("# mapgen: the host's \"%s\" options came%s\n", MG_NAME, g_mg_host.keep ? ", with the seed of its preview" : "");
+}
+// a lobby set up (the setup screen's activations): what an earlier one's host sent is not this game's
+internal void mapgen_host_forget(void) { g_mg_host.got = 0; }
+// the Start button's check (setup_functions.lobby_check): passed on a multiplayer game's host with the mod's type
+// chosen in a random-map game, the options go - before the start message the button's code sends next
+internal uint8_t __cdecl hook_lobby_check(void) {
+    uint8_t ok = lobby_check();
+    ee_setup *s = setup_lobby_at();
+    const char *map = ok && net_hosting() && *game_type_var() == 0 && mg_humans(s) > 1 ? FIELD(setup_map_name_at(s), 4, const char *) : NULL;   // (the UString's characters)
+    if (map && mapgen_is_ours(map)) mg_host_send();
+    return ok;
 }
 // noise: a number 0 .. 1 per lattice point of a seed, smoothed between them; three octaves of it
 internal float mg_lattice(int x, int y, uint32_t s) {
@@ -1391,11 +1449,19 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
         return 0;
     }
     g->world = pb[0];
-    if (g_mg_keep.on && setup && setup_get_mode(setup) == 0) {   // the next random-map game's: the preview's map
+    uint32_t keep = 0;   // the preview's seed instead of the game's: the next single-player random map's, or the host's
+    int kept = 0;
+    if (g_mg_keep.on && setup && setup_get_mode(setup) == 0) {   // (the setup screen's: a random-map game)
         g_mg_keep.on = 0;
-        if (g_log) log_locked("# mapgen: the seed of the options' preview, %u, instead of the game's %u%s\n", g_mg_keep.seed, seed, g->opt.mp ? " - not in a multiplayer game" : "");
-        if (!g->opt.mp) { seed = g->seed = g_mg_keep.seed; g->rng = seed * 2654435761u | 1; }
+        if (!g->opt.mp) { kept = 1; keep = g_mg_keep.seed; }
+        else if (g_log) log_locked("# mapgen: the seed of the options' preview, %u, left out - a multiplayer game plays the host's\n", g_mg_keep.seed);
     }
+    if (g->opt.from == MG_FROM_HOST && g_mg_host.keep) { kept = 1; keep = g_mg_host.seed; }
+    if (kept) {
+        if (g_log) log_locked("# mapgen: the seed of the options' preview, %u, instead of the game's %u%s\n", keep, seed, g->opt.from == MG_FROM_HOST ? " (the host's)" : "");
+        seed = g->seed = keep; g->rng = seed * 2654435761u | 1;
+    }
+    g_mg_host.got = 0;   // this game's (the next game's options come with its own Start)
     mg_steps(g);
     start[0] = start[1] = g->half + 0.5f;
     for (int i = 0; i < g->np; i++) {
@@ -1508,7 +1574,9 @@ internal int __cdecl hook_random_map_create(ee_setup *setup, void *players, int 
 // the game's list is made at its start, which may be over when the mod's patches go in: then the types are added now
 internal void mapgen_install(void) {
     int of = 0, n = patch_random_map_create(hook_random_map_create, &of), l = patch_random_map_types_load(hook_random_map_types_load);
+    int c = patch_lobby_check(hook_lobby_check);
+    mod_msg_on(MOD_MSG_MAP_OPTIONS, mg_host_seen);
     mapgen_types_add();
-    if (g_log) fprintf(g_log, "# mapgen: the mod's map types - the game's map maker's calls %d/%d, its list's load %s%s\n", n, of, l ? "hooked" : "FAILED",
-                       g_mapgen_added ? " (the list was there: added now)" : "");
+    if (g_log) fprintf(g_log, "# mapgen: the mod's map types - the game's map maker's calls %d/%d, its list's load %s, the Start button's check %s%s\n", n, of,
+                       l ? "hooked" : "FAILED", c ? "hooked" : "FAILED", g_mapgen_added ? " (the list was there: added now)" : "");
 }

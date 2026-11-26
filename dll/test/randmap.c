@@ -83,6 +83,12 @@ internal void randmap_load(const char *ini) {
     g_rm.v_cheat = ini_int("autotest", "vanilla_cheat", -1, ini);
 }
 
+// A multiplayer test's host before its Start (netgame.c mp_lobby): the test's map type in the lobby's setup, as the
+// player's choice in the list puts it there - what the Start sees (the Age of AI options go with it: mapgen.c)
+internal void randmap_lobby_map(ee_setup *lobby) {
+    if (g_rm.map[0]) ustring_set(setup_map_name_at(lobby), g_rm.map);
+}
+
 // Called from hook_game_start before the original runs. A multiplayer test (netgame.c): on every PC alike, whatever
 // its copy of the lobby's setup holds - the humans in the first mp_humans slots, the AIs after them - but for which
 // one is this PC's (its seat: the host 0, a joiner mp_seat).

@@ -851,7 +851,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   and herd stay whatever is chosen. The scenario editor's Create Map with the type chosen opens a dialog with them
   first (dll/engine/mapgen_dialog.c, from the hook of EESEACreateRandomMap.run - its map_type +0x10 the type's index):
   OK makes the map and writes the choices into ageofai.ini (a test: its own ini's [autotest]), Cancel makes none. A
-  multiplayer game plays the defaults until the host's choices travel with the setup. The log: `# mapgen: "Age of
+  multiplayer game plays the host's (below). The log: `# mapgen: "Age of
   AI" options: ...` before each map, `# mapgen: the options' dialog ...` after the dialog.
 - **Its preview** (the player 2026-11-25): the dialog shows the map beside the options, made anew at each change
   (dll/engine/mapgen.c mapgen_preview: 15 ms on 150 tiles a side, 95 ms on 440). The generator's steps run with no
@@ -871,8 +871,8 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
 - **On the game setup screen** (2026-11-26, dll/engine/mapgen_button.c): with "Age of AI" chosen in the map type
   list an "Options" button shows beside it - the list narrower, its text box too (the list's SetLocation keeps the
   box's width) - and opens the dialog for the setup's map size and players; its seed an example, "play this map" keeps
-  it for the next single-player game's map (mapgen.c g_mg_keep; the game's own seed for everything else). Single
-  player only: hidden in a multiplayer setup. The screen is built from the UI database, which taught how a control of
+  it for the next game's map (mapgen.c g_mg_keep; the game's own seed for everything else). Hidden on a PC that
+  joined a multiplayer game: the host's options are the game's. The screen is built from the UI database, which taught how a control of
   one's own gets onto it: a form keeps its controls in an array by index (UIForm.controls, as long as the database
   makes it - the setup screen 275, its last slots empty; AddControl fills a control's slot only when it is empty) and
   draws those of a second array (controls_drawn, both controls_n long); the mouse finds a control through the form's
@@ -885,6 +885,19 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
 - **The preview's map is the game's**: a map's corners are the diamond with u and v within half the side and one
   more (read from a game's map: row 0 of 150 tiles has 74 .. 76); with half alone the editor's previews matched by
   luck of their deep water, a game's map parted from its preview now and then.
+- **In multiplayer** (2026-11-26): every PC makes the map itself, so all must make it from the host's options. The
+  host's Start sends them - [random_map]'s choices, "play this map" and the preview's seed - to every PC as the mod's
+  own message (subject MOD_MSG_MAP_OPTIONS) from the Start button's check (setup_functions.lobby_check, 0x5C9D54:
+  passed, on the host, with more than one human in the lobby and the mod's type chosen); the button's code sends the
+  start message right after, through the same server: the lobby's messages go through the server's
+  ProcessGuaranteedLocalUserInput, which calls its ProcessLocalUserInput (the slot the mod sends through) - one queue,
+  the options carried out first on every PC, the host's own too. Each PC's map of that game is made from what came
+  (`# mapgen: "Age of AI" options (a multiplayer game: the host's)`), then it is forgotten (also when a setup screen is
+  set up); a multiplayer game without them (a host without this) plays the defaults. For a message in the lobby the
+  mod's kind has to be in the game's table before any game: it goes in right after the game fills the table at the
+  program's start (messages_functions.messages_register, its one call 0x53807C - hooked). Checked with
+  scripts/test/mp.sh, the host alone with other options (HOST_KEYS): both PCs made the same map from the host's, in
+  sync for the 3 minutes; with "play this map" (`mapkeep`) both from its seed.
 
 ## Unit AI scripts (.tai)
 

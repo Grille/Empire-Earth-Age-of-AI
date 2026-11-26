@@ -12,17 +12,18 @@
 // list - and its text box, which keeps its own width when the list's changes - gives up MB_WIDTH of its width (the
 // form's coordinates) and the button shows there, else the list has its whole width back and the button is hidden -
 // set when the screen is brought up to date, set up (its single-player, host and client activations) and when the
-// map type or the game type changes. Single player only so far: in a multiplayer game (host or joined) it stays
-// hidden, its options don't reach the other PCs yet (step 4). Its click opens the options' dialog (mapgen_dialog.c)
-// for the setup's map size and players - with an example seed: the game draws its own when it starts, unless the
-// dialog's "play this map" is ticked (mapgen.c g_mg_keep).
+// map type or the game type changes. On a PC that joined a multiplayer game it stays hidden: the host's options are
+// that game's (its Start sends them to every PC: mapgen.c hook_lobby_check), the host has the button. Its click opens
+// the options' dialog (mapgen_dialog.c) for the setup's map size and players - with an example seed: the game draws
+// its own when it starts, unless the dialog's "play this map" is ticked (mapgen.c g_mg_keep; in multiplayer it goes
+// with the host's options).
 #define MB_WIDTH 80.0f   // the button's width, in the form's coordinates (the list: 210)
 #define MB_GAP 4.0f
 internal struct {
     ee_ui_form *form;
     ee_ui_control *list, *button;
     float right;         // the list's own right edge
-    int mp;              // the screen set up for a multiplayer game
+    int joined;          // the screen set up for a multiplayer game this PC joined
 } g_mb;
 internal void *g_mb_vt[UI_EVENT_SLOTS];
 
@@ -33,11 +34,11 @@ internal int mb_ours(ee_ui_control *list) {
 }
 
 // the list's width and the button by what is chosen (the list hidden - a scenario's or a saved game's setup -, a
-// multiplayer game: the list whole, no button)
+// multiplayer game this PC joined: the list whole, no button)
 internal void mb_update(ee_ui_form *form) {
     if (!form || form != g_mb.form || !g_mb.list || !g_mb.button) return;
     ee_ui_control *list = g_mb.list;
-    int on = !g_mb.mp && ui_control_get_mode_now(list) && mb_ours(list);
+    int on = !g_mb.joined && ui_control_get_mode_now(list) && mb_ours(list);
     float right = on ? g_mb.right - MB_WIDTH - MB_GAP : g_mb.right, d = right - ui_control_get_right(list);
     ee_ui_control *box = ui_combo_box_get_text_box((ui_combo_box *)list);
     if (d != 0 && box) {   // the box first: the list's SetLocation puts the box at its corner and its arrow after the box
@@ -52,12 +53,13 @@ internal void mb_update(ee_ui_form *form) {
     if (on) ui_control_set_dirty(g_mb.button, 1);   // drawn (made shown: its display mode alone changed nothing)
 }
 
-// its click: the options for the setup's map (its size, its players: the slots of a human or a computer)
+// its click: the options for the setup's map (its size, its players: the slots of a human - a network one's too - or
+// a computer)
 internal uint32_t __thiscall mb_click(void *ev, ee_ui_form *form, uint32_t arg) {
     (void)ev; (void)form; (void)arg;
     ee_setup *s = setup_lobby_at();
     int np = 0;
-    for (int k = 0; k < 16; k++) { int t = setup_slot_get_type(setup_slot_at(s, k)); np += t == 0 || t == 1; }
+    for (int k = 0; k < 16; k++) { int t = setup_slot_get_type(setup_slot_at(s, k)); np += t == 0 || t == 1 || t == 2; }
     uint32_t seed = GetTickCount() % 1000000u;   // an example: the game draws its own at the start
     md_open_setup(map_scale_tiles(setup_get_map_scale(s)), np > 0 ? np : 1, seed);
     return 0;
@@ -105,21 +107,25 @@ internal void __cdecl hook_mb_refresh(void) {
     mb_update(form);
 }
 // the screen set up for a single-player game, a multiplayer game's host, one who joined: which it is known before
-// the game's own setting up (it refreshes the screen), the button set after it
+// the game's own setting up (it refreshes the screen), the button set after it; an earlier lobby's options from its
+// host forgotten
 internal uint32_t __thiscall hook_mb_sp(eeuiele_activate_single_player *ev, ee_ui_form *form, uint32_t arg) {
-    g_mb.mp = 0;
+    g_mb.joined = 0;
+    mapgen_host_forget();
     uint32_t r = eeuiele_activate_single_player_execute(ev, form, arg);
     mb_update(form);
     return r;
 }
 internal uint32_t __thiscall hook_mb_host(eeuiele_activate_multi_player_server *ev, ee_ui_form *form, uint32_t arg) {
-    g_mb.mp = 1;
+    g_mb.joined = 0;
+    mapgen_host_forget();
     uint32_t r = eeuiele_activate_multi_player_server_execute(ev, form, arg);
     mb_update(form);
     return r;
 }
 internal uint32_t __thiscall hook_mb_client(eeuiele_activate_multi_player_client *ev, ee_ui_form *form, uint32_t arg) {
-    g_mb.mp = 1;
+    g_mb.joined = 1;
+    mapgen_host_forget();
     uint32_t r = eeuiele_activate_multi_player_client_execute(ev, form, arg);
     mb_update(form);
     return r;
@@ -147,7 +153,17 @@ internal void mapgen_button_install(void) {
 internal void cmd_mapoptions(char *out, const char *args) {
     (void)args;
     if (!g_mb.button) { REPLY("error: no options button (the setup screen not brought up yet)\n"); return; }
-    if (!ui_control_get_mode_now(g_mb.button)) { REPLY("error: the options button is hidden (another map type, a multiplayer game)\n"); return; }
+    if (!ui_control_get_mode_now(g_mb.button)) { REPLY("error: the options button is hidden (another map type, a multiplayer game joined)\n"); return; }
     ui_control_fire_click(g_mb.button);
     REPLY("ok: the options button's click fired\n");
+}
+
+// mapkeep <seed>: the next Age of AI random map from that seed, as the dialog's "play this map" with it as its preview's
+// (mapgen.c g_mg_keep) - a multiplayer test host's lobby without the screen (it goes with the host's options)
+internal void cmd_mapkeep(char *out, const char *args) {
+    unsigned seed;
+    if (sscanf(args, "%u", &seed) != 1) { REPLY("error: mapkeep <seed>\n"); return; }
+    g_mg_keep.on = 1;
+    g_mg_keep.seed = seed;
+    REPLY("ok: the next Age of AI map from seed %u\n", seed);
 }

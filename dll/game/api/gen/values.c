@@ -1511,6 +1511,7 @@ internal uint32_t data_messages_iat_export_header;
 internal uint32_t data_messages_iat_import_header;
 internal uint32_t value_messages_kind_free_first;
 internal uint32_t value_messages_kind_free_last;
+internal uint32_t call_messages_register;
 internal uint32_t call_sel_pack;
 
 // movement.cs
@@ -2047,6 +2048,7 @@ internal uint32_t data_setup_site_scale_limit;
 internal uint32_t data_setup_site_editor_scales;
 internal uint32_t data_setup_site_editor_scales_end;
 internal uint32_t data_setup_site_setup_scales_end;
+internal uint32_t call_lobby_check;
 internal uint32_t calls_setup_screen_refresh[2];
 internal uint32_t of_setup_slot_type;
 internal uint32_t of_setup_slot_0x4;

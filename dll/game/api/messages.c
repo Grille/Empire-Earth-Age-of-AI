@@ -272,12 +272,15 @@ internal inline int patch_start_exec(start_msg_execute_fn h) { return patch_code
 // command and executed on every PC, the sender's too, at the step it is scheduled for. Its vtable is the chat's (sent
 // while paused, as talk is) with EEMessage's destructor (it owns nothing: its bytes are in it) and its own export,
 // size, import, execute and name; its factory takes the kind's place in NEMessage::sConstructors (mod_msg_register:
-// at every game start, after the game filled the table at its own). The payload: a subject (who handles it - each
+// right after the game fills the table, once at the program's start - mod_msg_install -, so a message can come in a
+// multiplayer lobby too; again at every game start). The payload: a subject (who handles it - each
 // subject's handler, mod_msg_on), the bytes' count, the bytes. The sender is its originating slot (msg_get_from: the
 // network sets it - a message can't name another; single player: 0xFE). About 512 bytes a turn leave one PC, the rest
 // in later turns, in order (docs/engine-notes.md "Network messages").
 #define MOD_MSG_MAX 480
-enum { MOD_MSG_TEST };   // the subjects (test/testcmd.c `modmsg`: the message itself tested)
+// the subjects: test/testcmd.c `modmsg` (the message itself tested); a multiplayer host's Age of AI map options at
+// its Start (engine/mapgen.c)
+enum { MOD_MSG_TEST, MOD_MSG_MAP_OPTIONS };
 struct mod_msg { uint8_t base[0x10]; uint8_t subject, spare; uint16_t n; uint8_t data[MOD_MSG_MAX]; };
 typedef void (*mod_msg_fn)(int from_slot, const uint8_t *data, int n);
 internal mod_msg_fn g_mod_msg_on[16];
@@ -334,6 +337,17 @@ internal void mod_msg_register(void) {
     g_mod_msg_vt[1 + slot_msg_execute] = (void *)mod_msg_execute;
     g_mod_msg_vt[1 + slot_msg_name] = (void *)mod_msg_name;
     if (table) table[value_messages_kind_free_first] = (void *)mod_msg_build;
+}
+// the game's table filled (messages_functions.messages_register, its one call at the program's start) and the mod's
+// kind put in after it - and at once, in case the table was filled before the mod was loaded (the fill overwrites it
+// then, the hook puts it back): 1 hooked
+internal void __cdecl hook_messages_register(void) {
+    messages_register();
+    mod_msg_register();
+}
+internal int mod_msg_install(void) {
+    mod_msg_register();
+    return patch_messages_register(hook_messages_register);
 }
 // the subject's handler (once, at the start: who carries the message out on every PC)
 internal inline void mod_msg_on(int subject, mod_msg_fn f) { if (subject >= 0 && subject < 16) g_mod_msg_on[subject] = f; }

@@ -101,6 +101,14 @@ internal inline uint8_t *setup_site_setup_scales_end_at(void) { return (uint8_t 
 typedef int (__stdcall *lobby_start_fn)(void *, int);
 internal lobby_start_fn fn_lobby_start;
 internal inline int lobby_start(void *form, int p2) { return fn_lobby_start(form, p2); }
+// the Start button's check of setup.lobby, lobby_start's first call (cdecl, ecx unused): in a random-map game two
+// players at least, a human among them, each human's colour once; a saved game's or scenario's file there - a
+// message box for what fails. 1: the game starts (the start message follows). Hooked: a multiplayer host's Age of
+// AI options go to every PC before the start message (engine/mapgen.c hook_lobby_check)
+typedef uint8_t (__cdecl *lobby_check_fn)(void);
+internal lobby_check_fn fn_lobby_check;
+internal inline uint8_t lobby_check(void) { return fn_lobby_check(); }
+internal inline int patch_lobby_check(lobby_check_fn h) { return patch_call(call_lobby_check, (uintptr_t)fn_lobby_check, (void *)h); }
 // the game setup screen (form 26) brought up to date with setup.lobby: its lists and seats from it, and on the PC
 // that serves the game (a single-player one too: the server's vf4) its lists' and buttons' events attached
 // (0x5CB0A4 - the map type list's EEUIELEGameMapType among them; until then the screen has none). Its calls: the
@@ -187,6 +195,8 @@ internal int spec_setup_select(int build) {
         data_setup_site_editor_scales_end = 0x00592BEA;
         data_setup_site_setup_scales_end = 0x005CE87B;
         fn_lobby_start = (lobby_start_fn)0x005C9B91;
+        fn_lobby_check = (lobby_check_fn)0x005C9D54;
+        call_lobby_check = 0x005C9BC1;
         fn_setup_screen_refresh = (setup_screen_refresh_fn)0x005CACB8;
         calls_setup_screen_refresh[0] = 0x005CE2AA;
         calls_setup_screen_refresh[1] = 0x00661727;
@@ -231,6 +241,8 @@ internal int spec_setup_select(int build) {
         data_setup_site_editor_scales_end = 0x005A2E44;
         data_setup_site_setup_scales_end = 0x005DF58A;
         fn_lobby_start = (lobby_start_fn)0x005DA6B3;
+        fn_lobby_check = (lobby_check_fn)0x005DA876;
+        call_lobby_check = 0x005DA6E3;
         fn_setup_screen_refresh = (setup_screen_refresh_fn)0x005DB6EC;
         calls_setup_screen_refresh[0] = 0x005DEFB9;
         calls_setup_screen_refresh[1] = 0x00678D71;
@@ -265,6 +277,8 @@ internal int spec_setup_check(void) {
     bad += spec_code(data_setup_site_editor_scales_end, "setup.site_editor_scales_end");
     bad += spec_code(data_setup_site_setup_scales_end, "setup.site_setup_scales_end");
     bad += spec_code((uintptr_t)fn_lobby_start, "setup_functions.lobby_start");
+    bad += spec_code((uintptr_t)fn_lobby_check, "setup_functions.lobby_check");
+    bad += spec_call(call_lobby_check, (uintptr_t)fn_lobby_check, "setup_functions.lobby_check [call_site lobby_check]");
     bad += spec_code((uintptr_t)fn_setup_screen_refresh, "setup_functions.setup_screen_refresh");
     bad += spec_call(calls_setup_screen_refresh[0], (uintptr_t)fn_setup_screen_refresh, "setup_functions.setup_screen_refresh [call_site setup_screen_refresh 0]");
     bad += spec_call(calls_setup_screen_refresh[1], (uintptr_t)fn_setup_screen_refresh, "setup_functions.setup_screen_refresh [call_site setup_screen_refresh 1]");

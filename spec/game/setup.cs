@@ -129,6 +129,14 @@ static unsafe class setup_functions
     [address((ee)0x005C9B91, (aoc)0x005DA6B3), stdcall]
     static extern int32 lobby_start(void* form, int32 p2);
 
+    /// the Start button's check of setup.lobby, lobby_start's first call (cdecl, ecx unused): in a random-map game two
+    /// players at least, a human among them, each human's colour once; a saved game's or scenario's file there - a
+    /// message box for what fails. 1: the game starts (the start message follows). Hooked: a multiplayer host's Age of
+    /// AI options go to every PC before the start message (engine/mapgen.c hook_lobby_check)
+    [address((ee)0x005C9D54, (aoc)0x005DA876), cdecl]
+    [call_site("lobby_check", (ee)0x005C9BC1, (aoc)0x005DA6E3)]
+    static extern uint8 lobby_check();
+
     /// the game setup screen (form 26) brought up to date with setup.lobby: its lists and seats from it, and on the PC
     /// that serves the game (a single-player one too: the server's vf4) its lists' and buttons' events attached
     /// (0x5CB0A4 - the map type list's EEUIELEGameMapType among them; until then the screen has none). Its calls: the

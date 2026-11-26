@@ -956,6 +956,7 @@ internal void install(HMODULE self) {
     editor_orders_install();
     terrain_palette_install();
     map_file_install();
+    if (g_log) fprintf(g_log, "# messages: the mod's own kind %s\n", mod_msg_install() ? "put in after the game's table is filled (hooked)" : "- the table's fill NOT hooked: only from a game's start on");
     mapgen_install();
     mapgen_button_install();
     map_sizes_install();

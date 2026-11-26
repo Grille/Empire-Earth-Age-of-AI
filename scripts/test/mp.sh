@@ -2,7 +2,8 @@
 # A multiplayer test game: one test game hosts, HUMANS-1 others join it over the network (dll/test/netgame.c), all on
 # this PC - then their sync traces are diffed: does the game stay in sync on every PC?
 # usage: sh scripts/test/mp.sh <minutes> ["<ini keys>"]   e.g. sh scripts/test/mp.sh 10 "ai_diplomacy=1"
-#   HUMANS=n (default 2) PCs; DLL=<path> as run_test;
+#   HUMANS=n (default 2) PCs; DLL=<path> as run_test; HOST_KEYS="<ini keys>" the host's alone (what only the host's
+#   choice decides, e.g. its [random_map] options: every PC must play them);
 #   STEPS=n (default 20000) the sync trace's steps; GAME_SEED=n (default 777); DUMP=<from ms>-<to ms> (default 1-1000,
 #   the first step is at 34; from 0 is none) the steps whose stock and units the traces list. Ends "MP DONE <stamp>" or
 #   "MP FAIL <crash+desync+nosteps> <stamp>" (crash: a PC that didn't end with exit code 0). Every PC plays the same random map:
@@ -34,7 +35,7 @@ report() {
     [ -f "$f" ] && zcat "$f" | grep -a '^# exception' | cut -c1-400 | head -2
     return 1
 }
-run -Name "$(name 0)" -Tag "_mp${STAMP}_host" -IniExtra "mp=host,$base" > "$mark.r0" &
+run -Name "$(name 0)" -Tag "_mp${STAMP}_host" -IniExtra "mp=host,$base${HOST_KEYS:+,$HOST_KEYS}" > "$mark.r0" &
 host=$!
 until D0=$(folder 0); do
     sleep 1

@@ -1384,10 +1384,12 @@ internal inline uint8_t *messages_iat_import_header_at(void) { return (uint8_t *
 typedef ee_msg *(__cdecl *message_build_fn)(uint8_t *);
 internal message_build_fn fn_message_build;
 internal inline ee_msg *message_build(uint8_t *mem) { return fn_message_build(mem); }
-// cdecl(): message_build into sConstructors for kinds 0x41 .. 0xFD, once at the start (0x530xxx's set-up)
+// cdecl(): message_build into sConstructors for kinds 0x41 .. 0xFD, once at the start (0x537FE5's set-up) - hooked:
+// the mod's own kind after it (messages.c mod_msg_install), so a message of the mod's can come in the lobby too
 typedef void (__cdecl *messages_register_fn)(void);
 internal messages_register_fn fn_messages_register;
 internal inline void messages_register(void) { fn_messages_register(); }
+internal inline int patch_messages_register(messages_register_fn h) { return patch_call(call_messages_register, (uintptr_t)fn_messages_register, (void *)h); }
 typedef uint32_t (__cdecl *sel_pack_fn)(uint8_t *, uint32_t, uint8_t *);
 internal sel_pack_fn fn_sel_pack;
 internal inline uint32_t sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) { return fn_sel_pack(list, player_byte, out); }
@@ -1533,6 +1535,7 @@ internal int spec_messages_select(int build) {
         value_messages_kind_free_last = 253;
         fn_message_build = (message_build_fn)0x004B1B31;
         fn_messages_register = (messages_register_fn)0x004B18A8;
+        call_messages_register = 0x0053807C;
         fn_sel_pack = (sel_pack_fn)0x004BD15A;
         call_sel_pack = 0x004BD133;
         return 0;
@@ -1673,6 +1676,7 @@ internal int spec_messages_select(int build) {
         value_messages_kind_free_last = 253;
         fn_message_build = (message_build_fn)0x004B8F8E;
         fn_messages_register = (messages_register_fn)0x004B8CDA;
+        call_messages_register = 0x00543273;
         fn_sel_pack = (sel_pack_fn)0x004C5E67;
         call_sel_pack = 0x004C5E40;
         return 0;
@@ -1748,6 +1752,7 @@ internal int spec_messages_check(void) {
     bad += spec_data(data_messages_iat_import_header, "messages.iat_import_header");
     bad += spec_code((uintptr_t)fn_message_build, "messages_functions.message_build");
     bad += spec_code((uintptr_t)fn_messages_register, "messages_functions.messages_register");
+    bad += spec_call(call_messages_register, (uintptr_t)fn_messages_register, "messages_functions.messages_register [call_site messages_register]");
     bad += spec_code((uintptr_t)fn_sel_pack, "messages_functions.sel_pack");
     bad += spec_call(call_sel_pack, (uintptr_t)fn_sel_pack, "messages_functions.sel_pack [call_site sel_pack]");
     return bad;
