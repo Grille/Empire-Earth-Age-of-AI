@@ -315,14 +315,20 @@ internal float camera_zoom_notches(int n) {
 #define CAM_RAY_STEP 0.5f     // tiles along the ray
 #define CAM_RAY_MOST 20000
 internal int rf_screen_ray(const float *m, float mx, float my, float *eye, float *d);
+// The ray stops at what is seen: GetMeshZ, the ground's height and over water the surface's (0 - the camera's move puts the
+// look-at on it too: 46 spots of Small Islands' sea all 0). The tile's height it took before is its lowest corner, under
+// water the seabed's: the point under the mouse lay under the surface and the sea slid under the cursor as the zoom
+// tilted the view (the player 2026-11-26: "the camera behaves weired over water, it seems to take the ground underneth as
+// base for the tilt, instead of the water surface"). Off the map at the look-at's height.
 internal int camera_ground_point(const float *eye, const float *d, float low, float *at) {
     float len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    if (!(d[2] < 0) || !(len > 0)) return 0;
+    ee_map *map = game_map();
+    if (!(d[2] < 0) || !(len > 0) || !map) return 0;
+    const void *mesh = map_mesh_at(map);
     float p[3] = { eye[0], eye[1], eye[2] }, k = CAM_RAY_STEP / len;
     for (int i = 0; i < CAM_RAY_MOST; i++) {
-        float h;
-        ivec2 t = { (int)floorf(p[0]), (int)floorf(p[1]) };
-        if (tile_height(t, &h) ? p[2] <= h : p[2] <= low) { memcpy(at, p, sizeof p); return 1; }
+        int on = p[0] >= 0 && p[1] >= 0 && mesh_has_tile(mesh, (int)p[0], (int)p[1]);
+        if (p[2] <= (on ? mesh_z(mesh, p[0], p[1]) : low)) { memcpy(at, p, sizeof p); return 1; }
         for (int a = 0; a < 3; a++) p[a] += d[a] * k;
     }
     return 0;
