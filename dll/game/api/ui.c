@@ -69,6 +69,20 @@ internal inline void ui_form_add_hotkey(void *form, unsigned long key, void *ev)
     typedef void (__thiscall *AddHotKeyFn)(void *, unsigned long, unsigned long, unsigned long, unsigned long, void *, void *, void *, void *, unsigned long, char);
     (*(AddHotKeyFn *)data_ui_iat_uiform_add_hotkey)(form, key, 0x7FFF, 0x7FFF, 0x7FFF, NULL, ev, NULL, NULL, 0, 1);
 }
+// a key's press, as the game's form registers its F keys (0x64C8B0: the event the first of the four, no repeat)
+internal inline void ui_form_add_press_hotkey(void *form, unsigned long key, void *ev) {
+    typedef void (__thiscall *AddHotKeyFn)(void *, unsigned long, unsigned long, unsigned long, unsigned long, void *, void *, void *, void *, unsigned long, char);
+    (*(AddHotKeyFn *)data_ui_iat_uiform_add_hotkey)(form, key, 0x7FFF, 0x7FFF, 0x7FFF, ev, NULL, NULL, NULL, 0, 0);
+}
+// the perspective key's event (EEUIEMGTogglePerspective: the view 0 -> 1 -> 2 -> 0, its name on the screen), made as 0x64C8B0 makes it
+internal inline void *toggle_perspective_new(void) {
+    uint32_t *ev = game_new(12);
+    if (!ev) return NULL;
+    ev[0] = vt_eeuiemg_toggle_perspective;
+    ev[1] = 1;
+    ev[2] = 0;
+    return ev;
+}
 // the mouse's position kept in its range, its update (the original of display.c's hook)
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)data_ui_iat_uim_form)(uim); }

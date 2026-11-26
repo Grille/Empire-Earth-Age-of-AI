@@ -97,6 +97,7 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
 // never did (in neither build: it scrolls only at the screen edge and by dragging) - given to it the same way.
 internal void editor_undo_hotkeys(ee_editor_form *form);   // editor_undo.c
 internal void editor_formation_form(ee_editor_form *form);   // editor_formation.c
+internal void editor_camera_hotkeys(ee_editor_form *form);   // editor_camera.c
 internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
     if (g_editor_layout) {
         int w = 800, h = 600;
@@ -114,6 +115,7 @@ internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
     if (g_log) { log_locked("# editor: arrow keys scroll %d/4\n", n); }
     editor_undo_hotkeys(form);
     editor_formation_form(form);
+    editor_camera_hotkeys(form);
     return r;
 }
 

@@ -47,6 +47,16 @@ internal uint32_t __thiscall hook_ec_home(eeuie_return_to_home_rotation *self, e
     return eeuie_return_to_home_rotation_execute(self, form, arg);
 }
 
+// The perspective key in the editor too (the player 2026-11-26: "yes add f2 to the editor"): the game's form has it
+// (F2, 0x64C8B0), the editor's never had - the view went 0 to 2 by the turn's key and back by Home only. The game's own
+// event, on the editor's form as it is built (display.c hook_editor_form).
+#define DIK_F2 0x3C
+internal void editor_camera_hotkeys(ee_editor_form *form) {
+    void *ev = toggle_perspective_new();
+    if (ev) ui_form_add_press_hotkey(form, DIK_F2, ev);
+    if (g_log) log_locked("# editor: F2 the perspective %s\n", ev ? "on" : "FAILED");
+}
+
 internal void editor_camera_install(void) {
     int n = patch_editor_camera(&g_ec_not_free),
         t = patch_disable_mouse_move_execute(hook_ec_turn_key) + patch_home_rotation_execute(hook_ec_home)
