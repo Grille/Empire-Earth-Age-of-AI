@@ -1928,6 +1928,11 @@ internal int ff_watch_state(ee_unit *u) {
     int s = !gr ? -1 : !gr->on ? 0 : !gr->live ? 1 : e->out ? 6 : e->rel ? 7 : cur && goal_is_attack(cur) ? 8 : e->step + 1 >= ff_step() ? 2 : e->own == 1 ? 5 : e->own == 2 ? 3 : 4;
     return s + 10 * q;
 }
+// u leads its formation (`uinfo`: a test sends the leader its own order)
+internal int ff_leads(ee_unit *u) {
+    struct ff_unit *e = g_ff_on ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
+    return e && e->g >= 0 && g_ff[e->g].on && g_ff[e->g].leader == e->id;
+}
 
 // u's distance from its point in its marching formation this step (test/fleetmove.c), else -1
 internal float ff_point_off(ee_unit *u) {
@@ -2009,12 +2014,15 @@ internal void ff_linger_tick(void) {
     // nothing let it go, and the linger walked it back to its spot once it stood. Another order: a move elsewhere (not
     // to its spot), a build, a gathering, a load, an unload, a garrison, a power; an attack (the game's own answer to an
     // enemy, an attack-move's fight) or a heal keeps it. A march's leader is the march's own business (ff_leader: given
-    // another order, the march ends) - let go here once the march is over. A move to its spot anywhere in its queue keeps it
+    // another order, the march ends) - let go here once the march is over. A move to its spot anywhere in its queue keeps it.
+    // The leader of a re-form with no march (in_place 1) is no march's: its formation is on while it has an order, so
+    // its own order kept it on and it was walked back once it stood (the player, 2026-11-26, Art of Conquest: 5
+    // citizens moved a tile, one sent off, "still get called back") - let go, the formation lingers from then
     for (int k = 0; k < FF_UNITS; k++) {
         struct ff_unit *e = &g_ff_u[k];
         if (!e->id || e->g < 0 || e->pend) continue;
         struct ff_group *gr = &g_ff[e->g];
-        if (gr->on && e->id == gr->leader) continue;
+        if (gr->on && gr->in_place != 1 && e->id == gr->leader) continue;
         ee_unit *u = unit_by_id(e->id);
         ee_goal *g = u && unit_get_hp(u) > 0 && unit_orders(u) ? unit_get_goal(u) : NULL;
         if (!g) continue;
@@ -2028,6 +2036,7 @@ internal void ff_linger_tick(void) {
             if (q && goal_is_location(q)) { vec3 to = goal_target(q, u); queued = vec2_dist2(v2(to.x, to.y), e->home) < 1.5f * 1.5f; }
         }
         if (queued) continue;
+        if (gr->on && e->id == gr->leader) { gr->on = 0; gr->linger = step ? step : 1; }   // a re-form's leader (above)
         e->g = -1;
         g_ff_left++;
     }

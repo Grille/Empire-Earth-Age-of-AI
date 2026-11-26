@@ -1266,15 +1266,15 @@ internal void cmd_uinfo(char *out, const char *args) {
         ee_player *owner = unit_get_owner(u);
         vec3 pos = unit_get_pos(u), fwd = unit_get_facing(u);
         // + its state (the .tai's: 5000 Idle, 10003 Advance ...), orders queued, waypoints left, march (ff_watch_state:
-        // -1 none) - what has a unit standing about in the player's game
+        // -1 none; "lead": its formation's leader) - what has a unit standing about in the player's game
         ee_goal *g = unit_get_goal(u);   // where it goes: a move's point, an attack's target
         ee_unit *tg = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
         // side: the model's x axis's rise (its roll; fwd's z its pitch); up: its z axis's height (its scale upwards)
-        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f side %.2f up %.3f goal %s to %.0f,%.0f state %u orders %d wps %d ff %d\n",
+        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f side %.2f up %.3f goal %s to %.0f,%.0f state %u orders %d wps %d ff %d%s\n",
               u, unit_type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u), pos.x, pos.y, pos.z,
               unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, unit_get_matrix(u, 8), unit_get_matrix(u, 10), rtti_name(g),
               tg ? (float)unit_get_x(tg) : g ? goal_get_dest_x(g) : -1.0f, tg ? (float)unit_get_y(tg) : g ? goal_get_dest_y(g) : -1.0f,
-              unit_ai_state_id(u), unit_orders(u), unit_get_waypoints_left(u), ff_watch_state(u));
+              unit_ai_state_id(u), unit_orders(u), unit_get_waypoints_left(u), ff_watch_state(u), ff_leads(u) ? " lead" : "");
     }
 }
 
