@@ -106,8 +106,24 @@
 #define US_KICK_SPACE 0.4f    // radians/s about each axis at its death, half to all of it, either way
 #define US_BOOM_AT 10.0f
 #define US_BOOM_RND 20.0f
-internal int uc_is_space(int k) { return k == CLS_SPACESHIP || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP; }
+internal int uc_is_space(int k) { return k == CLS_SPACESHIP || k == CLS_SPACE_BUILDING || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP; }
+// THE SPACE CARRIER AND THE BUILDINGS IN SPACE (the player, 2026-11-26: "the space carrier, aswell as the 3 space buildings
+// dont have the new death animations yet"): the Space Carrier is a unit of the class space building (32), left out of
+// the spaceships' classes; the Space Dock, the Space Turret and the Orbital Space Station are plain buildings (class 2)
+// standing in space - a building whose middle stands on a space tile (rg_space_tile) is a spaceship's wreck too: over
+// space no ground to sink into, it breaks into burnt pieces that drift and blow up
 internal int rg_space_tile(const void *mesh, int x, int y);   // render_ground.c
+internal int uc_space_building(const ee_unit_type *ty, const float *t) {
+    return unit_type_get_class_id(ty) == CLS_BUILDING && rg_space_tile(map_mesh_at(game_map()), (int)floorf(t[3]), (int)floorf(t[7]));
+}
+// The Orbital Space Station's rot time is 0: the game takes it off in the step it dies, and the walk never met it dead
+// (logged: met alive, then gone). A living building in space with none gets the Space Dock's (US_SPACE_ROT_MS) - its
+// type's, and its complex unit's type's (AoC reads that one) - so its dead object stays the moment the wreck is made of;
+// the other buildings with none are markers and the volcano, never in space
+#define US_SPACE_ROT_MS 1000
+internal void uc_space_rot(ee_unit_type *ty) {
+    if (ty && unit_type_get_rot_time(ty) <= 0) unit_type_set_rot_time(ty, US_SPACE_ROT_MS);
+}
 internal int g_us_floor;   // the pipe's: 1 every ship long enough that doesn't break at its death breaks on the seabed, -1 none, 0 drawn
 // its hull's top: this share of its model's height over the water, at most US_HULL_MAX (the models' own space: a
 // sailing ship's 0 .. 1 to its masts' tops, a modern one's 0 .. 0.35 - 0.55; an Imperial battleship's lower sails hang
@@ -505,7 +521,7 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     // a ship's floats at its waterline (its model's 0), a submarine's at its hull's middle height: its model stands on
     // its keel (0 .. 0.5 of its scale, logged), the game holds it 0.4 tiles under the water, wholly under
-    int cls = unit_type_get_class_id(o->ty), sub = cls == CLS_SUBMERGED_NAVAL, space = uc_is_space(cls), air = uc_is_aircraft(cls) || space;
+    int cls = unit_type_get_class_id(o->ty), sub = cls == CLS_SUBMERGED_NAVAL, space = uc_is_space(cls) || uc_space_building(o->ty, t), air = uc_is_aircraft(cls) || space;
     int x_long = (!air || space) && hi[0] - lo[0] >= hi[1] - lo[1];   // (a spaceship's the longer way, as a ship's)
     float fz = sub ? 0.5f * (lo[2] + hi[2]) * s : 0.0f;
     float c[3] = { 0.5f * (lo[0] + hi[0]) * s, 0.5f * (lo[1] + hi[1]) * s, fz };
@@ -567,7 +583,9 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
             const float *b = k->body[i];
             k->sp[i][j] = k->sq[i][j] = t[j * 4 + 3] + t[j * 4] * b[0] + t[j * 4 + 1] * b[1] + t[j * 4 + 2] * b[2];
         }
-    int late = o->rotting || (!air && (t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f)));   // (a submarine is under anyway)
+    // (a spaceship's wreck never late: nothing has moved it as the game sinks a ship - a Space Dock met already rotting
+    // neither broke nor blew up and sank on for good)
+    int late = !space && (o->rotting || (!air && (t[10] < 0.98f || (!sub && t[11] < k->zw - 0.05f))));   // (a submarine is under anyway)
     memset(k->dig, 0, sizeof k->dig);
     us_leaks(k, o->serial, late, !air && !sub);
     for (int i = 0; i < 4 && k->heli; i++) k->leak[i][1] *= US_HELI_LEAK, k->leak[i][2] *= US_HELI_LEAK;
@@ -613,7 +631,9 @@ internal void us_start(uc_corpse *k, const uc_obj *o, const float *t) {
     }
     float v[3] = { 0.0f, 0.0f, 0.0f };
     int pair = -1;
-    if (!late) us_velocity(o, v, air, &pair);
+    // (a building in space stood still: no way nor turn from its poses - a freshly made one's, taken for its way, sent
+    // its pieces off at 4 tiles/s)
+    if (!late && unit_type_get_class_id(o->ty) != CLS_BUILDING) us_velocity(o, v, air, &pair);
     for (int i = 0; i < k->n; i++)   // Verlet: a step's way behind
         for (int j = 0; j < 3; j++) k->sq[i][j] -= v[j] * (float)US_DT;
     if (air && pair >= 0) us_spin(k, o, t, pair);
@@ -993,14 +1013,24 @@ internal void us_run(uc_corpse *k) {
         if (k->snap_t >= 0.0f && !k->half && t >= k->snap_t) us_snap(k, t, 0);
         us_step(k, t, mesh);
         if (k->floor_snap && k->floor_hit && !k->half && ++k->floor_hit > US_FLOOR_STEPS) us_snap(k, t, 1);   // (BREAKING ON THE SEABED)
-        if (other) us_halves_apart(k, other);
-        if (k->space && !k->blown && k->boom_t >= 0.0f && t >= k->boom_t) {   // (A SPACESHIP'S WRECK) its blast
+        // (not a spaceship's: its pieces are kicked apart; a short wide one's - a Space Dock's three of 0.5 tiles with
+        // capsules 0.75 across - overlapped from the break and were flung at 4 tiles/s, 2026-11-26)
+        if (other && !k->space) us_halves_apart(k, other);
+        if (k->space && !k->blown) {
             float m[3] = { 0, 0, 0 };
             for (int i = 0; i < 4; i++)
                 for (int j = 0; j < 3; j++) m[j] += 0.25f * k->sp[i][j];
-            us_fx(k, US_FX_BOOM, m[0], m[1], m[2]);
-            k->blown = 1;
-            break;
+            // drifted off the map's edge: let go there, unseen (a Space Dock's piece 2026-11-26 - drawn it was a fault's
+            // notice, uc_corpse_on_map)
+            if (!(isfinite(m[0]) && isfinite(m[1]) && mesh_has_tile(mesh, (int)floorf(m[0]), (int)floorf(m[1])))) {
+                k->blown = 1;
+                break;
+            }
+            if (k->boom_t >= 0.0f && t >= k->boom_t) {   // (A SPACESHIP'S WRECK) its blast
+                us_fx(k, US_FX_BOOM, m[0], m[1], m[2]);
+                k->blown = 1;
+                break;
+            }
         }
     }
 }

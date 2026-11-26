@@ -32,7 +32,7 @@ internal float uc_dead_opacity(double d) {   // how much of a corpse is seen at 
 // stuck halfway" - kept at the pose where the game took it off, halfway down, and lying on for remains_lie_seconds)
 internal int uc_game_sinks(const ee_unit_type *ty) {
     int k = unit_type_get_class_id(ty);
-    return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || k == CLS_SPACESHIP || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP;
+    return class_is_ship(k) || k == CLS_SUBMERGED_NAVAL || k == CLS_SPACESHIP || k == CLS_SPACE_BUILDING || k == CLS_SPACE_TRANSPORT || k == CLS_PLANET_SPACESHIP;
 }
 // a corpse's pose t lowered as far as its age has taken it
 internal void uc_sink_at(float *t, ee_dmg_model *gfx, int32_t anim, int32_t frame, float scale, double d) {
@@ -337,6 +337,7 @@ internal int uc_fill_corpse(uc_corpse *k, uint8_t *rec, uint8_t *maps, double d,
     __attribute__((aligned(8))) float pose[16];   // where it lies: its last pose, a ship's by its floats on
     memcpy(pose, k->t, sizeof pose);
     if (k->ship) us_run(k), us_pose(k, pose);
+    if (k->blown) return 0;   // (blown up, or drifted off the map, in this run: let go at the walk's end)
     uc_settle(k, pose);
     int32_t anim = k->anim, frame = k->frame, next = k->frame;
     float fraction = 0.0f;

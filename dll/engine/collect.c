@@ -1086,7 +1086,9 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         ground_point(map, p, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
-    int ship = cu && g_set.remains_sink && g_set.remains_physics && o->cu_hp <= 0 && uc_is_ship(o->ty);   // (uc_ship_*)
+    int ship = cu && g_set.remains_sink && g_set.remains_physics && o->cu_hp <= 0 && (uc_is_ship(o->ty) || uc_space_building(o->ty, t));   // (uc_ship_*)
+    if (cu && o->cu_hp > 0 && g_set.remains_sink && g_set.remains_physics && uc_space_building(o->ty, t))
+        uc_space_rot(o->ty), uc_space_rot(o->cty);   // (THE SPACE CARRIER AND THE BUILDINGS IN SPACE)
     if (cu && (o->rotting || ship) && g_set.remains_sink && (ship || !uc_game_sinks(o->ty))) {   // after the ground's height under it: that stays the ground's
         double d = uc_dead_ms(o);
         if (o->rot_t > 0 || ship) uc_corpse_saw(c, o, rec, t, d, ship);

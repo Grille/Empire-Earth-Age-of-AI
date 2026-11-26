@@ -1096,6 +1096,18 @@ in its own time, by the ship's death effect where it is (US_FX_BOOM); one that c
 Checked headless in Art of Conquest, Small Planets, over space: a capital ship and a corvette in three pieces, a space
 transport and a space fighter in two, all cut and filled; the pieces scattered, tumbling, drifting down, and blew up
 between 10 and 30 s.
+The Space Carrier and the buildings in space the same (2026-11-26, the player: "the space carrier, aswell as the 3 space
+buildings dont have the new death animations yet"; collect_remains_physics.c THE SPACE CARRIER AND THE BUILDINGS IN SPACE).
+The carrier's class is the space building's (32), now one of the spaceships'. The Space Dock, the Space Turret and the
+Orbital Space Station are plain buildings: one whose middle stands on a space tile is a spaceship's wreck too, with no
+way or turn taken from its poses (a freshly made one's read 4 tiles/s). The Orbital Space Station's rot time is 0 - the
+game takes it off in the step it dies, never met dead - so a living building in space with none gets the Space Dock's
+1000 ms (its type's and its complex unit's type's). Found on the way, for every space wreck: one met already rotting was
+"late" - no break, no blast, it sank on for good (a Space Dock); a space wreck is never late now. The halves' capsules
+are not a space wreck's (the Space Dock's pieces, 0.5 tiles long and 0.75 across, overlapped from the break and were
+flung at 4 tiles/s; they are kicked apart anyway). A piece drifting off the map's edge is let go there unseen (it was
+the off-map guard's fault notice). Checked in AoC, Small Planets: the four killed over space and at a planet's edge -
+each in three pieces (the turret in two), cut and filled, drifting at 0.3 - 0.6 tiles/s, blown up from 14 s; no notice.
 
 ## The units' draw, the mod's own (2026-11-11 on)
 
