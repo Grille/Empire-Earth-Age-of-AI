@@ -316,6 +316,10 @@ map_v_poles = {
     en = "Poles and equator",
     de = "Pole und Äquator",
 }
+map_v_mixed = {
+    en = "Mixed",
+    de = "Gemischt",
+}
 map_v_arid = {
     en = "Arid",
     de = "Dürr",

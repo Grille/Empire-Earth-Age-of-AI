@@ -22,7 +22,7 @@ internal const char *const k_words[] = {
     "map_seed", "map_new_seed", "map_keep_seed", "map_options_button",
     "map_v_two_continents", "map_v_small", "map_v_normal", "map_v_large", "map_v_cold", "map_v_cool", "map_v_warm",
     "map_v_hot", "map_v_arid", "map_v_dry", "map_v_wet", "map_v_lush", "map_v_none", "map_v_few", "map_v_many",
-    "map_v_lots", "map_v_north_south", "map_v_poles",
+    "map_v_lots", "map_v_north_south", "map_v_poles", "map_v_mixed",
     "map_size_enormous", "map_size_colossal", "map_size_titanic",          // map_sizes.c: the sizes past Gigantic
 };
 #define N_WORDS (int)(sizeof k_words / sizeof *k_words)

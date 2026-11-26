@@ -881,9 +881,9 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   "Age of AI", its options in a dialog): the layout (two continents so far), the land's size (the continents' ellipses
   and the starts' spread 0.8 / 1 / 1.12 times), the climate (-0.4 .. +0.4 on the temperature, whose bands are at
   -0.3 / 0.3), the climate zones (2026-11-26, the player: "north to south (what we have now), poles (north and
-  south are cold with a warm equator), none (no bias based on position, noise only)" - mapgen.c mg_temp: north to
-  south from -1 to 1 along the continents; poles 0.7 in the middle to -0.75 at the continents' ends, so cold, mild,
-  hot, mild, cold along each (from 1 in the middle half of each continent was hot, mostly desert); none the noise
+  south are cold with a warm equator), none (no bias based on position, noise only)"; named "mixed" at their next
+  word) - mapgen.c mg_temp: north to south from -1 to 1 along the continents; poles 0.7 in the middle to -0.75 at the continents' ends, so cold, mild,
+  hot, mild, cold along each (from 1 in the middle half of each continent was hot, mostly desert); mixed the noise
   alone, 2.5 times as strong), the rain (-0.2 .. +0.2 on the moisture, bands at 0.4 / 0.6), and how many mountains (ranges and
   plateaus), rivers (lakes' outflows too), lakes, islands, forests and mines (land, mountain feet, plateaus) - none,
   few, normal, many, lots: 0, 0.5, 1, 2, 3 times the count the map's size gives. "normal" leaves the map as it is, bit

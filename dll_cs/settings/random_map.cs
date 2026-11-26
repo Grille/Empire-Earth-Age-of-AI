@@ -51,8 +51,8 @@ class random_map
         north_south,
         /// cold at both ends of the continents, hot along the middle of the map
         poles,
-        /// no zones: warm and cold places wherever the weather has them
-        none,
+        /// no zones: warm and cold places mixed, wherever the weather has them
+        mixed,
     }
     /// Where it is cold and where hot:
     map_climate_zones_choice map_climate_zones = map_climate_zones_choice.north_south;
