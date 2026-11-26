@@ -88,7 +88,10 @@ internal const struct mg_biome {
     { "taiga", { "Snow - Tufts", "Snow", "Snow - Grass Patches", "Snow", "Snow" }, { 40, 30, 20, 5, 5 }, "Ice", "Snow - Dirt Patches", "Snow - Tufts",
       { MG_FIRS }, { NULL }, 200, 36, 60, { "res_deer", "res_goat" }, { 50, 90, 60, 50, 80 }, 0, 0 },
     // mild
-    { "steppe", { "Grass - Sparse", "Dry Leaves", "Grass - Patches", "Grass", "Grass - Sparse" }, { 40, 20, 25, 10, 5 }, "Beach", "Sand - Medium", "Dry Leaves",
+    // (no Dry Leaves on its open land - the player 2026-11-26: they look a forest's floor, not dry ground; green
+    // enough not to be taken for the hot desert's sand: the sparse grass with plain grass and tufts, as the game's own
+    // temperate maps have them)
+    { "steppe", { "Grass - Sparse", "Grass", "Grass - Patches", "Grass - Tufts", "Grass - Sparse" }, { 40, 25, 15, 15, 5 }, "Beach", "Sand - Medium", "Dry Leaves",
       { MG_DEAD }, { MG_MAPLE }, 1200, 8, 20, { "res_horse", "res_goat", "res_ostrich" }, { 80, 80, 80, 50, 80 }, 0, 0 },
     { "grassland", { "Grass", "Grass - Tufts", "Grass - Tall", "Grass - Patches", "Grass" }, { 60, 10, 6, 8, 16 }, "Beach", "Sand - Medium", "Grass - Sparse",
       { MG_MAPLE }, { NULL }, 420, 26, 50, { "res_deer", "res_horse", "res_goat" }, { 70, 70, 70, 100, 100 }, 1, 15 },
