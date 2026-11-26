@@ -182,6 +182,9 @@ internal const char k_rd3_shader[] =
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges); y: by the material's alpha too (render_oit.c)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher (render_frame.c rf_water_part)
+    "cbuffer wtc : register(b7) { float4 wtn; float4 wtm; float4 wts[64]; }; Texture2D<float> wfl : register(t3);\n"   // the water's tint by depth (render_water.c rw_step): the last step, the scale, on, 1 / the fade; the corners across; the steps' colours; a corner's of the water's colours (render_ground.c)
+    "float wflag(float2 p) { float2 q = clamp(p, 0, wtm.x - 1.001); int2 a = int2(q); float2 f = q - a;"
+    " return lerp(lerp(wfl.Load(int3(a, 0)), wfl.Load(int3(a + int2(1, 0), 0)), f.x), lerp(wfl.Load(int3(a + int2(0, 1), 0)), wfl.Load(int3(a + int2(1, 1), 0)), f.x), f.y); }\n"
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
@@ -213,7 +216,7 @@ internal const char k_rd3_shader[] =
     // gt, gl for the borders (render_ground.c): the table's colour of the corners that are this texture's, how much of it is; the light;
     // a space map's edge and faces (w 2: rg_space_quad) none, gt.a -1 - its texture's own alpha is the edge's shape; a face (its
     // normal level: rg_space_quad) -2, lit by its own normal, fo the way it looks (the hills' shadows taken out in front of it)
-    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo, out uint gm, out float3 gnn) { gm = i.w >> 2; gnn = i.n; i.w &= 3; int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
+    "void ground(inout I i, out float4 gt, out float3 gl, out float2 fo, out uint gm, out float3 gnn) { gm = (i.w >> 2) & 0x3FFFFF; gnn = i.n; if (grl.z > 0 && ((i.w >> 24) & 1)) i.c.rgb = 1; i.w &= 3; int X = (int)i.p.x, Y = (int)i.p.y; float wv = sin(i.p.x * i.p.y + gnd.y); if (gnd.x > 1.5) i.p.z = i.p.z < 0 ? wv * gnd.z : (wv - 1) * gnd.z * 0.5;"
     " else if (i.p.z < -0.5) i.p.z -= wv * gnd.z; float l = 1;"
     " if (gnd.w == 0) { l = 0; for (int j = 0; j < 4; j++) { int2 a = int2(X - (j & 1), Y - (j >> 1)); if (a.x >= 0 && a.y >= 0) l += round(gf.Load(int3(a, 0)) * 2) * 0.125; } }"
     " float3 L = gla.rgb; for (int k = 0; k < (int)gla.w; k++) L += glc[k].rgb * max(0, dot(i.n, gld[k].xyz)); fo = i.w > 1 && abs(i.n.z) < 0.5 ? i.n.xy : float2(0, 0); gt = i.w > 1 ? float4(0, 0, 0, any(fo != 0) ? -2 : -1) : float4(i.c.zyx * i.w, i.w); gl = saturate(L) * l; i.w = 0; i.c.rgb *= saturate(L).bgr * l; i.n = 0; }\n"
@@ -431,7 +434,15 @@ internal const char k_rd3_shader[] =
     "  if (db > i.p.z) { a = b; d = db; } }"
     " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
-    " return float4(lerp(wsc.Load(a).rgb, fc, wp * wp * (3 - 2 * wp)), 1); }\n"
+    // the tint by depth (render_water.c THE TINT BY DEPTH): the point behind on the same line of sight, the water's colour
+    // by its height as the game picks it, between the two steps around it, as much as the corners there are the water's
+    // colours; under the fog of where the line enters
+    " float3 bc = wsc.Load(a).rgb;"
+    " if (wtn.z > 0 && d < 0.99999) { float3 bp = wop.xyz + (i.w - wop.xyz) * ((i.p.z - wfc.w) / (d - wfc.w));"
+    "  float u = clamp(bp.z * wtn.y * wtn.x - 0.5, 0, wtn.x); uint k = (uint)u;"
+    "  float3 tc = lerp(float3(1, 1, 1), lerp(wts[k].rgb, wts[min(k + 1, (uint)wtn.x)].rgb, u - k), saturate((sea.z - bp.z) * wtn.w) * wflag(bp.xy));"
+    "  float3 fr = misc.y > 0.5 ? fogc.rgb * (1 - saturate(i.f)) : float3(0, 0, 0); bc = bc * tc + fr * (1 - tc); }"
+    " return float4(lerp(bc, fc, wp * wp * (3 - 2 * wp)), 1); }\n"
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
     // colour lit as the unit is - on a white part the brightest channel of its vertex colour, on a part in the player's
     // colour (the vertex colour the light times it: nearer the player's colour's direction than grey's) the vertex colour

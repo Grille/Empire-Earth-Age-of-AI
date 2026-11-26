@@ -105,6 +105,8 @@ internal struct {
     int32_t mop[2][RG_MATERIALS][6];
     ID3D11Texture2D *fow;
     ID3D11ShaderResourceView *fow_srv;
+    ID3D11Texture2D *wfl;          // a corner's colour of the water's by depth: 1, else 0 (R8, the corners across: the map's size + 1;
+    ID3D11ShaderResourceView *wfl_srv;   // render_water.c THE TINT BY DEPTH), each chunk's part as the chunk is made
     uint8_t *fow_was, *fow_now;
     ID3D11Buffer *cb, *cbw, *skirt;
     int nskirt;
@@ -172,6 +174,8 @@ internal void rg_free(void) {
     g_rg.nskirt = 0;
     D3D_RELEASE(g_rg.fow_srv);
     D3D_RELEASE(g_rg.fow);
+    D3D_RELEASE(g_rg.wfl_srv);
+    D3D_RELEASE(g_rg.wfl);
     free(g_rg.fow_was); free(g_rg.fow_now);
     g_rg.fow_was = g_rg.fow_now = NULL;
     for (int w = 0; w < 2; w++) for (int m = 0; m < RG_MATERIALS; m++) D3D_RELEASE(g_rg.srv[w][m]);
@@ -236,9 +240,11 @@ internal void rg_vertex_at(rb_vertex *o, float x, float y, float z, unsigned lon
     float *f = (float *)o->fvf;
     f[0] = x; f[1] = y; f[2] = z;
     memcpy(f + 3, g_rg.normal(g_rg.mesh, gx, gy), 12);
-    *(uint32_t *)(f + 6) = rg_bytes(g_rg.colour(g_rg.mesh, gx, gy), a & 255);
+    const float *c = g_rg.colour(g_rg.mesh, gx, gy);
+    *(uint32_t *)(f + 6) = rg_bytes(c, a & 255);
     f[7] = uv[0]; f[8] = uv[1];
     o->w = (uint32_t)a >> 8;   // 1: the corner is this texture's (the vertex shader's ground: the borders' colour); 2: a space piece, as it is; bits 2-12 its material + 1, 13-23 its set's first's (rg_quad)
+    if (rw_water_slot(g_rg.mesh, c)) o->w |= 1u << 24;   // bit 24: its colour is the water's by depth - white while the water's step tints (render_water.c)
 }
 internal void rg_vertex(rb_vertex *o, unsigned long x, unsigned long y, const float *uv, int a) {
     rg_vertex_at(o, (float)x, (float)y, g_rg.z(g_rg.mesh, x, y), x, y, uv, a);
@@ -689,7 +695,17 @@ internal void rg_chunk_build(int cx, int cy, rg_tri *tris) {
         }
         rg_part_make(&c->p[w], tris, n, w);
     }
+    if (g_rg.wfl) {   // the chunk's corners, its far edges' too
+        static uint8_t f[(RG_CHUNK + 1) * (RG_CHUNK + 1)];
+        int x0 = cx * RG_CHUNK, y0 = cy * RG_CHUNK, x1 = x0 + RG_CHUNK < g_rg.size ? x0 + RG_CHUNK : g_rg.size, y1 = y0 + RG_CHUNK < g_rg.size ? y0 + RG_CHUNK : g_rg.size;
+        for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++)
+            f[(y - y0) * (RG_CHUNK + 1) + x - x0] = rw_water_slot(g_rg.mesh, g_rg.colour(g_rg.mesh, (unsigned long)x, (unsigned long)y)) ? 255 : 0;
+        D3D11_BOX b = { (UINT)x0, (UINT)y0, 0, (UINT)x1 + 1, (UINT)y1 + 1, 1 };
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rg.wfl, 0, &b, f, RG_CHUNK + 1, 0);
+    }
 }
+// the corners' flags of the water's colours for the water's step (render_water.c), NULL: none
+internal ID3D11ShaderResourceView *rg_water_flags(void) { return g_rg.built ? g_rg.wfl_srv : NULL; }
 // THE BLACK ROUND THE MAP. Its triangles both ways round: which way the game's face (four lists by hand) doesn't matter when both are there
 internal void rg_black(rb_vertex *o, const float *p) {
     float *f = (float *)o->fvf;
@@ -841,6 +857,9 @@ internal int rg_build(void) {
     D3D11_TEXTURE2D_DESC qd = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R32G32B32A32_UINT, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
     if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &qd, NULL, &g_rg.tq)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.tq, NULL, &g_rg.tq_srv)))
         D3D_RELEASE(g_rg.tq);   // the borders each by its own heights
+    D3D11_TEXTURE2D_DESC fd = { (UINT)g_rg.size + 1, (UINT)g_rg.size + 1, 1, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+    if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &fd, NULL, &g_rg.wfl)) || FAILED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rg.wfl, NULL, &g_rg.wfl_srv)))
+        D3D_RELEASE(g_rg.wfl);   // no tint by depth: the game's colours under the water
     LONGLONG t0 = rd_qpc();
     g_rg.wcol = rg_bytes(g_rg.water_colour(g_rg.mesh, 0, 0), 0);
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) rg_chunk_build(cx, cy, tris);
@@ -1382,6 +1401,7 @@ internal void rg_draw_now(int water, int again) {
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }
     // the relief (grl): a full brightness's height in tiles (RGB_RELIEF at 100%), the slices' texels across
     if (!water && rgb_wanted() && g_rgb.nrm_srv) { cb[80] = rgb_relief() * RGB_RELIEF; cb[81] = RGB_SIDE; }
+    if (!water) cb[82] = rw_depth_tint() ? 1.0f : 0.0f;   // grl.z: the corners of the water's colours white (render_water.c THE TINT BY DEPTH)
     if (water) cb[73] = wblend;   // the water's: its frames' blend (gbl.y; its borders' gbl.x stays 0)
     if (g_rg.ov_on) {   // the overlay's picture (gov): the map's place -> its texture's
         cb[76] = g_rg.ov[0]; cb[77] = g_rg.ov[1];
