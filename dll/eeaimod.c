@@ -637,6 +637,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/mapgen.c"         // the mod's own map types in the game's list, their maps made here whole
 #include "engine/map_sizes.c"      // map sizes past Gigantic in the game's lists
 #include "engine/mapgen_dialog.c"  // the mod's map type's options asked for in the editor, its preview
+#include "engine/mapgen_button.c"  // ... and on the game setup screen: its options button
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
@@ -956,6 +957,7 @@ internal void install(HMODULE self) {
     terrain_palette_install();
     map_file_install();
     mapgen_install();
+    mapgen_button_install();
     map_sizes_install();
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);

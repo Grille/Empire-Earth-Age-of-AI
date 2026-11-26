@@ -190,6 +190,84 @@ internal inline void ui_check_box_label_yellow(ui_check_box *box) {
     ui_label_text_set_b(t, 0.1254902f);
     ui_label_text_set_colored(t, 1);
 }
+// a control's event for a trigger (UIControl::GetTriggerEvent: its map by code - ui.trigger_select, trigger_button_up
+// ...), NULL none
+internal inline void *ui_control_trigger_event(ee_ui_control *c, unsigned long code) {
+    return ((void *(__thiscall *)(ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_control_get_trigger_event)(c, code);
+}
+internal inline void ui_control_set_trigger_event(ee_ui_control *c, unsigned long code, void *ev) {
+    ((void (__thiscall *)(ee_ui_control *, unsigned long, void *))*(void **)data_ui_imports_iat_control_set_trigger_event)(c, code, ev);
+}
+// what a list's selection runs, what a button's click runs (NULL none)
+internal inline void *ui_control_select_event(ee_ui_control *c) { return ui_control_trigger_event(c, value_ui_trigger_select); }
+internal inline void *ui_control_click_event(ee_ui_control *c) { return ui_control_trigger_event(c, value_ui_trigger_button_up); }
+// a list's selection or a button's click as the player's (UIControl::FireTriggerEvent: its event queued, the UI runs it)
+internal inline void ui_control_fire(ee_ui_control *c, unsigned long code) {
+    ((void (__thiscall *)(ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_control_fire_trigger_event)(c, code);
+}
+internal inline void ui_control_fire_select(ee_ui_control *c) { ui_control_fire(c, value_ui_trigger_select); }
+internal inline void ui_control_fire_click(ee_ui_control *c) { ui_control_fire(c, value_ui_trigger_button_up); }
+// a button's click (released over it) runs ev (an event: ui_event_own)
+internal inline void ui_button_on_click(ee_ui_control *b, void *ev) { ui_control_set_trigger_event(b, value_ui_trigger_button_up, ev); }
+// a form's controls (UIForm.controls: an array by their index, controls_n long - the game setup screen's 272 controls
+// then empty slots): how many slots, the i-th (NULL an empty one)
+internal inline unsigned ui_form_control_count(const ee_ui_form *f) { return f && ui_form_get_controls(f) ? ui_form_get_controls_n(f) : 0; }
+internal inline ee_ui_control *ui_form_control_at(const ee_ui_form *f, unsigned i) { return (ee_ui_control *)ui_form_get_controls(f)[i]; }
+// a control more in the form's own slot, at the end (its index there; its constructor's index): both arrays (by index,
+// as drawn) made one longer - copies, the old ones left as they are (the drawing may be going through them) - and the
+// control into the drawn one; UIForm::AddControl then puts it into its slot and its group. -1: no memory
+internal inline int ui_form_grow(ee_ui_form *f, ee_ui_control *c) {
+    unsigned n = ui_form_get_controls_n(f);
+    uint8_t **slots = game_new((n + 1) * sizeof *slots);
+    ee_ui_control **drawn = game_new((n + 1) * sizeof *drawn);
+    if (!slots || !drawn) return -1;
+    memcpy(slots, ui_form_get_controls(f), n * sizeof *slots);
+    memcpy(drawn, ui_form_get_controls_drawn(f), n * sizeof *drawn);
+    slots[n] = NULL;
+    drawn[n] = c;
+    ui_form_set_controls(f, slots);
+    ui_form_set_controls_drawn(f, drawn);
+    ui_form_set_controls_n(f, n + 1);
+    return (int)n;
+}
+// the group of the form's whose list holds control c (UIForm.groups' index, AddControl's group), -1 none
+internal inline int ui_form_group_of(const ee_ui_form *f, const ee_ui_control *c) {
+    for (unsigned g = 0, n = ui_form_get_groups_n(f); g < n && ui_form_get_groups(f); g++) {
+        ee_ui_group *grp = ui_form_get_groups(f)[g];
+        for (ee_ui_control **p = grp ? ui_group_get_controls(grp) : NULL; p && p < ui_group_get_controls_end(grp); p++)
+            if (*p == c) return (int)g;
+    }
+    return -1;
+}
+// the form's first control whose event for code is the exe's of that vtable, NULL none (or the form's not built yet:
+// a screen of the UI database gets its events after its controls)
+internal inline ee_ui_control *ui_form_control_by_event(const ee_ui_form *f, unsigned long code, uintptr_t vt) {
+    for (unsigned i = 0, n = f ? ui_form_control_count(f) : 0; i < n; i++) {
+        ee_ui_control *c = ui_form_control_at(f, i);
+        void *ev = c ? ui_control_trigger_event(c, code) : NULL;
+        if (ev && *(const uintptr_t *)ev == vt) return c;
+    }
+    return NULL;
+}
+// THE GAME SETUP SCREEN (form 26 - the lobby too: built from the UI database, its controls by their index): its map
+// type list and its Cancel button, found by their events (EEUIELEGameMapType, EEUIELECancel)
+internal inline ee_ui_control *setup_screen_map_list(const ee_ui_form *f) { return ui_form_control_by_event(f, value_ui_trigger_select, vt_eeuiele_game_map_type); }
+internal inline ee_ui_control *setup_screen_cancel(const ee_ui_form *f) { return ui_form_control_by_event(f, value_ui_trigger_button_up, vt_eeuiele_cancel); }
+// a button (Low-Level Engine.dll's UIButton, its vtable) with its three pictures (GEBitmaps, NULL none: the pressed
+// one the normal one), not added to its form yet: id its id (ui_control.id: the form finds its group by it), index
+// its index in the form (a slot of its own: ui_form_grow). Its memory the game's: the exe and the engine share
+// msvcrt.dll's heap, its destructor may free it
+internal inline ee_ui_control *button_new(unsigned long id, void *normal, void *focused, void *pressed, const float rect[4], ee_ui_form *form, unsigned long index) {
+    ee_ui_control *b = game_new(size_ui_button);
+    if (!b) return NULL;
+    typedef void *(__thiscall *ctor_fn)(void *, unsigned long, void *, void *, void *, const float *, ee_ui_form *, unsigned long, unsigned long);
+    (*(ctor_fn *)data_ui_iat_button_ctor)(b, id, normal, focused, pressed, rect, form, index, 0);
+    return b;
+}
+// its text (a UWideString) in font
+internal inline void button_set_text(ee_ui_control *b, const void *wstr, void *font) {
+    ((void (__thiscall *)(ee_ui_control *, const void *, void *))*(void **)data_ui_imports_iat_button_set_text)(b, wstr, font);
+}
 internal inline void ui_form_add_control(ee_ui_form *form, ee_ui_control *c, unsigned long group) {
     ((void (__thiscall *)(ee_ui_form *, ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_form_add_control)(form, c, group);
 }

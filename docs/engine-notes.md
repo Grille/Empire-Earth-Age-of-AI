@@ -868,6 +868,23 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   had it; the game counts fewer cliff tiles (620 against 901). The picture: the far end (north) up, the biomes'
   ground, forests darker, the sea by its depth, mountains toward rock, lit from the north-west, mines as dots, starts
   white.
+- **On the game setup screen** (2026-11-26, dll/engine/mapgen_button.c): with "Age of AI" chosen in the map type
+  list an "Options" button shows beside it - the list narrower, its text box too (the list's SetLocation keeps the
+  box's width) - and opens the dialog for the setup's map size and players; its seed an example, "play this map" keeps
+  it for the next single-player game's map (mapgen.c g_mg_keep; the game's own seed for everything else). Single
+  player only: hidden in a multiplayer setup. The screen is built from the UI database, which taught how a control of
+  one's own gets onto it: a form keeps its controls in an array by index (UIForm.controls, as long as the database
+  makes it - the setup screen 275, its last slots empty; AddControl fills a control's slot only when it is empty) and
+  draws those of a second array (controls_drawn, both controls_n long); the mouse finds a control through the form's
+  groups. So the button gets both arrays made one longer (copies; the old ones left, the drawing may be in them) and
+  its slot at the new end, the list's id (the form finds a control's group by its id) and the list's group. A
+  UIButton with the Cancel button's pictures drew a white box (they render only on what the form loaded): it is a
+  black box with yellow text. The list has its event only after setup_screen_refresh (0x5CACB8, on the serving PC):
+  the button is made there, after the game's own; during the activation's event the form's arrays are still being
+  filled. In Art of Conquest the same (its addresses by port_addrs.py).
+- **The preview's map is the game's**: a map's corners are the diamond with u and v within half the side and one
+  more (read from a game's map: row 0 of 150 tiles has 74 .. 76); with half alone the editor's previews matched by
+  luck of their deep water, a game's map parted from its preview now and then.
 
 ## Unit AI scripts (.tai)
 

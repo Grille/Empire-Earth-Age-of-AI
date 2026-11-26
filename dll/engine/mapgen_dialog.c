@@ -8,7 +8,7 @@
 // map takes it). OK makes the map with them, Cancel no map and the options as they were. What OK takes is kept -
 // g_set for the maps to come, and the file: the player's ageofai.ini, a test's own ini ([autotest] overrides a row by
 // its name; the test's ageofai.ini is the repository's shipped one, never written). A modal dialog over the game in
-// its look (game_dialog.c). Next the setup screens' button (the plan the player agreed to).
+// its look (game_dialog.c). The game setup screen's options button opens it too (mapgen_button.c md_open_setup).
 #define MD_FIRST SETTING_map_layout
 #define MD_ROWS (SETTING_map_mines - SETTING_map_layout + 1)
 #define MD_COMBO 200    // + the row: its dropdown
@@ -17,6 +17,7 @@
 #define MD_PREVIEW 261
 #define MD_RESEED 262
 #define MD_SEED 263
+#define MD_KEEP 264
 #define MD_POINTS 9     // its font's size at the game's picture 1:1 ...
 #define MD_PIXELS 460   // ... and about its height then, with the title bar
 internal struct {
@@ -26,6 +27,8 @@ internal struct {
     int was[MD_ROWS];   // the options as they were: Cancel puts them back
     uint32_t *px;       // the preview's picture, side x side
     int side;
+    int setup;          // asked on the game setup screen (mapgen_button.c): the seed an example, "play this map" offered
+    int keep;           // ... and ticked
 } g_md;
 
 // a label's word, a space in: off its box's edge (the caller copies it before the next)
@@ -114,8 +117,9 @@ internal INT_PTR CALLBACK md_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
             SendMessageW(c, CB_SETCURSEL, (WPARAM)*md_value(i), 0);
             theme_control(c, WC_COMBOBOXA);
         }
-        static const int buttons[] = { IDOK, IDCANCEL, MD_RESEED };
+        static const int buttons[] = { IDOK, IDCANCEL, MD_RESEED, MD_KEEP };
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
+        if (!g_md.setup) ShowWindow(GetDlgItem(d, MD_KEEP), SW_HIDE);
         md_rows(d);
         md_render(d);
         SetFocus(GetDlgItem(d, IDOK));
@@ -140,7 +144,7 @@ internal INT_PTR CALLBACK md_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
             md_render(d);
             return TRUE;
         }
-        if (LOWORD(w) == IDOK) md_render(d);   // the choices into g_set (as the preview has them)
+        if (LOWORD(w) == IDOK) md_render(d), g_md.keep = IsDlgButtonChecked(d, MD_KEEP) == BST_CHECKED;   // the choices into g_set (as the preview has them)
         if (LOWORD(w) == IDOK || LOWORD(w) == IDCANCEL) {
             g_md.result = LOWORD(w);
             EndDialog(d, 0);
@@ -162,13 +166,13 @@ internal void md_keep(void) {
 }
 
 // the dialog for a map of n tiles a side and np players from *seed (a new one drawn: there): 1 OK (the choices in
-// g_set and the file), 0 cancelled or not opened
-internal int md_open(int n, int np, uint32_t *seed) {
+// g_set and the file), 0 cancelled or not opened. setup: the game setup screen's - "play this map" offered
+internal int md_open(int n, int np, uint32_t *seed, int setup) {
     int points = game_dialog_points(MD_POINTS, MD_PIXELS), ctx;
     static WORD tpl[2048];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
-    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 2 * MD_ROWS + 6, .cx = 412, .cy = 221 };
+    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 2 * MD_ROWS + 7, .cx = 412, .cy = 221 };
     WORD *p = (WORD *)(dt + 1);
     *p++ = 0, *p++ = 0;               // no menu, the dialog class
     p = cpk_tpl_str(p, L"");          // the title: set at its start
@@ -186,7 +190,9 @@ internal int md_open(int n, int np, uint32_t *seed) {
     p = cpk_tpl_item(p, SS_OWNERDRAW, 204, 8, 200, 184, MD_PREVIEW, 0x82, L"");
     p = cpk_tpl_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 199, 72, 15, MD_RESEED, 0x80, word_w("map_new_seed"));
     p = cpk_tpl_item(p, SS_LEFT | SS_CENTERIMAGE, 84, 199, 108, 12, MD_SEED, 0x82, L"");
+    p = cpk_tpl_item(p, BS_AUTOCHECKBOX | WS_TABSTOP, 204, 200, 90, 12, MD_KEEP, 0x80, word_w("map_keep_seed"));
     g_md.result = IDCANCEL;
+    g_md.setup = setup; g_md.keep = 0;
     g_md.n = n; g_md.np = np; g_md.seed = *seed;
     for (int i = 0; i < MD_ROWS; i++) g_md.was[i] = *md_value(i);
     INT_PTR r = game_dialog_show(dt, md_proc, &ctx);
@@ -203,7 +209,8 @@ internal int md_open(int n, int np, uint32_t *seed) {
             setting_choice_name(k_settings[MD_FIRST + i].choices, *md_value(i), name, sizeof name);
             at += snprintf(line + at, sizeof line - (size_t)at, " %s %s", k_settings[MD_FIRST + i].key + 4, name);
         }
-        if (g_md.result == IDOK && at > 0 && at < (int)sizeof line - 20) snprintf(line + at, sizeof line - (size_t)at, ", seed %u", g_md.seed);
+        if (g_md.result == IDOK && at > 0 && at < (int)sizeof line - 40)
+            snprintf(line + at, sizeof line - (size_t)at, ", seed %u%s", g_md.seed, !setup ? "" : g_md.keep ? " (to play)" : " (an example)");
         log_locked("%s\n", line);
     }
     return g_md.result == IDOK;
@@ -218,9 +225,16 @@ internal int mapgen_editor_ask(ee_se_random_map *a) {
     if (i < 0 || (unsigned)i >= map_types_count() || !mapgen_is_ours(map_type_name_text(map_types_at((unsigned)i)))) return 1;
     ee_ui *ui = game_get_ui();
     uint32_t seed = ui ? ui_get_seed(ui) : 0;
-    if (!md_open(map_scale_tiles(se_random_map_get_map_scale(a)), np > 0 ? np : 1, &seed)) return 0;
+    if (!md_open(map_scale_tiles(se_random_map_get_map_scale(a)), np > 0 ? np : 1, &seed, 0)) return 0;
     if (ui) ui_set_seed(ui, seed);
     return 1;
+}
+
+// the game setup screen's options button (mapgen_button.c): the dialog for its map, seed an example - "play this map"
+// keeps it for the next single-player game's map (g_mg_keep)
+internal void md_open_setup(int n, int np, uint32_t seed) {
+    if (md_open(n, np, &seed, 1) && g_md.keep) { g_mg_keep.on = 1; g_mg_keep.seed = seed; }
+    else if (g_md.result == IDOK) g_mg_keep.on = 0;
 }
 
 // edmap [size [type]]: the editor's Create Map as its button makes it - the map size's index in its list (default 1,

@@ -344,6 +344,14 @@ map_new_seed = {
     en = "New seed",
     de = "Neuer Start-Wert",
 }
+map_keep_seed = {
+    en = "Play this map",
+    de = "Diese Karte spielen",
+}
+map_options_button = {
+    en = "Options",
+    de = "Optionen",
+}
 map_starts_keep = {
     en = "Every start keeps its mines, forage, forests and herd.",
     de = "Jeder Start behält seine Minen, Beeren, Wälder, Herde.",

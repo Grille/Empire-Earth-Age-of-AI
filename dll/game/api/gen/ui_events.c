@@ -799,23 +799,29 @@ internal inline int patch_hot_key_zoom_execute(eeuie_hot_key_zoom_execute_fn h) 
 // class EEUIELEActivateMultiPlayerClient (eeuiele_activate_multi_player_client)
 // made in 0x402BB8
 // UIEvent's, the base's
+// the same for a player who joined one
 typedef uint32_t (__thiscall *eeuiele_activate_multi_player_client_execute_fn)(eeuiele_activate_multi_player_client *, ee_ui_form *, uint32_t);
 internal eeuiele_activate_multi_player_client_execute_fn fn_eeuiele_activate_multi_player_client_execute;
 internal inline uint32_t eeuiele_activate_multi_player_client_execute(eeuiele_activate_multi_player_client *eeuiele_activate_multi_player_client, ee_ui_form *form, uint32_t arg) { return fn_eeuiele_activate_multi_player_client_execute(eeuiele_activate_multi_player_client, form, arg); }
+internal inline int patch_le_activate_client(eeuiele_activate_multi_player_client_execute_fn h) { return patch_vtable(vt_eeuiele_activate_multi_player_client, (int)slot_ui_event_execute, (uintptr_t)fn_eeuiele_activate_multi_player_client_execute, (void *)h); }
 
 // class EEUIELEActivateMultiPlayerServer (eeuiele_activate_multi_player_server)
 // made in 0x402BB8
 // UIEvent's, the base's
+// the same for the host of a multiplayer game
 typedef uint32_t (__thiscall *eeuiele_activate_multi_player_server_execute_fn)(eeuiele_activate_multi_player_server *, ee_ui_form *, uint32_t);
 internal eeuiele_activate_multi_player_server_execute_fn fn_eeuiele_activate_multi_player_server_execute;
 internal inline uint32_t eeuiele_activate_multi_player_server_execute(eeuiele_activate_multi_player_server *eeuiele_activate_multi_player_server, ee_ui_form *form, uint32_t arg) { return fn_eeuiele_activate_multi_player_server_execute(eeuiele_activate_multi_player_server, form, arg); }
+internal inline int patch_le_activate_host(eeuiele_activate_multi_player_server_execute_fn h) { return patch_vtable(vt_eeuiele_activate_multi_player_server, (int)slot_ui_event_execute, (uintptr_t)fn_eeuiele_activate_multi_player_server_execute, (void *)h); }
 
 // class EEUIELEActivateSinglePlayer (eeuiele_activate_single_player)
 // made in 0x5D817A
 // UIEvent's, the base's
+// the game setup screen set up for a single-player game (its Start and Cancel, which controls show) - hooked: the Age of AI map's options button (engine/mapgen_button.c)
 typedef uint32_t (__thiscall *eeuiele_activate_single_player_execute_fn)(eeuiele_activate_single_player *, ee_ui_form *, uint32_t);
 internal eeuiele_activate_single_player_execute_fn fn_eeuiele_activate_single_player_execute;
 internal inline uint32_t eeuiele_activate_single_player_execute(eeuiele_activate_single_player *eeuiele_activate_single_player, ee_ui_form *form, uint32_t arg) { return fn_eeuiele_activate_single_player_execute(eeuiele_activate_single_player, form, arg); }
+internal inline int patch_le_activate_sp(eeuiele_activate_single_player_execute_fn h) { return patch_vtable(vt_eeuiele_activate_single_player, (int)slot_ui_event_execute, (uintptr_t)fn_eeuiele_activate_single_player_execute, (void *)h); }
 
 // class EEUIELECancel (eeuiele_cancel)
 // made in 0x5CE4BD, 0x5CEB65, 0x5CECD9
@@ -933,9 +939,11 @@ internal inline uint32_t eeuiele_game_map_size_execute(eeuiele_game_map_size *ee
 
 // class EEUIELEGameMapType (eeuiele_game_map_type)
 // UIEvent's, the base's
+// the setup screen's map type list changed (arg: the list; its current_selection the type's index in random_map.types): tells the server
 typedef uint32_t (__thiscall *eeuiele_game_map_type_execute_fn)(eeuiele_game_map_type *, ee_ui_form *, uint32_t);
 internal eeuiele_game_map_type_execute_fn fn_eeuiele_game_map_type_execute;
 internal inline uint32_t eeuiele_game_map_type_execute(eeuiele_game_map_type *eeuiele_game_map_type, ee_ui_form *form, uint32_t arg) { return fn_eeuiele_game_map_type_execute(eeuiele_game_map_type, form, arg); }
+internal inline int patch_le_map_type(eeuiele_game_map_type_execute_fn h) { return patch_vtable(vt_eeuiele_game_map_type, (int)slot_ui_event_execute, (uintptr_t)fn_eeuiele_game_map_type_execute, (void *)h); }
 
 // class EEUIELEGameRecordGames (eeuiele_game_record_games)
 // made in 0x5CB0A4
@@ -972,9 +980,11 @@ internal inline uint32_t eeuiele_game_team_islands_execute(eeuiele_game_team_isl
 
 // class EEUIELEGameType (eeuiele_game_type)
 // UIEvent's, the base's
+// the setup screen's game type list changed (a random map, a scenario, a saved game: which of its lists show)
 typedef uint32_t (__thiscall *eeuiele_game_type_execute_fn)(eeuiele_game_type *, ee_ui_form *, uint32_t);
 internal eeuiele_game_type_execute_fn fn_eeuiele_game_type_execute;
 internal inline uint32_t eeuiele_game_type_execute(eeuiele_game_type *eeuiele_game_type, ee_ui_form *form, uint32_t arg) { return fn_eeuiele_game_type_execute(eeuiele_game_type, form, arg); }
+internal inline int patch_le_game_type(eeuiele_game_type_execute_fn h) { return patch_vtable(vt_eeuiele_game_type, (int)slot_ui_event_execute, (uintptr_t)fn_eeuiele_game_type_execute, (void *)h); }
 
 // class EEUIELEGameUnitLimit (eeuiele_game_unit_limit)
 // UIEvent's, the base's

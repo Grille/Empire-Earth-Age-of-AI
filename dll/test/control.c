@@ -121,6 +121,9 @@ internal void cmd_ddinfo(char *out, const char *args);
 internal void cmd_topbar(char *out, const char *args);
 internal void cmd_form(char *out, const char *args);
 internal void cmd_edmap(char *out, const char *args);   // engine/mapgen_dialog.c
+internal void cmd_controls(char *out, const char *args);   // below
+internal void cmd_uifire(char *out, const char *args);     // below
+internal void cmd_mapoptions(char *out, const char *args); // engine/mapgen_button.c
 internal void cmd_ddpoke(char *out, const char *args);
 internal void cmd_headless(const char *verb, const char *args, char *out);
 internal BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
@@ -576,6 +579,9 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "topbar")) cmd_topbar(out, args);
     else if (!strcmp(verb, "form")) cmd_form(out, args);
     else if (!strcmp(verb, "edmap")) cmd_edmap(out, args);
+    else if (!strcmp(verb, "controls")) cmd_controls(out, args);
+    else if (!strcmp(verb, "uifire")) cmd_uifire(out, args);
+    else if (!strcmp(verb, "mapoptions")) cmd_mapoptions(out, args);
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
     else if (!strcmp(verb, "watch")) { unsigned a = 0; int l = 4; sscanf(args, "%x %d", &a, &l); watch_set(a, l); REPLY("ok: watching %08x len %d\n", a, l); }
     else if (!strcmp(verb, "speed")) {
@@ -1098,4 +1104,41 @@ internal void ctl_start(int pipe) {
     g_console_on = pipe;
     ctl_log("pipe %s", pipe ? "on (and the console in the chat: '>' lines)" : "off (ageofai.ini [general] control_pipe=0)");
     if (pipe) CloseHandle(CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL));
+}
+
+// controls [from]: the current form's controls from that index on (as many as the reply holds) - each its class, its
+// rectangle (left top right bottom, the form's coordinates), its display mode (0 hidden), its id and group and the exe's
+// events a list's selection and a button's click run (the game setup screen's map type list: EEUIELEGameMapType);
+// an empty slot of the form's array of them a line with its index alone
+// an event's class: the exe's by its RTTI, one of the mod's own (ui_event_own: its vtable a copy, no RTTI before it) so named
+internal const char *ui_event_name(void *ev) { return !ev ? "-" : spec_in_image(*(uint32_t *)ev, 4) ? rtti_name(ev) : "the mod's own"; }
+internal void cmd_controls(char *out, const char *args) {
+    void *uim = ui_manager();
+    ee_ui_form *form = uim ? ui_current_form(uim) : NULL;
+    if (!form) { REPLY("form 0 none\n"); return; }
+    unsigned n = ui_form_control_count(form), from = (unsigned)atoi(args);
+    REPLY("form %d %s: %u controls, %u groups\n", (int)ui_form_get_id(form), rtti_name(form), n, ui_form_get_groups_n(form));
+    for (unsigned i = from; i < n && strlen(out) < REPLY_CAP - 200; i++) {
+        ee_ui_control *c = ui_form_control_at(form, i);
+        if (!c) { REPLY("%3u -\n", i); continue; }   // an empty slot
+        void *sel = ui_control_select_event(c), *click = ui_control_click_event(c);
+        REPLY("%3u %-22s %6.0f %6.0f %6.0f %6.0f mode %u id %u group %d  select %s  click %s\n", i, rtti_name(c), ui_control_get_left(c), ui_control_get_top(c),
+              ui_control_get_right(c), ui_control_get_bottom(c), ui_control_get_mode_now(c), ui_control_get_id(c), ui_form_group_of(form, c), ui_event_name(sel),
+              ui_event_name(click));
+    }
+}
+// uifire <index> select <line> | click: the player's choice of a list's line or a button's click on the current form's
+// control (controls: its index) - the line selected (UIComboBox::SetCurrentSelection) and the list's event fired, or
+// the button's; queued, the UI runs it at its next update (a menu's clicks by the mouse often don't take headless)
+internal void cmd_uifire(char *out, const char *args) {
+    unsigned i = 0, line = 0;
+    char what[16] = "";
+    void *uim = ui_manager();
+    ee_ui_form *form = uim ? ui_current_form(uim) : NULL;
+    if (sscanf(args, "%u %15s %u", &i, what, &line) < 2 || (strcmp(what, "select") && strcmp(what, "click"))) { REPLY("usage: uifire <index> select <line> | click\n"); return; }
+    if (!form || i >= ui_form_control_count(form) || !ui_form_control_at(form, i)) { REPLY("error: no control %u\n", i); return; }
+    ee_ui_control *c = ui_form_control_at(form, i);
+    if (!strcmp(what, "select")) { combo_box_select((ui_combo_box *)c, line); ui_control_fire_select(c); }
+    else ui_control_fire_click(c);
+    REPLY("ok: %s %u (%s) fired\n", what, i, rtti_name(c));
 }

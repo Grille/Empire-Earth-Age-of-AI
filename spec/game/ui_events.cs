@@ -918,7 +918,9 @@ unsafe struct EEUIEHotKeyZoom
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x00824C58, (aoc)0x00838C2C)]
 unsafe struct EEUIELEActivateMultiPlayerClient
 {
+    /// the same for a player who joined one
     [address((ee)0x005CEB65, (aoc)0x005DF874), overrides(typeof(UIEvent))]
+    [vtable_site("le_activate_client")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 
@@ -926,7 +928,9 @@ unsafe struct EEUIELEActivateMultiPlayerClient
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x00824C44, (aoc)0x00838C18)]
 unsafe struct EEUIELEActivateMultiPlayerServer
 {
+    /// the same for the host of a multiplayer game
     [address((ee)0x005CE4BD, (aoc)0x005DF1CC), overrides(typeof(UIEvent))]
+    [vtable_site("le_activate_host")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 
@@ -934,7 +938,9 @@ unsafe struct EEUIELEActivateMultiPlayerServer
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x008311B8, (aoc)0x00846AB4)]
 unsafe struct EEUIELEActivateSinglePlayer
 {
+    /// the game setup screen set up for a single-player game (its Start and Cancel, which controls show) - hooked: the Age of AI map's options button (engine/mapgen_button.c)
     [address((ee)0x005CECD9, (aoc)0x005DF9E8), overrides(typeof(UIEvent))]
+    [vtable_site("le_activate_sp")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 
@@ -1072,7 +1078,9 @@ unsafe struct EEUIELEGameMapSize
 [@base(typeof(UIEvent)), vtable((ee)0x00830DAC, (aoc)0x008466A8)]
 unsafe struct EEUIELEGameMapType
 {
+    /// the setup screen's map type list changed (arg: the list; its current_selection the type's index in random_map.types): tells the server
     [address((ee)0x005CFB5B, (aoc)0x005E0831), overrides(typeof(UIEvent))]
+    [vtable_site("le_map_type")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 
@@ -1117,7 +1125,9 @@ unsafe struct EEUIELEGameTeamIslands
 [@base(typeof(UIEvent)), vtable((ee)0x00830DD4, (aoc)0x008466D0)]
 unsafe struct EEUIELEGameType
 {
+    /// the setup screen's game type list changed (a random map, a scenario, a saved game: which of its lists show)
     [address((ee)0x005CF2E5, (aoc)0x005DFFF4), overrides(typeof(UIEvent))]
+    [vtable_site("le_game_type")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

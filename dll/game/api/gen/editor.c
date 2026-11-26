@@ -253,6 +253,22 @@ internal inline int patch_se_test(se_test_run_fn h) { return patch_vtable(vt_ees
 
 // class EESEBSelect (eeseb_select)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeseb_select_get_normal_bitmap(const eeseb_select *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeseb_select_set_normal_bitmap(eeseb_select *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeseb_select_normal_bitmap_at(const eeseb_select *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeseb_select_get_focused_bitmap(const eeseb_select *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeseb_select_set_focused_bitmap(eeseb_select *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeseb_select_focused_bitmap_at(const eeseb_select *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeseb_select_get_pressed_bitmap(const eeseb_select *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeseb_select_set_pressed_bitmap(eeseb_select *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeseb_select_pressed_bitmap_at(const eeseb_select *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeseb_select_get_text(const eeseb_select *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeseb_select_set_text(eeseb_select *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeseb_select_text_at(const eeseb_select *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeseb_select_get_mode_now(const eeseb_select *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -277,6 +293,16 @@ internal inline float *eeseb_select_top_at(const eeseb_select *o) { return (floa
 internal inline ee_ui_form *eeseb_select_get_form(const eeseb_select *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseb_select_set_form(eeseb_select *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseb_select_form_at(const eeseb_select *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseb_select_get_index(const eeseb_select *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseb_select_set_index(eeseb_select *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseb_select_index_at(const eeseb_select *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseb_select_get_id(const eeseb_select *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseb_select_set_id(eeseb_select *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseb_select_id_at(const eeseb_select *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeseb_select_init_fn)(eeseb_select *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseb_select_init_fn fn_eeseb_select_init;
@@ -327,6 +353,16 @@ internal inline float *eesecb_max_player_top_at(const eesecb_max_player *o) { re
 internal inline ee_ui_form *eesecb_max_player_get_form(const eesecb_max_player *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesecb_max_player_set_form(eesecb_max_player *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesecb_max_player_form_at(const eesecb_max_player *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesecb_max_player_get_index(const eesecb_max_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesecb_max_player_set_index(eesecb_max_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesecb_max_player_index_at(const eesecb_max_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesecb_max_player_get_id(const eesecb_max_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesecb_max_player_set_id(eesecb_max_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesecb_max_player_id_at(const eesecb_max_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eesecb_max_player_init_fn)(eesecb_max_player *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesecb_max_player_init_fn fn_eesecb_max_player_init;
@@ -666,6 +702,22 @@ internal inline void *eese_instructions_init(eese_instructions *eese_instruction
 
 // class EESEPSSetPlayers (eeseps_set_players)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeseps_set_players_get_normal_bitmap(const eeseps_set_players *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeseps_set_players_set_normal_bitmap(eeseps_set_players *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeseps_set_players_normal_bitmap_at(const eeseps_set_players *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeseps_set_players_get_focused_bitmap(const eeseps_set_players *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeseps_set_players_set_focused_bitmap(eeseps_set_players *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeseps_set_players_focused_bitmap_at(const eeseps_set_players *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeseps_set_players_get_pressed_bitmap(const eeseps_set_players *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeseps_set_players_set_pressed_bitmap(eeseps_set_players *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeseps_set_players_pressed_bitmap_at(const eeseps_set_players *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeseps_set_players_get_text(const eeseps_set_players *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeseps_set_players_set_text(eeseps_set_players *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeseps_set_players_text_at(const eeseps_set_players *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeseps_set_players_get_mode_now(const eeseps_set_players *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -690,6 +742,16 @@ internal inline float *eeseps_set_players_top_at(const eeseps_set_players *o) { 
 internal inline ee_ui_form *eeseps_set_players_get_form(const eeseps_set_players *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseps_set_players_set_form(eeseps_set_players *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseps_set_players_form_at(const eeseps_set_players *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseps_set_players_get_index(const eeseps_set_players *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseps_set_players_set_index(eeseps_set_players *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseps_set_players_index_at(const eeseps_set_players *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseps_set_players_get_id(const eeseps_set_players *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseps_set_players_set_id(eeseps_set_players *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseps_set_players_id_at(const eeseps_set_players *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeseps_set_players_init_fn)(eeseps_set_players *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseps_set_players_init_fn fn_eeseps_set_players_init;
@@ -708,6 +770,22 @@ internal inline void *eese_player_screen_init(eese_player_screen *eese_player_sc
 // class EESERBUnitTypes (eeserb_unit_types)
 // UIRadioButton's, the base's
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeserb_unit_types_get_normal_bitmap(const eeserb_unit_types *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeserb_unit_types_set_normal_bitmap(eeserb_unit_types *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeserb_unit_types_normal_bitmap_at(const eeserb_unit_types *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeserb_unit_types_get_focused_bitmap(const eeserb_unit_types *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeserb_unit_types_set_focused_bitmap(eeserb_unit_types *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeserb_unit_types_focused_bitmap_at(const eeserb_unit_types *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeserb_unit_types_get_pressed_bitmap(const eeserb_unit_types *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeserb_unit_types_set_pressed_bitmap(eeserb_unit_types *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeserb_unit_types_pressed_bitmap_at(const eeserb_unit_types *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeserb_unit_types_get_text(const eeserb_unit_types *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeserb_unit_types_set_text(eeserb_unit_types *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeserb_unit_types_text_at(const eeserb_unit_types *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeserb_unit_types_get_mode_now(const eeserb_unit_types *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -732,6 +810,16 @@ internal inline float *eeserb_unit_types_top_at(const eeserb_unit_types *o) { re
 internal inline ee_ui_form *eeserb_unit_types_get_form(const eeserb_unit_types *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeserb_unit_types_set_form(eeserb_unit_types *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeserb_unit_types_form_at(const eeserb_unit_types *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeserb_unit_types_get_index(const eeserb_unit_types *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeserb_unit_types_set_index(eeserb_unit_types *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeserb_unit_types_index_at(const eeserb_unit_types *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeserb_unit_types_get_id(const eeserb_unit_types *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeserb_unit_types_set_id(eeserb_unit_types *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeserb_unit_types_id_at(const eeserb_unit_types *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eeserb_unit_types_init_fn)(eeserb_unit_types *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeserb_unit_types_init_fn fn_eeserb_unit_types_init;
@@ -776,6 +864,16 @@ internal inline float *eesetsa_combo_box_top_at(const eesetsa_combo_box *o) { re
 internal inline ee_ui_form *eesetsa_combo_box_get_form(const eesetsa_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetsa_combo_box_set_form(eesetsa_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetsa_combo_box_form_at(const eesetsa_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetsa_combo_box_get_index(const eesetsa_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetsa_combo_box_set_index(eesetsa_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetsa_combo_box_index_at(const eesetsa_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetsa_combo_box_get_id(const eesetsa_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetsa_combo_box_set_id(eesetsa_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetsa_combo_box_id_at(const eesetsa_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eesetsa_combo_box_init_fn)(eesetsa_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesetsa_combo_box_init_fn fn_eesetsa_combo_box_init;
@@ -808,6 +906,16 @@ internal inline float *eesetsa_edit_box_top_at(const eesetsa_edit_box *o) { retu
 internal inline ee_ui_form *eesetsa_edit_box_get_form(const eesetsa_edit_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetsa_edit_box_set_form(eesetsa_edit_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetsa_edit_box_form_at(const eesetsa_edit_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetsa_edit_box_get_index(const eesetsa_edit_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetsa_edit_box_set_index(eesetsa_edit_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetsa_edit_box_index_at(const eesetsa_edit_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetsa_edit_box_get_id(const eesetsa_edit_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetsa_edit_box_set_id(eesetsa_edit_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetsa_edit_box_id_at(const eesetsa_edit_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 
 // class EESETSALasso (eesetsa_lasso)
 // made in 0x57ED81
@@ -865,6 +973,16 @@ internal inline float *eesetsc_combo_box_top_at(const eesetsc_combo_box *o) { re
 internal inline ee_ui_form *eesetsc_combo_box_get_form(const eesetsc_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetsc_combo_box_set_form(eesetsc_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetsc_combo_box_form_at(const eesetsc_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetsc_combo_box_get_index(const eesetsc_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetsc_combo_box_set_index(eesetsc_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetsc_combo_box_index_at(const eesetsc_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetsc_combo_box_get_id(const eesetsc_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetsc_combo_box_set_id(eesetsc_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetsc_combo_box_id_at(const eesetsc_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eesetsc_combo_box_init_fn)(eesetsc_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesetsc_combo_box_init_fn fn_eesetsc_combo_box_init;
@@ -961,6 +1079,16 @@ internal inline float *eesetse_combo_box_top_at(const eesetse_combo_box *o) { re
 internal inline ee_ui_form *eesetse_combo_box_get_form(const eesetse_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetse_combo_box_set_form(eesetse_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetse_combo_box_form_at(const eesetse_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetse_combo_box_get_index(const eesetse_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetse_combo_box_set_index(eesetse_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetse_combo_box_index_at(const eesetse_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetse_combo_box_get_id(const eesetse_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetse_combo_box_set_id(eesetse_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetse_combo_box_id_at(const eesetse_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eesetse_combo_box_init_fn)(eesetse_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesetse_combo_box_init_fn fn_eesetse_combo_box_init;
@@ -1005,6 +1133,16 @@ internal inline float *eesetse_scenario_combo_box_top_at(const eesetse_scenario_
 internal inline ee_ui_form *eesetse_scenario_combo_box_get_form(const eesetse_scenario_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetse_scenario_combo_box_set_form(eesetse_scenario_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetse_scenario_combo_box_form_at(const eesetse_scenario_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetse_scenario_combo_box_get_index(const eesetse_scenario_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetse_scenario_combo_box_set_index(eesetse_scenario_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetse_scenario_combo_box_index_at(const eesetse_scenario_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetse_scenario_combo_box_get_id(const eesetse_scenario_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetse_scenario_combo_box_set_id(eesetse_scenario_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetse_scenario_combo_box_id_at(const eesetse_scenario_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (16 arguments, not typed yet)
 typedef void *(__thiscall *eesetse_scenario_combo_box_init_fn)(eesetse_scenario_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesetse_scenario_combo_box_init_fn fn_eesetse_scenario_combo_box_init;
@@ -1326,6 +1464,16 @@ internal inline float *eesetso_unit_list_top_at(const eesetso_unit_list *o) { re
 internal inline ee_ui_form *eesetso_unit_list_get_form(const eesetso_unit_list *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetso_unit_list_set_form(eesetso_unit_list *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetso_unit_list_form_at(const eesetso_unit_list *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetso_unit_list_get_index(const eesetso_unit_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetso_unit_list_set_index(eesetso_unit_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetso_unit_list_index_at(const eesetso_unit_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetso_unit_list_get_id(const eesetso_unit_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetso_unit_list_set_id(eesetso_unit_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetso_unit_list_id_at(const eesetso_unit_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eesetso_unit_list_init_fn)(eesetso_unit_list *, uint32_t, uint32_t, uint32_t);
 internal eesetso_unit_list_init_fn fn_eesetso_unit_list_init;
@@ -1349,6 +1497,22 @@ internal inline uint8_t eesets_show_i_ds_check_box_get_checked_state(const eeset
 internal inline void eesets_show_i_ds_check_box_set_checked_state(eesets_show_i_ds_check_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state) = v; }
 internal inline uint8_t *eesets_show_i_ds_check_box_checked_state_at(const eesets_show_i_ds_check_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state); }
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eesets_show_i_ds_check_box_get_normal_bitmap(const eesets_show_i_ds_check_box *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eesets_show_i_ds_check_box_set_normal_bitmap(eesets_show_i_ds_check_box *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eesets_show_i_ds_check_box_normal_bitmap_at(const eesets_show_i_ds_check_box *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eesets_show_i_ds_check_box_get_focused_bitmap(const eesets_show_i_ds_check_box *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eesets_show_i_ds_check_box_set_focused_bitmap(eesets_show_i_ds_check_box *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eesets_show_i_ds_check_box_focused_bitmap_at(const eesets_show_i_ds_check_box *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eesets_show_i_ds_check_box_get_pressed_bitmap(const eesets_show_i_ds_check_box *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eesets_show_i_ds_check_box_set_pressed_bitmap(eesets_show_i_ds_check_box *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eesets_show_i_ds_check_box_pressed_bitmap_at(const eesets_show_i_ds_check_box *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eesets_show_i_ds_check_box_get_text(const eesets_show_i_ds_check_box *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eesets_show_i_ds_check_box_set_text(eesets_show_i_ds_check_box *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eesets_show_i_ds_check_box_text_at(const eesets_show_i_ds_check_box *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eesets_show_i_ds_check_box_get_mode_now(const eesets_show_i_ds_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -1373,6 +1537,16 @@ internal inline float *eesets_show_i_ds_check_box_top_at(const eesets_show_i_ds_
 internal inline ee_ui_form *eesets_show_i_ds_check_box_get_form(const eesets_show_i_ds_check_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesets_show_i_ds_check_box_set_form(eesets_show_i_ds_check_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesets_show_i_ds_check_box_form_at(const eesets_show_i_ds_check_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesets_show_i_ds_check_box_get_index(const eesets_show_i_ds_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesets_show_i_ds_check_box_set_index(eesets_show_i_ds_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesets_show_i_ds_check_box_index_at(const eesets_show_i_ds_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesets_show_i_ds_check_box_get_id(const eesets_show_i_ds_check_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesets_show_i_ds_check_box_set_id(eesets_show_i_ds_check_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesets_show_i_ds_check_box_id_at(const eesets_show_i_ds_check_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eesets_show_i_ds_check_box_init_fn)(eesets_show_i_ds_check_box *, uint32_t, uint32_t, uint32_t);
 internal eesets_show_i_ds_check_box_init_fn fn_eesets_show_i_ds_check_box_init;
@@ -1424,6 +1598,16 @@ internal inline float *eesets_trigger_ui_combo_box_top_at(const eesets_trigger_u
 internal inline ee_ui_form *eesets_trigger_ui_combo_box_get_form(const eesets_trigger_ui_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesets_trigger_ui_combo_box_set_form(eesets_trigger_ui_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesets_trigger_ui_combo_box_form_at(const eesets_trigger_ui_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesets_trigger_ui_combo_box_get_index(const eesets_trigger_ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesets_trigger_ui_combo_box_set_index(eesets_trigger_ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesets_trigger_ui_combo_box_index_at(const eesets_trigger_ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesets_trigger_ui_combo_box_get_id(const eesets_trigger_ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesets_trigger_ui_combo_box_set_id(eesets_trigger_ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesets_trigger_ui_combo_box_id_at(const eesets_trigger_ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (15 arguments, not typed yet)
 typedef void *(__thiscall *eesets_trigger_ui_combo_box_init_fn)(eesets_trigger_ui_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesets_trigger_ui_combo_box_init_fn fn_eesets_trigger_ui_combo_box_init;
@@ -1471,6 +1655,16 @@ internal inline float *eesetsuicb_player_top_at(const eesetsuicb_player *o) { re
 internal inline ee_ui_form *eesetsuicb_player_get_form(const eesetsuicb_player *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eesetsuicb_player_set_form(eesetsuicb_player *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eesetsuicb_player_form_at(const eesetsuicb_player *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eesetsuicb_player_get_index(const eesetsuicb_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eesetsuicb_player_set_index(eesetsuicb_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eesetsuicb_player_index_at(const eesetsuicb_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eesetsuicb_player_get_id(const eesetsuicb_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eesetsuicb_player_set_id(eesetsuicb_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eesetsuicb_player_id_at(const eesetsuicb_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eesetsuicb_player_init_fn)(eesetsuicb_player *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eesetsuicb_player_init_fn fn_eesetsuicb_player_init;
@@ -1479,6 +1673,22 @@ internal inline void *eesetsuicb_player_init(eesetsuicb_player *eesetsuicb_playe
 // class EESETab (eese_tab)
 // UIRadioButton's, the base's
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eese_tab_get_normal_bitmap(const eese_tab *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eese_tab_set_normal_bitmap(eese_tab *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eese_tab_normal_bitmap_at(const eese_tab *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eese_tab_get_focused_bitmap(const eese_tab *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eese_tab_set_focused_bitmap(eese_tab *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eese_tab_focused_bitmap_at(const eese_tab *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eese_tab_get_pressed_bitmap(const eese_tab *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eese_tab_set_pressed_bitmap(eese_tab *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eese_tab_pressed_bitmap_at(const eese_tab *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eese_tab_get_text(const eese_tab *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eese_tab_set_text(eese_tab *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eese_tab_text_at(const eese_tab *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eese_tab_get_mode_now(const eese_tab *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -1503,6 +1713,16 @@ internal inline float *eese_tab_top_at(const eese_tab *o) { return (float *)((ui
 internal inline ee_ui_form *eese_tab_get_form(const eese_tab *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eese_tab_set_form(eese_tab *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eese_tab_form_at(const eese_tab *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eese_tab_get_index(const eese_tab *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eese_tab_set_index(eese_tab *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eese_tab_index_at(const eese_tab *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eese_tab_get_id(const eese_tab *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eese_tab_set_id(eese_tab *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eese_tab_id_at(const eese_tab *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (6 arguments, not typed yet)
 typedef void *(__thiscall *eese_tab_init_fn)(eese_tab *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eese_tab_init_fn fn_eese_tab_init;
@@ -1517,6 +1737,22 @@ internal inline void *eese_trigger_screen_init(eese_trigger_screen *eese_trigger
 
 // class EESEUIBDiplomacy (eeseuib_diplomacy)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeseuib_diplomacy_get_normal_bitmap(const eeseuib_diplomacy *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeseuib_diplomacy_set_normal_bitmap(eeseuib_diplomacy *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeseuib_diplomacy_normal_bitmap_at(const eeseuib_diplomacy *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeseuib_diplomacy_get_focused_bitmap(const eeseuib_diplomacy *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeseuib_diplomacy_set_focused_bitmap(eeseuib_diplomacy *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeseuib_diplomacy_focused_bitmap_at(const eeseuib_diplomacy *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeseuib_diplomacy_get_pressed_bitmap(const eeseuib_diplomacy *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeseuib_diplomacy_set_pressed_bitmap(eeseuib_diplomacy *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeseuib_diplomacy_pressed_bitmap_at(const eeseuib_diplomacy *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeseuib_diplomacy_get_text(const eeseuib_diplomacy *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeseuib_diplomacy_set_text(eeseuib_diplomacy *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeseuib_diplomacy_text_at(const eeseuib_diplomacy *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeseuib_diplomacy_get_mode_now(const eeseuib_diplomacy *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -1541,6 +1777,16 @@ internal inline float *eeseuib_diplomacy_top_at(const eeseuib_diplomacy *o) { re
 internal inline ee_ui_form *eeseuib_diplomacy_get_form(const eeseuib_diplomacy *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseuib_diplomacy_set_form(eeseuib_diplomacy *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseuib_diplomacy_form_at(const eeseuib_diplomacy *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseuib_diplomacy_get_index(const eeseuib_diplomacy *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseuib_diplomacy_set_index(eeseuib_diplomacy *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseuib_diplomacy_index_at(const eeseuib_diplomacy *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseuib_diplomacy_get_id(const eeseuib_diplomacy *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseuib_diplomacy_set_id(eeseuib_diplomacy *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseuib_diplomacy_id_at(const eeseuib_diplomacy *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeseuib_diplomacy_init_fn)(eeseuib_diplomacy *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseuib_diplomacy_init_fn fn_eeseuib_diplomacy_init;
@@ -1600,6 +1846,16 @@ internal inline float *eeseuic_command_units_top_at(const eeseuic_command_units 
 internal inline ee_ui_form *eeseuic_command_units_get_form(const eeseuic_command_units *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseuic_command_units_set_form(eeseuic_command_units *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseuic_command_units_form_at(const eeseuic_command_units *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseuic_command_units_get_index(const eeseuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseuic_command_units_set_index(eeseuic_command_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseuic_command_units_index_at(const eeseuic_command_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseuic_command_units_get_id(const eeseuic_command_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseuic_command_units_set_id(eeseuic_command_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseuic_command_units_id_at(const eeseuic_command_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeseuic_command_units_init_fn)(eeseuic_command_units *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseuic_command_units_init_fn fn_eeseuic_command_units_init;
@@ -1644,6 +1900,16 @@ internal inline float *eeseuic_trigger_select_units_top_at(const eeseuic_trigger
 internal inline ee_ui_form *eeseuic_trigger_select_units_get_form(const eeseuic_trigger_select_units *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseuic_trigger_select_units_set_form(eeseuic_trigger_select_units *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseuic_trigger_select_units_form_at(const eeseuic_trigger_select_units *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseuic_trigger_select_units_get_index(const eeseuic_trigger_select_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseuic_trigger_select_units_set_index(eeseuic_trigger_select_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseuic_trigger_select_units_index_at(const eeseuic_trigger_select_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseuic_trigger_select_units_get_id(const eeseuic_trigger_select_units *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseuic_trigger_select_units_set_id(eeseuic_trigger_select_units *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseuic_trigger_select_units_id_at(const eeseuic_trigger_select_units *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeseuic_trigger_select_units_init_fn)(eeseuic_trigger_select_units *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseuic_trigger_select_units_init_fn fn_eeseuic_trigger_select_units_init;
@@ -1687,6 +1953,16 @@ internal inline float *eeseui_tech_list_box_top_at(const eeseui_tech_list_box *o
 internal inline ee_ui_form *eeseui_tech_list_box_get_form(const eeseui_tech_list_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseui_tech_list_box_set_form(eeseui_tech_list_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseui_tech_list_box_form_at(const eeseui_tech_list_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseui_tech_list_box_get_index(const eeseui_tech_list_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseui_tech_list_box_set_index(eeseui_tech_list_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseui_tech_list_box_index_at(const eeseui_tech_list_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseui_tech_list_box_get_id(const eeseui_tech_list_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseui_tech_list_box_set_id(eeseui_tech_list_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseui_tech_list_box_id_at(const eeseui_tech_list_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (10 arguments, not typed yet)
 typedef void *(__thiscall *eeseui_tech_list_box_init_fn)(eeseui_tech_list_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseui_tech_list_box_init_fn fn_eeseui_tech_list_box_init;
@@ -1725,6 +2001,16 @@ internal inline float *se_color_list_top_at(const ee_se_color_list *o) { return 
 internal inline ee_ui_form *se_color_list_get_form(const ee_se_color_list *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void se_color_list_set_form(ee_se_color_list *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **se_color_list_form_at(const ee_se_color_list *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t se_color_list_get_index(const ee_se_color_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void se_color_list_set_index(ee_se_color_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *se_color_list_index_at(const ee_se_color_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t se_color_list_get_id(const ee_se_color_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void se_color_list_set_id(ee_se_color_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *se_color_list_id_at(const ee_se_color_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // the selected item (0x59D123 reads it: valid while there are items and +0x133 is set)
 internal inline int se_color_list_get_selected(const ee_se_color_list *o) { return *(int *)((uint8_t *)o + of_se_color_list_selected); }
 internal inline void se_color_list_set_selected(ee_se_color_list *o, int v) { *(int *)((uint8_t *)o + of_se_color_list_selected) = v; }
@@ -1819,6 +2105,16 @@ internal inline float *eeseui_terrain_type_lb_top_at(const eeseui_terrain_type_l
 internal inline ee_ui_form *eeseui_terrain_type_lb_get_form(const eeseui_terrain_type_lb *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeseui_terrain_type_lb_set_form(eeseui_terrain_type_lb *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeseui_terrain_type_lb_form_at(const eeseui_terrain_type_lb *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeseui_terrain_type_lb_get_index(const eeseui_terrain_type_lb *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeseui_terrain_type_lb_set_index(eeseui_terrain_type_lb *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeseui_terrain_type_lb_index_at(const eeseui_terrain_type_lb *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeseui_terrain_type_lb_get_id(const eeseui_terrain_type_lb *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeseui_terrain_type_lb_set_id(eeseui_terrain_type_lb *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeseui_terrain_type_lb_id_at(const eeseui_terrain_type_lb *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (7 arguments, not typed yet)
 typedef void *(__thiscall *eeseui_terrain_type_lb_init_fn)(eeseui_terrain_type_lb *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeseui_terrain_type_lb_init_fn fn_eeseui_terrain_type_lb_init;
@@ -1929,6 +2225,22 @@ internal inline int patch_se_unit_update(se_unit_update_fn h) { return patch_vta
 
 // class EEUIFSEBRemoveCargo (eeuifseb_remove_cargo)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifseb_remove_cargo_get_normal_bitmap(const eeuifseb_remove_cargo *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifseb_remove_cargo_set_normal_bitmap(eeuifseb_remove_cargo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifseb_remove_cargo_normal_bitmap_at(const eeuifseb_remove_cargo *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifseb_remove_cargo_get_focused_bitmap(const eeuifseb_remove_cargo *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifseb_remove_cargo_set_focused_bitmap(eeuifseb_remove_cargo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifseb_remove_cargo_focused_bitmap_at(const eeuifseb_remove_cargo *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifseb_remove_cargo_get_pressed_bitmap(const eeuifseb_remove_cargo *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifseb_remove_cargo_set_pressed_bitmap(eeuifseb_remove_cargo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifseb_remove_cargo_pressed_bitmap_at(const eeuifseb_remove_cargo *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifseb_remove_cargo_get_text(const eeuifseb_remove_cargo *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifseb_remove_cargo_set_text(eeuifseb_remove_cargo *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifseb_remove_cargo_text_at(const eeuifseb_remove_cargo *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifseb_remove_cargo_get_mode_now(const eeuifseb_remove_cargo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -1953,6 +2265,16 @@ internal inline float *eeuifseb_remove_cargo_top_at(const eeuifseb_remove_cargo 
 internal inline ee_ui_form *eeuifseb_remove_cargo_get_form(const eeuifseb_remove_cargo *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifseb_remove_cargo_set_form(eeuifseb_remove_cargo *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifseb_remove_cargo_form_at(const eeuifseb_remove_cargo *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifseb_remove_cargo_get_index(const eeuifseb_remove_cargo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifseb_remove_cargo_set_index(eeuifseb_remove_cargo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifseb_remove_cargo_index_at(const eeuifseb_remove_cargo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifseb_remove_cargo_get_id(const eeuifseb_remove_cargo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifseb_remove_cargo_set_id(eeuifseb_remove_cargo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifseb_remove_cargo_id_at(const eeuifseb_remove_cargo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (10 arguments, not typed yet)
 typedef void *(__thiscall *eeuifseb_remove_cargo_init_fn)(eeuifseb_remove_cargo *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifseb_remove_cargo_init_fn fn_eeuifseb_remove_cargo_init;
@@ -1963,6 +2285,22 @@ internal inline void eeuifseb_remove_cargo_button_up(eeuifseb_remove_cargo *eeui
 
 // class EEUIFSEBRotation (eeuifseb_rotation)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifseb_rotation_get_normal_bitmap(const eeuifseb_rotation *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifseb_rotation_set_normal_bitmap(eeuifseb_rotation *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifseb_rotation_normal_bitmap_at(const eeuifseb_rotation *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifseb_rotation_get_focused_bitmap(const eeuifseb_rotation *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifseb_rotation_set_focused_bitmap(eeuifseb_rotation *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifseb_rotation_focused_bitmap_at(const eeuifseb_rotation *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifseb_rotation_get_pressed_bitmap(const eeuifseb_rotation *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifseb_rotation_set_pressed_bitmap(eeuifseb_rotation *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifseb_rotation_pressed_bitmap_at(const eeuifseb_rotation *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifseb_rotation_get_text(const eeuifseb_rotation *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifseb_rotation_set_text(eeuifseb_rotation *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifseb_rotation_text_at(const eeuifseb_rotation *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifseb_rotation_get_mode_now(const eeuifseb_rotation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -1987,6 +2325,16 @@ internal inline float *eeuifseb_rotation_top_at(const eeuifseb_rotation *o) { re
 internal inline ee_ui_form *eeuifseb_rotation_get_form(const eeuifseb_rotation *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifseb_rotation_set_form(eeuifseb_rotation *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifseb_rotation_form_at(const eeuifseb_rotation *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifseb_rotation_get_index(const eeuifseb_rotation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifseb_rotation_set_index(eeuifseb_rotation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifseb_rotation_index_at(const eeuifseb_rotation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifseb_rotation_get_id(const eeuifseb_rotation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifseb_rotation_set_id(eeuifseb_rotation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifseb_rotation_id_at(const eeuifseb_rotation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (10 arguments, not typed yet)
 typedef void *(__thiscall *eeuifseb_rotation_init_fn)(eeuifseb_rotation *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifseb_rotation_init_fn fn_eeuifseb_rotation_init;
@@ -2007,6 +2355,22 @@ internal inline int eeuifseb_rotation_update_keyboard(eeuifseb_rotation *eeuifse
 // class EEUIFSEBUnitType (eeuifseb_unit_type)
 // UIRadioButton's, the base's
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifseb_unit_type_get_normal_bitmap(const eeuifseb_unit_type *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifseb_unit_type_set_normal_bitmap(eeuifseb_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifseb_unit_type_normal_bitmap_at(const eeuifseb_unit_type *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifseb_unit_type_get_focused_bitmap(const eeuifseb_unit_type *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifseb_unit_type_set_focused_bitmap(eeuifseb_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifseb_unit_type_focused_bitmap_at(const eeuifseb_unit_type *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifseb_unit_type_get_pressed_bitmap(const eeuifseb_unit_type *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifseb_unit_type_set_pressed_bitmap(eeuifseb_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifseb_unit_type_pressed_bitmap_at(const eeuifseb_unit_type *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifseb_unit_type_get_text(const eeuifseb_unit_type *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifseb_unit_type_set_text(eeuifseb_unit_type *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifseb_unit_type_text_at(const eeuifseb_unit_type *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifseb_unit_type_get_mode_now(const eeuifseb_unit_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -2031,6 +2395,16 @@ internal inline float *eeuifseb_unit_type_top_at(const eeuifseb_unit_type *o) { 
 internal inline ee_ui_form *eeuifseb_unit_type_get_form(const eeuifseb_unit_type *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifseb_unit_type_set_form(eeuifseb_unit_type *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifseb_unit_type_form_at(const eeuifseb_unit_type *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifseb_unit_type_get_index(const eeuifseb_unit_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifseb_unit_type_set_index(eeuifseb_unit_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifseb_unit_type_index_at(const eeuifseb_unit_type *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifseb_unit_type_get_id(const eeuifseb_unit_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifseb_unit_type_set_id(eeuifseb_unit_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifseb_unit_type_id_at(const eeuifseb_unit_type *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (11 arguments, not typed yet)
 typedef void *(__thiscall *eeuifseb_unit_type_init_fn)(eeuifseb_unit_type *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifseb_unit_type_init_fn fn_eeuifseb_unit_type_init;
@@ -2069,6 +2443,16 @@ internal inline float *eeuifsees_elevation_top_at(const eeuifsees_elevation *o) 
 internal inline ee_ui_form *eeuifsees_elevation_get_form(const eeuifsees_elevation *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifsees_elevation_set_form(eeuifsees_elevation *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifsees_elevation_form_at(const eeuifsees_elevation *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifsees_elevation_get_index(const eeuifsees_elevation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifsees_elevation_set_index(eeuifsees_elevation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifsees_elevation_index_at(const eeuifsees_elevation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifsees_elevation_get_id(const eeuifsees_elevation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifsees_elevation_set_id(eeuifsees_elevation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifsees_elevation_id_at(const eeuifsees_elevation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuifsees_elevation_init_fn)(eeuifsees_elevation *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifsees_elevation_init_fn fn_eeuifsees_elevation_init;
@@ -2125,6 +2509,16 @@ internal inline float *eeuifselb_cargo_list_top_at(const eeuifselb_cargo_list *o
 internal inline ee_ui_form *eeuifselb_cargo_list_get_form(const eeuifselb_cargo_list *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifselb_cargo_list_set_form(eeuifselb_cargo_list *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifselb_cargo_list_form_at(const eeuifselb_cargo_list *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifselb_cargo_list_get_index(const eeuifselb_cargo_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifselb_cargo_list_set_index(eeuifselb_cargo_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifselb_cargo_list_index_at(const eeuifselb_cargo_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifselb_cargo_list_get_id(const eeuifselb_cargo_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifselb_cargo_list_set_id(eeuifselb_cargo_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifselb_cargo_list_id_at(const eeuifselb_cargo_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (10 arguments, not typed yet)
 typedef void *(__thiscall *eeuifselb_cargo_list_init_fn)(eeuifselb_cargo_list *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifselb_cargo_list_init_fn fn_eeuifselb_cargo_list_init;
@@ -2157,6 +2551,16 @@ internal inline float *se_unit_list_top_at(const ee_se_unit_list *o) { return (f
 internal inline ee_ui_form *se_unit_list_get_form(const ee_se_unit_list *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void se_unit_list_set_form(ee_se_unit_list *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **se_unit_list_form_at(const ee_se_unit_list *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t se_unit_list_get_index(const ee_se_unit_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void se_unit_list_set_index(ee_se_unit_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *se_unit_list_index_at(const ee_se_unit_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t se_unit_list_get_id(const ee_se_unit_list *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void se_unit_list_set_id(ee_se_unit_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *se_unit_list_id_at(const ee_se_unit_list *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (10 arguments, not typed yet)
 typedef void *(__thiscall *se_unit_list_init_fn)(ee_se_unit_list *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal se_unit_list_init_fn fn_se_unit_list_init;
@@ -2174,6 +2578,22 @@ internal inline int se_unit_list_update_keyboard(ee_se_unit_list *se_unit_list) 
 // class EEUIFSEMainButton (eeuifse_main_button)
 // UIRadioButton's, the base's
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifse_main_button_get_normal_bitmap(const eeuifse_main_button *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifse_main_button_set_normal_bitmap(eeuifse_main_button *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifse_main_button_normal_bitmap_at(const eeuifse_main_button *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifse_main_button_get_focused_bitmap(const eeuifse_main_button *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifse_main_button_set_focused_bitmap(eeuifse_main_button *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifse_main_button_focused_bitmap_at(const eeuifse_main_button *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifse_main_button_get_pressed_bitmap(const eeuifse_main_button *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifse_main_button_set_pressed_bitmap(eeuifse_main_button *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifse_main_button_pressed_bitmap_at(const eeuifse_main_button *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifse_main_button_get_text(const eeuifse_main_button *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifse_main_button_set_text(eeuifse_main_button *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifse_main_button_text_at(const eeuifse_main_button *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifse_main_button_get_mode_now(const eeuifse_main_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -2198,6 +2618,16 @@ internal inline float *eeuifse_main_button_top_at(const eeuifse_main_button *o) 
 internal inline ee_ui_form *eeuifse_main_button_get_form(const eeuifse_main_button *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifse_main_button_set_form(eeuifse_main_button *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifse_main_button_form_at(const eeuifse_main_button *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifse_main_button_get_index(const eeuifse_main_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifse_main_button_set_index(eeuifse_main_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifse_main_button_index_at(const eeuifse_main_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifse_main_button_get_id(const eeuifse_main_button *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifse_main_button_set_id(eeuifse_main_button *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifse_main_button_id_at(const eeuifse_main_button *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (10 arguments, not typed yet)
 typedef void *(__thiscall *eeuifse_main_button_init_fn)(eeuifse_main_button *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifse_main_button_init_fn fn_eeuifse_main_button_init;
@@ -2237,6 +2667,16 @@ internal inline float *eeuifse_paint_top_at(const eeuifse_paint *o) { return (fl
 internal inline ee_ui_form *eeuifse_paint_get_form(const eeuifse_paint *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifse_paint_set_form(eeuifse_paint *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifse_paint_form_at(const eeuifse_paint *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifse_paint_get_index(const eeuifse_paint *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifse_paint_set_index(eeuifse_paint *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifse_paint_index_at(const eeuifse_paint *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifse_paint_get_id(const eeuifse_paint *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifse_paint_set_id(eeuifse_paint *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifse_paint_id_at(const eeuifse_paint *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuifse_paint_init_fn)(eeuifse_paint *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifse_paint_init_fn fn_eeuifse_paint_init;
@@ -2295,6 +2735,16 @@ internal inline float *eeuifse_paint_elevation_top_at(const eeuifse_paint_elevat
 internal inline ee_ui_form *eeuifse_paint_elevation_get_form(const eeuifse_paint_elevation *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifse_paint_elevation_set_form(eeuifse_paint_elevation *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifse_paint_elevation_form_at(const eeuifse_paint_elevation *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifse_paint_elevation_get_index(const eeuifse_paint_elevation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifse_paint_elevation_set_index(eeuifse_paint_elevation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifse_paint_elevation_index_at(const eeuifse_paint_elevation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifse_paint_elevation_get_id(const eeuifse_paint_elevation *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifse_paint_elevation_set_id(eeuifse_paint_elevation *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifse_paint_elevation_id_at(const eeuifse_paint_elevation *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuifse_paint_elevation_init_fn)(eeuifse_paint_elevation *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifse_paint_elevation_init_fn fn_eeuifse_paint_elevation_init;
@@ -2315,6 +2765,22 @@ internal inline int eeuifse_paint_elevation_mouse_r_button_up(eeuifse_paint_elev
 // class EEUIFSERBBrush (eeuifserb_brush)
 // UIRadioButton's, the base's
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifserb_brush_get_normal_bitmap(const eeuifserb_brush *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifserb_brush_set_normal_bitmap(eeuifserb_brush *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifserb_brush_normal_bitmap_at(const eeuifserb_brush *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifserb_brush_get_focused_bitmap(const eeuifserb_brush *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifserb_brush_set_focused_bitmap(eeuifserb_brush *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifserb_brush_focused_bitmap_at(const eeuifserb_brush *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifserb_brush_get_pressed_bitmap(const eeuifserb_brush *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifserb_brush_set_pressed_bitmap(eeuifserb_brush *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifserb_brush_pressed_bitmap_at(const eeuifserb_brush *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifserb_brush_get_text(const eeuifserb_brush *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifserb_brush_set_text(eeuifserb_brush *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifserb_brush_text_at(const eeuifserb_brush *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifserb_brush_get_mode_now(const eeuifserb_brush *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -2339,6 +2805,16 @@ internal inline float *eeuifserb_brush_top_at(const eeuifserb_brush *o) { return
 internal inline ee_ui_form *eeuifserb_brush_get_form(const eeuifserb_brush *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifserb_brush_set_form(eeuifserb_brush *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifserb_brush_form_at(const eeuifserb_brush *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifserb_brush_get_index(const eeuifserb_brush *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifserb_brush_set_index(eeuifserb_brush *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifserb_brush_index_at(const eeuifserb_brush *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifserb_brush_get_id(const eeuifserb_brush *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifserb_brush_set_id(eeuifserb_brush *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifserb_brush_id_at(const eeuifserb_brush *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (9 arguments, not typed yet)
 typedef void *(__thiscall *eeuifserb_brush_init_fn)(eeuifserb_brush *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifserb_brush_init_fn fn_eeuifserb_brush_init;
@@ -2346,6 +2822,22 @@ internal inline void *eeuifserb_brush_init(eeuifserb_brush *eeuifserb_brush, uin
 
 // class EEUIFSERedo (eeuifse_redo)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifse_redo_get_normal_bitmap(const eeuifse_redo *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifse_redo_set_normal_bitmap(eeuifse_redo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifse_redo_normal_bitmap_at(const eeuifse_redo *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifse_redo_get_focused_bitmap(const eeuifse_redo *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifse_redo_set_focused_bitmap(eeuifse_redo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifse_redo_focused_bitmap_at(const eeuifse_redo *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifse_redo_get_pressed_bitmap(const eeuifse_redo *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifse_redo_set_pressed_bitmap(eeuifse_redo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifse_redo_pressed_bitmap_at(const eeuifse_redo *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifse_redo_get_text(const eeuifse_redo *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifse_redo_set_text(eeuifse_redo *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifse_redo_text_at(const eeuifse_redo *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifse_redo_get_mode_now(const eeuifse_redo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -2370,6 +2862,16 @@ internal inline float *eeuifse_redo_top_at(const eeuifse_redo *o) { return (floa
 internal inline ee_ui_form *eeuifse_redo_get_form(const eeuifse_redo *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifse_redo_set_form(eeuifse_redo *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifse_redo_form_at(const eeuifse_redo *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifse_redo_get_index(const eeuifse_redo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifse_redo_set_index(eeuifse_redo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifse_redo_index_at(const eeuifse_redo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifse_redo_get_id(const eeuifse_redo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifse_redo_set_id(eeuifse_redo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifse_redo_id_at(const eeuifse_redo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (9 arguments, not typed yet)
 typedef void *(__thiscall *eeuifse_redo_init_fn)(eeuifse_redo *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifse_redo_init_fn fn_eeuifse_redo_init;
@@ -2381,6 +2883,22 @@ internal inline void eeuifse_redo_button_up(eeuifse_redo *eeuifse_redo) { fn_eeu
 // class EEUIFSETRBPaintType (eeuifsetrb_paint_type)
 // UIRadioButton's, the base's
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifsetrb_paint_type_get_normal_bitmap(const eeuifsetrb_paint_type *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifsetrb_paint_type_set_normal_bitmap(eeuifsetrb_paint_type *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifsetrb_paint_type_normal_bitmap_at(const eeuifsetrb_paint_type *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifsetrb_paint_type_get_focused_bitmap(const eeuifsetrb_paint_type *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifsetrb_paint_type_set_focused_bitmap(eeuifsetrb_paint_type *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifsetrb_paint_type_focused_bitmap_at(const eeuifsetrb_paint_type *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifsetrb_paint_type_get_pressed_bitmap(const eeuifsetrb_paint_type *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifsetrb_paint_type_set_pressed_bitmap(eeuifsetrb_paint_type *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifsetrb_paint_type_pressed_bitmap_at(const eeuifsetrb_paint_type *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifsetrb_paint_type_get_text(const eeuifsetrb_paint_type *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifsetrb_paint_type_set_text(eeuifsetrb_paint_type *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifsetrb_paint_type_text_at(const eeuifsetrb_paint_type *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifsetrb_paint_type_get_mode_now(const eeuifsetrb_paint_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -2405,6 +2923,16 @@ internal inline float *eeuifsetrb_paint_type_top_at(const eeuifsetrb_paint_type 
 internal inline ee_ui_form *eeuifsetrb_paint_type_get_form(const eeuifsetrb_paint_type *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifsetrb_paint_type_set_form(eeuifsetrb_paint_type *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifsetrb_paint_type_form_at(const eeuifsetrb_paint_type *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifsetrb_paint_type_get_index(const eeuifsetrb_paint_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifsetrb_paint_type_set_index(eeuifsetrb_paint_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifsetrb_paint_type_index_at(const eeuifsetrb_paint_type *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifsetrb_paint_type_get_id(const eeuifsetrb_paint_type *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifsetrb_paint_type_set_id(eeuifsetrb_paint_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifsetrb_paint_type_id_at(const eeuifsetrb_paint_type *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (7 arguments, not typed yet)
 typedef void *(__thiscall *eeuifsetrb_paint_type_init_fn)(eeuifsetrb_paint_type *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifsetrb_paint_type_init_fn fn_eeuifsetrb_paint_type_init;
@@ -2469,9 +2997,35 @@ internal inline float *eeuifse_terrain_paint_top_at(const eeuifse_terrain_paint 
 internal inline ee_ui_form *eeuifse_terrain_paint_get_form(const eeuifse_terrain_paint *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifse_terrain_paint_set_form(eeuifse_terrain_paint *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifse_terrain_paint_form_at(const eeuifse_terrain_paint *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifse_terrain_paint_get_index(const eeuifse_terrain_paint *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifse_terrain_paint_set_index(eeuifse_terrain_paint *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifse_terrain_paint_index_at(const eeuifse_terrain_paint *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifse_terrain_paint_get_id(const eeuifse_terrain_paint *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifse_terrain_paint_set_id(eeuifse_terrain_paint *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifse_terrain_paint_id_at(const eeuifse_terrain_paint *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 
 // class EEUIFSEUndo (eeuifse_undo)
 // UIButton's, the base's
+// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+// itself, drew white (2026-11-26)
+internal inline void *eeuifse_undo_get_normal_bitmap(const eeuifse_undo *o) { return *(void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void eeuifse_undo_set_normal_bitmap(eeuifse_undo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_normal_bitmap) = v; }
+internal inline void **eeuifse_undo_normal_bitmap_at(const eeuifse_undo *o) { return (void **)((uint8_t *)o + of_ui_button_normal_bitmap); }
+internal inline void *eeuifse_undo_get_focused_bitmap(const eeuifse_undo *o) { return *(void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void eeuifse_undo_set_focused_bitmap(eeuifse_undo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_focused_bitmap) = v; }
+internal inline void **eeuifse_undo_focused_bitmap_at(const eeuifse_undo *o) { return (void **)((uint8_t *)o + of_ui_button_focused_bitmap); }
+internal inline void *eeuifse_undo_get_pressed_bitmap(const eeuifse_undo *o) { return *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+internal inline void eeuifse_undo_set_pressed_bitmap(eeuifse_undo *o, void *v) { *(void **)((uint8_t *)o + of_ui_button_pressed_bitmap) = v; }
+internal inline void **eeuifse_undo_pressed_bitmap_at(const eeuifse_undo *o) { return (void **)((uint8_t *)o + of_ui_button_pressed_bitmap); }
+// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+internal inline ee_ui_label_text *eeuifse_undo_get_text(const eeuifse_undo *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
+internal inline void eeuifse_undo_set_text(eeuifse_undo *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_button_text) = v; }
+internal inline ee_ui_label_text **eeuifse_undo_text_at(const eeuifse_undo *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_button_text); }
 // UIControl's, the base's
 // what set_display_mode set (UIControl::SetDisplayMode: 0 hides it)
 internal inline uint32_t eeuifse_undo_get_mode_now(const eeuifse_undo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_mode_now); }
@@ -2496,6 +3050,16 @@ internal inline float *eeuifse_undo_top_at(const eeuifse_undo *o) { return (floa
 internal inline ee_ui_form *eeuifse_undo_get_form(const eeuifse_undo *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeuifse_undo_set_form(eeuifse_undo *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeuifse_undo_form_at(const eeuifse_undo *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+internal inline uint32_t eeuifse_undo_get_index(const eeuifse_undo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_index); }
+internal inline void eeuifse_undo_set_index(eeuifse_undo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_index) = v; }
+internal inline uint32_t *eeuifse_undo_index_at(const eeuifse_undo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_index); }
+// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+internal inline uint32_t eeuifse_undo_get_id(const eeuifse_undo *o) { return *(uint32_t *)((uint8_t *)o + of_ui_control_id); }
+internal inline void eeuifse_undo_set_id(eeuifse_undo *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_control_id) = v; }
+internal inline uint32_t *eeuifse_undo_id_at(const eeuifse_undo *o) { return (uint32_t *)((uint8_t *)o + of_ui_control_id); }
 // its constructor (9 arguments, not typed yet)
 typedef void *(__thiscall *eeuifse_undo_init_fn)(eeuifse_undo *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifse_undo_init_fn fn_eeuifse_undo_init;
@@ -2509,10 +3073,29 @@ internal inline void eeuifse_undo_button_up(eeuifse_undo *eeuifse_undo) { fn_eeu
 // (slot 18) lays out the panels (editor_layout.h's vf18)
 // UIForm's, the base's
 // its controls by their index in the form (the single-player menu's name field: entry 8, a UIEditBox); the event
-// creators read entry 4 (0x65A46D)
+// creators read entry 4 (0x65A46D). An array of controls_n (UIForm::AddControl puts a control into the slot of
+// its index when that is empty, never past it): the game setup screen's 275 - its 272 controls, then empty slots
+// (read 2026-11-26)
 internal inline uint8_t **editor_form_get_controls(const ee_editor_form *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
 internal inline void editor_form_set_controls(ee_editor_form *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_form_controls) = v; }
 internal inline uint8_t ***editor_form_controls_at(const ee_editor_form *o) { return (uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
+// its controls in the order they are drawn (UIForm::DrawPolygons, DrawTextA go through them; another array of
+// controls_n: a control not in it is not drawn), NULL entries left out
+internal inline ee_ui_control **editor_form_get_controls_drawn(const ee_editor_form *o) { return *(ee_ui_control ***)((uint8_t *)o + of_ui_form_controls_drawn); }
+internal inline void editor_form_set_controls_drawn(ee_editor_form *o, ee_ui_control **v) { *(ee_ui_control ***)((uint8_t *)o + of_ui_form_controls_drawn) = v; }
+internal inline ee_ui_control ***editor_form_controls_drawn_at(const ee_editor_form *o) { return (ee_ui_control ***)((uint8_t *)o + of_ui_form_controls_drawn); }
+// the length of both arrays
+internal inline uint32_t editor_form_get_controls_n(const ee_editor_form *o) { return *(uint32_t *)((uint8_t *)o + of_ui_form_controls_n); }
+internal inline void editor_form_set_controls_n(ee_editor_form *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_form_controls_n) = v; }
+internal inline uint32_t *editor_form_controls_n_at(const ee_editor_form *o) { return (uint32_t *)((uint8_t *)o + of_ui_form_controls_n); }
+// its groups of controls (AddControl's second argument puts a control into one's list - what the mouse and the
+// drawing go through, not controls), groups_n of them
+internal inline ee_ui_group **editor_form_get_groups(const ee_editor_form *o) { return *(ee_ui_group ***)((uint8_t *)o + of_ui_form_groups); }
+internal inline void editor_form_set_groups(ee_editor_form *o, ee_ui_group **v) { *(ee_ui_group ***)((uint8_t *)o + of_ui_form_groups) = v; }
+internal inline ee_ui_group ***editor_form_groups_at(const ee_editor_form *o) { return (ee_ui_group ***)((uint8_t *)o + of_ui_form_groups); }
+internal inline uint32_t editor_form_get_groups_n(const ee_editor_form *o) { return *(uint32_t *)((uint8_t *)o + of_ui_form_groups_n); }
+internal inline void editor_form_set_groups_n(ee_editor_form *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_form_groups_n) = v; }
+internal inline uint32_t *editor_form_groups_n_at(const ee_editor_form *o) { return (uint32_t *)((uint8_t *)o + of_ui_form_groups_n); }
 // the control that has the keyboard (an edit box clicked into), NULL none: GetKeyboardCaptured, set by
 // SetKeyboardCaptured from UIControl::CaptureKeyboard / ReleaseCapturedKeyboard; the game runs its own F-key
 // hotkeys only while it is NULL (EEUIManager::update_keyboard 0x65C99D), not the form's

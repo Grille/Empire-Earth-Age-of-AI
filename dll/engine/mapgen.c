@@ -21,6 +21,9 @@
 // settled (then a description in .eeai).
 #define MG_NAME "Age of AI"
 internal int g_mapgen_added;
+// the seed of the options' preview to play (the setup screen's dialog, "play this map"): the next single-player random
+// map of the mod's type is made from it instead of the game's, once
+internal struct { int on; uint32_t seed; } g_mg_keep;
 
 internal int mapgen_is_ours(const char *name) { return name && !lstrcmpiA(name, MG_NAME); }
 
@@ -221,10 +224,12 @@ internal float mg_step(float lo, float hi, float v) {   // 0 below lo, 1 above h
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     return t * t * (3 - 2 * t);
 }
-// a corner of the map: the game's map's, a preview's the diamond the game's has (u and v within half the side)
+// a corner of the map: the game's map's, a preview's the diamond the game's has - u and v within half the side and
+// one more (its rows read 2026-11-26: row 0 of 150 tiles corners 74 .. 76, the middle rows 0 .. 150; a tile where its
+// four corners are)
 internal inline int mg_corner(const struct mg *g, int x, int y) {
     if (x < 0 || y < 0 || x > g->n || y > g->n) return 0;
-    return g->map ? map_corner(g->map, x, y) != NULL : fabsf((float)(x - y)) <= g->half && fabsf((float)(x + y - g->n)) <= g->half;
+    return g->map ? map_corner(g->map, x, y) != NULL : fabsf((float)(x - y)) <= g->half + 1 && fabsf((float)(x + y - g->n)) <= g->half + 1;
 }
 internal inline ee_tile *mg_tile(const struct mg *g, int x, int y) { return x >= 0 && y >= 0 && x < g->n && y < g->n ? map_get_tiles(g->map)[y * g->n + x] : NULL; }
 // a tile of the map (a preview's: its four corners are)
@@ -1386,6 +1391,11 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
         return 0;
     }
     g->world = pb[0];
+    if (g_mg_keep.on && setup && setup_get_mode(setup) == 0) {   // the next random-map game's: the preview's map
+        g_mg_keep.on = 0;
+        if (g_log) log_locked("# mapgen: the seed of the options' preview, %u, instead of the game's %u%s\n", g_mg_keep.seed, seed, g->opt.mp ? " - not in a multiplayer game" : "");
+        if (!g->opt.mp) { seed = g->seed = g_mg_keep.seed; g->rng = seed * 2654435761u | 1; }
+    }
     mg_steps(g);
     start[0] = start[1] = g->half + 0.5f;
     for (int i = 0; i < g->np; i++) {
@@ -1418,10 +1428,11 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
 
 // THE PREVIEW (the player 2026-11-25: the options' dialog shows what they make): the map of n tiles a side for np
 // players from seed, by the same steps into the generator's own arrays - no game's map, no units: in the editor the
-// map OK makes (its seed is drawn before): the game's tile kinds by its rules (mg_kinds, mg_cliff_run), so that the
-// walks, the fords and the free tiles come out alike - on four maps of 150 - 440 tiles every lake, river, mine and
-// forest where the preview had it; the game counted fewer cliff tiles (620 against 901 on one: none of them in the
-// way of what is laid; the map's diamond edge a guess, mg_corner) - painted top down into px, size x size (a 32-bit DIB's 0x00RRGGBB,
+// map OK makes (its seed is drawn before), on the setup screen the map of a game started with "play this map": the
+// game's map's corners (mg_corner) and tile kinds by its rules (mg_kinds, mg_cliff_run), so that the walks, the
+// fords and the free tiles come out alike - checked on maps of 150 - 440 tiles, the editor's and a game's: every lake,
+// river, mine and forest where the preview had it (until the diamond was one corner wider, 2026-11-26, a game's map
+// parted from its preview now and then) - painted top down into px, size x size (a 32-bit DIB's 0x00RRGGBB,
 // the top row first): the far end, the north, up, the continents left and right as the game's minimap shows them. A
 // tile's colour: its biome's ground (a forest darker), the sea deeper darker, shallows and inland water lighter, a
 // mountain toward rock, a cliff dark, lit from the north-west by its corners' heights; the mines as dots (gold

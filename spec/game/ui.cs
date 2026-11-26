@@ -444,9 +444,28 @@ enum ui_form_id : int32
 unsafe struct UIForm
 {
     /// its controls by their index in the form (the single-player menu's name field: entry 8, a UIEditBox); the event
-    /// creators read entry 4 (0x65A46D)
+    /// creators read entry 4 (0x65A46D). An array of controls_n (UIForm::AddControl puts a control into the slot of
+    /// its index when that is empty, never past it): the game setup screen's 275 - its 272 controls, then empty slots
+    /// (read 2026-11-26)
     [offset(0xF8), found(v)]
     uint8** controls;
+
+    /// its controls in the order they are drawn (UIForm::DrawPolygons, DrawTextA go through them; another array of
+    /// controls_n: a control not in it is not drawn), NULL entries left out
+    [offset(0xFC), found(c)]
+    UIControl** controls_drawn;
+
+    /// the length of both arrays
+    [offset(0x170), found(c)]
+    uint32 controls_n;
+
+    /// its groups of controls (AddControl's second argument puts a control into one's list - what the mouse and the
+    /// drawing go through, not controls), groups_n of them
+    [offset(0xF4), found(c)]
+    UIEntityGroup** groups;
+
+    [offset(0x174), found(c)]
+    uint32 groups_n;
 
     /// the control that has the keyboard (an edit box clicked into), NULL none: GetKeyboardCaptured, set by
     /// SetKeyboardCaptured from UIControl::CaptureKeyboard / ReleaseCapturedKeyboard; the game runs its own F-key
@@ -539,6 +558,23 @@ unsafe struct UIForm
     extern void set_rectangle(void* rect);
 }
 
+/// a group of a form's controls, Low-Level Engine.dll's UIEntityGroup: UIForm::UpdateMouseLocation goes through the
+/// form's groups from the last, each one's controls from the first, the first one shown under the mouse taken
+[c_type("ee_ui_group")]
+unsafe struct UIEntityGroup
+{
+    /// its controls (a vector: the first, the end)
+    [offset(0x4), found(c)]
+    UIControl** controls;
+
+    [offset(0x8), found(c)]
+    UIControl** controls_end;
+
+    /// not 0: the group hidden (its controls neither under the mouse nor drawn)
+    [offset(0x10), found(c)]
+    uint32 hidden;
+}
+
 /// a control of a form, Low-Level Engine.dll's UIControl (UIEntity's): made from its row of dbuicontrols.dat - the
 /// DLL's own kinds (UIButton, UITextLabel, UIEditBox, UIComboBox, a list box ...) or, for types 1000.., EEUIManager's
 /// create_control. Its vtable is the DLL's; its slots by the DLL's export names (17 and 18 one empty function there:
@@ -569,6 +605,16 @@ unsafe struct UIControl
     /// the form it is in (UIControl::CaptureKeyboard captures it there)
     [offset(0x68), found(c)]
     UIForm* form;
+
+    /// its index in its form (UIControl's constructor; the form's controls[index] is it - AddControl puts it there
+    /// when that slot is empty -, SetRectangle and SetLocation mark its old place to be drawn again only then)
+    [offset(0x7C), found(c)]
+    uint32 index;
+
+    /// its id (the constructor's second argument, UIButton's first; the game setup screen's 2680 ..): its form finds
+    /// its group by it (UIForm::GetEntityGroupById - SetDisplayMode, SetLocation ask it)
+    [offset(0x80), found(c)]
+    uint32 id;
 
     // VIRTUAL FUNCTIONS (slot 0 the destructor)
 
@@ -680,10 +726,27 @@ unsafe struct UIControl
     extern int32 draw_border(void* rect, uint32 flags);
 }
 
-/// a button, Low-Level Engine.dll's UIButton (its vtable the DLL's): the slots it adds
-[@base(typeof(UIControl)), c_type("ee_ui_button")]
+/// a button, Low-Level Engine.dll's UIButton (its vtable the DLL's): the slots it adds. Its size: its constructor's
+/// last field +0x102 (the editor's Create Map, a subclass, takes 0x108 with one of its own at +0x104)
+[@base(typeof(UIControl)), size((ee)0x104, (aoc)0x104), c_type("ee_ui_button")]
 unsafe struct UIButton
 {
+    /// its pictures, GEBitmaps (the constructor's: normal, focused, pressed - pressed the normal one without its
+    /// own), CopyData takes the one of its state. The Cancel button's, given to a button the form did not load
+    /// itself, drew white (2026-11-26)
+    [offset(0xBC), found(c)]
+    void* normal_bitmap;
+
+    [offset(0xC0), found(c)]
+    void* focused_bitmap;
+
+    [offset(0xB8), found(c)]
+    void* pressed_bitmap;
+
+    /// its text (a GEText: SetText makes it with the font given; GetGEText), NULL none
+    [offset(0xF8), found(c)]
+    ee_ui_label_text* text;
+
     [slot(34)]
     extern void button_down();
 
@@ -968,6 +1031,22 @@ static unsafe class ui
     [import_slot("Low-Level Engine.dll", "??0UIComboBox@@QAE@KKV?$vector@VUWideString@@V?$allocator@VUWideString@@@std@@@std@@PAVGEFont@@ABVGERectangle@@KPAVUIForm@@KKK@Z")]
     [address((ee)0x00823E14, (aoc)0x00837E1C)]
     static block iat_combo_box_ctor;
+
+    /// UIButton::UIButton(id, normal, focused, pressed GEBitmap *, const GERectangle &, UIForm *, the form's control
+    /// index, K) - its pictures' inset (the last K: their rectangle the button's that many pixels in; the engine's
+    /// 0x64D16). The editor's Create Map (0x59198C) into 0x108 bytes, then its own vtable
+    [import_slot("Low-Level Engine.dll", "??0UIButton@@QAE@KPAVGEBitmap@@00ABVGERectangle@@PAVUIForm@@KK@Z")]
+    [address((ee)0x00823D3C, (aoc)0x00837D3C)]
+    static block iat_button_ctor;
+
+    /// a control's trigger codes (UIControl::FireTriggerEvent's; SetTriggerEvent hangs an event on one): a list's
+    /// selection changed (UIListBox::ChangeSelectionIndex - the setup screen's lists' events) ...
+    [value(0x3EB)]
+    static uint32 trigger_select;
+
+    /// ... a button released over itself (UIButton::MouseLButtonUp - the setup screen's buttons' events)
+    [value(0x3F0)]
+    static uint32 trigger_button_up;
 
     /// the font of the scenario editor's check boxes and radio buttons
     [address((ee)0x009197B8, (aoc)0x00931934)]

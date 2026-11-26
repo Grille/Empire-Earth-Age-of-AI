@@ -128,6 +128,16 @@ static unsafe class setup_functions
     /// settings; form: the screen (game.iat_form_by_id 0x1A), its element 10 switched off
     [address((ee)0x005C9B91, (aoc)0x005DA6B3), stdcall]
     static extern int32 lobby_start(void* form, int32 p2);
+
+    /// the game setup screen (form 26) brought up to date with setup.lobby: its lists and seats from it, and on the PC
+    /// that serves the game (a single-player one too: the server's vf4) its lists' and buttons' events attached
+    /// (0x5CB0A4 - the map type list's EEUIELEGameMapType among them; until then the screen has none). Its calls: the
+    /// screen's own setting up (0x5CE2AA) and the lobby's messages (0x661727) - hooked after the game's own: the Age
+    /// of AI map's options button (engine/mapgen_button.c)
+    [address((ee)0x005CACB8, (aoc)0x005DB6EC), cdecl]
+    [call_site("setup_screen_refresh", (ee)0x005CE2AA, (aoc)0x005DEFB9)]
+    [call_site("setup_screen_refresh", (ee)0x00661727, (aoc)0x00678D71)]
+    static extern void setup_screen_refresh();
 }
 
 /// the game setup's player slots, 0x38 each

@@ -481,6 +481,12 @@ task: a poll left running after its caller gave up keeps sending commands to wha
   send it WM_COMMAND IDOK or IDCANCEL; its dropdowns are the controls 200 + the option's row - a choice as the
   player makes it: CB_SETCURSEL and WM_COMMAND with CBN_SELCHANGE, the preview made anew -, New seed 262; the log's
   `# mapgen: preview ...` and `# mapgen: "Age of AI" made ...` lines then compare preview and map).
+- `controls [from]`: the current form's controls from that index on - class, rectangle (left top right bottom), display
+  mode, id, group, and the game's events a list's selection and a button's click run (an empty slot: its index alone).
+  `uifire <index> select <line> | click`: a list's line chosen or a button clicked as the player does (the event
+  fired; the menus' clicks by the mouse often don't take headless). The game setup screen: main menu 512,268, the
+  single-player menu 748,143 by `vclick` (form 12, 6, then 26); its map type list is 179, Start 10.
+- `mapoptions`: the setup screen's Age of AI options button clicked (shown only with that type chosen).
 
 Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was
 64% in GDI (gdi32full); in test games 11-18%, all GDI calls from DDrawCompat itself (its ddraw.dll +0x46CB6,

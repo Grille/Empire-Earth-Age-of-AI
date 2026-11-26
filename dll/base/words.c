@@ -19,7 +19,7 @@ internal const char *const k_words[] = {
     "map_age_of_ai",                                                       // mapgen.c: the mod's map type in the game's list
     "map_options", "map_layout", "map_land", "map_climate", "map_rain",    // mapgen_dialog.c: its options
     "map_mountains", "map_rivers", "map_lakes", "map_islands", "map_forests", "map_mines", "map_starts_keep",
-    "map_seed", "map_new_seed",
+    "map_seed", "map_new_seed", "map_keep_seed", "map_options_button",
     "map_v_two_continents", "map_v_small", "map_v_normal", "map_v_large", "map_v_cold", "map_v_cool", "map_v_warm",
     "map_v_hot", "map_v_arid", "map_v_dry", "map_v_wet", "map_v_lush", "map_v_none", "map_v_few", "map_v_many",
     "map_v_lots",

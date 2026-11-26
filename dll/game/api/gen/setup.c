@@ -101,6 +101,15 @@ internal inline uint8_t *setup_site_setup_scales_end_at(void) { return (uint8_t 
 typedef int (__stdcall *lobby_start_fn)(void *, int);
 internal lobby_start_fn fn_lobby_start;
 internal inline int lobby_start(void *form, int p2) { return fn_lobby_start(form, p2); }
+// the game setup screen (form 26) brought up to date with setup.lobby: its lists and seats from it, and on the PC
+// that serves the game (a single-player one too: the server's vf4) its lists' and buttons' events attached
+// (0x5CB0A4 - the map type list's EEUIELEGameMapType among them; until then the screen has none). Its calls: the
+// screen's own setting up (0x5CE2AA) and the lobby's messages (0x661727) - hooked after the game's own: the Age
+// of AI map's options button (engine/mapgen_button.c)
+typedef void (__cdecl *setup_screen_refresh_fn)(void);
+internal setup_screen_refresh_fn fn_setup_screen_refresh;
+internal inline void setup_screen_refresh(void) { fn_setup_screen_refresh(); }
+internal inline int patch_setup_screen_refresh(setup_screen_refresh_fn h, int *of) { return patch_calls(calls_setup_screen_refresh, 2, (uintptr_t)fn_setup_screen_refresh, (void *)h, of); }
 
 // class ee_setup_slot (ee_setup_slot)
 // the game setup's player slots, 0x38 each
@@ -178,6 +187,9 @@ internal int spec_setup_select(int build) {
         data_setup_site_editor_scales_end = 0x00592BEA;
         data_setup_site_setup_scales_end = 0x005CE87B;
         fn_lobby_start = (lobby_start_fn)0x005C9B91;
+        fn_setup_screen_refresh = (setup_screen_refresh_fn)0x005CACB8;
+        calls_setup_screen_refresh[0] = 0x005CE2AA;
+        calls_setup_screen_refresh[1] = 0x00661727;
         of_setup_slot_type = 0x0;
         of_setup_slot_0x4 = 0x4;
         of_setup_slot_name = 0x8;
@@ -219,6 +231,9 @@ internal int spec_setup_select(int build) {
         data_setup_site_editor_scales_end = 0x005A2E44;
         data_setup_site_setup_scales_end = 0x005DF58A;
         fn_lobby_start = (lobby_start_fn)0x005DA6B3;
+        fn_setup_screen_refresh = (setup_screen_refresh_fn)0x005DB6EC;
+        calls_setup_screen_refresh[0] = 0x005DEFB9;
+        calls_setup_screen_refresh[1] = 0x00678D71;
         of_setup_slot_type = 0x0;
         of_setup_slot_0x4 = 0x4;
         of_setup_slot_name = 0x8;
@@ -250,5 +265,8 @@ internal int spec_setup_check(void) {
     bad += spec_code(data_setup_site_editor_scales_end, "setup.site_editor_scales_end");
     bad += spec_code(data_setup_site_setup_scales_end, "setup.site_setup_scales_end");
     bad += spec_code((uintptr_t)fn_lobby_start, "setup_functions.lobby_start");
+    bad += spec_code((uintptr_t)fn_setup_screen_refresh, "setup_functions.setup_screen_refresh");
+    bad += spec_call(calls_setup_screen_refresh[0], (uintptr_t)fn_setup_screen_refresh, "setup_functions.setup_screen_refresh [call_site setup_screen_refresh 0]");
+    bad += spec_call(calls_setup_screen_refresh[1], (uintptr_t)fn_setup_screen_refresh, "setup_functions.setup_screen_refresh [call_site setup_screen_refresh 1]");
     return bad;
 }

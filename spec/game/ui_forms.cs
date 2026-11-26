@@ -1117,6 +1117,9 @@ unsafe struct ee_ui_label_text
     float32 g;
     [offset(0x1C), found(c)]
     float32 b;
+    /// its font (GEText's constructor: a GEFont, referenced)
+    [offset(0x44), found(c)]
+    void* font;
     /// 1: the colour is used
     [offset(0x4C), found(c)]
     uint8 colored;
