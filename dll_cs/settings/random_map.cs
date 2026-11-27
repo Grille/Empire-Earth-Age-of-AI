@@ -18,6 +18,10 @@ class random_map
         continents_west_east,
         /// two continents north and south, the sea between them running west to east (the north the colder)
         continents_north_south,
+        /// one continent for all, the sea round it: the players by turns round it
+        one_continent,
+        /// all players on one continent, across the sea a larger and richer one nobody starts on
+        old_new_world,
     }
     /// What the map is:
     map_layout_choice map_layout = map_layout_choice.continents_west_east;

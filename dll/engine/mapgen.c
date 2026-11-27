@@ -109,7 +109,7 @@ internal const struct mg_biome {
 // THE GENERATOR'S STATE. Tiles x, y (0 .. n - 1), corners 0 .. n: the map is the diamond of them the game made (a tile
 // there has its ee_tile). Across the diamond run u = x - y and v = x + y - n, each from -n / 2 to n / 2: the screen's
 // two ways - v from left to right, u from the near edge to the far one; the far end is the north. The continents
-// (map_layout) lie apart west and east, along v, and stretch along u - or north and south, the two swapped: what
+// (map_layout: mg_layout) lie apart west and east, along v, and stretch along u - or north and south, the two swapped: what
 // is the land's is said along and across them (mg_along, mg_across), the weather's by u (mg_temp: the north cold).
 enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_AMBIENT, MG_KINDS };
 #define MG_PLAYERS 16
@@ -163,8 +163,17 @@ struct mg {
     int lakes, fords;
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
     int clumps, clump_mines;  // mg_clump's: how many, and the mines in them
+    // THE CONTINENTS (map_layout: mg_layout): each an ellipse in the layout's frame, its middle across and its half
+    // widths across and along in halves of the map (times the land option); the first `homes` of them the players'
+    // (seat s on continent s % homes), the others nobody's. The sea's channel between two runs along at `chan` across
+    // (tiles; chan_on 0: one continent, none)
+    struct { float at, wide, len; } cont[2];
+    int nc, homes, chan_on;
+    float chan;
+    int new_mines, new_forests;   // the New World's own beyond the land's (old_new_world: mg_objects)
     struct mg_opt {           // [random_map] as numbers (mg_options); "normal" a factor of exactly 1, a shift of 0: the map as before
-        int ns;               // the layout: 0 the continents west and east, 1 north and south
+        int lay;              // the layout: MG_L_*
+        int ns;               // the layout's frame: 0 the continents west and east (along them u), 1 north and south (along them v)
         float land;           // the continents' size
         float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
         int zones;            // where it is cold and where hot: MG_ZONES_*
@@ -189,6 +198,31 @@ internal int mg_amount(int base, float f) { return f == 1.0f ? base : (int)((flo
 // otherwise than by the lobby's list): the defaults, as on every other PC then.
 enum { MG_FROM_OWN, MG_FROM_HOST, MG_FROM_DEFAULTS };
 enum { MG_ZONES_NORTH_SOUTH, MG_ZONES_POLES, MG_ZONES_MIXED };   // [random_map] map_climate_zones (mg_temp)
+enum { MG_L_WEST_EAST, MG_L_NORTH_SOUTH, MG_L_ONE, MG_L_NEW_WORLD };   // [random_map] map_layout (mg_layout)
+// THE LAYOUTS (the player 2026-11-26: "Two Continents WE ... and Two Continents NS"; 2026-11-27 of the ones I proposed:
+// "do one continent first, then old and new world"). Two continents: 0.42 of the half wide, 0.85 long, their middles
+// half the half off the map's middle, the channel between. One continent: 0.8 wide, 0.85 long in the middle (as much
+// land as the two have, no channel), the players round it. Old and New World: all players on the Old World (0.36
+// wide, 0.85 long) on one side, the New World across the channel 0.46 wide and 0.9 long - a third larger, richer
+// (mg_objects), nobody's at the start: a place to settle by sea. The two 0.16 of the half apart as the two continents
+// are; which side the Old World is on from the seed. Its frame the west-east one.
+internal void mg_layout(struct mg *g) {
+    int l = (unsigned)g->opt.lay <= MG_L_NEW_WORLD ? g->opt.lay : MG_L_WEST_EAST;
+    g->opt.ns = l == MG_L_NORTH_SOUTH;
+    if (l == MG_L_ONE) {
+        g->nc = g->homes = 1; g->chan_on = 0; g->chan = 0;
+        g->cont[0].at = 0; g->cont[0].wide = 0.8f; g->cont[0].len = 0.85f;
+    } else if (l == MG_L_NEW_WORLD) {
+        float s = (g->seed >> 5) & 1 ? -1.0f : 1.0f;   // (a bit of the seed's own: the map's draws stay as they are)
+        g->nc = 2; g->homes = 1; g->chan_on = 1; g->chan = -0.11f * s * g->half;
+        g->cont[0].at = -0.55f * s; g->cont[0].wide = 0.36f; g->cont[0].len = 0.85f;
+        g->cont[1].at = 0.43f * s; g->cont[1].wide = 0.46f; g->cont[1].len = 0.9f;
+    } else {
+        g->nc = g->homes = 2; g->chan_on = 1; g->chan = 0;
+        g->cont[0].at = -0.5f; g->cont[1].at = 0.5f;
+        g->cont[0].wide = g->cont[1].wide = 0.42f; g->cont[0].len = g->cont[1].len = 0.85f;
+    }
+}
 internal int mg_humans(const ee_setup *setup) {   // the humans' slots (1 this PC's or a seated player's, 2 a network one's)
     int humans = 0;
     for (int k = 0; setup && k < 16; k++) { int t = setup_slot_get_type(setup_slot_at(setup, k)); humans += t == 1 || t == 2; }
@@ -209,7 +243,8 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
         g->opt.v[i - SETTING_map_layout] = *v;
     }
 #define MG_PICK(t, v) t[(unsigned)(v) < sizeof t / sizeof *t ? (unsigned)(v) : sizeof t / sizeof *t / 2]
-    g->opt.ns = s.map_layout == 1;
+    g->opt.lay = s.map_layout;
+    mg_layout(g);
     g->opt.land = MG_PICK(land, s.map_land);
     g->opt.temp = MG_PICK(temp, s.map_climate);
     g->opt.wet = MG_PICK(wet, s.map_rain);
@@ -319,11 +354,18 @@ internal int mg_kind(const struct mg *g, int x, int y) {
     return !t ? MG_K_OFF : tile_is_cliff(t) ? MG_K_CLIFF : tile_is_deep(t) ? MG_K_DEEP : tile_is_shallows(t) ? MG_K_SHALLOWS : MG_K_LAND;
 }
 internal inline float mg_f(const struct mg *g, int x, int y) { return mg_corner(g, x, y) ? g->f[y * g->m + x] : -99.0f; }
-// THE CONTINENTS' FRAME (map_layout): along them and across - u and v west and east, v and u north and south;
-// across under 0 the first (seat 0's: the west, the north), over 0 the second. mg_from: a place's x, y from both
+// THE CONTINENTS' FRAME (map_layout): along them and across - u and v west and east, v and u north and south.
+// mg_side: which continent a place is on - of two the one on its side of the channel (the two continents' first under
+// 0, seat 0's: the west, the north), of one that one. mg_chan: how far across from the channel (none: far). mg_from:
+// a place's x, y from along and across
 internal inline int mg_along(const struct mg *g, int x, int y) { return g->opt.ns ? x + y - g->n : x - y; }
 internal inline int mg_across(const struct mg *g, int x, int y) { return g->opt.ns ? x - y : x + y - g->n; }
-internal inline int mg_side(const struct mg *g, int x, int y) { return mg_across(g, x, y) > 0; }
+internal inline int mg_side(const struct mg *g, int x, int y) { return g->nc < 2 ? 0 : ((float)mg_across(g, x, y) > g->chan) != (g->cont[0].at > 0); }
+internal inline float mg_chan(const struct mg *g, int x, int y) { return g->chan_on ? fabsf((float)mg_across(g, x, y) - g->chan) : 1e6f; }
+// the continent the i-th range, plateau or lake goes to: by turns - but the New World gets two in three, the Old World
+// all the players' room (on 116 tiles with four players it is some 30 tiles across: with half the mountains and lakes
+// four games in five had a start forced, one cut off - 2026-11-27); the New World the wild one
+internal inline int mg_feature_on(const struct mg *g, int i) { return g->nc > g->homes ? i % 3 != 2 : i % g->nc; }
 internal void mg_from(const struct mg *g, float along, float across, float *x, float *y) {
     float u = g->opt.ns ? across : along, v = g->opt.ns ? along : across;
     *x = (u + v + (float)g->n) * 0.5f; *y = (v + (float)g->n - u) * 0.5f;
@@ -343,8 +385,8 @@ internal float mg_temp(const struct mg *g, int x, int y);
 internal int mg_shore_point(struct mg *g, float clear, int *px, int *py, float *ox, float *oy) {
     for (int t = 0; t < 400; t++) {
         int x = mg_int(g, 3, g->n - 3), y = mg_int(g, 3, g->n - 3);
-        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), c = (float)mg_across(g, x, y);
-        if (f < 0 || f > 1.5f || fminf(g->half - fabsf(u), g->half - fabsf(v)) < clear + 4 || fabsf(c) < clear + 4) continue;
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n);
+        if (f < 0 || f > 1.5f || fminf(g->half - fabsf(u), g->half - fabsf(v)) < clear + 4 || mg_chan(g, x, y) < clear + 4) continue;
         float gx = mg_f(g, x - 2, y) - mg_f(g, x + 2, y), gy = mg_f(g, x, y - 2) - mg_f(g, x, y + 2), gl = sqrtf(gx * gx + gy * gy);
         if (gl < 0.2f) continue;
         *px = x; *py = y; *ox = gx / gl; *oy = gy / gl;
@@ -371,26 +413,27 @@ internal void mg_tongue(struct mg *g, int x0, int y0, float dx, float dy, float 
 internal float mg_isle_in(const struct mg *g, int cx, int cy, int x, int y, float r) {
     return r * (0.7f + 0.6f * mg_fbm((float)cx * 0.2f, (float)cy * 0.2f, g->seed + 96)) - sqrtf((float)((cx - x) * (cx - x) + (cy - y) * (cy - y)));
 }
-// THE LAND: two continents, each an ellipse about the middle of its half of the map (0.42 of the half wide, 0.85 long),
-// its shore pushed in and out by noise. f is the distance inside the land in tiles, as the ellipses and the noise give
-// it. Then the coast's own shapes (the player 2026-11-25 agreed to the list: "small offshore islands, bays and
+// THE LAND: the layout's continents, each an ellipse (mg_layout: two about the middles of their halves of the map, 0.42
+// of the half wide, 0.85 long), its shore pushed in and out by noise - as far as the two continents' does, whatever
+// the ellipses' size. f is the distance inside the land in tiles, as the ellipses and the noise give it. Then the coast's own shapes (the player 2026-11-25 agreed to the list: "small offshore islands, bays and
 // peninsulas, and fjords in the cold north"): capes - tongues of land 10 - 18 tiles out to sea -, bays - as far cut
 // in -, 1 + n/200 of each; fjords in the cold north, 1 + n/150: a narrow cut (3 tiles of water) 14 - 24 tiles up
 // the land's slope, winding a little, its shores rocky (g->fjord: cliffs); islands, 2 + n/80: 3 - 7 tiles in radius,
 // its shore 8 tiles of water from any other land's - an island, no spit: deep water goes round it (mg_heights).
-// Last the water along the map's edge and in a channel down the middle, whatever is there.
+// Last the water along the map's edge and in the channel between two continents, whatever is there.
 internal void mg_land(struct mg *g) {
-    float half = g->half, ra = 0.42f * half * g->opt.land, rb = 0.85f * half * g->opt.land, ox, oy;
+    float half = g->half, rn = 0.42f * half * g->opt.land, ox, oy;
     int x, y;
     for (y = 0; y <= g->n; y++)
         for (x = 0; x <= g->n; x++) {
             float u = (float)mg_along(g, x, y), v = (float)mg_across(g, x, y), best = -1e9f;
-            for (int k = 0; k < 2; k++) {
-                float da = (v - (k ? 0.5f : -0.5f) * half) / ra, db = u / rb;
+            for (int k = 0; k < g->nc; k++) {
+                float ra = g->cont[k].wide * half * g->opt.land, rb = g->cont[k].len * half * g->opt.land;
+                float da = (v - g->cont[k].at * half) / ra, db = u / rb;
                 float fk = (1 - sqrtf(da * da + db * db)) * ra;
                 if (fk > best) best = fk;
             }
-            best += (mg_fbm((float)x * 0.045f, (float)y * 0.045f, g->seed) - 0.5f) * 0.5f * ra;
+            best += (mg_fbm((float)x * 0.045f, (float)y * 0.045f, g->seed) - 0.5f) * 0.5f * rn;
             g->f[y * g->m + x] = best * 0.7071f;
         }
     for (int k = 1 + g->n / 200; k > 0; k--)
@@ -416,8 +459,8 @@ internal void mg_land(struct mg *g) {
     }
     for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
         x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
-        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), c = (float)mg_across(g, x, y), r = (float)mg_int(g, 3, 7);
-        int clear = f <= -8 && f >= -20 && fminf(half - fabsf(u), half - fabsf(v)) > r + 9 && fabsf(c) > r + 8;
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 3, 7);
+        int clear = f <= -8 && f >= -20 && fminf(half - fabsf(u), half - fabsf(v)) > r + 9 && mg_chan(g, x, y) > r + 8;
         // nothing within 4 tiles of it that is within 4 tiles of the land there is (the continents, a cape, an island before)
         for (int cy = y - 14; clear && cy <= y + 14; cy++)
             for (int cx = x - 14; clear && cx <= x + 14; cx++)
@@ -435,7 +478,7 @@ internal void mg_land(struct mg *g) {
     for (y = 0; y <= g->n; y++)
         for (x = 0; x <= g->n; x++) {
             float u = (float)(x - y), v = (float)(x + y - g->n);
-            float edge = fminf(half - fabsf(u), half - fabsf(v)) - 4, channel = fabsf((float)mg_across(g, x, y)) - 4;
+            float edge = fminf(half - fabsf(u), half - fabsf(v)) - 4, channel = mg_chan(g, x, y) - 4;
             g->f[y * g->m + x] = fminf(g->f[y * g->m + x], fminf(edge, channel) * 0.7071f);
         }
 }
@@ -573,7 +616,7 @@ internal void mg_heights(struct mg *g) {
                 // (map.c tile_is_shallows) - 5 tiles of them off a wide beach: the channel between the continents is
                 // deep whatever its shores are, and so is a ring 3 - 5 tiles off an island's shore
                 float deep = f * (0.3f - 0.15f * beach + 1.0f * rocky);
-                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, fabsf((float)mg_across(g, x, y)))));
+                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, mg_chan(g, x, y))));
                 for (int i = 0; i < g->islands; i++) {
                     float in = abs(x - g->isle[i].x) > 16 || abs(y - g->isle[i].y) > 16 ? -99 : mg_isle_in(g, x, y, g->isle[i].x, g->isle[i].y, g->isle[i].r);
                     if (in > -5 && in < -3) deep = fminf(deep, -1.2f);
@@ -698,24 +741,62 @@ internal float mg_start_worth(const struct mg *g, const struct mg_fields *f, int
     // out of its share along the continent (u) costs, across it (v) 0.15 of that: the continent's width is the
     // start's to use (the player 2026-11-26: "still placed too much on the vertical line through the center of the
     // continent, they could spread way more horizontal")
+    // (the players round one continent: as far either way - they keep apart by `apart`)
     float du = (float)(x - y) - (ax - ay), dv = (float)(x + y) - (ax + ay);
     if (g->opt.ns) { float t = du; du = dv; dv = t; }   // (along the continents is v there)
-    float off = (du * du + 0.15f * dv * dv) * 0.5f / (reach * reach);
+    float off = (du * du + (g->homes == 1 ? 1.0f : 0.15f) * dv * dv) * 0.5f / (reach * reach);
     return 3 * (float)room - 2 * rough + water + 2 * food - 1.5f * off;
 }
+// The players on one continent (one_continent, old_new_world: homes 1) sit round it instead: where they look first
+// evenly round the ellipse at 0.6 of the way from its middle to its shore - the first across it (two players: on either
+// side, in one climate), the rest turned on by a table (no sine at run time: every PC's map the same) -, their shares
+// of that ring's length; a single player in the middle.
+internal const float k_mg_turn[MG_PLAYERS][2] = {   // cos, sin of a full turn / (i + 1)
+    { 1.00000000f, 0 }, { -1.00000000f, 0 }, { -0.50000000f, 0.86602540f }, { 0, 1.00000000f }, { 0.30901699f, 0.95105652f },
+    { 0.50000000f, 0.86602540f }, { 0.62348980f, 0.78183148f }, { 0.70710678f, 0.70710678f }, { 0.76604444f, 0.64278761f },
+    { 0.80901699f, 0.58778525f }, { 0.84125353f, 0.54064082f }, { 0.86602540f, 0.50000000f }, { 0.88545603f, 0.46472317f },
+    { 0.90096887f, 0.43388374f }, { 0.91354546f, 0.40673664f }, { 0.92387953f, 0.38268343f },
+};
+// the j-th of count places round the home continent (u, v: the frame's along and across)
+internal void mg_ring_place(const struct mg *g, int j, int count, float *u, float *v) {
+    float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land, c = 1, s = 0;
+    const float *turn = k_mg_turn[count - 1];
+    for (int t = 0; t < j; t++) { float nc = c * turn[0] - s * turn[1]; s = s * turn[0] + c * turn[1]; c = nc; }
+    *u = count > 1 ? 0.6f * rb * s : 0;
+    *v = g->cont[0].at * g->half + (count > 1 ? 0.6f * ra * c : 0);
+}
+// Round one continent the shares are in tiles (u and v run 1.41 a tile), and the starts keep apart by no more than
+// 0.9 of the nearest two places' distance: on the Old World of a small map (some 30 tiles across) the 16 tiles
+// asked of two across from each other made one in four a forced start (2026-11-27, 10 games of 116 tiles)
 internal void mg_starts(struct mg *g) {
     struct mg_fields f = { 0 };
-    int n = g->n, count[2] = { g->np - g->np / 2, g->np / 2 }, ok = mg_starts_fields(g, &f);
-    float length = 2 * 0.72f * 0.85f * g->half * g->opt.land;
+    int n = g->n, homes = g->homes, count[2] = { (g->np + homes - 1) / homes, (g->np + homes - 2) / homes }, ok = mg_starts_fields(g, &f);
+    float length = 2 * 0.72f * 0.85f * g->half * g->opt.land, closest = 1e9f;
+    for (int a = 0; homes == 1 && a < count[0]; a++)
+        for (int b = a + 1; b < count[0]; b++) {
+            float ua, va, ub, vb, xa, ya, xb, yb;
+            mg_ring_place(g, a, count[0], &ua, &va); mg_ring_place(g, b, count[0], &ub, &vb);
+            mg_from(g, ua, va, &xa, &ya); mg_from(g, ub, vb, &xb, &yb);
+            closest = fminf(closest, sqrtf((xa - xb) * (xa - xb) + (ya - yb) * (ya - yb)));
+        }
     for (int i = 0; i < g->np; i++) {
-        int k = i & 1, j = i / 2, bx = -1, by = -1;
-        float share = length / (float)count[k], reach = fminf(40, fmaxf(12, 0.45f * share)), apart = fmaxf(16, 0.6f * share);
-        // where it looks first: its share's middle along the continent, and by turns on either side of the
-        // continent's middle line, 0.6 of the way to its shore (the ellipse's half width there) - a continent's one start
-        // in the middle
-        float u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length, rb = 0.85f * g->half * g->opt.land;
-        float wide = 0.42f * g->half * g->opt.land * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
-        float v = (k ? 0.5f : -0.5f) * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
+        int k = i % homes, j = i / homes, bx = -1, by = -1;
+        float share, u, v;
+        if (homes == 2) {
+            share = length / (float)count[k];
+            // where it looks first: its share's middle along the continent, and by turns on either side of the
+            // continent's middle line, 0.6 of the way to its shore (the ellipse's half width there) - a continent's one start
+            // in the middle
+            u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length;
+            float rb = 0.85f * g->half * g->opt.land, wide = 0.42f * g->half * g->opt.land * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
+            v = (k ? 0.5f : -0.5f) * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
+        } else {
+            float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land;
+            share = 6.2831853f * 0.6f * sqrtf((ra * ra + rb * rb) * 0.5f) / (float)count[0] * 0.70710678f;
+            mg_ring_place(g, j, count[0], &u, &v);
+        }
+        float reach = fminf(40, fmaxf(12, 0.45f * share)), apart = fmaxf(16, 0.6f * share);
+        if (homes == 1) apart = fminf(apart, 0.9f * closest);
         float ax, ay;
         mg_from(g, u, v, &ax, &ay);
         for (int level = 0; ok && level < 5 && bx < 0; level++) {
@@ -728,9 +809,13 @@ internal void mg_starts(struct mg *g) {
                     if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1 || mg_side(g, x, y) != k ||dx * dx + dy * dy > within * within) continue;
                     float in = mg_f(g, x, y);
                     if (level < 4 && (in < (float)inside || f.bad[y * n + x] < yard || f.wet[y * n + x] < dry)) continue;
+                    int isle = 0;   // never on an offshore island (one 3 tiles off its shore: its continent's for mg_side)
+                    for (int s = 0; s < g->islands && !isle; s++)
+                        isle = abs(x - g->isle[s].x) < 20 && abs(y - g->isle[s].y) < 20 && mg_isle_in(g, x, y, g->isle[s].x, g->isle[s].y, g->isle[s].r) > -3;
+                    if (isle) continue;
                     int crowded = 0;
                     for (int o = 0; o < i && !crowded; o++) {
-                        float ex = (float)(x - g->sx[o]), ey = (float)(y - g->sy[o]), need = (o & 1) == k ? apart : 16;
+                        float ex = (float)(x - g->sx[o]), ey = (float)(y - g->sy[o]), need = o % homes == k ? apart : 16;
                         crowded = ex * ex + ey * ey < need * need;
                     }
                     if (crowded) continue;
@@ -904,7 +989,7 @@ internal int mg_swamp(struct mg *g, int tight) {
 // shore (a tile) is kept free. tight 0 .. 3: a small map's.
 internal int mg_lake(struct mg *g, int tight) {
     int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 5, 8);
-    if (g->lakes >= 12 || mg_side(g, x0, y0) != (g->lakes & 1) ||mg_f(g, x0, y0) < (float)(12 - 2 * tight)) return 0;
+    if (g->lakes >= 12 || mg_side(g, x0, y0) != mg_feature_on(g, g->lakes) || mg_f(g, x0, y0) < (float)(12 - 2 * tight)) return 0;
     for (int i = 0; i < g->lakes; i++)
         if ((g->lake[i].x - x0) * (g->lake[i].x - x0) + (g->lake[i].y - y0) * (g->lake[i].y - y0) < 25 * 25) return 0;
     for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 3)
@@ -997,7 +1082,8 @@ internal int mg_ford_way(struct mg *g, const uint8_t *seen, uint8_t mark, int to
     }
     return laid;
 }
-// The map's promises looked at: the continents apart on foot (the two continents' layout: g->afoot 0), a continent's starts
+// The map's promises looked at: the continents apart on foot (g->afoot 0: two continents' starts, or the New World no
+// start's), a continent's starts
 // reached from one another (g->cut 0) - with rivers too deep to walk through they were not always (the first huge
 // map had one behind a range and the two rivers from its ends). mend: where one isn't, fords laid on the way to it
 // (mg_ford_way) - into the heights only: the ground is to be set again. -> the fords laid.
@@ -1007,10 +1093,10 @@ internal int mg_afoot(struct mg *g, int mend) {
     g->afoot = g->cut = g->walked = g->walkable = g->fords_ok = 0;
     for (int i = 0; queue && from && seen && cost && i < g->np; i++) {
         int at = g->sy[i] * n + g->sx[i], way;
-        uint8_t mark = (uint8_t)(1 + (i & 1));
+        uint8_t mark = (uint8_t)(1 + i % g->homes);
         if (seen[at] == mark) continue;
         if (seen[at]) { g->afoot = 1; continue; }
-        if (i >= 2) {
+        if (i >= g->homes) {
             way = mend ? mg_ford_way(g, seen, mark, i, queue, from, cost) : 0;
             laid += way;
             g->cut += !way;
@@ -1021,6 +1107,7 @@ internal int mg_afoot(struct mg *g, int mend) {
         int land = mg_kind(g, i % n, i / n) == MG_K_LAND;
         g->walkable += land;
         g->walked += land && seen[i];
+        if (land && seen[i] && mg_side(g, i % n, i / n) >= g->homes) g->afoot = 1;   // (the New World reached on foot)
     }
     for (int k = 0; k < g->fords; k++) {
         int kind = g->ford[k].x < 0 ? MG_K_OFF : mg_kind(g, (int)g->ford[k].x, (int)g->ford[k].y);
@@ -1435,6 +1522,26 @@ internal void mg_objects(struct mg *g) {
         if (mg_anywhere(g, 10, 6, &x, &y) && mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) mg_forest(g, x, y, 0);
     for (int j = g->land / 600; j > 0; j--)
         if (mg_anywhere(g, 10, 8, &x, &y) && mg_rich(g, x, y, MG_RICH_HERD)) mg_herd(g, x, y);
+    // THE NEW WORLD's riches (old_new_world): on it one and a half times again the mines its land's share of the
+    // draws gave it - each laid, not only drawn (its biome's richness still says yes or no to a place), a clump twice
+    // as often: veins worth a Settlement - and half again of the forests. The Old World has its players' own (8 of
+    // each start's: mg_starts_own); the New one is to be worth the crossing and the fight for it
+    if (g->nc > g->homes) {
+        int land_new = 0, spare_new[3] = { 0, 0, 0 };
+        for (int i = 0; i < g->n * g->n; i++) land_new += mg_kind(g, i % g->n, i / g->n) == MG_K_LAND && mg_side(g, i % g->n, i / g->n) >= g->homes;
+        for (int k = 0; k < 3; k++)
+            for (int j = mg_amount((land_new * 3 / 2 + wild[k].tiles / 2) / wild[k].tiles, g->opt.mines), t = 0; j > 0 && t < 600; t++) {   // (rounded: a small map's New World gets some)
+                if (!mg_anywhere(g, 10, 9, &x, &y) || mg_side(g, x, y) < g->homes || !mg_rich(g, x, y, wild[k].kind) || !mg_mine(g, wild[k].kind, x, y)) continue;
+                j--;
+                g->new_mines += 1 + mg_clump(g, wild[k].kind, x, y, 36, 0, 0, 0, spare_new);
+            }
+        for (int j = mg_amount(land_new / 300, g->opt.forests), t = 0; j > 0 && t < 2000; t++) {
+            if (!mg_anywhere(g, 10, 6, &x, &y) || mg_side(g, x, y) < g->homes) continue;
+            j--;
+            if (mg_int(g, 0, 999) < 150000 / k_mg_biome[g->clim[y * g->n + x]].forest_tiles) { mg_forest(g, x, y, 0); g->new_forests++; }
+        }
+        if (g->map && g_log) log_locked("# mapgen: the New World's own - %d land tiles, %d mines and %d forests beyond the land's\n", land_new, g->new_mines, g->new_forests);
+    }
     // an oasis' own: two stands of the biome's trees (the deserts' and the savanna's are palms) and a forage patch by
     // its pond; a swamp's: a tree of the biome's on a quarter of its low ground, the rest of that kept free of mines
     for (int k = 0; k < g->oases; k++) {
@@ -1612,8 +1719,8 @@ internal void mg_steps(struct mg *g) {
     // the ranges: 2 + n/100, on a small map fewer (1 + n^2/12000: 2 on 116 - 150 tiles - three took the middle of
     // its continents, once the starts no longer kept them off)
     int ranges = 2 + n / 100 < 1 + n * n / 12000 ? 2 + n / 100 : 1 + n * n / 12000;
-    for (int want = mg_amount(ranges, g->opt.mountains), t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, g->ranges & 1);
-    for (int want = mg_amount(1 + n / 120, g->opt.mountains), t = 0; g->plateaus < want && t < 40000; t++) mg_plateau(g, g->plateaus & 1, t / 10000);
+    for (int want = mg_amount(ranges, g->opt.mountains), t = 0; g->ranges < want && t < 40000; t++) g->ranges += mg_range(g, mg_feature_on(g, g->ranges));
+    for (int want = mg_amount(1 + n / 120, g->opt.mountains), t = 0; g->plateaus < want && t < 40000; t++) mg_plateau(g, mg_feature_on(g, g->plateaus), t / 10000);
     mg_heights(g);
     for (int want = mg_amount(1 + n / 110, g->opt.lakes), t = 0; g->lakes < want && t < 20000; t++) mg_lake(g, t / 5000);
     for (int want = 1 + n / 150, t = 0; g->oases < want && t < 6000; t++) mg_oasis(g);
@@ -1655,7 +1762,9 @@ internal void mg_steps(struct mg *g) {
         g->mended += laid;
     }
     for (int i = 0; i < n * n; i++) g->cliffs += mg_kind(g, i % n, i / n) == MG_K_CLIFF;
-    if (g->map) map_set_flags(g->map, 1);   // as the game's island maps have it (Continental 0, the island types 1, Plains 2): the players are apart by water
+    // as the game's maps have it (Continental 0, the island types 1, Plains 2): 1 the players apart by water or a
+    // continent to reach by it, 0 one continent's
+    if (g->map) map_set_flags(g->map, g->nc > 1 ? 1 : 0);
     mg_objects(g);
     mg_starts_own(g);
     if (g->map) mg_scatter(g);
@@ -1663,7 +1772,8 @@ internal void mg_steps(struct mg *g) {
 
 // WHO STARTS WHERE (the player 2026-11-26: "next the per team sorting, and then randomize the teams' positions in the
 // list, so that team 1 (usually player 1) doesn't always start in the north west"). The starts are the map's places
-// (seats: seat s on continent s & 1, the (s / 2)-th along it, mg_starts) whoever sits there - a preview's map is the
+// (seats: seat s on continent s & 1, the (s / 2)-th along it, mg_starts; the players round one continent: the s-th
+// round it) whoever sits there - a preview's map is the
 // game's whatever the teams. The players get them by team: the game makes its players from the setup's slots in
 // order, one for each slot of a computer, a human or an observer (0, 1, 2: game start 0x52599B), and allies those of
 // one team (a slot's +0x28; 0 none, an observer none). A team's players sit on one continent side by side; one too
@@ -1702,26 +1812,27 @@ internal void mg_seats(const struct mg *g, const ee_setup *setup, int *seat, int
     for (int i = nt - 1; i > 0; i--) { int j = mg_draw(&r, i + 1), t = order[i]; order[i] = order[j]; order[j] = t; }
     for (int i = 1; i < nt; i++)   // the largest first (stable: the drawn order among those of a size)
         for (int j = i; j > 0 && size[order[j]] > size[order[j - 1]]; j--) { int t = order[j]; order[j] = order[j - 1]; order[j - 1] = t; }
-    int left[2] = { np - np / 2, np / 2 }, nb = 0;
+    int homes = g->homes, left[2] = { (np + homes - 1) / homes, (np + homes - 2) / homes }, nb = 0;   // (one continent: all its seats)
     struct { int team, k, n; } block[2 * MG_PLAYERS];
     for (int o = 0; o < nt; o++)
         for (int want = size[order[o]]; want > 0; ) {
             int fits0 = left[0] >= want, fits1 = left[1] >= want, c;
-            if (fits0 != fits1) c = fits1;
+            if (homes == 1) c = 0;
+            else if (fits0 != fits1) c = fits1;
             else c = left[0] > left[1] ? 0 : left[1] > left[0] ? 1 : mg_draw(&r, 2);
             int take = want < left[c] ? want : left[c];
             block[nb].team = order[o]; block[nb].k = c; block[nb].n = take; nb++;
             left[c] -= take; want -= take;
         }
-    for (int c = 0; c < 2; c++) {
-        int on[2 * MG_PLAYERS], m = 0, seats = c ? np / 2 : np - np / 2, from_end = mg_draw(&r, 2), at = 0;
+    for (int c = 0; c < homes; c++) {
+        int on[2 * MG_PLAYERS], m = 0, seats = (np + homes - 1 - c) / homes, from_end = mg_draw(&r, 2), at = 0;
         for (int b = 0; b < nb; b++) if (block[b].k == c) on[m++] = b;
         for (int i = m - 1; i > 0; i--) { int j = mg_draw(&r, i + 1), t = on[i]; on[i] = on[j]; on[j] = t; }
         for (int b = 0; b < m; b++)
             for (int q = 0; q < block[on[b]].n; q++, at++) {
                 int j = from_end ? seats - 1 - at : at, i = 0;
                 while (i < np && (seat[i] >= 0 || key[i] != id[block[on[b]].team])) i++;   // the team's next player without a seat
-                if (i < np) seat[i] = 2 * j + c;
+                if (i < np) seat[i] = homes * j + c;
             }
     }
     for (int i = 0, s = 0; i < np; i++)   // (none left without one; a guard all the same: the seats nobody has)

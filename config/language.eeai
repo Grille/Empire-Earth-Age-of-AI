@@ -288,6 +288,14 @@ map_v_continents_north_south = {
     en = "Two continents N-S",
     de = "Zwei Kontinente N-S",
 }
+map_v_one_continent = {
+    en = "One continent",
+    de = "Ein Kontinent",
+}
+map_v_old_new_world = {
+    en = "Old and New World",
+    de = "Alte und Neue Welt",
+}
 map_v_tiny = {
     en = "Tiny",
     de = "Winzig",

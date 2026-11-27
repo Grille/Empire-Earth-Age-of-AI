@@ -866,7 +866,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
 - **The mod's own types** (the player 2026-11-24: the game's generator circumvented, our entries in the list): added
   to the list after the game's own, their maps made by the mod instead of 0x66D402 - no .rmv, no plug-in
   (dll/engine/mapgen.c). The first, flat with a Capitol each, proved the way in. **Age of AI** (language.eeai map_age_of_ai; "Two
-  Continents" until 2026-11-25), so far one layout: two landmasses left and right of a sea channel, the players by turns on them (more
+  Continents" until 2026-11-25), at first one layout (four since, below): two landmasses left and right of a sea channel, the players by turns on them (more
   than two share); biomes (below); rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
   the land stays one piece; each start levelled, with forage, gold, iron, stone, forests and a herd round it,
   more of each over the land by its size, fish off the shores. Its steps: land (two ellipses, the shore by noise),
@@ -882,7 +882,18 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -
   north and south: mapgen.c's continents' frame, mg_along / mg_across, the map's u and v swapped for the land, the
   ranges', plateaus', lakes' and starts' continent; the weather keeps the map's north, so the northern continent is
-  the colder), the land's size (the continents' ellipses
+  the colder; 2026-11-27, the player's pick of my list: one continent - one ellipse 0.8 of the half wide in the
+  middle, no channel, the players round it at 0.6 of the way to its shore by a table of turns, flags 0 as the game's
+  Continental - and old and new world - all players on the Old World, across the channel a New World a third larger
+  with 2.5 times the land's mine density and half again its forests, nobody's at the start, two in three of the
+  ranges, plateaus and lakes (the Old World's room is the players'); the Old World's side drawn from a bit of the
+  seed. mg_layout sets the continents, mg_side tells a place's, mg_chan the channel; the two continent layouts made
+  bit for bit as before, 12 previews 116 - 440 tiles compared; a start never on an offshore island; round one
+  continent the starts' shares in tiles and their distance at most 0.9 of the ring's closest places (forced starts
+  were one in four on small maps). Checked in 40 games of 8 minutes (EE large 5 players, AoC normal 4): no notice, the
+  continents apart on foot, no start cut off. Old and New World on a small map with four players is cramped by its
+  nature - all on two fifths of the land, the starts 16 tiles apart: a neighbour's citizens fought one AI's down to 1
+  person in 8 minutes), the land's size (the continents' ellipses
   and the starts' spread 0.8 / 1 / 1.12 times), the climate (-0.4 .. +0.4 on the temperature, whose bands are at
   -0.3 / 0.3), the climate zones (2026-11-26, the player: "north to south (what we have now), poles (north and
   south are cold with a warm equator), none (no bias based on position, noise only)"; named "mixed" at their next
