@@ -464,7 +464,10 @@ internal void mg_land(struct mg *g) {
         if (mg_shore_point(g, 8, &x, &y, &ox, &oy)) { mg_tongue(g, x, y, -ox, -oy, (float)mg_int(g, 8, 14), (float)mg_int(g, 4, 6), -1); g->bays++; }
     for (int k = 1 + g->n / 150, t = 0; k > 0 && t < 60; t++) {
         if (!mg_shore_point(g, 8, &x, &y, &ox, &oy) || mg_temp(g, x, y) > -0.3f) continue;
-        float fx = (float)x - ox * 3, fy = (float)y - oy * 3, dx = -ox, dy = -oy;   // from 3 tiles out at sea, up the land
+        // from 3 tiles out at sea (ox, oy: the way out), up the land. Until 2026-11-27 it began 3 tiles inland - the
+        // rocky shore's bluff closed its mouth: a long lake behind a cliff (the player: "the river doesn't break
+        // through into the sea")
+        float fx = (float)x + ox * 3, fy = (float)y + oy * 3, dx = -ox, dy = -oy;
         for (int i = 0, len = mg_int(g, 17, 27); i < len && mg_f(g, (int)fx, (int)fy) < 16; i++) {
             for (int cy = (int)fy - 6; cy <= (int)fy + 7; cy++)
                 for (int cx = (int)fx - 6; cx <= (int)fx + 7; cx++) {
