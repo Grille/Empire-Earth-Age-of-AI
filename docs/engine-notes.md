@@ -869,7 +869,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   Continents" until 2026-11-25), at first one layout (four since, below): two landmasses left and right of a sea channel, the players by turns on them (more
   than two share); biomes (below); rivers from a spring inland to the shore, 2 - 3 tiles of water, banks without cliffs - they end at their spring, so
   the land stays one piece; each start levelled, with forage, gold, iron, stone, forests and a herd round it,
-  more of each over the land by its size, fish off the shores. Its steps: land (two ellipses, the shore by noise),
+  more of each over the land by its size, fish off the shores. Its steps: land (the layout's continents, each its shape within an ellipse: below),
   heights, rivers, the ground into the map (map_ground_set), biomes, textures, the game's cliff pass, the starts on
   it (the ground set again with their yards), the world's objects, the starts' own, the start units. Every number comes from the seed alone, without sine or cosine: the same map on
   every PC. Checked 2026-11-24: all six sizes with 2 - 8 players start (84 to 440 tiles a side; a tiny map has no
@@ -877,6 +877,22 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   docks, fishing boats, warships, transports landing across the channel, no notice), Art of Conquest 10 minutes,
   the setup screen's list. Not yet: hills steep enough for cliffs, the
   textures' scattered stones and plants, the numbers in an .eeai description, the editor's random map tried.
+- **The continents' shapes** (2026-11-27, the player: "the continents are quite obviously using a circle as a base";
+  each was an ellipse, its shore pushed some 3 tiles in and out by a noise): mapgen.c mg_shapes - in each continent's
+  ellipse's box blobs joined smoothly, a spine of 4 - 5 along it (tapered ends: blunt ones made a box), 2 - 4 lobes
+  out of it, 1 - 3 gulfs bitten into its sides; read through a slow warp of the place, a rough edge within 9 tiles of
+  the shore; its land nine tenths of the ellipse's on every seed (a lift of the whole found by bisection). With all of
+  it the ellipse's box - which the ellipse fills but for the corners - was too small for gulfs: the shapes were
+  lifted a fifth of their width, the gulfs filled again and the land up against the channel and the map's side, cut
+  straight there. The starts look first on the land as it came out: across it the longest stretch at their place
+  along, round one continent 0.6 of the way out on its land that way. 8 seeds of each layout at 116 - 300 tiles
+  with 2 - 8 players (144 previews against HEAD's): no forced start on two continents or one (HEAD one), Old and New
+  World 16 (28) - more starts take a smaller yard (level 2 or 3: 220 tiles six players 9 of 48, HEAD 6). A thin
+  continent (under 0.3 as wide as long: the Old World's strip) has no gulfs, half the warp and all its ellipse's land
+  (mg_thin): with them, scaled by its width, the strip was pinched - 12 forced starts in 10 games (5 before), one cut
+  off. 40 games of 8 minutes (EE large 5 players, AoC normal 4): no notice, the continents apart on foot; two
+  continents no forced start, one continent one; Old and New World EE none, AoC (116 tiles, four on the strip) 7 and
+  one start cut off - its player resigned at 3 minutes, the small map's cramped strip as before.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
   "Age of AI", its options in a dialog): the layout (two continents west and east, the sea between them north to
   south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -

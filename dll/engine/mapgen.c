@@ -115,6 +115,7 @@ enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_AM
 #define MG_PLAYERS 16
 #define MG_SPOTS 1024
 #define MG_FORDS 96
+#define MG_BLOBS 16
 struct mg {
     ee_map *map;              // the game's new map; NULL: a preview (mapgen_preview) - the generator's own arrays alone
     ee_player *world;
@@ -163,11 +164,15 @@ struct mg {
     int lakes, fords;
     int made[MG_KINDS], rivers, land, water, cliffs, forests, ranges, mountain, mountain_mines, types_missing, biome_tiles[MG_BIOMES];
     int clumps, clump_mines;  // mg_clump's: how many, and the mines in them
-    // THE CONTINENTS (map_layout: mg_layout): each an ellipse in the layout's frame, its middle across and its half
+    // THE CONTINENTS (map_layout: mg_layout): each an ellipse in the layout's frame (its shape made within it and its
+    // land nine tenths of it: mg_shapes), its middle across and its half
     // widths across and along in halves of the map (times the land option); the first `homes` of them the players'
     // (seat s on continent s % homes), the others nobody's. The sea's channel between two runs along at `chan` across
     // (tiles; chan_on 0: one continent, none)
     struct { float at, wide, len; } cont[2];
+    struct mg_blob { float u, v, du, dv, a, b; int bite; } blob[2][MG_BLOBS];   // a continent's shape (mg_shapes)
+    int blobs[2];
+    float lift[2];            // added to a continent's shape: its land nine tenths of its ellipse's (mg_shapes)
     int nc, homes, chan_on;
     float chan;
     int turned;               // the layout's rotation made: quarters clockwise (map_rotation's, or the seed's for random)
@@ -435,28 +440,132 @@ internal void mg_tongue(struct mg *g, int x0, int y0, float dx, float dy, float 
 internal float mg_isle_in(const struct mg *g, int cx, int cy, int x, int y, float r) {
     return r * (0.7f + 0.6f * mg_fbm((float)cx * 0.2f, (float)cy * 0.2f, g->seed + 96)) - sqrtf((float)((cx - x) * (cx - x) + (cy - y) * (cy - y)));
 }
-// THE LAND: the layout's continents, each an ellipse (mg_layout: two about the middles of their halves of the map, 0.42
-// of the half wide, 0.85 long), its shore pushed in and out by noise - as far as the two continents' does, whatever
-// the ellipses' size. f is the distance inside the land in tiles, as the ellipses and the noise give it. Then the coast's own shapes (the player 2026-11-25 agreed to the list: "small offshore islands, bays and
+// THE CONTINENTS' SHAPES (the player 2026-11-27: "the continents are quite obviously using a circle as a base, any
+// idea to make their shape more interesting?" - an ellipse, its shore pushed some 3 tiles in and out by a noise; of
+// my list: blobs along a spine, the place read warped, the land's amount kept). A continent in its ellipse's box: a
+// spine of 4 - 5 blobs end to end along it, each its own width (0.7 - 1 of the ellipse's, the ends 0.65 of that -
+// blunt ends made a box) and a little off the middle line; 2 - 4 lobes grown out of them (0.35 - 0.55 of the width,
+// turned any way); 1 - 3 gulfs bitten into its sides (0.3 - 0.5). The blobs joined smoothly and the gulfs cut so; the
+// place they are read at pushed by a slow noise (some a sixth of the width, at most half: the outline bent, its
+// bumps hooked); kept a tenth of the width off the map's side and the channel, smoothly (mg_shape_kept); then the
+// whole lifted or lowered until its land is nine tenths of its ellipse's (a thin one's all: mg_thin) - the same on every seed whatever outline
+// came out. Not all of it: the ellipse fills its box all but the corners, and a shape with gulfs and as much land
+// was pushed up against the channel and the map's side (lifts of a fifth of the width filled the gulfs again, the
+// channel a straight cut 6 tiles wide - 2026-11-27, 8 seeds). The draws from a generator of their own (the map's
+// draws stay as they were).
+internal float mg_own_rnd(uint32_t *r) { uint32_t x = *r; x ^= x << 13; x ^= x >> 17; x ^= x << 5; *r = x; return (float)(x >> 8) * (1.0f / 16777216.0f); }
+internal float mg_smax(float a, float b, float k) { float h = fmaxf(k - fabsf(a - b), 0) / k; return fmaxf(a, b) + h * h * k * 0.25f; }
+// how far inside a blob (u/v units; under 0 outside): its axis (du, dv), its half lengths a along it, b across
+internal float mg_blob_in(const struct mg_blob *b, float u, float v) {
+    float eu = u - b->u, ev = v - b->v, p = eu * b->du + ev * b->dv, q = ev * b->du - eu * b->dv;
+    return (1 - sqrtf(p * p / (b->a * b->a) + q * q / (b->b * b->b))) * fminf(b->a, b->b);
+}
+// how far inside the map's side and off the channel (u/v units): no land beyond (mg_land's last cut)
+internal float mg_bounds(const struct mg *g, int x, int y) {
+    float u = (float)(x - y), v = (float)(x + y - g->n);
+    return fminf(fminf(g->half - fabsf(u), g->half - fabsf(v)), mg_chan(g, x, y)) - 4;
+}
+// a continent's shape lifted, kept off the map's side and the channel by a tenth of its width - smoothly: a lobe or a
+// lift that came up to them bends away instead of being cut straight there
+internal float mg_shape_kept(const struct mg *g, int k, float shape, float bounds) {
+    float ra = g->cont[k].wide * g->half * g->opt.land;
+    return -mg_smax(-shape, -(bounds - 0.1f * ra), 0.3f * ra);
+}
+// A THIN CONTINENT (under 0.3 as wide as long: the Old World's strip, some 30 tiles across on 210) has no gulfs, half
+// the warp and all of its ellipse's land: the warp and the gulfs, scaled by its width, pinched it - 12 starts forced in
+// 10 games of old_new_world (5 before) and one cut off from the others (2026-11-27)
+internal inline int mg_thin(const struct mg *g, int k) { return g->cont[k].wide < 0.3f * g->cont[k].len; }
+// how far inside continent k a corner is (u/v units), its lift left out
+internal float mg_shape(const struct mg *g, int k, int x, int y) {
+    float ra = g->cont[k].wide * g->half * g->opt.land, kw = 1.41f / ra, w = (mg_thin(g, k) ? 0.7f : 1.4f) * ra, s = (float)k * 37.0f;
+    float u = (float)mg_along(g, x, y) + (mg_fbm((float)x * kw + 300 + s, (float)y * kw + 700, g->seed + 97) - 0.5f) * w;
+    float v = (float)mg_across(g, x, y) + (mg_fbm((float)x * kw + 500, (float)y * kw + 100 + s, g->seed + 98) - 0.5f) * w;
+    float in = -1e9f;
+    for (int i = 0; i < g->blobs[k]; i++)
+        if (!g->blob[k][i].bite) { float b = mg_blob_in(&g->blob[k][i], u, v); in = i ? mg_smax(in, b, 0.25f * ra) : b; }
+    for (int i = 0; i < g->blobs[k]; i++)
+        if (g->blob[k][i].bite) in = -mg_smax(-in, mg_blob_in(&g->blob[k][i], u, v), 0.15f * ra);
+    return in;
+}
+internal void mg_shapes(struct mg *g) {
+    uint32_t r = g->seed ^ 0x6A09E667u;
+    r ^= r >> 16; r *= 0x7FEB352Du; r ^= r >> 15; r *= 0x846CA68Bu; r ^= r >> 16;
+    if (!r) r = 1;
+    for (int k = 0; k < g->nc; k++) {
+        float ra = g->cont[k].wide * g->half * g->opt.land, rb = g->cont[k].len * g->half * g->opt.land, at = g->cont[k].at * g->half;
+        struct mg_blob *b = g->blob[k];
+        int nb = 0, spine = 4 + (mg_own_rnd(&r) < 0.5f);
+        float gap = 1.2f * rb / (float)(spine - 1);
+        for (; nb < spine; nb++) {   // (the ends 0.9 - 1 of the ellipse's length out, 0.65 as wide as the middle: blunt ends made a box)
+            float t = -0.6f + 1.2f * (float)nb / (float)(spine - 1), wide = ra * (0.7f + 0.3f * mg_own_rnd(&r)) * sqrtf(1 - 1.6f * t * t);
+            b[nb] = (struct mg_blob){ t * rb + (mg_own_rnd(&r) - 0.5f) * 0.3f * gap, at + (mg_own_rnd(&r) - 0.5f) * 1.6f * (ra - wide), 1, 0,
+                                      gap * (0.75f + 0.25f * mg_own_rnd(&r)), wide, 0 };
+        }
+        for (int i = 2 + (int)(mg_own_rnd(&r) * 3.0f); i > 0 && nb < MG_BLOBS; i--, nb++) {
+            const struct mg_blob *from = &b[(int)(mg_own_rnd(&r) * (float)spine) % spine];
+            float du = mg_own_rnd(&r) - 0.5f, dv = mg_own_rnd(&r) - 0.5f, l = sqrtf(du * du + dv * dv);
+            float au = mg_own_rnd(&r) - 0.5f, av = mg_own_rnd(&r) - 0.5f, al = sqrtf(au * au + av * av);
+            float size = ra * (0.35f + 0.2f * mg_own_rnd(&r)), out = 0.6f + 0.3f * mg_own_rnd(&r), thin = 0.6f + 0.4f * mg_own_rnd(&r);
+            if (l < 0.05f) { du = 0; dv = 1; l = 1; }
+            if (al < 0.05f) { au = 1; av = 0; al = 1; }
+            du /= l; dv /= l;
+            // its middle that way from the spine blob's, `out` of the way to that one's rim - in the box
+            float rim = 1 / sqrtf(du * du / (from->a * from->a) + dv * dv / (from->b * from->b));
+            float cu = from->u + du * rim * out, cv = from->v + dv * rim * out;
+            cu = fminf(fmaxf(cu, size - rb), rb - size); cv = fminf(fmaxf(cv, at - ra + size), at + ra - size);
+            b[nb] = (struct mg_blob){ cu, cv, au / al, av / al, size, size * thin, 0 };
+        }
+        for (int i = mg_thin(g, k) ? 0 : 1 + (int)(mg_own_rnd(&r) * 3.0f); i > 0 && nb < MG_BLOBS; i--, nb++) {
+            const struct mg_blob *from = &b[(int)(mg_own_rnd(&r) * (float)spine) % spine];
+            float side = mg_own_rnd(&r) < 0.5f ? -1.0f : 1.0f, size = ra * (0.3f + 0.2f * mg_own_rnd(&r)), along = mg_own_rnd(&r) - 0.5f, len = 0.8f + 0.6f * mg_own_rnd(&r);
+            b[nb] = (struct mg_blob){ from->u + along * from->a, from->v + side * (from->b + 0.1f * size), 1, 0, size * len, size, 1 };
+        }
+        g->blobs[k] = nb;
+    }
+    // the lifts, on every other corner each way: a bisection of the land's count against the ellipse's
+    int w = g->n / 2 + 1;
+    float *in = malloc((size_t)(w * w) * sizeof *in), *bound = malloc((size_t)(w * w) * sizeof *bound);
+    for (int k = 0; k < g->nc; k++) {
+        float ra = g->cont[k].wide * g->half * g->opt.land, rb = g->cont[k].len * g->half * g->opt.land, at = g->cont[k].at * g->half, lo = -ra, hi = ra;
+        int want = 0, c = 0;
+        g->lift[k] = 0;
+        if (!in || !bound) continue;
+        for (int y = 0; y <= g->n; y += 2)
+            for (int x = 0; x <= g->n; x += 2, c++) {
+                float da = ((float)mg_across(g, x, y) - at) / ra, db = (float)mg_along(g, x, y) / rb;
+                bound[c] = mg_bounds(g, x, y);
+                in[c] = mg_shape(g, k, x, y);
+                want += fminf((1 - sqrtf(da * da + db * db)) * ra, bound[c]) > 0;
+            }
+        if (!mg_thin(g, k)) want = want * 9 / 10;
+        for (int it = 0; it < 24; it++) {
+            float mid = (lo + hi) * 0.5f;
+            int got = 0;
+            for (int i = 0; i < c; i++) got += mg_shape_kept(g, k, in[i] + mid, bound[i]) > 0;
+            if (got < want) lo = mid; else hi = mid;
+        }
+        g->lift[k] = (lo + hi) * 0.5f;
+    }
+    free(in); free(bound);
+}
+// THE LAND: the layout's continents (mg_layout), each its shape (mg_shapes), and a rough edge to their shores - a quick
+// noise (features of some 4 tiles) pushing them up to 3 tiles in and out, fading within 9 tiles of the shore: inlets
+// and points, the inland untouched. f is the distance inside the land in tiles. Then the coast's own shapes (the player 2026-11-25 agreed to the list: "small offshore islands, bays and
 // peninsulas, and fjords in the cold north"): capes - tongues of land 10 - 18 tiles out to sea -, bays - as far cut
 // in -, 1 + n/200 of each; fjords in the cold north, 1 + n/150: a narrow cut (3 tiles of water) 14 - 24 tiles up
 // the land's slope, winding a little, its shores rocky (g->fjord: cliffs); islands, 2 + n/80: 3 - 7 tiles in radius,
 // its shore 8 tiles of water from any other land's - an island, no spit: deep water goes round it (mg_heights).
 // Last the water along the map's edge and in the channel between two continents, whatever is there.
 internal void mg_land(struct mg *g) {
-    float half = g->half, rn = 0.42f * half * g->opt.land, ox, oy;
+    float half = g->half, ox, oy;
     int x, y;
+    mg_shapes(g);
     for (y = 0; y <= g->n; y++)
         for (x = 0; x <= g->n; x++) {
-            float u = (float)mg_along(g, x, y), v = (float)mg_across(g, x, y), best = -1e9f;
-            for (int k = 0; k < g->nc; k++) {
-                float ra = g->cont[k].wide * half * g->opt.land, rb = g->cont[k].len * half * g->opt.land;
-                float da = (v - g->cont[k].at * half) / ra, db = u / rb;
-                float fk = (1 - sqrtf(da * da + db * db)) * ra;
-                if (fk > best) best = fk;
-            }
-            best += (mg_fbm((float)x * 0.045f, (float)y * 0.045f, g->seed) - 0.5f) * 0.5f * rn;
-            g->f[y * g->m + x] = best * 0.7071f;
+            float best = -1e9f;
+            for (int k = 0; k < g->nc; k++) best = fmaxf(best, mg_shape_kept(g, k, mg_shape(g, k, x, y) + g->lift[k], mg_bounds(g, x, y)));
+            float f = best * 0.7071f, rough = (mg_fbm((float)x * 0.11f + 51, (float)y * 0.11f + 77, g->seed + 99) - 0.5f) * 8.0f;
+            g->f[y * g->m + x] = f + rough * (1 - mg_step(2, 9, fabsf(f)));
         }
     for (int k = 1 + g->n / 200; k > 0; k--)
         if (mg_shore_point(g, 20, &x, &y, &ox, &oy)) { mg_tongue(g, x, y, ox, oy, (float)mg_int(g, 10, 18), (float)mg_int(g, 3, 5), 1); g->capes++; }
@@ -773,7 +882,7 @@ internal float mg_start_worth(const struct mg *g, const struct mg_fields *f, int
     return 3 * (float)room - 2 * rough + water + 2 * food - 1.5f * off;
 }
 // The players on one continent (one_continent, old_new_world: homes 1) sit round it instead: where they look first
-// evenly round the ellipse at 0.6 of the way from its middle to its shore - the first across it (two players: on either
+// evenly round the ellipse at 0.6 of the way from its middle to its shore (the shore its shape's: mg_ring_place) - the first across it (two players: on either
 // side, in one climate), the rest turned on by a table (no sine at run time: every PC's map the same) -, their shares
 // of that ring's length; a single player in the middle.
 internal const float k_mg_turn[MG_PLAYERS][2] = {   // cos, sin of a full turn / (i + 1)
@@ -782,13 +891,38 @@ internal const float k_mg_turn[MG_PLAYERS][2] = {   // cos, sin of a full turn /
     { 0.80901699f, 0.58778525f }, { 0.84125353f, 0.54064082f }, { 0.86602540f, 0.50000000f }, { 0.88545603f, 0.46472317f },
     { 0.90096887f, 0.43388374f }, { 0.91354546f, 0.40673664f }, { 0.92387953f, 0.38268343f },
 };
-// the j-th of count places round the home continent (u, v: the frame's along and across)
+// the longest run of continent k's land (f over 0) on a line from (u0, v0) the way (du, dv), t from lo to hi
+// (u/v units, a step of 1) -> its ends a, b; 0: none
+internal int mg_land_run(const struct mg *g, int k, float u0, float v0, float du, float dv, float lo, float hi, float *a, float *b) {
+    int steps = (int)(hi - lo) + 1, best = 0;
+    for (int i = 0, run = -1; i <= steps; i++) {
+        int land = 0;
+        if (i < steps) {
+            float t = lo + (float)i, x, y;
+            mg_from(g, u0 + du * t, v0 + dv * t, &x, &y);
+            int cx = (int)floorf(x + 0.5f), cy = (int)floorf(y + 0.5f);
+            land = mg_f(g, cx, cy) > 0 && mg_side(g, cx, cy) == k;
+        }
+        if (land && run < 0) run = i;
+        if (!land && run >= 0) {
+            if (i - run > best) { best = i - run; *a = lo + (float)run; *b = lo + (float)(i - 1); }
+            run = -1;
+        }
+    }
+    return best > 0;
+}
+// the j-th of count places round the home continent (u, v: the frame's along and across): the way round the ellipse
+// as before, 0.6 of the way out on the land that way as it came out (mg_shapes: no longer the ellipse)
 internal void mg_ring_place(const struct mg *g, int j, int count, float *u, float *v) {
     float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land, c = g->turned >= 2 ? -1.0f : 1.0f, s = 0;
     const float *turn = k_mg_turn[count - 1];
     for (int t = 0; t < j; t++) { float nc = c * turn[0] - s * turn[1]; s = s * turn[0] + c * turn[1]; c = nc; }
-    *u = count > 1 ? 0.6f * rb * s : 0;
-    *v = g->cont[0].at * g->half + (count > 1 ? 0.6f * ra * c : 0);
+    float mid = g->cont[0].at * g->half, du = 0.6f * rb * s, dv = 0.6f * ra * c, l = sqrtf(du * du + dv * dv), a, b;
+    *u = count > 1 ? du : 0;
+    *v = mid + (count > 1 ? dv : 0);
+    if (count < 2 || l <= 0 || !mg_land_run(g, 0, 0, mid, du / l, dv / l, 0, l / 0.6f * 1.3f, &a, &b)) return;
+    float t = a + 0.6f * (b - a);
+    *u = du / l * t; *v = mid + dv / l * t;
 }
 // Round one continent the shares are in tiles (u and v run 1.41 a tile), and the starts keep apart by no more than
 // 0.9 of the nearest two places' distance: on the Old World of a small map (some 30 tiles across) the 16 tiles
@@ -846,11 +980,13 @@ internal void mg_starts(struct mg *g) {
             float length = 2 * 0.72f * g->cont[k].len * g->half * g->opt.land;
             share = length / (float)count[k];
             // where it looks first: its share's middle along the continent, and by turns on either side of the
-            // continent's middle line, 0.6 of the way to its shore (the ellipse's half width there) - a continent's one start
-            // in the middle
+            // land's middle there, 0.6 of the way to its shore - the longest stretch of land across it there (mg_shapes;
+            // none: the ellipse's) - a continent's one start in the middle
             u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length;
-            float rb = g->cont[k].len * g->half * g->opt.land, wide = g->cont[k].wide * g->half * g->opt.land * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
-            v = g->cont[k].at * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
+            float ra = g->cont[k].wide * g->half * g->opt.land, rb = g->cont[k].len * g->half * g->opt.land, a, b;
+            float mid = g->cont[k].at * g->half, wide = ra * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
+            if (mg_land_run(g, k, u, 0, 0, 1, mid - 1.2f * ra, mid + 1.2f * ra, &a, &b)) { mid = (a + b) * 0.5f; wide = (b - a) * 0.5f; }
+            v = mid + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
         } else {
             float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land;
             share = 6.2831853f * 0.6f * sqrtf((ra * ra + rb * rb) * 0.5f) / (float)count[0] * 0.70710678f;
