@@ -238,7 +238,12 @@ internal const char k_rd3_shader[] =
     " float2 wk = 0; if (gnd.x == 0 && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0) { float3 wv = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
     "  if (wv.z < sea.z && wop.z > sea.z) { float k = (wop.z - wv.z) / (wop.z - sea.z); float3 ws = wop.xyz + (wv - wop.xyz) / k;"
     "   float2 dm = wslope(ws.xy) * (cat.y * saturate(length(wv - ws) * 4)); float3 bc = cross(shy.xyz, shz.xyz), ca = cross(shz.xyz, shx.xyz);"
-    "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) { pp.xyz -= k * (dm.x * bc + dm.y * ca) / dt; wk = k * dm; } } }"
+    "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) { float3 mv = k * (dm.x * bc + dm.y * ca) / dt; float4 c0 = mul(p, vpm), c1 = mul(float4(p.xyz - mv, p.w), vpm);"
+    // no more than the step moves the picture, 48 pixels (wpix; vp.xy: half a pixel in clip space): close up a wave moved
+    // an oar's edges past the step's limit, its solid half bent by the step stayed behind (the player, 2026-11-27: "the
+    // refraction of the opaque and transparent parts isnt in sync")
+    "    float l = vp.x != 0 && c0.w > 0 && c1.w > 0 ? length((c1.xy / c1.w - c0.xy / c0.w) / (2 * abs(vp.xy))) : 0, f = l > 48 ? 48 / l : 1;"
+    "    pp.xyz -= mv * f; wk = k * dm * f; } } }"
     " o.p = mul(pp, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz)); o.w.xy += fo * 0.5; o.wk = wk; o.wr = float4(1, 1, 0, 0);"
@@ -349,7 +354,7 @@ internal const char k_rd3_shader[] =
     " float2 wu = i.t; [branch] if (gnd.x == 0 && op.w && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0 && wop.z > sea.z) {"
     "  float3 dw = i.w - float3(i.wk, 0); float k = max((wop.z - dw.z) / (wop.z - sea.z), 1); float3 ws = wop.xyz + (dw - wop.xyz) / k;"
     "  float2 sx = ddx(ws.xy), sy = ddy(ws.xy), tx = ddx(i.t), ty = ddy(i.t);"
-    "  if (i.w.z < sea.z && i.cf.x <= 0.5) { float2 o = wpix(wslope(ws.xy) * (cat.y * saturate(length(dw - ws) * 4)) - i.wk / k, sx, sy);"
+    "  if (i.w.z < sea.z && i.cf.x <= 0.5) { float2 o = wpix(wslope(ws.xy) * (cat.y * saturate(length(dw - ws) * 4)), sx, sy) - wpix(i.wk / k, sx, sy);"
     "   wu = i.t + tx * o.x + ty * o.y; x = t.SampleGrad(s, wu, tx, ty); } }"
     // a face grown by the geometry shader (gsq) shows only its own square of the texture
     " if (i.wr.x <= i.wr.z && (any(wu < i.wr.xy) || any(wu > i.wr.zw))) discard;"
