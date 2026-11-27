@@ -539,6 +539,8 @@ internal void cz_install(const char *autotest_ini) {
     if (autotest_ini) g_v_shelve = ini_int("autotest", "v_shelve_citizens", -1, autotest_ini);
     g_let_few = g_set_ai[1].stash_let_out_few;   // bunker.c LET OUT FEW (the shelf's and the reserve's)
     if (autotest_ini) g_v_let_few = ini_int("autotest", "v_stash_let_out_few", -1, autotest_ini);
+    g_bk_shared = g_set_ai[1].stash_shared;   // bunker.c SHARED
+    if (autotest_ini) g_v_bk_shared = ini_int("autotest", "v_stash_shared", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# workforce plan: %d (variant %d), army from a cap of %d\n", g_wf_plan, g_v_wf_plan, g_wf_army_cap);
     BOOL ok = patch_citizens_wanted(hook_cit_wanted);
     if (g_log) fprintf(g_log, "# citizens: citizen_plan %d (variant %d), army share %.0f%%, hook %s\n", g_cit_plan, g_v_cit_plan,

@@ -1269,9 +1269,10 @@ internal void sn_stash_look(unsigned idx, uint32_t now) {
 // 152). No worse, the loads arrive: on by default (the player asked for the design).
 internal int g_sn_rt_on = 1, g_v_sn_rt = -1;
 #define RES_TER(idx) PV(idx, g_v_sn_rt, g_sn_rt_on)
-struct sn_rv { int cap[PR_T], wsp[PR_T], held[PR_T], fcap[PR_T], walk[PR_T], nfo[PR_T], up[PR_T], w[PR_T]; short fter[BK_MAX]; unsigned fland[BK_MAX]; int held_all, walk_all, n; };
+struct sn_rv { int cap[PR_T], wsp[PR_T], held[PR_T], fcap[PR_T], walk[PR_T], nfo[PR_T], up[PR_T], w[PR_T]; short fter[BK_MAX]; unsigned fland[BK_MAX]; int held_all, walk_all, n, big, free_all; };
 internal struct sn_rv g_snrv;
 internal int sn_res_usable(unsigned idx, int k) {   // a finished Fortress the reserve may fill: no shelf's, no shelter, none with others' units inside
+    if (BK_SHARED(idx)) return !g_bk[idx].shelter[k];   // bunker.c SHARED: any but a shelter
     return g_bk[idx].store[k] != 1 && !g_bk[idx].shelter[k] && !(!g_bk[idx].store[k] && bk_held(g_bk[idx].f[k]) > 0);
 }
 // the view: its Fortresses by territory, what each holds, the capacities for a reserve of `total` with `ahead` more
@@ -1280,7 +1281,7 @@ internal void sn_res_view(unsigned idx, const struct tv_st *s, int n, const int 
     struct sn_rv *v = &g_snrv;
     static uint8_t done[PR_T];
     int cap1 = 40;
-    v->n = n; v->held_all = v->walk_all = 0;
+    v->n = n; v->held_all = v->walk_all = v->free_all = 0;
     memset(v->held, 0, (size_t)n * sizeof *v->held); memset(v->fcap, 0, (size_t)n * sizeof *v->fcap); memset(v->walk, 0, (size_t)n * sizeof *v->walk);
     memset(v->nfo, 0, (size_t)n * sizeof *v->nfo); memset(v->up, 0, (size_t)n * sizeof *v->up);
     for (int k = 0; k < g_bk[idx].nf; k++) {
@@ -1290,14 +1291,20 @@ internal void sn_res_view(unsigned idx, const struct tv_st *s, int n, const int 
         v->fter[k] = (short)(r < (unsigned)n ? (int)r : -1); v->fland[k] = bk_land_of(p);
         if (bk_capacity(f) > 0) cap1 = bk_capacity(f);
         if (r >= (unsigned)n || !sn_res_usable(idx, k)) continue;
-        v->nfo[r]++; v->fcap[r] += bk_capacity(f);
-        if (g_bk[idx].store[k] == 2) { v->held[r] += bk_held(f); v->held_all += bk_held(f); }
+        if (BK_SHARED(idx)) {   // SHARED: its soldiers are the reserve's, the places its citizens take are not
+            int so = bk_held_kind(f, 0), fr = bk_space(f) - g_bk[idx].walk[k];
+            v->nfo[r]++; v->fcap[r] += bk_capacity(f) - bk_held_kind(f, 1);
+            v->held[r] += so; v->held_all += so; v->free_all += fr > 0 ? fr : 0;
+        } else {
+            v->nfo[r]++; v->fcap[r] += bk_capacity(f);
+            if (g_bk[idx].store[k] == 2) { v->held[r] += bk_held(f); v->held_all += bk_held(f); }
+        }
         v->walk[r] += g_bk[idx].walk[k]; v->walk_all += g_bk[idx].walk[k];
     }
     for (int k = 0; k < g_bk[idx].nall; k++) {   // foundations: as empty
         ee_unit *bs = unit_get_physics(g_bk[idx].all[k]);
         unsigned r = ter_near(unit_get_x(g_bk[idx].all[k]), unit_get_y(g_bk[idx].all[k]));
-        if ((!bs || !unit_get_finished(bs)) && r < (unsigned)n) { v->nfo[r]++; v->up[r]++; v->fcap[r] += cap1; }
+        if ((!bs || !unit_get_finished(bs)) && r < (unsigned)n) { v->nfo[r]++; v->up[r]++; v->fcap[r] += cap1; v->free_all += cap1; }
     }
     long wsum = 0;
     for (int r = 0; r < n; r++) {
@@ -1306,6 +1313,7 @@ internal void sn_res_view(unsigned idx, const struct tv_st *s, int n, const int 
     }
     int total = v->held_all + v->walk_all + want, big = v->held_all + v->walk_all + ahead;   // big: the Fortresses' room wanted - as FORTRESSES AHEAD, ahead of what is in, not of this look's
     if (big < total) big = total;
+    v->big = big;
     memset(done, 0, (size_t)n);
     for (int guard = 0; wsum > 0 && guard < n; guard++) {   // the small ones to a neighbour, the smallest first
         int r = -1;
@@ -1402,6 +1410,9 @@ internal void sn_res_build(unsigned idx, int n, const ivec2 *rally, uint32_t now
         more += (d + cap1 - 1) / cap1;
         if (!bk_ter_refused(idx, r, now) && (b < 0 || d > bd)) { b = r; bd = d; }
     }
+    // SHARED (bunker.c): the free places of all its Fortresses one number - none built while they hold what the reserve
+    // still wants (its room ahead less what is in and walking in), wherever its parts lie
+    if (BK_SHARED(idx) && v->free_all >= v->big - v->held_all - v->walk_all) { more = 0; b = -1; }
     g_bk_more[idx] = b >= 0 ? more : 0;
     g_bk_ter[idx] = b;
     if (b >= 0) g_bk_ter_at[idx] = rally[b];
@@ -1409,7 +1420,7 @@ internal void sn_res_build(unsigned idx, int n, const ivec2 *rally, uint32_t now
 // a soldier new to the look by a Fortress of the reserve: out of it - that territory's (OUT)
 internal void sn_res_rejoin(unsigned idx, struct sn_unit *m, ivec2 p, int n) {
     for (int k = 0; k < g_bk[idx].nf; k++) {
-        if (g_bk[idx].store[k] != 2 || ivec2_dist2(unit_get_tile(g_bk[idx].f[k]), p) > SN_RES_OUT_R * SN_RES_OUT_R) continue;
+        if ((BK_SHARED(idx) ? g_bk[idx].shelter[k] != 0 : g_bk[idx].store[k] != 2) || ivec2_dist2(unit_get_tile(g_bk[idx].f[k]), p) > SN_RES_OUT_R * SN_RES_OUT_R) continue;
         ivec2 q = unit_get_tile(g_bk[idx].f[k]);
         unsigned r = ter_near(q.x, q.y);
         if (r < (unsigned)n && !g_ter.t[r].water) m->ter = (short)r;
@@ -2147,7 +2158,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
         if (hard_r >= 0 || (room > SN_RES_ROOM && quiet_in))
             for (int k = 0; k < g_bk[idx].nf; k++) {
                 ee_unit *fo = g_bk[idx].f[k];
-                if (g_bk[idx].store[k] != 2 || bk_held(fo) <= 0 || (rt && rank[k] < 0)) continue;
+                if ((BK_SHARED(idx) ? g_bk[idx].shelter[k] || bk_held_kind(fo, 0) <= 0 : g_bk[idx].store[k] != 2 || bk_held(fo) <= 0) || (rt && rank[k] < 0)) continue;
                 if (hard_r < 0 && bk_held(fo) + SN_RES_ROOM + SN_RES_BATCH > room) continue;   // ONLY FOR ROOM (the player 2026-11-15: "if the pop limit has space again the units should go out and do tasks"): whoever fits into the room on the map comes out
                 int d = rt ? -rank[k] : hard_r >= 0 ? ivec2_dist2(unit_get_tile(fo), g_ter.t[hard_r].c) : -bk_held(fo);
                 if (ob < 0 || d < od) { ob = k; od = d; }
@@ -2200,7 +2211,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             for (int k = 0; k < g_bk[idx].nf; k++) {
                 ee_unit *fo = g_bk[idx].f[k];
                 if (bk_capacity(fo) > 0) cap1 = bk_capacity(fo);
-                if (g_bk[idx].store[k] == 1 || g_bk[idx].shelter[k] || (!g_bk[idx].store[k] && bk_held(fo) > 0)) continue;
+                if (BK_SHARED(idx) ? g_bk[idx].shelter[k] != 0 : g_bk[idx].store[k] == 1 || g_bk[idx].shelter[k] || (!g_bk[idx].store[k] && bk_held(fo) > 0)) continue;
                 have += bk_space(fo) > 0 ? bk_space(fo) : 0;
             }
             for (int k = 0; k < g_bk[idx].nf && want > 0; k++) {   // the Fortresses in no particular order: the soldiers nearest each go
@@ -2208,7 +2219,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
                 for (int j = 0; j < g_bk[idx].nf; j++) {
                     ee_unit *fo = g_bk[idx].f[j];
                     int sp = bk_space(fo);   // by the soldiers' sizes (bunker.c)
-                    if (used[j] || g_bk[idx].store[j] == 1 || g_bk[idx].shelter[j] || g_bk[idx].walk[j] > 0 || (!g_bk[idx].store[j] && bk_held(fo) > 0)) continue;
+                    if (used[j] || g_bk[idx].shelter[j] || g_bk[idx].walk[j] > 0 || (!BK_SHARED(idx) && (g_bk[idx].store[j] == 1 || (!g_bk[idx].store[j] && bk_held(fo) > 0)))) continue;
                     if (sp > space) { space = sp; best = j; }
                 }
                 if (best < 0 || space < 5) break;
@@ -2451,7 +2462,7 @@ internal void stations_tick(ee_player *pl, uint32_t now) {
             if (tc[r] || ac[r]) o += snprintf(buf + o, sizeof buf - (size_t)o, " %d:%d/%d%s", r, ac[r], tc[r], fn[r] && s->t[r].role != TVR_NONE ? "!" : "");
         for (int k = 0; k < SN_PUSHES; k++) pushing += z->push[k].on;
         int rh = 0, rf = 0;   // THE RESERVE: soldiers inside its Fortresses
-        for (int k = 0; k < g_bk[idx].nf; k++) if (g_bk[idx].store[k] == 2) { rh += bk_held(g_bk[idx].f[k]); rf++; }
+        for (int k = 0; k < g_bk[idx].nf; k++) if (BK_SHARED(idx) ? !g_bk[idx].shelter[k] : g_bk[idx].store[k] == 2) { rh += BK_SHARED(idx) ? bk_held_kind(g_bk[idx].f[k], 0) : bk_held(g_bk[idx].f[k]); rf++; }
         log_locked("# stations: P%u at %.1f min: the main force %d, siege %d, anti-air %d, scouts %d (%d of them with the ferry; territories never stood in: %d, due a look again: %d) | pushes on %d, so far %u started, %u won, %u lost | "
                    "the reserve %d soldiers in %d fortresses (so far %u in, %u out), room spare %d beyond the training's %d, %d more fortresses wanted | "
                    "so far %u changes of station, %u orders (%u to groups, %u soldiers in them, %u formations laid at rest), %u scouts back, %u scouts' goals inside their territory, %u set at enemy walls, %u siege at enemy gates, %u orders taken for dead | territory:stationed/share (! enemy soldiers there):%s\n",

@@ -97,6 +97,36 @@ internal int bk_let_out(ee_unit *f, int n) {
     }
     return out;
 }
+// SHARED ([ai_base] stash_shared; the player 2026-11-27: "why cant fortress not be shared? the ai alredy knows how to
+// get single units out, free shelf/reserve storage should be one number"): with LET OUT FEW and the game's computer
+// player off a Fortress holds the shelf's citizens and the reserve's soldiers together - each side counts and lets out
+// its own kind (bk_held_kind, bk_let_out_kind), one unit at a time; only a Fortress sheltering citizens under fire is
+// nobody else's. Their free places are one number: no Fortress is built for the reserve while the free places of all
+// of them hold what it still wants (stations.c FORTRESSES WHERE THEY ARE NEEDED), nor for the shelf while one has room
+// (THE SHELF). Before (store: a Fortress the shelf's or the reserve's by who went in first) the shelf put each look's
+// 1-3 citizens into another empty Fortress, the reserve built more for its soldiers and the shelf took those too: the
+// player's game of 2026-11-27, P6 35 Fortresses to 61 in ten minutes at minute 806, nearly all holding a citizen or two.
+internal int g_bk_shared = 1, g_v_bk_shared = -1;
+#define BK_SHARED(idx) (PV(idx, g_v_bk_shared, g_bk_shared) && LET_FEW(idx) && !GAME_AI(idx))
+internal int bk_is_cit(ee_unit *u) {
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    return td && is_citizen_type(unit_type_get_id(td));
+}
+internal int bk_held_kind(ee_unit *f, int cit) {   // its citizens (cit 1) or the rest, its soldiers (0), inside
+    int n = 0;
+    for (int i = 0; i < unit_inside_n(f); i++) n += bk_is_cit(unit_inside_get(f, i)) == !!cit;
+    return n;
+}
+internal int bk_let_out_kind(ee_unit *f, int n, int cit) {   // bk_let_out of that kind only
+    int out = 0;
+    for (int i = unit_inside_n(f) - 1; i >= 0 && out < n; i--) {
+        ee_unit *u = unit_inside_get(f, i);
+        if (bk_is_cit(u) != !!cit) continue;
+        if (!unit_let_out(f, u)) break;
+        out++;
+    }
+    return out;
+}
 
 // bunker P x y [r]: P's fortresses within r (10) of x,y and what they hold; bunker P x y r load: they load P's citizens
 // there (up to their capacity); bunker P x y r unload: they let everyone out beside them; bunker P x y r out1: each
@@ -247,7 +277,7 @@ internal int bk_shelter_in(ee_player *pl, ee_unit *u, int force, int reach) {
         ee_unit *f = g_bk[pi].f[k];
         int d = ivec2_dist2(unit_get_tile(f), iv2(ux, uy));
         if (land && bk_land_of(unit_get_tile(f)) != land) continue;
-        if (d < bd && !g_bk[pi].store[k] && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = d; best = k; }
+        if (d < bd && (BK_SHARED(pi) || !g_bk[pi].store[k]) && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = d; best = k; }
     }
     if (best < 0) return 0;
     g_bk[pi].q[best][g_bk[pi].nq[best]++] = u;
@@ -275,7 +305,7 @@ internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queu
         if (tv_unsafe(pi, fx, fy)) { g_bk[pi].quiet_t[k] = 0; tv_count(pi, 3); continue; }   // its territory still being lost (territories.c)
         if (!g_bk[pi].quiet_t[k]) { g_bk[pi].quiet_t[k] = now ? now : 1; continue; }
         if (now - g_bk[pi].quiet_t[k] < 8000) continue;   // two quiet looks
-        if (bk_unload(f)) {
+        if (BK_SHARED(pi) ? bk_let_out_kind(f, 40, 1) > 0 : bk_unload(f)) {   // SHARED: its citizens only (the soldiers stay the reserve's)
             g_bk[pi].out += (unsigned)held;
             g_bk[pi].shelter[k] = 0;
             if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: the fortress at %d,%d lets %d out (quiet)\n", pi, now / 60000.0, fx, fy, held);
@@ -439,23 +469,24 @@ internal void bunker_reserve(ee_player *pl, int *reserve) {
 }
 
 // LET OUT FEW: n units out of the fortresses of one kind (store 1 the shelf's, 2 the reserve's) - the nearest to *at
-// first, else the fullest; none with enemy soldiers within r tiles (0: no look). The number let out; *from the last
+// first, else the reserve's fullest, the shelf's emptiest; none with enemy soldiers within r tiles (0: no look). The number let out; *from the last
 // fortress one came out of
 internal int bk_let_out_of(ee_player *pl, unsigned pi, int store, int n, int r, const ivec2 *at, ee_unit **from) {
     uint8_t tried[BK_MAX] = { 0 };
     int out = 0;
     while (out < n) {
         int best = -1, bd = 0;
+        int sh = BK_SHARED(pi);
         for (int k = 0; k < g_bk[pi].nf; k++) {
             ee_unit *fo = g_bk[pi].f[k];
-            int h = bk_held(fo);
-            if (tried[k] || g_bk[pi].store[k] != store || h <= 0 || (r > 0 && raiders_near(pl, unit_get_tile(fo), r))) continue;
-            int d = at ? ivec2_dist2(unit_get_tile(fo), *at) : -h;
+            int h = sh ? bk_held_kind(fo, store == 1) : bk_held(fo);   // SHARED: the kind's in any Fortress but a shelter
+            if (tried[k] || (sh ? g_bk[pi].shelter[k] != 0 : g_bk[pi].store[k] != store) || h <= 0 || (r > 0 && raiders_near(pl, unit_get_tile(fo), r))) continue;
+            int d = at ? ivec2_dist2(unit_get_tile(fo), *at) : store == 1 ? h : -h;   // the shelf's: the emptiest first - a Fortress emptied is the reserve's again
             if (best < 0 || d < bd) { best = k; bd = d; }
         }
         if (best < 0) break;
         tried[best] = 1;
-        int got = bk_let_out(g_bk[pi].f[best], n - out);
+        int got = sh ? bk_let_out_kind(g_bk[pi].f[best], n - out, store == 1) : bk_let_out(g_bk[pi].f[best], n - out);
         if (got > 0 && from) *from = g_bk[pi].f[best];
         out += got;
         if (got > 0 && bk_room(pl) <= 0) break;   // the map full: the next would be refused too
@@ -465,14 +496,14 @@ internal int bk_let_out_of(ee_player *pl, unsigned pi, int store, int n, int r, 
 // ... the fortresses by rank instead (stations.c THE RESERVE BY TERRITORY): the highest first, none of a negative one
 internal int bk_let_out_ranked(ee_player *pl, unsigned pi, int store, int n, const int *rank, ee_unit **from) {
     uint8_t tried[BK_MAX] = { 0 };
-    int out = 0;
+    int out = 0, sh = BK_SHARED(pi);
     while (out < n) {
         int best = -1;
         for (int k = 0; k < g_bk[pi].nf; k++)
-            if (!tried[k] && g_bk[pi].store[k] == store && bk_held(g_bk[pi].f[k]) > 0 && rank[k] >= 0 && (best < 0 || rank[k] > rank[best])) best = k;
+            if (!tried[k] && (sh ? !g_bk[pi].shelter[k] && bk_held_kind(g_bk[pi].f[k], store == 1) > 0 : g_bk[pi].store[k] == store && bk_held(g_bk[pi].f[k]) > 0) && rank[k] >= 0 && (best < 0 || rank[k] > rank[best])) best = k;
         if (best < 0) break;
         tried[best] = 1;
-        int got = bk_let_out(g_bk[pi].f[best], n - out);
+        int got = sh ? bk_let_out_kind(g_bk[pi].f[best], n - out, store == 1) : bk_let_out(g_bk[pi].f[best], n - out);
         if (got > 0 && from) *from = g_bk[pi].f[best];
         out += got;
         if (got > 0 && bk_room(pl) <= 0) break;
@@ -621,7 +652,8 @@ internal int shelf_rich(const int *st, int k) { return st[2] >= k && st[3] >= k 
 internal int shelf_keep(ee_player *pl) { int k = unit_limit(pl) / 8; return k > 40 ? k : 40; }
 internal int shelf_held(unsigned pi) {   // citizens on the shelf (its fortresses hold only them)
     int n = 0;
-    for (int k = 0; k < g_bk[pi].nf; k++) if (g_bk[pi].store[k] == 1) n += bk_held(g_bk[pi].f[k]);
+    int sh = BK_SHARED(pi);   // SHARED: the citizens in any Fortress but a shelter
+    for (int k = 0; k < g_bk[pi].nf; k++) if (sh ? !g_bk[pi].shelter[k] : g_bk[pi].store[k] == 1) n += sh ? bk_held_kind(g_bk[pi].f[k], 1) : bk_held(g_bk[pi].f[k]);
     return n;
 }
 // hook_cit_wanted (citizens.c): while the shelf works or holds citizens, no more than there are - on the map or in it
@@ -695,7 +727,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     // the game's computer player off: a fortress with units inside is the shelf's - nobody else fills one then (the
     // shelter and the reserve are the game's assignment hook's), and which were its is not in a save: after a load
     // they stood full for good, no citizen out, none more in
-    if (!GAME_AI(pi)) for (int k = 0; k < g_bk[pi].nf; k++) if (!g_bk[pi].store[k] && !g_bk[pi].shelter[k] && bk_held(g_bk[pi].f[k]) > 0) g_bk[pi].store[k] = bk_holds_soldiers(g_bk[pi].f[k]) ? 2 : 1;   // by who is inside: the reserve's soldiers (stations.c) or its citizens
+    if (!GAME_AI(pi) && !BK_SHARED(pi)) for (int k = 0; k < g_bk[pi].nf; k++) if (!g_bk[pi].store[k] && !g_bk[pi].shelter[k] && bk_held(g_bk[pi].f[k]) > 0) g_bk[pi].store[k] = bk_holds_soldiers(g_bk[pi].f[k]) ? 2 : 1;   // by who is inside: the reserve's soldiers (stations.c) or its citizens
     int sp[7] = { 0 }, taken[7] = { 0 };
     int pool = GAME_AI(pi) ? 0 : wk_pool(pi, sp), plenty = pool > 0, rich = shelf_rich(st, g_shelve_stock);
     if (shelf_held(pi) <= 0 && !plenty) g_shelf[pi].plenty = 0;
@@ -734,7 +766,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
         int sold = 0, ob = -1, oh = 0;
         for (int k = 0; k < g_bk[pi].nf; k++) {
             int h = bk_held(g_bk[pi].f[k]);
-            if (g_bk[pi].store[k] == 2 && h > 0) sold = 1;
+            if (BK_SHARED(pi) ? !g_bk[pi].shelter[k] && bk_held_kind(g_bk[pi].f[k], 0) > 0 : g_bk[pi].store[k] == 2 && h > 0) sold = 1;
             if (g_bk[pi].store[k] == 1 && h > oh && h + 5 <= room && !raiders_near(pl, unit_get_tile(g_bk[pi].f[k]), 15)) { oh = h; ob = k; }
         }
         if (!sold && LET_FEW(pi) && room > 5) {   // LET OUT FEW: as many as the map has room for (5 places kept, 20 a look at most)
@@ -760,13 +792,25 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
     if (plenty) g_shelf[pi].plenty = 1;
     int only_fw = plenty;   // THE POOL: the farmers and the wood cutters beyond the need
     g_shelf[pi].t = now ? now : 1;
-    int best = -1, space = 0;   // a fortress of the shelf with room, else an empty one
+    // a fortress of the shelf with room (5 places at least), else an empty one. The shelf's own first, whatever an empty
+    // one has more of: by the most space alone an empty one (40) beat its own with one inside (39) - the player's game
+    // of 2026-11-27, minute 816: each look's 1-3 citizens into another empty Fortress, the reserve's no longer (a
+    // Fortress with citizens in is the shelf's), so the reserve built more for its soldiers and the shelf took those
+    // too - P6 35 Fortresses to 61 in ten minutes, nearly all holding a citizen or two
+    int best = -1, space = 0, own = 0;
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *fo = g_bk[pi].f[k];
-        int s = bk_capacity(fo) - bk_held(fo) - g_bk[pi].walk[k];
+        int s = bk_capacity(fo) - bk_held(fo) - g_bk[pi].walk[k], mine = g_bk[pi].store[k] == 1;
+        if (BK_SHARED(pi)) {   // SHARED: any Fortress but a shelter or one being loaded - the one with the least room that has 5, so they fill up
+            s = bk_space(fo) - g_bk[pi].walk[k];
+            if (g_bk[pi].shelter[k] || g_bk[pi].walk[k] > 0 || s < 5 || (best >= 0 && s >= space)) continue;
+            space = s; best = k;
+            continue;
+        }
         if (g_bk[pi].shelter[k] || g_bk[pi].store[k] == 2 || (!g_bk[pi].store[k] && bk_held(fo) + g_bk[pi].walk[k] > 0)) continue;
         if (plenty && g_bk[pi].walk[k] > 0) continue;   // a load order replaces the one before: those still walking in were dropped by the next 20's (135 ordered for 23 inside)
-        if (s > space + (g_bk[pi].store[k] ? -1 : 0)) { space = s; best = k; }
+        if (mine && s < 5) continue;
+        if (mine > own || (mine == own && s > space)) { space = s; best = k; own = mine; }
     }
     if (best < 0 || space < 5) { g_shelf[pi].want = 1; return; }
     int n = only_fw ? pool : out - keep;

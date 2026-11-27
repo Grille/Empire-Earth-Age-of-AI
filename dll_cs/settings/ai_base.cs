@@ -280,6 +280,12 @@ class ai_base
         /// computer player off). 0 = off
         [advanced]
         bool stash_let_out_few = true;
+        /// ... with stash_let_out_few: the Fortresses shared - the shelf's citizens and the reserve's soldiers in the same
+        /// ones, each let out by its kind, and their free places one number: no Fortress built for either while those
+        /// standing hold what it wants. 0 = a Fortress is the shelf's or the reserve's by who went in first (each look the
+        /// shelf took another empty one for a citizen or two, and the reserve built more for its soldiers)
+        [advanced]
+        bool stash_shared = true;
         /// ... the reserve by territory (the game's computer player off): a Fortress is the territory's it stands in, each
         /// territory holds its share of the reserve by its share of the force, its own stationed soldiers go into its own
         /// Fortresses (never from another land), and the next Fortress is built in the territory whose Fortresses fall
