@@ -1,0 +1,41 @@
+// bomber_reach.eeai: how far a bomber gets on its flight time, and what it does when that runs out short of its
+// target (airstrike.c THE BOMBER'S REACH). Base ini random_map=Continental,map_scale=huge,ai_count=2,seed=101,
+// start_epoch=9,variant_players=2,v_air_strike=0 (P2's own air force would hold the bombers), 31 minutes: P2 gets an
+// Airport at 100,130 (the map 320 tiles a side, a diamond); one distance after the other P3 gets a House d tiles east
+// of it and P2 two new Gotha bombers by the Airport (in the air, their flight time full), sent at the House at once.
+// The pings say every 2 s where each bomber is (none: in its Airport), how far from home and from the House, and the
+// House's hit points - bombed or not, how far out the bombers turned, how fast they fly.
+// 2026-11-27 (P2's Gothas 98 s at 1.08 tiles a second - a fifth over the data's 82 s and 0.9, its player's stats: 106
+// tiles): the House bombed down at 80 to 108 tiles, both bombers turning at about 108 tiles flown (102 s); at 114 one
+// turned 4 tiles short of the House with its bombs, the other reached it. The AI buys improvements as the game goes:
+// the last distances fly faster (1.17 at 120).
+defence(2, 0)
+wait_until(1min)
+spawn(2, unit.b_airport, 100, 130, 1)
+wait_until(2min)
+let p2 = player(2)
+let p3 = player(3)
+let home = vec(100, 130)
+for d in [80, 90, 96, 100, 104, 108, 114, 120] {
+    let at = vec(100 + d, 130)
+    let h = p3.spawn(unit.b_house, at, 1)
+    let bs = p2.spawn(unit.a_bomber_10_gotha, vec(102, 132), 2)
+    wait(1s)
+    let t0 = game.time
+    stats("engage", 2, 100, 130, 12, unit.a_bomber_10_gotha, 100 + d, 130)
+    let t = 0
+    while t < 200 {
+        wait(2s)
+        t += 2
+        let hp = 0
+        if h[1].alive { hp = h[1].hp }
+        for b in p2.units(unit.a_bomber_10_gotha) {
+            ping("reach: {d} tiles, {game.time - t0} s: bomber {b.id} at {b.pos}, {distance(home, b.pos)} from home, {distance(at, b.pos)} from the House; the House {hp}")
+        }
+    }
+    if h[1].alive { h[1].remove() }
+    for b in bs {
+        if b.alive { b.remove() }
+    }
+    wait(10s)
+}

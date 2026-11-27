@@ -131,7 +131,7 @@
 // up to 33 bombers asked for and 9 out, the army refused for gold and iron; trained only for a position, the asked
 // counted: soldiers -3.5 (9.7), kills -1.0 (19.8), losses +6.8 (9.9), razed -3.8 (7.2) - one AI of 48 flew a wing (2
 // waves): the test AIs can't pay for bombers (200 gold, 200 iron), their metal is short already. Not measured yet: a
-// rich late game; the plane's reach (no range or fuel known: the forward Airport only).
+// rich late game. The plane's reach: THE BOMBER'S REACH below (2026-11-27).
 // THE SHOOTERS (2026-11-04), the save "choke wolf" 153 -> 210 min (3 timings, P3 the variant), with - without: razed
 // 86, 108, 93 / 56, 24, 80 (the last run ended at 180), units killed 459, 592, 582 / 462, 295, 491, units lost in
 // gold + iron the same (44-45k / 28-50k); 1-3 wings, every one at the shooters' spot; the bombers came one at a time
@@ -221,6 +221,7 @@ internal struct as_st {
     int asked, ap_seen, ap_tries; uint32_t asked_t;                                   // bombers asked for and not out yet; airports (and building) at the last queue, queued since without more
     unsigned waves, sent, trained, airports, waits, gave_up;        // waves launched, bombers sent, trained, airports queued, launches waited for more, targets given up
     int wing_out;                                                   // a wing launched whose targets aren't all down yet
+    unsigned far_tg, far_looks, far_wing; ivec2 far_at; uint32_t far_t;   // THE BOMBER'S REACH: targets passed over as beyond it, looks with a flight free and only such, the wing's positions beyond it; the last of them (the worth most), when
     struct { ivec2 at; uint32_t t; int hits; } sh[AF_SHOOTS];       // the shooters' spots (intel.c reveal_attackers): where, the last hit, hits seen
 } g_as[16];
 // the bombers to train, the newest first (epochs as the tech tree counts them: current_epoch + 1)
@@ -443,6 +444,41 @@ internal int ah_port(ee_unit *u, void *ports[][2], int nport) {
         if ((h && (h == ports[k][0] || h == ports[k][1])) || (h2 && (h2 == ports[k][0] || h2 == ports[k][1]))) return k;
     return -1;
 }
+// THE BOMBER'S REACH (the player, 2026-11-27: "the ai dosnt take the planes range into acount when planing a strike with
+// them yet right?" - the fighters' sweeps did, airguard.c SW_REACH; for a bomber a long way only made a target worth
+// less). A bomber flies its flight time (its player's stats: the improvements and its civilization's bonus are in
+// them) at its speed, and one whose time runs out short of its target turns for home with its bombs:
+// tests/probes/bomber_reach.eeai, 2026-11-27, a huge map (320 tiles a side) - Gothas of 98 s at 1.08 tiles a second
+// (106 tiles) bombed a House 80, 90, 96, 100, 104 and 108 tiles from where they started, each time; at 114 one of the
+// two turned 4 tiles short of it. After its bombs its flight time is cleared (the data's "Clear flight time after bomb
+// drop"): the way out alone counts. AS_REACH of time x speed, the rest for the take-off and the turn towards the
+// target (a bomber turns 20 degrees a second); one in the air has what is left of its time, from where it is. No
+// lone run, small run or wing at what is beyond that - counted in the air force's line, the last such place kept
+// ([autotest] v_bomber_reach = 0: the variant players as before, for a measurement).
+// MEASURED 2026-11-27, head-to-head mirrored, Continental huge from World War I, air_rich.eeai (the AIs can pay for
+// bombers), 4 AIs, 60 min, 8 games, an AI an hour with it / as before (Gothas: a reach of 72 to 98 tiles on a map of
+// 320): runs 44.1 / 61.9 with 57.6 / 70.6 bombers, their targets down 19.4 / 18.6; the wing's waves 7.1 / 13.6 with
+// 20.7 / 31.6 bombers; bombers lost 5.2 / 7.2; buildings razed 16.9 / 11.9 (as before - with it -5.1, se 4.7), soldiers
+// +6.6 (5.5), kills and losses level. The wing's position was beyond every Airport's reach at 1873 looks an AI, a
+// flight free with only targets beyond it at 469: on a map of that size the Airports have to move up (build.c lays
+// them by its towns, the backland first).
+#define AS_REACH 0.85f
+#define AS_REACH_PAD (AS_R / 2)   // the wing's position: its targets lie round it
+internal int g_v_as_reach = -1;
+internal int as_flying(ee_unit *u) { return unit_get_x(u) >= 0 && unit_get_flight_ms(u) > 0; }
+internal float as_reach(unsigned idx, ee_unit *u, int whole) {   // tiles from where it starts (whole: a full flight time's, from an Airport)
+    ee_unit_stats *st = unit_get_stats(u);
+    float sp = st ? unit_stats_get_speed(st) : 0.0f;
+    int ms = st ? unit_stats_get_flight_ms(st) : 0;
+    if (!PV(idx, g_v_as_reach, 1) || sp <= 0 || ms <= 0) return 1.0e9f;   // (a type without a flight time: no bound)
+    if (!whole && as_flying(u) && unit_get_flight_ms(u) < ms) ms = unit_get_flight_ms(u);
+    return (float)ms / 1000.0f * sp * AS_REACH;
+}
+internal void as_far(struct as_st *s, ivec2 at, uint32_t now) { s->far_at = at; s->far_t = now ? now : 1; }
+internal float as_reach_held(unsigned idx, struct as_st *s) {   // (the line's: a full flight time's of its first bomber)
+    for (int k = 0; k < s->nh; k++) { ee_unit *u = unit_by_id((unsigned)s->held[k].id); if (u && unit_get_serial(u) == s->held[k].id) return as_reach(idx, u, 1); }
+    return 0.0f;
+}
 // the lone runs: the bombers free while the wing gathers (or flies, or has nothing to do) go in flights of AH_FLIGHT, by
 // their Airport, at what the AI knows of its enemies (buildings, citizens at work) with no anti-air it knows of near it
 // or near the way there - the most worth for the way; one flight a target at a time. Back home they are free again
@@ -536,10 +572,11 @@ internal void ah_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **re
         int pk = ah_port(u, port_u, nport);
         if (pk >= 0) from = port[pk];
         else if (unit_get_x(u) < 0) { if (!nport) { i++; continue; } from = port[0]; }
-        int best = -1; float bv = 0;
+        int best = -1, beyond = -1; float bv = 0, reach = as_reach(idx, u, 0);
         for (int k = 0; k < ntg; k++) {
             if (taken[k]) continue;
             float d = sqrtf((float)ivec2_dist2(from, tg[k].at)), v = tg[k].v / (30.0f + d);
+            if (d > reach) { s->far_tg++; if (beyond < 0 || tg[k].v > tg[beyond].v) beyond = k; continue; }   // THE BOMBER'S REACH
             if (best >= 0 && v <= bv) continue;
             ee_player *to = unit_get_owner(tg[k].u);
             int oi = to ? player_get_index(to) & 15 : 0;
@@ -550,6 +587,11 @@ internal void ah_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **re
             }
             for (int a = 0; a < naa && open; a++) if (ah_seg_d2(from, tg[k].at, aa[a].at) <= aa[a].r2) open = 0;
             if (open) { best = k; bv = v; }
+        }
+        if (best < 0 && beyond >= 0) {   // only what is beyond its reach: the next bomber's Airport may be nearer
+            s->far_looks++; as_far(s, tg[beyond].at, now);
+            for (i++; i < nr && pk >= 0 && ah_port(ready[i], port_u, nport) == pk; i++) { }
+            continue;
         }
         if (best < 0) { none = 1; break; }
         taken[best] = 1;
@@ -932,13 +974,15 @@ internal void dct_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **r
             while (k > 0 && unit_get_hp(ready[gi[k - 1]]) < unit_get_hp(ready[j])) { gi[k] = gi[k - 1]; k--; }
             gi[k] = j;
         }
-        int best = -1, bn = 0;
-        float bv = 0, bdmg = 0;
+        int best = -1, bn = 0, beyond = -1;
+        float bv = 0, bdmg = 0, reach = 1.0e9f;
+        for (int m = 0; m < ng; m++) { float r = as_reach(idx, ready[gi[m]], 0); if (r < reach) reach = r; }
         for (int k = 0; k < d->ntg; k++) {
             if (taken[k]) continue;
             struct dct_tgt *g = &d->tg[k];
             float dist = sqrtf((float)ivec2_dist2(from, g->at)), bombs = dct_bombs(d, pl, idx, g->u), hp = (float)unit_get_hp(g->u);
             if (bombs <= 0 || hp <= 0) continue;
+            if (dist > reach) { s->far_tg++; if (beyond < 0 || g->v > d->tg[beyond].v) beyond = k; continue; }   // THE BOMBER'S REACH
             int need = (int)ceilf(hp / bombs);
             if (need < 1) need = 1;
             if (need > AD_FLIGHT) need = AD_FLIGHT;
@@ -950,6 +994,7 @@ internal void dct_runs(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **r
             if (dmg * AD_MARGIN + AD_RESERVE * d->maxhp >= (float)unit_get_hp(ready[gi[n - 1]])) continue;
             best = k; bv = v; bn = n; bdmg = dmg;
         }
+        if (best < 0 && beyond >= 0) { s->far_looks++; as_far(s, d->tg[beyond].at, now); }
         if (best < 0) { none = 1; for (int m = 0; m < ng; m++) used[gi[m]] = 1; continue; }   // the soundest of them find none: the rest neither
         taken[best] = 1;
         struct dct_tgt *g = &d->tg[best];
@@ -1206,10 +1251,45 @@ internal int dct_prep(ee_player *pl, unsigned idx, struct dct_cand *c, int shoot
 // highest: each target as many as its hit points take, the rest spread over them (the anti-air first). Never a wait
 // for a count: no gain anywhere, the small runs fly meanwhile, and those not on the wing fly them too. Trained for: the
 // fewest at the force's position that would be a gain (sound), else AF_WING.
+// THE BOMBER'S REACH: where it starts - in the air where it is, else its Airport -, and those of the ready (the
+// soundest first) that get to the wing's position at, with the middle of their starts (none: from as it was). *any:
+// a full flight time from one of its Airports gets there - a wing may be trained for it
+internal ivec2 as_start(ee_player *pl, ee_unit *u) {   // the same without the doctrine's picture: its Airport the one it stands in or is based at, else its first
+    ivec2 first = unit_get_tile(u);
+    if (as_flying(u)) return first;
+    void *h = unit_get_air_traffic(u), *h2 = unit_get_x(u) < 0 ? unit_get_holder(u) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    uint8_t *q = um ? type_list(um, UT(B_AIRPORT)) : NULL;
+    for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0, n = 0; j < c; j++) {
+        ee_unit *b = deque_at(q, f + j);
+        if (!b || unit_get_hp(b) <= 0 || unit_get_x(b) < 0) continue;
+        void *ph = unit_get_physics(b);
+        if ((h && (h == (void *)b || h == ph)) || (h2 && (h2 == (void *)b || h2 == ph))) return unit_get_tile(b);
+        if (!n++ && unit_get_x(u) < 0) first = unit_get_tile(b);
+    }
+    return first;
+}
+internal ivec2 dct_start(struct dct_st *d, ee_unit *u) { int pk = as_flying(u) ? -1 : dct_port(d, u); return pk >= 0 ? d->port[pk] : unit_get_tile(u); }
+internal int dct_within(struct dct_st *d, unsigned idx, ee_unit **ready, int nr, ee_unit *one, ivec2 at, ee_unit **rc, ivec2 *from, int *any) {
+    int n = 0; ivec2 f = iv2(0, 0);
+    for (int i = 0; i < nr; i++) {
+        ivec2 p = dct_start(d, ready[i]);
+        if (sqrtf((float)ivec2_dist2(p, at)) + (float)AS_REACH_PAD > as_reach(idx, ready[i], 0)) continue;
+        rc[n++] = ready[i]; f.x += p.x; f.y += p.y;
+    }
+    if (n) { from->x = f.x / n; from->y = f.y / n; }
+    *any = n > 0 || !one;
+    for (int k = 0; k < d->nport && !*any; k++) {
+        if (sqrtf((float)ivec2_dist2(d->port[k], at)) + (float)AS_REACH_PAD > as_reach(idx, one, 1)) continue;
+        *any = 1; *from = d->port[k];
+    }
+    return n;
+}
 internal void dct_wing(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **bomb, int nb, int shoot, uint32_t now) {
     struct dct_st *d = &g_dct[idx];
     struct armies_st *a = &g_armies[idx];
-    static ee_unit *ready[AS_BOMBERS], *idle[AS_BOMBERS];
+    static ee_unit *ready[AS_BOMBERS], *idle[AS_BOMBERS], *rc[AS_BOMBERS];
     static struct as_tg aa[AS_TARGETS], tg[AS_TARGETS];
     static float bombs[2 * AS_TARGETS], hps[2 * AS_TARGETS], worth[2 * AS_TARGETS];
     static int gk[2 * AS_TARGETS], alloc[2 * AS_TARGETS], best_alloc[2 * AS_TARGETS];
@@ -1263,15 +1343,18 @@ internal void dct_wing(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
     else if (d->nport) from = d->port[0];
     int bc = -1, bn = 0, nmin = 0;
     float bev = 0, blost = 0, bdmg = 0, bval_ev = -1.0e9f;
+    int push_far = 0;
     for (int c = 0; c < nc; c++) {
-        int nj = dct_prep(pl, idx, &cand[c], shoot, from, aa, &na, tg, &nt, bombs, hps, worth, gk);
+        ivec2 fc = from; int any, nrc = dct_within(d, idx, ready, nr, nb ? bomb[0] : NULL, cand[c].at, rc, &fc, &any);
+        if (!any) { s->far_wing++; if (cand[c].push || !push_far) as_far(s, cand[c].at, now); push_far |= cand[c].push; continue; }   // THE BOMBER'S REACH: from none of its Airports
+        int nj = dct_prep(pl, idx, &cand[c], shoot, fc, aa, &na, tg, &nt, bombs, hps, worth, gk);
         if (!nj) { if (cand[c].push && shoot >= 0) s->sh[shoot].t = 0; continue; }   // nothing left at the shooters' spot: the next
         float lost, dmg, hsum = 0;
         if (cand[c].push)   // the training: the fewest sound ones that would be a gain here
             for (int n = 1; n <= AF_WING_MAX && !nmin; n++) if (dct_ev(d, na, nt, bombs, hps, worth, gk, n, d->maxhp, cand[c].w, alloc, &lost, &dmg) > 0) nmin = n;
-        for (int n = 1; n <= nr; n++) {
-            hsum += (float)unit_get_hp(ready[n - 1]);
-            if (n > 6 && n < nr && n % (n > 16 ? 4 : 2)) continue;   // (every count up to 6, then every second, every fourth, and all of them)
+        for (int n = 1; n <= nrc; n++) {
+            hsum += (float)unit_get_hp(rc[n - 1]);
+            if (n > 6 && n < nrc && n % (n > 16 ? 4 : 2)) continue;   // (every count up to 6, then every second, every fourth, and all of them)
             float ev = dct_ev(d, na, nt, bombs, hps, worth, gk, n, hsum / (float)n, cand[c].w, alloc, &lost, &dmg);
             if (ev > bval_ev) bval_ev = ev;
             if (ev <= bev) continue;
@@ -1279,7 +1362,7 @@ internal void dct_wing(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
         }
     }
     s->best_ev = bval_ev;
-    if (nc && cand[0].push) { s->needed = nmin ? nmin : AF_WING; s->need_t = now ? now : 1; }
+    if (nc && cand[0].push && !push_far) { s->needed = nmin ? nmin : AF_WING; s->need_t = now ? now : 1; }   // (beyond its Airports' reach: no wing trained for it)
     if (bc < 0) {
         s->waits++;
         if (!s->ev_log || now - s->ev_log >= 60000) {
@@ -1291,18 +1374,20 @@ internal void dct_wing(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
         return;
     }
     // the launch: each target its share, the rest spread over them, the anti-air first
+    int any; dct_within(d, idx, ready, nr, NULL, cand[bc].at, rc, &from, &any);
     int nj = dct_prep(pl, idx, &cand[bc], shoot, from, aa, &na, tg, &nt, bombs, hps, worth, gk);
     float lost, dmg, hsum = 0;
-    for (int i = 0; i < bn; i++) hsum += (float)unit_get_hp(ready[i]);
+    for (int i = 0; i < bn; i++) hsum += (float)unit_get_hp(rc[i]);
     dct_ev(d, na, nt, bombs, hps, worth, gk, bn, hsum / (float)bn, cand[bc].w, best_alloc, &lost, &dmg);
     int sent = 0, ntgt = 0, naa = 0, i = 0, given = 0;
     for (int j = 0; j < nj; j++) { given += best_alloc[j]; ntgt += best_alloc[j] > 0; naa += j < na && best_alloc[j] > 0; }
     for (int j = 0; given < bn && ntgt; j = (j + 1) % nj) if (best_alloc[j] > 0) { best_alloc[j]++; given++; }
     for (int j = 0; j < nj; j++)
         for (int m = 0; m < best_alloc[j] && i < bn; m++, i++) {
-            ee_unit *u = ready[i], *t = j < na ? aa[j].u : tg[j - na].u;
+            ee_unit *u = rc[i], *t = j < na ? aa[j].u : tg[j - na].u;
             int e = as_held_at(s, unit_get_serial(u));
             if (e < 0) continue;
+            if (sqrtf((float)ivec2_dist2(dct_start(d, u), unit_get_tile(t))) > as_reach(idx, u, 0)) { s->far_tg++; continue; }   // THE BOMBER'S REACH: this one of the position's
             if (dct_part(idx, DCP_CLAIM) && !cl_take(u, CLP_TASK, CLW_BOMBERS, AF_RUN_MS)) continue;
             if (!as_order(u, goal_attack(u, t))) { if (dct_part(idx, DCP_CLAIM)) cl_end(u, CLW_BOMBERS); continue; }
             s->held[e].tgt = unit_get_serial(t); s->held[e].t = s->held[e].t0 = now ? now : 1;
@@ -1335,9 +1420,11 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     if (g_log && g_autotest && (!s->log_t || now - s->log_t >= 60000)) {
         s->log_t = now ? now : 1;
         fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more, %u targets given up | "
-                "idle %.1f of %.1f bomber-minutes held, %u lost (%u on lone runs), lone runs %u (%u bombers, %u targets down), %u looks with none undefended, %u called back\n",
+                "idle %.1f of %.1f bomber-minutes held, %u lost (%u on lone runs), lone runs %u (%u bombers, %u targets down), %u looks with none undefended, %u called back | "
+                "beyond the bombers' reach (%d; of %.0f tiles): %u targets passed over, %u looks with a flight free and only such, %u of the wing's positions, the last at %d,%d %.1f min ago\n",
                 idx, now / 60000.0, s->nh, s->trained, s->airports, s->waves, s->sent, s->waits, s->gave_up,
-                s->idle_looks * (AS_EVERY / 60000.0), s->held_looks * (AS_EVERY / 60000.0), s->lost, s->lost_har, s->har_runs, s->har_sent, s->har_down, s->har_none, s->har_back);
+                s->idle_looks * (AS_EVERY / 60000.0), s->held_looks * (AS_EVERY / 60000.0), s->lost, s->lost_har, s->har_runs, s->har_sent, s->har_down, s->har_none, s->har_back,
+                PV(idx, g_v_as_reach, 1), as_reach_held(idx, s), s->far_tg, s->far_looks, s->far_wing, s->far_at.x, s->far_at.y, s->far_t ? (now - s->far_t) / 60000.0 : -1.0);
         fprintf(g_log, "# bombers: P%u at %.1f min: doctrine %d (survive %d, home %d, wing %d, claim %d) | lost %u: wing %u, lone runs %u, called home %u, in the air otherwise %u, in an Airport %u | "
                 "sorties %u, back with damage %u, damage taken %.0f (expected %.0f), repaired %.0f | called home %u, went on with no way home %u | targets down %u anti-air, %u buildings, %u units, worth %u | "
                 "wings by worth %u, the best worth now %.0f | the guns' fire on bombers in the air: expected %.0f, taken %.0f (expected of guns seen %.0f - in their own range %.0f -, remembered %.0f, assumed %.0f, where lost %.0f) | counter-fire asked %u, runs %u (%u bombers), shooters down %u, worth %u\n",
@@ -1441,7 +1528,11 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         ar_price_clear(a, pos);
         ar_log(idx, now, "air force: the wing's targets at %d,%d are down - the force judges its push again", pos.x, pos.y);
     }
-    if (nr < s->needed && nr < AF_WING_MAX) {
+    static ee_unit *wr[AS_BOMBERS];   // THE BOMBER'S REACH: those that get there; none of them: no wing at it (the runs go on)
+    int nwr = 0;
+    for (int i = 0; i < nr; i++) if (sqrtf((float)ivec2_dist2(as_start(pl, ready[i]), pos)) + (float)AS_REACH_PAD <= as_reach(idx, ready[i], 0)) wr[nwr++] = ready[i];
+    if (nr && !nwr) { s->far_wing++; as_far(s, pos, now); s->need_t = 0; as_runs(pl, idx, s, ready, nr, idle, ni, now); return; }
+    if (nwr < s->needed && nwr < AF_WING_MAX) {
         s->waits++;
         if (!s->wait_log || now - s->wait_log >= 60000) {
             s->wait_log = now ? now : 1;
@@ -1452,14 +1543,14 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     }
     // the launch: a flight at each anti-air, the rest in flights at the defences
     int sent = 0;
-    for (int i = 0; i < nr; i++) {
+    for (int i = 0; i < nwr; i++) {
         int f = i / AF_FLIGHT;
         ee_unit *t = f < na ? aa[f].u : nt ? tg[(f - na) % nt].u : aa[f % na].u;
-        int e = as_held_at(s, unit_get_serial(ready[i]));
-        if (e < 0 || !as_order(ready[i], goal_attack(ready[i], t))) continue;
+        int e = as_held_at(s, unit_get_serial(wr[i]));
+        if (e < 0 || !as_order(wr[i], goal_attack(wr[i], t))) continue;
         s->held[e].tgt = unit_get_serial(t); s->held[e].t = s->held[e].t0 = now ? now : 1;
         s->held[e].ttype = (short)unit_type_get_id(unit_get_type_data(t));
-        if (dct_part(idx, DCP_CLAIM)) cl_take(ready[i], CLP_TASK, CLW_BOMBERS, 3 * AS_EVERY);
+        if (dct_part(idx, DCP_CLAIM)) cl_take(wr[i], CLP_TASK, CLW_BOMBERS, 3 * AS_EVERY);
         sent++;
     }
     if (!sent) return;
@@ -1485,7 +1576,7 @@ internal void airstrike_install(const char *autotest_ini) {
     g_bd_part[DCP_WING] = g_set_ai[1].bomber_value_wing; g_bd_part[DCP_CLAIM] = g_set_ai[1].bomber_claim;
     if (autotest_ini) {
         g_v_air_strike = ini_int("autotest", "v_air_strike", -1, autotest_ini); g_v_as_harass = ini_int("autotest", "v_bomber_harass", -1, autotest_ini);
-        g_v_bd_on = ini_int("autotest", "v_bomber_doctrine", -1, autotest_ini);
+        g_v_bd_on = ini_int("autotest", "v_bomber_doctrine", -1, autotest_ini); g_v_as_reach = ini_int("autotest", "v_bomber_reach", -1, autotest_ini);
         for (int p = 0; p < 4; p++) g_v_bd_part[p] = ini_int("autotest", k_parts[p], -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# air force: %d (variant %d), lone runs %d (variant %d), doctrine %d (variant %d; parts %d %d %d %d, variants %d %d %d %d)\n", AS_ON, g_v_air_strike, g_as_harass, g_v_as_harass,
