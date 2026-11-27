@@ -232,8 +232,11 @@ internal void rw_caustics_pc(rd3_pcb *pc, int on);
 // reflections?"): the surface's slope from the caustics' waves (one sea: the light on the seabed and its bending come
 // from the same waves), turned from a move on the map into one on the screen by how the map's place changes from pixel to
 // pixel. The refraction ([display] water_refraction) is the water's step reading its copy of the picture aside - only
-// what lies behind the surface there too (a hull or the shore in front stays put), none at the shore, all where the line
-// of sight runs a quarter tile through the water. The reflections ([display] water_reflection_ripples) read the
+// what lies behind the surface there too (a hull or the shore in front stays put), by the depth under the level of what
+// it reads: none at the level, the whole move from half a tile down - as a stick in the water seems to bend more the
+// deeper it goes (the player, 2026-11-27: "make the bend grow with depth"; by the way through the water, whole after a
+// quarter tile of it, a blade just under the surface seen low took the whole move: an oar broken at the waterline).
+// What is drawn after the step under the level takes the same (render_3d.c vs, ps). The reflections ([display] water_reflection_ripples) read the
 // mirrored picture aside by the same slope; the water texture's own wobble stays under it. Before, only that wobble: the
 // texture's colours as a slope, a faint shimmer that didn't follow the waves
 #define RW_SLOPE 0.5f      // the waves' slope (render_3d.c cwg) at a middling place

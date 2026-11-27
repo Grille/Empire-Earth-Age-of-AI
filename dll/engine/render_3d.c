@@ -231,7 +231,8 @@ internal const char k_rd3_shader[] =
     // what is drawn under the water's level after the water's step (wsp.x 1, its circles' parts not: wsp.y; the weighted
     // transparency's layers are read bent instead: wsp.w) is bent as the step bends the picture: each corner moved on the
     // screen as the step moves what it reads at the place its line of sight enters the water - the surface's slope there
-    // times the refraction's strength (cat.y), fully from a quarter tile through the water on - by the move on the map
+    // times the refraction's strength (cat.y), growing with the corner's depth under the level, whole from half a tile
+    // down (render_water.c THE WAVES' BENDING) - by the move on the map
     // turned back to the draw's own space (shx, shy, shz: its rows) and grown by how much farther the corner lies than that
     // place along the line (render_water.c THE WATER'S STEP AND WHAT COMES AFTER IT); wk the move on the map, for a textured
     // draw's pixels (ps: what the move between the corners misses)
@@ -241,7 +242,7 @@ internal const char k_rd3_shader[] =
     // move is the corner's own entry - found from it by three steps back (by the slope at the entry itself the move was
     // another wave's close up, the corner apart from the step's picture of what it covers: an oar's see-through edges
     // beside its solid blade, the player, 2026-11-27: "they should be one piece, but are two split apart")
-    "   float sk = cat.y * saturate(length(wv - ws) * 4); float2 dm = wslope(ws.xy) * sk; dm = wslope(ws.xy - dm) * sk; dm = wslope(ws.xy - dm) * sk;"
+    "   float sk = cat.y * saturate((sea.z - wv.z) * 2); float2 dm = wslope(ws.xy) * sk; dm = wslope(ws.xy - dm) * sk; dm = wslope(ws.xy - dm) * sk;"
     "   float3 bc = cross(shy.xyz, shz.xyz), ca = cross(shz.xyz, shx.xyz);"
     "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) { float3 mv = k * (dm.x * bc + dm.y * ca) / dt; float4 c0 = mul(p, vpm), c1 = mul(float4(p.xyz - mv, p.w), vpm);"
     // no more than the step moves the picture, 48 pixels (wpix; vp.xy: half a pixel in clip space): close up a wave moved
@@ -350,8 +351,8 @@ internal const char k_rd3_shader[] =
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     // a textured draw under the water's level after the water's step (as the vertex shader's bend: wsp), bent by its corners
     // there, is bent between them per pixel: the step shows at a pixel what lies a move aside on the screen - the surface's
-    // slope where this pixel's line of sight enters the water times the refraction's strength, fully from a quarter tile
-    // through the water on -, the corners' moves between them (wk, on the map: the point drawn here is i.w less it) only
+    // slope where this pixel's line of sight enters the water times the refraction's strength, growing with the depth
+    // under the level -, the corners' moves between them (wk, on the map: the point drawn here is i.w less it) only
     // its mean, so the pixel shows its own texture where the rest takes it (the texture's place changes by ddx, ddy a pixel).
     // The rest only: the whole move read inside a small particle's square left it within a few pixels and came round from
     // its other side (the player, 2026-11-27: "dosnt work very well on small effects, it quickly leaves its quad and
@@ -359,7 +360,7 @@ internal const char k_rd3_shader[] =
     " float2 wu = i.t; [branch] if (gnd.x == 0 && op.w && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0 && wop.z > sea.z) {"
     "  float3 dw = i.w - float3(i.wk, 0); float k = max((wop.z - dw.z) / (wop.z - sea.z), 1); float3 ws = wop.xyz + (dw - wop.xyz) / k;"
     "  float2 sx = ddx(ws.xy), sy = ddy(ws.xy), tx = ddx(i.t), ty = ddy(i.t);"
-    "  if (i.w.z < sea.z && i.cf.x <= 0.5) { float2 o = wpix(wslope(ws.xy) * (cat.y * saturate(length(dw - ws) * 4)), sx, sy) - wpix(i.wk / k, sx, sy);"
+    "  if (i.w.z < sea.z && i.cf.x <= 0.5) { float2 o = wpix(wslope(ws.xy) * (cat.y * saturate((sea.z - dw.z) * 2)), sx, sy) - wpix(i.wk / k, sx, sy);"
     "   wu = i.t + tx * o.x + ty * o.y; x = t.SampleGrad(s, wu, tx, ty); } }"
     // a face grown by the geometry shader (gsq) shows only its own square of the texture
     " if (i.wr.x <= i.wr.z && (any(wu < i.wr.xy) || any(wu > i.wr.zw))) discard;"
@@ -528,10 +529,12 @@ internal const char k_rd3_shader[] =
     // moved the oar into those pixels by the seabed's whole move, and the oar's own pixels, its depth a little under the
     // surface, read near themselves: the oar shown twice, and its see-through parts after the step - moved by their own
     // way through the water - beside neither (the player, 2026-11-27: "they should be one piece, but are two split apart")
-    " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1; float2 sl = wslope(i.w.xy) * cat.y;"
-    "  float2 bp = i.p.xy + wpix(sl * saturate(tw * 4), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
-    "  float db = wsd.Load(int3(bp, 0)); tw = db < 0.99999 ? wl * max((i.p.z - wfc.w) / (db - wfc.w) - 1, 0) : 1;"
-    "  bp = i.p.xy + wpix(sl * saturate(tw * 4), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    // (the depth under the level: the surface point's, less the way behind it times the line of sight's fall a unit;
+    // nothing behind, the whole move)
+    " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1e3, vz = max(wop.z - i.w.z, 0) / wl;"
+    "  float2 sl = wslope(i.w.xy) * cat.y, bp = i.p.xy + wpix(sl * saturate((sea.z - i.w.z + tw * vz) * 2), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    "  float db = wsd.Load(int3(bp, 0)); tw = db < 0.99999 ? wl * max((i.p.z - wfc.w) / (db - wfc.w) - 1, 0) : 1e3;"
+    "  bp = i.p.xy + wpix(sl * saturate((sea.z - i.w.z + tw * vz) * 2), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
     "  int3 b = int3(bp, 0); db = wsd.Load(b);"
     "  if (db > i.p.z && (db < 0.99999 || d >= 0.99999)) { a = b; d = db; } }"
     " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
