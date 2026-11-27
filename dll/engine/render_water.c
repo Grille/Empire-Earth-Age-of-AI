@@ -60,12 +60,13 @@
 // it moved each surface pixel (otex), and the weighted transparency's layers under the level are laid over the scene read
 // shifted by it (render_3d.c poitc) - bent as the seabed behind them. The split batches' parts under the level (a
 // torpedo's trail, a submarine's lights, smoke: the player, 2026-11-27, "partciles like the torpedos trail or subs lights get
-// the tint but not the refraction?") read their own texture bent, per pixel: the step shows at a pixel what lies a move
-// aside, so such a pixel shows its texture where that move takes it (render_3d.c ps) - the same ripples as the seabed
-// behind, within the draw's own faces (a particle's texture fades out well inside its square). One without a texture is
-// bent in the vertex shader instead: each corner moved on the screen as the step moves what it reads where the corner's
-// line of sight enters the water (render_3d.c vs) - one move for the whole face between its corners (the player, then:
-// "do the pixel version, keep vertex as fallback"; the vertex shift alone moved an explosion's square as one piece).
+// the tint but not the refraction?") are bent in the vertex shader: each corner moved on the screen as the step moves what
+// it reads where the corner's line of sight enters the water (render_3d.c vs) - between the corners their moves' mean. A
+// textured one reads its texture bent per pixel by the rest, what the step's move there differs from that mean (render_3d.c
+// ps): the same ripples as the seabed behind (the player, then: "do the pixel version, keep vertex as fallback"; the corners
+// alone moved an explosion's square as one piece) - not the whole move per pixel: read inside a small particle's square it
+// left the square and came round from its other side ("dosnt work very well on small effects, it quickly leaves its quad
+// and loops"); across a small square the step's move hardly changes, the rest is about none.
 #define RW_STEPS 64          // the water set's steps the tint holds (more: the deepest of those for the rest)
 internal struct {
     int on;          // -1: as the ini says
