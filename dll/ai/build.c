@@ -132,7 +132,7 @@ internal struct bd_st {
     uint32_t watch_t;                    // A WATCH TOWER: the last one
     uint32_t hold_t; unsigned holds, hold_sent;   // HOLDING THE GROUND: the last laid, how many, builders sent
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
-    unsigned ap_fwds, ap_fwd_none;       // THE AIRPORTS MOVE UP: laid; looks with the ask and no centre of its nearer
+    unsigned ap_fwds, ap_fwd_none, ap_fwd_taken;   // THE AIRPORTS MOVE UP: laid; looks with the ask and no centre of its nearer; of those: a nearer one's territory has its Airport
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
@@ -216,8 +216,10 @@ internal int g_bd_airport_n[16];      // ... how many it wants in all
 // enemy territory ... the ai's airplanes are all stuck at home since the ai never extends their reach"; AN AIRPORT
 // below lays them by its towns, the backland first): while no Airport of its is within that reach of the place, one
 // more by the Town Center, Capitol or Settlement of its that is nearest the place, in a territory it holds (the
-// backland or a front) - when that is BD_AP_FWD_GAIN tiles nearer than its nearest Airport; BD_AP_FWD_MAX Airports in
-// all at most, none while one goes up.
+// backland or a front) and in one that has no Airport of its yet - when that is BD_AP_FWD_GAIN tiles nearer than its
+// nearest Airport; none while one goes up. One a territory, as THE SINK's (8 Airports in all at most at first; the
+// player 2026-11-27: "make it per territory, elsewhere it stop the ai unnecessarily" - an AI of many towns has 8 by
+// them before its front is far, and the sides of the measurement below never came near 8).
 // Its aircraft move there by themselves (airguard.c THE AIR BASES).
 // MEASURED 2026-11-27, head-to-head mirrored, Continental huge (320 tiles a side) from World War I, air_rich.eeai, 4
 // AIs, 90 min, 12 games (all ended well), with it - without: 1.2 Airports moved up an AI (7 looks with no centre
@@ -229,10 +231,16 @@ internal int g_bd_airport_n[16];      // ... how many it wants in all
 // aircraft moved; without the shooters' spots (90 min, 12 games) 0.2 an AI - the wing's position in a fight is mostly
 // theirs - and soldiers +13.5 (8.7) all the same: what two like sides differ by on this map. More bombing, no gain
 // in the game shown: the player's call - on.
+// ONE A TERRITORY, measured the same way the same day (8 games, with - without): 0.7 Airports moved up an AI (11 by
+// 16 AIs - the "1.2" above counted the picks, those the bank did not pay too; the count is of the laid since), the
+// most Airports one AI laid 8 / 7; the runs 102.1 / 109.6 with their targets down 41.9 / 50.6, bombers held at the
+// end 9.7 / 15.1; soldiers +11.7 (se 13.0), workers +12.2 (9.5), kills -6.4 (40.1), razed +1.7 (13.1). Both batches,
+// 20 games, game by game: targets down +3.0 (se 6.1), runs +12.9 (12.7), bombers lost -0.5 (4.7), bombers held at
+// the end -3.1 (1.3) - the first batch's "more bombing" was this map's noise as well. Nothing shown either way.
 internal struct { ivec2 at; float reach; uint32_t t; } g_bd_ap_fwd[16];
 internal int g_bd_ap_fwd_on = 0, g_v_bd_ap_fwd = -1;
 #define BD_AP_FWD_GAIN 20
-#define BD_AP_FWD_MAX 8
+#define BD_AIRPORTS 128   // its Airports' places kept (more: no Airport moves up - which territories have one is not known)
 internal int bd_pays(ee_player *pl, int type, const int *com) {
     const int *stock = player_stock_at(pl);
     for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - com[r] < c) return 0; }
@@ -318,7 +326,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0, nidle = 0;
     int nairport = 0, open_airport = 0, nap = 0;
-    static ivec2 app[32];
+    static ivec2 app[BD_AIRPORTS];
     static ivec2 dock[32];
     int ndock = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
@@ -368,7 +376,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
-        if (t == UT(B_AIRPORT) && nap < 32) app[nap++] = p;
+        if (t == UT(B_AIRPORT) && nap < BD_AIRPORTS) app[nap++] = p;
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
         open_airport += t == UT(B_AIRPORT) && !done;   // LAID, NOT PAID: its foundation shows
         if (is_tower_type(t)) open_tower += going;
@@ -577,16 +585,25 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // Airport at minute 37)
     int ap_ask = g_bd_airport[idx] && now >= g_bd_airport[idx] && now - g_bd_airport[idx] < 120000 && nairport < g_bd_airport_n[idx] && ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT));
     int ap_save = 0, ap_norm = ap_ask, ap_fwd = -1;
-    if (PV(idx, g_v_bd_ap_fwd, g_bd_ap_fwd_on) && g_bd_ap_fwd[idx].t && now >= g_bd_ap_fwd[idx].t && now - g_bd_ap_fwd[idx].t < 120000 && nap && nairport < BD_AP_FWD_MAX &&
+    if (PV(idx, g_v_bd_ap_fwd, g_bd_ap_fwd_on) && g_bd_ap_fwd[idx].t && now >= g_bd_ap_fwd[idx].t && now - g_bd_ap_fwd[idx].t < 120000 && nap && nap == nairport &&
         !open_airport && ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT))) {   // THE AIRPORTS MOVE UP
         float nearest = 1.0e9f;
+        int taken = 0;
         for (int k = 0; k < nap; k++) { float d = sqrtf((float)ivec2_dist2(app[k], g_bd_ap_fwd[idx].at)); if (d < nearest) nearest = d; }
         if (nearest > g_bd_ap_fwd[idx].reach) {
+            static unsigned apt[BD_AIRPORTS];   // its Airports' territories: one a territory
+            for (int k = 0; k < nap; k++) apt[k] = ter_near(app[k].x, app[k].y);
             nearest -= (float)BD_AP_FWD_GAIN;
             for (int c = 0; c < ncen; c++) {
                 float d = sqrtf((float)ivec2_dist2(centre[c].p, g_bd_ap_fwd[idx].at));
-                if ((centre[c].cost == 1 || centre[c].cost == 2) && d < nearest) { nearest = d; ap_fwd = c; }
+                if ((centre[c].cost != 1 && centre[c].cost != 2) || d >= nearest) continue;
+                unsigned r = ter_near(centre[c].p.x, centre[c].p.y);
+                int has = 0;
+                for (int k = 0; k < nap && !has; k++) has = apt[k] == r;
+                if (has) { taken++; continue; }
+                nearest = d; ap_fwd = c;
             }
+            if (ap_fwd < 0 && taken) b->ap_fwd_taken++;
             if (ap_fwd >= 0) ap_ask = 1; else b->ap_fwd_none++;
         }
     }
@@ -1050,7 +1067,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (type) {
         census_build_ask(bm, type);   // the test log's count: the mod's, not the game's entry
         if (pick == BD_PICK_AIRPORT) g_bd_airport[idx] = 0;
-        else if (pick == BD_PICK_AIRPORT_FWD) { g_bd_ap_fwd[idx].t = 0; b->ap_fwds++; }
+        else if (pick == BD_PICK_AIRPORT_FWD) g_bd_ap_fwd[idx].t = 0;   // paid or not: asked again while it holds
         else if (pick == BD_PICK_HERD) { b->herd_t = now ? now : 1; b->herds++; }
         else if (pick == BD_PICK_FOREST) b->forests++;
         // ACROSS THE WATER: on a land with no citizen of its the game's placement makes no foundation (it looks for a
@@ -1067,6 +1084,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
             if (type != UT(B_HOUSE)) { b->laid_t[k] = now ? now : 1; b->laid_type[k] = type; }
             for (int r = 2; r < 7; r++) g_bd_com[idx][r] += unit_cost(pl, type, r);
             if (type == UT(B_AIRPORT)) ap_laid(idx, at, now);   // defence.c: its strip is taken until it shows
+            b->ap_fwds += pick == BD_PICK_AIRPORT_FWD;
         }
         if (g_log && (ok || !(b->refused % 20)))
             log_locked("# build: P%u at %.1f min: %s - %d at %d,%d (territory %u): %s\n", idx, now / 60000.0, what, type, at.x, at.y, ter_near(at.x, at.y),

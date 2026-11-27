@@ -730,8 +730,9 @@ class ai_base
         bool bomber_claim = true;
         /// While the place where its army meets the enemy lies beyond its bombers' reach - their flight time at their
         /// speed - from every Airport of its: one more Airport by the Town Center, Capitol or Settlement of its nearest
-        /// that place, and its aircraft move their base there. 0 = Airports only by its towns, the backland first; on
-        /// since 2026-11-27 (the player's call; measured on a huge map: 29% more targets bombed, the game level)
+        /// that place, in a territory that has no Airport of its yet, and its aircraft move their base there. 0 =
+        /// Airports only by its towns, the backland first; on since 2026-11-27 (the player's call; measured on a huge
+        /// map, 20 games: the bombing and the game level with it or without)
         [advanced]
         bool airport_forward = true;
         /// The air force's size: from World War I this share of the AI's military - its land soldiers and aircraft - is
