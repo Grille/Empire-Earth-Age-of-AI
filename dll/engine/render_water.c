@@ -168,11 +168,23 @@ internal void rw_table(void) {
     g_wa.tmap = map;
     g_wa.tn = n;
 }
-// the camera's height for the vertex shader's fog under the water (the ground's camera space's origin in the world); so low
-// it is off
+// The eye this frame: the camera as it is now (render_frame.c rf_camera_frame), which the list's draws are moved to
+// (rf_shift) - not the list's (the ground's camera space's origin in the world, g_sh.gw), which stands where the last
+// step left it. A zoom between two steps moves the eye a long way along the line of sight, and the water's way to what
+// lies behind it, its fog, was measured from the old eye until the next list came: the water in another colour, then
+// back at once (the player, 2026-11-27: "when zooming in/out quickly on the water it flickers for a frame"; recorded,
+// a wheel's zoom each frame: the lake's mean colour jumped 6 - 11 levels at each new list, smooth between)
+internal void rw_eye(float *e) {
+    float inv[16];
+    if (g_cam_now_ok) { rd3_rigid_inverse(inv, g_cam_view_now); memcpy(e, inv + 12, 3 * sizeof(float)); }
+    else memcpy(e, g_sh.gw + 12, 3 * sizeof(float));
+}
+// the camera's height for the vertex shader's fog under the water; so low it is off
 internal float rd3_water_camera(void) {
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && g_wa.haze && g_sh.water_on;
-    return on ? g_sh.gw[14] : -1e9f;
+    float e[3];
+    rw_eye(e);
+    return on ? e[2] : -1e9f;
 }
 internal int rw_own_colour(int r, int g, int b) {
     if (r < 0 || g < 0 || b < 0 || r > 255 || g > 255 || b > 255) return 0;
@@ -235,7 +247,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     pc->sea[1] = 1 / g_wa.seadepth;
     pc->sea[2] = level;
     {
-        memcpy(pc->wop, g_sh.gw + 12, 12);
+        rw_eye(pc->wop);
         pc->wop[3] = rw_opaque();
         for (int a = 0; a < 3; a++) pc->wfc[a] = rw_colour()[a] * g_wa.tint;
         pc->wfc[3] = g_wa.za;
