@@ -786,7 +786,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   ford, every 12 - 18 tiles of its way, gravel under it and on its banks; its mouth is cut through the sea's
   shallows. The first maps' rivers (0.8 steps) were waded nearly anywhere, and the channel between the continents
   where both shores were beaches: the sea is 1.5 steps deep down the middle now whatever its shores, and in a
-  ring 3 - 5 tiles off an island. What the game then makes of the tiles is looked at (mg_afoot, by the tiles'
+  ring 3 - 5 tiles off an island (its bed: "The sea's bed" below). What the game then makes of the tiles is looked at (mg_afoot, by the tiles'
   kinds): the continents apart on foot, a continent's starts reached from one another - where one is cut off (a
   range and the rivers from its ends) fords are laid on the way to it that goes through the least river, and the
   ground is set again; the log's line says both. A swamp's pools are shallows. The rain shadow: a wind by the seed (one
@@ -900,6 +900,18 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   radius, keeps them apart and off the shore. A lake's site is checked under its shape and 3 tiles round, not the
   square round its reach (that found 2 lakes in 60 maps for 38). Its middle is always deep: its fish and its
   outflow's spring are there. The shapes' draws are a generator of their own: the map's draws are as before.
+- **The sea's bed** (2026-11-27, the player of an island: "remove that shallow ring of land around the island, some
+  slope is fine, but it should join the seafloor height at some point, also varry the seafloor, most of it is flat at
+  -10, when going to -24 for deep sea is possible" - the editor's unit is half a height step): mapgen.c mg_sea_bed,
+  mg_sea_floor. Was: f times the coast's slope, at most 5 steps down - two thirds of the sea at exactly 5, and round an
+  island (f holds its shape only 6 tiles out) a shallow shelf, then a step to the floor. Now a shelf to 1.5 steps
+  (0.3 a tile, a beach 0.15, rocky 1.3), on at 0.6 a tile (rocky 1.2) down to a floor: 3.5 steps by the land, deeper
+  further out (+3.5 from 6 to 40 tiles off), basins and rises some 50 tiles across (+4), trenches in the open sea
+  (+2.5), a fine noise; at most 11.75 steps, met smoothly. The continents' bed (by g->fc: f before the islands) and
+  each island's are their own, the shallower taken smoothly - a trough between; an island's shelf 0.4 a tile at
+  least (no wading out to it). Seeds 3 and 5 at 210 tiles, many islands: the sea's corners spread from 3 to 11.75
+  steps (HEAD: 64 % at 5), the shallows 8 % of them (8.5 %). The players' water tint is full at 4 steps
+  ([display] water_depth_tint_full): deeper than that shows no difference on screen.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
   "Age of AI", its options in a dialog): the layout (two continents west and east, the sea between them north to
   south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -

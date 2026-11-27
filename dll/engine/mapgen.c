@@ -125,6 +125,7 @@ struct mg {
     int n, m;                 // tiles a side, corners a side
     uint32_t rng, seed;
     float *f;                 // [corner] how far inside the land (tiles; below 0: that far out in the water)
+    float *fc;                // [corner] f without the islands: the continents' (the sea's bed by them, mg_heights)
     float *h;                 // [corner] its height in height steps (below 0: under the water)
     float *mt;                // [corner] the mountains' height there (steps; 0: none)
     float *foot;              // [corner] 0 .. 1 how near a range's foot is (its foothills; 0: 12 tiles and more beyond it)
@@ -651,6 +652,7 @@ internal void mg_land(struct mg *g) {
         g->fjords++;
         k--;
     }
+    memcpy(g->fc, g->f, (size_t)(g->m * g->m) * sizeof *g->fc);
     for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
         x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
         float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 3, 7);
@@ -677,6 +679,7 @@ internal void mg_land(struct mg *g) {
             float u = (float)(x - y), v = (float)(x + y - g->n);
             float edge = fminf(half - fabsf(u), half - fabsf(v)) - 4, channel = mg_chan(g, x, y) - 4;
             g->f[y * g->m + x] = fminf(g->f[y * g->m + x], fminf(edge, channel) * 0.7071f);
+            g->fc[y * g->m + x] = fminf(g->fc[y * g->m + x], fminf(edge, channel) * 0.7071f);
         }
 }
 // THE COAST, its kind at a corner from a noise along it (the player 2026-11-24: "make the ocean beaches more dynamic,
@@ -796,8 +799,26 @@ internal int mg_plateau(struct mg *g, int continent, int tight) {
     g->plateaus++;
     return 1;
 }
-// THE HEIGHTS. The plain shore rises 0.3 steps a tile to the plain at 1 step, the sea falls as gently to 5 steps
-// down; a wide beach lies nearly flat for its width (0.08 a tile, the sea before it shallow twice as far), a rocky
+// the sea's bed d tiles out from the shore: a shelf falling s steps a tile to 1.5 steps down, then its slope, `steep`
+// steps a tile (mg_heights joins it to the floor)
+internal float mg_sea_bed(float d, float s, float steep) {
+    float shelf = 1.5f / s;
+    return d < shelf ? -s * d : -1.5f - steep * (d - shelf);
+}
+// THE SEA'S FLOOR (the player 2026-11-27: "varry the seafloor, most of it is flat at -10, when going to -24 for deep
+// sea is possible" - the editor's -24 are 12 steps: its unit is half a step): 3.5 steps down by the land, deeper the
+// further out (+3.5 from 6 to 40 tiles off any land), basins and rises some 50 tiles across (+0 .. 4), trenches out
+// in the open sea (+2.5 along a noise's middle line, some 5 tiles wide), a fine noise (+-0.4) so no stretch of it is
+// flat; at most 11.75 steps down, met smoothly. d: tiles to the nearest land
+internal float mg_sea_floor(const struct mg *g, int x, int y, float d) {
+    float fx = (float)x, fy = (float)y, out = mg_step(6, 40, d);
+    float basin = mg_step(0.3f, 0.7f, mg_fbm(fx * 0.02f + 211, fy * 0.02f + 97, g->seed + 110));
+    float trench = mg_step(0.85f, 0.97f, 1 - fabsf(2 * mg_noise(fx * 0.03f + 7, fy * 0.03f + 300, g->seed + 111) - 1));
+    float down = 3.5f + 3.5f * out + 4.0f * basin + 2.5f * out * trench + 0.8f * (mg_fbm(fx * 0.12f + 5, fy * 0.12f + 61, g->seed + 112) - 0.5f);
+    return mg_smax(-down, -11.75f, 1.5f);
+}
+// THE HEIGHTS. The plain shore rises 0.3 steps a tile to the plain at 1 step, the sea falls as gently to 1.5 steps
+// down and on more steeply to its floor (mg_sea_floor); a wide beach lies nearly flat for its width (0.08 a tile, the sea before it shallow twice as far), a rocky
 // coast and a beach's bluff are cliffs. Inland the plain swells by up to 0.8 steps; HILL COUNTRY (the player
 // 2026-11-25: "hills as well as lakes would be my first ideas") where a slow third layer - the land's roughness, as
 // temperature and moisture are layers - says so, and as foothills within 12 tiles of a range: rolling hills of up to
@@ -809,17 +830,29 @@ internal void mg_heights(struct mg *g) {
             float f = g->f[y * g->m + x], hn = mg_fbm((float)x * 0.035f + 17, (float)y * 0.035f + 5, g->seed + 10), beach, width, bluff, rocky;
             mg_coast(g, x, y, &beach, &width, &bluff, &rocky);
             if (f < 0) {
-                // the sea: deeper the further out. Its first 0.75 steps are shallows a land unit walks through
-                // (map.c tile_is_shallows) - 5 tiles of them off a wide beach: the channel between the continents is
-                // deep whatever its shores are, and so is a ring 3 - 5 tiles off an island's shore
-                float deep = f * (0.3f - 0.15f * beach + 1.0f * rocky);
-                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, mg_chan(g, x, y))));
+                // the sea: its shelf, then its slope down to its floor (mg_sea_bed, mg_sea_floor). The shelf's first
+                // 0.75 steps are shallows a land unit walks through (map.c tile_is_shallows) - 5 tiles of them off a
+                // wide beach. The continents' bed and each island's are their own, the shallower of them taken
+                // (smoothly: a trough between): f holds an island's shape only 6 tiles out (mg_land) - the bed by f
+                // alone was a shallow shelf round an island and a step down to the floor there (the player
+                // 2026-11-27: "remove that shallow ring ... it should join the seafloor height at some point").
+                // An island's shelf falls 0.4 steps a tile at least: no wading out to it. The channel between the
+                // continents is deep whatever its shores are, and so is a ring 3 - 5 tiles off an island's shore
+                float s = 0.3f - 0.15f * beach + 1.0f * rocky, steep = 0.6f + 0.6f * rocky, d = -g->fc[y * g->m + x];
+                float deep = mg_sea_bed(d, s, steep);
+                int ring = 0;
                 for (int i = 0; i < g->islands; i++) {
-                    int reach = (int)g->isle[i].reach + 6;
-                    float in = abs(x - g->isle[i].x) > reach || abs(y - g->isle[i].y) > reach ? -99 : mg_isle_in(g, x, y, i);
-                    if (in > -5 && in < -3) deep = fminf(deep, -1.2f);
+                    int reach = (int)g->isle[i].reach + 24;
+                    if (abs(x - g->isle[i].x) > reach || abs(y - g->isle[i].y) > reach) continue;
+                    float in = mg_isle_in(g, x, y, i);
+                    ring |= in > -5 && in < -3;
+                    deep = mg_smax(deep, mg_sea_bed(-in, fmaxf(s, 0.4f), steep), 1.0f);
+                    d = fminf(d, -in);
                 }
-                g->h[y * g->m + x] = fmaxf(deep, -5.0f);
+                deep = mg_smax(deep, mg_sea_floor(g, x, y, d), 2.0f);
+                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, mg_chan(g, x, y))));
+                if (ring) deep = fminf(deep, -1.2f);
+                g->h[y * g->m + x] = deep;
                 continue;
             }
             float base = fminf(f * 0.3f, 1.0f), flat = fminf(f * 0.08f, base);
@@ -1970,7 +2003,7 @@ internal ee_unit *mapgen_unit(int type, ee_player *pl, float x, float y, ee_map 
 // preview); NULL: no memory
 internal void mg_delete(struct mg *g) {
     if (!g) return;
-    free(g->f); free(g->h); free(g->mt); free(g->range); free(g->foot); free(g->plat); free(g->fjord); free(g->used); free(g->clim);
+    free(g->f); free(g->fc); free(g->h); free(g->mt); free(g->range); free(g->foot); free(g->plat); free(g->fjord); free(g->used); free(g->clim);
     free(g->marsh); free(g->kind); free(g->tex); free(g->obj); free(g->rock); free(g->z); free(g);
 }
 internal struct mg *mg_new(ee_map *map, int n, int np, uint32_t seed, const ee_setup *setup) {
@@ -1981,11 +2014,11 @@ internal struct mg *mg_new(ee_map *map, int n, int np, uint32_t seed, const ee_s
     g->np = np > MG_PLAYERS ? MG_PLAYERS : np;
     mg_options(g, setup);
     size_t c = (size_t)(g->m * g->m), t = (size_t)(n * n);
-    g->f = calloc(c, sizeof *g->f); g->h = calloc(c, sizeof *g->h); g->mt = calloc(c, sizeof *g->mt); g->range = calloc(c, 1);
+    g->f = calloc(c, sizeof *g->f); g->fc = calloc(c, sizeof *g->fc); g->h = calloc(c, sizeof *g->h); g->mt = calloc(c, sizeof *g->mt); g->range = calloc(c, 1);
     g->foot = calloc(c, sizeof *g->foot); g->plat = calloc(c, sizeof *g->plat); g->fjord = calloc(c, sizeof *g->fjord);
     g->used = calloc(t, 1); g->clim = calloc(t, 1); g->marsh = calloc(t, 1); g->tex = calloc(t, sizeof *g->tex);
     g->kind = map ? NULL : calloc(t, 1); g->obj = calloc(t, 1); g->rock = map ? NULL : calloc(t, 1); g->z = map ? calloc(c, sizeof *g->z) : NULL;
-    if (!g->f || !g->h || !g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !g->tex || !g->obj
+    if (!g->f || !g->fc || !g->h ||!g->mt || !g->range || !g->foot || !g->plat || !g->fjord || !g->used || !g->clim || !g->marsh || !g->tex || !g->obj
         || (map ? !g->z : !g->kind || !g->rock)) { mg_delete(g); return NULL; }
     return g;
 }
@@ -2218,7 +2251,7 @@ internal int mapgen_preview(int n, int np, uint32_t seed, uint32_t *px, int size
             float c[3], *hc = g->h + y * g->m + x;
             for (int k = 0; k < 3; k++) c[k] = land[b][k];
             if (kind == MG_K_DEEP || kind == MG_K_SHALLOWS) {
-                float d = mg_step(-0.75f, -5.0f, lo);
+                float d = mg_step(-0.75f, -11.75f, lo);
                 static const float sea[2][3] = { { 70, 128, 178 }, { 22, 50, 104 } }, inland[3] = { 72, 122, 150 };
                 for (int k = 0; k < 3; k++) c[k] = g->marsh[t] == 2 || kind == MG_K_DEEP ? sea[0][k] + (sea[1][k] - sea[0][k]) * d : inland[k];
             } else if (kind == MG_K_CLIFF) {
