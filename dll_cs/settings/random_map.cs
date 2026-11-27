@@ -15,16 +15,30 @@ class random_map
     enum map_layout_choice
     {
         /// two continents west and east, the sea between them running north to south, the players by turns on either
-        continents_west_east,
-        /// two continents north and south, the sea between them running west to east (the north the colder)
-        continents_north_south,
+        two_continents,
         /// one continent for all, the sea round it: the players by turns round it
         one_continent,
-        /// all players on one continent, across the sea a larger and richer one nobody starts on
+        /// all players on one continent (the Old World, in the west), across the sea a larger and richer one nobody
+        /// starts on
         old_new_world,
     }
     /// What the map is:
-    map_layout_choice map_layout = map_layout_choice.continents_west_east;
+    map_layout_choice map_layout = map_layout_choice.two_continents;
+    enum map_rotation_choice
+    {
+        /// as said above
+        deg_0,
+        /// the continents north and south (the Old World in the north)
+        deg_90,
+        /// the first continent in the east (the Old World in the east)
+        deg_180,
+        /// the continents south and north (the Old World in the south)
+        deg_270,
+        /// one of those, drawn from the map's seed
+        random,
+    }
+    /// The layout turned clockwise - the land only: the north stays the colder (Climate zones):
+    map_rotation_choice map_rotation = map_rotation_choice.deg_0;
     enum map_land_choice
     {
         /// smaller continents, more sea

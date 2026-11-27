@@ -170,9 +170,11 @@ struct mg {
     struct { float at, wide, len; } cont[2];
     int nc, homes, chan_on;
     float chan;
+    int turned;               // the layout's rotation made: quarters clockwise (map_rotation's, or the seed's for random)
     int new_mines, new_forests;   // the New World's own beyond the land's (old_new_world: mg_objects)
     struct mg_opt {           // [random_map] as numbers (mg_options); "normal" a factor of exactly 1, a shift of 0: the map as before
         int lay;              // the layout: MG_L_*
+        int rot;              // its rotation: quarters clockwise 0 .. 3, -1 random (from the seed: g->turned)
         int ns;               // the layout's frame: 0 the continents west and east (along them u), 1 north and south (along them v)
         float land;           // the continents' size
         float temp, wet;      // added to the temperature and the moisture (their bands: -0.3 / 0.3, 0.4 / 0.6)
@@ -198,28 +200,34 @@ internal int mg_amount(int base, float f) { return f == 1.0f ? base : (int)((flo
 // otherwise than by the lobby's list): the defaults, as on every other PC then.
 enum { MG_FROM_OWN, MG_FROM_HOST, MG_FROM_DEFAULTS };
 enum { MG_ZONES_NORTH_SOUTH, MG_ZONES_POLES, MG_ZONES_MIXED };   // [random_map] map_climate_zones (mg_temp)
-enum { MG_L_WEST_EAST, MG_L_NORTH_SOUTH, MG_L_ONE, MG_L_NEW_WORLD };   // [random_map] map_layout (mg_layout)
+enum { MG_L_TWO, MG_L_ONE, MG_L_NEW_WORLD };   // [random_map] map_layout (mg_layout)
 // THE LAYOUTS (the player 2026-11-26: "Two Continents WE ... and Two Continents NS"; 2026-11-27 of the ones I proposed:
 // "do one continent first, then old and new world"). Two continents: 0.42 of the half wide, 0.85 long, their middles
 // half the half off the map's middle, the channel between. One continent: 0.8 wide, 0.85 long in the middle (as much
 // land as the two have, no channel), the players round it. Old and New World: all players on the Old World (0.36
-// wide, 0.85 long) on one side, the New World across the channel 0.46 wide and 0.9 long - a third larger, richer
-// (mg_objects), nobody's at the start: a place to settle by sea. The two 0.16 of the half apart as the two continents
-// are; which side the Old World is on from the seed. Its frame the west-east one.
+// wide, 0.85 long), the New World across the channel 0.46 wide and 0.9 long - a third larger, richer (mg_objects),
+// nobody's at the start: a place to settle by sea. The two 0.16 of the half apart as the two continents are.
+// THE ROTATION (map_rotation; the player 2026-11-27: "two continents are already 2 layouts, new and old world could
+// be expanded into 4 to get every direction - maybe we need a layout rotation modifier?"): the layout turned by
+// quarters clockwise, the first continent (seat 0's, the Old World) west, north, east, south - the frame north and
+// south for 90 and 270 degrees (mg_along, mg_across), the continents on the other side of the middle for 180 and 270;
+// random: a quarter from two bits of the seed (the map's draws stay as they are). The weather keeps the map's north.
 internal void mg_layout(struct mg *g) {
-    int l = (unsigned)g->opt.lay <= MG_L_NEW_WORLD ? g->opt.lay : MG_L_WEST_EAST;
-    g->opt.ns = l == MG_L_NORTH_SOUTH;
+    int l = (unsigned)g->opt.lay <= MG_L_NEW_WORLD ? g->opt.lay : MG_L_TWO;
+    int r = g->opt.rot >= 0 && g->opt.rot < 4 ? g->opt.rot : (int)((g->seed >> 5) & 3);
+    float s = r >= 2 ? -1.0f : 1.0f;   // (a sign on the continents' places across: 1 the first west or north)
+    g->opt.ns = r & 1;
+    g->turned = r;
     if (l == MG_L_ONE) {
         g->nc = g->homes = 1; g->chan_on = 0; g->chan = 0;
         g->cont[0].at = 0; g->cont[0].wide = 0.8f; g->cont[0].len = 0.85f;
     } else if (l == MG_L_NEW_WORLD) {
-        float s = (g->seed >> 5) & 1 ? -1.0f : 1.0f;   // (a bit of the seed's own: the map's draws stay as they are)
         g->nc = 2; g->homes = 1; g->chan_on = 1; g->chan = -0.11f * s * g->half;
         g->cont[0].at = -0.55f * s; g->cont[0].wide = 0.36f; g->cont[0].len = 0.85f;
         g->cont[1].at = 0.43f * s; g->cont[1].wide = 0.46f; g->cont[1].len = 0.9f;
     } else {
         g->nc = g->homes = 2; g->chan_on = 1; g->chan = 0;
-        g->cont[0].at = -0.5f; g->cont[1].at = 0.5f;
+        g->cont[0].at = -0.5f * s; g->cont[1].at = 0.5f * s;
         g->cont[0].wide = g->cont[1].wide = 0.42f; g->cont[0].len = g->cont[1].len = 0.85f;
     }
 }
@@ -244,6 +252,7 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
     }
 #define MG_PICK(t, v) t[(unsigned)(v) < sizeof t / sizeof *t ? (unsigned)(v) : sizeof t / sizeof *t / 2]
     g->opt.lay = s.map_layout;
+    g->opt.rot = s.map_rotation < 4 ? s.map_rotation : -1;   // (-1: random)
     mg_layout(g);
     g->opt.land = MG_PICK(land, s.map_land);
     g->opt.temp = MG_PICK(temp, s.map_climate);
@@ -759,7 +768,7 @@ internal const float k_mg_turn[MG_PLAYERS][2] = {   // cos, sin of a full turn /
 };
 // the j-th of count places round the home continent (u, v: the frame's along and across)
 internal void mg_ring_place(const struct mg *g, int j, int count, float *u, float *v) {
-    float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land, c = 1, s = 0;
+    float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land, c = g->turned >= 2 ? -1.0f : 1.0f, s = 0;
     const float *turn = k_mg_turn[count - 1];
     for (int t = 0; t < j; t++) { float nc = c * turn[0] - s * turn[1]; s = s * turn[0] + c * turn[1]; c = nc; }
     *u = count > 1 ? 0.6f * rb * s : 0;
@@ -789,7 +798,7 @@ internal void mg_starts(struct mg *g) {
             // in the middle
             u = (((float)j + 0.5f) / (float)count[k] - 0.5f) * length;
             float rb = 0.85f * g->half * g->opt.land, wide = 0.42f * g->half * g->opt.land * sqrtf(fmaxf(0, 1 - u * u / (rb * rb)));
-            v = (k ? 0.5f : -0.5f) * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
+            v = g->cont[k].at * g->half + (count[k] > 1 ? (j & 1 ? 0.6f : -0.6f) * wide : 0);
         } else {
             float ra = g->cont[0].wide * g->half * g->opt.land, rb = g->cont[0].len * g->half * g->opt.land;
             share = 6.2831853f * 0.6f * sqrtf((ra * ra + rb * rb) * 0.5f) / (float)count[0] * 0.70710678f;

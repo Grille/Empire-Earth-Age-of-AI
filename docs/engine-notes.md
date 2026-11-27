@@ -886,8 +886,12 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   middle, no channel, the players round it at 0.6 of the way to its shore by a table of turns, flags 0 as the game's
   Continental - and old and new world - all players on the Old World, across the channel a New World a third larger
   with 2.5 times the land's mine density and half again its forests, nobody's at the start, two in three of the
-  ranges, plateaus and lakes (the Old World's room is the players'); the Old World's side drawn from a bit of the
-  seed. mg_layout sets the continents, mg_side tells a place's, mg_chan the channel; the two continent layouts made
+  ranges, plateaus and lakes (the Old World's room is the players'). The rotation (map_rotation, the same day, the
+  player: "two continents are already 2 layouts, new and old world could be expanded into 4 to get every direction -
+  maybe we need a layout rotation modifier?"): the layout turned by quarters clockwise, the first continent (seat
+  0's, the Old World) west, north, east, south, or one of those from two bits of the seed - the frame north-south for
+  90 and 270, the continents' places across negated for 180 and 270; two continents at 0 and 90 are the old
+  west-east and north-south layouts bit for bit (12 previews each). mg_layout sets the continents, mg_side tells a place's, mg_chan the channel; the two continent layouts made
   bit for bit as before, 12 previews 116 - 440 tiles compared; a start never on an offshore island; round one
   continent the starts' shares in tiles and their distance at most 0.9 of the ring's closest places (forced starts
   were one in four on small maps). Checked in 40 games of 8 minutes (EE large 5 players, AoC normal 4): no notice, the

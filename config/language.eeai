@@ -240,6 +240,10 @@ map_land = {
     en = "Land",
     de = "Land",
 }
+map_rotation = {
+    en = "Rotation",
+    de = "Drehung",
+}
 map_climate = {
     en = "Climate",
     de = "Klima",
@@ -280,13 +284,25 @@ map_mines = {
     en = "Mines",
     de = "Minen",
 }
-map_v_continents_west_east = {
-    en = "Two continents W-E",
-    de = "Zwei Kontinente W-O",
+map_v_two_continents = {
+    en = "Two continents",
+    de = "Zwei Kontinente",
 }
-map_v_continents_north_south = {
-    en = "Two continents N-S",
-    de = "Zwei Kontinente N-S",
+map_v_deg_0 = {
+    en = "0°",
+}
+map_v_deg_90 = {
+    en = "90°",
+}
+map_v_deg_180 = {
+    en = "180°",
+}
+map_v_deg_270 = {
+    en = "270°",
+}
+map_v_random = {
+    en = "Random",
+    de = "Zufällig",
 }
 map_v_one_continent = {
     en = "One continent",
