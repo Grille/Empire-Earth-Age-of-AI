@@ -137,6 +137,11 @@ internal struct {
 typedef struct { void *tex; int layer; rb_vertex v[3]; } rg_tri;
 // the chunks to make again: marked by whichever thread changes the ground
 internal uint8_t g_rg_dirty[RG_ACROSS * RG_ACROSS];
+// the chunks holding a tile at the map's edge or a corner of one (rg_skirt_build): only their remaking changes the black
+// round the map
+internal uint8_t g_rg_edge[RG_ACROSS * RG_ACROSS];
+internal int *g_rg_edge_at;   // the map's edge tiles, x and y pairs (rg_skirt_build's reading of the whole map)
+internal int g_rg_edge_n;
 internal volatile int g_rg_any;
 internal volatile int g_rg_new_map;
 internal mesh_set_z_fn g_rg_set_z;
@@ -170,6 +175,8 @@ internal void rg_free(void) {
     }
     D3D_RELEASE(g_rg.skirt);
     g_rg.nskirt = 0;
+    free(g_rg_edge_at);
+    g_rg_edge_at = NULL, g_rg_edge_n = 0;
     D3D_RELEASE(g_rg.fow_srv);
     D3D_RELEASE(g_rg.fow);
     free(g_rg.fow_was); free(g_rg.fow_now);
@@ -720,7 +727,7 @@ internal int rg_black_wall(rb_vertex *v, int n, const float *p, const float *q) 
     n = rg_black_tri(v, n, p, q, q1);
     return rg_black_tri(v, n, p, q1, p1);
 }
-internal void rg_skirt_build(void) {
+internal void rg_skirt_build(int full) {
     static const float dirs[4][2] = { { 1, -1 }, { 1, 1 }, { -1, 1 }, { -1, -1 } };   // the game's back, right, front, left
     size_t cap = (size_t)g_rg.size * 4 * 4 * 6 + 4 * 3 * 6;
     rb_vertex *v = malloc(cap * sizeof *v);
@@ -733,9 +740,14 @@ internal void rg_skirt_build(void) {
             float s_[4] = { e_[k_][0], e_[k_][1], -e_[k_][0], -e_[k_][1] }; \
             for (int c_ = 0; c_ < 4; c_++) { float t_[4] = { corner[c_][0], corner[c_][1], -corner[c_][0], -corner[c_][1] }; \
                 if (!have || s_[c_] > t_[c_]) memcpy(corner[c_], e_[k_], sizeof corner[c_]); } have = 1; } } while (0)
-    for (int y = 0; y < g_rg.size; y++) for (int x = 0; x < g_rg.size; x++) {
+    // the whole map read for its edge tiles once (a new map: full), after that only those again (rg_rebuild)
+    int scan = full || !g_rg_edge_at, keep = scan, count = scan ? g_rg.size * g_rg.size : g_rg_edge_n, *list = NULL, nl = 0, cl = 0;
+    if (scan) memset(g_rg_edge, 0, sizeof g_rg_edge);
+    for (int i = 0; i < count; i++) {
+        int x = scan ? i % g_rg.size : g_rg_edge_at[2 * i], y = scan ? i / g_rg.size : g_rg_edge_at[2 * i + 1];
         if (!g_rg.tile(g_rg.mesh, (unsigned long)x, (unsigned long)y)) continue;
         RG_POINT(a, x, y); RG_POINT(b, x, y + 1); RG_POINT(c, x + 1, y); RG_POINT(d, x + 1, y + 1);
+        int n0 = n;
         // A space map: no black beyond its edge, the stars under and round it - its side along the game's bottom edges (the
         // front) went 1000 tiles out at the level, everything below the map black from a camera far back (the player,
         // 2026-11-23: "in space mode the top and the sides are rendered as space, while the bottom bounds are just black").
@@ -754,7 +766,24 @@ internal void rg_skirt_build(void) {
             if (g_rg.top(g_rg.mesh, x, y)) RG_SIDE(a, d, 2);
             if (g_rg.bottom(g_rg.mesh, x, y)) RG_SIDE(a, d, 0);
         }
+        if (n != n0 && scan) {   // an edge tile: kept, and the chunks of its four corners marked
+            if (keep && nl == cl) {
+                int *m = realloc(list, sizeof *list * 2 * (size_t)(cl = cl ? cl * 2 : 1024));
+                if (m) list = m;
+                else { free(list); list = NULL; keep = 0; }   // (no list: the next time reads the map again)
+            }
+            if (keep) list[2 * nl] = x, list[2 * nl + 1] = y, nl++;
+            if (g_rg.across <= RG_ACROSS)
+                for (int k = 0; k < 4; k++) {
+                    int cx = (x + (k & 1)) / RG_CHUNK, cy = (y + (k >> 1)) / RG_CHUNK;
+                    if (cx < g_rg.across && cy < g_rg.across) g_rg_edge[cy * RG_ACROSS + cx] = 1;
+                }
+        }
         if ((size_t)n + 6 * 8 > cap - 4 * 3 * 6) break;
+    }
+    if (scan) {
+        free(g_rg_edge_at);
+        g_rg_edge_at = list, g_rg_edge_n = keep ? nl : 0;
     }
     #undef RG_SIDE
     #undef RG_POINT
@@ -773,24 +802,30 @@ internal void rg_skirt_build(void) {
     if (n && SUCCEEDED(ID3D11Device_CreateBuffer(g_d3d.dev, &bd, &sd, &g_rg.skirt))) g_rg.nskirt = n;
     free(v);
 }
-// the scenario editor: what it looks at again some times a second, the rest a chunk at a time (no game's time: it is the editor)
-#define RG_ED_EVERY 200
+// the scenario editor: what it looks at again some times a second, the rest a chunk at a time (no game's time: it is the
+// editor). One chunk a turn, the nine round the camera and then one of the sweep's in ten turns of RG_ED_EVERY ms - all ten
+// at once every 200 ms took a frame 10 ms longer each time, a hitch five times a second while scrolling (2026-11-27)
+#define RG_ED_EVERY 20
 #define RG_ED_GONE 2000
 internal void rg_editor(void) {
     static DWORD last;
-    static int sweep;
+    static int sweep, turn;
     LONG seen = g_ws_ed_seen;
     DWORD now = GetTickCount();
     ee_camera *cam = game_camera();
     int across = g_rg.across;
     if (!seen || !cam || across <= 0 || across > RG_ACROSS || (LONG)(now - (DWORD)seen) > RG_ED_GONE || now - last < RG_ED_EVERY) return;
     last = now;
-    const float *at = camera_look_at(cam);
-    int cx = (int)at[0] / RG_CHUNK, cy = (int)at[1] / RG_CHUNK;
-    for (int y = cy - 1; y <= cy + 1; y++) for (int x = cx - 1; x <= cx + 1; x++)
-        if (x >= 0 && y >= 0 && x < across && y < across) g_rg_dirty[y * RG_ACROSS + x] = 1;
-    g_rg_dirty[sweep / across * RG_ACROSS + sweep % across] = 1;
-    sweep = (sweep + 1) % (across * across);
+    turn = (turn + 1) % 10;
+    if (turn == 9) {
+        g_rg_dirty[sweep / across * RG_ACROSS + sweep % across] = 1;
+        sweep = (sweep + 1) % (across * across);
+    } else {
+        const float *at = camera_look_at(cam);
+        int x = (int)at[0] / RG_CHUNK + turn % 3 - 1, y = (int)at[1] / RG_CHUNK + turn / 3 - 1;
+        if (x < 0 || y < 0 || x >= across || y >= across) return;
+        g_rg_dirty[y * RG_ACROSS + x] = 1;
+    }
     g_rg_any = 1;
 }
 // the marked chunks made again, and the black round the map with them (its inner points are the ground's)
@@ -808,10 +843,11 @@ internal void rg_rebuild(void) {
     if (gone) log_locked("# ground: %d textures let go by their terrain's set, %d chunks drawn with them made again\n", gone, again);
     rg_tri *tris = malloc(sizeof *tris * (size_t)RG_CHUNK * RG_CHUNK * 2 * RG_LAYERS);
     if (!tris) return;
-    int made = 0;
+    int made = 0, edge = 0;
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) {
         if (!g_rg_dirty[cy * RG_ACROSS + cx]) continue;
         g_rg_dirty[cy * RG_ACROSS + cx] = 0;
+        edge |= g_rg_edge[cy * RG_ACROSS + cx];
         rg_chunk *c = &g_rg.c[cy * g_rg.across + cx];
         for (int w = 0; w < 2; w++) { D3D_RELEASE(c->p[w].vb); free(c->p[w].r); g_rg.tris -= c->p[w].tris; }
         memset(c, 0, sizeof *c);
@@ -819,12 +855,16 @@ internal void rg_rebuild(void) {
         made++;
     }
     free(tris);
-    if (made) {
+    // The black round the map again only when a chunk at the edge was made again, and from the map's edge tiles alone: it
+    // read every tile of the map, about 20 ms on a 1000-tile map, and the scenario editor remakes the chunks round the
+    // camera five times a second (rg_editor) - scrolling there stalled a frame every 200 ms (the player 2026-11-27: "editor
+    // still has that jerk"; camtrace: a 25 ms frame in every 30-40, profile render slow: rg_skirt_build)
+    if (made && edge) {
         D3D_RELEASE(g_rg.skirt);
         g_rg.nskirt = 0;
-        rg_skirt_build();
-        g_rg.remade += made;
+        rg_skirt_build(0);
     }
+    g_rg.remade += made;
 }
 internal int rg_build(void) {
     ee_map *map = game_map();
@@ -847,7 +887,7 @@ internal int rg_build(void) {
     g_rg.wcol = rg_bytes(g_rg.water_colour(g_rg.mesh, 0, 0), 0);
     for (int cy = 0; cy < g_rg.across; cy++) for (int cx = 0; cx < g_rg.across; cx++) rg_chunk_build(cx, cy, tris);
     free(tris);
-    rg_skirt_build();
+    rg_skirt_build(1);
     D3D11_TEXTURE2D_DESC td = { (UINT)g_rg.size, (UINT)g_rg.size, 1, 1, DXGI_FORMAT_R8_UNORM, { 1, 0 }, D3D11_USAGE_DYNAMIC, D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_WRITE, 0 };
     g_rg.fow_was = calloc((size_t)g_rg.size, (size_t)g_rg.size + 1);
     g_rg.fow_now = calloc((size_t)g_rg.size, (size_t)g_rg.size);
