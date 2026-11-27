@@ -238,6 +238,7 @@ internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
 // the pipe: picture [cost] [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [fog <0..0.95>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
+internal void in_why_text(char *out);   // render_instance.c: why models were left to the display DLL
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -251,7 +252,7 @@ internal void cmd_picture(char *out, const char *args) {
         else { REPLY("error: usage: picture aa on | off\n"); return; }
     } else if (!strcmp(mode, "inst")) {   // render_instance.c
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_in_force = arg[1] == 'n';
-        else { REPLY("instances: %s, parts drawn so %ld, models left to the display DLL %ld, trees' shadow cards made %ld\n", (g_in_force < 0 ? g_set.unit_instancing : g_in_force) ? "on" : "off", (long)g_in_parts, (long)g_in_fell, (long)g_in_cards); return; }
+        else { REPLY("instances: %s, parts drawn so %ld, models left to the display DLL %ld, trees' shadow cards made %ld\n", (g_in_force < 0 ? g_set.unit_instancing : g_in_force) ? "on" : "off", (long)g_in_parts, (long)g_in_fell, (long)g_in_cards); in_why_text(out); return; }
     } else if (!strcmp(mode, "oit")) {   // render_oit.c
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_oit.force = arg[1] == 'n';
         else { REPLY("weighted transparency: %s%s, passes %ld, batches into its sums %ld\n", oit_on() ? "on" : "off", g_oit.fail ? " (failed)" : "", (long)g_oit.passes, (long)g_oit.draws); return; }

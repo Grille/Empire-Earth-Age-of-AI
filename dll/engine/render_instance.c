@@ -648,6 +648,50 @@ internal int in_can(uint8_t ortho) {
     return in_on() && (g_sl.in || g_pd_in) && !ortho && (g_ro_cur == RO_UNITS || (g_pd_in && g_ro_cur == RO_WATER)) && !g_mo_off && g_mo.on && g_rp_state != 2 && g_mo_smooth && g_shr_visible &&
            g_in.orig && !(st[1] && (st[2] - st[1]) & ~7u);
 }
+// why a model was left to the display DLL (the pipe's picture inst; the player, 2026-11-27, at 8 fps in the editor over a
+// 1000-tile map: "why arent the trees grouped" - more models left than instanced there): the first test it fails, and
+// the render object it came in
+enum { INW_OFF, INW_WALK, INW_ORTHO, INW_RO, INW_ANIM, INW_PROBE, INW_SMOOTH, INW_VISIBLE, INW_PUSHED, INW_COLOURS, INW_FRAME,
+       INW_MATERIAL, INW_DEVICE, INW_N };
+internal const char *const k_inw[INW_N] = { "instancing off", "outside the units' walk", "drawn flat (2D)", "another render object",
+    "the animation not on the card", "the probe", "units_smooth off", "the visibility test not ours", "a transformation pushed",
+    "vertices with colours of their own", "a frame missing", "a material empty or too large", "no device or pool" };
+internal LONG g_inw[INW_N], g_inw_ro[RO_N];
+internal int in_model_why(ee_model *m) {
+    ee_vertices **fr = model_get_vertices(m);
+    in_pose mp = { model_get_frame(m), model_get_next_frame(m), model_get_fraction(m), 0, NULL };
+    if (!fr || !fr[mp.frame]) return INW_FRAME;
+    if (vertices_get_type(fr[0])) return INW_COLOURS;
+    if (mp.frac != 0 && !fr[mp.next]) return INW_FRAME;
+    ee_material **mats = model_get_materials(m);
+    for (uint32_t i = 0, nm = model_get_material_count(m); i < nm; i++) {
+        uint32_t n = material_get_vertex_count(mats[i]);
+        if (!n || n > MO_MAX_VERTS || material_get_polygon_count(mats[i])[0] * 3 > IN_LIST_MAX) return INW_MATERIAL;
+    }
+    ee_model **ch = model_get_children(m);
+    for (uint32_t i = 0, nc = model_get_child_count(m); i < nc; i++) { int w = in_model_why(ch[i]); if (w >= 0) return w; }
+    return -1;
+}
+internal void in_why(ee_model *m, uint8_t ortho) {
+    const uint32_t *st = g_in.stack;
+    int w = !in_on() ? INW_OFF : !(g_sl.in || g_pd_in) ? INW_WALK : ortho ? INW_ORTHO
+          : !(g_ro_cur == RO_UNITS || (g_pd_in && g_ro_cur == RO_WATER)) ? INW_RO : g_mo_off || !g_mo.on ? INW_ANIM
+          : g_rp_state == 2 ? INW_PROBE : !g_mo_smooth ? INW_SMOOTH : !g_shr_visible ? INW_VISIBLE
+          : !g_in.orig || (st[1] && (st[2] - st[1]) & ~7u) ? INW_PUSHED : -1;
+    if (w < 0) w = in_model_why(m);
+    if (w < 0) w = INW_DEVICE;
+    InterlockedIncrement(&g_inw[w]);
+    if (g_ro_cur >= 0 && g_ro_cur < RO_N) InterlockedIncrement(&g_inw_ro[g_ro_cur]);
+}
+// the pipe's: the reasons, largest first
+internal void in_why_text(char *out) {
+    static const char *const ro[RO_N] = { "terrain", "shadows", "units", "water", "interface" };
+    REPLY("instances: models left to the display DLL by why -");
+    for (int k = 0; k < INW_N; k++) if (g_inw[k]) REPLY(" %s %ld;", k_inw[k], (long)g_inw[k]);
+    REPLY(" by render object -");
+    for (int k = 0; k < RO_N; k++) if (g_inw_ro[k]) REPLY(" %s %ld;", ro[k], (long)g_inw_ro[k]);
+    REPLY("\n");
+}
 internal const in_rec *g_in_rec;   // in_draw_rec's record, for the walk its Draw comes to
 internal int g_in_rec_fell;        // ... which couldn't draw it
 internal rd_device *in_device(void *ras, unsigned long screen) {
@@ -660,7 +704,7 @@ internal long __thiscall in_hook(void *ras, ee_model *m, unsigned long screen, f
     if (g_in_capture) g_in_walks++;
     rd_device *d = r || (in_can(ortho) && in_model_ok(m, NULL, 0) && in_init()) ? in_device(ras, screen) : NULL;
     if (r && (!d || !in_can(ortho))) { g_in_rec_fell = 1; return 0; }   // (bent for this draw: walls.c) - the game's draw is to draw it
-    if (!d) { InterlockedIncrement(&g_in_fell); return g_in.orig(ras, m, screen, bias, ortho); }
+    if (!d) { InterlockedIncrement(&g_in_fell); in_why(m, ortho); return g_in.orig(ras, m, screen, bias, ortho); }
     in_ctx c = { ras, rasterizer_get_screen_state(ras, screen), d, screen, bias };
     in_node(&c, m, NULL, 0, r, 0);
     return 0;

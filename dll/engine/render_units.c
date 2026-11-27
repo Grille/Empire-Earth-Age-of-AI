@@ -122,25 +122,53 @@ internal void ud_gate(ee_model *m, float open) {
 // blended toward the next: bl_bend bends the frame alone). A wall's piece is bent by its end cuts (walls.c END CUTS),
 // which change with its neighbours under the same transformation: its copy is made again when walls.c's count of the
 // cuts' changes moved on.
-#define UB_SLOTS 8192
+// The table grows with the map (twice the room when three quarters full, up to UB_MAX): at a fixed 8192 a 1000-tile map's
+// icebergs, ice floes and rocks filled it, and every object past it went to the display DLL at every draw - 1650 a frame
+// zoomed out (the player, 2026-11-27, 8 fps in the editor over gigatestmap: "why arent the trees grouped"; the table full
+// 632 790 times in a test minute). The copies stay where they are when it grows (the kept parts point at them).
+#define UB_FIRST 8192
+#define UB_MAX (1u << 21)
 typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; LONG gen; uint32_t nv; } ub_entry;   // v NULL: drawn as it is; gen: a wall's cuts' count; nv: v's vertices
-internal struct { ub_entry e[UB_SLOTS]; int n; void *map; LONG made, full, stale, starts, remade; } g_ub;
+internal struct { ub_entry *e; uint32_t cap; int n; void *map; LONG made, full, stale, starts, remade; } g_ub;
 internal void mo_forget(void);   // render_morph.c
 internal void ub_clear(void *map) {
-    for (int i = 0; i < UB_SLOTS; i++) free(g_ub.e[i].v);
+    for (uint32_t i = 0; i < g_ub.cap; i++) free(g_ub.e[i].v);
     if (g_ub.n) mo_forget();
-    memset(g_ub.e, 0, sizeof g_ub.e);
+    if (g_ub.e) memset(g_ub.e, 0, (size_t)g_ub.cap * sizeof *g_ub.e);
     g_ub.n = 0;
     g_ub.map = map;
+}
+internal uint32_t ub_hash(ee_model *m, uint32_t f, const float *t) {
+    uint32_t key[4];
+    memcpy(key, t + 3, 4); memcpy(key + 1, t + 7, 4); memcpy(key + 2, t + 11, 4); memcpy(key + 3, t, 4);
+    return ((uint32_t)(uintptr_t)m >> 4) * 2654435761u ^ f * 40503u ^ key[0] * 2246822519u ^ key[1] * 3266489917u ^ key[2] * 668265263u ^ key[3];
+}
+// room for one more: the table made, or twice as large (its entries placed again); 0 at its most
+internal int ub_room(void) {
+    if (g_ub.e && g_ub.n < (int)(g_ub.cap / 4 * 3)) return 1;
+    uint32_t cap = g_ub.e ? g_ub.cap * 2 : UB_FIRST;
+    if (cap > UB_MAX) return 0;
+    ub_entry *e = calloc(cap, sizeof *e);
+    if (!e) return 0;
+    for (uint32_t i = 0; i < g_ub.cap; i++) {
+        const ub_entry *o = &g_ub.e[i];
+        if (!o->m) continue;
+        uint32_t h = ub_hash(o->m, o->f, o->t) & (cap - 1);
+        while (e[h].m) h = (h + 1) & (cap - 1);
+        e[h] = *o;
+    }
+    free(g_ub.e);
+    g_ub.e = e;
+    g_ub.cap = cap;
+    return 1;
 }
 // an object's bent frame f under the root's transformation t (its 3 x 4): kept, made now if new; NULL when the table is full
 internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     void *map = game_map();
     if (map != g_ub.map || g_ub.starts != g_game_starts) ub_clear(map), g_ub.starts = g_game_starts;
-    uint32_t key[4];
-    memcpy(key, t + 3, 4); memcpy(key + 1, t + 7, 4); memcpy(key + 2, t + 11, 4); memcpy(key + 3, t, 4);
-    uint32_t h = (((uint32_t)(uintptr_t)m >> 4) * 2654435761u ^ f * 40503u ^ key[0] * 2246822519u ^ key[1] * 3266489917u ^ key[2] * 668265263u ^ key[3]) & (UB_SLOTS - 1);
-    for (;; h = (h + 1) & (UB_SLOTS - 1)) {
+    if (!g_ub.e && !ub_room()) { InterlockedIncrement(&g_ub.full); return NULL; }
+    uint32_t h = ub_hash(m, f, t) & (g_ub.cap - 1);
+    for (;; h = (h + 1) & (g_ub.cap - 1)) {
         ub_entry *e = &g_ub.e[h];
         if (!e->m) break;
         if (e->m != m || e->f != f || memcmp(e->t, t, sizeof e->t)) continue;
@@ -165,7 +193,10 @@ internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
         }
         return e;
     }
-    if (g_ub.n >= UB_SLOTS * 3 / 4) { InterlockedIncrement(&g_ub.full); return NULL; }
+    if (g_ub.n >= (int)(g_ub.cap / 4 * 3)) {   // grown: its place found again
+        if (!ub_room()) { InterlockedIncrement(&g_ub.full); return NULL; }
+        for (h = ub_hash(m, f, t) & (g_ub.cap - 1); g_ub.e[h].m; h = (h + 1) & (g_ub.cap - 1)) {}
+    }
     ub_entry *e = &g_ub.e[h];
     int decal = bl_noted_decal(m);
     uint32_t nv = vertices_get_count(model_get_vertices(m)[f]);
