@@ -1379,6 +1379,7 @@ internal void rg_draw_now(int water, int again) {
     // the wobble's strength: the surface's, the seabed's - none with [display] seabed_wobble off (the player, 2026-11-10:
     // "add an option to disable the terrain wobble underwater that tries to fake refraction")
     float wstr = g_rw_still ? 0.0f : ws[1];   // the surface's movement (the pipe's water still: none)
+    g_wa.wave[0] = (float)g_rg.phase; g_wa.wave[1] = wstr;   // for the split of what is drawn around it (render_3d.c ps)
     float cb[84] = { water ? 2.0f : 1.0f, (float)g_rg.phase, water ? wstr : g_set.seabed_wobble ? ws[2] : 0.0f, st->revealed };
     int blend = !water && rgb_on();
     if (blend) { cb[72] = 1; cb[73] = rgb_soft(); cb[74] = rgb_noise(); cb[75] = g_rgb.scale; }

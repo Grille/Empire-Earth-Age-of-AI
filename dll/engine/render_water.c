@@ -98,6 +98,7 @@ internal struct {
     int tdirty;      // the tint's buffer to be sent again
     int copy_ok;     // the last copy of the picture could be made (else the ground keeps the game's colours under the water)
     float hstep;     // the map's height step it was sent for
+    float wave[2];   // the surface's movement this frame: its phase, its strength (render_ground.c; the split at it: render_3d.c ps)
     float vp[4];     // the viewport's first and last pixels it was sent for (the refraction reads within them: render_3d.c wfog)
     ID3D11Buffer *tcb;
     float za;        // the projection's depth term (rw_depth)
@@ -252,6 +253,8 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
         for (int a = 0; a < 3; a++) pc->wfc[a] = rw_colour()[a] * g_wa.tint;
         pc->wfc[3] = g_wa.za;
     }
+    pc->wav[0] = g_wa.wave[0];
+    pc->wav[1] = on ? g_wa.wave[1] : 0.0f;
     pc->rfa[0] = g_wa.strength;
     pc->rfa[1] = g_wa.wobble;
     pc->rfa[2] = g_wa.drawn && water_seen ? 1.0f : 0.0f;

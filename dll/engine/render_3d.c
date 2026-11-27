@@ -144,6 +144,7 @@ typedef struct {
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
     float wat[4], sea[4], wop[4], wfc[4];   // the water by its depth, the seabed's detail, the camera and 1 / the way through it that hides all, the colour under the water and the projection's depth term (render_water.c)
     float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
+    float wav[4];    // the water's surface: its movement's phase and strength (render_ground.c), for the split at it (ps)
     float cau[4], cat[4];   // the caustics: strength (0 none), the pattern's units a tile, the wind's way (cos, sin); their time, the refraction's and the reflections' shift by the waves (tiles a unit of slope), the caustics on objects times this (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
@@ -172,7 +173,7 @@ internal const char k_rd3_shader[] =
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
-    " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; float4 cau; float4 cat; };\n"
+    " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; float4 wav; float4 cau; float4 cat; };\n"
     "cbuffer g : register(b3) { float4 gnd; float4 gla; float4 gld[8]; float4 glc[8]; float4 gbl; float4 gov; float4 grl; };\n"   // the ground from the map (render_ground.c): on, the wobble's phase and strength, all seen; the game's lights: ambient and how many, toward each, each's colour; its borders: on, soft, noise's share, noise per tile; the overlay's place; the relief: a full brightness's height in tiles (0 none), a slice's texels across
     "Texture2D<float> gf : register(t7);\n"   // its cells' sight: 0, a half, all
     "Texture2DArray<float> ght : register(t13);\n"   // the ground's textures' heights, a slice each material (render_ground.c rgb_height)
@@ -411,8 +412,17 @@ internal const char k_rd3_shader[] =
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
     " float ea = edp.y > 0 ? min(x.a, d.a) : x.a; if (edp.x > 0 ? ea < edp.x : edp.x < 0 && ea >= -edp.x) discard;"
-    // a move's circle lies at the level itself, a selected ship's a hundredth under it: what counts as under starts a little below
-    " if (wsp.x > 0 ? i.w.z >= sea.z - 0.05 + wsp.z : wsp.x < 0 && i.w.z < sea.z - 0.05 + wsp.z) discard;"
+    // a move's circle lies at the level itself, a selected ship's a hundredth under it: what counts as under starts a little below.
+    // The rest is split at the surface as it moves (the ground's vertex shader: sin(x y + phase) times the strength at the
+    // mesh's corners, the level 0 - over the deep water; between them as the faces' plane, here the four corners'
+    // blend): at the level alone, a soft edge's part under it went in the water's copy where the surface's crest stood
+    // lower, and an oar's solid half met its edges' a wave's height off (the player, 2026-11-27: "the split is not at
+    // the animated water surface but on a fixed one, wich still can cause a disconect betwen the opaque and transparent
+    // halfes")
+    " if (wsp.x != 0) { float wc = sea.z - 0.05; if (wsp.y == 0 && wav.y != 0) { float2 wf = floor(i.w.xy), wg = i.w.xy - wf;"
+    "  float4 wn = sin(float4(wf.x * wf.y, (wf.x + 1) * wf.y, wf.x * (wf.y + 1), (wf.x + 1) * (wf.y + 1)) + wav.x);"
+    "  wc = lerp(lerp(wn.x, wn.y, wg.x), lerp(wn.z, wn.w, wg.x), wg.y) * wav.y; }"
+    "  if (wsp.x > 0 ? i.w.z >= wc + wsp.z : i.w.z < wc + wsp.z) discard; }"
     // and a circle on the ground: over the land (wsp.y 1) or over the water (2), by the hills' map's ground under the pixel
     " if (wsp.y > 0) { float2 wg = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool wr = shh.w == 0 || wg.x - wg.y < sea.z - 0.05; if (wsp.y > 1.5 ? !wr : wr) discard; }"
     // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, its colour in a shadow as
