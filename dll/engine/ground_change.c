@@ -38,3 +38,31 @@ internal void ground_changed_box(int x0, int y0, int x1, int y1) {
 }
 // the whole map (made anew in the editor: a new map may have the old one's address)
 internal void ground_changed_all(void) { ground_changed_box(0, 0, 1 << 16, 1 << 16); }
+
+// THE GAME'S EFFECTS ON THE GROUND (the player, 2026-11-27, a farm beside a new Airport: "building teraform9ng dosnt trigger
+// a rebuild of the fitted meshes" - its fields stood in walls over the flattened ground). A farm's ground and stalks are
+// meshes the effect makes once, each corner at the ground's height (EEE3DFarm, 0x4E4F4A); the effects' vf20 (x_lo, y_hi,
+// x_hi, y_lo) makes them again where they overlap the box. The scenario editor's elevation tool tells the effects so at its
+// end (editor_functions.ground_changed - the mod's undo too, ui.c ground_tell), but a building's flattening in a game tells
+// nobody. The game's own writes (render_ground.c rg_touch: SetZ, normals, shores) gather into one box here, and the effects'
+// step (collect_remains.c, the simulation's thread under the world's write lock) tells them before it steps them.
+#define GC_FX_MARGIN 2   // tiles round a corner: its height and its normal reach the tiles two round
+internal struct { int on, x0, y0, x1, y1; } g_gc_fx;
+// a corner the game itself changed (on the thread writing the world)
+internal void ground_changed_by_game(int x, int y) {
+    if (!g_gc_fx.on) { g_gc_fx.x0 = g_gc_fx.x1 = x; g_gc_fx.y0 = g_gc_fx.y1 = y; g_gc_fx.on = 1; return; }
+    if (x < g_gc_fx.x0) g_gc_fx.x0 = x;
+    if (x > g_gc_fx.x1) g_gc_fx.x1 = x;
+    if (y < g_gc_fx.y0) g_gc_fx.y0 = y;
+    if (y > g_gc_fx.y1) g_gc_fx.y1 = y;
+}
+internal LONG g_gc_fx_told;   // boxes told (the pipe's picture draw)
+// the effects told of the box gathered since (the effects' step, before it steps them)
+internal void ground_effects_tell(void) {
+    if (!g_gc_fx.on) return;
+    g_gc_fx.on = 0;
+    void *fx = *(void **)editor_ground_listeners_at();
+    if (!fx || !game_map()) return;
+    ground_changed(fx, g_gc_fx.x0 - GC_FX_MARGIN, g_gc_fx.y1 + GC_FX_MARGIN, g_gc_fx.x1 + GC_FX_MARGIN, g_gc_fx.y0 - GC_FX_MARGIN);
+    g_gc_fx_told++;
+}

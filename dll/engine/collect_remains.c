@@ -511,6 +511,11 @@ internal uint32_t g_us_fx_made;
 // one made by a wreck that hit first (2 of 9 helicopters, logged) at the game's copy
 internal void __thiscall us_hook_effects_step(ee_effect_mgr *m) {
     uint32_t n = 0;
+    // where the ground changed under a farm, its meshes made again (ground_change.c) - under the lock the farms' draw
+    // holds while it moves their stalks' tops (collect.c fsw_hook_draw)
+    EnterCriticalSection(&g_fx_remake_cs);
+    ground_effects_tell();
+    LeaveCriticalSection(&g_fx_remake_cs);
     if (g_kc_cs_ok && us_effects_on()) {
         EnterCriticalSection(&g_kc_cs);
         for (uint32_t i = 0; i < g_kc_n && n < UC_CORPSES; i++) {

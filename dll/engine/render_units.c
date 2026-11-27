@@ -1535,7 +1535,7 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
     for (int k = 0; k < UD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_reason[k], (long)g_ud.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_ud.recs, (long)g_ud.differ);
     for (int k = 0; k < UD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_kind[k], (long)g_ud.kind[k]);
-    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld, made again for another model %ld, bent again where the ground changed %ld\n",
-          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale, (long)g_ub.remade, (long)g_ub.rebent);
+    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld, made again for another model %ld, bent again where the ground changed %ld; the game's effects told of its own ground changes %ld times\n",
+          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale, (long)g_ub.remade, (long)g_ub.rebent, (long)g_gc_fx_told);
     return 1;
 }
