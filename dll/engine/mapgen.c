@@ -157,7 +157,9 @@ struct mg {
     struct { int x, y, r; } plateau[8];   // the plateaus
     int plateaus;
     int islands, bays, capes, fjords;
-    struct { int x, y; float r, reach; int nb; struct mg_blob b[4]; } isle[16];   // the islands: middle, size, reach (tiles) and shape (mg_small_shape)
+    struct { int x, y; float r, reach; int nb; struct mg_blob b[4];
+             int tie; float ax, ay, bx, by, w; } isle[16];   // the islands: middle, size, reach (tiles) and shape (mg_small_shape); a coastal one's bank (mg_bank)
+    int ties, ties_waded;     // the coastal islands, and those a walker from their bank's shore end reaches (mg_afoot)
     uint32_t rng_shape;       // the shapes' own draws (mg_own_rnd): the map's draws stay as they were
     int afoot;                // 1: a walker from a start reaches the other continent's (0: the sea parts them)
     int cut;                  // starts a walker from its continent's first start does not reach
@@ -524,6 +526,33 @@ internal float mg_isle_in(const struct mg *g, int cx, int cy, int i) {
     return mg_blobs_in(g->isle[i].b, g->isle[i].nb, (float)(cx - g->isle[i].x), (float)(cy - g->isle[i].y), 0.4f * r, 0.25f * r)
            + (mg_fbm((float)cx * 0.2f, (float)cy * 0.2f, g->seed + 96) - 0.5f) * 0.6f * r;
 }
+// A COASTAL ISLAND'S BANK (the player 2026-11-27: "some costal islands that are reachable by wadding trough shallows
+// could be an intresting feature"): a sandbar from the island's shore to the land's (ax, ay to bx, by: each 1.5
+// tiles in), bent to one side in its middle by up to a quarter of its length, 2 w wide (0.8 .. 1.2 of that along it
+// by a noise: never the island's whole width), 0.3 - 0.55 steps under water - shallows, waded (map.c
+// tile_is_shallows: a tile's lowest corner no more than 0.75 down) - and falling 0.4 a tile at its sides. -> how much
+// a corner is on a bank, 1 on it, 0 from 3 tiles beside it (no rocky shore, no bluff there: mg_coast); *depth the
+// shallowest bank's height there (0 nowhere near one)
+internal float mg_bank(const struct mg *g, int x, int y, float *depth) {
+    float on = 0;
+    *depth = -99;
+    for (int i = 0; i < g->islands; i++) {
+        if (!g->isle[i].tie) continue;
+        float ax = g->isle[i].ax, ay = g->isle[i].ay, dx = g->isle[i].bx - ax, dy = g->isle[i].by - ay, len = sqrtf(dx * dx + dy * dy);
+        dx /= len; dy /= len;
+        float ex = (float)x - ax, ey = (float)y - ay, t = ex * dx + ey * dy, s = ey * dx - ex * dy;
+        if (t < -8 || t > len + 8 || fabsf(s) > 0.25f * len + 10) continue;
+        float k = fminf(fmaxf(t / len, 0), 1), lt = k * len, ii = (float)i;
+        float bend = 0.25f * len * 4 * k * (1 - k) * (2 * mg_noise(lt * 0.15f + ii * 17, ii * 5, g->seed + 113) - 1);
+        float w = g->isle[i].w * (0.8f + 0.4f * mg_noise(lt * 0.2f + 40, ii * 3 + 50, g->seed + 114));
+        float off = fabsf(s - bend), past = t < 0 ? -t : t > len ? t - len : 0, dd = sqrtf(off * off + past * past);
+        float b = -0.3f - 0.25f * mg_noise(lt * 0.25f + 9, ii * 7 + 20, g->seed + 115) - 0.4f * fmaxf(0, dd - w);
+        on = fmaxf(on, 1 - mg_step(w, w + 3, dd));
+        *depth = fmaxf(*depth, b);
+    }
+    if (on <= 0) *depth = 0;
+    return on;
+}
 // how far inside the map's side and off the channel (u/v units): no land beyond (mg_land's last cut)
 internal float mg_bounds(const struct mg *g, int x, int y) {
     float u = (float)(x - y), v = (float)(x + y - g->n);
@@ -615,7 +644,11 @@ internal void mg_shapes(struct mg *g) {
 // in -, 1 + n/200 of each; fjords in the cold north, 1 + n/150: a narrow cut (3 tiles of water) 14 - 24 tiles up
 // the land's slope, winding a little, its shores rocky (g->fjord: cliffs); islands, 2 + n/80: of 3 - 7 tiles' size, a
 // shape drawn (mg_small_shape: lumpy, long and bent, a crescent round a bay, a chain of islets),
-// its shore 8 tiles of water from any other land's - an island, no spit: deep water goes round it (mg_heights).
+// its shore 8 tiles of water from any other land's - an island, no spit: deep water goes round it (mg_heights). A
+// third of them (drawn each; one not placed in 400 tries is made an offshore one) are coastal islands instead: 3 - 8
+// tiles of water off their continent's shore, the same 8 from other islands, and a bank to it waded (mg_bank) - to
+// their own continent's shore; 5 tiles off the channel as any island (its middle is deep: the continents stay apart
+// on foot, mg_afoot says).
 // Last the water along the map's edge and in the channel between two continents, whatever is there.
 internal void mg_land(struct mg *g) {
     float half = g->half, ox, oy;
@@ -653,19 +686,55 @@ internal void mg_land(struct mg *g) {
         k--;
     }
     memcpy(g->fc, g->f, (size_t)(g->m * g->m) * sizeof *g->fc);
-    for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
+    for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0, tie = -1, tries = 0; g->islands < want && g->islands < 16 && t < 6000; ) {
+        if (tie < 0) { tie = mg_rnd(g) < 0.34f; tries = 0; }
+        if (tie && ++tries > 400) tie = 0;
+        t += !tie;   // (a coastal island's tries its own 400: the offshore ones as many as before)
         x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
-        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 3, 7);
-        int i = g->islands, clear = f <= -8 && f >= -20;
-        g->isle[i].x = x; g->isle[i].y = y; g->isle[i].r = r;
+        float r = (float)mg_int(g, 3, 7);
+        int i = g->islands;
+        g->isle[i].r = r; g->isle[i].tie = 0;
         g->isle[i].nb = mg_small_shape(&g->rng_shape, r, 0, g->isle[i].b, &g->isle[i].reach);
-        int reach = (int)g->isle[i].reach + 1;
+        int reach = (int)g->isle[i].reach + 1, sx, sy;
+        float sox, soy, out = 0.8f * (float)reach + (float)mg_int(g, 2, 5);
+        // a coastal island's middle out from a shore point by most of its reach and 2 - 5 tiles more (the checks
+        // below say whether its gap is right: points drawn anywhere hit that band off the shore a few times in 400)
+        if (tie && !mg_shore_point(g, (float)reach, &sx, &sy, &sox, &soy)) continue;
+        if (tie) { x = (int)floorf((float)sx + sox * out + 0.5f); y = (int)floorf((float)sy + soy * out + 0.5f); }
+        g->isle[i].x = x; g->isle[i].y = y;
+        float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n);
+        int clear = tie ? mg_corner(g, x, y) && g->fc[y * g->m + x] <= -3 : f <= -8 && f >= -20;
         clear = clear && fminf(half - fabsf(u), half - fabsf(v)) > (float)reach + 6 && mg_chan(g, x, y) > (float)reach + 5;
-        // nothing within 4 tiles of it that is within 4 tiles of the land there is (the continents, a cape, an island before)
+        clear = clear && (!tie || g->fc[y * g->m + x] >= -(float)reach - 10);
+        // nothing within 4 tiles of it that is within 4 tiles of the land there is (the continents, a cape, an island
+        // before); a coastal island: of the islands before, and its continent's shore 3 tiles of water off it at least
+        // (a corner within 1.5 of both is in a gap narrower)
         for (int cy = y - reach - 8; clear && cy <= y + reach + 8; cy++)
-            for (int cx = x - reach - 8; clear && cx <= x + reach + 8; cx++)
-                clear = !mg_corner(g, cx, cy) || g->f[cy * g->m + cx] <= -4 || mg_isle_in(g, cx, cy, i) <= -4;
+            for (int cx = x - reach - 8; clear && cx <= x + reach + 8; cx++) {
+                if (!mg_corner(g, cx, cy)) continue;
+                float in = mg_isle_in(g, cx, cy, i), fo = g->f[cy * g->m + cx], fk = g->fc[cy * g->m + cx];
+                clear = !tie ? fo <= -4 || in <= -4 : (fo <= fk + 0.01f || fo <= -4 || in <= -4) && (fk <= -1.5f || in <= -1.5f);
+            }
+        // its bank: from its shore's corner nearest the continent's shore (fc the highest) to the nearest corner of
+        // that shore 1 tile in, within 9 tiles; each end 1.5 tiles further in
+        float ax = 0, ay = 0, bx = 0, by = 0, best = -1e9f, len = 1e9f;
+        for (int cy = y - reach; clear && tie && cy <= y + reach; cy++)
+            for (int cx = x - reach; cx <= x + reach; cx++)
+                if (mg_corner(g, cx, cy) && mg_isle_in(g, cx, cy, i) >= 0 && g->fc[cy * g->m + cx] > best) { best = g->fc[cy * g->m + cx]; ax = (float)cx; ay = (float)cy; }
+        for (int cy = (int)ay - 10; clear && tie && cy <= (int)ay + 10; cy++)
+            for (int cx = (int)ax - 10; cx <= (int)ax + 10; cx++) {
+                float ex = (float)cx - ax, ey = (float)cy - ay, d = sqrtf(ex * ex + ey * ey);
+                if (mg_corner(g, cx, cy) && g->fc[cy * g->m + cx] >= 1 && d < len && mg_side(g, cx, cy) == mg_side(g, x, y)) { len = d; bx = (float)cx; by = (float)cy; }
+            }
+        clear = clear && (!tie || (best > -1e8f && len >= 3 && len <= 9));
         if (!clear) continue;
+        if (tie) {
+            float dx = (bx - ax) / len, dy = (by - ay) / len;
+            g->isle[i].tie = 1; g->ties++;
+            g->isle[i].ax = ax - 1.5f * dx; g->isle[i].ay = ay - 1.5f * dy; g->isle[i].bx = bx + 1.5f * dx; g->isle[i].by = by + 1.5f * dy;
+            g->isle[i].w = 1.6f + 0.6f * mg_rnd(g);
+        }
+        tie = -1;
         for (int cy = y - reach - 6; cy <= y + reach + 6; cy++)
             for (int cx = x - reach - 6; cx <= x + reach + 6; cx++) {
                 if (!mg_corner(g, cx, cy)) continue;
@@ -693,6 +762,8 @@ internal void mg_coast(const struct mg *g, int x, int y, float *beach, float *wi
     *rocky = 1 - mg_step(0.36f, 0.44f, c);
     float fjord = g->fjord[y * g->m + x];   // a fjord's shores: rock, no beach
     *rocky = fmaxf(*rocky, fjord); *beach *= 1 - fjord; *bluff *= 1 - fjord;
+    float depth, bank = mg_bank(g, x, y, &depth);   // a coastal island's bank comes ashore: no cliff in its way
+    *rocky *= 1 - bank; *bluff *= 1 - bank;
 }
 // a bluff: 1.8 steps up within a tile from `at` tiles inside the land (a cliff: a tile whose corners differ by 1.5
 // steps is one), down again to the plain 3 .. 12 tiles behind
@@ -836,8 +907,9 @@ internal void mg_heights(struct mg *g) {
                 // (smoothly: a trough between): f holds an island's shape only 6 tiles out (mg_land) - the bed by f
                 // alone was a shallow shelf round an island and a step down to the floor there (the player
                 // 2026-11-27: "remove that shallow ring ... it should join the seafloor height at some point").
-                // An island's shelf falls 0.4 steps a tile at least: no wading out to it. The channel between the
-                // continents is deep whatever its shores are, and so is a ring 3 - 5 tiles off an island's shore
+                // An island's shelf falls 0.4 steps a tile at least: no wading out to it, and a ring 3 - 5 tiles off
+                // an offshore island's shore is deep; a coastal island's bank rises over all that (mg_bank). The
+                // channel between the continents is deep whatever is in it
                 float s = 0.3f - 0.15f * beach + 1.0f * rocky, steep = 0.6f + 0.6f * rocky, d = -g->fc[y * g->m + x];
                 float deep = mg_sea_bed(d, s, steep);
                 int ring = 0;
@@ -845,13 +917,15 @@ internal void mg_heights(struct mg *g) {
                     int reach = (int)g->isle[i].reach + 24;
                     if (abs(x - g->isle[i].x) > reach || abs(y - g->isle[i].y) > reach) continue;
                     float in = mg_isle_in(g, x, y, i);
-                    ring |= in > -5 && in < -3;
+                    ring |= !g->isle[i].tie && in > -5 && in < -3;
                     deep = mg_smax(deep, mg_sea_bed(-in, fmaxf(s, 0.4f), steep), 1.0f);
                     d = fminf(d, -in);
                 }
                 deep = mg_smax(deep, mg_sea_floor(g, x, y, d), 2.0f);
-                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, mg_chan(g, x, y))));
+                float bank;
                 if (ring) deep = fminf(deep, -1.2f);
+                if (mg_bank(g, x, y, &bank) > 0) deep = fmaxf(deep, bank);
+                deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, mg_chan(g, x, y))));
                 g->h[y * g->m + x] = deep;
                 continue;
             }
@@ -1422,6 +1496,17 @@ internal int mg_afoot(struct mg *g, int mend) {
         g->walkable += land;
         g->walked += land && seen[i];
         if (land && seen[i] && mg_side(g, i % n, i / n) >= g->homes) g->afoot = 1;   // (the New World reached on foot)
+    }
+    g->ties_waded = 0;   // a coastal island's land by its bank's end reached from the bank's other end (on the shore)
+    for (int k = 0; seen && queue && k < g->islands; k++) {
+        int reached = 0, ax = (int)g->isle[k].ax, ay = (int)g->isle[k].ay, bx = (int)g->isle[k].bx, by = (int)g->isle[k].by;
+        if (!g->isle[k].tie || !mg_on(g, bx, by)) continue;
+        memset(seen, 0, (size_t)(n * n));
+        mg_walk(g, bx, by, seen, queue, 1);
+        for (int y = ay - 2; !reached && y <= ay + 2; y++)
+            for (int x = ax - 2; !reached && x <= ax + 2; x++)
+                reached = mg_on(g, x, y) && seen[y * n + x] && mg_kind(g, x, y) == MG_K_LAND && mg_isle_in(g, x, y, k) > 0;
+        g->ties_waded += reached;
     }
     for (int k = 0; k < g->fords; k++) {
         int kind = g->ford[k].x < 0 ? MG_K_OFF : mg_kind(g, (int)g->ford[k].x, (int)g->ford[k].y);
@@ -2199,8 +2284,8 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
     start[2] = ground_at(map, start[0], start[1]);
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords (%d laid for a start cut off), %d oases, %d swamps, %d islands, %d capes, %d bays, %d fjords, the continents %s on foot, %d starts cut off from their continent's, %d of %d land tiles reached from the starts, %d players (%d start units) - each's start (/ its team) at",
-                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords_ok, g->mended, g->oases, g->swamps, g->islands, g->capes, g->bays, g->fjords, g->afoot ? "JOINED" : "apart", g->cut, g->walked, g->walkable, g->np, units);
+        fprintf(g_log, "# mapgen: \"%s\" made - seed %u, %d tiles a side, %d land and %d water tiles, %d cliff tiles, %d mountain ranges of %d tiles with %d mines at their feet, %d plateaus, %d lakes, %d rivers with %d fords (%d laid for a start cut off), %d oases, %d swamps, %d islands (%d coastal, %d of them reached on foot from the shore), %d capes, %d bays, %d fjords, the continents %s on foot, %d starts cut off from their continent's, %d of %d land tiles reached from the starts, %d players (%d start units) - each's start (/ its team) at",
+                MG_NAME, seed, n, g->land, g->water, g->cliffs, g->ranges, g->mountain, g->mountain_mines, g->plateaus, g->lakes, g->rivers, g->fords_ok, g->mended, g->oases, g->swamps, g->islands, g->ties, g->ties_waded, g->capes, g->bays, g->fjords, g->afoot ? "JOINED" : "apart", g->cut, g->walked, g->walkable, g->np, units);
         for (int i = 0; i < g->np; i++) {
             fprintf(g_log, " %d,%d", g->sx[seat[i]], g->sy[seat[i]]);
             if (team[i]) fprintf(g_log, "/%d", team[i]);
@@ -2287,8 +2372,8 @@ internal int mapgen_preview(int n, int np, uint32_t seed, uint32_t *px, int size
                 if (pi >= 0 && pj >= 0 && pi < size && pj < size) px[pj * size + pi] = edge ? 0x101010 : col;
             }
     }
-    snprintf(what, (size_t)cap, "%d land tiles, %d cliff tiles, %d ranges, %d lakes, %d rivers, %d islands, gold %d iron %d stone %d, %d forests",
-             g->land, g->cliffs, g->ranges, g->lakes, g->rivers, g->islands, g->made[MG_GOLD], g->made[MG_IRON], g->made[MG_STONE], g->forests);
+    snprintf(what, (size_t)cap, "%d land tiles, %d cliff tiles, %d ranges, %d lakes, %d rivers, %d islands (%d coastal), gold %d iron %d stone %d, %d forests",
+             g->land, g->cliffs, g->ranges, g->lakes, g->rivers, g->islands, g->ties, g->made[MG_GOLD], g->made[MG_IRON], g->made[MG_STONE], g->forests);
     mg_delete(g);
     return 1;
 }

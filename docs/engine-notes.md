@@ -786,7 +786,7 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   ford, every 12 - 18 tiles of its way, gravel under it and on its banks; its mouth is cut through the sea's
   shallows. The first maps' rivers (0.8 steps) were waded nearly anywhere, and the channel between the continents
   where both shores were beaches: the sea is 1.5 steps deep down the middle now whatever its shores, and in a
-  ring 3 - 5 tiles off an island (its bed: "The sea's bed" below). What the game then makes of the tiles is looked at (mg_afoot, by the tiles'
+  ring 3 - 5 tiles off an offshore island (its bed: "The sea's bed" below; a coastal island is waded to on purpose). What the game then makes of the tiles is looked at (mg_afoot, by the tiles'
   kinds): the continents apart on foot, a continent's starts reached from one another - where one is cut off (a
   range and the rivers from its ends) fords are laid on the way to it that goes through the least river, and the
   ground is set again; the log's line says both. A swamp's pools are shallows. The rain shadow: a wind by the seed (one
@@ -913,6 +913,19 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   steps (HEAD: 64 % at 5), the shallows 8 % of them (8.5 %). On screen the depth shows only down to 4 steps: the
   colour under the water is the game's water colour set by depth, 8 colours over 0 - 4 steps (the mesh's water scale
   -0.612 a world unit, pipe `water`; past the last the last), [display] water_depth_tint_full only how strong.
+- **Coastal islands** (2026-11-27, the player: "some costal islands that are reachable by wadding trough shallows
+  could be an intresting feature"): a third of the islands (drawn each) sit 3 - 8 tiles of water off their
+  continent's shore - their middle out from a shore point (mg_shore_point) by most of their reach and 2 - 5 tiles more:
+  points drawn anywhere hit that band a few times in 400 tries -, joined to it by a bank (mapgen.c mg_bank): a
+  sandbar 0.3 - 0.55 steps under water from the island's shore corner nearest the land to the nearest corner of the
+  shore, bent a little, 3 - 5 tiles wide - shallows, waded -, no rocky shore or bluff where it comes ashore; no deep
+  ring round them. One not placed in its own 400 tries is made an offshore one (the offshore ones' tries as many as
+  before). The channel's middle stays deep, so they keep the 5 tiles off it any island keeps; the bank goes to the
+  island's own continent. mg_afoot walks each bank from its shore end, the log's line says how many are reached
+  (`N islands (C coastal, W of them reached on foot from the shore)`). Starts are never on one. Previews of 8
+  layouts and seeds at 220 tiles, many islands: 37 coastal of 64 islands, every bank walked; 20 games of 8 minutes
+  (two continents; one continent with many islands; EE large, AoC normal): 18 coastal, all reached, no fault, the
+  continents apart on foot, no start cut off. AoC's normal map (116 tiles) has no room for any island, as before.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
   "Age of AI", its options in a dialog): the layout (two continents west and east, the sea between them north to
   south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -
