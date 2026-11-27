@@ -499,7 +499,11 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
 - `camtrace N`: the next N presented frames - frame time, camera movement, scroll steps in between (`# camtrace:`
   lines). Edge scrolling headless: `vmouse 2559 700`. 2026-10-12, AoC scrolling: 0 or 1 steps per frame of 0.285
   tiles each (every fifth frame none); with `[camera] smooth_scroll` one step per frame, 0.0285 tiles per ms of frame time.
-  Headless a camtrace draws every frame (else five a second). `arrows <bits>` (1 left, 2 right, 4 up, 8 down; 0 lets go)
+  Headless a camtrace draws every frame (else five a second). `camtrace N wait` counts from the first frame that moves
+  the camera (the player's game: armed, then the player scrolls when he likes). Each line also has what the frame's
+  input saw (`input`: 1 no form with the view, 2 no mouse, 3 the mouse frozen, 4 the game's window not in front, 5 an
+  edit box has the keyboard, 6 ran; the edges and arrows held, the render thread's pans) and the game thread's own
+  arrow and middle-drag events since the frame before - which input moved it. `arrows <bits>` (1 left, 2 right, 4 up, 8 down; 0 lets go)
   holds arrow keys without a window in front (the own renderer's scrolling). The camera's evenness is the eye's move
   between frames by the times their cameras were made (`camera made`), not by `dt`: 2026-11-27, the editor's arrows
   0.0142-0.0144 tiles a ms, frame for frame (before the move went where the camera is made: 0.001-0.021).

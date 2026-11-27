@@ -58,7 +58,9 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
 // until the zoom's ride had ended - the arrows stood after a notch of the wheel (the player 2026-11-20: "scrolling in or
 // out will interupt the arrow keys camera movment"), the longer the busier the game (the ride ends at the camera's step).
 internal void camera_anchor_drop(void);
+internal int g_ct_pans;   // camtrace: the input's pans this frame
 internal void input_pan(float dx, float dy) {
+    g_ct_pans++;
     camera_anchor_drop();
     camera_pan(dx, dy);
 }
@@ -134,7 +136,9 @@ internal int __thiscall hook_edit_keyboard(ee_ui_control *box) {
     return r;
 }
 
+internal volatile LONG g_ct_keyev, g_ct_grabev;   // camtrace: the game thread's arrow and middle-drag events since the last frame
 internal uint32_t __thiscall hook_key_scroll_execute(ee_key_scroll *self, uint32_t a, uint32_t b) {
+    InterlockedIncrement(&g_ct_keyev);
     if (keyboard_captured()) {
         InterlockedExchange(&g_arrow_keys, 0);
         return 0;
@@ -708,6 +712,7 @@ internal void __thiscall hook_minimap_queue(eeui_mini_map *c) {
     eeui_mini_map_queue_point(c);
 }
 internal uint32_t __thiscall hook_grab_scroll(eeuie_grab_scroll *self, ee_ui_form *form, uint32_t arg) {
+    InterlockedIncrement(&g_ct_grabev);
     void *uim = ui_manager();
     if (g_wheel_hook && ui_form_is_game(uim ? ui_current_form(uim) : NULL)) return 0;
     return eeuie_grab_scroll_execute(self, form, arg);
@@ -724,6 +729,9 @@ internal uint32_t __thiscall hook_grab_scroll(eeuie_grab_scroll *self, ee_ui_for
 // The pipe's `arrows <bits>` (tests): arrows held as scroll_arrows' bits, without a window in front - a headless game
 // has none, and the keys' own state can't be faked from outside.
 internal volatile LONG g_test_arrows;
+// camtrace: what the frame's input saw - 1 no form with the view, 2 no mouse, 3 the mouse frozen, 4 the game's window not
+// in front, 5 an edit box has the keyboard, 6 ran; the edges and arrows held (bits as scroll_edges); the pans it made
+internal int g_ct_why, g_ct_edges, g_ct_arrows;
 internal void input_frame(float ms) {
     void *uim = ui_manager();
     ee_ui_form *f = uim ? ui_current_form(uim) : NULL;
@@ -732,9 +740,14 @@ internal void input_frame(float ms) {
     grab_frame(f, m);
     minimap_frame(f, m);
     int test = (int)g_test_arrows;
-    if (!ui_form_has_view(f) || !m || mouse_get_frozen(m) || (!test && !game_in_front())) return;
-    if (!test) scroll_move(ms, scroll_edges());
-    int a = ui_form_get_keyboard_captured(f) ? 0 : test ? test : scroll_arrows();
+    g_ct_why = !ui_form_has_view(f) ? 1 : !m ? 2 : mouse_get_frozen(m) ? 3 : !test && !game_in_front() ? 4 : 6;
+    if (g_ct_why < 6) return;
+    int e = test ? 0 : scroll_edges();
+    g_ct_edges = e;
+    scroll_move(ms, e);
+    if (ui_form_get_keyboard_captured(f)) g_ct_why = 5;
+    int a = g_ct_why == 5 ? 0 : test ? test : scroll_arrows();
+    g_ct_arrows = a;
     float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // arrow_frame's speed
     float dx = (a & 2 ? step : 0) - (a & 1 ? step : 0), dy = (a & 4 ? step : 0) - (a & 8 ? step : 0);   // up +y, as arrow_frame
     if (dx != 0 || dy != 0) input_pan(dx, dy);
@@ -819,9 +832,10 @@ internal int g_ct_n;
 internal LONGLONG g_ct_sample, g_ct_p0, g_ct_p1, g_ct_st_qpc;   // QPC: the camera made; the last Present's call and return; the shown present's refresh
 internal UINT g_ct_pc, g_ct_st_pc, g_ct_st_sync;                // the last Present's count; the shown present's count and refresh
 internal float g_ct_eye[2];                                     // the frame's eye (rf_camera_frame)
-internal struct { float dt, dx, dy, ex, ey; int steps; LONGLONG show, sample, p0, p1, st_qpc; UINT pc, st_pc, st_sync; } g_ct[CT_MAX];
+internal struct { float dt, dx, dy, ex, ey; int steps, why, edges, arrows, pans, keyev, grabev; LONGLONG show, sample, p0, p1, st_qpc; UINT pc, st_pc, st_sync; } g_ct[CT_MAX];
 internal LARGE_INTEGER g_ct_last, g_ct_t0;
 internal float g_ct_x, g_ct_y;
+internal int g_ct_wait;   // camtrace N wait: the frames counted from the first that moved the camera
 internal void camtrace_frame(void) {   // the render thread, every presented frame
     if (!g_ct_left) return;
     LARGE_INTEGER now, f;
@@ -829,25 +843,39 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
     QueryPerformanceFrequency(&f);
     ee_camera *cam = game_camera();
     float x = camera_get_x(cam), y = camera_get_y(cam);
+    if (g_ct_wait && (!g_ct_last.QuadPart || (x == g_ct_x && y == g_ct_y))) {
+        g_ct_last = now; g_ct_x = x; g_ct_y = y;
+        g_ct_pans = 0;
+        InterlockedExchange(&g_ct_keyev, 0);
+        InterlockedExchange(&g_ct_grabev, 0);
+        InterlockedExchange(&g_scroll_calls, 0);
+        return;
+    }
+    if (g_ct_wait) { g_ct_wait = 0; g_ct_t0 = g_ct_last; }
     if (g_ct_n < CT_MAX && g_ct_last.QuadPart) {
         g_ct[g_ct_n].dt = (float)((double)(now.QuadPart - g_ct_last.QuadPart) * 1000.0 / (double)f.QuadPart);
         g_ct[g_ct_n].dx = x - g_ct_x;
         g_ct[g_ct_n].dy = y - g_ct_y;
         g_ct[g_ct_n].steps = (int)InterlockedExchange(&g_scroll_calls, 0);
+        g_ct[g_ct_n].why = g_ct_why; g_ct[g_ct_n].edges = g_ct_edges; g_ct[g_ct_n].arrows = g_ct_arrows; g_ct[g_ct_n].pans = g_ct_pans;
+        g_ct[g_ct_n].keyev = (int)InterlockedExchange(&g_ct_keyev, 0); g_ct[g_ct_n].grabev = (int)InterlockedExchange(&g_ct_grabev, 0);
         g_ct[g_ct_n].ex = g_ct_eye[0]; g_ct[g_ct_n].ey = g_ct_eye[1];
         g_ct[g_ct_n].show = now.QuadPart; g_ct[g_ct_n].sample = g_ct_sample;
         g_ct[g_ct_n].p0 = g_ct_p0; g_ct[g_ct_n].p1 = g_ct_p1; g_ct[g_ct_n].st_qpc = g_ct_st_qpc;
         g_ct[g_ct_n].pc = g_ct_pc; g_ct[g_ct_n].st_pc = g_ct_st_pc; g_ct[g_ct_n].st_sync = g_ct_st_sync;
         g_ct_n++;
     } else { InterlockedExchange(&g_scroll_calls, 0); g_ct_t0 = now; }
+    g_ct_pans = 0;
     g_ct_last = now; g_ct_x = x; g_ct_y = y;
     if (InterlockedDecrement(&g_ct_left) == 0 && g_log) {
         EnterCriticalSection(&g_lock);
         double k = 1000.0 / (double)f.QuadPart;
         #define CT_MS(q) ((q) ? (double)((q) - g_ct_t0.QuadPart) * k : -1.0)
         for (int i = 0; i < g_ct_n; i++)
-            fprintf(g_log, "# camtrace: %3d dt %5.1f ms, moved %7.4f %7.4f, scroll steps %d; at %.2f, camera made %.2f eye %.4f %.4f,"
+            fprintf(g_log, "# camtrace: %3d dt %5.1f ms, moved %7.4f %7.4f, scroll steps %d; input %d edges %d arrows %d pans %d,"
+                    " the game's arrow events %d, middle drags %d; at %.2f, camera made %.2f eye %.4f %.4f,"
                     " last present %.2f .. %.2f #%u, shown #%u at refresh %u %.2f\n", i, g_ct[i].dt, g_ct[i].dx, g_ct[i].dy, g_ct[i].steps,
+                    g_ct[i].why, g_ct[i].edges, g_ct[i].arrows, g_ct[i].pans, g_ct[i].keyev, g_ct[i].grabev,
                     CT_MS(g_ct[i].show), CT_MS(g_ct[i].sample), g_ct[i].ex, g_ct[i].ey, CT_MS(g_ct[i].p0), CT_MS(g_ct[i].p1), g_ct[i].pc,
                     g_ct[i].st_pc, g_ct[i].st_sync, CT_MS(g_ct[i].st_qpc));
         #undef CT_MS
@@ -863,8 +891,9 @@ internal void cmd_camtrace(char *out, const char *args) {
     int n = atoi(args);
     if (n <= 0 || n > CT_MAX) n = 120;
     g_ct_n = 0; g_ct_last.QuadPart = 0;
+    g_ct_wait = strstr(args, "wait") != NULL;
     g_ct_left = n + 1;
-    REPLY("tracing %d frames\n", n);
+    REPLY("tracing %d frames%s\n", n, g_ct_wait ? " from the first that moves the camera" : "");
 }
 
 // scrolltest <left|right|up|down> <calls>: run the scroll action on a fake object, report camera movement
