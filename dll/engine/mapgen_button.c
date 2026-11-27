@@ -78,7 +78,7 @@ internal uint32_t __thiscall mb_click(void *ev, ee_ui_form *form, uint32_t arg) 
     int np = 0;
     for (int k = 0; k < 16; k++) { int t = setup_slot_get_type(setup_slot_at(s, k)); np += t == 0 || t == 1 || t == 2; }
     uint32_t seed = GetTickCount() % 1000000u;   // an example: the game draws its own at the start
-    md_open_setup(map_scale_tiles(setup_get_map_scale(s)), np > 0 ? np : 1, seed);
+    md_open_setup(map_scale_tiles(setup_get_map_scale(s)), np > 0 ? np : 1, seed, setup_reveal_map(s));
     return 0;
 }
 

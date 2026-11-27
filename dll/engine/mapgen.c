@@ -243,11 +243,12 @@ internal int mg_host_send(void) {
     b[0] = 1;
     b[1] = MG_OPTS;
     for (int i = SETTING_map_layout; i <= SETTING_map_mines; i++) b[2 + i - SETTING_map_layout] = (uint8_t)*(const int *)((const uint8_t *)&g_set + k_settings[i].off);
-    b[2 + MG_OPTS] = (uint8_t)(g_mg_keep.on != 0);
+    int keep = g_mg_keep.on && setup_reveal_map(setup_lobby_at());   // (only on a revealed map: md_open_setup)
+    b[2 + MG_OPTS] = (uint8_t)keep;
     memcpy(b + 3 + MG_OPTS, &g_mg_keep.seed, 4);
     int sent = mod_msg_send(MOD_MSG_MAP_OPTIONS, b, (int)sizeof b);
     if (g_log) log_locked("# mapgen: the host's \"%s\" options %s to every PC%s\n", MG_NAME, sent ? "sent" : "NOT sent (no server, the message not registered)",
-                          g_mg_keep.on ? ", with the preview's seed (play this map)" : "");
+                          keep ? ", with the preview's seed (play this map)" : g_mg_keep.on ? ", not the preview's seed: the map is not revealed" : "");
     if (sent) g_mg_keep.on = 0;   // its seed goes with the options: every PC's map from it
     return sent;
 }
@@ -1746,7 +1747,9 @@ internal int mapgen_make(const ee_setup *setup, void *players, int human, uint32
     int kept = 0;
     if (g_mg_keep.on && setup && setup_get_mode(setup) == 0) {   // (the setup screen's: a random-map game)
         g_mg_keep.on = 0;
-        if (!g->opt.mp) { kept = 1; keep = g_mg_keep.seed; }
+        if (!setup_reveal_map(setup)) {   // (unticked after the dialog: its fog would hide a map seen - md_open_setup)
+            if (g_log) log_locked("# mapgen: the seed of the options' preview, %u, left out - the map is not revealed\n", g_mg_keep.seed);
+        } else if (!g->opt.mp) { kept = 1; keep = g_mg_keep.seed; }
         else if (g_log) log_locked("# mapgen: the seed of the options' preview, %u, left out - a multiplayer game plays the host's\n", g_mg_keep.seed);
     }
     if (g->opt.from == MG_FROM_HOST && g_mg_host.keep) { kept = 1; keep = g_mg_host.seed; }

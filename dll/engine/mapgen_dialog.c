@@ -37,7 +37,8 @@ internal struct {
     int was[MD_ROWS];   // the options as they were: Cancel puts them back
     uint32_t *px;       // the preview's picture, side x side
     int side;
-    int setup;          // asked on the game setup screen (mapgen_button.c): the seed an example, "play this map" offered
+    int setup;          // asked on the game setup screen (mapgen_button.c): the seed an example, "play this map" offered -
+                        // 2: greyed, the setup's map not revealed (the map's seen in the preview: a game on it knows it)
     int keep;           // ... and ticked
     HANDLE worker;      // the preview being made (job), NULL none
     int dirty;          // a choice changed meanwhile: made anew once it is done
@@ -167,6 +168,7 @@ internal INT_PTR CALLBACK md_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         static const int buttons[] = { IDOK, IDCANCEL, MD_RESEED, MD_KEEP };
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
         if (!g_md.setup) ShowWindow(GetDlgItem(d, MD_KEEP), SW_HIDE);
+        if (g_md.setup == 2) EnableWindow(GetDlgItem(d, MD_KEEP), FALSE);
         md_rows(d);
         md_render(d);
         SetFocus(GetDlgItem(d, IDOK));
@@ -217,7 +219,7 @@ internal void md_keep(void) {
 }
 
 // the dialog for a map of n tiles a side and np players from *seed (a new one drawn: there): 1 OK (the choices in
-// g_set and the file), 0 cancelled or not opened. setup: the game setup screen's - "play this map" offered
+// g_set and the file), 0 cancelled or not opened. setup: the game setup screen's - "play this map" offered (2: greyed)
 internal int md_open(int n, int np, uint32_t *seed, int setup) {
     int points = game_dialog_points(MD_POINTS, MD_PIXELS), ctx;
     static WORD tpl[2048];
@@ -286,9 +288,10 @@ internal int mapgen_editor_ask(ee_se_random_map *a) {
 }
 
 // the game setup screen's options button (mapgen_button.c): the dialog for its map, seed an example - "play this map"
-// keeps it for the next single-player game's map (g_mg_keep)
-internal void md_open_setup(int n, int np, uint32_t seed) {
-    if (md_open(n, np, &seed, 1) && g_md.keep) { g_mg_keep.on = 1; g_mg_keep.seed = seed; }
+// keeps it for the next single-player game's map (g_mg_keep). Only with the setup's map revealed (the player
+// 2026-11-27): else a game on a map seen in the preview would know what its fog hides - greyed then
+internal void md_open_setup(int n, int np, uint32_t seed, int revealed) {
+    if (md_open(n, np, &seed, revealed ? 1 : 2) && g_md.keep) { g_mg_keep.on = 1; g_mg_keep.seed = seed; }
     else if (g_md.result == IDOK) g_mg_keep.on = 0;
 }
 
