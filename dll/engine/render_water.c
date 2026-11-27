@@ -118,7 +118,7 @@ internal struct {
     int ow, oh;
     ID3D11GeometryShader *gq;        // the late draws' faces grown (rd3_water_grow)
     int gqfail;
-    ID3D11PixelShader *eps;          // the soft edges under the level laid over from their layer (rw_edges_under)
+    ID3D11PixelShader *eps, *lps;    // the soft edges under the level laid over from their layer, drawn into it (rw_edges_under)
     ID3D11BlendState *elay, *eover;  // into the layer (its colour times its alpha, what it covers), the layer over the scene
     int efail;
     int mirror;      // the reflections, -1: as the ini says
@@ -445,6 +445,9 @@ internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const r
         ID3DBlob *code = d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "pwel", "ps_4_0");
         HRESULT hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_wa.eps) : E_FAIL;
         D3D_RELEASE(code);
+        code = SUCCEEDED(hr) ? d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "pswel", "ps_4_0") : NULL;
+        if (SUCCEEDED(hr)) hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_wa.lps) : E_FAIL;
+        D3D_RELEASE(code);
         D3D11_BLEND_DESC bd = { 0 };
         bd.RenderTarget[0] = (D3D11_RENDER_TARGET_BLEND_DESC){ TRUE, D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD,
                                                                D3D11_BLEND_ONE, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD, D3D11_COLOR_WRITE_ENABLE_ALL };
@@ -455,18 +458,25 @@ internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const r
     }
     rf_edges_part(x, RF_PART_EDGES);
     rf_water_part(x, ok ? 8 : 1);
-    if (ok) {
-        static const FLOAT none[4] = { 0, 0, 0, 0 };
-        ID3D11DeviceContext_ClearRenderTargetView(x, g_oit.ar, none);
-        g_oit_rtv[0] = g_oit.ar, g_oit_rtv[1] = NULL, g_oit_scene = f->rtv;   // (rf_draw: placed on the scene's target)
-        *first = 1;
-    }
-    for (int j = 0; j <= laste; j++) {
-        if (!g_rf.cmd[j].soft || (oit && g_rf.cmd[j].oit)) continue;
+    for (int j = 0; j <= laste; j++) {   // those not of the layer first (another viewport), over the scene as before
         rf_cmd e = g_rf.cmd[j];
+        if (!e.soft || (oit && e.oit) || (ok && oit_scene(&e, f))) continue;
         e.depth = e.soft;
-        if (ok && oit_scene(&e, f)) { e.rtv = g_oit.ar; e.blend = g_wa.elay; }
         rf_draw(x, &e, b, first);
+    }
+    if (ok) {   // the layer: its colour, and (the weighted transparency's second target) the depth under the level, cleared deep
+        static const FLOAT none[4] = { 0, 0, 0, 0 }, deep[4] = { 10, 10, 10, 10 };
+        ID3D11DeviceContext_ClearRenderTargetView(x, g_oit.ar, none);
+        ID3D11DeviceContext_ClearRenderTargetView(x, g_oit.rr, deep);
+        g_oit_rtv[0] = g_oit.ar, g_oit_rtv[1] = g_oit.rr, g_oit_scene = f->rtv;   // (rf_draw: placed on the scene's target)
+        ID3D11DeviceContext_PSSetShader(x, g_wa.lps, NULL, 0);
+        *first = 1;
+        for (int j = 0; j <= laste; j++) {
+            rf_cmd e = g_rf.cmd[j];
+            if (!e.soft || (oit && e.oit) || !oit_scene(&e, f)) continue;
+            e.depth = e.soft; e.rtv = g_oit.ar; e.blend = g_wa.elay;
+            rf_draw(x, &e, b, first);
+        }
     }
     rf_edges_part(x, 0);
     g_oit_rtv[0] = g_oit_rtv[1] = g_oit_scene = NULL;
@@ -474,8 +484,8 @@ internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const r
     D3D11_VIEWPORT port = rs_port(&f->vport, f->rtv);
     ID3D11DeviceContext_RSSetViewports(x, 1, &port);
     ID3D11DeviceContext_OMSetRenderTargets(x, 1, (ID3D11RenderTargetView **)&f->rtv, NULL);
-    ID3D11ShaderResourceView *srv = g_oit.as;
-    ID3D11DeviceContext_PSSetShaderResources(x, 16, 1, &srv);
+    ID3D11ShaderResourceView *srv[2] = { g_oit.as, g_oit.rs };
+    ID3D11DeviceContext_PSSetShaderResources(x, 16, 2, srv);
     ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &g_wa.osrv);
     ID3D11DeviceContext_OMSetBlendState(x, g_wa.eover, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, NULL, 0);
@@ -485,8 +495,8 @@ internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const r
     ID3D11DeviceContext_VSSetShader(x, g_d3d.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, g_wa.eps, NULL, 0);
     ID3D11DeviceContext_Draw(x, 3, 0);
-    srv = NULL;
-    ID3D11DeviceContext_PSSetShaderResources(x, 16, 1, &srv);
+    srv[0] = srv[1] = NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 16, 2, srv);
     rf_bind(x);
     *first = 1;
     b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
@@ -535,7 +545,7 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
         g_wa.copy_ok = g_wa.have;
         if (g_wa.have && (!g_wa.otex || g_wa.ow != g_wa.cw || g_wa.oh != g_wa.ch)) {
             D3D_RELEASE(g_wa.osrv); D3D_RELEASE(g_wa.ortv); D3D_RELEASE(g_wa.otex);
-            D3D11_TEXTURE2D_DESC nd = { (UINT)g_wa.cw, (UINT)g_wa.ch, 1, 1, DXGI_FORMAT_R16G16_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
+            D3D11_TEXTURE2D_DESC nd = { (UINT)g_wa.cw, (UINT)g_wa.ch, 1, 1, DXGI_FORMAT_R16G16B16A16_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
                                         D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE, 0, 0 };
             HRESULT hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &nd, NULL, &g_wa.otex);
             if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRenderTargetView(g_d3d.dev, (ID3D11Resource *)g_wa.otex, NULL, &g_wa.ortv);

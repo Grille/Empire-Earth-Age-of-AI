@@ -343,8 +343,10 @@ internal const char k_rd3_shader[] =
     " return float2(g.x * cau.z - g.y * cau.w, g.x * cau.w + g.y * cau.z); }\n"
     // a move dw on the map (tiles) as a move on the screen (pixels), by how the map's place changes from pixel to pixel
     // (wx, wy: its ddx, ddy); no more than 48 pixels (the surface seen edge on)
-    "float2 wpix(float2 dw, float2 wx, float2 wy) { float det = wx.x * wy.y - wy.x * wx.y; if (abs(det) < 1e-12) return 0;"
-    " float2 q = float2(dw.x * wy.y - wy.x * dw.y, wx.x * dw.y - dw.x * wx.y) / det; float l = length(q); return l > 48 ? q * (48 / l) : q; }\n"
+    "float2 wpixu(float2 dw, float2 wx, float2 wy) { float det = wx.x * wy.y - wy.x * wx.y; if (abs(det) < 1e-12) return 0;"
+    " return float2(dw.x * wy.y - wy.x * dw.y, wx.x * dw.y - dw.x * wx.y) / det; }\n"
+    "float2 wclamp(float2 q) { float l = length(q); return l > 48 ? q * (48 / l) : q; }\n"
+    "float2 wpix(float2 dw, float2 wx, float2 wy) { return wclamp(wpixu(dw, wx, wy)); }\n"
     // a ship's filled bottom: one texel of its hull, whole - stretched between its rim's own places in the texture it took
     // in what lay between them, the sails' and the rigging's clear parts too (the player, 2026-11-13: "the undersides of the
     // ships render quite messy, partly picking up transparent section of the texture")
@@ -521,8 +523,8 @@ internal const char k_rd3_shader[] =
     // the bottom (the player, 2026-11-27: "it should maybe smear the last availabe terrain downward"); the last row read
     // instead. Nor nothing behind for something: where the ground's mesh ends inside the view, what lies aside of it
     // stays where it is
-    "struct WO { float4 c : SV_Target0; float2 o : SV_Target1; };\n"   // the picture; the refraction's shift there (render_water.c otex)
-    "WO wfog(O i) { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz);"
+    "struct WO { float4 c : SV_Target0; float4 o : SV_Target1; };\n"   // the picture; the refraction's shift there and its whole move, unlimited (render_water.c otex)
+    "WO wfog(O i) { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz); float2 ou = 0;"
     " float2 wx = ddx(i.w.xy), wy = ddy(i.w.xy);"
     // The move's strength by the way through the water to what is read, not to what lies behind this pixel: read once
     // by the pixel's own, then again by the depth found there. By the pixel's own, the seabed far behind beside an oar
@@ -532,9 +534,9 @@ internal const char k_rd3_shader[] =
     // (the depth under the level: the surface point's, less the way behind it times the line of sight's fall a unit;
     // nothing behind, the whole move)
     " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1e3, vz = max(wop.z - i.w.z, 0) / wl;"
-    "  float2 sl = wslope(i.w.xy) * cat.y, bp = i.p.xy + wpix(sl * saturate((sea.z - i.w.z + tw * vz) * 2), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    "  float2 sl = wslope(i.w.xy) * cat.y, bp; ou = wpixu(sl, wx, wy); bp = i.p.xy + wclamp(ou * saturate((sea.z - i.w.z + tw * vz) * 2)); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
     "  float db = wsd.Load(int3(bp, 0)); tw = db < 0.99999 ? wl * max((i.p.z - wfc.w) / (db - wfc.w) - 1, 0) : 1e3;"
-    "  bp = i.p.xy + wpix(sl * saturate((sea.z - i.w.z + tw * vz) * 2), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    "  bp = i.p.xy + wclamp(ou * saturate((sea.z - i.w.z + tw * vz) * 2)); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
     "  int3 b = int3(bp, 0); db = wsd.Load(b);"
     "  if (db > i.p.z && (db < 0.99999 || d >= 0.99999)) { a = b; d = db; } }"
     " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
@@ -544,7 +546,7 @@ internal const char k_rd3_shader[] =
     " float3 bc = wsc.Load(a).rgb;"
     " if (wtn.z > 0 && d < 0.99999) { float3 bp = wop.xyz + (i.w - wop.xyz) * ((i.p.z - wfc.w) / (d - wfc.w)), tc = wtint(bp.z, sea.z - bp.z);"
     "  float3 fr = misc.y > 0.5 ? fogc.rgb * (1 - saturate(i.f)) : float3(0, 0, 0); bc = bc * tc + fr * (1 - tc); }"
-    " WO o; o.c = float4(lerp(bc, fc, wp * wp * (3 - 2 * wp)), 1); o.o = float2(a.xy - int2(i.p.xy)); return o; }\n"
+    " WO o; o.c = float4(lerp(bc, fc, wp * wp * (3 - 2 * wp)), 1); o.o = float4(a.xy - int2(i.p.xy), ou); return o; }\n"
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
     // colour lit as the unit is - on a white part the brightest channel of its vertex colour, on a part in the player's
     // colour (the vertex colour the light times it: nearer the player's colour's direction than grey's) the vertex colour
@@ -574,15 +576,25 @@ internal const char k_rd3_shader[] =
     "OO psoit(O i) { float4 c = ps(i); float a = saturate(c.a), z = i.p.w;"
     " float w = clamp(10 / (1e-5 + pow(z / 10, 2) + pow(z / 300, 6)), 1e-2, 3e3); OO o; o.a = float4(c.rgb * a, a) * w; o.r = a; return o; }\n"
     // the sums over the scene: their weighted mean colour, as strong as all layers together hide what lies behind
-    "Texture2D oac : register(t16); Texture2D<float> orv : register(t17); Texture2D<float2> wof : register(t3);\n"
+    "Texture2D oac : register(t16); Texture2D<float> orv : register(t17); Texture2D<float4> wof : register(t3);\n"
     // the layers under the water's level (wsp.x 1) read where the water's step read the picture behind the surface: bent as
     // the seabed behind them (render_water.c THE WATER'S STEP AND WHAT COMES AFTER IT)
     "float4 poitc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0);"
-    " if (wsp.x > 0 && wsp.y == 0) a.xy += int2(round(wof.Load(a))); float r = orv.Load(a); if (r >= 0.9999) discard;"
+    " if (wsp.x > 0 && wsp.y == 0) a.xy += int2(round(wof.Load(a).xy)); float r = orv.Load(a); if (r >= 0.9999) discard;"
     " float4 c = oac.Load(a); return float4(c.rgb / max(c.a, 1e-5), 1 - r); }\n"
-    // the soft edges under the water's level, laid over the scene from their own layer where the water's step read the
-    // picture behind the surface: bent as the solid parts and the seabed behind them (render_water.c rw_edges_under)
-    "float4 pwel(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0); a.xy += int2(round(wof.Load(a))); return oac.Load(a); }\n";
+    // the soft edges under the water's level, into their layer (render_water.c rw_edges_under): the colour, and the depth
+    // under the level where a texel shows
+    "struct EO { float4 c : SV_Target0; float4 z : SV_Target1; };\n"
+    "EO pswel(O i) { EO o; o.c = ps(i); o.z = float4(max(sea.z - i.w.z, 0), 0, 0, o.c.a > 0.004 ? 1 : 0); return o; }\n"
+    // the layer over the scene, read as the water's step reads the picture behind the surface: the surface's whole move at
+    // this pixel (wof.zw) by the depth of what is read - first what lies here (none: deep), then what lies there - limited
+    // as the step's: bent as the solid parts beside the edges, whatever lies behind them (an edge writes no depth: by the
+    // step's own move here, the seabed's behind it, an oar's rim moved apart from its core once the move grew with the
+    // depth - the player, 2026-11-27: "its coming form the transparent and the opaque part stilll breaking apart")
+    "float4 pwel(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0); float2 ou = wof.Load(a).zw;"
+    " float2 b = p.xy + wclamp(ou * saturate(orv.Load(a) * 2)); if (wtv.z > wtv.x) b = clamp(b, wtv.xy, wtv.zw);"
+    " b = p.xy + wclamp(ou * saturate(orv.Load(int3(b, 0)) * 2)); if (wtv.z > wtv.x) b = clamp(b, wtv.xy, wtv.zw);"
+    " return oac.Load(int3(b, 0)); }\n";
 
 // The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
 // A ring full while the list still holds draws draws the list first (rd3_upload) - the frame then in parts, and a
