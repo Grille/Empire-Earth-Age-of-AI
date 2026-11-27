@@ -66,7 +66,10 @@
 // ps): the same ripples as the seabed behind (the player, then: "do the pixel version, keep vertex as fallback"; the corners
 // alone moved an explosion's square as one piece) - not the whole move per pixel: read inside a small particle's square it
 // left the square and came round from its other side ("dosnt work very well on small effects, it quickly leaves its quad
-// and loops"); across a small square the step's move hardly changes, the rest is about none.
+// and loops"); across a small square the step's move hardly changes, the rest is about none. Still the rest took the
+// texture past a face's edge ("still some looping and cutofs"): a face that is half a square of its texture is grown to
+// twice its size by a geometry shader (rd3_water_grow, render_3d.c gsq), its pixels outside the square's texture shown
+// as nothing - the room around it shows what the bend moves out, and nothing comes round from the other side.
 #define RW_STEPS 64          // the water set's steps the tint holds (more: the deepest of those for the rest)
 internal struct {
     int on;          // -1: as the ini says
@@ -111,6 +114,8 @@ internal struct {
     ID3D11RenderTargetView *ortv;    // transparency's layers under the level read their picture shifted by it: THE WATER'S STEP AND
     ID3D11ShaderResourceView *osrv;  // WHAT COMES AFTER IT)
     int ow, oh;
+    ID3D11GeometryShader *gq;        // the late draws' faces grown (rd3_water_grow)
+    int gqfail;
     int mirror;      // the reflections, -1: as the ini says
     float strength;  // how much of the surface a reflection takes
     float wobble;    // how far the water's ripples move it (of the picture)
@@ -386,6 +391,19 @@ internal int rd3_water_first(void) {
     return -1;
 }
 // the step of the whole surface, from here on its batches without it: what lies under the level comes between the two
+// the geometry shader that grows a split batch's faces under the level after the step to twice their size, for the room
+// the refraction's bend of their texture takes (render_3d.c gsq: only a textured face that is half a square of its texture,
+// and only while the refraction bends); NULL for a list of lines or points, or without the shader (unbent, as before)
+internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c) {
+    if (c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST && c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP) return NULL;
+    if (!g_wa.gq && !g_wa.gqfail) {
+        ID3DBlob *code = d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "gsq", "gs_4_0");
+        HRESULT hr = code ? ID3D11Device_CreateGeometryShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_wa.gq) : E_FAIL;
+        D3D_RELEASE(code);
+        if (FAILED(hr)) { g_wa.gqfail = 1; rd_fail("the water's late faces grown", hr); }
+    }
+    return g_wa.gq;
+}
 internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first) {
     ID3D11ShaderResourceView *o = NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &o);   // the refraction's shifts a target now

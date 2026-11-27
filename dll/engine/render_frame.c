@@ -727,6 +727,7 @@ internal void rg_replay(ID3D11DeviceContext *x, const rf_cmd *c);   // render_gr
 internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_water_first(void);
 internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first);
+internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_water_high(const rf_cmd *c);
@@ -1128,6 +1129,7 @@ internal void rf_water_part(ID3D11DeviceContext *x, int part) {
     g_wsp.part = part;
     ID3D11DeviceContext_PSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
+    ID3D11DeviceContext_GSSetConstantBuffers(x, 5, 1, &g_wsp.cb[part]);
 }
 // a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them. A batch
 // into the weighted transparency's sums (render_oit.c: rtv its first target) draws into both, and is placed as on the
@@ -1254,11 +1256,17 @@ internal void rf_replay(void) {
         if (i == firstw) {
             rd3_water_steps(x, lastw, &b, &first);
             memset(g_rf_late, 0, sizeof g_rf_late);
+            // their faces grown for the room the refraction's bend takes (render_water.c rd3_water_grow)
+            ID3D11GeometryShader *gs = NULL;
+            ID3D11DeviceContext_GSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) {
+                ID3D11GeometryShader *g = rd3_water_grow(&g_rf.cmd[j]);
+                if (g != gs) { ID3D11DeviceContext_GSSetShader(x, g, NULL, 0); gs = g; }
                 rf_water_part(x, rf_water_split(&g_rf.cmd[j], 1));
                 rf_draw(x, &g_rf.cmd[j], &b, &first);
                 g_rf_late[(int)g_rf.pcs[g_rf.cmd[j].pc].misc[3] & 3]++;
             }
+            if (gs) ID3D11DeviceContext_GSSetShader(x, NULL, NULL, 0);
             if (owat) { rf_water_part(x, 8); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 4);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);

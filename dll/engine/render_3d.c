@@ -196,7 +196,8 @@ internal const char k_rd3_shader[] =
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
     " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float3 gw : TEXCOORD4; float4 gt : TEXCOORD5; float3 gl : TEXCOORD6;"
-    " nointerpolation float3 cf : TEXCOORD7; nointerpolation uint gm : TEXCOORD8; float3 gnn : TEXCOORD9; float2 wk : TEXCOORD10; };\n"
+    " nointerpolation float3 cf : TEXCOORD7; nointerpolation uint gm : TEXCOORD8; float3 gnn : TEXCOORD9; float2 wk : TEXCOORD10;"
+    " nointerpolation float4 wr : TEXCOORD11; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -239,7 +240,7 @@ internal const char k_rd3_shader[] =
     "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) { pp.xyz -= k * (dm.x * bc + dm.y * ca) / dt; wk = k * dm; } } }"
     " o.p = mul(pp, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
-    " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz)); o.w.xy += fo * 0.5; o.wk = wk;"
+    " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz)); o.w.xy += fo * 0.5; o.wk = wk; o.wr = float4(1, 1, 0, 0);"
     // (a space map's faces hang under the level in no water: rg_space_quad's gt.a -1 - none of the water's own there)
     " o.q.w = shl.z > 0 && o.gt.a >= 0 ? saturate(1 - (shl.x - o.w.z) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
@@ -266,6 +267,25 @@ internal const char k_rd3_shader[] =
     " if (shp.x > 0 && shl.w > shl.x && o.w.z < shl.x && o.gt.a >= 0) { float e = fog_at(z * (shl.w - shl.x) / (shl.w - o.w.z));"
     "  f = lerp(f, e, saturate(e / 0.7)); }"
     " o.f = f; return o; }\n"   // clamped per pixel, as the driver under a wrapper does (the picture compare)
+    // The split batches' parts under the water's level after its step, while the refraction bends them (render_frame.c,
+    // render_water.c rd3_water_grow): a textured face that is half of a square of its texture (its corners three of the
+    // square's: the one shares its u with the second, its v with the third) grown to twice its size about the square's
+    // middle - the middle of the half's long side, the other half's too: the halves grow apart along it, no pixel twice -,
+    // every place in it carried along as it changes across the face (on the screen, in the texture, on the map, the bend's
+    // move); its colour and fog each corner's own. The square's place in the texture goes to the pixel shader (wr), which
+    // shows nothing outside it: the bend takes a pixel's texture past the drawn face's edge (a small particle's whole
+    // square), and there the room grown around it shows what is bent out (the player, 2026-11-27: "still some looping and
+    // cutofs, how about disableing texture repeat for effects? aswell as doubeling the size of their quads"). Nothing
+    // rather than a clamped texture: past a frame's square lies the next frame of an animation's sheet, or its other side
+    "O gsm(O a, O m) { O o = a; o.p = 2 * a.p - m.p; o.t = 2 * a.t - m.t; o.w = 2 * a.w - m.w; o.wk = 2 * a.wk - m.wk; o.q = 2 * a.q - m.q; o.gw = 2 * a.gw - m.gw; return o; }\n"
+    "[maxvertexcount(3)] void gsq(triangle O v[3], inout TriangleStream<O> ts) { int j = -1;"
+    " float2 lo = min(min(v[0].t, v[1].t), v[2].t), hi = max(max(v[0].t, v[1].t), v[2].t);"
+    " if (op.w && cat.y > 0 && wop.w > 0 && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && v[0].cf.x <= 0.5 && all(hi > lo))"
+    "  for (int k = 0; k < 3; k++) { float2 a = v[k].t, b = v[(k + 1) % 3].t, c = v[(k + 2) % 3].t;"
+    "   if (((a.x == b.x && a.y == c.y) || (a.x == c.x && a.y == b.y)) && b.x != c.x && b.y != c.y) j = k; }"
+    " O m = v[0]; if (j >= 0) { O b = v[(j + 1) % 3], c = v[(j + 2) % 3];"
+    "  m.p = (b.p + c.p) * 0.5; m.t = (b.t + c.t) * 0.5; m.w = (b.w + c.w) * 0.5; m.wk = (b.wk + c.wk) * 0.5; m.q = (b.q + c.q) * 0.5; m.gw = (b.gw + c.gw) * 0.5; }"
+    " for (int n = 0; n < 3; n++) { O o = v[n]; if (j >= 0) { o = gsm(v[n], m); o.wr = float4(lo, hi); } ts.Append(o); } }\n"
     // D3DTA_: 0 diffuse, 1 current (the diffuse at stage 0), 2 texture, 3 texture factor; D3DTOP_ 1..8
     "float4 arg(int a, float4 x, float4 d) { a = a & 15; return a == 2 ? x : a == 3 ? tf : d; }\n"
     "float4 top(int o, float4 a, float4 b) { return o == 2 ? a : o == 3 ? b : o == 4 ? a * b : o == 5 ? saturate(a * b * 2)"
@@ -325,11 +345,13 @@ internal const char k_rd3_shader[] =
     // The rest only: the whole move read inside a small particle's square left it within a few pixels and came round from
     // its other side (the player, 2026-11-27: "dosnt work very well on small effects, it quickly leaves its quad and
     // loops") - across a small square the move hardly changes, the rest is about none; a large one ripples within itself
-    " [branch] if (gnd.x == 0 && op.w && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0 && wop.z > sea.z) {"
+    " float2 wu = i.t; [branch] if (gnd.x == 0 && op.w && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0 && wop.z > sea.z) {"
     "  float3 dw = i.w - float3(i.wk, 0); float k = max((wop.z - dw.z) / (wop.z - sea.z), 1); float3 ws = wop.xyz + (dw - wop.xyz) / k;"
     "  float2 sx = ddx(ws.xy), sy = ddy(ws.xy), tx = ddx(i.t), ty = ddy(i.t);"
     "  if (i.w.z < sea.z && i.cf.x <= 0.5) { float2 o = wpix(wslope(ws.xy) * (cat.y * saturate(length(dw - ws) * 4)) - i.wk / k, sx, sy);"
-    "   x = t.SampleGrad(s, i.t + tx * o.x + ty * o.y, tx, ty); } }"
+    "   wu = i.t + tx * o.x + ty * o.y; x = t.SampleGrad(s, wu, tx, ty); } }"
+    // a face grown by the geometry shader (gsq) shows only its own square of the texture
+    " if (i.wr.x <= i.wr.z && (any(wu < i.wr.xy) || any(wu > i.wr.zw))) discard;"
     " if (i.cf.x > 0.5) x.a = 1;"
     " if (gnd.x > 1.5 && gbl.y > 0 && op.w) x = lerp(x, wnx.Sample(s, i.t), gbl.y);"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy), pdx = ddx(i.gw.xy), pdy = ddy(i.gw.xy);"
