@@ -1434,8 +1434,10 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     else g_rwl_updates++;
     g_rwl_pass = skip;
     if (skip && g_rp_state == 3) g_rp_state = 2;   // the pipe's rprobe step
+    LONGLONG t0 = rd_qpc();
     if (!g_rwl_bare_now) ee_graphics_update_objects(g);
     else g_rwl_bare++;
+    g_ct_part[3] += rd_qpc() - t0;
     g_rwl_pass = 0;
     g_rwl_claim = 0;
     if (ui == 1) ui_lock_leave();
@@ -1444,12 +1446,15 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
         memcpy(g_rwl_update_cam, camera_transformation_at(game_camera()), sizeof g_rwl_update_cam);
     }
     if (!skip && g_rwl_taken) SetEvent(g_rwl_taken);
+    g_ct_upd_end = rd_qpc();
 }
 internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {
     if (g_rwl_pass) return;
     shadow_hills_editor();   // render_shadows.c: here, under the read lock - a new map's writer frees what it reads
     rf_pull_begin();   // a zoom out under way: the ground made for the camera pulled back (render_frame.c)
+    LONGLONG t0 = rd_qpc();
     ro_terrain_update(o);
+    g_ct_part[0] += rd_qpc() - t0;
     rf_pull_end();
 }
 internal void collect_print(void);   // collect.c: the pipe's drawcount hash
@@ -1463,10 +1468,17 @@ internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) {
         }
         return;
     }
+    LONGLONG t0 = rd_qpc();
     ro_units_update(o);
+    g_ct_part[1] += rd_qpc() - t0;
     collect_print();
 }
-internal void __thiscall rd_hook_ro_shadows_update(ee_ro_shadows *o) { if (!g_rwl_pass) ro_shadows_update(o); }
+internal void __thiscall rd_hook_ro_shadows_update(ee_ro_shadows *o) {
+    if (g_rwl_pass) return;
+    LONGLONG t0 = rd_qpc();
+    ro_shadows_update(o);
+    g_ct_part[2] += rd_qpc() - t0;
+}
 internal void collect_fx_take(void), collect_fx_check(void);   // collect_copy.c: the effects' queues the simulation makes
 internal void vr_effects_update(ee_ro_effects *o);   // render_frame.c
 internal void __thiscall rd_hook_ro_effects_update(ee_ro_effects *o) {

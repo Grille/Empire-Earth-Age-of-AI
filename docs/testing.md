@@ -503,7 +503,11 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
   the camera (the player's game: armed, then the player scrolls when he likes). Each line also has what the frame's
   input saw (`input`: 1 no form with the view, 2 no mouse, 3 the mouse frozen, 4 the game's window not in front, 5 an
   edit box has the keyboard, 6 ran; the edges and arrows held, the render thread's pans) and the game thread's own
-  arrow and middle-drag events since the frame before - which input moved it. `arrows <bits>` (1 left, 2 right, 4 up, 8 down; 0 lets go)
+  arrow and middle-drag events since the frame before - which input moved it - and the frame's parts in ms: the render
+  objects' update (ground, units, shadows, all), the game's ground's TransformToCamera, the draw list's replays, and
+  from the update's end to the show (the game's own draws). `profile <ms> render slow` samples only while a frame's
+  draw has run more than 5 ms past its update: what the long frames are made of (2026-11-27: the editor's black round
+  the map, rg_skirt_build, read the whole map five times a second). `arrows <bits>` (1 left, 2 right, 4 up, 8 down; 0 lets go)
   holds arrow keys without a window in front (the own renderer's scrolling). The camera's evenness is the eye's move
   between frames by the times their cameras were made (`camera made`), not by `dt`: 2026-11-27, the editor's arrows
   0.0142-0.0144 tiles a ms, frame for frame (before the move went where the camera is made: 0.001-0.021).

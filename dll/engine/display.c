@@ -595,7 +595,9 @@ internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
 #include "display_diag.c"
 
 internal int rec_busy(void);   // render_record.c: the pipe's record takes frames now
+internal LONGLONG g_show_qpc;   // QPC: the last frame's show began (the render profile's slow)
 internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
+    { LARGE_INTEGER q; QueryPerformanceCounter(&q); g_show_qpc = q.QuadPart; }
     g_render_thread = GetCurrentThreadId();
     g_show_tick = GetTickCount();
     frame_watch();
@@ -1673,7 +1675,14 @@ internal int is_system_module(HMODULE m) {
     return 0;
 }
 
+// slow: only the samples while a frame's draw has run more than PROF_SLOW_MS past its graphics update (render_3d.c's end:
+// g_ct_upd_end) without its show - what makes the long frames, not the frames' usual work
+#define PROF_SLOW_MS 5
+internal int g_prof_slow;
 internal void cmd_profile_render(int dur, char *out, int sim) {
+    LARGE_INTEGER pf;
+    QueryPerformanceFrequency(&pf);
+    int skipped = 0;
     DWORD tid = sim ? g_sim_thread : g_render_thread;
     HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
     if (!h) { REPLY(sim ? "error: simulation thread unknown (own renderer only)\n" : "error: render thread unknown (windowed mode only)\n"); return; }
@@ -1694,6 +1703,12 @@ internal void cmd_profile_render(int dur, char *out, int sim) {
             static uintptr_t stack[2048];   // 8 KB: DDrawCompat's call chains are deep
             SIZE_T got = 0;
             BOOL ok = GetThreadContext(h, &c);
+            if (ok && g_prof_slow) {
+                LARGE_INTEGER q;
+                QueryPerformanceCounter(&q);
+                LONGLONG u = g_ct_upd_end;
+                if (!(u > g_show_qpc && q.QuadPart - u > pf.QuadPart * PROF_SLOW_MS / 1000)) { ResumeThread(h); skipped++; Sleep(1); continue; }
+            }
             if (ok && !ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, sizeof stack, &got))
                 ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, 2048, &got);   // near the stack base
             ResumeThread(h);
@@ -1762,8 +1777,9 @@ internal void cmd_profile_render(int dur, char *out, int sim) {
     }
     timeEndPeriod(1);
     CloseHandle(h);
-    REPLY("%s thread %lu: %d samples over %d ms\n  where the time is (top frame):\n", sim ? "simulation" : "render", tid, samples,
-          dur);
+    REPLY("%s thread %lu: %d samples over %d ms%s\n  where the time is (top frame):\n", sim ? "simulation" : "render", tid, samples,
+          dur, g_prof_slow ? " (slow: only while a frame's draw ran long)" : "");
+    if (g_prof_slow) REPLY("  %d samples outside slow draws left out\n", skipped);
     for (int j = 0; j < nt; j++) {
         char path[MAX_PATH] = "?";
         if (tops[j].m) GetModuleFileNameA(tops[j].m, path, sizeof path);
@@ -1880,6 +1896,7 @@ internal void cmd_profile_stacks(char *out) {
 internal void cmd_profile(const char *args, char *out) {
     int dur = atoi(args);
     if (dur <= 0) dur = 2000;
+    g_prof_slow = strstr(args, "slow") != NULL;
     if (strstr(args, "render")) { cmd_profile_render(dur, out, 0); return; }
     if (strstr(args, "sim")) { cmd_profile_render(dur, out, 1); return; }
     if (strstr(args, "stacks")) { cmd_profile_stacks(out); return; }

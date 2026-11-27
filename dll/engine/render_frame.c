@@ -572,7 +572,9 @@ internal void rf_to_camera(int i, void *ras, void *mesh, void *viewport, float d
         // the near depth in the T&L DLL only: the other projects the vertices itself
         if (i == 1 && g_gm_near != 0 && g_gm_near < near0) *nd = fmaxf(g_gm_near, 0.05f);
     }
+    LONGLONG t0 = rd_qpc();
     g_gm_to_camera[i](ras, mesh, viewport, dt, a, b);
+    g_ct_part[4] += rd_qpc() - t0;
     g_kg_view_ground_ok = rf_camera_view(g_kg_view_ground, viewport_camera(viewport));   // its space (rf_pull_begin)
     if (kv > 1.0f) {
         memcpy(r, was, sizeof was);
@@ -1471,6 +1473,7 @@ internal void rf_replay(void) {
     g_rd_epoch++;   // no surface is in the list now (rd_gpu_texture)
     g_rf.in_submit = 0;
 }
+internal LONGLONG rf_replay_qpc(void) { return g_rf.qpc; }
 // everything recorded drawn now: the batch so far into the list, the list
 internal void rd3_submit(void) {
     rd3_flush();

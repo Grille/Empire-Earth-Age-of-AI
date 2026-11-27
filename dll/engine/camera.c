@@ -832,7 +832,13 @@ internal int g_ct_n;
 internal LONGLONG g_ct_sample, g_ct_p0, g_ct_p1, g_ct_st_qpc;   // QPC: the camera made; the last Present's call and return; the shown present's refresh
 internal UINT g_ct_pc, g_ct_st_pc, g_ct_st_sync;                // the last Present's count; the shown present's count and refresh
 internal float g_ct_eye[2];                                     // the frame's eye (rf_camera_frame)
-internal struct { float dt, dx, dy, ex, ey; int steps, why, edges, arrows, pans, keyev, grabev; LONGLONG show, sample, p0, p1, st_qpc; UINT pc, st_pc, st_sync; } g_ct[CT_MAX];
+internal LONGLONG rf_replay_qpc(void);   // render_frame.c: QPC spent replaying the draw list so far
+internal LONGLONG g_ct_upd_end;   // QPC: the frame's graphics update ended (render_3d.c)
+// QPC of a frame's parts: the update of the render objects (render_3d.c) - the ground's, the units', the shadows', all of
+// it -, the display DLL's TransformToCamera of the game's ground (render_frame.c rf_to_camera), the draw list's replays,
+// from the update's end to the show (the game's draws: 2026-11-27, the editor's 20 ms stalls were there)
+internal LONGLONG g_ct_part[7];
+internal struct { float dt, dx, dy, ex, ey, part[7]; int steps, why, edges, arrows, pans, keyev, grabev; LONGLONG show, sample, p0, p1, st_qpc; UINT pc, st_pc, st_sync; } g_ct[CT_MAX];
 internal LARGE_INTEGER g_ct_last, g_ct_t0;
 internal float g_ct_x, g_ct_y;
 internal int g_ct_wait;   // camtrace N wait: the frames counted from the first that moved the camera
@@ -846,6 +852,7 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
     if (g_ct_wait && (!g_ct_last.QuadPart || (x == g_ct_x && y == g_ct_y))) {
         g_ct_last = now; g_ct_x = x; g_ct_y = y;
         g_ct_pans = 0;
+        memset(g_ct_part, 0, sizeof g_ct_part);
         InterlockedExchange(&g_ct_keyev, 0);
         InterlockedExchange(&g_ct_grabev, 0);
         InterlockedExchange(&g_scroll_calls, 0);
@@ -860,12 +867,16 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
         g_ct[g_ct_n].why = g_ct_why; g_ct[g_ct_n].edges = g_ct_edges; g_ct[g_ct_n].arrows = g_ct_arrows; g_ct[g_ct_n].pans = g_ct_pans;
         g_ct[g_ct_n].keyev = (int)InterlockedExchange(&g_ct_keyev, 0); g_ct[g_ct_n].grabev = (int)InterlockedExchange(&g_ct_grabev, 0);
         g_ct[g_ct_n].ex = g_ct_eye[0]; g_ct[g_ct_n].ey = g_ct_eye[1];
+        g_ct_part[6] = g_ct_upd_end ? now.QuadPart - g_ct_upd_end : 0;
+        { static LONGLONG was; LONGLONG q = rf_replay_qpc(); g_ct_part[5] = was ? q - was : 0; was = q; }
+        for (int k = 0; k < 7; k++) g_ct[g_ct_n].part[k] = (float)((double)g_ct_part[k] * 1000.0 / (double)f.QuadPart);
         g_ct[g_ct_n].show = now.QuadPart; g_ct[g_ct_n].sample = g_ct_sample;
         g_ct[g_ct_n].p0 = g_ct_p0; g_ct[g_ct_n].p1 = g_ct_p1; g_ct[g_ct_n].st_qpc = g_ct_st_qpc;
         g_ct[g_ct_n].pc = g_ct_pc; g_ct[g_ct_n].st_pc = g_ct_st_pc; g_ct[g_ct_n].st_sync = g_ct_st_sync;
         g_ct_n++;
     } else { InterlockedExchange(&g_scroll_calls, 0); g_ct_t0 = now; }
     g_ct_pans = 0;
+    memset(g_ct_part, 0, sizeof g_ct_part);
     g_ct_last = now; g_ct_x = x; g_ct_y = y;
     if (InterlockedDecrement(&g_ct_left) == 0 && g_log) {
         EnterCriticalSection(&g_lock);
@@ -873,9 +884,12 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
         #define CT_MS(q) ((q) ? (double)((q) - g_ct_t0.QuadPart) * k : -1.0)
         for (int i = 0; i < g_ct_n; i++)
             fprintf(g_log, "# camtrace: %3d dt %5.1f ms, moved %7.4f %7.4f, scroll steps %d; input %d edges %d arrows %d pans %d,"
-                    " the game's arrow events %d, middle drags %d; at %.2f, camera made %.2f eye %.4f %.4f,"
+                    " the game's arrow events %d, middle drags %d; update ground %.1f units %.1f shadows %.1f all %.1f ms,"
+                    " the ground's TransformToCamera %.1f ms, the list's replays %.1f, the update's end to the show %.1f;"
+                    " at %.2f, camera made %.2f eye %.4f %.4f,"
                     " last present %.2f .. %.2f #%u, shown #%u at refresh %u %.2f\n", i, g_ct[i].dt, g_ct[i].dx, g_ct[i].dy, g_ct[i].steps,
                     g_ct[i].why, g_ct[i].edges, g_ct[i].arrows, g_ct[i].pans, g_ct[i].keyev, g_ct[i].grabev,
+                    g_ct[i].part[0], g_ct[i].part[1], g_ct[i].part[2], g_ct[i].part[3], g_ct[i].part[4], g_ct[i].part[5], g_ct[i].part[6],
                     CT_MS(g_ct[i].show), CT_MS(g_ct[i].sample), g_ct[i].ex, g_ct[i].ey, CT_MS(g_ct[i].p0), CT_MS(g_ct[i].p1), g_ct[i].pc,
                     g_ct[i].st_pc, g_ct[i].st_sync, CT_MS(g_ct[i].st_qpc));
         #undef CT_MS
