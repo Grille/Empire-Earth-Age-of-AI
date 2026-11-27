@@ -221,7 +221,7 @@ internal struct as_st {
     int asked, ap_seen, ap_tries; uint32_t asked_t;                                   // bombers asked for and not out yet; airports (and building) at the last queue, queued since without more
     unsigned waves, sent, trained, airports, waits, gave_up;        // waves launched, bombers sent, trained, airports queued, launches waited for more, targets given up
     int wing_out;                                                   // a wing launched whose targets aren't all down yet
-    unsigned far_tg, far_looks, far_wing; ivec2 far_at; uint32_t far_t;   // THE BOMBER'S REACH: targets passed over as beyond it, looks with a flight free and only such, the wing's positions beyond it; the last of them (the worth most), when
+    unsigned far_tg, far_looks, far_wing; ivec2 far_at, far_push; uint32_t far_t, far_push_t;   // THE BOMBER'S REACH: targets passed over as beyond it, looks with a flight free and only such, the wing's positions beyond it; the last of them (the worth most), when; the force's position beyond it, when
     struct { ivec2 at; uint32_t t; int hits; } sh[AF_SHOOTS];       // the shooters' spots (intel.c reveal_attackers): where, the last hit, hits seen
 } g_as[16];
 // the bombers to train, the newest first (epochs as the tech tree counts them: current_epoch + 1)
@@ -284,7 +284,12 @@ internal int af_airports(void *um, int *building) {
     return n;
 }
 // TRAINED: the wing wanted, the airports for it
+internal float as_reach_held(unsigned idx, struct as_st *s);
 internal void af_train(ee_player *pl, unsigned idx, struct as_st *s, int have, uint32_t now) {
+    // THE AIRPORTS MOVE UP (build.c): a flight of bombers and the force's position beyond their reach at the last looks
+    // (the shooters' spot too: where its force is shelled) - towards where the force meets the enemy next, when
+    // stations.c names it: the place the air bases move to
+    if (have >= AF_FLIGHT && s->far_push_t && now >= s->far_push_t && now - s->far_push_t < 30000) { g_bd_ap_fwd[idx].at = s->far_push; { ivec2 p; if (!GAME_AI(idx) && sn_need_at(idx, &p)) g_bd_ap_fwd[idx].at = p; } g_bd_ap_fwd[idx].reach = as_reach_held(idx, s); g_bd_ap_fwd[idx].t = now ? now : 1; }
     if (s->train_t && now - s->train_t < AF_TRAIN_EVERY) return;
     s->train_t = now ? now : 1;
     int size = g_afs_bombers[idx], needed = s->need_t && now - s->need_t < AF_STRONG_MS;
@@ -475,6 +480,7 @@ internal float as_reach(unsigned idx, ee_unit *u, int whole) {   // tiles from w
     return (float)ms / 1000.0f * sp * AS_REACH;
 }
 internal void as_far(struct as_st *s, ivec2 at, uint32_t now) { s->far_at = at; s->far_t = now ? now : 1; }
+internal void as_far_push(struct as_st *s, ivec2 at, uint32_t now) { as_far(s, at, now); s->far_push = at; s->far_push_t = now ? now : 1; }   // the force's position: THE AIRPORTS MOVE UP for it
 internal float as_reach_held(unsigned idx, struct as_st *s) {   // (the line's: a full flight time's of its first bomber)
     for (int k = 0; k < s->nh; k++) { ee_unit *u = unit_by_id((unsigned)s->held[k].id); if (u && unit_get_serial(u) == s->held[k].id) return as_reach(idx, u, 1); }
     return 0.0f;
@@ -1346,7 +1352,7 @@ internal void dct_wing(ee_player *pl, unsigned idx, struct as_st *s, ee_unit **b
     int push_far = 0;
     for (int c = 0; c < nc; c++) {
         ivec2 fc = from; int any, nrc = dct_within(d, idx, ready, nr, nb ? bomb[0] : NULL, cand[c].at, rc, &fc, &any);
-        if (!any) { s->far_wing++; if (cand[c].push || !push_far) as_far(s, cand[c].at, now); push_far |= cand[c].push; continue; }   // THE BOMBER'S REACH: from none of its Airports
+        if (!any) { s->far_wing++; if (cand[c].push) as_far_push(s, cand[c].at, now); else if (!push_far) as_far(s, cand[c].at, now); push_far |= cand[c].push; continue; }   // THE BOMBER'S REACH: from none of its Airports
         int nj = dct_prep(pl, idx, &cand[c], shoot, fc, aa, &na, tg, &nt, bombs, hps, worth, gk);
         if (!nj) { if (cand[c].push && shoot >= 0) s->sh[shoot].t = 0; continue; }   // nothing left at the shooters' spot: the next
         float lost, dmg, hsum = 0;
@@ -1421,10 +1427,10 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         s->log_t = now ? now : 1;
         fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more, %u targets given up | "
                 "idle %.1f of %.1f bomber-minutes held, %u lost (%u on lone runs), lone runs %u (%u bombers, %u targets down), %u looks with none undefended, %u called back | "
-                "beyond the bombers' reach (%d; of %.0f tiles): %u targets passed over, %u looks with a flight free and only such, %u of the wing's positions, the last at %d,%d %.1f min ago\n",
+                "beyond the bombers' reach (%d; of %.0f tiles): %u targets passed over, %u looks with a flight free and only such, %u of the wing's positions, the last at %d,%d %.1f min ago; Airports moved up for it (%d) %u, %u looks with no centre of its nearer\n",
                 idx, now / 60000.0, s->nh, s->trained, s->airports, s->waves, s->sent, s->waits, s->gave_up,
                 s->idle_looks * (AS_EVERY / 60000.0), s->held_looks * (AS_EVERY / 60000.0), s->lost, s->lost_har, s->har_runs, s->har_sent, s->har_down, s->har_none, s->har_back,
-                PV(idx, g_v_as_reach, 1), as_reach_held(idx, s), s->far_tg, s->far_looks, s->far_wing, s->far_at.x, s->far_at.y, s->far_t ? (now - s->far_t) / 60000.0 : -1.0);
+                PV(idx, g_v_as_reach, 1), as_reach_held(idx, s), s->far_tg, s->far_looks, s->far_wing, s->far_at.x, s->far_at.y, s->far_t ? (now - s->far_t) / 60000.0 : -1.0, PV(idx, g_v_bd_ap_fwd, g_bd_ap_fwd_on), g_bd[idx].ap_fwds, g_bd[idx].ap_fwd_none);
         fprintf(g_log, "# bombers: P%u at %.1f min: doctrine %d (survive %d, home %d, wing %d, claim %d) | lost %u: wing %u, lone runs %u, called home %u, in the air otherwise %u, in an Airport %u | "
                 "sorties %u, back with damage %u, damage taken %.0f (expected %.0f), repaired %.0f | called home %u, went on with no way home %u | targets down %u anti-air, %u buildings, %u units, worth %u | "
                 "wings by worth %u, the best worth now %.0f | the guns' fire on bombers in the air: expected %.0f, taken %.0f (expected of guns seen %.0f - in their own range %.0f -, remembered %.0f, assumed %.0f, where lost %.0f) | counter-fire asked %u, runs %u (%u bombers), shooters down %u, worth %u\n",
@@ -1531,7 +1537,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     static ee_unit *wr[AS_BOMBERS];   // THE BOMBER'S REACH: those that get there; none of them: no wing at it (the runs go on)
     int nwr = 0;
     for (int i = 0; i < nr; i++) if (sqrtf((float)ivec2_dist2(as_start(pl, ready[i]), pos)) + (float)AS_REACH_PAD <= as_reach(idx, ready[i], 0)) wr[nwr++] = ready[i];
-    if (nr && !nwr) { s->far_wing++; as_far(s, pos, now); s->need_t = 0; as_runs(pl, idx, s, ready, nr, idle, ni, now); return; }
+    if (nr && !nwr) { s->far_wing++; as_far_push(s, pos, now); s->need_t = 0; as_runs(pl, idx, s, ready, nr, idle, ni, now); return; }
     if (nwr < s->needed && nwr < AF_WING_MAX) {
         s->waits++;
         if (!s->wait_log || now - s->wait_log >= 60000) {
@@ -1577,6 +1583,7 @@ internal void airstrike_install(const char *autotest_ini) {
     if (autotest_ini) {
         g_v_air_strike = ini_int("autotest", "v_air_strike", -1, autotest_ini); g_v_as_harass = ini_int("autotest", "v_bomber_harass", -1, autotest_ini);
         g_v_bd_on = ini_int("autotest", "v_bomber_doctrine", -1, autotest_ini); g_v_as_reach = ini_int("autotest", "v_bomber_reach", -1, autotest_ini);
+        g_bd_ap_fwd_on = ini_int("autotest", "airport_forward", 0, autotest_ini); g_v_bd_ap_fwd = ini_int("autotest", "v_airport_forward", -1, autotest_ini);
         for (int p = 0; p < 4; p++) g_v_bd_part[p] = ini_int("autotest", k_parts[p], -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# air force: %d (variant %d), lone runs %d (variant %d), doctrine %d (variant %d; parts %d %d %d %d, variants %d %d %d %d)\n", AS_ON, g_v_air_strike, g_as_harass, g_v_as_harass,

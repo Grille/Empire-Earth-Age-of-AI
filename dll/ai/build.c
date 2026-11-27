@@ -103,7 +103,7 @@ internal int bd_hold_site(ee_player *pl, ee_unit *b) {
         if (g_bd_holds[idx][j].b == b && g_bd_holds[idx][j].id == unit_get_serial(b) && g_bd_holds[idx][j].t && now >= g_bd_holds[idx][j].t && now - g_bd_holds[idx][j].t < BD_HOLD_KEEP) return 1;
     return 0;
 }
-enum { BD_PICK_AIRPORT = 1, BD_PICK_HERD, BD_PICK_FOREST };   // build_tick's pick
+enum { BD_PICK_AIRPORT = 1, BD_PICK_HERD, BD_PICK_FOREST, BD_PICK_AIRPORT_FWD };   // build_tick's pick
 #define BD_WAIT 60000   // after one is laid no other of its kind until its foundation shows (the builder walks there first: one Settlement was laid three times in 25 s)
 // ACROSS THE WATER (work.c): the lands where a foundation of its found no free citizen on its land to build it - the
 // ferry (ferry.c) brings citizens there as to free places at mines, with no drop site of its there yet
@@ -132,6 +132,7 @@ internal struct bd_st {
     uint32_t watch_t;                    // A WATCH TOWER: the last one
     uint32_t hold_t; unsigned holds, hold_sent;   // HOLDING THE GROUND: the last laid, how many, builders sent
     uint32_t ap_save_t;                  // AN AIRPORT SAVED FOR: since
+    unsigned ap_fwds, ap_fwd_none;       // THE AIRPORTS MOVE UP: laid; looks with the ask and no centre of its nearer
     uint32_t gran_ask_t; int gran_room;  // A GRANARY BEFORE THE NEXT: asked since, the granaries with room then
     uint32_t sink_t; unsigned sinks;     // THE WOOD SINK: the same
     uint32_t house_t; unsigned houses; ivec2 house_at;   // THE MORALE'S HOUSES: the same, and where the last was laid
@@ -207,6 +208,30 @@ internal int bd_gran_first(struct bd_st *b, unsigned idx, int gran_room, uint32_
 }
 internal uint32_t g_bd_airport[16];   // airstrike.c: an Airport asked for, when (AN AIRPORT)
 internal int g_bd_airport_n[16];      // ... how many it wants in all
+// THE AIRPORTS MOVE UP ([autotest] airport_forward, v_airport_forward - off, below; airstrike.c THE BOMBER'S REACH
+// asks: the position of its force that the wing would strike lies beyond its bombers' reach from every Airport of
+// its - the place where its force meets the enemy next and the reach given, the place its aircraft's bases move
+// towards, airguard.c THE AIR BASES. The player: "a human player moves its airfields forward to reach deeper into
+// enemy territory ... the ai's airplanes are all stuck at home since the ai never extends their reach"; AN AIRPORT
+// below lays them by its towns, the backland first): while no Airport of its is within that reach of the place, one
+// more by the Town Center, Capitol or Settlement of its that is nearest the place, in a territory it holds (the
+// backland or a front) - when that is BD_AP_FWD_GAIN tiles nearer than its nearest Airport; BD_AP_FWD_MAX Airports in
+// all at most, none while one goes up.
+// Its aircraft move there by themselves (airguard.c THE AIR BASES).
+// MEASURED 2026-11-27, head-to-head mirrored, Continental huge (320 tiles a side) from World War I, air_rich.eeai, 4
+// AIs, 90 min, 12 games (all ended well), with it - without: 1.2 Airports moved up an AI (7 looks with no centre
+// nearer); the bombers' runs 110.2 / 83.8 with their targets down 47.3 / 36.6, the wing's waves 15.0 / 15.8, bombers
+// lost 35.2 / 33.2, the forward Airport's way to the front at its longest tenth 88 / 101 tiles - and the game level:
+// soldiers -9.0 (se 9.1), kills -16.8 (22.6), losses +13.3 (14.7), razed -2.1 (10.3), epoch -0.12 (0.09), workers +2.4
+// (3.3). Two tries before it: asked for the worth-most target beyond the reach anywhere (60 min, 8 games) 2.4 an AI,
+// razed +6.6 (5.5), kills +16.3 (19.4), workers -5.8 (4.0) - Airports towards enemies its force was not at, where no
+// aircraft moved; without the shooters' spots (90 min, 12 games) 0.2 an AI - the wing's position in a fight is mostly
+// theirs - and soldiers +13.5 (8.7) all the same: what two like sides differ by on this map. More bombing, no gain
+// in the game shown: off, the player's call.
+internal struct { ivec2 at; float reach; uint32_t t; } g_bd_ap_fwd[16];
+internal int g_bd_ap_fwd_on = 0, g_v_bd_ap_fwd = -1;
+#define BD_AP_FWD_GAIN 20
+#define BD_AP_FWD_MAX 8
 internal int bd_pays(ee_player *pl, int type, const int *com) {
     const int *stock = player_stock_at(pl);
     for (int r = 2; r < 7; r++) { int c = unit_cost(pl, type, r); if (c > 0 && stock[r] - com[r] < c) return 0; }
@@ -291,7 +316,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     int size = map ? (int)map_get_size(map) : 0;
     if (!bm || !size) return;
     int nf = 0, nbuilt = 0, no = 0, nw = 0, nfld = 0, ngran = 0, ndef = 0, ncen = 0, nidle = 0;
-    int nairport = 0, open_airport = 0;
+    int nairport = 0, open_airport = 0, nap = 0;
+    static ivec2 app[32];
     static ivec2 dock[32];
     int ndock = 0;
     int gran_room = 0;   // its finished granaries with room inside (A GRANARY BEFORE THE NEXT)
@@ -341,6 +367,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
         for (int k = 0; k < 3; k++) if (t == rb[k]) { if (!have_rb[k]) rb_at[k] = p; have_rb[k]++; }   // going up counts
         if (t == UT(B_HOUSE)) { if (nhouse < 512) house[nhouse++] = p; open_house += going; }
         if (done && (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) && ntown < 128) { town[ntown].p = p; town[ntown++].max = t == UT(B_CAPITOL) ? BD_HOUSES_CAPITOL : BD_HOUSES_TC; }
+        if (t == UT(B_AIRPORT) && nap < 32) app[nap++] = p;
         nairport += t == UT(B_AIRPORT);   // going up too (29 laid in an hour by the asker's count, which sees the finished ones)
         open_airport += t == UT(B_AIRPORT) && !done;   // LAID, NOT PAID: its foundation shows
         if (is_tower_type(t)) open_tower += going;
@@ -548,7 +575,20 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // 19 minutes, a granary or a Settlement taking each 125 as it came: the wing wanted from minute 18, its first
     // Airport at minute 37)
     int ap_ask = g_bd_airport[idx] && now >= g_bd_airport[idx] && now - g_bd_airport[idx] < 120000 && nairport < g_bd_airport_n[idx] && ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT));
-    int ap_save = 0;
+    int ap_save = 0, ap_norm = ap_ask, ap_fwd = -1;
+    if (PV(idx, g_v_bd_ap_fwd, g_bd_ap_fwd_on) && g_bd_ap_fwd[idx].t && now >= g_bd_ap_fwd[idx].t && now - g_bd_ap_fwd[idx].t < 120000 && nap && nairport < BD_AP_FWD_MAX &&
+        !open_airport && ut_has(UT(B_AIRPORT)) && prio_buildable(pl, UT(B_AIRPORT))) {   // THE AIRPORTS MOVE UP
+        float nearest = 1.0e9f;
+        for (int k = 0; k < nap; k++) { float d = sqrtf((float)ivec2_dist2(app[k], g_bd_ap_fwd[idx].at)); if (d < nearest) nearest = d; }
+        if (nearest > g_bd_ap_fwd[idx].reach) {
+            nearest -= (float)BD_AP_FWD_GAIN;
+            for (int c = 0; c < ncen; c++) {
+                float d = sqrtf((float)ivec2_dist2(centre[c].p, g_bd_ap_fwd[idx].at));
+                if ((centre[c].cost == 1 || centre[c].cost == 2) && d < nearest) { nearest = d; ap_fwd = c; }
+            }
+            if (ap_fwd >= 0) ap_ask = 1; else b->ap_fwd_none++;
+        }
+    }
     if (ap_ask && !bd_pays(pl, UT(B_AIRPORT), com) && workforce(pl) >= g_min_workforce) {
         if (!b->ap_save_t || now < b->ap_save_t || now - b->ap_save_t >= 2 * BD_AP_SAVE) b->ap_save_t = now ? now : 1;
         ap_save = now - b->ap_save_t < BD_AP_SAVE;
@@ -650,7 +690,8 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     // AN AIRPORT (airstrike.c af_train asks: the wing it wants has too few): by a Town Center or Capitol in a territory it
     // holds, backland first
     if (!type && !placed && ap_ask && !wait[4] && !open_prod && bd_pays(pl, UT(B_AIRPORT), com)) {
-        for (int pass = 1; pass <= 2 && !type; pass++)
+        if (ap_fwd >= 0 && bd_spot(pl, idx, UT(B_AIRPORT), centre[ap_fwd].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport nearer where its force meets the enemy"; pick = BD_PICK_AIRPORT_FWD; }   // THE AIRPORTS MOVE UP
+        for (int pass = 1; pass <= 2 && !type && ap_norm; pass++)
             for (int c = 0; c < ncen && !type; c++)
                 if (centre[c].town && centre[c].cost == pass && bd_spot(pl, idx, UT(B_AIRPORT), centre[c].p, 5, 16, &at)) { type = UT(B_AIRPORT); what = "an Airport for the bombers' wing"; pick = BD_PICK_AIRPORT; }
         if (!type) { b->no_spot++; if (town_p.x >= 0) cg_want(idx, UT(B_AIRPORT), town_p, 5, 16, 0, 1, now); }
@@ -1008,6 +1049,7 @@ internal void build_tick(ee_player *pl, ee_resource_mgr *rm, uint32_t now) {
     if (type) {
         census_build_ask(bm, type);   // the test log's count: the mod's, not the game's entry
         if (pick == BD_PICK_AIRPORT) g_bd_airport[idx] = 0;
+        else if (pick == BD_PICK_AIRPORT_FWD) { g_bd_ap_fwd[idx].t = 0; b->ap_fwds++; }
         else if (pick == BD_PICK_HERD) { b->herd_t = now ? now : 1; b->herds++; }
         else if (pick == BD_PICK_FOREST) b->forests++;
         // ACROSS THE WATER: on a land with no citizen of its the game's placement makes no foundation (it looks for a
