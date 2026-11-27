@@ -443,6 +443,39 @@ internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c) {
 // edges took the strength of the seabed behind them once it went by the depth ("still some slight mismatches where the
 // core moves difrent to the transparent edges"). Without the layer (its targets not made, another viewport) as before:
 // drawn after the step over the scene, moved at their corners.
+// THE WATER'S COST (the pipe's water: what it costs on the graphics card, the player 2026-11-27: "what does this all
+// cost?"): timestamps around the water's part of the list - the edges' layer, the step, what comes after it under the
+// level, the circles (render_frame.c rf_replay) -, asked for when the last answer is in (as render_ao.c rao_time); k 0
+// (one slot: the whole list's replay measured so in a headless test - five frames a second - took the waits between its
+// draws too, 212 ms). Measured 2026-11-27 (the player's trireme scenario, all water, 2560 x 1440): 0.2 - 0.5 ms, with 46
+// ships on the screen 0.48; the refraction and the tint off 0.06 less - within the noise
+internal struct { ID3D11Query *q[1][3]; int asked[1]; float ms[1]; } g_wgpu;
+internal void rw_gpu_time(ID3D11DeviceContext *x, int k, int begin) {
+    ID3D11Query **q = g_wgpu.q[k];
+    if (!q[0]) {
+        D3D11_QUERY_DESC d[3] = { { D3D11_QUERY_TIMESTAMP_DISJOINT, 0 }, { D3D11_QUERY_TIMESTAMP, 0 }, { D3D11_QUERY_TIMESTAMP, 0 } };
+        for (int i = 0; i < 3; i++) ID3D11Device_CreateQuery(g_d3d.dev, &d[i], &q[i]);
+    }
+    if (!q[0] || !q[1] || !q[2]) return;
+    if (begin) {
+        if (g_wgpu.asked[k] == 1) return;   // (an end not come: the pair waits for it)
+        if (g_wgpu.asked[k] == 2) {
+            D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj;
+            UINT64 t0, t1;
+            if (ID3D11DeviceContext_GetData(x, (ID3D11Asynchronous *)q[0], &dj, sizeof dj, D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK
+                || ID3D11DeviceContext_GetData(x, (ID3D11Asynchronous *)q[1], &t0, sizeof t0, D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK
+                || ID3D11DeviceContext_GetData(x, (ID3D11Asynchronous *)q[2], &t1, sizeof t1, D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) return;
+            if (!dj.Disjoint && dj.Frequency) g_wgpu.ms[k] = (float)((double)(t1 - t0) * 1000 / (double)dj.Frequency);
+        }
+        g_wgpu.asked[k] = 1;
+        ID3D11DeviceContext_Begin(x, (ID3D11Asynchronous *)q[0]);
+        ID3D11DeviceContext_End(x, (ID3D11Asynchronous *)q[1]);
+    } else if (g_wgpu.asked[k] == 1) {
+        g_wgpu.asked[k] = 2;
+        ID3D11DeviceContext_End(x, (ID3D11Asynchronous *)q[2]);
+        ID3D11DeviceContext_End(x, (ID3D11Asynchronous *)q[0]);
+    }
+}
 internal int g_wa_eok;   // the layer drawn this frame (rw_edges_layer), to be laid over (rw_edges_over)
 internal int rw_edges_in(const rf_cmd *c, int oit) { return c->soft && !(oit && c->oit); }
 internal void rw_edges_layer(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first) {
@@ -765,11 +798,11 @@ internal void cmd_water(char *out, const char *args) {
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
     else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | caustics <0..2> | objects <0..8> | refract <0..4> | ripples <0..4> | haze on | off | late on | off | edges on | off | color <r g b> | map | opaque <editor units> | tint <times> | depthtint on | off | tintfull <editor units> | tintstart <editor units> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth> | blend on | off | still on | off\n"); return; }
     const float *wc = rw_colour();
-    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x (scale %.3f, the step's tint by them %s, from %.1f to whole %.1f editor units under), under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f, after it under the level %d see-through batches laid over, %d added, %d multiplied, %d laid over premultiplied; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f; the animation's frames %s%s\n",
+    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x (scale %.3f, the step's tint by them %s, from %.1f to whole %.1f editor units under), under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f, after it under the level %d see-through batches laid over, %d added, %d multiplied, %d laid over premultiplied; reflections %s, strength %.2f, wobble %.3f, full from %.2f; refraction %.2f, ripples %.2f; the animation's frames %s%s; on the graphics card the water's part %.2f ms\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth, g_wa.haze ? "on" : "off", (double)(g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque),
           g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, (double)g_wa.scale, rw_depth_tint() ? "on" : rw_tint_on() ? "on, no step" : "off", (double)rw_tint_start(), (double)rw_tint_full(), (double)(wc[0] * 255), (double)(wc[1] * 255), (double)(wc[2] * 255), g_wa.owned ? "the setting" : "the map's deepest", g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za, g_rf_late[0], g_rf_late[1], g_rf_late[2], g_rf_late[3],
           (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full,
           (double)(g_rw_refract >= 0 ? g_rw_refract : g_set.water_refraction), (double)(g_rw_ripples >= 0 ? g_rw_ripples : g_set.water_reflection_ripples), g_rw_blend ? "blended" : "stepped",
-          g_rw_still ? "; still: no surface movement, no animation" : "");
+          g_rw_still ? "; still: no surface movement, no animation" : "", (double)g_wgpu.ms[0]);
 }

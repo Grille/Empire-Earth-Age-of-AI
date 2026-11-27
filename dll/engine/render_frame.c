@@ -730,6 +730,7 @@ internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int 
 internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c);
 internal void rw_edges_layer(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first);
 internal void rw_edges_over(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first);
+internal void rw_gpu_time(ID3D11DeviceContext *x, int k, int begin);   // render_water.c THE WATER'S COST
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_water_high(const rf_cmd *c);
@@ -1268,6 +1269,7 @@ internal void rf_replay(void) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
         if (i == firstw) {
+            rw_gpu_time(x, 0, 1);
             if (wedge) rw_edges_layer(x, laste, oit, scene, &b, &first);   // the soft edges' part under the level (above)
             rd3_water_steps(x, lastw, &b, &first);
             memset(g_rf_late, 0, sizeof g_rf_late);
@@ -1286,6 +1288,7 @@ internal void rf_replay(void) {
             if (owat) { rf_water_part(x, 8); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 4);
             for (int j = 0; j < g_rf.n; j++) if (g_rf.cmd[j].wat == RF_W_RING) rf_draw(x, &g_rf.cmd[j], &b, &first);
+            rw_gpu_time(x, 0, 0);
         }
         if (i < lastw && (c->wat == RF_W_SPLIT || c->wat == RF_W_TOP)) continue;
         rf_water_part(x, c->wat == RF_W_SPLIT ? rf_water_split(c, 0) : c->wat == RF_W_RING ? 3 : 0);
