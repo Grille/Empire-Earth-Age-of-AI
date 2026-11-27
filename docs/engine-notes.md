@@ -910,8 +910,9 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   (+2.5), a fine noise; at most 11.75 steps, met smoothly. The continents' bed (by g->fc: f before the islands) and
   each island's are their own, the shallower taken smoothly - a trough between; an island's shelf 0.4 a tile at
   least (no wading out to it). Seeds 3 and 5 at 210 tiles, many islands: the sea's corners spread from 3 to 11.75
-  steps (HEAD: 64 % at 5), the shallows 8 % of them (8.5 %). The players' water tint is full at 4 steps
-  ([display] water_depth_tint_full): deeper than that shows no difference on screen.
+  steps (HEAD: 64 % at 5), the shallows 8 % of them (8.5 %). On screen the depth shows only down to 4 steps: the
+  colour under the water is the game's water colour set by depth, 8 colours over 0 - 4 steps (the mesh's water scale
+  -0.612 a world unit, pipe `water`; past the last the last), [display] water_depth_tint_full only how strong.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
   "Age of AI", its options in a dialog): the layout (two continents west and east, the sea between them north to
   south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -
