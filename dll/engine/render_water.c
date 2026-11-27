@@ -118,6 +118,9 @@ internal struct {
     int ow, oh;
     ID3D11GeometryShader *gq;        // the late draws' faces grown (rd3_water_grow)
     int gqfail;
+    ID3D11PixelShader *eps;          // the soft edges under the level laid over from their layer (rw_edges_under)
+    ID3D11BlendState *elay, *eover;  // into the layer (its colour times its alpha, what it covers), the layer over the scene
+    int efail;
     int mirror;      // the reflections, -1: as the ini says
     float strength;  // how much of the surface a reflection takes
     float wobble;    // how far the water's ripples move it (of the picture)
@@ -419,6 +422,70 @@ internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c) {
         if (FAILED(hr)) { g_wa.gqfail = 1; rd_fail("the water's late faces grown", hr); }
     }
     return g_wa.gq;
+}
+// THE SOFT EDGES UNDER THE LEVEL (render_frame.c rf_replay, right after the water's step): the units' see-through texels
+// (THE SOFT EDGES) write no depth, so the step can't take them into its picture - it fogs a pixel by the depth behind it,
+// the seabed's far behind an oar's edge (the player, 2026-11-27: "the transparent edges vanish under the water fog of the
+// far away ground"). Drawn after it, each corner moved as the step moves the picture, they came apart from what the step
+// bent: the step shows at each pixel what lies a move aside, and a face moved by its corners only matches that where the
+// move is the same across it - an oar's blade, a few pixels wide, a wave's move apart from its solid core ("they should be
+// one piece, but are two split apart"). So they go into a layer of their own, unbent, fogged and tinted by their own
+// place (part 8, as the weighted transparency's layers: the cut at the surface, the late fog, no move at the corners) and
+// over what they cover in the list's order - the weighted transparency's first sum as the target, cleared, its colour
+// times its alpha - and the layer is laid over the scene read where the step read the picture behind the surface (its
+// shifts, otex: render_3d.c pwel): each pixel of the edges moved exactly as the solid part beside it. Without the layer
+// (its targets not made, another viewport) as before: drawn over the scene, moved at their corners.
+internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first) {
+    int ok = g_wa.have && g_wa.osrv && f && f->dsv && f->rtv && !g_wa.efail && oit_ready(f->dsv);
+    if (ok && !g_wa.eps) {
+        ID3DBlob *code = d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "pwel", "ps_4_0");
+        HRESULT hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_wa.eps) : E_FAIL;
+        D3D_RELEASE(code);
+        D3D11_BLEND_DESC bd = { 0 };
+        bd.RenderTarget[0] = (D3D11_RENDER_TARGET_BLEND_DESC){ TRUE, D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD,
+                                                               D3D11_BLEND_ONE, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD, D3D11_COLOR_WRITE_ENABLE_ALL };
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(g_d3d.dev, &bd, &g_wa.elay);
+        bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(g_d3d.dev, &bd, &g_wa.eover);
+        if (FAILED(hr)) { g_wa.efail = 1; rd_fail("the soft edges under the water", hr); ok = 0; }
+    }
+    rf_edges_part(x, RF_PART_EDGES);
+    rf_water_part(x, ok ? 8 : 1);
+    if (ok) {
+        static const FLOAT none[4] = { 0, 0, 0, 0 };
+        ID3D11DeviceContext_ClearRenderTargetView(x, g_oit.ar, none);
+        g_oit_rtv[0] = g_oit.ar, g_oit_rtv[1] = NULL, g_oit_scene = f->rtv;   // (rf_draw: placed on the scene's target)
+        *first = 1;
+    }
+    for (int j = 0; j <= laste; j++) {
+        if (!g_rf.cmd[j].soft || (oit && g_rf.cmd[j].oit)) continue;
+        rf_cmd e = g_rf.cmd[j];
+        e.depth = e.soft;
+        if (ok && oit_scene(&e, f)) { e.rtv = g_oit.ar; e.blend = g_wa.elay; }
+        rf_draw(x, &e, b, first);
+    }
+    rf_edges_part(x, 0);
+    g_oit_rtv[0] = g_oit_rtv[1] = g_oit_scene = NULL;
+    if (!ok) return;
+    D3D11_VIEWPORT port = rs_port(&f->vport, f->rtv);
+    ID3D11DeviceContext_RSSetViewports(x, 1, &port);
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, (ID3D11RenderTargetView **)&f->rtv, NULL);
+    ID3D11ShaderResourceView *srv = g_oit.as;
+    ID3D11DeviceContext_PSSetShaderResources(x, 16, 1, &srv);
+    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &g_wa.osrv);
+    ID3D11DeviceContext_OMSetBlendState(x, g_wa.eover, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_OMSetDepthStencilState(x, NULL, 0);
+    ID3D11DeviceContext_RSSetState(x, NULL);
+    ID3D11DeviceContext_IASetInputLayout(x, NULL);
+    ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ID3D11DeviceContext_VSSetShader(x, g_d3d.vs, NULL, 0);
+    ID3D11DeviceContext_PSSetShader(x, g_wa.eps, NULL, 0);
+    ID3D11DeviceContext_Draw(x, 3, 0);
+    srv = NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 16, 1, &srv);
+    rf_bind(x);
+    *first = 1;
+    b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 }
 internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first) {
     ID3D11ShaderResourceView *o = NULL;

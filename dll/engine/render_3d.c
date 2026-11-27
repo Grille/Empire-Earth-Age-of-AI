@@ -237,7 +237,12 @@ internal const char k_rd3_shader[] =
     // draw's pixels (ps: what the move between the corners misses)
     " float2 wk = 0; if (gnd.x == 0 && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0) { float3 wv = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
     "  if (wv.z < sea.z && wop.z > sea.z) { float k = (wop.z - wv.z) / (wop.z - sea.z); float3 ws = wop.xyz + (wv - wop.xyz) / k;"
-    "   float2 dm = wslope(ws.xy) * (cat.y * saturate(length(wv - ws) * 4)); float3 bc = cross(shy.xyz, shz.xyz), ca = cross(shz.xyz, shx.xyz);"
+    // the step shows at a surface point what lies the slope's move from it: this corner shows where that point plus its
+    // move is the corner's own entry - found from it by three steps back (by the slope at the entry itself the move was
+    // another wave's close up, the corner apart from the step's picture of what it covers: an oar's see-through edges
+    // beside its solid blade, the player, 2026-11-27: "they should be one piece, but are two split apart")
+    "   float sk = cat.y * saturate(length(wv - ws) * 4); float2 dm = wslope(ws.xy) * sk; dm = wslope(ws.xy - dm) * sk; dm = wslope(ws.xy - dm) * sk;"
+    "   float3 bc = cross(shy.xyz, shz.xyz), ca = cross(shz.xyz, shx.xyz);"
     "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) { float3 mv = k * (dm.x * bc + dm.y * ca) / dt; float4 c0 = mul(p, vpm), c1 = mul(float4(p.xyz - mv, p.w), vpm);"
     // no more than the step moves the picture, 48 pixels (wpix; vp.xy: half a pixel in clip space): close up a wave moved
     // an oar's edges past the step's limit, its solid half bent by the step stayed behind (the player, 2026-11-27: "the
@@ -516,9 +521,16 @@ internal const char k_rd3_shader[] =
     "struct WO { float4 c : SV_Target0; float2 o : SV_Target1; };\n"   // the picture; the refraction's shift there (render_water.c otex)
     "WO wfog(O i) { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz);"
     " float2 wx = ddx(i.w.xy), wy = ddy(i.w.xy);"
-    " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1;"
-    "  float2 bp = i.p.xy + wpix(wslope(i.w.xy) * (cat.y * saturate(tw * 4)), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
-    "  int3 b = int3(bp, 0); float db = wsd.Load(b);"
+    // The move's strength by the way through the water to what is read, not to what lies behind this pixel: read once
+    // by the pixel's own, then again by the depth found there. By the pixel's own, the seabed far behind beside an oar
+    // moved the oar into those pixels by the seabed's whole move, and the oar's own pixels, its depth a little under the
+    // surface, read near themselves: the oar shown twice, and its see-through parts after the step - moved by their own
+    // way through the water - beside neither (the player, 2026-11-27: "they should be one piece, but are two split apart")
+    " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1; float2 sl = wslope(i.w.xy) * cat.y;"
+    "  float2 bp = i.p.xy + wpix(sl * saturate(tw * 4), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    "  float db = wsd.Load(int3(bp, 0)); tw = db < 0.99999 ? wl * max((i.p.z - wfc.w) / (db - wfc.w) - 1, 0) : 1;"
+    "  bp = i.p.xy + wpix(sl * saturate(tw * 4), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    "  int3 b = int3(bp, 0); db = wsd.Load(b);"
     "  if (db > i.p.z && (db < 0.99999 || d >= 0.99999)) { a = b; d = db; } }"
     " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
@@ -562,7 +574,10 @@ internal const char k_rd3_shader[] =
     // the seabed behind them (render_water.c THE WATER'S STEP AND WHAT COMES AFTER IT)
     "float4 poitc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0);"
     " if (wsp.x > 0 && wsp.y == 0) a.xy += int2(round(wof.Load(a))); float r = orv.Load(a); if (r >= 0.9999) discard;"
-    " float4 c = oac.Load(a); return float4(c.rgb / max(c.a, 1e-5), 1 - r); }\n";
+    " float4 c = oac.Load(a); return float4(c.rgb / max(c.a, 1e-5), 1 - r); }\n"
+    // the soft edges under the water's level, laid over the scene from their own layer where the water's step read the
+    // picture behind the surface: bent as the solid parts and the seabed behind them (render_water.c rw_edges_under)
+    "float4 pwel(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { int3 a = int3(p.xy, 0); a.xy += int2(round(wof.Load(a))); return oac.Load(a); }\n";
 
 // The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
 // A ring full while the list still holds draws draws the list first (rd3_upload) - the frame then in parts, and a

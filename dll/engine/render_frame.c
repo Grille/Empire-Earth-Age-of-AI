@@ -728,6 +728,7 @@ internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_water_first(void);
 internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first);
 internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c);
+internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_water_high(const rf_cmd *c);
@@ -800,7 +801,6 @@ internal int g_cam_now_ok;
 internal float g_cam_blend_seen, g_cam_t;
 internal LONGLONG g_cam_blend_at;
 internal void rf_camera_frame(void) {
-    camera_input_frame();   // camera.c: the input's scrolling up to now, for this frame's camera
     ee_camera *cam = game_camera();
     g_cam_now_ok = 0;
     if (!cam || !game_map()) return;
@@ -1256,10 +1256,11 @@ internal void rf_replay(void) {
     // the water behind it, each with a seam of the water round it (the player, 2026-11-27: "objects borders are always
     // drawn behind teh water, wich can cause these ugly borders"). So with the water after them, in two parts by the
     // level as the see-through batches: the part over it after the surface - nothing over the level lies behind the
-    // water -, the part under it after the water's step, fogged, tinted and bent by its own place (render_water.c THE
-    // WATER'S STEP AND WHAT COMES AFTER IT). In the step's copy it took the fog of what lay behind it, the depth there
-    // its own isn't: an oar's edges under the surface as far in the water as the seabed far behind them, gone in its
-    // colour (the player, 2026-11-27: "the transparent edges vanish under the water fog of the far away ground")
+    // water -, the part under it after the water's step, fogged and tinted by its own place and laid over bent as the
+    // step bent the picture (render_water.c THE SOFT EDGES UNDER THE LEVEL). In the step's copy it took the fog of what
+    // lay behind it, the depth there its own isn't: an oar's edges under the surface as far in the water as the seabed far
+    // behind them, gone in its colour (the player, 2026-11-27: "the transparent edges vanish under the water fog of the
+    // far away ground")
     int wedge = laste >= 0 && lastw >= 0 && firstw > laste && !g_wsp.fail;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
@@ -1267,13 +1268,7 @@ internal void rf_replay(void) {
         if (i == firstw) {
             rd3_water_steps(x, lastw, &b, &first);
             memset(g_rf_late, 0, sizeof g_rf_late);
-            if (wedge) {   // the soft edges' part under the level (above)
-                rf_edges_part(x, RF_PART_EDGES);
-                rf_water_part(x, 1);
-                for (int j = 0; j <= laste; j++)
-                    if (g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
-                rf_edges_part(x, 0);
-            }
+            if (wedge) rw_edges_under(x, laste, oit, scene, &b, &first);   // the soft edges' part under the level (above)
             // their faces grown for the room the refraction's bend takes (render_water.c rd3_water_grow)
             ID3D11GeometryShader *gs = NULL;
             ID3D11DeviceContext_GSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
