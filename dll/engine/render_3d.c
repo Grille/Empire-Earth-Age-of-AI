@@ -483,8 +483,7 @@ internal const char k_rd3_shader[] =
     // fogged: the player 2026-11-27, an explosion's whole square lighter, "the fully transprant parts of the explosion cause
     // double fogging"); its colour already times its alpha, toward the fog's colour times its alpha; multiplied, toward
     // white (none) and not tinted (what it darkens is tinted)
-    // (wsp.w 2: a part under the level drawn before the step, in its copy - the soft edges, render_frame.c: none of it)
-    " if (wsp.x > 0 && wsp.y == 0 && wsp.w < 1.5 && wtn.x > 0 && wop.w > 0 && i.w.z < sea.z && wop.z > sea.z) { float dz = sea.z - i.w.z;"
+    " if (wsp.x > 0 && wsp.y == 0 && wtn.x > 0 && wop.w > 0 && i.w.z < sea.z && wop.z > sea.z) { float dz = sea.z - i.w.z;"
     "  float wp = saturate(length(i.w - wop.xyz) * dz / (wop.z - i.w.z) * wop.w), wq = wp * wp * (3 - 2 * wp);"
     "  c.rgb = misc.w > 2.5 ? lerp(c.rgb * wtint(i.w.z, dz), wtm.yzw * saturate(c.a), wq) : misc.w > 1.5 ? lerp(c.rgb, 1, wq)"
     "   : misc.w > 0.5 ? c.rgb * wtint(i.w.z, dz) * (1 - wq) : lerp(c.rgb * wtint(i.w.z, dz), wtm.yzw, wq); }"
