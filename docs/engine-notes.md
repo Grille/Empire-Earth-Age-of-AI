@@ -888,9 +888,9 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   the land's mine density and half again its forests, nobody's at the start, two in three of the ranges, plateaus
   and lakes (the Old World's room is the players'). First a third larger than the Old World, "very similar to two
   continents still" (the player): now the Old World a strip 0.2 of the half wide along one side and the New World
-  three quarters of the land - wider only where a player would get less than 600 tiles of it (at most 0.36: on 116
-  tiles with four players the New World some 56%, two starts in four forced in most games still - four starts 16
-  tiles apart don't fit the strip's length there; from 210 tiles with five players none), the players along it as
+  three quarters of the land on every size (116 tiles with four players: two starts in four forced - four starts 16
+  tiles apart don't fit the strip; from 210 tiles with five none. The player: "not every map size has to work for
+  every player count, the smallest size is small even for a 1v1" - a layout keeps its shape), the players along it as
   on two continents (round a strip two sat across from each other), a start only on its continent's mainland (the
   largest piece a walker crosses: the strip's tip left one apart) and no yard raised out of the channel (a forced
   start's joined the continents). The rotation (map_rotation, the same day, the

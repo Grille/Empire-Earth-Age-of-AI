@@ -226,12 +226,11 @@ internal void mg_layout(struct mg *g) {
         // the Old World a strip along the map's side, 0.2 of the half wide, from 0.88 of the half out; 0.16 of
         // channel; the New World the rest to the far side's 0.88 - three quarters of the land (the player 2026-11-27:
         // "the new world should at least get 3/4 of the map"; a third larger than the Old World was "very similar
-        // to two continents still"; widened for many players it was so again). Only where that leaves a player less
-        // than 600 tiles of it (an ellipse's area: pi wide long half^2, a tile 2 of u and v) wider, up to 0.36: on
-        // 116 tiles with four players a strip of 0.2 made two starts in four forced in every game - 210 tiles with
-        // five none
-        float need = (float)g->np * 600.0f * 2.0f / (3.14159265f * 0.88f * g->half * g->half * g->opt.land * g->opt.land);
-        float ow = fminf(0.36f, fmaxf(0.2f, need)), oat = -0.88f + ow, from = oat + ow + 0.16f;
+        // to two continents still"; widened for many players it was so again) - on every size: on 116 tiles four
+        // players don't fit the strip (two starts in four forced, 210 tiles with five none), and that is the small
+        // map's and the player count's, not the layout's to give up its shape for (the player: "not every map size
+        // has to work for every player count")
+        float ow = 0.2f, oat = -0.88f + ow, from = oat + ow + 0.16f;
         g->nc = 2; g->homes = 1; g->chan_on = 1; g->chan = (oat + ow + 0.08f) * s * g->half;
         g->cont[0].at = oat * s; g->cont[0].wide = ow; g->cont[0].len = 0.88f;
         g->cont[1].at = (from + 0.88f) * 0.5f * s; g->cont[1].wide = (0.88f - from) * 0.5f; g->cont[1].len = 0.92f;
@@ -278,7 +277,7 @@ internal void mg_options(struct mg *g, const ee_setup *setup) {
     g->opt.islands = MG_PICK(amount, s.map_islands);
     g->opt.forests = MG_PICK(amount, s.map_forests);
     g->opt.mines = MG_PICK(amount, s.map_mines);
-    mg_layout(g);   // (after the land's size: the Old World's width asks it)
+    mg_layout(g);
 #undef MG_PICK
 }
 internal void mg_options_log(const struct mg *g) {
