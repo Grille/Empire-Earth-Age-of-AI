@@ -1107,16 +1107,17 @@ internal void rf_edges_part(ID3D11DeviceContext *x, int part) {
 // the shader's wsp, which pixels of a draw are wanted: 0 all, 1 under the water's level, 2 not under it, 3 over the land, 4 over
 // the water and under its level, 5 over the water and not under it; 6 and 7 as 1 and 2 with the split RF_HIGH_SPLIT higher
 // (rf_water_split); 8 as 1, for the weighted transparency's layers (w 1: the vertex shader doesn't bend them - their sums are
-// read bent, render_3d.c poitc). A slot of its own: the shadows' maps leave their constants in the edges' (rd3_shadow_frame).
+// read bent, render_3d.c poitc); 9 as 1 before the water's step, in its copy (w 2: neither bent nor fogged after it - the soft
+// edges' part under the level, rf_replay). A slot of its own: the shadows' maps leave their constants in the edges' (rd3_shadow_frame).
 // The vertex shader has them too: what is drawn under the level after the water's step is bent there (render_water.c THE
 // WATER'S STEP AND WHAT COMES AFTER IT)
 #define RF_HIGH_SPLIT 0.1f
-internal struct { ID3D11Buffer *cb[9]; int part, fail; } g_wsp;
+internal struct { ID3D11Buffer *cb[10]; int part, fail; } g_wsp;
 internal int g_rf_late[4];   // the last list's see-through batches under the water's level after its step, by their blend's kind (render_water.c's readout)
 internal void rf_water_part(ID3D11DeviceContext *x, int part) {
     if (!g_wsp.cb[0] && !g_wsp.fail) {
-        static const float v[9][4] = { { 0, 0, 0, 0 }, { 1, 0, 0, 0 }, { -1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 1, 2, 0, 0 }, { -1, 2, 0, 0 }, { 1, 0, RF_HIGH_SPLIT, 0 }, { -1, 0, RF_HIGH_SPLIT, 0 }, { 1, 0, 0, 1 } };
-        for (int i = 0; i < 9 && !g_wsp.fail; i++) {
+        static const float v[10][4] = { { 0, 0, 0, 0 }, { 1, 0, 0, 0 }, { -1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 1, 2, 0, 0 }, { -1, 2, 0, 0 }, { 1, 0, RF_HIGH_SPLIT, 0 }, { -1, 0, RF_HIGH_SPLIT, 0 }, { 1, 0, 0, 1 }, { 1, 0, 0, 2 } };
+        for (int i = 0; i < 10 && !g_wsp.fail; i++) {
             float k[4] = { v[i][0], v[i][1], v[i][2], v[i][3] };
             D3D11_BUFFER_DESC bd = { sizeof k, D3D11_USAGE_IMMUTABLE, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
             D3D11_SUBRESOURCE_DATA sd = { k, 0, 0 };
@@ -1250,6 +1251,13 @@ internal void rf_replay(void) {
     // trees, also its noticably darker than it should be"); with the water's surface after that, in two parts around
     // the surface (render_oit.c)
     int oat = lastu > lasto ? lastu : lasto, owat = lasto >= 0 && lastw >= 0 && firstw > oat;
+    // The soft edges (THE SOFT EDGES) write no depth: drawn before the water, the surface covered those of whatever stands
+    // over the level in front of it - a coral or a reed sticking out of the sea, a ship's hull, a tree on the shore before
+    // the water behind it, each with a seam of the water round it (the player, 2026-11-27: "objects borders are always
+    // drawn behind teh water, wich can cause these ugly borders"). So with the water after them, in two parts by the
+    // level as the see-through batches: the part under it where it was (part 9: in the step's copy, bent and fogged with
+    // what lies behind the surface), the part over it after the surface - nothing over the level lies behind the water
+    int wedge = laste >= 0 && lastw >= 0 && firstw > laste && !g_wsp.fail;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
@@ -1278,6 +1286,7 @@ internal void rf_replay(void) {
         if (i == lastg) rd3_ao_ground(x, c->dsv);
         if (i == laste) {
             rf_edges_part(x, RF_PART_EDGES);
+            if (wedge) rf_water_part(x, 9);
             for (int j = 0; j <= laste; j++)
                 if (g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
             rf_edges_part(x, 0);
@@ -1295,6 +1304,13 @@ internal void rf_replay(void) {
         if (lasto >= 0 && !owat && i == oat) oit_pass(x, lasto, scene, &b, &first);   // (its batches as edges where it can't)
         if (i == lastu) rd3_silhouettes(x, &b, &first);
         if (i == lastw) {
+            if (wedge) {   // the soft edges' part over the level (above)
+                rf_edges_part(x, RF_PART_EDGES);
+                rf_water_part(x, 2);
+                for (int j = 0; j <= laste; j++)
+                    if (g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
+                rf_edges_part(x, 0);
+            }
             for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_SPLIT) { rf_water_part(x, rf_water_split(&g_rf.cmd[j], 0)); rf_draw(x, &g_rf.cmd[j], &b, &first); }
             if (owat) { rf_water_part(x, 2); oit_pass(x, lasto, scene, &b, &first); }
             rf_water_part(x, 5);
