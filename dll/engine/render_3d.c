@@ -182,7 +182,7 @@ internal const char k_rd3_shader[] =
     "Texture2D wnx : register(t14);\n"   // the water's: its animation's next frame, blended in by gbl.y (render_ground.c rg_water_blend)
     "cbuffer e : register(b2) { float4 edp; };\n"   // which part of a texture this draw is (render_frame.c rf_edges); y: by the material's alpha too (render_oit.c)
     "cbuffer wp : register(b5) { float4 wsp; };\n"   // x: which side of the water's level this draw is, 1 under it, -1 not; z: the split that much higher; w: 1 not bent by the vertex shader (render_frame.c rf_water_part)
-    "cbuffer wtc : register(b7) { float4 wtn; float4 wtm; float4 wts[64]; };\n"   // the water's tint by depth (render_water.c rw_step): the last step, the scale, on, 1 / the depths (tiles) from its start to its whole; the start, the colour under the water as the surface is lit; the steps' colours
+    "cbuffer wtc : register(b7) { float4 wtn; float4 wtm; float4 wts[64]; float4 wtv; };\n"   // the water's tint by depth (render_water.c rw_step): the last step, the scale, on, 1 / the depths (tiles) from its start to its whole; the start, the colour under the water as the surface is lit; the steps' colours; the viewport's first and last pixels (x, y)
     // the tint at a point of height z, dz under the level: the water's colour by the height as the game picks it, between
     // the two steps around it, eased in by the depth (render_water.c THE TINT BY DEPTH)
     "float3 wtint(float z, float dz) { if (wtn.z <= 0) return float3(1, 1, 1); float u = clamp(z * wtn.y * wtn.x - 0.5, 0, wtn.x); uint k = (uint)u;"
@@ -492,13 +492,19 @@ internal const char k_rd3_shader[] =
     // the same line of sight); nothing drawn behind it is the farthest there is. The surface's vertices bring the light
     // and the game's fade to black at what isn't explored, its fog the distance's. The refraction (cat.y): what lies
     // behind read aside by the waves' slope, by the way through the water to it - none at the shore, all from a quarter
-    // tile on -, but only what lies behind the surface there too: a hull or the shore in front of it stays where it is
+    // tile on -, but only what lies behind the surface there too: a hull or the shore in front of it stays where it is.
+    // Read within the viewport (wtv): outside it nothing is drawn - the strip under the interface's bar -, and read there a
+    // surface pixel at the screen's edge took it for nothing behind, the water's whole colour: a blue band waving along
+    // the bottom (the player, 2026-11-27: "it should maybe smear the last availabe terrain downward"); the last row read
+    // instead. Nor nothing behind for something: where the ground's mesh ends inside the view, what lies aside of it
+    // stays where it is
     "struct WO { float4 c : SV_Target0; float2 o : SV_Target1; };\n"   // the picture; the refraction's shift there (render_water.c otex)
     "WO wfog(O i) { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1, wl = length(i.w - wop.xyz);"
     " float2 wx = ddx(i.w.xy), wy = ddy(i.w.xy);"
     " if (cat.y > 0) { float tw = d < 0.99999 ? wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) : 1;"
-    "  int3 b = int3(i.p.xy + wpix(wslope(i.w.xy) * (cat.y * saturate(tw * 4)), wx, wy), 0); float db = wsd.Load(b);"
-    "  if (db > i.p.z) { a = b; d = db; } }"
+    "  float2 bp = i.p.xy + wpix(wslope(i.w.xy) * (cat.y * saturate(tw * 4)), wx, wy); if (wtv.z > wtv.x) bp = clamp(bp, wtv.xy, wtv.zw);"
+    "  int3 b = int3(bp, 0); float db = wsd.Load(b);"
+    "  if (db > i.p.z && (db < 0.99999 || d >= 0.99999)) { a = b; d = db; } }"
     " if (d < 0.99999) wp = saturate(wl * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
     // the tint by depth (render_water.c THE TINT BY DEPTH): of the point behind on the same line of sight; under the fog of

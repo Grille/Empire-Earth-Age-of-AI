@@ -98,6 +98,7 @@ internal struct {
     int tdirty;      // the tint's buffer to be sent again
     int copy_ok;     // the last copy of the picture could be made (else the ground keeps the game's colours under the water)
     float hstep;     // the map's height step it was sent for
+    float vp[4];     // the viewport's first and last pixels it was sent for (the refraction reads within them: render_3d.c wfog)
     ID3D11Buffer *tcb;
     float za;        // the projection's depth term (rw_depth)
     ID3D11PixelShader *fps;
@@ -463,16 +464,20 @@ internal void rw_step(ID3D11DeviceContext *x, const rf_cmd *c) {
     }
     if (!g_wa.have) return;
     if (!g_wa.tcb) {
-        D3D11_BUFFER_DESC bd = { (2 + RW_STEPS) * 4 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        D3D11_BUFFER_DESC bd = { (3 + RW_STEPS) * 4 * sizeof(float), D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
         HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_wa.tcb);
         if (FAILED(hr)) { g_wa.tcb = NULL; g_wa.dtint = 0; rd_fail("the water's tint by depth", hr); }   // the game's colours, as before
         g_wa.tdirty = 1;
     }
     float hstep = map_get_height_step(game_map());
-    if (g_wa.tcb && (g_wa.tdirty || hstep != g_wa.hstep)) {   // wtn: the last step, the scale, on, 1 / the depths (tiles) from the tint's start to its whole; wtm: the start; wts: the steps' colours
+    D3D11_VIEWPORT port = rs_port(&c->vport, c->rtv);
+    float vp[4] = { port.TopLeftX, port.TopLeftY, port.TopLeftX + port.Width - 1, port.TopLeftY + port.Height - 1 };
+    if (g_wa.tcb && (g_wa.tdirty || hstep != g_wa.hstep || memcmp(vp, g_wa.vp, sizeof vp))) {   // wtn: the last step, the scale, on, 1 / the depths (tiles) from the tint's start to its whole; wtm: the start; wts: the steps' colours
         float unit = hstep * 0.5f, span = (rw_tint_full() - rw_tint_start()) * unit;
-        float cb[(2 + RW_STEPS) * 4] = { (float)((g_wa.tn < RW_STEPS ? g_wa.tn : RW_STEPS) - 1), g_wa.scale, rw_tint_on() && g_wa.tn ? 1.0f : 0.0f, 1 / (span > 0.001f ? span : 0.001f), rw_tint_start() * unit, rw_colour()[0] * g_wa.tint * g_wa.wl[0], rw_colour()[1] * g_wa.tint * g_wa.wl[1], rw_colour()[2] * g_wa.tint * g_wa.wl[2] };
+        float cb[(3 + RW_STEPS) * 4] = { (float)((g_wa.tn < RW_STEPS ? g_wa.tn : RW_STEPS) - 1), g_wa.scale, rw_tint_on() && g_wa.tn ? 1.0f : 0.0f, 1 / (span > 0.001f ? span : 0.001f), rw_tint_start() * unit, rw_colour()[0] * g_wa.tint * g_wa.wl[0], rw_colour()[1] * g_wa.tint * g_wa.wl[1], rw_colour()[2] * g_wa.tint * g_wa.wl[2] };
         memcpy(cb + 8, g_wa.sc, sizeof g_wa.sc);
+        memcpy(cb + 8 + RW_STEPS * 4, vp, sizeof vp);
+        memcpy(g_wa.vp, vp, sizeof vp);
         g_wa.hstep = hstep;
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_wa.tcb, 0, NULL, cb, 0, 0);
         g_wa.tdirty = 0;
