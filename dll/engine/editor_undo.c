@@ -344,6 +344,7 @@ internal void eu_ground_set(const struct eu_step *s, int side) {
     // (the box may hold the last corners, x or y = size: the minimap's tables go by tiles)
     int last = (int)map_get_size(map) - 1;
     ground_tell(s->x0, s->x1 < last ? s->x1 : last, s->y1 < last ? s->y1 : last, s->y0);
+    ground_changed_box(s->x0, s->y0, s->x1, s->y1);   // (ground_change.c)
 }
 // the step taken back (undo) or done again: units first gone, then those brought back, then the moved, then the ground
 internal void eu_apply(struct eu_step *s, int undo) {
@@ -419,6 +420,7 @@ internal void __thiscall hook_eu_se_paint_terrain(ee_se_paint_terrain *a) {
 }
 // the paint tools tell the minimap what they changed: the open stroke's box
 internal void __thiscall hook_eu_minimap(ee_minimap *m, int x_lo, int x_hi, int y_hi, int y_lo) {
+    ground_changed_box(x_lo, y_lo, x_hi, y_hi);   // every paint tool's box (ground_change.c)
     if (g_eu_stroke_open && !g_eu_busy) {
         if (!g_eu_dirty) { g_eu_dirty = 1; g_eu_dx0 = x_lo, g_eu_dx1 = x_hi, g_eu_dy0 = y_lo, g_eu_dy1 = y_hi; }
         else {
@@ -439,11 +441,12 @@ internal void __thiscall hook_eu_se_move(ee_se_move *a) {
     eu_after();
 }
 // a new map: nothing of before stands
-internal void __thiscall hook_eu_se_blank_map(ee_se_blank_map *a) { eu_clear(); g_eu_depth++; eesea_create_blank_map_run(a); g_eu_depth--; }
+internal void __thiscall hook_eu_se_blank_map(ee_se_blank_map *a) { eu_clear(); g_eu_depth++; eesea_create_blank_map_run(a); g_eu_depth--; ground_changed_all(); }
 // (a random map of the mod's type asks for its options first: none made when they are cancelled - mapgen_dialog.c)
 internal void __thiscall hook_eu_se_random_map(ee_se_random_map *a) {
     if (!mapgen_editor_ask(a)) return;
     eu_clear(); g_eu_depth++; eesea_create_random_map_run(a); g_eu_depth--;
+    ground_changed_all();
 }
 
 internal void editor_undo_install(void) {

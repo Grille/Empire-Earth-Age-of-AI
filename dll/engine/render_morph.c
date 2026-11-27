@@ -110,6 +110,15 @@ internal void mo_forget(void) {
     g_mo.resets++;
     RD_UNLOCK();
 }
+// the runs of the memory src .. src + n vertices put in again when next drawn: their vertices changed in place (render_units.c
+// a bent copy bent again where the ground changed - mo_run_of's look at a run's first and last vertex can miss a change
+// between them)
+internal void mo_stale(const float *src, uint32_t n) {
+    for (int h = 0; h < MO_SLOTS; h++) {
+        mo_run *r = &g_mo.run[h];
+        if (r->src && r->src >= src && r->src < src + (size_t)n * 8) ((uint32_t *)r->first)[0] ^= 1;
+    }
+}
 // the noted copy done after all
 internal void mo_copy_now(void) {
     if (!g_mo_note.dst) return;

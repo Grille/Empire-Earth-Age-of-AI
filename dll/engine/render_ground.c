@@ -193,6 +193,7 @@ internal void rg_free(void) {
 }
 // a corner changed: the chunks of the tiles its height, colour or normal reach (a normal is its neighbours' heights: two tiles round)
 internal void rg_touch(unsigned long x, unsigned long y) {
+    ground_changed_box((int)x, (int)y, (int)x, (int)y);   // (ground_change.c)
     int across = g_rg.across;
     if (!g_rg.built || across <= 0 || across > RG_ACROSS) return;
     for (int k = 0; k < 4; k++) {

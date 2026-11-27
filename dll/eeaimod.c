@@ -588,6 +588,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/energy_walls.c"   // AoC's space walls' energy fields where the game left them out (a scenario's walls)
 #include "persist.c"
 #include "engine/aim.c"
+#include "engine/ground_change.c"   // the ground changed: who keeps what is made of it asks where
 #include "engine/camera.c"
 #include "engine/godmode.c"   // godmode: the whole map, any player's units and buildings as this PC's own (playas)
 #include "base/headless_win.c"

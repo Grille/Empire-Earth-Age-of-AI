@@ -117,9 +117,10 @@ internal void ud_gate(ee_model *m, float open) {
 // (bl_bend: five heights of the ground a vertex, into the shared frame and back), and that frame went to the display
 // DLL one draw at a time - 37 % of the records zoomed out in the test. They stand still: here an object's bent frame is
 // made once by the same code (bl_bend_at into a copy) and kept by model, frame and place, and drawn instanced like the
-// rest. Kept while the map and the game are the same (a load frees them, and the GPU's pool of runs forgets their memory); only while
-// a game runs (the scenario editor changes the ground under them: the game's draw there), only a frame's own (not one
-// blended toward the next: bl_bend bends the frame alone). A wall's piece is bent by its end cuts (walls.c END CUTS),
+// rest. Kept while the map and the game are the same (a load frees them, and the GPU's pool of runs forgets their memory),
+// bent again in place where the ground changed (ground_change.c: a building's flattening, the scenario editor's tools - in
+// the editor too since then; before, the game's draw there at every frame: 8 fps over the player's 1000-tile map); only
+// a frame's own (not one blended toward the next: bl_bend bends the frame alone). A wall's piece is bent by its end cuts (walls.c END CUTS),
 // which change with its neighbours under the same transformation: its copy is made again when walls.c's count of the
 // cuts' changes moved on.
 // The table grows with the map (twice the room when three quarters full, up to UB_MAX): at a fixed 8192 a 1000-tile map's
@@ -129,7 +130,7 @@ internal void ud_gate(ee_model *m, float open) {
 #define UB_FIRST 8192
 #define UB_MAX (1u << 21)
 typedef struct { ee_model *m; uint32_t f; float t[12]; float *v; int decal; LONG gen; uint32_t nv; } ub_entry;   // v NULL: drawn as it is; gen: a wall's cuts' count; nv: v's vertices
-internal struct { ub_entry *e; uint32_t cap; int n; void *map; LONG made, full, stale, starts, remade; } g_ub;
+internal struct { ub_entry *e; uint32_t cap; int n; void *map; LONG made, full, stale, starts, remade, rebent; LONG gc_gen, gc_seen[GC_ACROSS * GC_ACROSS]; } g_ub;
 internal void mo_forget(void);   // render_morph.c
 internal void ub_clear(void *map) {
     for (uint32_t i = 0; i < g_ub.cap; i++) free(g_ub.e[i].v);
@@ -137,6 +138,33 @@ internal void ub_clear(void *map) {
     if (g_ub.e) memset(g_ub.e, 0, (size_t)g_ub.cap * sizeof *g_ub.e);
     g_ub.n = 0;
     g_ub.map = map;
+    g_ub.gc_gen = g_gc_gen;
+    for (int c = 0; c < GC_ACROSS * GC_ACROSS; c++) g_ub.gc_seen[c] = g_gc_cell[c];
+}
+internal void mo_stale(const float *src, uint32_t n);   // render_morph.c
+// where the ground changed since the last look (ground_change.c): the copies of the objects standing there bent again, in
+// place (the kept parts point at them), and the animation pool's copies of them put in again
+internal void ub_ground(void) {
+    LONG gen = g_gc_gen;
+    if (gen == g_ub.gc_gen) return;
+    g_ub.gc_gen = gen;
+    static LONG now[GC_ACROSS * GC_ACROSS];
+    static uint8_t changed[GC_ACROSS * GC_ACROSS];
+    int any = 0;
+    for (int c = 0; c < GC_ACROSS * GC_ACROSS; c++) {
+        now[c] = g_gc_cell[c];
+        changed[c] = now[c] != g_ub.gc_seen[c];
+        any |= changed[c];
+        g_ub.gc_seen[c] = now[c];
+    }
+    if (!any || !g_ub.e) return;
+    for (uint32_t i = 0; i < g_ub.cap; i++) {
+        ub_entry *e = &g_ub.e[i];
+        if (!e->m || !e->v) continue;
+        int c = gc_cell(e->t[3], e->t[7]);
+        if (c < 0 || !changed[c] || e->nv != vertices_get_count(model_get_vertices(e->m)[e->f])) continue;
+        if (bl_bend_at(e->m, e->f, e->t, e->v)) { mo_stale(e->v, e->nv); g_ub.rebent++; }
+    }
 }
 internal uint32_t ub_hash(ee_model *m, uint32_t f, const float *t) {
     uint32_t key[4];
@@ -166,6 +194,7 @@ internal int ub_room(void) {
 internal const ub_entry *ub_get(ee_model *m, uint32_t f, const float *t) {
     void *map = game_map();
     if (map != g_ub.map || g_ub.starts != g_game_starts) ub_clear(map), g_ub.starts = g_game_starts;
+    ub_ground();
     if (!g_ub.e && !ub_room()) { InterlockedIncrement(&g_ub.full); return NULL; }
     uint32_t h = ub_hash(m, f, t) & (g_ub.cap - 1);
     for (;; h = (h + 1) & (g_ub.cap - 1)) {
@@ -1309,7 +1338,8 @@ internal int ud_draw_whole(void *rec) {
                  { (uint32_t)draw_record_get_frame(rec), (uint32_t)draw_record_get_next_frame(rec),
                    *engine_display_frame_blending_at() ? draw_record_get_fraction(rec) : 0.0f, op, NULL },
                  burnt ? g_ud_death_tex : graphics_anim_texture(g, anim), m ? model_get_material_count(m) : 0, 0, 0 };
-    if (bent && (!game_time() || r.pose.frac != 0)) return ud_fell(UD_BENT);
+    if (bent && r.pose.frac != 0) return ud_fell(UD_BENT);
+    if (bent) ub_ground();   // (a kept record doesn't ask for its copy: the ground's changes looked at here)
     if (!in_can(*game_camera_fixed_at()) || !in_init()) return ud_fell(UD_CANT);
     kt_tree *k = m ? kr_find(rec, g, m, anim, &r) : NULL;   // kept: no test of its model, no lookup of its bent copy
     if (k && k->state == KT_OK) return ud_set(rec, g, m, anim, op, &bias) ? kr_parts(k, &r, bias) : ud_fell(UD_CANT);
@@ -1505,7 +1535,7 @@ internal int ud_pipe(char *out, const char *mode, const char *arg) {
     for (int k = 0; k < UD_REASONS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_reason[k], (long)g_ud.reason[k]);
     REPLY("); compared %ld, differ %ld (", (long)g_ud.recs, (long)g_ud.differ);
     for (int k = 0; k < UD_KINDS; k++) REPLY("%s%s %ld", k ? ", " : "", k_ud_kind[k], (long)g_ud.kind[k]);
-    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld, made again for another model %ld\n",
-          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale, (long)g_ub.remade);
+    REPLY("), the places' largest difference %.2g; bent objects compared %ld, their kept copies %d (made %ld, the table full %ld times), stale %ld, made again for another model %ld, bent again where the ground changed %ld\n",
+          (double)g_ud.worst, (long)g_ud.bents, g_ub.n, (long)g_ub.made, (long)g_ub.full, (long)g_ub.stale, (long)g_ub.remade, (long)g_ub.rebent);
     return 1;
 }
