@@ -258,6 +258,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     }
     pc->wav[0] = g_wa.wave[0];
     pc->wav[1] = on ? g_wa.wave[1] : 0.0f;
+    pc->wav[2] = on ? 1.0f : 0.0f;   // the surface known: the split at it, still water too
     pc->rfa[0] = g_wa.strength;
     pc->rfa[1] = g_wa.wobble;
     pc->rfa[2] = g_wa.drawn && water_seen ? 1.0f : 0.0f;

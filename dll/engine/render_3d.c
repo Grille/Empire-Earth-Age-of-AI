@@ -428,8 +428,10 @@ internal const char k_rd3_shader[] =
     // blend): at the level alone, a soft edge's part under it went in the water's copy where the surface's crest stood
     // lower, and an oar's solid half met its edges' a wave's height off (the player, 2026-11-27: "the split is not at
     // the animated water surface but on a fixed one, wich still can cause a disconect betwen the opaque and transparent
-    // halfes")
-    " if (wsp.x != 0) { float wc = sea.z - 0.05; if (wsp.y == 0 && wav.y != 0) { float2 wf = floor(i.w.xy), wg = i.w.xy - wf;"
+    // halfes"). Still water too (the strength 0: the level itself) - the level less 0.05 left an oar's edges over the
+    // water for a long way past where its solid part went under ("the transparent border is threated as underwater much
+    // later than the opaque part")
+    " if (wsp.x != 0) { float wc = sea.z - 0.05; if (wsp.y == 0 && wav.z > 0) { float2 wf = floor(i.w.xy), wg = i.w.xy - wf;"
     "  float4 wn = sin(float4(wf.x * wf.y, (wf.x + 1) * wf.y, wf.x * (wf.y + 1), (wf.x + 1) * (wf.y + 1)) + wav.x);"
     "  wc = lerp(lerp(wn.x, wn.y, wg.x), lerp(wn.z, wn.w, wg.x), wg.y) * wav.y; }"
     "  if (wsp.x > 0 ? i.w.z >= wc + wsp.z : i.w.z < wc + wsp.z) discard; }"
