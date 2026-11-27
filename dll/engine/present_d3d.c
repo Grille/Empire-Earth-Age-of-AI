@@ -19,6 +19,7 @@ typedef HRESULT (WINAPI *D3DCompileFn)(LPCVOID, SIZE_T, LPCSTR, const D3D_SHADER
                                        UINT, UINT, ID3DBlob **, ID3DBlob **);
 
 internal int g_present_d3d = 1, g_vsync;
+internal void fp_present(void);   // render_frame.c THE FRAME'S COST
 internal struct {
     int failed, tearing, bw, bh, tw, th;
     DXGI_FORMAT tfmt;
@@ -314,6 +315,7 @@ internal int d3d_draw_srv(ID3D11ShaderResourceView *srv, int sw, int sh, const R
         g_shot_req = 0;
         InterlockedIncrement(&g_shot_done);
     }
+    if (g_rd_on) fp_present();   // render_frame.c THE FRAME'S COST
     LARGE_INTEGER t0, t1;
     QueryPerformanceCounter(&t0);
     int sync = g_vsync && !g_present_no_wait;

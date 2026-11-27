@@ -1207,12 +1207,136 @@ internal int rf_water_place(const rf_cmd *c, int lastw, int i) {
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
 // before (the 2D path, the present, the overlay set their own). At the first of the interface's draws after the 3D
 // scene the scene is smoothed (rf_scene_done).
+// THE FRAME'S COST (the pipe: picture cost; the player, 2026-11-27: "in my current view, what takes the most fps?"):
+// timestamps on the graphics card where the frame's stages begin - the shadows' maps, the reflection, the ground, the
+// units, the soft edges, the ambient occlusion, the weighted transparency, the silhouettes, the water's step and what
+// comes after it, the surface, what is see-through after it, the smoothing, the interface's 3D pieces, and the rest
+// (between the lists: the 2D interface, the text, the present's copy) - each stretch to the next mark counted to the
+// stage it began, summed over FP_FRAMES frames; beside it the time from one present to the next on the processor. Asked
+// for, then measured: the queries cost nothing while nobody asks. Read back a few frames late (FP_RING), as the card
+// answers; a stretch where the card waits for the processor counts to its stage too - the card's busy time is the sum.
+enum { FP_REST, FP_SHADOWS, FP_REFLECT, FP_GROUND, FP_UNITS, FP_EDGES, FP_AO, FP_OIT, FP_SIL, FP_WATER, FP_SURFACE, FP_LATE, FP_SMOOTH, FP_UI, FP_N };
+internal const char *const k_fp_names[FP_N] = { "the rest (2D interface, text, present)", "shadows' maps", "reflection", "ground",
+    "units, buildings, trees", "soft edges", "ambient occlusion", "weighted transparency", "silhouettes", "water's step and under it",
+    "water's surface", "see-through over the surface", "smoothing and bars", "interface's 3D pieces" };
+#define FP_RING 4
+#define FP_MARKS 128
+#define FP_FRAMES 120
+internal struct {
+    volatile LONG ask;       // the pipe asked: start at the next present
+    int left;                // frames still to begin measuring
+    int cur, last;           // the slot being written (-1 none); the label of its last mark
+    struct { ID3D11Query *dj, *ts[FP_MARKS]; unsigned char lab[FP_MARKS]; int n, state; } s[FP_RING];   // state 1 written, 2 waiting for the card
+    double sum[FP_N], busy; int frames;
+    LONGLONG q0, qsum; int qn;
+    volatile LONG done;      // the result below ready
+    double r_sum[FP_N], r_busy, r_frame; int r_frames;
+} g_fp = { .cur = -1 };
+internal void fp_mark(ID3D11DeviceContext *x, int lab) {
+    if (g_fp.cur < 0 || lab == g_fp.last) return;
+    __typeof__(g_fp.s[0]) *s = &g_fp.s[g_fp.cur];
+    if (s->state != 1 || s->n >= FP_MARKS - 1) return;
+    ID3D11DeviceContext_End(x, (ID3D11Asynchronous *)s->ts[s->n]);
+    s->lab[s->n++] = (unsigned char)lab;
+    g_fp.last = lab;
+}
+// at each present (present_d3d.c), before it: the frame's last mark, the answers of those before read, the next begun
+internal void fp_present(void) {
+    ID3D11DeviceContext *x = g_d3d.ctx;
+    if (g_fp.ask) {
+        g_fp.ask = 0;
+        memset(g_fp.sum, 0, sizeof g_fp.sum);
+        g_fp.busy = 0; g_fp.frames = 0; g_fp.qsum = 0; g_fp.qn = 0; g_fp.q0 = 0;
+        g_fp.left = FP_FRAMES;
+        g_fp.done = 0;
+    }
+    if (g_fp.cur >= 0) {
+        __typeof__(g_fp.s[0]) *s = &g_fp.s[g_fp.cur];
+        g_fp.last = -1;
+        fp_mark(x, FP_N);   // the frame's end
+        ID3D11DeviceContext_End(x, (ID3D11Asynchronous *)s->dj);
+        s->state = 2;
+        g_fp.cur = -1;
+    }
+    int waiting = 0;
+    for (int k = 0; k < FP_RING; k++) {
+        __typeof__(g_fp.s[0]) *s = &g_fp.s[k];
+        if (s->state != 2) continue;
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj;
+        UINT64 t[FP_MARKS];
+        int ok = ID3D11DeviceContext_GetData(x, (ID3D11Asynchronous *)s->dj, &dj, sizeof dj, D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK;
+        for (int i = 0; ok && i < s->n; i++)
+            ok = ID3D11DeviceContext_GetData(x, (ID3D11Asynchronous *)s->ts[i], &t[i], sizeof t[i], D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK;
+        if (!ok) { waiting++; continue; }
+        s->state = 0;
+        if (dj.Disjoint || !dj.Frequency || s->n < 2) continue;
+        double f = 1000.0 / (double)dj.Frequency;
+        for (int i = 0; i + 1 < s->n; i++) if (s->lab[i] < FP_N) g_fp.sum[s->lab[i]] += (double)(t[i + 1] - t[i]) * f;
+        g_fp.busy += (double)(t[s->n - 1] - t[0]) * f;
+        g_fp.frames++;
+    }
+    LONGLONG now = rd_qpc();
+    if (g_fp.left > 0 || waiting) {
+        if (g_fp.q0) { g_fp.qsum += now - g_fp.q0; g_fp.qn++; }
+        g_fp.q0 = now;
+    }
+    if (g_fp.left <= 0 && !waiting && g_fp.frames && !g_fp.done) {
+        for (int k = 0; k < FP_N; k++) g_fp.r_sum[k] = g_fp.sum[k] / g_fp.frames;
+        g_fp.r_busy = g_fp.busy / g_fp.frames;
+        g_fp.r_frame = g_fp.qn ? (double)g_fp.qsum / (double)g_fp.qn * 1000.0 / (double)rd_qpc_ms(1000) : 0;
+        g_fp.r_frames = g_fp.frames;
+        g_fp.frames = 0;
+        g_fp.done = 1;
+    }
+    if (g_fp.left <= 0) return;
+    for (int k = 0; k < FP_RING; k++) {
+        __typeof__(g_fp.s[0]) *s = &g_fp.s[k];
+        if (s->state) continue;
+        if (!s->dj) {
+            D3D11_QUERY_DESC d = { D3D11_QUERY_TIMESTAMP_DISJOINT, 0 };
+            if (FAILED(ID3D11Device_CreateQuery(g_d3d.dev, &d, &s->dj))) { g_fp.left = 0; return; }
+            d.Query = D3D11_QUERY_TIMESTAMP;
+            for (int i = 0; i < FP_MARKS; i++) if (FAILED(ID3D11Device_CreateQuery(g_d3d.dev, &d, &s->ts[i]))) { g_fp.left = 0; return; }
+        }
+        ID3D11DeviceContext_Begin(x, (ID3D11Asynchronous *)s->dj);
+        s->n = 0;
+        s->state = 1;
+        g_fp.cur = k;
+        g_fp.last = -1;
+        g_fp.left--;
+        fp_mark(x, FP_REST);
+        return;
+    }
+}
+// the pipe's picture cost: the last measurement, and the next one asked for
+internal void fp_pipe(char *out) {
+    if (!g_fp.done) {
+        if (!g_fp.left) g_fp.ask = 1;
+        REPLY("picture cost: measuring %d frames - ask again in a few seconds\n", FP_FRAMES);
+        return;
+    }
+    double r[FP_N];
+    int o[FP_N];
+    memcpy(r, g_fp.r_sum, sizeof r);
+    for (int k = 0; k < FP_N; k++) o[k] = k;
+    for (int a = 0; a < FP_N; a++)
+        for (int b = a + 1; b < FP_N; b++) if (r[o[b]] > r[o[a]]) { int t = o[a]; o[a] = o[b]; o[b] = t; }
+    REPLY("picture cost over %d frames: a frame every %.2f ms (%.0f fps), the graphics card %.2f ms of it from the first draw to the present:",
+          g_fp.r_frames, g_fp.r_frame, g_fp.r_frame > 0 ? 1000.0 / g_fp.r_frame : 0.0, g_fp.r_busy);
+    for (int k = 0; k < FP_N; k++) if (r[o[k]] >= 0.005) REPLY(" %s %.2f ms%s", k_fp_names[o[k]], r[o[k]], k + 1 < FP_N && r[o[k + 1]] >= 0.005 ? ";" : "");
+    REPLY("\n");
+    g_fp.done = 0;
+    g_fp.ask = 1;   // the next measurement
+}
+// a batch's stage by what it draws (rf_replay)
+internal int fp_stage(int ro) { return ro == RO_UNITS ? FP_UNITS : ro == RO_WATER ? FP_SURFACE : ro == RO_UI ? FP_UI : FP_GROUND; }
 internal void ro_ground_map(ID3D11DeviceContext *x);   // render_overlay.c
 internal void rf_replay(void) {
     if (!g_rf.n || g_rf.in_submit) return;
     g_rf.in_submit = 1;
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
+    fp_mark(x, FP_SHADOWS);
     for (int i = 0; i < g_rf.n; i++) if (g_rf.cmd[i].gvb) { ro_ground_map(x); break; }   // the overlay's picture before the ground reads it
     int edges = rf_edges(x), oit = oit_on(), laste = -1, lastu = -1, lasto = -1;
     if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft && !(oit && g_rf.cmd[i].oit)) laste = i;
@@ -1222,6 +1346,7 @@ internal void rf_replay(void) {
     // mirrored picture and the list's batches before the first soft one read the light's matrix as their edp
     g_fe.part = -1;
     if (g_fe.fail) { ID3D11Buffer *none = NULL; ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &none); }
+    fp_mark(x, FP_REFLECT);
     rd3_water_reflect();  // the mirrored picture for the water's surface
     rf_bind(x);
     // what is bound, set again where a batch's differs
@@ -1270,6 +1395,7 @@ internal void rf_replay(void) {
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
         if (i == firstw) {
             rw_gpu_time(x, 0, 1);
+            fp_mark(x, FP_WATER);
             if (wedge) rw_edges_layer(x, laste, oit, scene, &b, &first);   // the soft edges' part under the level (above)
             rd3_water_steps(x, lastw, &b, &first);
             memset(g_rf_late, 0, sizeof g_rf_late);
@@ -1293,9 +1419,11 @@ internal void rf_replay(void) {
         if (i < lastw && (c->wat == RF_W_SPLIT || c->wat == RF_W_TOP)) continue;
         rf_water_part(x, c->wat == RF_W_SPLIT ? rf_water_split(c, 0) : c->wat == RF_W_RING ? 3 : 0);
         if (!g_fe.fail) rf_edges_part(x, oit && c->oit ? RF_PART_M_SOLID : edges && c->soft ? RF_PART_SOLID : RF_PART_ALL);
+        fp_mark(x, fp_stage(c->ro));
         rf_draw(x, c, &b, &first);
-        if (i == lastg) rd3_ao_ground(x, c->dsv);
+        if (i == lastg) { fp_mark(x, FP_AO); rd3_ao_ground(x, c->dsv); }
         if (i == laste && !wedge) {
+            fp_mark(x, FP_EDGES);
             rf_edges_part(x, RF_PART_EDGES);
             for (int j = 0; j <= laste; j++)
                 if (g_rf.cmd[j].soft && !(oit && g_rf.cmd[j].oit)) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
@@ -1306,14 +1434,16 @@ internal void rf_replay(void) {
             float vpm[16];
             memcpy(vpm, g_rf.vcs[unit3 >= 0 ? g_rf.cmd[unit3].vc : scene->vc].vpm, sizeof vpm);
             rf_depth_vpm(vpm);   // the depth as the frame's draws wrote it
+            fp_mark(x, FP_AO);
             rd3_ao(x, scene->rtv, &port, scene->dsv, vpm);
             rf_bind(x);
             first = 1;
             b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
         }
-        if (lasto >= 0 && !owat && i == oat) oit_pass(x, lasto, scene, &b, &first);   // (its batches as edges where it can't)
-        if (i == lastu) rd3_silhouettes(x, &b, &first);
+        if (lasto >= 0 && !owat && i == oat) { fp_mark(x, FP_OIT); oit_pass(x, lasto, scene, &b, &first); }   // (its batches as edges where it can't)
+        if (i == lastu) { fp_mark(x, FP_SIL); rd3_silhouettes(x, &b, &first); }
         if (i == lastw) {
+            fp_mark(x, FP_LATE);
             if (wedge) {   // the soft edges' part over the level (above)
                 rf_edges_part(x, RF_PART_EDGES);
                 rf_water_part(x, 2);
@@ -1330,9 +1460,10 @@ internal void rf_replay(void) {
             rf_water_part(x, 0);
             for (int j = 0; j < lastw; j++) if (g_rf.cmd[j].wat == RF_W_TOP) rf_draw(x, &g_rf.cmd[j], &b, &first);
         }
-        if (i == last3 && scene) rf_scene_done(x, scene, &b, &first, i + 1 < g_rf.n);
+        if (i == last3 && scene) { fp_mark(x, FP_SMOOTH); rf_scene_done(x, scene, &b, &first, i + 1 < g_rf.n); }
     }
     rf_water_part(x, 0);
+    fp_mark(x, FP_REST);
     g_rf.n = g_rf.nvc = g_rf.npc = 0;
     g_rf.vc_new = g_rf.pc_new = 1;   // the next batch's constants a snapshot of their own
     g_rf.replays++;

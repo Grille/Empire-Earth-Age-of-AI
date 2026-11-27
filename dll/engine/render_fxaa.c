@@ -237,7 +237,7 @@ internal int collect_anim_mode(int on), collect_own(int on), collect_opacity(int
 internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
-// the pipe: picture [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [fog <0..0.95>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
+// the pipe: picture [cost] [aa on | off] [aadepth on | off] [aajump | aacontrast | aasub <0..1>] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [fog <0..0.95>] [objects <0..0.5>] [depths on | off] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -245,6 +245,7 @@ internal void cmd_picture(char *out, const char *args) {
     if (rgb_pipe(out, mode, arg)) return;   // render_ground.c
     if (ud_pipe(out, mode, arg)) return;    // render_units.c
     if (crt_pipe(out, mode, args)) return;  // present_d3d.c
+    if (!strcmp(mode, "cost")) { fp_pipe(out); return; }   // render_frame.c THE FRAME'S COST
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }
