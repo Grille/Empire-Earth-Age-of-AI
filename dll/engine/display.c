@@ -604,8 +604,9 @@ internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
     camtrace_frame();
     // headless: nobody watches, so only a few frames a second (the CPU for the simulation, the graphics card for
     // the player's game) - turbo or not: without it a test game drew as fast as the card could, vsync off (2026-11-16:
-    // one plain run_test game at 96% of the card's 3D). A shot still gets the next frame, a recording every frame.
-    if (g_headless && !g_shot_req && !rec_busy())
+    // one plain run_test game at 96% of the card's 3D). A shot still gets the next frame, a recording and a camtrace
+    // every frame (the frames' pacing is what a camtrace is for).
+    if (g_headless && !g_shot_req && !rec_busy() && !g_ct_left)
         for (int i = 0; i < 20 && !g_shot_req; i++) Sleep(10);
     if (g_fullscreen) return g_show[DISPLAY_DLL(ras)].show(ras, screen);
     // windowed: the original is not called. Its Blt to the emulated primary at the window's screen position is

@@ -800,6 +800,7 @@ internal int g_cam_now_ok;
 internal float g_cam_blend_seen, g_cam_t;
 internal LONGLONG g_cam_blend_at;
 internal void rf_camera_frame(void) {
+    camera_input_frame();   // camera.c: the input's scrolling up to now, for this frame's camera
     ee_camera *cam = game_camera();
     g_cam_now_ok = 0;
     if (!cam || !game_map()) return;

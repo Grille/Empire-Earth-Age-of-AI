@@ -499,6 +499,10 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
 - `camtrace N`: the next N presented frames - frame time, camera movement, scroll steps in between (`# camtrace:`
   lines). Edge scrolling headless: `vmouse 2559 700`. 2026-10-12, AoC scrolling: 0 or 1 steps per frame of 0.285
   tiles each (every fifth frame none); with `[camera] smooth_scroll` one step per frame, 0.0285 tiles per ms of frame time.
+  Headless a camtrace draws every frame (else five a second). `arrows <bits>` (1 left, 2 right, 4 up, 8 down; 0 lets go)
+  holds arrow keys without a window in front (the own renderer's scrolling). The camera's evenness is the eye's move
+  between frames by the times their cameras were made (`camera made`), not by `dt`: 2026-11-27, the editor's arrows
+  0.0142-0.0144 tiles a ms, frame for frame (before the move went where the camera is made: 0.001-0.021).
 - Frame watch (`[display] frame_watch`, default 0 = off since 2026-10-17, e.g. 35 fps; autotest `frame_watch=N` also runs it headless): in the
   player's own games, every minute `# frames: at <min>: <fps>, worst second, seconds under the threshold; GDI
   objects, USER objects`, and after 10 s under the threshold the render-thread profile (`# |` lines, at most 5 a

@@ -108,6 +108,7 @@ internal void cmd_script(char *out, const char *args);   // scripts.c: script dr
 internal volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 internal void cmd_scrolltest(char *out, const char *args);
 internal void cmd_camtrace(char *out, const char *args);
+internal void cmd_arrows(char *out, const char *args);
 internal float camera_zoom_max(void), camera_zoom_now(void);
 internal void camera_zoom_pipe(float z);
 internal void cmd_aim(char *out, const char *args);     // aim.c
@@ -570,6 +571,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
     else if (!strcmp(verb, "camtrace")) cmd_camtrace(out, args);
+    else if (!strcmp(verb, "arrows")) cmd_arrows(out, args);
     else if (!strcmp(verb, "aim")) cmd_aim(out, args);
     else if (!strcmp(verb, "lob")) cmd_lob(out, args);
     else if (!strcmp(verb, "behind")) cmd_behind(out, args);

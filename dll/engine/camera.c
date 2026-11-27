@@ -721,6 +721,9 @@ internal uint32_t __thiscall hook_grab_scroll(eeuie_grab_scroll *self, ee_ui_for
 // check 0x4051A0 tests it first), the game's window in front; the arrows not while an edit box has the keyboard. The
 // cursor at an edge at the edge's speed, the arrows at theirs. The game thread's scroll events still come and move
 // nothing (hook_scroll_execute, hook_key_scroll_execute).
+// The pipe's `arrows <bits>` (tests): arrows held as scroll_arrows' bits, without a window in front - a headless game
+// has none, and the keys' own state can't be faked from outside.
+internal volatile LONG g_test_arrows;
 internal void input_frame(float ms) {
     void *uim = ui_manager();
     ee_ui_form *f = uim ? ui_current_form(uim) : NULL;
@@ -728,34 +731,47 @@ internal void input_frame(float ms) {
     ee_mouse *m = game_mouse();
     grab_frame(f, m);
     minimap_frame(f, m);
-    if (!ui_form_has_view(f) || !m || mouse_get_frozen(m) || !game_in_front()) return;
-    scroll_move(ms, scroll_edges());
-    int a = ui_form_get_keyboard_captured(f) ? 0 : scroll_arrows();
+    int test = (int)g_test_arrows;
+    if (!ui_form_has_view(f) || !m || mouse_get_frozen(m) || (!test && !game_in_front())) return;
+    if (!test) scroll_move(ms, scroll_edges());
+    int a = ui_form_get_keyboard_captured(f) ? 0 : test ? test : scroll_arrows();
     float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // arrow_frame's speed
     float dx = (a & 2 ? step : 0) - (a & 1 ? step : 0), dy = (a & 4 ? step : 0) - (a & 8 ? step : 0);   // up +y, as arrow_frame
     if (dx != 0 || dy != 0) input_pan(dx, dy);
 }
 
-internal void camera_frame(int own) {   // the render thread, every presented frame; own: the own renderer draws
-    camera_shape_frame();
-    if (!g_cam_smooth) return;
+// the time since the last frame's scrolling, at most 100 ms (a frame that long - a window drag: no leap)
+internal float camera_frame_ms(void) {
     LARGE_INTEGER now;
     if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
     QueryPerformanceCounter(&now);
     double ms = g_cam_frame.QuadPart ? (double)(now.QuadPart - g_cam_frame.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 0;
     g_cam_frame = now;
-    if (own) {
-        if (game_camera()) input_frame(ms > 100.0 ? 100.0f : (float)ms);
-        return;
-    }
-    if (game_camera()) arrow_frame(ms > 100.0 ? 100.0f : (float)ms);
+    return ms > 100.0 ? 100.0f : (float)ms;
+}
+// With the own renderer the input moves the camera where the frame's camera is made (render_frame.c rf_camera_frame,
+// before the frame is drawn), not at the frame's show: moved at the show, after its draw, every frame showed the move of
+// the frame before - by the time between the two frames before it, while it stood on the screen for the time since. With
+// frames of uneven times the picture went faster and slower by turns while the camera's own speed stayed even (the
+// player 2026-11-27, the editor's arrow keys: "its like it s constantly speeding up and stoping again"; camtrace: 0.0142
+// tiles a ms each move, the eye a frame behind).
+internal void camera_input_frame(void) {
+    if (!g_cam_smooth || !g_rd_on) return;
+    float ms = camera_frame_ms();
+    if (game_camera()) input_frame(ms);
+}
+internal void camera_frame(int own) {   // the render thread, every presented frame; own: the own renderer draws
+    camera_shape_frame();
+    if (!g_cam_smooth || own) return;   // own: camera_input_frame
+    float ms = camera_frame_ms();
+    if (game_camera()) arrow_frame(ms);
     int k = (int)g_cam_keys;
     if (!k || !game_camera()) return;
     DWORD age = GetTickCount() - g_cam_keys_at;
     if (age > CAM_HOLD_MS) k = 0;
     else if (age > CAM_FRESH_MS) k = scroll_input_agrees(k);
     if (!k) return;
-    scroll_move(ms > 100.0 ? 100.0f : (float)ms, k);   // a frame that long (a window drag): no leap
+    scroll_move(ms, k);
 }
 
 internal void camera_install(void) {
@@ -838,6 +854,10 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
+}
+internal void cmd_arrows(char *out, const char *args) {   // arrows <bits: 1 left, 2 right, 4 up, 8 down; 0 let go>
+    InterlockedExchange(&g_test_arrows, atoi(args) & 15);
+    REPLY("arrows %d\n", (int)g_test_arrows);
 }
 internal void cmd_camtrace(char *out, const char *args) {
     int n = atoi(args);
