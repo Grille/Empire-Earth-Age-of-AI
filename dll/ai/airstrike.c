@@ -1580,10 +1580,11 @@ internal void airstrike_install(const char *autotest_ini) {
     g_bd_on = g_set_ai[1].bomber_doctrine;
     g_bd_part[DCP_SURVIVE] = g_set_ai[1].bomber_survive; g_bd_part[DCP_HOME] = g_set_ai[1].bomber_come_home;
     g_bd_part[DCP_WING] = g_set_ai[1].bomber_value_wing; g_bd_part[DCP_CLAIM] = g_set_ai[1].bomber_claim;
+    g_bd_ap_fwd_on = g_set_ai[1].airport_forward;   // build.c THE AIRPORTS MOVE UP
     if (autotest_ini) {
         g_v_air_strike = ini_int("autotest", "v_air_strike", -1, autotest_ini); g_v_as_harass = ini_int("autotest", "v_bomber_harass", -1, autotest_ini);
         g_v_bd_on = ini_int("autotest", "v_bomber_doctrine", -1, autotest_ini); g_v_as_reach = ini_int("autotest", "v_bomber_reach", -1, autotest_ini);
-        g_bd_ap_fwd_on = ini_int("autotest", "airport_forward", 0, autotest_ini); g_v_bd_ap_fwd = ini_int("autotest", "v_airport_forward", -1, autotest_ini);
+        g_v_bd_ap_fwd = ini_int("autotest", "v_airport_forward", -1, autotest_ini);
         for (int p = 0; p < 4; p++) g_v_bd_part[p] = ini_int("autotest", k_parts[p], -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# air force: %d (variant %d), lone runs %d (variant %d), doctrine %d (variant %d; parts %d %d %d %d, variants %d %d %d %d)\n", AS_ON, g_v_air_strike, g_as_harass, g_v_as_harass,

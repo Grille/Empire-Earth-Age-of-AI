@@ -208,7 +208,8 @@ internal int bd_gran_first(struct bd_st *b, unsigned idx, int gran_room, uint32_
 }
 internal uint32_t g_bd_airport[16];   // airstrike.c: an Airport asked for, when (AN AIRPORT)
 internal int g_bd_airport_n[16];      // ... how many it wants in all
-// THE AIRPORTS MOVE UP ([autotest] airport_forward, v_airport_forward - off, below; airstrike.c THE BOMBER'S REACH
+// THE AIRPORTS MOVE UP ([ai_base] airport_forward, on by the player's call of 2026-11-27 - "yes, turn it on", on the
+// measurement below; [autotest] v_airport_forward for the variant players; airstrike.c THE BOMBER'S REACH
 // asks: the position of its force that the wing would strike lies beyond its bombers' reach from every Airport of
 // its - the place where its force meets the enemy next and the reach given, the place its aircraft's bases move
 // towards, airguard.c THE AIR BASES. The player: "a human player moves its airfields forward to reach deeper into
@@ -227,7 +228,7 @@ internal int g_bd_airport_n[16];      // ... how many it wants in all
 // razed +6.6 (5.5), kills +16.3 (19.4), workers -5.8 (4.0) - Airports towards enemies its force was not at, where no
 // aircraft moved; without the shooters' spots (90 min, 12 games) 0.2 an AI - the wing's position in a fight is mostly
 // theirs - and soldiers +13.5 (8.7) all the same: what two like sides differ by on this map. More bombing, no gain
-// in the game shown: off, the player's call.
+// in the game shown: the player's call - on.
 internal struct { ivec2 at; float reach; uint32_t t; } g_bd_ap_fwd[16];
 internal int g_bd_ap_fwd_on = 0, g_v_bd_ap_fwd = -1;
 #define BD_AP_FWD_GAIN 20
