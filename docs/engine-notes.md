@@ -893,6 +893,13 @@ Read 2026-11-24 (spec/game/random_map.cs; the mod's own types: dll/engine/mapgen
   off. 40 games of 8 minutes (EE large 5 players, AoC normal 4): no notice, the continents apart on foot; two
   continents no forced start, one continent one; Old and New World EE none, AoC (116 tiles, four on the strip) 7 and
   one start cut off - its player resigned at 3 minutes, the small map's cramped strip as before.
+  The islands and lakes the same way (the player, next: "they are all just the same round uninteresting things"):
+  mg_small_shape draws a kind - lumpy, long and bent, an island a crescent round a sheltered bay or a chain of three
+  islets, a lake two basins joined by a waist or a middle with two arms -, up to 4 blobs turned any way (an island's
+  2.5 tiles across at least: a long one of 3 tiles was a sliver), the outline's noise as before; their reach, not a
+  radius, keeps them apart and off the shore. A lake's site is checked under its shape and 3 tiles round, not the
+  square round its reach (that found 2 lakes in 60 maps for 38). Its middle is always deep: its fish and its
+  outflow's spring are there. The shapes' draws are a generator of their own: the map's draws are as before.
 - **Its options** ([random_map] of ageofai.ini, dll_cs/settings/random_map.cs; the player 2026-11-25: one entry,
   "Age of AI", its options in a dialog): the layout (two continents west and east, the sea between them north to
   south, or - 2026-11-26, the player: "Two Continents WE (West vs East, what we have now) and Two Continents NS" -

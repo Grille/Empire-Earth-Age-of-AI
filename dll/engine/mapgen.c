@@ -116,6 +116,9 @@ enum { MG_GOLD, MG_IRON, MG_STONE, MG_FORAGE, MG_FISH, MG_TREE, MG_ANIMAL, MG_AM
 #define MG_SPOTS 1024
 #define MG_FORDS 96
 #define MG_BLOBS 16
+// a blob of a shape (mg_blobs_in): its middle, its axis (du, dv), its half lengths a along it and b across; a bite
+// is cut out of the others
+struct mg_blob { float u, v, du, dv, a, b; int bite; };
 struct mg {
     ee_map *map;              // the game's new map; NULL: a preview (mapgen_preview) - the generator's own arrays alone
     ee_player *world;
@@ -149,11 +152,12 @@ struct mg {
     int tree[MG_BIOMES][6], ntree[MG_BIOMES], grove[MG_BIOMES][6], ngrove[MG_BIOMES], animal[MG_BIOMES][4], nanimal[MG_BIOMES];   // the biomes' types the data has
     int wood[3][6], nwood[3], wood_made[3];   // a by_warmth biome's forests: spruce, mixed, maple; how many of each
     struct { int x, y; } spring[16];      // the rivers' springs: apart from each other
-    struct { int x, y, r; } lake[12];     // the lakes: middle and radius
+    struct { int x, y, r; float size; int nb; struct mg_blob b[4]; } lake[12];   // the lakes: middle, reach (tiles), size and shape (mg_small_shape)
     struct { int x, y, r; } plateau[8];   // the plateaus
     int plateaus;
     int islands, bays, capes, fjords;
-    struct { int x, y; float r; } isle[16];   // the islands: middle and radius
+    struct { int x, y; float r, reach; int nb; struct mg_blob b[4]; } isle[16];   // the islands: middle, size, reach (tiles) and shape (mg_small_shape)
+    uint32_t rng_shape;       // the shapes' own draws (mg_own_rnd): the map's draws stay as they were
     int afoot;                // 1: a walker from a start reaches the other continent's (0: the sea parts them)
     int cut;                  // starts a walker from its continent's first start does not reach
     int walked, walkable;     // land tiles (no cliffs) reached on foot from the starts, and all there are
@@ -170,7 +174,7 @@ struct mg {
     // (seat s on continent s % homes), the others nobody's. The sea's channel between two runs along at `chan` across
     // (tiles; chan_on 0: one continent, none)
     struct { float at, wide, len; } cont[2];
-    struct mg_blob { float u, v, du, dv, a, b; int bite; } blob[2][MG_BLOBS];   // a continent's shape (mg_shapes)
+    struct mg_blob blob[2][MG_BLOBS];   // a continent's shape (mg_shapes)
     int blobs[2];
     float lift[2];            // added to a continent's shape: its land nine tenths of its ellipse's (mg_shapes)
     int nc, homes, chan_on;
@@ -436,10 +440,6 @@ internal void mg_tongue(struct mg *g, int x0, int y0, float dx, float dy, float 
             if (in > -6 && (sign > 0 ? in > *f : -in < *f)) *f = sign > 0 ? in : -in;   // 6 tiles of shoal (of shore) round it, no further
         }
 }
-// how far inside an island a corner is (tiles; under 0: outside it) - its radius pushed in and out by a noise
-internal float mg_isle_in(const struct mg *g, int cx, int cy, int x, int y, float r) {
-    return r * (0.7f + 0.6f * mg_fbm((float)cx * 0.2f, (float)cy * 0.2f, g->seed + 96)) - sqrtf((float)((cx - x) * (cx - x) + (cy - y) * (cy - y)));
-}
 // THE CONTINENTS' SHAPES (the player 2026-11-27: "the continents are quite obviously using a circle as a base, any
 // idea to make their shape more interesting?" - an ellipse, its shore pushed some 3 tiles in and out by a noise; of
 // my list: blobs along a spine, the place read warped, the land's amount kept). A continent in its ellipse's box: a
@@ -459,6 +459,69 @@ internal float mg_smax(float a, float b, float k) { float h = fmaxf(k - fabsf(a 
 internal float mg_blob_in(const struct mg_blob *b, float u, float v) {
     float eu = u - b->u, ev = v - b->v, p = eu * b->du + ev * b->dv, q = ev * b->du - eu * b->dv;
     return (1 - sqrtf(p * p / (b->a * b->a) + q * q / (b->b * b->b))) * fminf(b->a, b->b);
+}
+// how far inside a shape of n blobs: the blobs joined smoothly (over ku), the bites cut so (kb); the first a blob
+internal float mg_blobs_in(const struct mg_blob *b, int n, float u, float v, float ku, float kb) {
+    float in = -1e9f;
+    for (int i = 0; i < n; i++)
+        if (!b[i].bite) { float x = mg_blob_in(&b[i], u, v); in = i ? mg_smax(in, x, ku) : x; }
+    for (int i = 0; i < n; i++)
+        if (b[i].bite) in = -mg_smax(-in, mg_blob_in(&b[i], u, v), kb);
+    return in;
+}
+// AN ISLAND'S OR A LAKE'S SHAPE (the player 2026-11-27: "next the small islands and lakes, they are all just the same
+// round uninteresting things" - a circle each, its radius pushed in and out by a noise): up to 4 blobs about its middle
+// (tiles; r its size), of a kind drawn, turned any way - lumpy (a broad blob, a smaller one on its rim), long and bent
+// (two long ones end to end at an angle), an island a crescent round a sheltered bay (a bite out of its side) and a
+// lake two basins joined by a waist, an island a chain of three islets on a bent line (some joined, some apart) and a
+// lake a middle with two arms. A lake's middle always well inside its first blob: its fish and its outflow's spring
+// are there. -> the blobs; *reach how far from its middle they go (tiles)
+internal int mg_small_shape(uint32_t *rs, float r, int lake, struct mg_blob *b, float *reach) {
+    float ax = mg_own_rnd(rs) - 0.5f, ay = mg_own_rnd(rs) - 0.5f, al = sqrtf(ax * ax + ay * ay);
+    if (al < 0.05f) { ax = 1; ay = 0; al = 1; }
+    ax /= al; ay /= al;
+    float px = -ay, py = ax, side = mg_own_rnd(rs) < 0.5f ? -1.0f : 1.0f, t = mg_own_rnd(rs);
+    int kind = (int)(mg_own_rnd(rs) * 4.0f) & 3, n = 0;
+    if (kind == 0) {
+        b[n++] = (struct mg_blob){ 0, 0, ax, ay, r, r * (0.7f + 0.3f * t), 0 };
+        b[n++] = (struct mg_blob){ (ax * 0.6f + px * side * 0.5f) * r, (ay * 0.6f + py * side * 0.5f) * r, px, py, 0.55f * r, 0.45f * r, 0 };
+    } else if (kind == 1) {
+        float bx = ax + px * side * (0.3f + 0.5f * t), by = ay + py * side * (0.3f + 0.5f * t), bl = sqrtf(bx * bx + by * by);
+        bx /= bl; by /= bl;
+        b[n++] = (struct mg_blob){ 0, 0, ax, ay, r, 0.45f * r, 0 };
+        b[n++] = (struct mg_blob){ ax * 0.7f * r + bx * 0.6f * r, ay * 0.7f * r + by * 0.6f * r, bx, by, 0.8f * r, 0.4f * r, 0 };
+    } else if (kind == 2 && !lake) {
+        b[n++] = (struct mg_blob){ 0, 0, ax, ay, 1.15f * r, 0.85f * r, 0 };
+        b[n++] = (struct mg_blob){ px * side * 0.75f * r, py * side * 0.75f * r, ax, ay, 0.8f * r, 0.55f * r, 1 };
+    } else if (kind == 2) {
+        b[n++] = (struct mg_blob){ 0, 0, ax, ay, 0.75f * r, 0.65f * r, 0 };
+        b[n++] = (struct mg_blob){ ax * 1.05f * r, ay * 1.05f * r, px, py, 0.6f * r, 0.5f * r, 0 };
+    } else if (!lake) {
+        for (int i = -1; i <= 1; i++) {
+            float s = (float)i * 0.95f * r, bend = i ? 0 : 0.35f * side * r, a = fmaxf(2, (0.4f + 0.15f * mg_own_rnd(rs)) * r);
+            b[n++] = (struct mg_blob){ ax * s + px * bend, ay * s + py * bend, ax, ay, a, fmaxf(1.5f, 0.75f * a), 0 };
+        }
+        if (n > 1) { struct mg_blob m = b[0]; b[0] = b[1]; b[1] = m; }   // (the middle one first)
+    } else {
+        float bx = -ax * 0.5f + px * side * 0.85f, by = -ay * 0.5f + py * side * 0.85f, bl = sqrtf(bx * bx + by * by);
+        bx /= bl; by /= bl;
+        b[n++] = (struct mg_blob){ 0, 0, ax, ay, 0.7f * r, 0.6f * r, 0 };
+        b[n++] = (struct mg_blob){ ax * 0.8f * r, ay * 0.8f * r, ax, ay, 0.8f * r, 0.3f * r, 0 };
+        b[n++] = (struct mg_blob){ bx * 0.8f * r, by * 0.8f * r, bx, by, 0.75f * r, 0.3f * r, 0 };
+    }
+    for (int i = 0; i < n && !lake; i++)   // an island's blob 2.5 tiles across it at least (a long one of 3 tiles was a sliver)
+        if (!b[i].bite) { b[i].a = fmaxf(b[i].a, 2.5f); b[i].b = fmaxf(b[i].b, 2.5f); }
+    *reach = 0;
+    for (int i = 0; i < n; i++)
+        if (!b[i].bite) *reach = fmaxf(*reach, sqrtf(b[i].u * b[i].u + b[i].v * b[i].v) + fmaxf(b[i].a, b[i].b));
+    *reach += 0.3f * r;   // (its outline's noise)
+    return n;
+}
+// how far inside island i a corner is (tiles; under 0: outside it) - its shape's outline pushed in and out by a noise
+internal float mg_isle_in(const struct mg *g, int cx, int cy, int i) {
+    float r = g->isle[i].r;
+    return mg_blobs_in(g->isle[i].b, g->isle[i].nb, (float)(cx - g->isle[i].x), (float)(cy - g->isle[i].y), 0.4f * r, 0.25f * r)
+           + (mg_fbm((float)cx * 0.2f, (float)cy * 0.2f, g->seed + 96) - 0.5f) * 0.6f * r;
 }
 // how far inside the map's side and off the channel (u/v units): no land beyond (mg_land's last cut)
 internal float mg_bounds(const struct mg *g, int x, int y) {
@@ -480,12 +543,7 @@ internal float mg_shape(const struct mg *g, int k, int x, int y) {
     float ra = g->cont[k].wide * g->half * g->opt.land, kw = 1.41f / ra, w = (mg_thin(g, k) ? 0.7f : 1.4f) * ra, s = (float)k * 37.0f;
     float u = (float)mg_along(g, x, y) + (mg_fbm((float)x * kw + 300 + s, (float)y * kw + 700, g->seed + 97) - 0.5f) * w;
     float v = (float)mg_across(g, x, y) + (mg_fbm((float)x * kw + 500, (float)y * kw + 100 + s, g->seed + 98) - 0.5f) * w;
-    float in = -1e9f;
-    for (int i = 0; i < g->blobs[k]; i++)
-        if (!g->blob[k][i].bite) { float b = mg_blob_in(&g->blob[k][i], u, v); in = i ? mg_smax(in, b, 0.25f * ra) : b; }
-    for (int i = 0; i < g->blobs[k]; i++)
-        if (g->blob[k][i].bite) in = -mg_smax(-in, mg_blob_in(&g->blob[k][i], u, v), 0.15f * ra);
-    return in;
+    return mg_blobs_in(g->blob[k], g->blobs[k], u, v, 0.25f * ra, 0.15f * ra);
 }
 internal void mg_shapes(struct mg *g) {
     uint32_t r = g->seed ^ 0x6A09E667u;
@@ -522,6 +580,7 @@ internal void mg_shapes(struct mg *g) {
         }
         g->blobs[k] = nb;
     }
+    g->rng_shape = r;   // (the islands' and lakes' shapes go on from here)
     // the lifts, on every other corner each way: a bisection of the land's count against the ellipse's
     int w = g->n / 2 + 1;
     float *in = malloc((size_t)(w * w) * sizeof *in), *bound = malloc((size_t)(w * w) * sizeof *bound);
@@ -553,7 +612,8 @@ internal void mg_shapes(struct mg *g) {
 // and points, the inland untouched. f is the distance inside the land in tiles. Then the coast's own shapes (the player 2026-11-25 agreed to the list: "small offshore islands, bays and
 // peninsulas, and fjords in the cold north"): capes - tongues of land 10 - 18 tiles out to sea -, bays - as far cut
 // in -, 1 + n/200 of each; fjords in the cold north, 1 + n/150: a narrow cut (3 tiles of water) 14 - 24 tiles up
-// the land's slope, winding a little, its shores rocky (g->fjord: cliffs); islands, 2 + n/80: 3 - 7 tiles in radius,
+// the land's slope, winding a little, its shores rocky (g->fjord: cliffs); islands, 2 + n/80: of 3 - 7 tiles' size, a
+// shape drawn (mg_small_shape: lumpy, long and bent, a crescent round a bay, a chain of islets),
 // its shore 8 tiles of water from any other land's - an island, no spit: deep water goes round it (mg_heights).
 // Last the water along the map's edge and in the channel between two continents, whatever is there.
 internal void mg_land(struct mg *g) {
@@ -594,19 +654,22 @@ internal void mg_land(struct mg *g) {
     for (int want = mg_amount(2 + g->n / 80, g->opt.islands), t = 0; g->islands < want && g->islands < 16 && t < 6000; t++) {
         x = mg_int(g, 0, g->n); y = mg_int(g, 0, g->n);
         float f = mg_f(g, x, y), u = (float)(x - y), v = (float)(x + y - g->n), r = (float)mg_int(g, 3, 7);
-        int clear = f <= -8 && f >= -20 && fminf(half - fabsf(u), half - fabsf(v)) > r + 9 && mg_chan(g, x, y) > r + 8;
+        int i = g->islands, clear = f <= -8 && f >= -20;
+        g->isle[i].x = x; g->isle[i].y = y; g->isle[i].r = r;
+        g->isle[i].nb = mg_small_shape(&g->rng_shape, r, 0, g->isle[i].b, &g->isle[i].reach);
+        int reach = (int)g->isle[i].reach + 1;
+        clear = clear && fminf(half - fabsf(u), half - fabsf(v)) > (float)reach + 6 && mg_chan(g, x, y) > (float)reach + 5;
         // nothing within 4 tiles of it that is within 4 tiles of the land there is (the continents, a cape, an island before)
-        for (int cy = y - 14; clear && cy <= y + 14; cy++)
-            for (int cx = x - 14; clear && cx <= x + 14; cx++)
-                clear = !mg_corner(g, cx, cy) || g->f[cy * g->m + cx] <= -4 || mg_isle_in(g, cx, cy, x, y, r) <= -4;
+        for (int cy = y - reach - 8; clear && cy <= y + reach + 8; cy++)
+            for (int cx = x - reach - 8; clear && cx <= x + reach + 8; cx++)
+                clear = !mg_corner(g, cx, cy) || g->f[cy * g->m + cx] <= -4 || mg_isle_in(g, cx, cy, i) <= -4;
         if (!clear) continue;
-        for (int cy = y - 18; cy <= y + 18; cy++)
-            for (int cx = x - 18; cx <= x + 18; cx++) {
+        for (int cy = y - reach - 6; cy <= y + reach + 6; cy++)
+            for (int cx = x - reach - 6; cx <= x + reach + 6; cx++) {
                 if (!mg_corner(g, cx, cy)) continue;
-                float in = mg_isle_in(g, cx, cy, x, y, r);
+                float in = mg_isle_in(g, cx, cy, i);
                 if (in > -6 && in > g->f[cy * g->m + cx]) g->f[cy * g->m + cx] = in;
             }
-        g->isle[g->islands].x = x; g->isle[g->islands].y = y; g->isle[g->islands].r = r;
         g->islands++;
     }
     for (y = 0; y <= g->n; y++)
@@ -752,7 +815,8 @@ internal void mg_heights(struct mg *g) {
                 float deep = f * (0.3f - 0.15f * beach + 1.0f * rocky);
                 deep = fminf(deep, -1.5f * (1 - mg_step(2, 5, mg_chan(g, x, y))));
                 for (int i = 0; i < g->islands; i++) {
-                    float in = abs(x - g->isle[i].x) > 16 || abs(y - g->isle[i].y) > 16 ? -99 : mg_isle_in(g, x, y, g->isle[i].x, g->isle[i].y, g->isle[i].r);
+                    int reach = (int)g->isle[i].reach + 6;
+                    float in = abs(x - g->isle[i].x) > reach || abs(y - g->isle[i].y) > reach ? -99 : mg_isle_in(g, x, y, i);
                     if (in > -5 && in < -3) deep = fminf(deep, -1.2f);
                 }
                 g->h[y * g->m + x] = fmaxf(deep, -5.0f);
@@ -1009,7 +1073,7 @@ internal void mg_starts(struct mg *g) {
                     if (level < 4 && (in < (float)inside || f.bad[y * n + x] < yard || f.wet[y * n + x] < dry)) continue;
                     int isle = 0;   // never on an offshore island (one 3 tiles off its shore: its continent's for mg_side)
                     for (int s = 0; s < g->islands && !isle; s++)
-                        isle = abs(x - g->isle[s].x) < 20 && abs(y - g->isle[s].y) < 20 && mg_isle_in(g, x, y, g->isle[s].x, g->isle[s].y, g->isle[s].r) > -3;
+                        isle = abs(x - g->isle[s].x) < (int)g->isle[s].reach + 4 && abs(y - g->isle[s].y) < (int)g->isle[s].reach + 4 && mg_isle_in(g, x, y, s) > -3;
                     if (isle) continue;
                     int crowded = 0;
                     for (int o = 0; o < i && !crowded; o++) {
@@ -1183,20 +1247,37 @@ internal int mg_swamp(struct mg *g, int tight) {
     g->swamps++;
     return 1;
 }
-// A LAKE (the player 2026-11-25): a basin 5 - 8 tiles in radius, its outline pushed in and out by a noise, 2.2 steps
-// deep in the middle, by turns on the two continents, well inside the land (12 tiles), 25 from another lake, on the plain (no
-// mountain, no foothills, no water there yet). The water is the sea's level - the game has one water plane. Its
-// shore (a tile) is kept free. tight 0 .. 3: a small map's.
+// A LAKE (the player 2026-11-25): a basin of 5 - 8 tiles' size, its shape drawn (mg_small_shape: lumpy, long and bent,
+// two basins joined by a waist, a middle with two arms - a circle until 2026-11-27), its outline pushed in and out by a
+// noise, 2.2 steps deep where it is wide (a thin arm shallower: waded), by turns on the two continents, its middle well
+// inside the land (12 tiles), 9 tiles of land from another lake, on the plain all over (no mountain, no foothills, no
+// water there yet). The water is the sea's level - the game has one water plane. Its shore (a tile and a half) is kept
+// free; the ground rises 0.5 a tile from it. tight 0 .. 3: a small map's.
 internal int mg_lake(struct mg *g, int tight) {
-    int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), r = mg_int(g, 5, 8);
+    int x0 = mg_int(g, 0, g->n), y0 = mg_int(g, 0, g->n), i = g->lakes;
+    float size = (float)mg_int(g, 5, 8), reach;
     if (g->lakes >= 12 || mg_side(g, x0, y0) != mg_feature_on(g, g->lakes) || mg_f(g, x0, y0) < (float)(12 - 2 * tight)) return 0;
-    for (int i = 0; i < g->lakes; i++)
-        if ((g->lake[i].x - x0) * (g->lake[i].x - x0) + (g->lake[i].y - y0) * (g->lake[i].y - y0) < 25 * 25) return 0;
-    for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 3)
-        for (int cx = x0 - r - 3; cx <= x0 + r + 3; cx += 3)
+    g->lake[i].nb = mg_small_shape(&g->rng_shape, size, 1, g->lake[i].b, &reach);
+    int r = (int)reach + 1;
+    for (int k = 0; k < g->lakes; k++)
+        if ((g->lake[k].x - x0) * (g->lake[k].x - x0) + (g->lake[k].y - y0) * (g->lake[k].y - y0) < (g->lake[k].r + r + 9) * (g->lake[k].r + r + 9)) return 0;
+    // the plain under it and 3 tiles round (its outline's noise reaches a quarter of its size; the whole square round its
+    // reach, as a circle's was checked, found almost no place for a long one: 2 lakes in 60 maps for 38)
+    for (int cy = y0 - r - 3; cy <= y0 + r + 3; cy += 2)
+        for (int cx = x0 - r - 3; cx <= x0 + r + 3; cx += 2) {
+            if (mg_blobs_in(g->lake[i].b, g->lake[i].nb, (float)(cx - x0), (float)(cy - y0), 0.4f * size, 0.25f * size) < -3 - 0.25f * size) continue;
             if (!mg_corner(g, cx, cy) || g->mt[cy * g->m + cx] > 0.2f || g->foot[cy * g->m + cx] > 0.45f || g->plat[cy * g->m + cx] > 0 || g->h[cy * g->m + cx] < 0.8f || mg_f(g, cx, cy) < 5) return 0;
-    mg_basin(g, x0, y0, r, 2.2f);
-    g->lake[g->lakes].x = x0; g->lake[g->lakes].y = y0; g->lake[g->lakes].r = r;
+        }
+    for (int cy = y0 - r - 6; cy <= y0 + r + 6; cy++)
+        for (int cx = x0 - r - 6; cx <= x0 + r + 6; cx++) {
+            if (!mg_corner(g, cx, cy)) continue;
+            float in = mg_blobs_in(g->lake[i].b, g->lake[i].nb, (float)(cx - x0), (float)(cy - y0), 0.4f * size, 0.25f * size)
+                       + (mg_fbm((float)cx * 0.15f, (float)cy * 0.15f, g->seed + 80) - 0.5f) * 0.5f * size;
+            float s = in / size, bed = s > 0 ? -2.2f * mg_step(0, 0.6f, s) : -in * 0.5f;
+            if (bed < g->h[cy * g->m + cx]) g->h[cy * g->m + cx] = bed;
+            if (in > -1.5f && mg_on(g, cx, cy)) g->used[cy * g->n + cx] = 1;
+        }
+    g->lake[i].x = x0; g->lake[i].y = y0; g->lake[i].r = r; g->lake[i].size = size;
     g->lakes++;
     return 1;
 }
