@@ -226,13 +226,14 @@ internal const char k_rd3_shader[] =
     "O vs(I i, uint id : SV_VertexID) { O o; uint cp = morph(i, id); o.gt = 0; o.gl = 0; o.gm = 0; o.gnn = 0; float2 fo = 0; if (gnd.x > 0) ground(i, o.gt, o.gl, fo, o.gm, o.gnn); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = gnd.x > 0 ? float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world), pp = p;"
-    // what is drawn under the water's level after the water's step (wsp.x 1, its circles' parts not: wsp.y; the weighted
-    // transparency's layers are read bent instead: wsp.w) is bent as the step bends the picture: each corner moved on the
+    // what is drawn under the water's level after the water's step without a texture (wsp.x 1, its circles' parts not: wsp.y;
+    // the weighted transparency's layers are read bent instead: wsp.w; a textured draw reads its texture bent per pixel:
+    // ps) is bent as the step bends the picture: each corner moved on the
     // screen as the step moves what it reads at the place its line of sight enters the water - the surface's slope there
     // times the refraction's strength (cat.y), fully from a quarter tile through the water on - by the move on the map
     // turned back to the draw's own space (shx, shy, shz: its rows) and grown by how much farther the corner lies than that
     // place along the line (render_water.c THE WATER'S STEP AND WHAT COMES AFTER IT)
-    " if (gnd.x == 0 && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0) { float3 wv = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
+    " if (gnd.x == 0 && op.w == 0 && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0) { float3 wv = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
     "  if (wv.z < sea.z && wop.z > sea.z) { float k = (wop.z - wv.z) / (wop.z - sea.z); float3 ws = wop.xyz + (wv - wop.xyz) / k;"
     "   float2 dm = wslope(ws.xy) * (cat.y * saturate(length(wv - ws) * 4)); float3 bc = cross(shy.xyz, shz.xyz), ca = cross(shz.xyz, shx.xyz);"
     "   float dt = dot(shx.xyz, bc); if (abs(dt) > 1e-12) pp.xyz -= k * (dm.x * bc + dm.y * ca) / dt; } }"
@@ -316,6 +317,15 @@ internal const char k_rd3_shader[] =
     // in what lay between them, the sails' and the rigging's clear parts too (the player, 2026-11-13: "the undersides of the
     // ships render quite messy, partly picking up transparent section of the texture")
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.cf.x > 0.5 ? i.cf.yz : i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
+    // a textured draw under the water's level after the water's step (as the vertex shader's bend: wsp) bent as the step
+    // bends the picture, per pixel: the step shows at a pixel what lies a move aside on the screen - the surface's slope
+    // where this pixel's line of sight enters the water times the refraction's strength, fully from a quarter tile through
+    // the water on -, so the pixel shows its own texture where that move takes it (the texture's place changes by ddx, ddy
+    // a pixel). Within the draw's own faces: a particle's texture fades out well inside its square
+    " [branch] if (gnd.x == 0 && op.w && wsp.x > 0 && wsp.y == 0 && wsp.w == 0 && cat.y > 0 && wop.w > 0 && wop.z > sea.z) {"
+    "  float k = max((wop.z - i.w.z) / (wop.z - sea.z), 1); float3 ws = wop.xyz + (i.w - wop.xyz) / k; float2 sx = ddx(ws.xy), sy = ddy(ws.xy), tx = ddx(i.t), ty = ddy(i.t);"
+    "  if (i.w.z < sea.z && i.cf.x <= 0.5) { float2 o = wpix(wslope(ws.xy) * (cat.y * saturate(length(i.w - ws) * 4)), sx, sy);"
+    "   x = t.SampleGrad(s, i.t + tx * o.x + ty * o.y, tx, ty); } }"
     " if (i.cf.x > 0.5) x.a = 1;"
     " if (gnd.x > 1.5 && gbl.y > 0 && op.w) x = lerp(x, wnx.Sample(s, i.t), gbl.y);"
     " float2 gdx = ddx(i.t), gdy = ddy(i.t), wdx = ddx(i.w.xy), wdy = ddy(i.w.xy), pdx = ddx(i.gw.xy), pdy = ddy(i.gw.xy);"
