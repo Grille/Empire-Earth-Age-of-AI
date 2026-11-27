@@ -24,6 +24,7 @@ internal struct {
     ID3D11Texture2D *pic[REC_MAX], *dep[REC_MAX];   // the frames' copies, until written
     char base[MAX_PATH];     // the dump folder's path and the name: base_NNN.bmp
     float pan[2];
+    float zoom;              // zoom: the wheel's zoom by that a frame, the other way every 8 frames (rec_zoom)
     FILE *csv;
     LONGLONG t0;
     LONG passes;             // the shadow maps drawn before the frame
@@ -233,6 +234,12 @@ internal void rec_frame(rd_surface *s) {
         for (int k = 0; k < REC_ROLES; k++) fprintf(c, ",%d,%d", g_rec.draws[k], g_rec.verts[k]);
         fputc('\n', c);
         if (g_rec.pan[0] != 0 || g_rec.pan[1] != 0) camera_pan(g_rec.pan[0], g_rec.pan[1]);
+        if (g_rec.zoom != 0) {   // as a notch of the wheel: there at once, on this thread (camera.c wheel_frame), in and out
+            ee_camera *cam = game_camera();
+            if ((g_rec.n - g_rec.left) % 8 == 7) g_rec.zoom = -g_rec.zoom;
+            camera_zoom_set(camera_zoom_now() + g_rec.zoom);
+            if (cam) camera_set_snap(cam, 1);
+        }
         if (!pic) g_rec.left = 1;   // the card's memory full: the frames so far
         if (g_rec.left == 1) {   // the last: the writing begins (rec_flush_frame, from the next frame on)
             fclose(c);
@@ -249,12 +256,12 @@ internal void rec_frame(rd_surface *s) {
     memset(g_rec.verts, 0, sizeof g_rec.verts);
 }
 
-// record <frames 3..120> [name] [pan <dx> <dy>] [steps | bare] [nodepth]: the next frames into the dump folder (above), the
+// record <frames 3..120> [name] [pan <dx> <dy>] [zoom <dz>] [steps | bare] [nodepth]: the next frames into the dump folder (above), the
 // reply once they are written
 internal void cmd_record(char *out, const char *args) {
     char copy[256], name[64] = "rec";
     int n = 0, depth = 1, steps = 0;
-    float pan[2] = { 0, 0 };
+    float pan[2] = { 0, 0 }, zoom = 0;
     lstrcpynA(copy, args, sizeof copy);
     char *t = strtok(copy, " ");
     if (t) n = atoi(t);
@@ -267,9 +274,13 @@ internal void cmd_record(char *out, const char *args) {
             char *ex = NULL, *ey = NULL;
             if (y) { pan[0] = strtof(x, &ex); pan[1] = strtof(y, &ey); }
             if (!y || *ex || *ey) { n = 0; break; }   // two numbers ("record 40 pan pan 0.05 0.05" took the name for one)
+        } else if (!strcmp(t, "zoom")) {
+            char *z = strtok(NULL, " "), *ez = NULL;
+            if (z) zoom = strtof(z, &ez);
+            if (!z || *ez) { n = 0; break; }
         } else lstrcpynA(name, t, sizeof name);
     }
-    if (n < 3 || n > REC_MAX) { REPLY("error: usage: record <frames 3..120> [name] [pan <dx> <dy>] [steps | bare] [nodepth]\n"); return; }
+    if (n < 3 || n > REC_MAX) { REPLY("error: usage: record <frames 3..120> [name] [pan <dx> <dy>] [zoom <dz>] [steps | bare] [nodepth]\n"); return; }
     if (!g_rd_on) { REPLY("error: the recording needs the own renderer ([display] renderer = own)\n"); return; }
     if (g_rec.left > 0 || g_rec.writing) { REPLY("error: a recording is under way (or its files are being written)\n"); return; }
     CreateDirectoryA(g_dump_dir, NULL);
@@ -299,6 +310,7 @@ internal void cmd_record(char *out, const char *args) {
     g_rec.steps = steps;
     g_rec.flip = 0;
     g_rec.pan[0] = pan[0]; g_rec.pan[1] = pan[1];
+    g_rec.zoom = zoom;
     g_rec.csv = c;
     g_rec.t0 = t0.QuadPart;
     g_rec.taken = g_rec.written = 0;
