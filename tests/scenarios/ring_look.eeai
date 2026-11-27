@@ -1,0 +1,8 @@
+// ring_look.eeai: the town ring's plan and walls as pictures (defence.c THE TOWN RING, ringfit.c THE FITTED RING).
+// Base ini random_map=Continental,map_size=2,ai_count=3,seed=101,start_epoch=3,base_ring=1 (ring_fitted=0: the eight
+// sides); every AI's ground round its base point at minutes 2, 12, 25, 40, 60 and 88 into the log -
+// scripts/results/ringmap.py <log> <folder> makes the pictures.
+for m in [2, 12, 25, 40, 60, 88] {
+    wait_until(m * 1min)
+    for p in 2..4 { ringmap(p, 56) }
+}

@@ -525,6 +525,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/attack.c"
 #include "ai/stats.c"
 #include "ai/defence.c"
+#include "ai/ringfit.c"       // the town ring's line fitted to the ground: a smallest cut, gates where its ways cross it
 #include "ai/counterfire.c"
 #include "ai/forces.c"
 #include "ai/landing.c"

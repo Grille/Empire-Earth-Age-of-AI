@@ -267,6 +267,8 @@ internal int g_encl = 0, g_encl_from = 40, g_encl_runs = 1, g_encl_flight = 0, g
 #define RING_DIAG_GATE 12
 #define RING_BOX 128
 internal int g_ring = 0, g_v_ring = -1;
+internal int g_ring_fit = 1, g_v_ring_fit = -1;   // ringfit.c THE FITTED RING: the ring's line planned over the ground
+#define RING_FIT(idx) PV(idx, g_v_ring_fit, g_ring_fit)
 internal struct encl {
     ee_player *pl; uint32_t t, log_t; int island, tiles, walled;
     int nring; int16_t rx[ENCL_RING], ry[ENCL_RING];   // in build order
@@ -274,6 +276,7 @@ internal struct encl {
     int ngate; struct { int16_t x, y; uint8_t dir, tries; } gate[16];
     // the town ring (base_ring): its eight sides, kept from plan to plan - xmin, xmax, ymin, ymax, x+y min/max, x-y min/max
     int town, has_rb, rb[8], grows; uint32_t wall_t;
+    int fitted;   // the town ring's line is ringfit.c's (THE FITTED RING), not the eight sides
     int nopen; int16_t open_x[32], open_y[32];   // pieces taken down for a pocket: never walled again
     struct { int16_t x, y; uint8_t dir, ok; } sgate[8];   // each side's gate, as the last plan placed it
     int ninner; struct { int16_t x, y; uint8_t dir, tries; } inner[8];   // the gates of the stretches left inside
@@ -376,15 +379,9 @@ internal int ring_own_gate(ee_player *pl, int x, int y) {   // a gate piece of p
     }
     return 0;
 }
-// The town ring's plan (encl_plan, base_ring): its sides moved out where the town presses on them, its border tiles of
-// land into k, its gates and the box of tiles kept free.
-internal void ring_plan(ee_player *pl, unsigned idx, struct encl *e, struct encl_scan *s, ivec2 b, unsigned hc, int n,
-                        struct encl_key *k, int *pnk, uint32_t now) {
-    int need[8], mpress[8] = { 0 }, held = 0, mines = 0;
-    for (int j = 0; j < 8; j++) need[j] = j & 1 ? -0x7FFFFFFF : 0x7FFFFFFF;
-    // the town: the buildings (not towers) joined to the base point by gaps of at most RING_LINK tiles - an outlying
-    // settlement or a camp by a far mine is not its part
-    static uint8_t in[2048];
+// the town: the buildings (not towers) joined to the base point by gaps of at most RING_LINK tiles - an outlying
+// settlement or a camp by a far mine is not its part. in[i]: building i of the scan is the town's
+internal void ring_town(struct encl_scan *s, ivec2 b, uint8_t *in) {
     static int16_t town_q[2048];
     int nq = 0;
     for (int i = 0; i < s->nb; i++) {
@@ -404,6 +401,15 @@ internal void ring_plan(ee_player *pl, unsigned idx, struct encl *e, struct encl
             in[i] = 1; town_q[nq++] = (int16_t)i;
         }
     }
+}
+// The town ring's plan (encl_plan, base_ring): its sides moved out where the town presses on them, its border tiles of
+// land into k, its gates and the box of tiles kept free.
+internal void ring_plan(ee_player *pl, unsigned idx, struct encl *e, struct encl_scan *s, ivec2 b, unsigned hc, int n,
+                        struct encl_key *k, int *pnk, uint32_t now) {
+    int need[8], mpress[8] = { 0 }, held = 0, mines = 0;
+    for (int j = 0; j < 8; j++) need[j] = j & 1 ? -0x7FFFFFFF : 0x7FFFFFFF;
+    static uint8_t in[2048];
+    ring_town(s, b, in);
 #define RING_HOLD(px, py) do { for (int j_ = 0; j_ < 8; j_++) { int v_ = ring_val(j_, (px), (py)); if (j_ & 1 ? v_ > need[j_] : v_ < need[j_]) need[j_] = v_; } } while (0)
     RING_HOLD(b.x, b.y);
     for (int i = 0; i < s->nb; i++) {   // the town's footprints
@@ -577,6 +583,10 @@ internal int ring_blocks(ee_player *pl, int x, int y, int s) {
         }
     return 0;
 }
+internal void fit_plan(ee_player *pl, unsigned idx, struct encl *e, struct encl_scan *s, ivec2 b, int n, struct encl_key *k, int *pnk, uint32_t now);   // ringfit.c
+internal void fit_slots(struct encl *e, unsigned idx);
+internal int fit_on_line(unsigned idx, int x, int y);
+internal void fit_measure(ee_player *pl, unsigned idx, struct encl *e, struct encl_scan *s, ivec2 b, int n, uint32_t now);
 internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_t now) {
     struct encl *e = &g_encs[idx];
     if (e->pl == pl && now >= e->t && now - e->t < 60000) return;
@@ -674,7 +684,9 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
         }
     }
     e->town = !e->island && PV(idx, g_v_ring, g_ring);   // the town ring (base_ring): where no coast ring is built
-    if (e->town) ring_plan(pl, idx, e, &s, b, hc, n, k, &nk, now);
+    e->fitted = e->town && RING_FIT(idx);
+    if (e->fitted) fit_plan(pl, idx, e, &s, b, n, k, &nk, now);
+    else if (e->town) { ring_plan(pl, idx, e, &s, b, hc, n, k, &nk, now); fit_measure(pl, idx, e, &s, b, n, now); }
     int m = 0;   // open at the docks; the rest by distance to the nearest own building
     for (int i = 0; i < nk; i++) {
         int open = 0, best = 0x7FFFFFFF;
@@ -705,7 +717,8 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
         if (ok) { e->sx[e->nslot] = (int16_t)sx; e->sy[e->nslot++] = (int16_t)sy; }
     }
     e->nring = m; e->walled = walled;
-    if (e->town) ring_slots(e, b, hc, n);
+    if (e->fitted) fit_slots(e, idx);
+    else if (e->town) ring_slots(e, b, hc, n);
     {
         static const enum ut_name wl[] = { UT_WALL_LINE };
         int wt = 0;
@@ -2487,7 +2500,8 @@ internal void cmd_basemap(char *out, const char *args) {
 // `ringmap P [r]`: the ground round AI player P's base point for a picture of its walls (scripts/results/ringmap.py),
 // one character a tile, a row per y: . walkable, ~ water, ^ other ground no citizen walks, t tree, m mine or other
 // resource, W its wall, w its wall going up, G its gate, T its tower, C its Town Center, B its other buildings, E another
-// player's building or wall, x something else in the way, , its ring's tile still open, o a tower spot of its ring.
+// player's building or wall, x something else in the way, , its ring's tile still open, f a tree on its ring's line
+// (the fitted ring's: walled once it is cut), o a tower spot of its ring.
 // `ringmap P r x y`: round that tile instead (a town away from the base point)
 internal void cmd_ringmap(char *out, const char *args) {
     int p = 0, r = 50, cx = -1, cy = -1;
@@ -2533,6 +2547,7 @@ internal void cmd_ringmap(char *out, const char *args) {
                 }
             }
             if (ring && c == '.' && encl_ring_has(e, x, y)) c = ',';
+            if (ring && e->fitted && c == 't' && fit_on_line((unsigned)p & 15, x, y)) c = 'f';
             line[x - x0] = c;
         }
         line[w] = 0;
@@ -2615,6 +2630,8 @@ internal void defence_install(const char *autotest_ini) {
     g_encl = g_set_ai[1].enclose;
     g_ring = g_set_ai[1].base_ring;
     if (autotest_ini) g_v_ring = ini_int("autotest", "v_base_ring", -1, autotest_ini);
+    g_ring_fit = g_set_ai[1].ring_fitted;
+    if (autotest_ini) g_v_ring_fit = ini_int("autotest", "v_ring_fitted", -1, autotest_ini);
     g_coast_towers = g_set_ai[1].coast_towers;
     g_site_forts = g_set_ai[1].site_forts;
     g_shore_guns = g_set_ai[1].shore_guns;

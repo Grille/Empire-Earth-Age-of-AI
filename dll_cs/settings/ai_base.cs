@@ -1113,6 +1113,14 @@ class ai_base
         /// (default until measured)
         [advanced]
         bool base_ring = false;
+        /// With base_ring: the ring's line fitted to the ground and to what stands - the shortest wall that closes the
+        /// town and the mines worked by it off from the land around: cliffs, water and the walls that stand close it
+        /// where they are (a forest only where walling past it would be much dearer - some units walk through
+        /// trees), no piece nearer than 10 steps to its buildings, and gates where the ways of its citizens and
+        /// soldiers out of the town cross the line. 0 = eight straight sides round the town, a gate in the middle
+        /// of each
+        [advanced]
+        bool ring_fitted = true;
         /// Towers first where the citizens work by the sea (towers defend the resources inland and sink ships on the
         /// coast): on an island map each tower goes to the busiest place of work within a ship's reach of the sea
         /// that has fewer than this many towers by it, near the shore; the usual tower line after those. 0 = off (default
