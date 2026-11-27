@@ -728,7 +728,8 @@ internal int rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_water_first(void);
 internal void rd3_water_steps(ID3D11DeviceContext *x, int lastw, rf_cmd *b, int *first);
 internal ID3D11GeometryShader *rd3_water_grow(const rf_cmd *c);
-internal void rw_edges_under(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first);
+internal void rw_edges_layer(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first);
+internal void rw_edges_over(ID3D11DeviceContext *x, int laste, int oit, const rf_cmd *f, rf_cmd *b, int *first);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_water_high(const rf_cmd *c);
@@ -1267,9 +1268,10 @@ internal void rf_replay(void) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i == first3 && scene) { D3D11_VIEWPORT port = rs_port(&scene->vport, scene->rtv); rd3_bars(x, scene->rtv, &port, 0); }
         if (i == firstw) {
+            if (wedge) rw_edges_layer(x, laste, oit, scene, &b, &first);   // the soft edges' part under the level (above)
             rd3_water_steps(x, lastw, &b, &first);
             memset(g_rf_late, 0, sizeof g_rf_late);
-            if (wedge) rw_edges_under(x, laste, oit, scene, &b, &first);   // the soft edges' part under the level (above)
+            if (wedge) rw_edges_over(x, laste, oit, scene, &b, &first);
             // their faces grown for the room the refraction's bend takes (render_water.c rd3_water_grow)
             ID3D11GeometryShader *gs = NULL;
             ID3D11DeviceContext_GSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
